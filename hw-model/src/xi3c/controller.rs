@@ -29,6 +29,7 @@ pub(crate) const XI3C_CCC_BRDCAST_DISEC: u8 = 0x1;
 pub(crate) const XI3C_CCC_BRDCAST_RSTDAA: u8 = 0x6;
 pub(crate) const XI3C_CCC_BRDCAST_ENTDAA: u8 = 0x7;
 pub(crate) const XI3C_CCC_SETDASA: u8 = 0x87;
+pub const XI3C_CMD_TYPE_I3C: u8 = 1;
 
 /// BIT 4 - Resp Fifo not empty
 pub(crate) const XI3C_SR_RESP_NOT_EMPTY_MASK: u32 = 0x10;
@@ -110,7 +111,7 @@ pub struct Config {
 unsafe impl Send for Controller {}
 unsafe impl Sync for Controller {}
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Command {
     /// I3C command type. 0 = legacy i2c, 1 = SDR, 2+ reserve
     pub cmd_type: u8,
@@ -129,6 +130,21 @@ pub struct Command {
     /// Transaction ID: This field acts as identification tag for I3C commands. The controller returns this tag along with the transaction status
     pub tid: u8,
 }
+
+impl Default for Command {
+    fn default() -> Self {
+        Command {
+            cmd_type: XI3C_CMD_TYPE_I3C,
+            no_repeated_start: 0,
+            pec: 0,
+            target_addr: 0,
+            rw: 0,
+            byte_count: 0,
+            tid: 0,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Default)]
 pub struct TargetInfo {
     pub dyna_addr: u8,
@@ -179,7 +195,7 @@ impl Controller {
 
     pub fn bus_init(&self) -> Result<(), XI3cError> {
         let cmd = Command {
-            cmd_type: 1,
+            cmd_type: XI3C_CMD_TYPE_I3C,
             no_repeated_start: 1,
             pec: 0,
             target_addr: XI3C_BROADCAST_ADDRESS,
@@ -244,7 +260,7 @@ impl Controller {
                     &static_addrs
                 );
                 let cmd = Command {
-                    cmd_type: 1,
+                    cmd_type: XI3C_CMD_TYPE_I3C,
                     no_repeated_start: 0,
                     pec: 0,
                     target_addr: XI3C_BROADCAST_ADDRESS,
@@ -317,7 +333,7 @@ impl Controller {
         last: bool,
     ) -> Result<(), XI3cError> {
         let cmd = Command {
-            cmd_type: 1,
+            cmd_type: XI3C_CMD_TYPE_I3C,
             no_repeated_start: if last { 1 } else { 0 }, // controller has a bug where it does not send 7E after CCC if it is a repeated start followed by non-CCC
             pec: 0,
             target_addr: static_addr,

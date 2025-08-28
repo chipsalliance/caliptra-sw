@@ -21,7 +21,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -185,7 +185,7 @@ impl Mci {
 
 #[derive(Clone)]
 pub struct XI3CWrapper {
-    pub controller: Arc<xi3c::Controller>,
+    pub controller: Arc<RwLock<xi3c::Controller>>,
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
 }
@@ -195,44 +195,47 @@ unsafe impl Send for XI3CWrapper {}
 unsafe impl Sync for XI3CWrapper {}
 
 impl XI3CWrapper {
-    pub fn i3c_core(
+    pub unsafe fn i3c_core(
         &self,
     ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
-        unsafe {
-            caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
-                EMULATOR_I3C_ADDR as *mut u32,
-                BusMmio::new(FpgaRealtimeBus {
-                    mmio: self.i3c_mmio,
-                    phantom: Default::default(),
-                }),
-            )
-        }
+        caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
+            EMULATOR_I3C_ADDR as *mut u32,
+            BusMmio::new(FpgaRealtimeBus {
+                mmio: self.i3c_mmio,
+                phantom: Default::default(),
+            }),
+        )
     }
 
-    pub const fn regs(&self) -> &xi3c::XI3c {
-        unsafe { &*(self.i3c_controller_mmio as *const xi3c::XI3c) }
+    pub const unsafe fn regs(&self) -> &xi3c::XI3c {
+        &*(self.i3c_controller_mmio as *const xi3c::XI3c)
     }
 
     pub fn configure(&self) {
         println!("I3C controller initializing");
-        println!("XI3C HW version = {:x}", self.regs().version.get());
+        // Safety: we are only reading the register
+        println!("XI3C HW version = {:x}", unsafe {
+            self.regs().version.get()
+        });
         const I3C_MODE: u8 = 1;
-        self.controller.set_s_clk(AXI_CLK_HZ, I3C_CLK_HZ, I3C_MODE);
-        self.controller.cfg_initialize().unwrap();
+        self.controller
+            .write()
+            .unwrap()
+            .set_s_clk(AXI_CLK_HZ, I3C_CLK_HZ, I3C_MODE);
+        self.controller.write().unwrap().cfg_initialize().unwrap();
         println!("I3C controller finished initializing");
     }
 
     /// Start receiving data (non-blocking).
     pub fn read_start(&self, len: u16) -> Result<(), XI3cError> {
         let target_addr = self.get_primary_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
+        let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 0,
             target_addr,
             ..Default::default()
         };
-        self.controller.master_recv(&mut cmd, len)
+        self.controller.write().unwrap().master_recv(&cmd, len)
     }
 
     /// Finish receiving data (blocking).
@@ -245,28 +248,34 @@ impl XI3CWrapper {
             target_addr,
             ..Default::default()
         };
-        self.controller.master_recv_finish(None, &cmd, len)
+        self.controller
+            .write()
+            .unwrap()
+            .master_recv_finish(None, &cmd, len)
     }
 
     /// Receive data (blocking).
     pub fn read(&self, len: u16) -> Result<Vec<u8>, XI3cError> {
         let target_addr = self.get_primary_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
+        let cmd = xi3c::Command {
             no_repeated_start: 1,
-            pec: 0,
             target_addr,
             ..Default::default()
         };
-        self.controller.master_recv_polled(None, &mut cmd, len)
+        self.controller
+            .write()
+            .unwrap()
+            .master_recv_polled(None, &cmd, len)
     }
 
     pub fn get_primary_addr(&self) -> u8 {
-        let reg = self
-            .i3c_core()
-            .stdby_ctrl_mode()
-            .stby_cr_device_addr()
-            .read();
+        // Safety: we are only reading the register
+        let reg = unsafe {
+            self.i3c_core()
+                .stdby_ctrl_mode()
+                .stby_cr_device_addr()
+                .read()
+        };
         if reg.dynamic_addr_valid() {
             reg.dynamic_addr() as u8
         } else if reg.static_addr_valid() {
@@ -277,11 +286,13 @@ impl XI3CWrapper {
     }
 
     fn get_recovery_addr(&self) -> u8 {
-        let reg = self
-            .i3c_core()
-            .stdby_ctrl_mode()
-            .stby_cr_virt_device_addr()
-            .read();
+        // Safety: we are only reading the register
+        let reg = unsafe {
+            self.i3c_core()
+                .stdby_ctrl_mode()
+                .stby_cr_virt_device_addr()
+                .read()
+        };
         if reg.virt_dynamic_addr_valid() {
             reg.virt_dynamic_addr() as u8
         } else if reg.virt_static_addr_valid() {
@@ -294,29 +305,31 @@ impl XI3CWrapper {
     /// Write data and wait for ACK (blocking).
     pub fn write(&self, payload: &[u8]) -> Result<(), XI3cError> {
         let target_addr = self.get_primary_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
+        let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 1,
             target_addr,
             ..Default::default()
         };
         self.controller
-            .master_send_polled(&mut cmd, payload, payload.len() as u16)
+            .write()
+            .unwrap()
+            .master_send_polled(&cmd, payload, payload.len() as u16)
     }
 
     /// Send data but don't wait for ACK (non-blocking).
     pub fn write_nowait(&self, payload: &[u8]) -> Result<(), XI3cError> {
         let target_addr = self.get_primary_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
+        let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 1,
             target_addr,
             ..Default::default()
         };
         self.controller
-            .master_send(&mut cmd, payload, payload.len() as u16)
+            .write()
+            .unwrap()
+            .master_send(&cmd, payload, payload.len() as u16)
     }
 }
 
@@ -650,7 +663,8 @@ impl ModelFpgaSubsystem {
             .recovery_status()
             .read()
             .dev_rec_status();
-        if status == 3 {
+        const DEVICE_RECOVERY_STATUS_COMPLETE: u32 = 3;
+        if status == DEVICE_RECOVERY_STATUS_COMPLETE {
             println!("Recovery complete; device recovery status: 0x{:x}", status);
             self.recovery_started = false;
             return;
@@ -965,7 +979,6 @@ impl ModelFpgaSubsystem {
 
         // First we write the recovery command code for the block we want
         let mut cmd = xi3c::Command {
-            cmd_type: 1,
             no_repeated_start: 0, // we want the next command (read) to be Sr
             pec: 1,
             target_addr,
@@ -977,7 +990,9 @@ impl ModelFpgaSubsystem {
         if self
             .i3c_controller
             .controller
-            .master_send_polled(&mut cmd, &[recovery_command_code], 1)
+            .write()
+            .unwrap()
+            .master_send_polled(&cmd, &[recovery_command_code], 1)
             .is_err()
         {
             return None;
@@ -985,21 +1000,21 @@ impl ModelFpgaSubsystem {
 
         // then we send a private read for the minimum length
         let len_range = Self::command_code_to_len(command);
-        cmd.target_addr = target_addr;
-        cmd.no_repeated_start = 0;
-        cmd.tid = 0;
         cmd.pec = 0;
-        cmd.cmd_type = 1;
 
         self.i3c_controller
             .controller
-            .master_recv(&mut cmd, len_range.0 + 2)
+            .write()
+            .unwrap()
+            .master_recv(&cmd, len_range.0 + 2)
             .expect("Failed to receive ack from target");
 
         // read in the length, lsb then msb
         let resp = self
             .i3c_controller
             .controller
+            .write()
+            .unwrap()
             .master_recv_finish(
                 Some(self.realtime_thread_exit_flag.clone()),
                 &cmd,
@@ -1034,8 +1049,7 @@ impl ModelFpgaSubsystem {
         // per the recovery spec, this maps to a private write
 
         let target_addr = self.i3c_controller.get_recovery_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
+        let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 1,
             target_addr,
@@ -1051,11 +1065,12 @@ impl ModelFpgaSubsystem {
         assert!(
             self.i3c_controller
                 .controller
-                .master_send_polled(&mut cmd, &data, data.len() as u16)
+                .write()
+                .unwrap()
+                .master_send_polled(&cmd, &data, data.len() as u16)
                 .is_ok(),
             "Failed to ack write message sent to target"
         );
-        // println!("Acknowledge received");
     }
 
     pub fn otp_slice(&self) -> &mut [u8] {
@@ -1249,7 +1264,7 @@ impl HwModel for ModelFpgaSubsystem {
             i3c_mmio,
             i3c_controller_mmio,
             i3c_controller: XI3CWrapper {
-                controller: Arc::new(i3c_controller),
+                controller: Arc::new(RwLock::new(i3c_controller)),
                 i3c_mmio,
                 i3c_controller_mmio,
             },
@@ -1619,7 +1634,7 @@ impl Drop for ModelFpgaSubsystem {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
-        self.i3c_controller.controller.off();
+        self.i3c_controller.controller.write().unwrap().off();
 
         self.set_subsystem_reset(true);
 
