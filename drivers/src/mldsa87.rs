@@ -217,6 +217,7 @@ impl Mldsa87 {
         trng: &mut Trng,
     ) -> CaliptraResult<Mldsa87Signature> {
         let mut gen_keypair = true;
+        let external_mu = matches!(data, Data::Mu(_));
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -227,10 +228,6 @@ impl Mldsa87 {
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        if matches!(data, Data::Mu(_)) {
-            mldsa.mldsa_ctrl().write(|w| w.external_mu(true));
-        }
 
         // Copy seed or the private key to the hardware
         match seed {
@@ -260,9 +257,10 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa
-            .mldsa_ctrl()
-            .write(|w| w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN }));
+        mldsa.mldsa_ctrl().write(|w| {
+            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
+                .external_mu(external_mu)
+        });
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -458,6 +456,7 @@ impl Mldsa87 {
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87VerifyRes> {
         let mldsa = self.mldsa87.regs_mut();
+        let external_mu = matches!(data, Data::Mu(_));
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
@@ -467,11 +466,6 @@ impl Mldsa87 {
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Set to external mu mode if needed
-        if matches!(data, Data::Mu(_)) {
-            mldsa.mldsa_ctrl().write(|w| w.external_mu(true));
-        }
 
         // Copy data to corresponding registers
         match data {
@@ -486,7 +480,9 @@ impl Mldsa87 {
         signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification
-        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
+        mldsa
+            .mldsa_ctrl()
+            .write(|w| w.ctrl(VERIFY).external_mu(external_mu));
 
         // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
