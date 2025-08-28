@@ -235,6 +235,21 @@ fn log_uart_until_helper<R: BufRead>(
     Err(Error::new(ErrorKind::UnexpectedEof, "unexpected EOF"))
 }
 
+fn get_sd_mux(
+    sdwire: Option<&OsString>,
+    usbsdmux: Option<&OsString>,
+) -> anyhow::Result<Box<dyn SdMux>> {
+    match (sdwire, usbsdmux) {
+        (Some(sdwire), None) => {
+            Ok(Box::new(SDWire::open(String::from(sdwire.to_str().unwrap()))?) as Box<dyn SdMux>)
+        }
+        (None, Some(usbsdmux)) => Ok(Box::new(UsbsdMux::open(String::from(
+            usbsdmux.to_str().unwrap(),
+        ))?) as Box<dyn SdMux>),
+        _ => Err(anyhow!("One of --sdwire or --usbsdmux required")),
+    }
+}
+
 fn main_impl() -> anyhow::Result<()> {
     let matches = cli().get_matches();
     let sdwire = matches.get_one::<OsString>("sdwire");
@@ -259,19 +274,10 @@ fn main_impl() -> anyhow::Result<()> {
             .cloned()
     };
 
-    let mut sd_mux: Box<dyn SdMux> = match (sdwire, usbsdmux) {
-        (Some(sdwire), None) => {
-            Box::new(SDWire::open(String::from(sdwire.to_str().unwrap()))?) as Box<dyn SdMux>
-        }
-        (None, Some(usbsdmux)) => {
-            Box::new(UsbsdMux::open(String::from(usbsdmux.to_str().unwrap()))?) as Box<dyn SdMux>
-        }
-        _ => return Err(anyhow!("One of --sdwire or --usbsdmux required")),
-    };
-
     let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
     match matches.subcommand() {
         Some(("mode", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             let mut fpga = get_fpga_ftdi();
             match sub_matches.get_one::<SdMuxTarget>("MODE").unwrap() {
                 SdMuxTarget::Dut => {
@@ -334,6 +340,7 @@ fn main_impl() -> anyhow::Result<()> {
             println!();
         }
         Some(("flash", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             let mut fpga = get_fpga_ftdi();
             let sd_dev_path = sd_mux.get_sd_dev_path()?;
             if let Ok(fpga) = &mut fpga {
@@ -363,6 +370,7 @@ fn main_impl() -> anyhow::Result<()> {
         }
 
         Some(("serve", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             // Reuse the previous token if we never connect to GitHub.
             // This avoids creating a bunch of offline runners if the FPGA fails to establish a
             // connection.
