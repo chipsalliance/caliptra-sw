@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      CACHE_BUSTER: 79cee50b6134
+      CACHE_BUSTER: a4fcdd7a5be2
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
