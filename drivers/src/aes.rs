@@ -19,7 +19,9 @@ Abstract:
 --*/
 
 use crate::{
-    kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
+    kv_access::{KvAccess, KvAccessErr},
+    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x4,
+    LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -943,6 +945,80 @@ impl Aes {
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    /// AES ECB Decrypt to KV. Used by OCP LOCK for MEK release.
+    pub fn aes_256_ecb_decrypt_kv(&mut self, input: &[u8; 64]) -> CaliptraResult<()> {
+        let mdk_slot = KeyReadArgs::new(
+            KeyId::KeyId16, // MDK KV.
+        );
+        let mek_slot = KeyWriteArgs::new(
+            KeyId::KeyId23, // MEK KV.
+            KeyUsage::default().set_dma_data_en(),
+        );
+
+        self.aes_256_ecb_decrypt_kv_inner(AesKey::KV(mdk_slot), mek_slot, input)
+    }
+
+    /// AES ECB Decrypt to KV. Use `aes_256_ecb_decrypt_kv` so API invariants are enforced.
+    /// Split into separate function to validate hardware invariants.
+    pub fn aes_256_ecb_decrypt_kv_inner(
+        &mut self,
+        key: AesKey,
+        output_kv: KeyWriteArgs,
+        input: &[u8; 64],
+    ) -> CaliptraResult<()> {
+        // Key is always in KV, always load before starting OP.
+        self.load_key(key)?;
+
+        // Only KV 23 is allowed to destination KV.
+
+        // Set Dest KV in AES Ctrl register
+        self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
+            wait_for_idle(&aes);
+            KvAccess::begin_copy_to_kv(
+                aes_clp.aes_kv_wr_status(),
+                aes_clp.aes_kv_wr_ctrl(),
+                output_kv,
+            )?;
+            Ok(())
+        })?;
+
+        // Do AES ECB Decrypt OP
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(AesOperation::Decrypt as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        // Load 64 bytes of data
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+        }
+
+        // Wait for HW to release result to KV
+        self.with_aes::<CaliptraResult<()>>(|_, aes_clp| {
+            match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), output_kv) {
+                Ok(_) => Ok(()),
+                Err(KvAccessErr::KeyRead) => {
+                    Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)
+                }
+                Err(KvAccessErr::KeyWrite) => Err(CaliptraError::RUNTIME_DRIVER_AES_WRITE_KV),
+                _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
+            }
+        })?;
+
+        self.zeroize_internal();
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_ecb(
         &mut self,
         key: AesKey,
@@ -987,6 +1063,7 @@ impl Aes {
             self.read_data_block(output, block_num)?;
         }
 
+        self.zeroize_internal();
         Ok(())
     }
 

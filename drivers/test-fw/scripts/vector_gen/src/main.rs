@@ -14,9 +14,11 @@ Abstract:
 
 mod hmac384_kdf_vector_gen;
 mod hmac384_vector_gen;
+mod mdk;
 
 use crate::hmac384_kdf_vector_gen::Hmac384KdfVector;
 use crate::hmac384_vector_gen::Hmac384Vector;
+use crate::mdk::Mdk;
 
 fn hex_arr(bytes: &[u8]) -> String {
     format!(
@@ -72,4 +74,11 @@ fn main() {
     println!("  let out_pub_x = {};", hex_arr(&vec_kdf_c0.out_pub_x));
     println!("  let out_pub_y = {};", hex_arr(&vec_kdf_c0.out_pub_y));
     println!();
+
+    let mdk = Mdk::default();
+    println!("mdk");
+    println!("  let input_key = {};", hex_arr(&mdk.input_key));
+    println!("  let mdk = {};", hex_arr(&mdk.mdk));
+    println!("  let mek = {};", hex_arr(&mdk::PLAINTEXT));
+    println!("  let encrypted_mek = {};", hex_arr(&mdk.encrypted_data));
 }

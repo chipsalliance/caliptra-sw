@@ -122,6 +122,9 @@ bitfield! {
 
     /// Flag indicating if the key can be used as AES key
     pub aes_key, set_aes_key: 5;
+
+    /// Flag indicating if the key can be used as DMA data
+    pub dma_data, set_dma_data: 8;
 }
 
 impl KeyUsage {
@@ -147,6 +150,10 @@ impl KeyUsage {
     }
     pub fn set_aes_key_en(&mut self) -> KeyUsage {
         self.set_aes_key(true);
+        *self
+    }
+    pub fn set_dma_data_en(&mut self) -> KeyUsage {
+        self.set_dma_data(true);
         *self
     }
 }

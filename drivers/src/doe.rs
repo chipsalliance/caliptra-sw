@@ -73,6 +73,31 @@ impl DeobfuscationEngine {
         Ok(())
     }
 
+    /// Decrypt HEK Seed
+    ///
+    /// # Arguments
+    ///
+    /// * `iv` - Initialization vector
+    /// * `key_id` - Key vault key to store the decrypted HEK seed in
+    pub fn decrypt_hek_seed(&mut self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+        let doe = self.doe.regs_mut();
+
+        // Wait for hardware ready
+        wait::until(|| doe.status().read().ready());
+
+        // Copy the initialization vector
+        iv.write_to_reg(doe.iv());
+
+        // Trigger the command by programming the command and destination
+        doe.ctrl()
+            .write(|w| w.cmd_ext(|w| w.doe_hek()).dest(key_id.into()));
+
+        // Wait for command to complete
+        wait::until(|| doe.status().read().valid());
+
+        Ok(())
+    }
+
     /// Clear loaded secrets
     ///
     /// This command clears following secrets from the hardware

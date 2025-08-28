@@ -14,6 +14,7 @@ caliptra-lms-types = { workspace = true }
 caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
+itertools = { workspace = true, default-features = false }
 zerocopy.workspace = true
 ufmt.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
@@ -24,6 +25,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
+ocp-lock = ["caliptra-drivers/ocp-lock"]
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -198,6 +200,16 @@ required-features = ["riscv"]
 name = "dma_sha384"
 path = "src/bin/dma_sha384_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "ocp_lock"
+path = "src/bin/ocp_lock_tests.rs"
+required-features = ["riscv", "ocp-lock"]
+
+[[bin]]
+name = "ocp_lock_warm_reset"
+path = "src/bin/ocp_lock_warm_reset_test.rs"
+required-features = ["riscv", "ocp-lock"]
 
 [[bin]]
 name = "dma_aes"
