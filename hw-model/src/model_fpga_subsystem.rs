@@ -11,6 +11,7 @@ use crate::otp_provision::{
     LifecycleRawTokens, LifecycleToken,
 };
 use crate::output::ExitStatus;
+use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
@@ -131,6 +132,8 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_AXI_PAUSER: u32 = 0xcccc_cccc;
 const OTP_SIZE: usize = 16384;
+const AXI_CLK_HZ: u32 = 199_999_000;
+const I3C_CLK_HZ: u32 = 12_500_000;
 
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
@@ -180,6 +183,143 @@ impl Mci {
     }
 }
 
+#[derive(Clone)]
+pub struct XI3CWrapper {
+    pub controller: Arc<xi3c::Controller>,
+    pub i3c_mmio: *mut u32,
+    pub i3c_controller_mmio: *mut u32,
+}
+
+// needed to copy pointers
+unsafe impl Send for XI3CWrapper {}
+unsafe impl Sync for XI3CWrapper {}
+
+impl XI3CWrapper {
+    pub fn i3c_core(
+        &self,
+    ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+        unsafe {
+            caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
+                EMULATOR_I3C_ADDR as *mut u32,
+                BusMmio::new(FpgaRealtimeBus {
+                    mmio: self.i3c_mmio,
+                    phantom: Default::default(),
+                }),
+            )
+        }
+    }
+
+    pub const fn regs(&self) -> &xi3c::XI3c {
+        unsafe { &*(self.i3c_controller_mmio as *const xi3c::XI3c) }
+    }
+
+    pub fn configure(&self) {
+        println!("I3C controller initializing");
+        println!("XI3C HW version = {:x}", self.regs().version.get());
+        const I3C_MODE: u8 = 1;
+        self.controller.set_s_clk(AXI_CLK_HZ, I3C_CLK_HZ, I3C_MODE);
+        self.controller.cfg_initialize().unwrap();
+        println!("I3C controller finished initializing");
+    }
+
+    /// Start receiving data (non-blocking).
+    pub fn read_start(&self, len: u16) -> Result<(), XI3cError> {
+        let target_addr = self.get_primary_addr();
+        let mut cmd = xi3c::Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
+            pec: 0,
+            target_addr,
+            ..Default::default()
+        };
+        self.controller.master_recv(&mut cmd, len)
+    }
+
+    /// Finish receiving data (blocking).
+    pub fn read_finish(&self, len: u16) -> Result<Vec<u8>, XI3cError> {
+        let target_addr = self.get_primary_addr();
+        let cmd = xi3c::Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
+            pec: 0,
+            target_addr,
+            ..Default::default()
+        };
+        self.controller.master_recv_finish(None, &cmd, len)
+    }
+
+    /// Receive data (blocking).
+    pub fn read(&self, len: u16) -> Result<Vec<u8>, XI3cError> {
+        let target_addr = self.get_primary_addr();
+        let mut cmd = xi3c::Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
+            pec: 0,
+            target_addr,
+            ..Default::default()
+        };
+        self.controller.master_recv_polled(None, &mut cmd, len)
+    }
+
+    pub fn get_primary_addr(&self) -> u8 {
+        let reg = self
+            .i3c_core()
+            .stdby_ctrl_mode()
+            .stby_cr_device_addr()
+            .read();
+        if reg.dynamic_addr_valid() {
+            reg.dynamic_addr() as u8
+        } else if reg.static_addr_valid() {
+            reg.static_addr() as u8
+        } else {
+            panic!("I3C target does not have a valid address set");
+        }
+    }
+
+    fn get_recovery_addr(&self) -> u8 {
+        let reg = self
+            .i3c_core()
+            .stdby_ctrl_mode()
+            .stby_cr_virt_device_addr()
+            .read();
+        if reg.virt_dynamic_addr_valid() {
+            reg.virt_dynamic_addr() as u8
+        } else if reg.virt_static_addr_valid() {
+            reg.virt_static_addr() as u8
+        } else {
+            panic!("I3C virtual target does not have a valid address set");
+        }
+    }
+
+    /// Write data and wait for ACK (blocking).
+    pub fn write(&self, payload: &[u8]) -> Result<(), XI3cError> {
+        let target_addr = self.get_primary_addr();
+        let mut cmd = xi3c::Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
+            pec: 1,
+            target_addr,
+            ..Default::default()
+        };
+        self.controller
+            .master_send_polled(&mut cmd, payload, payload.len() as u16)
+    }
+
+    /// Send data but don't wait for ACK (non-blocking).
+    pub fn write_nowait(&self, payload: &[u8]) -> Result<(), XI3cError> {
+        let target_addr = self.get_primary_addr();
+        let mut cmd = xi3c::Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
+            pec: 1,
+            target_addr,
+            ..Default::default()
+        };
+        self.controller
+            .master_send(&mut cmd, payload, payload.len() as u16)
+    }
+}
+
 pub struct ModelFpgaSubsystem {
     pub devs: [UioDevice; 2],
     // mmio uio pointers
@@ -192,7 +332,7 @@ pub struct ModelFpgaSubsystem {
     pub mci: Mci,
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
-    pub i3c_controller: xi3c::Controller,
+    pub i3c_controller: XI3CWrapper,
     pub otp_mmio: *mut u32,
     pub lc_mmio: *mut u32,
 
@@ -423,6 +563,10 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    pub fn i3c_controller(&self) -> XI3CWrapper {
+        self.i3c_controller.clone()
+    }
+
     pub fn i3c_target_configured(&mut self) -> bool {
         u32::from(
             self.i3c_core()
@@ -430,32 +574,6 @@ impl ModelFpgaSubsystem {
                 .stby_cr_device_addr()
                 .read(),
         ) != 0
-    }
-
-    pub fn configure_i3c_controller(&mut self) {
-        println!("I3C controller initializing");
-        println!(
-            "XI3C HW version = {:x}",
-            self.i3c_controller.regs().version.get()
-        );
-        let xi3c_config = xi3c::Config {
-            device_id: 0,
-            base_address: self.i3c_controller_mmio,
-            input_clock_hz: 199_999_000,
-            rw_fifo_depth: 16,
-            wr_threshold: 12,
-            device_count: 1,
-            ibi_capable: true,
-            hj_capable: false,
-            entdaa_enable: true,
-            known_static_addrs: vec![0x3a, 0x3b],
-        };
-
-        self.i3c_controller.set_s_clk(199_999_000, 12_500_000, 1);
-        self.i3c_controller
-            .cfg_initialize(&xi3c_config, self.i3c_controller_mmio as usize)
-            .unwrap();
-        println!("I3C controller finished initializing");
     }
 
     pub fn start_recovery_bmc(&mut self) {
@@ -524,6 +642,18 @@ impl ModelFpgaSubsystem {
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
             }
+        }
+
+        let status = self
+            .i3c_core()
+            .sec_fw_recovery_if()
+            .recovery_status()
+            .read()
+            .dev_rec_status();
+        if status == 3 {
+            println!("Recovery complete; device recovery status: 0x{:x}", status);
+            self.recovery_started = false;
+            return;
         }
 
         // don't run the BMC every time as it can spam requests
@@ -827,64 +957,11 @@ impl ModelFpgaSubsystem {
         );
     }
 
-    fn get_i3c_primary_addr(&mut self) -> u8 {
-        let reg = self
-            .i3c_core()
-            .stdby_ctrl_mode()
-            .stby_cr_device_addr()
-            .read();
-        if reg.dynamic_addr_valid() {
-            reg.dynamic_addr() as u8
-        } else if reg.static_addr_valid() {
-            reg.static_addr() as u8
-        } else {
-            panic!("I3C target does not have a valid address set");
-        }
-    }
-
-    fn get_i3c_recovery_addr(&mut self) -> u8 {
-        let reg = self
-            .i3c_core()
-            .stdby_ctrl_mode()
-            .stby_cr_virt_device_addr()
-            .read();
-        if reg.virt_dynamic_addr_valid() {
-            reg.virt_dynamic_addr() as u8
-        } else if reg.virt_static_addr_valid() {
-            reg.virt_static_addr() as u8
-        } else {
-            panic!("I3C virtual target does not have a valid address set");
-        }
-    }
-
-    // send a recovery block write request to the I3C target
-    pub fn send_i3c_write(&mut self, payload: &[u8]) {
-        let target_addr = self.get_i3c_primary_addr();
-        let mut cmd = xi3c::Command {
-            cmd_type: 1,
-            no_repeated_start: 1,
-            pec: 1,
-            target_addr,
-            ..Default::default()
-        };
-        match self
-            .i3c_controller
-            .master_send_polled(&mut cmd, payload, payload.len() as u16)
-        {
-            Ok(_) => {
-                println!("Acknowledge received");
-            }
-            Err(e) => {
-                println!("Failed to ack write message sent to target: {:x}", e);
-            }
-        }
-    }
-
     // send a recovery block read request to the I3C target
     fn recovery_block_read_request(&mut self, command: RecoveryCommandCode) -> Option<Vec<u8>> {
         // per the recovery spec, this maps to a private write and private read
 
-        let target_addr = self.get_i3c_recovery_addr();
+        let target_addr = self.i3c_controller.get_recovery_addr();
 
         // First we write the recovery command code for the block we want
         let mut cmd = xi3c::Command {
@@ -899,6 +976,7 @@ impl ModelFpgaSubsystem {
 
         if self
             .i3c_controller
+            .controller
             .master_send_polled(&mut cmd, &[recovery_command_code], 1)
             .is_err()
         {
@@ -914,12 +992,14 @@ impl ModelFpgaSubsystem {
         cmd.cmd_type = 1;
 
         self.i3c_controller
+            .controller
             .master_recv(&mut cmd, len_range.0 + 2)
             .expect("Failed to receive ack from target");
 
         // read in the length, lsb then msb
         let resp = self
             .i3c_controller
+            .controller
             .master_recv_finish(
                 Some(self.realtime_thread_exit_flag.clone()),
                 &cmd,
@@ -953,7 +1033,7 @@ impl ModelFpgaSubsystem {
     fn recovery_block_write_request(&mut self, command: RecoveryCommandCode, payload: &[u8]) {
         // per the recovery spec, this maps to a private write
 
-        let target_addr = self.get_i3c_recovery_addr();
+        let target_addr = self.i3c_controller.get_recovery_addr();
         let mut cmd = xi3c::Command {
             cmd_type: 1,
             no_repeated_start: 1,
@@ -970,6 +1050,7 @@ impl ModelFpgaSubsystem {
 
         assert!(
             self.i3c_controller
+                .controller
                 .master_send_polled(&mut cmd, &data, data.len() as u16)
                 .is_ok(),
             "Failed to ack write message sent to target"
@@ -1061,11 +1142,8 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
-        match params.trng_mode {
-            Some(TrngMode::External) => {
-                return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
-            }
-            _ => {}
+        if let Some(TrngMode::External) = params.trng_mode {
+            return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
         }
         let mcu_rom =
             match params.mcu_rom {
@@ -1132,7 +1210,19 @@ impl HwModel for ModelFpgaSubsystem {
             )
         }));
 
-        let i3c_controller = xi3c::Controller::new(i3c_controller_mmio);
+        let xi3c_config = xi3c::Config {
+            device_id: 0,
+            base_address: i3c_controller_mmio,
+            input_clock_hz: 199_999_000,
+            rw_fifo_depth: 16,
+            wr_threshold: 12 * 4, // in bytes
+            device_count: 1,
+            ibi_capable: true,
+            hj_capable: false,
+            entdaa_enable: true,
+            known_static_addrs: vec![0x3a, 0x3b],
+        };
+        let i3c_controller = xi3c::Controller::new(xi3c_config);
 
         let (caliptra_cpu_event_sender, from_bmc) = mpsc::channel();
         let (to_bmc, caliptra_cpu_event_recv) = mpsc::channel();
@@ -1158,7 +1248,11 @@ impl HwModel for ModelFpgaSubsystem {
             mci: Mci { ptr: mci_ptr },
             i3c_mmio,
             i3c_controller_mmio,
-            i3c_controller,
+            i3c_controller: XI3CWrapper {
+                controller: Arc::new(i3c_controller),
+                i3c_mmio,
+                i3c_controller_mmio,
+            },
             otp_mmio,
             lc_mmio,
 
@@ -1275,7 +1369,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Writing MCU ROM");
         let mut mcu_rom_data = vec![0; mcu_rom_size];
-        mcu_rom_data[..mcu_rom.len()].clone_from_slice(&mcu_rom);
+        mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
 
         let mcu_rom_slice =
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
@@ -1407,7 +1501,7 @@ impl HwModel for ModelFpgaSubsystem {
             if !xi3c_configured && self.i3c_target_configured() {
                 xi3c_configured = true;
                 println!("I3C target configured");
-                self.configure_i3c_controller();
+                self.i3c_controller.configure();
                 println!("Starting recovery flow (BMC)");
                 self.start_recovery_bmc();
             }
@@ -1525,7 +1619,7 @@ impl Drop for ModelFpgaSubsystem {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
-        self.i3c_controller.off();
+        self.i3c_controller.controller.off();
 
         self.set_subsystem_reset(true);
 

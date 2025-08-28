@@ -8,7 +8,9 @@
 
 #![allow(dead_code)]
 
+use crate::xi3c::XI3cError;
 use std::{
+    cell::{Cell, RefCell},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -55,13 +57,6 @@ pub(crate) const XI3C_SOFT_RESET_MASK: u32 = 0x1;
 /// BIT 1 to 4 - All fifos reset
 pub(crate) const XI3C_ALL_FIFOS_RESET_MASK: u32 = 0x1e;
 
-pub(crate) const XST_DEVICE_IS_STARTED: i32 = 5;
-/// There was no data available
-pub(crate) const XST_NO_DATA: i32 = 13;
-/// Generic receive error
-pub(crate) const XST_RECV_ERROR: i32 = 27;
-/// Generic transmit error
-pub(crate) const XST_SEND_ERROR: i32 = 28;
 register_structs! {
     pub XI3c {
         (0x0 => pub version: ReadOnly<u32>), // Version Register
@@ -112,7 +107,10 @@ pub struct Config {
     pub known_static_addrs: Vec<u8>, // if entdaa is disabled, we have to know the static addresses to do SETDASA
 }
 
-#[derive(Copy, Clone, Default)]
+unsafe impl Send for Controller {}
+unsafe impl Sync for Controller {}
+
+#[derive(Clone, Default)]
 pub struct Command {
     /// I3C command type. 0 = legacy i2c, 1 = SDR, 2+ reserve
     pub cmd_type: u8,
@@ -141,11 +139,11 @@ pub struct TargetInfo {
 
 pub struct Controller {
     pub config: Config,
-    pub ready: bool,
-    pub error: u8,
-    pub cur_device_count: u8,
-    pub status_handler: Option<Box<dyn ErrorHandler>>,
-    pub target_info_table: [TargetInfo; 108],
+    pub ready: Cell<bool>,
+    pub error: Cell<u8>,
+    pub cur_device_count: Cell<u8>,
+    pub status_handler: Cell<Option<Box<dyn ErrorHandler + Send + Sync>>>,
+    pub target_info_table: RefCell<[TargetInfo; 108]>,
 }
 
 pub trait ErrorHandler {
@@ -163,25 +161,14 @@ pub static DYNA_ADDR_LIST: [u8; 108] = [
 ];
 
 impl Controller {
-    pub fn new(base_ptr: *mut u32) -> Self {
+    pub fn new(config: Config) -> Self {
         Controller {
-            config: Config {
-                device_id: 0,
-                base_address: base_ptr,
-                input_clock_hz: 0,
-                rw_fifo_depth: 0,
-                wr_threshold: 0,
-                device_count: 0,
-                ibi_capable: false,
-                hj_capable: false,
-                entdaa_enable: false,
-                known_static_addrs: vec![],
-            },
-            ready: false,
-            error: 0,
-            cur_device_count: 0,
-            status_handler: None,
-            target_info_table: [TargetInfo::default(); 108],
+            config,
+            ready: false.into(),
+            error: 0.into(),
+            cur_device_count: 0.into(),
+            status_handler: None.into(),
+            target_info_table: RefCell::new([TargetInfo::default(); 108]),
         }
     }
 
@@ -190,72 +177,44 @@ impl Controller {
         unsafe { &*(self.config.base_address as *const XI3c) }
     }
 
-    pub fn bus_init(&mut self) -> Result<(), i32> {
-        let mut cmd: Command = Command {
-            cmd_type: 0,
-            no_repeated_start: 0,
+    pub fn bus_init(&self) -> Result<(), XI3cError> {
+        let cmd = Command {
+            cmd_type: 1,
+            no_repeated_start: 1,
             pec: 0,
-            target_addr: 0,
+            target_addr: XI3C_BROADCAST_ADDRESS,
             rw: 0,
             byte_count: 0,
             tid: 0,
         };
-        cmd.target_addr = XI3C_BROADCAST_ADDRESS;
-        cmd.no_repeated_start = 1;
-        cmd.tid = 0;
-        cmd.pec = 0;
-        cmd.cmd_type = 1;
         // Disable Target Events
         println!("Broadcast CCC DISEC");
-        let result = self.send_transfer_cmd(&mut cmd, Ccc::Byte(XI3C_CCC_BRDCAST_DISEC));
+        let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_DISEC));
         if result.is_ok() {
             println!("Acknowledge received");
         }
-        cmd.target_addr = XI3C_BROADCAST_ADDRESS;
-        cmd.no_repeated_start = 1;
-        cmd.tid = 0;
-        cmd.pec = 0;
-        cmd.cmd_type = 1;
         // Enable Target Events
         println!("Broadcast CCC ENEC");
-        let result = self.send_transfer_cmd(&mut cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENEC));
+        let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENEC));
         if result.is_ok() {
             println!("Acknowledge received");
         }
-        cmd.target_addr = XI3C_BROADCAST_ADDRESS;
-        cmd.no_repeated_start = 1;
-        cmd.tid = 0;
-        cmd.pec = 0;
-        cmd.cmd_type = 1;
         // Reset Dynamic Address assigned to all the I3C Targets
         println!("Broadcast CCC RSTDAA");
-        let result = self.send_transfer_cmd(&mut cmd, Ccc::Byte(XI3C_CCC_BRDCAST_RSTDAA));
+        let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_RSTDAA));
         if result.is_ok() {
             println!("Acknowledge received");
         }
         Ok(())
     }
 
-    pub fn cfg_initialize(&mut self, config: &Config, effective_addr: usize) -> Result<(), i32> {
-        if self.ready {
-            return Err(XST_DEVICE_IS_STARTED);
+    pub fn cfg_initialize(&self) -> Result<(), XI3cError> {
+        if self.ready.get() {
+            return Err(XI3cError::DeviceStarted);
         }
-        self.config.device_id = config.device_id;
-        // Set the values read from the device config and the base address.
-        self.config.base_address = effective_addr as *mut u32;
-        self.config.input_clock_hz = config.input_clock_hz;
-        self.config.rw_fifo_depth = config.rw_fifo_depth;
-        // WrThreshold value in terms of words from design,
-        // so convert to bytes.
-        self.config.wr_threshold = config.wr_threshold * 4;
-        self.config.device_count = config.device_count;
-        self.config.ibi_capable = config.ibi_capable;
-        self.config.hj_capable = config.hj_capable;
-        self.config.entdaa_enable = config.entdaa_enable;
-        self.config.known_static_addrs = config.known_static_addrs.clone();
-        self.cur_device_count = 0;
+        self.cur_device_count.set(0);
         // Indicate the instance is now ready to use, initialized without error
-        self.ready = true;
+        self.ready.set(true);
         // Reset the I3C controller to get it into its initial state. It is expected
         // that device configuration will take place after this initialization
         // is done, but before the device is started.
@@ -284,7 +243,7 @@ impl Controller {
                     "XI3C: initializing dynamic addresses with SETDASA (static address: {:x?})",
                     &static_addrs
                 );
-                let mut cmd: Command = Command {
+                let cmd = Command {
                     cmd_type: 1,
                     no_repeated_start: 0,
                     pec: 0,
@@ -293,9 +252,9 @@ impl Controller {
                     byte_count: 1,
                     tid: 2,
                 };
-                assert!(self.ready);
+                assert!(self.ready.get());
                 println!("XI3C: Broadcast CCC SETDASA");
-                self.send_transfer_cmd(&mut cmd, Ccc::Byte(XI3C_CCC_SETDASA))?;
+                self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_SETDASA))?;
                 println!("XI3C: Acknowledged");
                 for (i, addr) in static_addrs.iter().enumerate() {
                     self.dyna_addr_assign_static(
@@ -316,7 +275,7 @@ impl Controller {
         Ok(())
     }
 
-    pub fn fill_cmd_fifo(&mut self, cmd: &Command) {
+    pub fn fill_cmd_fifo(&self, cmd: &Command) {
         let dev_addr = ((cmd.target_addr & 0x7f) << 1) | cmd.rw & 0x1;
         let mut transfer_cmd = (cmd.cmd_type & 0xf) as u32;
         transfer_cmd |= ((cmd.no_repeated_start & 0x1) as u32) << 4;
@@ -327,7 +286,7 @@ impl Controller {
         self.regs().cmd_fifo.set(transfer_cmd);
     }
 
-    pub fn write_tx_fifo(&mut self, send_buffer: &[u8]) -> usize {
+    pub fn write_tx_fifo(&self, send_buffer: &[u8]) -> usize {
         let data = if send_buffer.len() > 3 {
             u32::from_be_bytes(send_buffer[0..4].try_into().unwrap())
         } else {
@@ -341,7 +300,7 @@ impl Controller {
         send_buffer.len().min(4)
     }
 
-    pub fn read_rx_fifo(&mut self, recv_byte_count: u16) -> Vec<u8> {
+    pub fn read_rx_fifo(&self, recv_byte_count: u16) -> Vec<u8> {
         let data = self.regs().rd_fifo.get();
         if recv_byte_count > 3 {
             data.to_be_bytes().to_vec()
@@ -352,12 +311,12 @@ impl Controller {
 
     /// Assign a dynamic address to a single static device using SETDASA
     pub fn dyna_addr_assign_static(
-        &mut self,
+        &self,
         static_addr: u8,
         dyn_addr: u8,
         last: bool,
-    ) -> Result<(), i32> {
-        let mut cmd: Command = Command {
+    ) -> Result<(), XI3cError> {
+        let cmd = Command {
             cmd_type: 1,
             no_repeated_start: if last { 1 } else { 0 }, // controller has a bug where it does not send 7E after CCC if it is a repeated start followed by non-CCC
             pec: 0,
@@ -372,19 +331,21 @@ impl Controller {
             "Controller: Assigning dynamic address with SETDASA private write {:x}",
             addr >> 1
         );
-        self.master_send_polled(&mut cmd, &[addr], 1)?;
+        self.master_send_polled(&cmd, &[addr], 1)?;
         println!("Acknowledged");
 
-        self.target_info_table[self.cur_device_count as usize].id = static_addr as u64;
-        self.target_info_table[self.cur_device_count as usize].dyna_addr = dyn_addr;
+        let mut table = self.target_info_table.borrow_mut();
+        let cur_device_count = self.cur_device_count.get() as usize;
+        table[cur_device_count].id = static_addr as u64;
+        table[cur_device_count].dyna_addr = dyn_addr;
         // TODO: should we get the DCR and BCR from the device?
-        self.cur_device_count += 1;
+        self.cur_device_count.set((cur_device_count + 1) as u8);
         Ok(())
     }
 
     /// Assign dynamic addresses to all devices using ENTDAA
-    pub fn dyna_addr_assign(&mut self, dyna_addr: &[u8], dev_count: u8) -> Result<(), i32> {
-        let mut cmd: Command = Command {
+    pub fn dyna_addr_assign(&self, dyna_addr: &[u8], dev_count: u8) -> Result<(), XI3cError> {
+        let mut cmd = Command {
             cmd_type: 0,
             no_repeated_start: 0,
             pec: 0,
@@ -393,14 +354,14 @@ impl Controller {
             byte_count: 0,
             tid: 0,
         };
-        assert!(self.ready);
+        assert!(self.ready.get());
         cmd.no_repeated_start = 0;
         cmd.target_addr = XI3C_BROADCAST_ADDRESS;
         cmd.tid = 0;
         cmd.pec = 0;
         cmd.cmd_type = 1;
         println!("XI3C: Broadcast CCC ENTDAA");
-        self.send_transfer_cmd(&mut cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENTDAA))?;
+        self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENTDAA))?;
         println!("XI3C: Acknowledged");
         let mut index = 0;
         while index < dev_count as u16 && index < 108 {
@@ -417,7 +378,7 @@ impl Controller {
             cmd.cmd_type = 1;
 
             println!("Controller: Assigning dynamic address 0x{:x}", addr >> 1);
-            let recv_buffer = match self.master_recv_polled(None, &mut cmd, 9) {
+            let recv_buffer = match self.master_recv_polled(None, &cmd, 9) {
                 Ok(recv_buffer) => recv_buffer,
                 Err(err) => {
                     println!("No ack received for assigning address");
@@ -425,28 +386,28 @@ impl Controller {
                 }
             };
 
-            println!("cur_device_count = {}", self.cur_device_count);
-            self.target_info_table[self.cur_device_count as usize].id = ((recv_buffer[0] as u64)
-                << 40)
+            println!("cur_device_count = {}", self.cur_device_count.get());
+            let mut table = self.target_info_table.borrow_mut();
+            let cur_device_count = self.cur_device_count.get() as usize;
+            table[cur_device_count].id = ((recv_buffer[0] as u64) << 40)
                 | ((recv_buffer[1] as u64) << 32)
                 | ((recv_buffer[2] as u64) << 24)
                 | ((recv_buffer[3] as u64) << 16)
                 | ((recv_buffer[4] as u64) << 8)
                 | recv_buffer[5] as u64;
-            self.target_info_table[self.cur_device_count as usize].bcr = recv_buffer[6];
+            table[cur_device_count].bcr = recv_buffer[6];
             println!("Controller received BCR: {:x}", recv_buffer[6]);
             println!("Controller received DCR: {:x}", recv_buffer[7]);
-            self.target_info_table[self.cur_device_count as usize].dcr = recv_buffer[7];
-            self.target_info_table[self.cur_device_count as usize].dyna_addr =
-                dyna_addr[index as usize];
-            self.cur_device_count += 1;
+            table[cur_device_count].dcr = recv_buffer[7];
+            table[cur_device_count].dyna_addr = dyna_addr[index as usize];
+            self.cur_device_count.set((cur_device_count + 1) as u8);
             index += 1;
         }
         Ok(())
     }
 
-    pub fn config_ibi(&mut self, dev_count: u8) {
-        assert!(self.ready);
+    pub fn config_ibi(&self, dev_count: u8) {
+        assert!(self.ready.get());
         let mut index = 0;
         while index < dev_count && index < 108 {
             self.update_addr_bcr(index as u16);
@@ -455,8 +416,8 @@ impl Controller {
     }
 
     #[inline]
-    fn enable(&mut self, enable: u8) {
-        assert!(self.ready);
+    fn enable(&self, enable: u8) {
+        assert!(self.ready.get());
         let mut data = self.regs().cr.get();
         data &= !XI3C_CR_EN_MASK;
         data |= enable as u32;
@@ -465,8 +426,8 @@ impl Controller {
     }
 
     #[inline]
-    fn enable_ibi(&mut self) {
-        assert!(self.ready);
+    fn enable_ibi(&self) {
+        assert!(self.ready.get());
         let mut data = self.regs().cr.get();
         data |= XI3C_CR_IBI_MASK;
         self.regs().cr.set(data);
@@ -477,18 +438,19 @@ impl Controller {
     }
 
     #[inline]
-    fn enable_hotjoin(&mut self) {
-        assert!(self.ready);
+    fn enable_hotjoin(&self) {
+        assert!(self.ready.get());
         let mut data = self.regs().cr.get();
         data |= XI3C_CR_HJ_MASK;
         self.regs().cr.set(data);
     }
 
     #[inline]
-    pub fn update_addr_bcr(&mut self, dev_index: u16) {
-        assert!(self.ready);
-        let mut addr_bcr = (self.target_info_table[dev_index as usize].dyna_addr & 0x7f) as u32;
-        addr_bcr |= (self.target_info_table[dev_index as usize].bcr as u32) << 8;
+    pub fn update_addr_bcr(&self, dev_index: u16) {
+        assert!(self.ready.get());
+        let table = self.target_info_table.borrow();
+        let mut addr_bcr = (table[dev_index as usize].dyna_addr & 0x7f) as u32;
+        addr_bcr |= (table[dev_index as usize].bcr as u32) << 8;
         println!(
             "Updating BCR (index {}) for device {:x}",
             dev_index, addr_bcr
@@ -496,15 +458,15 @@ impl Controller {
         self.regs().target_addr_bcr.set(addr_bcr);
     }
 
-    pub fn off(&mut self) {
+    pub fn off(&self) {
         let mut data = self.regs().reset.get();
         data |= XI3C_SOFT_RESET_MASK;
         self.regs().reset.set(data);
     }
 
     #[inline]
-    pub fn reset(&mut self) {
-        assert!(self.ready);
+    pub fn reset(&self) {
+        assert!(self.ready.get());
         let mut data = self.regs().reset.get();
         data |= XI3C_SOFT_RESET_MASK;
         self.regs().reset.set(data);
@@ -515,8 +477,8 @@ impl Controller {
     }
 
     #[inline]
-    pub fn reset_fifos(&mut self) {
-        assert!(self.ready);
+    pub fn reset_fifos(&self) {
+        assert!(self.ready.get());
         let mut data = self.regs().reset.get();
         data |= XI3C_ALL_FIFOS_RESET_MASK;
         self.regs().reset.set(data);
@@ -529,7 +491,7 @@ impl Controller {
     /// Sets I3C Scl clock frequency.
     /// - s_clk_hz is Scl clock to be configured in Hz.
     /// - mode is the mode of operation I2C/I3C.
-    pub fn set_s_clk(&mut self, input_clock_hz: u32, s_clk_hz: u32, mode: u8) {
+    pub fn set_s_clk(&self, input_clock_hz: u32, s_clk_hz: u32, mode: u8) {
         assert!(s_clk_hz > 0);
         let t_high = input_clock_hz
             .wrapping_add(s_clk_hz)
@@ -610,21 +572,27 @@ impl Controller {
             .set(tsu_stop.wrapping_sub(2) & (0x3ffff + 5));
     }
 
-    fn get_response(&mut self) -> i32 {
+    fn get_response(&self) -> Result<(), XI3cError> {
         let happened = self.wait_for_event(
             XI3C_SR_RESP_NOT_EMPTY_MASK,
             XI3C_SR_RESP_NOT_EMPTY_MASK,
             MAX_TIMEOUT_US,
         );
         if !happened {
-            return 31;
+            return Err(XI3cError::Timeout);
         }
         let response_data = self.regs().resp_status_fifo.get();
-        ((response_data & 0x1e0) >> 5) as i32
+        let error_code = ((response_data & 0x1e0) >> 5) as i32;
+        if error_code != 0 {
+            Err(XI3cError::SendError)
+        } else {
+            Ok(())
+        }
     }
 
-    pub fn send_transfer_cmd(&mut self, cmd: &mut Command, data: Ccc) -> Result<(), i32> {
-        assert!(self.ready);
+    pub fn send_transfer_cmd(&self, cmd: &Command, data: Ccc) -> Result<(), XI3cError> {
+        assert!(self.ready.get());
+        let mut cmd = cmd.clone();
 
         match data {
             Ccc::Byte(byte) => {
@@ -638,21 +606,24 @@ impl Controller {
         }
         cmd.target_addr = XI3C_BROADCAST_ADDRESS;
         cmd.rw = 0;
-        self.fill_cmd_fifo(cmd);
-        if self.get_response() != 0 {
-            return Err(XST_SEND_ERROR);
-        }
-        Ok(())
+        self.fill_cmd_fifo(&cmd);
+        self.get_response()
     }
 
-    pub fn master_send(&mut self, cmd: &mut Command, mut msg_ptr: &[u8], byte_count: u16) -> i32 {
+    pub fn master_send(
+        &self,
+        cmd: &Command,
+        mut msg_ptr: &[u8],
+        byte_count: u16,
+    ) -> Result<(), XI3cError> {
         if msg_ptr.is_empty() {
-            return 13;
+            return Err(XI3cError::NoData);
         }
         if byte_count > 4095 {
-            return 28;
+            return Err(XI3cError::SendError);
         }
         msg_ptr = &msg_ptr[..byte_count as usize];
+        let mut cmd = cmd.clone();
         cmd.byte_count = byte_count;
         cmd.rw = 0;
         let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
@@ -666,8 +637,8 @@ impl Controller {
             self.regs().intr_fe.set(self.regs().intr_fe.get() | 0x20);
         }
         self.regs().intr_re.set(self.regs().intr_re.get() | 0x10);
-        self.fill_cmd_fifo(cmd);
-        0
+        self.fill_cmd_fifo(&cmd);
+        Ok(())
     }
 
     /// This function initiates a polled mode send in master mode.
@@ -678,21 +649,22 @@ impl Controller {
     /// - msg_ptr is the pointer to the send buffer.
     /// - byte_count is the number of bytes to be sent.
     pub fn master_send_polled(
-        &mut self,
-        cmd: &mut Command,
+        &self,
+        cmd: &Command,
         mut msg_ptr: &[u8],
         byte_count: u16,
-    ) -> Result<(), i32> {
+    ) -> Result<(), XI3cError> {
         if msg_ptr.is_empty() {
-            return Err(XST_NO_DATA);
+            return Err(XI3cError::NoData);
         }
         if byte_count > 4095 {
-            return Err(XST_SEND_ERROR);
+            return Err(XI3cError::SendError);
         }
         msg_ptr = &msg_ptr[..byte_count as usize];
+        let mut cmd = cmd.clone();
         cmd.byte_count = byte_count;
         cmd.rw = 0;
-        self.fill_cmd_fifo(cmd);
+        self.fill_cmd_fifo(&cmd);
         while !msg_ptr.is_empty() {
             let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
             let mut space_index: u16 = 0;
@@ -702,39 +674,34 @@ impl Controller {
                 space_index += 1;
             }
         }
-        //println!("Waiting for master_send_polled response");
-        if self.get_response() != 0 {
-            Err(XST_SEND_ERROR)
-        } else {
-            //println!("master_send_polled OK");
-            Ok(())
-        }
+        self.get_response()
     }
 
     pub fn master_recv_polled(
-        &mut self,
+        &self,
         running: Option<Arc<AtomicBool>>,
-        cmd: &mut Command,
+        cmd: &Command,
         byte_count: u16,
-    ) -> Result<Vec<u8>, i32> {
+    ) -> Result<Vec<u8>, XI3cError> {
         self.master_recv(cmd, byte_count)?;
         self.master_recv_finish(running, cmd, byte_count)
     }
 
     /// Starts a receive from a target, but does not wait on the result (must call .master_recv_finish() separately).
-    pub fn master_recv(&mut self, cmd: &mut Command, byte_count: u16) -> Result<(), i32> {
+    pub fn master_recv(&self, cmd: &Command, byte_count: u16) -> Result<(), XI3cError> {
         if byte_count > 4095 {
-            return Err(XST_RECV_ERROR);
+            return Err(XI3cError::RecvError);
         }
+        let mut cmd = cmd.clone();
         cmd.byte_count = byte_count;
         cmd.rw = 1;
-        self.fill_cmd_fifo(cmd);
+        self.fill_cmd_fifo(&cmd);
         Ok(())
     }
 
     /// Receives up to 4 bytes from the read FIFO.
     /// Could return fewer. 0 bytes are returned if no data is available.
-    pub fn master_recv_4_bytes(&mut self) -> Vec<u8> {
+    pub fn master_recv_4_bytes(&self) -> Vec<u8> {
         let rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
         if rx_data_available > 0 {
             self.read_rx_fifo(rx_data_available.min(4))
@@ -743,13 +710,34 @@ impl Controller {
         }
     }
 
+    pub fn recv_data_available(&self) -> u16 {
+        (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16
+    }
+
+    pub fn recv_bytes(&self, running: Option<Arc<AtomicBool>>, byte_count: u16) -> Vec<u8> {
+        let mut recv_byte_count = byte_count;
+        let mut recv = vec![];
+        let running = running.unwrap_or_else(|| Arc::new(AtomicBool::new(true)));
+        while running.load(Ordering::Relaxed) && recv_byte_count > 0 {
+            let rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
+            let mut data_index: u16 = 0;
+            while data_index < rx_data_available && recv_byte_count > 0 {
+                let new_bytes = self.read_rx_fifo(recv_byte_count);
+                recv.extend(&new_bytes);
+                recv_byte_count = recv_byte_count.saturating_sub(new_bytes.len() as u16);
+                data_index += 1;
+            }
+        }
+        recv
+    }
+
     /// Finishes a receive from a target.
     pub fn master_recv_finish(
-        &mut self,
+        &self,
         running: Option<Arc<AtomicBool>>,
         cmd: &Command,
         byte_count: u16,
-    ) -> Result<Vec<u8>, i32> {
+    ) -> Result<Vec<u8>, XI3cError> {
         let mut recv_byte_count = if cmd.target_addr == XI3C_BROADCAST_ADDRESS {
             (byte_count as i32 - 1) as u16
         } else {
@@ -767,14 +755,11 @@ impl Controller {
                 data_index += 1;
             }
         }
-        if self.get_response() != 0 {
-            Err(XST_RECV_ERROR)
-        } else {
-            Ok(recv)
-        }
+        self.get_response()?;
+        Ok(recv)
     }
 
-    fn ibi_read_rx_fifo(&mut self) -> Vec<u8> {
+    fn ibi_read_rx_fifo(&self) -> Vec<u8> {
         let rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
         let mut data_index: u16 = 0;
         let mut recv = vec![];
@@ -786,92 +771,16 @@ impl Controller {
     }
 
     #[allow(dead_code)]
-    pub fn set_status_handler(&mut self, handler: Box<dyn ErrorHandler>) {
-        assert!(self.ready);
-        self.status_handler = Some(handler);
-    }
-
-    pub fn master_interrupt_handler(&mut self) -> Result<(), i32> {
-        let mut dyna_addr: [u8; 1] = [0; 1];
-        let intr_status_reg = self.regs().intr_status.get();
-        self.regs().intr_status.set(intr_status_reg);
-        if intr_status_reg & XI3C_INTR_HJ_MASK != 0 {
-            if self.cur_device_count as i32 <= 108 {
-                dyna_addr[0] = DYNA_ADDR_LIST[self.cur_device_count as usize];
-                self.dyna_addr_assign(&dyna_addr, 1)?;
-                self.update_addr_bcr((self.cur_device_count as i32 - 1) as u16);
-            }
-            self.reset_fifos();
-        }
-        if intr_status_reg & XI3C_INTR_IBI_MASK != 0 {
-            while self.regs().sr.get() & XI3C_SR_RD_FIFO_NOT_EMPTY_MASK != 0
-                || self.regs().sr.get() & XI3C_SR_RESP_NOT_EMPTY_MASK == 0
-            {
-                self.ibi_read_rx_fifo();
-            }
-            self.regs()
-                .intr_re
-                .set(self.regs().intr_re.get() & !XI3C_INTR_IBI_MASK);
-        }
-        if intr_status_reg & XI3C_INTR_WR_FIFO_ALMOST_FULL_MASK != 0 {
-            // We don't support buffering data locally.
-            // let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
-            // let mut space_index: u16 = 0;
-            // while (space_index as i32) < wr_fifo_space as i32 && self.send_byte_count as i32 > 0 {
-            //     self.write_tx_fifo();
-            //     space_index = space_index.wrapping_add(1);
-            // }
-            // if self.send_byte_count as i32 <= 0 {
-            self.regs()
-                .intr_fe
-                .set(self.regs().intr_fe.get() & !XI3C_INTR_WR_FIFO_ALMOST_FULL_MASK);
-            // }
-        }
-        // No FIFO interrupts.
-        // if intr_status_reg & XI3C_INTR_RD_FULL_MASK != 0 {
-        //     rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
-        //     data_index = 0;
-        //     while (data_index as i32) < rx_data_available as i32 && self.recv_byte_count as i32 > 0
-        //     {
-        //         self.read_rx_fifo();
-        //         data_index = data_index.wrapping_add(1);
-        //     }
-        //     if self.recv_byte_count as i32 <= 0 {
-        //         self.regs().intr_re.set(self.regs().intr_re.get() & !0x40);
-        //     }
-        // }
-        // if intr_status_reg & XI3C_INTR_RESP_NOT_EMPTY_MASK != 0 {
-        //     if self.recv_byte_count as i32 > 0 {
-        //         rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
-        //         data_index = 0;
-        //         while (data_index as i32) < rx_data_available as i32
-        //             && self.recv_byte_count as i32 > 0
-        //         {
-        //             self.read_rx_fifo();
-        //             data_index = data_index.wrapping_add(1);
-        //         }
-        //     }
-        //     if self.config.ibi_capable {
-        //         self.ibi_read_rx_fifo();
-        //     }
-        //     let response_data = self.regs().resp_status_fifo.get();
-        //     self.error = ((response_data & 0x1e0) >> 5) as u8;
-        //     self.regs()
-        //         .intr_re
-        //         .set(self.regs().intr_re.get() & !(0x10 | 0x40));
-        //     self.regs().intr_fe.set(self.regs().intr_fe.get() & !0x20);
-        //     if let Some(handler) = self.status_handler.as_ref() {
-        //         handler.handle_error(self.error as u32);
-        //     }
-        // }
-        Ok(())
+    pub fn set_status_handler(&self, handler: Box<dyn ErrorHandler + Send + Sync>) {
+        assert!(self.ready.get());
+        self.status_handler.set(Some(handler));
     }
 
     /// This function receives data during IBI in polled mode.
     ///
     /// It polls the data register for data to come in during IBI.
     /// If controller fails to read data due to any error, it will return an Err with the status.
-    pub fn ibi_recv_polled(&mut self) -> Result<Vec<u8>, i32> {
+    pub fn ibi_recv_polled(&self) -> Result<Vec<u8>, XI3cError> {
         let mut recv = vec![];
         let mut data_index: u16;
         let mut rx_data_available: u16;
@@ -900,16 +809,13 @@ impl Controller {
                 data_index += 1;
             }
         }
-        if self.get_response() != 0 {
-            Err(XST_RECV_ERROR)
-        } else {
-            Ok(recv)
-        }
+        self.get_response()?;
+        Ok(recv)
     }
 
     /// Wait for a specific event to occur in the status register.
     /// Returns true if the event occurred withing the timeout period.
-    pub fn wait_for_event(&mut self, event_mask: u32, event: u32, timeout_us: u32) -> bool {
+    pub fn wait_for_event(&self, event_mask: u32, event: u32, timeout_us: u32) -> bool {
         let start_time = Instant::now();
         let timeout_duration = Duration::from_micros(timeout_us as u64);
 
