@@ -314,6 +314,13 @@ struct caliptra_get_idev_ecc384_csr_resp
     uint8_t data[512];
 };
 
+struct caliptra_get_idev_mldsa87_csr_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
+};
+
 struct caliptra_sign_with_exported_ecdsa_req
 {
     struct caliptra_req_header hdr;
