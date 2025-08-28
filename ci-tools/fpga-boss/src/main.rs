@@ -55,6 +55,8 @@ fn cli() -> clap::Command<'static> {
             .arg(arg!(<IMAGE_FILENAME>).value_parser(value_parser!(PathBuf))))
         .subcommand(clap::Command::new("console")
             .about("Tail the UART output from zcu104"))
+        .subcommand(clap::Command::new("reset_fpga")
+            .about("Reset FPGA SoC using FTDI on zcu104 by toggle POR_B reset."))
         .subcommand(clap::Command::new("reset_ftdi")
             .about("Reset FTDI chip on zcu104"))
         .subcommand(clap::Command::new("serve")
@@ -296,6 +298,16 @@ fn main_impl() -> anyhow::Result<()> {
                     }
                     sd_mux.set_target(SdMuxTarget::Host)?;
                 }
+            }
+        }
+        Some(("reset_fpga", _)) => {
+            let mut fpga = get_fpga_ftdi();
+            if let Ok(fpga) = &mut fpga {
+                fpga.set_reset(FpgaReset::Reset)?;
+                std::thread::sleep(Duration::from_millis(1));
+                fpga.set_reset(FpgaReset::Run)?;
+            } else {
+                return Err(anyhow!("Error: failed to connect to FTDI chip."));
             }
         }
         Some(("reset_ftdi", _)) => {
