@@ -453,7 +453,7 @@ jobs:
           TEST_BIN=/tmp/caliptra-test-binaries
           VARS="CPTRA_UIO_NUM=4 "
           VARS+="CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/ "
-          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.bin "
+          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.elf "
           VARS+="CALIPTRA_IMAGE_NO_GIT_REVISION=1 "
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
