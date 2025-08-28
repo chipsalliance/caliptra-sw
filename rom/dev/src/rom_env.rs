@@ -22,9 +22,9 @@ use caliptra_drivers::{
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
     abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
-    sha256::Sha256Reg, sha3::Sha3 as Sha3Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr,
+    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Rom Context
@@ -99,7 +99,7 @@ impl RomEnv {
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            sha3: Sha3::new(Sha3Reg::new()),
+            sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),

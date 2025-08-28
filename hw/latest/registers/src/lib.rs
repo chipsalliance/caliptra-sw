@@ -908,6 +908,7 @@ pub mod el2_pic_ctrl;
 pub mod entropy_src;
 pub mod hmac;
 pub mod i3ccsr;
+pub mod kmac;
 pub mod kv;
 pub mod lc_ctrl;
 pub mod mbox;

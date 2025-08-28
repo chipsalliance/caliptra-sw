@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{wait, Array4xN, CaliptraError, CaliptraResult};
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_registers::sha3::{regs::CfgShadowedWriteVal, Sha3 as Sha3Reg};
+use caliptra_registers::kmac::{regs::CfgShadowedWriteVal, Kmac as KmacReg};
 
 #[allow(unused)]
 #[derive(Copy, Clone)]
@@ -96,11 +96,11 @@ impl Sha3Cmd {
 }
 
 pub struct Sha3 {
-    sha3: Sha3Reg,
+    sha3: KmacReg,
 }
 
 impl Sha3 {
-    pub fn new(sha3: Sha3Reg) -> Self {
+    pub fn new(sha3: KmacReg) -> Self {
         Self { sha3 }
     }
 
@@ -287,7 +287,7 @@ impl Sha3 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha3 = Sha3Reg::new();
+        let mut sha3 = KmacReg::new();
         sha3.regs_mut()
             .cmd()
             .write(|w| w.cmd(Sha3Cmd::Done.reg_value()));
