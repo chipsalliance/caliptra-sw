@@ -21,7 +21,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -185,7 +185,7 @@ impl Mci {
 
 #[derive(Clone)]
 pub struct XI3CWrapper {
-    pub controller: Arc<RwLock<xi3c::Controller>>,
+    pub controller: Arc<Mutex<xi3c::Controller>>,
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
 }
@@ -219,10 +219,10 @@ impl XI3CWrapper {
         });
         const I3C_MODE: u8 = 1;
         self.controller
-            .write()
+            .lock()
             .unwrap()
             .set_s_clk(AXI_CLK_HZ, I3C_CLK_HZ, I3C_MODE);
-        self.controller.write().unwrap().cfg_initialize().unwrap();
+        self.controller.lock().unwrap().cfg_initialize().unwrap();
         println!("I3C controller finished initializing");
     }
 
@@ -235,7 +235,7 @@ impl XI3CWrapper {
             target_addr,
             ..Default::default()
         };
-        self.controller.write().unwrap().master_recv(&cmd, len)
+        self.controller.lock().unwrap().master_recv(&cmd, len)
     }
 
     /// Finish receiving data (blocking).
@@ -249,7 +249,7 @@ impl XI3CWrapper {
             ..Default::default()
         };
         self.controller
-            .write()
+            .lock()
             .unwrap()
             .master_recv_finish(None, &cmd, len)
     }
@@ -263,7 +263,7 @@ impl XI3CWrapper {
             ..Default::default()
         };
         self.controller
-            .write()
+            .lock()
             .unwrap()
             .master_recv_polled(None, &cmd, len)
     }
@@ -312,7 +312,7 @@ impl XI3CWrapper {
             ..Default::default()
         };
         self.controller
-            .write()
+            .lock()
             .unwrap()
             .master_send_polled(&cmd, payload, payload.len() as u16)
     }
@@ -327,7 +327,7 @@ impl XI3CWrapper {
             ..Default::default()
         };
         self.controller
-            .write()
+            .lock()
             .unwrap()
             .master_send(&cmd, payload, payload.len() as u16)
     }
@@ -990,7 +990,7 @@ impl ModelFpgaSubsystem {
         if self
             .i3c_controller
             .controller
-            .write()
+            .lock()
             .unwrap()
             .master_send_polled(&cmd, &[recovery_command_code], 1)
             .is_err()
@@ -1004,7 +1004,7 @@ impl ModelFpgaSubsystem {
 
         self.i3c_controller
             .controller
-            .write()
+            .lock()
             .unwrap()
             .master_recv(&cmd, len_range.0 + 2)
             .expect("Failed to receive ack from target");
@@ -1013,7 +1013,7 @@ impl ModelFpgaSubsystem {
         let resp = self
             .i3c_controller
             .controller
-            .write()
+            .lock()
             .unwrap()
             .master_recv_finish(
                 Some(self.realtime_thread_exit_flag.clone()),
@@ -1065,7 +1065,7 @@ impl ModelFpgaSubsystem {
         assert!(
             self.i3c_controller
                 .controller
-                .write()
+                .lock()
                 .unwrap()
                 .master_send_polled(&cmd, &data, data.len() as u16)
                 .is_ok(),
@@ -1264,7 +1264,7 @@ impl HwModel for ModelFpgaSubsystem {
             i3c_mmio,
             i3c_controller_mmio,
             i3c_controller: XI3CWrapper {
-                controller: Arc::new(RwLock::new(i3c_controller)),
+                controller: Arc::new(Mutex::new(i3c_controller)),
                 i3c_mmio,
                 i3c_controller_mmio,
             },
@@ -1634,7 +1634,7 @@ impl Drop for ModelFpgaSubsystem {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
-        self.i3c_controller.controller.write().unwrap().off();
+        self.i3c_controller.controller.lock().unwrap().off();
 
         self.set_subsystem_reset(true);
 
