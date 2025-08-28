@@ -1213,7 +1213,7 @@ impl HwModel for ModelFpgaSubsystem {
         let xi3c_config = xi3c::Config {
             device_id: 0,
             base_address: i3c_controller_mmio,
-            input_clock_hz: 199_999_000,
+            input_clock_hz: AXI_CLK_HZ,
             rw_fifo_depth: 16,
             wr_threshold: 12 * 4, // in bytes
             device_count: 1,
