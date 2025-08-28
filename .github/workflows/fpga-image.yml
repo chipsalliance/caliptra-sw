@@ -31,17 +31,17 @@ jobs:
             image_variant: core-2.0
           - bitstream_name: xsa_core2p0_865bf243.xsa
             image_variant: core-2.0
-          - bitstream_hash: bdc58b49e2b5c8bd45429c3d9d9a514c7dab7f6dd7b9bdc97a299272a20d10a8
+          - bitstream_hash: e9b08c20a75e5294b660bddecdd2897677c4c63d2d9806180123b229f78631d4
             image_variant: core-2.1
-          - bitstream_name: xsa_core2p1_a57cc52e.xsa
+          - bitstream_name: xsa_core2p1_85dadbc6.xsa
             image_variant: core-2.1
           - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
             image_variant: subsystem-2.0
           - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: 3637f0b247ea3b1091dc0554dd92f1c33c336e354bd7e7fad9ee7634cd8d0a98
+          - bitstream_hash: 4f27c7d21898cb6df2145d03eae07be86b98e925173eb5b7df280e813db9c179
             image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_e1932207.xsa
+          - bitstream_name: xsa_ss2p1_e845cd0e.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
@@ -68,7 +68,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250820/${BITSTREAM_NAME} /tmp/system.xsa
+          sudo scp /vck190-tools/caliptra-bitstreams/20250826/${BITSTREAM_NAME} /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
