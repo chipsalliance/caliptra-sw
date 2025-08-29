@@ -151,6 +151,12 @@ impl Sha3 {
         strength: Sha3KStrength,
         data: &[u8],
     ) -> CaliptraResult<Array4xN<W, B>> {
+        // TODO: REMOVE debug print
+        crate::cprintln!("NAME   [0] = 0x{:08X}", unsafe { core::ptr::read_volatile(0x1004_1000usize as *const u32) });
+        crate::cprintln!("NAME   [1] = 0x{:08X}", unsafe { core::ptr::read_volatile(0x1004_1004usize as *const u32) });
+        crate::cprintln!("VERSION[0] = 0x{:08X}", unsafe { core::ptr::read_volatile(0x1004_1008usize as *const u32) });
+        crate::cprintln!("VERSION[1] = 0x{:08X}", unsafe { core::ptr::read_volatile(0x1004_100Cusize as *const u32) });
+
         // START
         self.digest_start(mode, strength)?;
 
