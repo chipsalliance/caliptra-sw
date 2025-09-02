@@ -682,7 +682,7 @@ impl HashSha512Regs {
     }
 
     fn zeroize(&mut self) {
-        self.block.as_mut().fill(0);
+        self.block.fill(0);
         self.hash.data_mut().fill(0);
     }
 }

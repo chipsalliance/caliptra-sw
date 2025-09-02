@@ -122,6 +122,12 @@ bitfield! {
 
     /// Flag indicating if the key can be used as AES key
     pub aes_key, set_aes_key: 5;
+
+    /// Flag indicating if the key can be used as ML-KEM seed
+    pub mlkem_seed, set_mlkem_seed: 6;
+
+    /// Flag indicating if the key can be used as ML-KEM message
+    pub mlkem_msg, set_mlkem_msg: 7;
 }
 
 impl KeyUsage {
@@ -147,6 +153,14 @@ impl KeyUsage {
     }
     pub fn set_aes_key_en(&mut self) -> KeyUsage {
         self.set_aes_key(true);
+        *self
+    }
+    pub fn set_mlkem_seed_en(&mut self) -> KeyUsage {
+        self.set_mlkem_seed(true);
+        *self
+    }
+    pub fn set_mlkem_msg_en(&mut self) -> KeyUsage {
+        self.set_mlkem_msg(true);
         *self
     }
 }
