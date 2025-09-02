@@ -18,7 +18,7 @@ use zerocopy::{FromBytes, IntoBytes};
 ))]
 const HW_REV_ID: u32 = 0x102;
 
-// [CAP2][TODO] update once RTL sets tis right
+// [CAP2][TODO] update once RTL sets this right
 #[cfg(any(
     feature = "verilator",
     feature = "fpga_realtime",
