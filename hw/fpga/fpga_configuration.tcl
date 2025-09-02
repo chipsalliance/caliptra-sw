@@ -1,3 +1,4 @@
+# Licensed under the Apache-2.0 license
 
 # Default settings:
 set BUILD FALSE
@@ -7,11 +8,19 @@ set CG_EN FALSE
 set RTL_VERSION latest
 set BOARD VCK190
 set ITRNG TRUE
+set CORE_CLK_MHZ 18
+# Xilinx core requires 100 - 300MHz. Actual clock usually rounds down
+set I3C_CLK_MHZ 120
+# 1000 - 12500
+set I3C_SCL_RATE_KHZ 1000
+
 set APB FALSE
+set SEGMENTED FALSE
+set SEGMENTED_WRITE_NCR FALSE
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
-    regexp {(.*)=(.*)} $arg fullmatch option value
-    set $option "$value"
+  regexp {(.*)=(.*)} $arg fullmatch option value
+  set $option "$value"
 }
 # If VERSION was not set by tclargs, set it from the commit ID.
 # This assumes it is run from within caliptra-sw. If building from outside caliptra-sw call with "VERSION=[hex number]"
@@ -78,10 +87,12 @@ if {$BOARD eq "VCK190"} {
 source create_caliptra_package.tcl
 ##### Caliptra Package #####
 
-
 # Create a project for the SOC connections
 create_project caliptra_fpga_project $outputDir -part $PART
 set_property board_part $BOARD_PART [current_project]
+if {$SEGMENTED} {
+  set_property segmented_configuration true [current_project]
+}
 
 # Include the packaged IP
 set_property  ip_repo_paths "$caliptrapackageDir" [current_project]
@@ -93,15 +104,8 @@ create_bd_design "caliptra_fpga_project_bd"
 # Add Caliptra package
 create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_package_top_0
 
-# Add Versal PS
+#### Add Versal PS ####
 source create_versal_cips.tcl
-# Connections to PS:
-# set ps_m_axi ps_0/M_AXI_FPD
-# set ps_pl_clk ps_0/pl0_ref_clk
-# set ps_axi_aclk ps_0/m_axi_fpd_aclk
-# set ps_pl_resetn ps_0/pl0_resetn
-# set ps_gpio_i ps_0/LPD_GPIO_i
-# set ps_gpio_o ps_0/LPD_GPIO_o
 
 # Create XDC file with jtag constraints
 set xdc_fd [ open $outputDir/jtag_constraints.xdc w ]
@@ -109,7 +113,7 @@ puts $xdc_fd {create_clock -period 5000.000 -name {jtag_clk} -waveform {0.000 25
 puts $xdc_fd {set_clock_groups -asynchronous -group [get_clocks {jtag_clk}]}
 close $xdc_fd
 
-# Add AXI Interconnect
+#### Add AXI Infrastructure
 create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_interconnect_0
 set_property -dict [list \
   CONFIG.NUM_MI {7} \
@@ -178,13 +182,8 @@ connect_bd_net \
 # Create address segments for all AXI managers
 set managers {ps_0/M_AXI_FPD caliptra_package_top_0/M_AXI_CALIPTRA}
 foreach manager $managers {
-  # TODO: Commented out segments are placeholders for SS
   assign_bd_address -offset 0xB0000000 -range 0x00018000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
-  #assign_bd_address -offset 0xB0020000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs ss_imem_bram_ctrl_1/S_AXI/Mem0] -force
   assign_bd_address -offset 0xA4010000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_WRAPPER/reg0] -force
-  #assign_bd_address -offset 0xA4020000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_WRAPPER/reg0] -force
-  #assign_bd_address -offset 0xA4030000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_I3C/reg0] -force
-  #assign_bd_address -offset 0xA4040000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_MCU_DMA/reg0] -force
   if {$APB} {
     assign_bd_address -offset 0xA4100000 -range 0x00100000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
   } else {
@@ -216,16 +215,63 @@ create_ip_run [get_files caliptra_fpga_project_bd.bd]
 set_property STEPS.SYNTH_DESIGN.ARGS.GATED_CLOCK_CONVERSION $GATED_CLOCK_CONVERSION [get_runs caliptra_fpga_project_bd_caliptra_package_top_0_0_synth_1]
 
 # Add DDR pin placement constraints
-add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
+file copy $fpgaDir/src/ddr4_constraints.xdc $outputDir/ddr4_constraints.xdc
+add_files -fileset constrs_1 $outputDir/ddr4_constraints.xdc
+
+# Set initial boot property to make the NOC connections part of the boot PDI.
+if {$SEGMENTED} {
+  set_property initial_boot true [get_noc_logical_paths]
+}
+
+# Load a previous NCR
+if {$SEGMENTED} {
+  read_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+}
 
 # Start build
 if {$BUILD} {
-  launch_runs synth_1 -jobs 10
+  set time_start_synth [clock clicks -millisec]
+  launch_runs synth_1 -jobs 32
   wait_on_runs synth_1
-  launch_runs impl_1 -to_step write_device_image -jobs 10
+  set time_finish_synth [clock clicks -millisec]
+
+  set time_start_impl [clock clicks -millisec]
+  launch_runs impl_1 -to_step write_device_image -jobs 32
   wait_on_runs impl_1
+  set time_finish_impl [clock clicks -millisec]
+
+  set time_start_hw_platform [clock clicks -millisec]
   open_run impl_1
   report_utilization -file $outputDir/utilization.txt
+  if {$SEGMENTED} {
+    if {$SEGMENTED_WRITE_NCR} {
+      # Lock the NoC path segments and save the solution for later builds.
+      set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -filter {initial_boot == 1}]]
+      write_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+      file copy -force $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp $fpgaDir/segmented_golden_routed.dcp
+      puts stderr "Replace file in GCS bucket: [exec realpath $fpgaDir/segmented_golden_routed.dcp]"
+    } else {
+      # Verify that the NoC Solutions are identical and the PLD images are compatible.
+      exec curl -s -O "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/fpga_2px_golden_routed.dcp"
+      pr_verify -initial $fpgaDir/fpga_2px_golden_routed.dcp -additional $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp
+    }
+    # Copy the PDI containing runtime info to a more convenient location.
+    file copy $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_pld.pdi $outputDir/runtime_$VERSION.pdi
+  }
 
   write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa
+  set time_finish_hw_platform [clock clicks -millisec]
+
+  puts stderr "FPGA Synthesis      took [expr {($time_finish_synth-$time_start_synth)/60000.}] minutes"
+  puts stderr "FPGA Implementation took [expr {($time_finish_impl-$time_start_impl)/60000.}] minutes"
+  puts stderr "FPGA Write HW Plat  took [expr {($time_finish_hw_platform-$time_start_hw_platform)/60000.}] minutes"
+  puts stderr "FPGA overall build  took [expr {($time_finish_hw_platform-$time_start_synth)/60000.}] minutes"
+
+  set build_time [ open $outputDir/build_time.txt w ]
+  puts $build_time "Built from $VERSION"
+  puts $build_time "FPGA Synthesis      took [expr {($time_finish_synth-$time_start_synth)/60000.}] minutes"
+  puts $build_time "FPGA Implementation took [expr {($time_finish_impl-$time_start_impl)/60000.}] minutes"
+  puts $build_time "FPGA Write HW Plat  took [expr {($time_finish_hw_platform-$time_start_hw_platform)/60000.}] minutes"
+  puts $build_time "FPGA overall build  took [expr {($time_finish_hw_platform-$time_start_synth)/60000.}] minutes"
+  close $build_time
 }

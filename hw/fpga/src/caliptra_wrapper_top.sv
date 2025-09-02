@@ -294,7 +294,7 @@ module caliptra_wrapper_top (
 
 `endif
     el2_mem_if el2_mem_export();
-    mldsa_mem_if mldsa_memory_export();
+    abr_mem_if abr_memory_export();
 
     initial begin
         BootFSM_BrkPoint = 1'b1; //Set to 1 even before anything starts
@@ -305,9 +305,9 @@ module caliptra_wrapper_top (
     logic [3:0] itrng_data;
     logic itrng_valid;
 
-    mldsa_mem_top mldsa_mem_top_inst (
+    abr_mem_top abr_mem_top_inst (
         .clk_i(core_clk),
-        .mldsa_memory_export(mldsa_memory_export.resp)
+        .abr_memory_export(abr_memory_export.resp)
 );
 
 //=========================================================================-
@@ -358,7 +358,7 @@ caliptra_top caliptra_top_dut (
 `endif
 
     .el2_mem_export(el2_mem_export.veer_sram_src),
-    .mldsa_memory_export(mldsa_memory_export.req),
+    .abr_memory_export(abr_memory_export.req),
 
     .ready_for_fuses(hwif_in.interface_regs.status.ready_for_fuses.next),
     .ready_for_mb_processing(hwif_in.interface_regs.status.ready_for_mb_processing.next),

@@ -25,6 +25,7 @@ source adams-bridge-files.tcl
 
 # Add Caliptra Headers
 add_files [ glob $rtlDir/src/*/rtl/*.svh ]
+add_files [ glob $rtlDir/src/*/rtl/caliptra_reg/*.svh ]
 # Add Caliptra Sources
 add_files [ glob $rtlDir/src/*/rtl/*.sv ]
 add_files [ glob $rtlDir/src/*/rtl/*.v ]
@@ -39,12 +40,6 @@ add_files [ glob $fpgaDir/src/*.v]
 
 # Replace RAM with FPGA block ram
 remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
-
-# TODO: Copy aes_clk_wrapper.sv to apply workaround
-file copy [ glob $rtlDir/src/aes/rtl/aes_clp_wrapper.sv ] $outputDir/aes_clk_wrapper.sv
-exec sed -i {1i `include \"kv_macros.svh\"} $outputDir/aes_clk_wrapper.sv
-remove_files [ glob $rtlDir/src/aes/rtl/aes_clp_wrapper.sv ]
-add_files $outputDir/aes_clk_wrapper.sv
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
