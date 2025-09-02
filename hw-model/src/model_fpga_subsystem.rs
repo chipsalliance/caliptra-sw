@@ -186,11 +186,15 @@ impl Mci {
 #[derive(Clone)]
 pub struct XI3CWrapper {
     pub controller: Arc<Mutex<xi3c::Controller>>,
+    // TODO: remove pub from these once we know all the ways we need to use them.
+    // TODO: Possibly use Mutex to protect access as well.
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
 }
 
 // needed to copy pointers
+// Safety: the pointers are themselves perfectly thread-safe since they are static, but
+// the underlying hardware behavior may not be guaranteed if they are used by multiple threads.
 unsafe impl Send for XI3CWrapper {}
 unsafe impl Sync for XI3CWrapper {}
 
