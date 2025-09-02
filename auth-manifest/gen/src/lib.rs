@@ -31,6 +31,8 @@ pub struct AuthManifestGeneratorKeyConfig {
 pub struct AuthManifestGeneratorConfig {
     pub version: u32,
 
+    pub svn: u32,
+
     pub flags: AuthManifestFlags,
 
     pub pqc_key_type: FwVerificationPqcKeyType,
