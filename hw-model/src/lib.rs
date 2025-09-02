@@ -38,7 +38,7 @@ mod model_emulated;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
-mod xi3c;
+pub mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
