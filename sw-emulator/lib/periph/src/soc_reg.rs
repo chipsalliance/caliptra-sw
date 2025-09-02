@@ -419,6 +419,16 @@ impl SocRegistersInternal {
             regs: self.regs.clone(),
         }
     }
+
+    pub fn has_ss_staging_area(&self) -> bool {
+        let hw_rev_id = self.regs.borrow().cptra_hw_rev_id.reg.get();
+        let major = hw_rev_id & 0xf;
+        let minor = (hw_rev_id >> 4) & 0xf;
+
+        let subsystem_mode = self.regs.borrow().cptra_hw_config.reg.get()
+            == SocRegistersImpl::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE;
+        (major > 2 || (major == 2 && minor >= 1)) && subsystem_mode
+    }
 }
 
 impl Bus for SocRegistersInternal {
@@ -942,7 +952,9 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x102), // [3:0] Major, [7:4] Minor, [15:8] Patch
+            cptra_hw_rev_id: ReadOnlyRegister::new(
+                ((args.hw_rev.0 & 0xf) | ((args.hw_rev.1 << 4) & 0xf0)).into(),
+            ), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
                 Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
@@ -1580,7 +1592,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1650,7 +1662,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1718,7 +1730,7 @@ mod tests {
         let output = Rc::new(RefCell::new(vec![]));
         let output2 = output.clone();
 
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let args = CaliptraRootBusArgs {
             clock: clock.clone(),
@@ -1744,7 +1756,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1765,7 +1777,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1792,7 +1804,7 @@ mod tests {
     #[test]
     fn test_wdt() {
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
 
         let args = CaliptraRootBusArgs {

@@ -62,6 +62,10 @@ const BANNER: &str = r#"
 Running Caliptra ROM ...
 "#;
 
+pub fn subsystem_mode() -> bool {
+    cfg!(feature = "subsystem")
+}
+
 extern "C" {
     static CALIPTRA_ROM_INFO: RomInfo;
 }
@@ -89,6 +93,22 @@ pub extern "C" fn rom_entry() -> ! {
     validate_trng_config(&mut env);
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
+
+    if subsystem_mode() != env.soc_ifc.subsystem_mode() {
+        let mode = |mode| {
+            if mode {
+                "subsystem"
+            } else {
+                "passive"
+            }
+        };
+        cprintln!(
+            "ROM compiled for {} mode, but hardware is in {} mode",
+            mode(subsystem_mode()),
+            mode(env.soc_ifc.subsystem_mode())
+        );
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_SUBSYSTEM_MISMATCH.into())
+    }
 
     let reset_reason = env.soc_ifc.reset_reason();
 

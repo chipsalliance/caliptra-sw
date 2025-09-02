@@ -18,7 +18,9 @@ use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::PcrLogEntry;
 use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{DataVault, LEArray4x8, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
+use caliptra_drivers::{
+    DataVault, LEArray4x8, Mailbox, PcrBank, PcrId, PersistentDataAccessor, SocIfc,
+};
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{
@@ -34,6 +36,7 @@ mod exception;
 mod print;
 
 const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
+const EXTERNAL_CMD_OPCODE: u32 = mailbox_api::CommandId::EXTERNAL_MAILBOX_CMD.0;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -195,8 +198,13 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
     if !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
         return;
     }
-    let cmd = mbox.cmd().read();
+    let mut cmd = mbox.cmd().read();
     cprintln!("[fmc] Received command: 0x{:08X}", cmd);
+    if cmd == EXTERNAL_CMD_OPCODE {
+        let _header = mbox.dataout().read();
+        cmd = mbox.dataout().read();
+    }
+
     match cmd {
         0x1000_0000 => {
             read_pcr_log(mbox);
@@ -328,28 +336,32 @@ fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<R
     };
 
     let mut mismatch = false;
-    for (idx, _) in fmc_iccm.iter().enumerate().take(fmc_size / 4) {
-        let temp = mbox.dataout().read();
-        if temp != fmc_iccm[idx] {
-            cprint!(
-                "FMC load mismatch at index {} (0x{:08X} != 0x{:08X})",
-                idx,
-                temp,
-                fmc_iccm[idx]
-            );
-            mismatch = true;
+    // [CAP2][TODO] Handle Staging area
+    let soc_ifc = unsafe { SocIfc::new(SocIfcReg::new()) };
+    if !soc_ifc.has_ss_staging_area() {
+        for (idx, _) in fmc_iccm.iter().enumerate().take(fmc_size / 4) {
+            let temp = mbox.dataout().read();
+            if temp != fmc_iccm[idx] {
+                cprint!(
+                    "FMC load mismatch at index {} (0x{:08X} != 0x{:08X})",
+                    idx,
+                    temp,
+                    fmc_iccm[idx]
+                );
+                mismatch = true;
+            }
         }
-    }
-    for (idx, _) in rt_iccm.iter().enumerate().take(rt_size / 4) {
-        let temp = mbox.dataout().read();
-        if temp != rt_iccm[idx] {
-            cprint!(
-                "RT load mismatch at index {} (0x{:08X} != 0x{:08X})",
-                idx,
-                temp,
-                rt_iccm[idx]
-            );
-            mismatch = true;
+        for (idx, _) in rt_iccm.iter().enumerate().take(rt_size / 4) {
+            let temp = mbox.dataout().read();
+            if temp != rt_iccm[idx] {
+                cprint!(
+                    "RT load mismatch at index {} (0x{:08X} != 0x{:08X})",
+                    idx,
+                    temp,
+                    rt_iccm[idx]
+                );
+                mismatch = true;
+            }
         }
     }
 

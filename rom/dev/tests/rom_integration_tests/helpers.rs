@@ -3,7 +3,7 @@
 use std::mem;
 
 use caliptra_api::SocManager;
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{firmware, FwId, ImageOptions};
 use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -112,6 +112,14 @@ pub fn change_dword_endianess(data: &mut [u8]) {
     for idx in (0..data.len()).step_by(4) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
+    }
+}
+
+pub fn rom_fw_id(subsystem: bool) -> &'static FwId<'static> {
+    if subsystem {
+        firmware::ss_rom_from_env()
+    } else {
+        firmware::rom_from_env()
     }
 }
 
