@@ -177,16 +177,9 @@ impl MlKem1024 {
         &mut self,
         seeds: MlKem1024Seeds,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
+        self.zeroize_internal()?;
+
         let mlkem = self.mlkem.regs_mut();
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
-
-        // Clear the hardware before start
-        mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
 
         // Copy seeds to the hardware
         match seeds {
@@ -236,16 +229,10 @@ impl MlKem1024 {
         message: MlKem1024MessageSource,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<MlKem1024Ciphertext> {
+
+        self.zeroize_internal()?;
+
         let mlkem = self.mlkem.regs_mut();
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
-
-        // Clear the hardware before start
-        mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
 
         // Copy encapsulation key
         encaps_key.write_to_reg(mlkem.mlkem_encaps_key());
@@ -328,16 +315,9 @@ impl MlKem1024 {
         ciphertext: &MlKem1024Ciphertext,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<()> {
+        self.zeroize_internal()?;
+
         let mlkem = self.mlkem.regs_mut();
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
-
-        // Clear the hardware before start
-        mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
 
         // Copy decapsulation key and ciphertext
         decaps_key.write_to_reg(mlkem.mlkem_decaps_key());
@@ -408,16 +388,10 @@ impl MlKem1024 {
         ciphertext: &MlKem1024Ciphertext,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<()> {
+
+        self.zeroize_internal()?;
+
         let mlkem = self.mlkem.regs_mut();
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
-
-        // Clear the hardware before start
-        mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
 
         // Copy seeds to the hardware
         match seeds {
@@ -500,6 +474,21 @@ impl MlKem1024 {
 
         // Wait for hardware ready. Ignore errors
         let _ = MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready());
+    }
+
+    fn zeroize_internal(&mut self) -> CaliptraResult<()> {
+        let mlkem = self.mlkem.regs_mut();
+
+        // Wait for hardware ready
+        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
+
+        // Clear the hardware before start
+        mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
+
+        Ok(())
     }
 }
 

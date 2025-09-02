@@ -593,16 +593,6 @@ fn test_encapsulate_with_kv_message() {
 }
 
 fn test_encapsulate_with_kv_output() {
-    let _trng = unsafe {
-        Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )
-        .unwrap()
-    };
-
     let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()) };
 
     // Generate key pair
