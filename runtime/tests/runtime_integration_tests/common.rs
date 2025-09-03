@@ -20,7 +20,7 @@ use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    StackInfo, StackRange,
+    SecurityState, StackInfo, StackRange,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
@@ -72,6 +72,9 @@ pub struct RuntimeTestArgs<'a> {
     /// Initial content of the test SRAM
     pub test_sram: Option<&'a [u8]>,
     pub stop_at_rom: bool,
+    pub security_state: Option<SecurityState>,
+    pub soc_manifest_svn: Option<u32>,
+    pub soc_manifest_max_svn: Option<u32>,
 }
 
 pub fn run_rt_test_pqc(
@@ -86,6 +89,27 @@ pub fn run_rt_test_pqc(
             .ready_for_mb_processing()
     });
     model
+}
+
+pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
+    let n = if svn > 128 { 128 } else { svn };
+
+    // Build a 128-bit value with the lowest `n` bits set.
+    // Shifting by 128 is invalid, so handle that case explicitly.
+    let val: u128 = if n == 0 {
+        0
+    } else if n == 128 {
+        u128::MAX
+    } else {
+        (1u128 << n) - 1
+    };
+
+    [
+        (val & 0xffff_ffff) as u32,
+        ((val >> 32) & 0xffff_ffff) as u32,
+        ((val >> 64) & 0xffff_ffff) as u32,
+        ((val >> 96) & 0xffff_ffff) as u32,
+    ]
 }
 
 pub fn start_rt_test_pqc_model(
@@ -130,6 +154,7 @@ pub fn start_rt_test_pqc_model(
             rom: &rom,
             stack_info: Some(StackInfo::new(image_info)),
             test_sram: args.test_sram,
+            security_state: args.security_state.unwrap_or_default(),
             ..Default::default()
         },
     };
@@ -155,6 +180,8 @@ pub fn start_rt_test_pqc_model(
                 fuse_pqc_key_type: pqc_key_type as u32,
                 vendor_pk_hash,
                 owner_pk_hash,
+                soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
+                soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
