@@ -217,6 +217,11 @@ path = "src/bin/ocp_lock_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "ocp_lock_warm_reset"
+path = "src/bin/ocp_lock_warm_reset_test.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "dma_aes"
 path = "src/bin/dma_aes_tests.rs"
 required-features = ["riscv"]

@@ -2,11 +2,12 @@
 
 use caliptra_api::SocManager;
 use std::error::Error;
-use std::iter;
+use std::time::Duration;
+use std::{iter, thread};
 
 use caliptra_builder::{firmware, FwId};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
-use caliptra_drivers_test_bin::DoeTestResults;
+use caliptra_drivers_test_bin::{DoeTestResults, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS};
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
     TrngMode,
@@ -1208,6 +1209,32 @@ fn test_ocp_lock() {
     run_driver_test(&firmware::driver_tests::OCP_LOCK);
 }
 
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_ocp_lock_warm_reset() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::OCP_LOCK_WARM_RESET).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    // When test signals ready for reset, perform warm reset.
+    model.step_until_boot_status(OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS, true);
+    model.warm_reset();
+    thread::sleep(Duration::from_secs(1));
+    model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    model.step_until_exit_success().unwrap();
+}
+
+// This test only works on the subsystem FPGA for now
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_dma_aes() {
     run_driver_test(&firmware::driver_tests::DMA_AES);

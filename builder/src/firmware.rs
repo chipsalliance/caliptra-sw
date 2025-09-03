@@ -384,6 +384,12 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const OCP_LOCK_WARM_RESET: FwId = FwId {
+        bin_name: "ocp_lock_warm_reset",
+        features: &["fpga_realtime"],
+        ..BASE_FWID
+    };
+
     pub const DMA_AES: FwId = FwId {
         bin_name: "dma_aes",
         features: &["emu", "fpga_subsystem"],
@@ -550,6 +556,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::DMA_SHA384,
     &driver_tests::DMA_SHA384_FPGA,
     &driver_tests::OCP_LOCK,
+    &driver_tests::OCP_LOCK_WARM_RESET,
     &driver_tests::DMA_AES,
     &driver_tests::AXI_BYPASS,
     &rom_tests::ASM_TESTS,
