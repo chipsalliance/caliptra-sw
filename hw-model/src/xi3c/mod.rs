@@ -8,5 +8,18 @@
 
 mod controller;
 
-#[allow(unused)]
 pub use controller::{Ccc, Command, Config, Controller, XI3c};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XI3cError {
+    /// Device is already started
+    DeviceStarted,
+    /// There was no data available
+    NoData,
+    /// Generic receive error
+    RecvError,
+    /// Generic transmit error
+    SendError,
+    /// Timeout error
+    Timeout,
+}
