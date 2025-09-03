@@ -143,7 +143,8 @@ register_bitfields! [
 
 const SHA3_STATE_MEMORY_SIZE: usize = 1600 / 32;
 const SHA3_MSG_FIFO_SIZE: usize = 2048 / 32;
-const SHA3_MSG_FIFO_MAX_DEPTH: usize = 32;
+// 10 64 bit entries => 20 32 bit entries
+const SHA3_MSG_FIFO_MAX_DEPTH: usize = 20;
 
 /// SHA3 Peripheral
 #[derive(Bus)]
@@ -779,7 +780,10 @@ mod tests {
 
         assert!(status.is_set(Status::SHA3_IDLE));
         assert!(!status.is_set(Status::FIFO_EMPTY));
-        println!("fifo_depth: {}", status.read(Status::FIFO_DEPTH));
+        assert_eq!(
+            status.read(Status::FIFO_DEPTH),
+            SHA3_MSG_FIFO_MAX_DEPTH as u32
+        );
         assert!(status.is_set(Status::FIFO_FULL));
 
         sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
