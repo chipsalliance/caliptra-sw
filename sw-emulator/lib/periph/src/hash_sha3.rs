@@ -143,7 +143,6 @@ register_bitfields! [
 
 const SHA3_STATE_MEMORY_SIZE: usize = 1600 / 32;
 const SHA3_MSG_FIFO_SIZE: usize = 2048 / 32;
-// TODO: I think this value is wrong.
 const SHA3_MSG_FIFO_MAX_DEPTH: usize = 32;
 
 /// SHA3 Peripheral
@@ -468,8 +467,6 @@ impl HashSha3 {
                 + Status::FIFO_DEPTH.val(depth),
         );
 
-        println!("depth after: {}", self.status.reg.read(Status::FIFO_DEPTH));
-
         Ok(())
     }
 }
@@ -507,18 +504,21 @@ mod tests {
 
     fn fill_msg_fifo(sha3: &mut HashSha3) {
         let data: u32 = 0xDEADBEEF;
-        for i in 0..SHA3_FIFO_MAX_DEPTH {
+        for i in 0..SHA3_MSG_FIFO_MAX_DEPTH {
             sha3.write(RvSize::Word, OFFSET_MSG_FIFO + (i * 4) as u32, data)
                 .unwrap();
         }
     }
 
     fn read_msg_fifo(sha3: &mut HashSha3) -> [u32; SHA3_MSG_FIFO_SIZE] {
-        let data: u32 = 0xDEADBEEF;
-        for i in 0..SHA3_FIFO_MAX_DEPTH {
-            sha3.write(RvSize::Word, OFFSET_MSG_FIFO + (i * 4) as u32, data)
+        let mut output = [0u32; SHA3_MSG_FIFO_SIZE];
+        for (i, element) in output.iter_mut().enumerate() {
+            *element = sha3
+                .read(RvSize::Word, OFFSET_MSG_FIFO + (i * 4) as u32)
                 .unwrap();
         }
+
+        output
     }
 
     #[test]
@@ -768,6 +768,10 @@ mod tests {
         .unwrap();
 
         fill_msg_fifo(&mut sha3);
+        assert!(read_msg_fifo(&mut sha3)
+            .iter()
+            .take(SHA3_MSG_FIFO_MAX_DEPTH)
+            .all(|n| *n == 0xDEADBEEF));
 
         let status = InMemoryRegister::<u32, Status::Register>::new(
             sha3.read(RvSize::Word, OFFSET_STATUS).unwrap(),
