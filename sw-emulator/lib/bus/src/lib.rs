@@ -28,7 +28,7 @@ pub use crate::clock::{ActionHandle, Clock, Timer, TimerAction};
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::event::{Device, Event, EventData, RecoveryCommandCode};
 pub use crate::mmio::BusMmio;
-pub use crate::ram::Ram;
+pub use crate::ram::{AlignedRam, Ram};
 pub use crate::register::{
     ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,
     WriteOnlyMemory, WriteOnlyRegister,
