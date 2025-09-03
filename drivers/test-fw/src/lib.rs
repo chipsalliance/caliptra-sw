@@ -5,12 +5,12 @@
 use caliptra_drivers::{
     dma::MCU_SRAM_OFFSET, Aes, Array4x16, AxiAddr, DeobfuscationEngine, Dma, DmaWriteOrigin,
     DmaWriteTransaction, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, SocIfc, Trng,
+    KeyUsage, KeyVault, KeyWriteArgs, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
     aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    hmac::HmacReg, kv::KvReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
@@ -42,6 +42,8 @@ pub const PLAINTEXT_MEK: [u8; 64] = [
     0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
     0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
 ];
+
+pub const OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS: u32 = 0xFEEB;
 
 #[derive(IntoBytes, KnownLayout, Immutable, Clone, Copy, Default, Eq, PartialEq, FromBytes)]
 #[repr(C)]
@@ -84,6 +86,7 @@ pub struct TestRegisters {
     pub trng: Trng,
     pub dma: Dma,
     pub doe: DeobfuscationEngine,
+    pub kv: KeyVault,
 }
 
 impl Default for TestRegisters {
@@ -103,6 +106,7 @@ impl Default for TestRegisters {
         };
         let dma = Dma::default();
         let doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
+        let kv = unsafe { KeyVault::new(KvReg::new()) };
 
         Self {
             soc,
@@ -111,6 +115,7 @@ impl Default for TestRegisters {
             trng,
             dma,
             doe,
+            kv,
         }
     }
 }
