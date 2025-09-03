@@ -1172,5 +1172,12 @@ fn test_mailbox_txn_drop() {
 
 #[test]
 fn test_dma_sha384() {
-    run_driver_test(&firmware::driver_tests::DMA_SHA384);
+    if cfg!(feature = "fpga_realtime") {
+        // not supported
+        ()
+    } else if cfg!(feature = "fpga_subsystem") {
+        run_driver_test(&firmware::driver_tests::DMA_SHA384_FPGA);
+    } else {
+        run_driver_test(&firmware::driver_tests::DMA_SHA384);
+    }
 }
