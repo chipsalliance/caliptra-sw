@@ -68,9 +68,38 @@ resource "google_project_service" "enabled_apis" {
     "compute.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
+    "storage.googleapis.com",
   ])
   project = var.project_id
   service = each.key
+}
+
+//////////////// Bitstream Bucket
+
+resource "google_storage_bucket" "bitstreams" {
+  project                     = var.project_id
+  name                        = "${var.project_id}-bitstreams"
+  location                    = "US"
+  force_destroy               = false
+  uniform_bucket_level_access = true
+  depends_on = [google_project_service.enabled_apis]
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
+resource "google_storage_bucket_iam_binding" "bitstreams_public_reader" {
+  bucket = google_storage_bucket.bitstreams.name
+  role   = "roles/storage.objectViewer"
+  members = [
+    "allUsers",
+  ]
 }
 
 //////////////// Secrets
