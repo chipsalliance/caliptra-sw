@@ -1,4 +1,3 @@
-
 name: FPGA Build
 
 on:
@@ -25,6 +24,12 @@ on:
       rom-version:
         default: "latest"
         type: string
+      rom-ref:
+        default: "main"
+        type: string
+      fw-ref:
+        default: "main"
+        type: string
       workflow_call:
         description: 'Set true for workflow_call'
         default: true
@@ -42,13 +47,12 @@ on:
         default: '["caliptra-fpga"]'
         type: string
 
-
 jobs:
   check_cache:
     runs-on: ubuntu-22.04
 
     env:
-      CACHE_BUSTER: 79cee50b6134
+      CACHE_BUSTER: a4fcdd7a5be2
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
@@ -60,7 +64,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: 'recursive'
   
       - name: Compute cache-keys
         id: cache_key
@@ -106,9 +110,21 @@ jobs:
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
+  # this workflow uploads a file named caliptra-unified-<rom-ref>-<fw-ref>-<hw-version>-<artifact-suffix>
+  versioned-checkout-build:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      hw-version: "${{ inputs.hw-version }}"
+      workflow_call: "${{ inputs.workflow_call }}"
+      artifact-suffix: "${{ inputs.artifact-suffix }}"
+
   build_test_binaries:
     runs-on: [e2-standard-8]
     timeout-minutes: 60
+    needs: versioned-checkout-build
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
@@ -118,7 +134,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: 'recursive'
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -126,6 +142,12 @@ jobs:
         with:
           path: /tmp/caliptra-fpga-sysroot.tar
           key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
 
       - name: Extract sysroot
         if: "steps.restore_sysroot_cache.outputs.cache-hit"
@@ -137,7 +159,7 @@ jobs:
         run: |
           sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
 
-      - name: build sysroot
+      - name: Build sysroot
         # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
         # it is missing xilinx-provided kernel headers needed to build kernel modules
         if: "!steps.restore_sysroot_cache.outputs.cache-hit"
@@ -146,7 +168,7 @@ jobs:
           sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
           sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
 
-          # Remove unnecesary files
+          # Remove unnecessary files
           sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
           sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
           sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
@@ -182,9 +204,10 @@ jobs:
           else
             FEATURES=fpga_realtime,itrng
           fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+          if [[ "${{ inputs.workflow_call }}" && -n "${{ inputs.hw-version }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
+
           cargo nextest archive \
             --workspace \
             $EXCLUDE_ARG \
@@ -204,22 +227,13 @@ jobs:
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
 
-      - name: Build test firmware
-        run: |
-          mkdir /tmp/caliptra-test-firmware
-
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
-
-      - name: 'Upload test firmware artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-firmware
-          retention-days: 1
+      # This is replaced by claiptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+      # - name: 'Upload test firmware artifact'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+      #     path: /tmp/caliptra-test-firmware
+      #     retention-days: 1
 
   build_kernel_modules:
     runs-on: ubuntu-22.04
@@ -294,8 +308,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
-  
+          submodules: 'recursive'
+
       - name: Mount FPGA tools
         run: |
           # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
@@ -307,14 +321,14 @@ jobs:
           cd hw/fpga
           mkdir caliptra_build
           if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
-            ITRNG=FALSE
+            export ITRNG=FALSE
           else
-            ITRNG=TRUE
+            export ITRNG=TRUE
           fi
           if [ "${{ inputs.workflow_call }}" ]; then
-            RTL_VERSION="${{ inputs.hw-version }}"
+            export RTL_VERSION="${{ inputs.hw-version }}"
           else
-            RTL_VERSION="latest"
+            export RTL_VERSION="latest"
           fi
           /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
@@ -363,10 +377,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
+        with:
+          submodules: 'recursive'
 
       - name: 'Download FPGA Bitstream Artifact'
         uses: actions/download-artifact@v4
@@ -386,12 +398,6 @@ jobs:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
-      - name: 'Download Test Firmware Artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-firmware
-
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -404,8 +410,6 @@ jobs:
 
       - name: Load FPGA Bitstream
         run: |
-          # sha256sum /tmp/caliptra-fpga/caliptra_fpga.bin
-
           sudo mkdir -p /lib/firmware
           sudo cp /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin /lib/firmware/caliptra_fpga.bin
           sudo bash -c 'echo 0 > /sys/class/fpga_manager/fpga0/flags'
@@ -430,12 +434,27 @@ jobs:
       - name: Set clock rate
         run: |
           sudo bash -c 'echo 20000000 > /sys/bus/platform/drivers/xilinx_fclk/fclk0/set_rate'
+        
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-unified
+
+      - name: Debug List Downloads
+        run: |
+          ls -laR /tmp/caliptra-*
 
       - name: Execute tests
         run: |
           export RUST_TEST_THREADS=1
+          CALIPTRA_ARTIFACTS_PATH=caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=4 "
+          VARS+="CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/ "
+          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.elf "
+          VARS+="CALIPTRA_IMAGE_NO_GIT_REVISION=1 "
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
