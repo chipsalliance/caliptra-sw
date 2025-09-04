@@ -53,7 +53,7 @@ It's likely that you will want to make the following modifications to this confi
 
 ### Add SSH public key as an Authorized User
 
-See [configuration.nix](configuration.nix_) for where this code is located.
+See [configuration.nix](configuration.nix) for where this code is located.
 
 ```nix
     # Add your ssh public key as a string to this list.
