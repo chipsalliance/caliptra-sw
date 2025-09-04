@@ -33,6 +33,7 @@ fn test_dma_sha384_mcu_sram() {
 
     let dma = Dma::default();
     {
+        // the SHA accelerator is locked by default by the uC, so unlock it
         let mut digest = Array4x16::default();
         let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
         let mut op = sha_acc
@@ -45,6 +46,11 @@ fn test_dma_sha384_mcu_sram() {
     let mut sha2_512_384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
     let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
+
+    // test only runs in subsystem mode
+    if !soc_ifc.subsystem_mode() {
+        return;
+    }
 
     // Generate test data - using a simple pattern for reproducibility
     let mut test_data = [0u32; TEST_DATA_SIZE / 4];
@@ -91,6 +97,11 @@ fn test_dma_sha384_empty_data() {
     let mut sha2_512_384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
 
+    // test only runs in subsystem mode
+    if !soc_ifc.subsystem_mode() {
+        return;
+    }
+
     // Test with empty data (0 length)
     let caliptra_base = AxiAddr::from(soc_ifc.caliptra_base_axi_addr());
     let recovery_base = AxiAddr::from(soc_ifc.recovery_interface_base_addr());
@@ -121,6 +132,11 @@ fn test_dma_sha384_small_data() {
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
     let mut sha2_512_384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
+
+    // test only runs in subsystem mode
+    if !soc_ifc.subsystem_mode() {
+        return;
+    }
 
     // Test with small amount of data (32 bytes)
     const SMALL_DATA_SIZE: usize = 32;
