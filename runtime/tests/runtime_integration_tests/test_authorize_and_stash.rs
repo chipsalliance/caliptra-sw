@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
+use crate::test_set_auth_manifest::{
+    create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
+};
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_api::SocManager;
@@ -58,10 +60,11 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(
-            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            FwVerificationPqcKeyType::LMS,
-        )
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            svn: 1,
+        })
     };
 
     let buf = auth_manifest.as_bytes();
@@ -108,10 +111,11 @@ pub fn set_auth_manifest_with_test_sram(
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(
-            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            FwVerificationPqcKeyType::LMS,
-        )
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            svn: 1,
+        })
     };
 
     let buf = auth_manifest.as_bytes();
@@ -1199,10 +1203,11 @@ fn test_verify_valid_manifest() {
     });
 
     // Create a valid auth manifest
-    let valid_auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        svn: 1,
+    });
 
     // Verify the manifest
     let buf = valid_auth_manifest.as_bytes();
@@ -1321,10 +1326,11 @@ fn test_verify_invalid_manifest() {
     });
 
     // Create an invalid auth manifest
-    let valid_auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    });
 
     // Set the valid manifest first
     let buf = valid_auth_manifest.as_bytes();

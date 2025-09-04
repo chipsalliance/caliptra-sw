@@ -360,11 +360,13 @@ fn test_hmac() {
 
 #[test]
 fn test_keyvault() {
-    run_driver_test(if cfg!(feature = "fpga_realtime") {
-        &firmware::driver_tests::KEYVAULT_FPGA
-    } else {
-        &firmware::driver_tests::KEYVAULT
-    });
+    run_driver_test(
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+            &firmware::driver_tests::KEYVAULT_FPGA
+        } else {
+            &firmware::driver_tests::KEYVAULT
+        },
+    );
 }
 
 #[test]
@@ -694,7 +696,7 @@ fn test_mailbox_uc_to_soc() {
 #[test]
 fn test_uc_to_soc_error_state() {
     // This test requires strict control over timing
-    #![cfg_attr(feature = "fpga_realtime", ignore)]
+    #![cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 
     let mut model =
         start_driver_test(&firmware::driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS).unwrap();
@@ -820,7 +822,11 @@ fn test_csrng_with_nibbles(
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         not(feature = "itrng")
     ),
     ignore
@@ -832,7 +838,11 @@ fn test_csrng() {
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         not(feature = "itrng")
     ),
     ignore
@@ -844,7 +854,11 @@ fn test_csrng2() {
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         not(feature = "itrng")
     ),
     ignore
@@ -927,7 +941,11 @@ fn test_csrng_repetition_count() {
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         not(feature = "itrng")
     ),
     ignore
@@ -1029,7 +1047,11 @@ fn test_csrng_adaptive_proportion() {
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         not(feature = "itrng")
     ),
     ignore
@@ -1076,7 +1098,11 @@ fn test_trng_in_itrng_mode() {
 #[test]
 #[cfg_attr(
     all(
-        any(feature = "verilator", feature = "fpga_realtime"),
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
         feature = "itrng"
     ),
     ignore
@@ -1146,7 +1172,13 @@ fn test_mailbox_txn_drop() {
 
 #[test]
 fn test_dma_sha384() {
-    run_driver_test(&firmware::driver_tests::DMA_SHA384);
+    if cfg!(feature = "fpga_realtime") {
+        // not supported
+    } else if cfg!(feature = "fpga_subsystem") {
+        run_driver_test(&firmware::driver_tests::DMA_SHA384_FPGA);
+    } else {
+        run_driver_test(&firmware::driver_tests::DMA_SHA384);
+    }
 }
 
 // This test only works on the subsystem FPGA for now

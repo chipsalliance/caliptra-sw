@@ -280,7 +280,6 @@ jobs:
 
           # TODO add the remaining caliptra core integration tests
           COMMON_ARGS=(
-
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
@@ -291,7 +290,7 @@ jobs:
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --message-format json  > /tmp/nextest-list.json
+              --message-format json > /tmp/nextest-list.json
 
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \

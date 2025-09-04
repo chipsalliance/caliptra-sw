@@ -586,12 +586,29 @@ impl Mldsa87 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
+        Self::zeroize_no_wait();
+
         let mut mldsa_reg = AbrReg::new();
         let mldsa = mldsa_reg.regs_mut();
-        mldsa.mldsa_ctrl().write(|f| f.zeroize(true));
 
         // Wait for hardware ready. Ignore errors
         let _ = Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready());
+    }
+
+    /// Zeroize the hardware registers without waiting for readiness.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize_no_wait() {
+        let mut mldsa_reg = AbrReg::new();
+        let mldsa = mldsa_reg.regs_mut();
+        mldsa.mldsa_ctrl().write(|f| f.zeroize(true));
     }
 }
 

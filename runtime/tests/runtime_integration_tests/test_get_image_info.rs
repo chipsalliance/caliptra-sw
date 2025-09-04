@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
+use crate::test_set_auth_manifest::{
+    create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
+};
 use caliptra_api::mailbox::{GetImageInfoReq, GetImageInfoResp};
 use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
@@ -38,10 +40,11 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(
-            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            FwVerificationPqcKeyType::LMS,
-        )
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        })
     };
 
     let buf = auth_manifest.as_bytes();
