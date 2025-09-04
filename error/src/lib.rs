@@ -996,9 +996,9 @@ impl CaliptraError {
             "Runtime Error: Unimplemented command"
         ),
         (
-            RUNTIME_INSUFFICIENT_MEMORY,
+            MBOX_PAYLOAD_INVALID_SIZE,
             0x000E0003,
-            "Runtime Error: Insufficient memory"
+            "Error: Mailbox payload size invalid for CMD ID"
         ),
         (
             RUNTIME_ECDSA_VERIFY_FAILED,
@@ -1022,9 +1022,9 @@ impl CaliptraError {
         ),
         (RUNTIME_SHUTDOWN, 0x000E0008, "Runtime Error: Shutdown"),
         (
-            RUNTIME_MAILBOX_INVALID_PARAMS,
+            MAILBOX_INVALID_PARAMS,
             0x000E0009,
-            "Runtime Error: Mailbox invalid params"
+            "Error: Mailbox invalid params"
         ),
         (RUNTIME_GLOBAL_NMI, 0x000E000A, "Runtime Error: Global NMI"),
         (
@@ -1741,12 +1741,12 @@ impl CaliptraError {
             "FMC Alias Layer Error: Certificate verification failure"
         ),
         (
-            ROM_ECDSA_VERIFY_FAILED,
+            ECDSA_VERIFY_FAILED,
             0x01030002,
             "ROM Error: ECDSA verify failed"
         ),
         (
-            ROM_MLDSA_VERIFY_FAILED,
+            MLDSA_VERIFY_FAILED,
             0x01030003,
             "ROM Error: MLDSA verify failed"
         ),

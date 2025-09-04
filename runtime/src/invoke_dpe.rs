@@ -41,7 +41,7 @@ impl InvokeDpeCmd {
 
             // Validate data length
             if cmd.data_size as usize > cmd.data.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
             }
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
@@ -83,7 +83,7 @@ impl InvokeDpeCmd {
             // This check already happened, but without it the compiler believes the below slice is
             // out of bounds.
             if cmd.data_size as usize > cmd.data.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
             }
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
@@ -174,7 +174,7 @@ impl InvokeDpeCmd {
 
             Ok(invoke_resp.partial_len()?)
         } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
         }
     }
 

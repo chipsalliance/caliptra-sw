@@ -452,7 +452,7 @@ fn test_random_generate() {
         .unwrap_err();
     assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        caliptra_drivers::CaliptraError::MAILBOX_INVALID_PARAMS,
         err,
     );
 
@@ -688,7 +688,7 @@ fn test_aes_gcm_edge_cases() {
         .expect_err("Should have failed");
     assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        caliptra_drivers::CaliptraError::MAILBOX_INVALID_PARAMS,
         err,
     );
 
@@ -705,7 +705,7 @@ fn test_aes_gcm_edge_cases() {
         .expect_err("Should have failed");
     assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        caliptra_drivers::CaliptraError::MAILBOX_INVALID_PARAMS,
         err,
     );
 

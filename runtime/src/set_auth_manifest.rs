@@ -643,7 +643,7 @@ impl SetAuthManifestCmd {
     ) -> CaliptraResult<usize> {
         // Validate cmd length
         let manifest_size: usize = {
-            let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
+            let err = CaliptraError::MAILBOX_INVALID_PARAMS;
             let offset = offset_of!(SetAuthManifestReq, manifest_size);
             u32::from_le_bytes(
                 cmd_args
@@ -657,14 +657,14 @@ impl SetAuthManifestCmd {
         };
 
         if manifest_size > SetAuthManifestReq::MAX_MAN_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let manifest_buf = {
             let offset = offset_of!(SetAuthManifestReq, manifest);
             cmd_args
                 .get(offset..offset + manifest_size)
-                .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
+                .ok_or(CaliptraError::MAILBOX_INVALID_PARAMS)?
         };
 
         Self::set_auth_manifest(

@@ -62,7 +62,7 @@ impl Mailbox {
     /// Set the length of the current mailbox data in bytes
     pub fn set_dlen(&mut self, len: u32) -> CaliptraResult<()> {
         if len > memory_layout::MBOX_SIZE {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
         }
 
         let mbox = self.mbox.regs_mut();

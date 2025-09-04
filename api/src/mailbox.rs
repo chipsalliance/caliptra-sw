@@ -454,7 +454,7 @@ impl MailboxResp {
         let hdr: &mut MailboxRespHeader = MailboxRespHeader::mut_from_bytes(
             &mut mut_resp_bytes[..size_of::<MailboxRespHeader>()],
         )
-        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         // Set the chksum field
         hdr.chksum = checksum;
@@ -468,6 +468,22 @@ impl Default for MailboxResp {
         MailboxResp::Header(MailboxRespHeader::default())
     }
 }
+
+#[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+#[allow(clippy::large_enum_variant)]
+pub enum RomMailboxResp {
+    Header(MailboxRespHeader),
+    FipsVersion(FipsVersionResp),
+    Capabilities(CapabilitiesResp),
+    StashMeasurement(StashMeasurementResp),
+    GetIdevCsr(GetIdevCsrResp),
+    CmDeriveStableKey(CmDeriveStableKeyResp),
+    CmHmac(CmHmacResp),
+    InstallOwnerPkHash(InstallOwnerPkHashResp),
+    CmRandomGenerate(CmRandomGenerateResp),
+}
+
+pub const MAX_ROM_RESP_SIZE: usize = size_of::<RomMailboxResp>();
 
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
 #[allow(clippy::large_enum_variant)]
@@ -783,7 +799,7 @@ impl MailboxReq {
         let hdr: &mut MailboxReqHeader = MailboxReqHeader::mut_from_bytes(
             &mut self.as_mut_bytes()?[..size_of::<MailboxReqHeader>()],
         )
-        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         // Set the chksum field
         hdr.chksum = checksum;
@@ -794,7 +810,9 @@ impl MailboxReq {
 
 // HEADER
 #[repr(C)]
-#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(
+    Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone, Copy,
+)]
 pub struct MailboxReqHeader {
     pub chksum: u32,
 }
@@ -1994,7 +2012,9 @@ impl Request for ManufDebugUnlockTokenReq {
 
 // PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
 #[repr(C)]
-#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
+#[derive(
+    Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default, Copy, Clone,
+)]
 pub struct ProductionAuthDebugUnlockReq {
     pub hdr: MailboxReqHeader,
     pub length: u32,       // Length (in DWORDs)

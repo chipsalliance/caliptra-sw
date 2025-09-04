@@ -58,7 +58,7 @@ impl SignWithExportedEcdsaCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let cmd = SignWithExportedEcdsaReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         match drivers.caller_privilege_level() {
             // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0

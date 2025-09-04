@@ -92,7 +92,7 @@ fn test_mldsa_verify_cmd() {
 
     crate::common::assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_MLDSA_VERIFY_FAILED,
+        caliptra_drivers::CaliptraError::MLDSA_VERIFY_FAILED,
         resp_fail,
     );
 }

@@ -45,7 +45,7 @@ impl AuthorizeAndStashCmd {
             resp.auth_req_result = Self::authorize_and_stash(drivers, cmd)?;
             Ok(core::mem::size_of::<AuthorizeAndStashResp>())
         } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
         }
     }
 

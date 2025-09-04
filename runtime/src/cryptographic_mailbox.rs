@@ -128,7 +128,7 @@ impl CmStorage {
             .binary_search_by_key(&cmk.key_id(), |k| k.key_id)
         {
             Ok(idx) => Ok(self.counters[idx].increment()),
-            Err(_) => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+            Err(_) => Err(CaliptraError::MAILBOX_INVALID_PARAMS),
         }
     }
 
@@ -166,7 +166,7 @@ impl CmStorage {
                 self.counters.remove(idx);
                 Ok(())
             }
-            Err(_) => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+            Err(_) => Err(CaliptraError::MAILBOX_INVALID_PARAMS),
         }
     }
 
@@ -433,7 +433,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmImportReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmImportReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
@@ -485,7 +485,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() != core::mem::size_of::<CmDeleteReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let encrypted_cmk =
@@ -537,7 +537,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmShaInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmShaInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
@@ -545,7 +545,7 @@ impl Commands {
         let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
 
         if cmd.input_size as usize > cmd.input.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let mut context = ShaContext {
@@ -568,7 +568,7 @@ impl Commands {
                 op.save_buffer(&mut context.input_buffer)?
             }
             _ => {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
             }
         };
 
@@ -607,17 +607,17 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmShaUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let mut context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cm_hash_algorithm = context.hash_algorithm.into();
         let data = &cmd.input[..cmd.input_size as usize];
 
@@ -644,7 +644,7 @@ impl Commands {
                 op.update(data)?;
                 op.save_buffer(&mut context.input_buffer)?
             }
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         context.length = data_len as u32;
@@ -682,17 +682,17 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmShaUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cm_hash_algorithm = context.hash_algorithm.into();
         let data = &cmd.input[..cmd.input_size as usize];
 
@@ -727,7 +727,7 @@ impl Commands {
                 digest.copy_from_slice(&<[u8; SHA512_DIGEST_BYTE_SIZE]>::from(digest32));
                 SHA512_DIGEST_BYTE_SIZE
             }
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         // Safety: we've copied the digest, so it is safe to zeroize
@@ -750,14 +750,14 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmRandomGenerateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let cmd = CmRandomGenerateReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
         let size = cmd.size as usize;
         if size > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let resp = mutrefbytes::<CmRandomGenerateResp>(resp)?;
@@ -780,13 +780,13 @@ impl Commands {
     #[inline(never)]
     pub(crate) fn random_stir(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmRandomStirReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmRandomStirReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
         let size = (cmd.input_size as usize).next_multiple_of(MAX_SEED_WORDS * 4);
         if size > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let additional_data = <[u32; MAX_CMB_DATA_SIZE / 4]>::ref_from_bytes(&cmd.input).unwrap();
         drivers.trng.stir(&additional_data[..size / 4])?;
@@ -800,26 +800,26 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesEncryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let mode = CmAesMode::from(cmd.mode);
 
         if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
         {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -846,7 +846,7 @@ impl Commands {
                     .aes
                     .aes_256_ctr(key, &iv, 0, plaintext, &mut resp.ciphertext)?
             }
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
@@ -871,17 +871,17 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesEncryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -891,7 +891,7 @@ impl Commands {
         let mode = CmAesMode::from(context.mode);
         if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
         {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
@@ -901,7 +901,7 @@ impl Commands {
                 Self::aes_256_cbc_op(drivers, context, plaintext, AesOperation::Encrypt, resp)
             }
             CmAesMode::Ctr => Self::aes_256_ctr_op(drivers, context, plaintext, resp),
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         }
     }
 
@@ -912,13 +912,13 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesDecryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let mode = CmAesMode::from(cmd.mode);
@@ -926,12 +926,12 @@ impl Commands {
         if matches!(mode, CmAesMode::Cbc)
             && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
         {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -951,7 +951,7 @@ impl Commands {
             CmAesMode::Ctr => drivers
                 .aes
                 .aes_256_ctr(key, iv, 0, ciphertext, &mut resp.output)?,
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
             &mut drivers.aes,
@@ -974,17 +974,17 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesDecryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
         let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -994,7 +994,7 @@ impl Commands {
         if matches!(mode, CmAesMode::Cbc)
             && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
         {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let resp = mutrefbytes::<CmAesResp>(resp)?;
@@ -1003,7 +1003,7 @@ impl Commands {
                 Self::aes_256_cbc_op(drivers, context, ciphertext, AesOperation::Decrypt, resp)
             }
             CmAesMode::Ctr => Self::aes_256_ctr_op(drivers, context, ciphertext, resp),
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         }
     }
 
@@ -1069,18 +1069,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmEncryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
@@ -1157,18 +1157,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmEncryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmSpdmEncryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
@@ -1218,18 +1218,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmEncryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
         let encrypted_context = EncryptedAesGcmContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let context = &drivers.cryptographic_mailbox.decrypt_aes_gcm_context(
             &mut drivers.aes,
@@ -1263,18 +1263,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptFinalReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmEncryptFinalReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
         let encrypted_context = EncryptedAesGcmContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let context = &drivers.cryptographic_mailbox.decrypt_aes_gcm_context(
             &mut drivers.aes,
@@ -1302,18 +1302,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmDecryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1374,18 +1374,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmDecryptInitReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmSpdmDecryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1435,18 +1435,18 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptUpdateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmDecryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
         let encrypted_context = EncryptedAesGcmContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let context = &drivers.cryptographic_mailbox.decrypt_aes_gcm_context(
             &mut drivers.aes,
@@ -1480,23 +1480,23 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptFinalReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmAesGcmDecryptFinalReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         if cmd.tag_len as usize > 16 || (cmd.tag_len as usize) < 8 {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let tag = &cmd.tag[..cmd.tag_len as usize];
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
         let encrypted_context = EncryptedAesGcmContext::ref_from_bytes(&cmd.context[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let context = &drivers.cryptographic_mailbox.decrypt_aes_gcm_context(
             &mut drivers.aes,
@@ -1524,7 +1524,7 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmEcdhGenerateReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let seed = drivers.trng.generate()?;
         let nonce = drivers.trng.generate()?;
@@ -1567,7 +1567,7 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmEcdhFinishReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let cmd = CmEcdhFinishReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -1594,7 +1594,7 @@ impl Commands {
 
         let key_usage: CmKeyUsage = cmd.key_usage.into();
         if key_usage == CmKeyUsage::Reserved {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let mut shared_key_out = Array4x12::default();
@@ -1643,7 +1643,7 @@ impl Commands {
 
     fn decrypt_hmac_key(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<UnencryptedCmk> {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
@@ -1653,7 +1653,7 @@ impl Commands {
 
         match (cmk.length, CmKeyUsage::from(cmk.key_usage as u32)) {
             (48 | 64, CmKeyUsage::Hmac) => Ok(cmk),
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS),
         }
     }
 
@@ -1688,7 +1688,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmHmacKdfCounterReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmHmacKdfCounterReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
@@ -1700,7 +1700,7 @@ impl Commands {
         Self::validate_hkdf_params(cm_hash_algorithm, key_usage, key_size)?;
 
         if cmd.label_size as usize > cmd.label.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let label = &cmd.label[..cmd.label_size as usize];
@@ -1763,7 +1763,7 @@ impl Commands {
                 let len = tag.as_bytes().len().min(key_size);
                 unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
             }
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         let resp = mutrefbytes::<CmHmacKdfCounterResp>(resp)?;
@@ -1787,7 +1787,7 @@ impl Commands {
             (_, CmKeyUsage::Mldsa, 32) => {}
             (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
             (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         }
         Ok(())
     }
@@ -1803,7 +1803,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() != core::mem::size_of::<CmHkdfExtractReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let cmd = CmHkdfExtractReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -1815,7 +1815,7 @@ impl Commands {
         match (cm_hash_algorithm, ikm.length) {
             (CmHashAlgorithm::Sha384, 48) => {}
             (CmHashAlgorithm::Sha512, 64) => {}
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         }
 
         let mut unencrypted_cmk = UnencryptedCmk {
@@ -1862,7 +1862,7 @@ impl Commands {
                 let len = tag.as_bytes().len();
                 unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
             }
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         let resp = mutrefbytes::<CmHkdfExtractResp>(resp)?;
@@ -1886,7 +1886,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
         if cmd_bytes.len() > core::mem::size_of::<CmHkdfExpandReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmHkdfExpandReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
@@ -1898,7 +1898,7 @@ impl Commands {
         Self::validate_hkdf_params(cm_hash_algorithm, key_usage, key_size)?;
 
         if cmd.info_size as usize > cmd.info.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let info = &cmd.info[..cmd.info_size as usize];
@@ -1931,7 +1931,7 @@ impl Commands {
                 let len = tag.len().min(key_size);
                 unencrypted_cmk.key_material[..len].copy_from_slice(&tag[..len])
             }
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         };
 
         let resp = mutrefbytes::<CmHkdfExpandResp>(resp)?;
@@ -1946,7 +1946,7 @@ impl Commands {
 
     fn decrypt_mldsa_seed(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<LEArray4x8> {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
@@ -1955,7 +1955,7 @@ impl Commands {
         )?;
 
         if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Mldsa) {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let seed = &cmk.key_material[..MLDSA_SEED_SIZE];
@@ -1971,7 +1971,7 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmMldsaPublicKeyReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let cmd = CmMldsaPublicKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -1994,13 +1994,13 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmMldsaSignReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmMldsaSignReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let msg = &cmd.message[..cmd.message_size as usize];
 
@@ -2029,13 +2029,13 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmMldsaVerifyReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmMldsaVerifyReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let msg = &cmd.message[..cmd.message_size as usize];
 
@@ -2059,7 +2059,7 @@ impl Commands {
 
     fn decrypt_ecdsa_seed(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<Array4x12> {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
@@ -2068,7 +2068,7 @@ impl Commands {
         )?;
 
         if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Ecdsa) {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
 
         let seed = &cmk.key_material[..ECC384_SCALAR_BYTE_SIZE];
@@ -2084,7 +2084,7 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmEcdsaPublicKeyReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let cmd = CmEcdsaPublicKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -2114,13 +2114,13 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmEcdsaSignReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmEcdsaSignReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         // hash the message
         let msg = &cmd.message[..cmd.message_size as usize];
@@ -2157,13 +2157,13 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmEcdsaVerifyReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let mut cmd = CmEcdsaVerifyReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         // hash the message
         let msg = &cmd.message[..cmd.message_size as usize];
@@ -2208,7 +2208,7 @@ impl Commands {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if cmd_bytes.len() != core::mem::size_of::<CmDeriveStableKeyReq>() {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         }
         let request = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -2295,7 +2295,7 @@ impl Commands {
                 key.copy_from_slice(&hkdf_key[..32]);
                 iv.copy_from_slice(&hkdf_iv[..12]);
             }
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS)?,
         }
         let key = transmute!(key);
         Ok((key, iv))
@@ -2379,7 +2379,7 @@ impl TryFrom<u8> for SpdmVersion {
             0x12 => Ok(SpdmVersion::V12),
             0x13 => Ok(SpdmVersion::V13),
             0x14 => Ok(SpdmVersion::V14),
-            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+            _ => Err(CaliptraError::MAILBOX_INVALID_PARAMS),
         }
     }
 }

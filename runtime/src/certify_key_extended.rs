@@ -34,7 +34,7 @@ impl CertifyKeyExtendedCmd {
         mbox_resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let cmd = CertifyKeyExtendedReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         match drivers.caller_privilege_level() {
             // CERTIFY_KEY_EXTENDED MUST only be called from PL0
