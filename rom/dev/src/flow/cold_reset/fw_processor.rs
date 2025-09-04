@@ -1049,6 +1049,7 @@ impl FirmwareProcessor {
 
         const FW_IMAGE_INDEX: u32 = 0x0;
         let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
+        cprintln!("Downloading image to MCU SRAM");
         dma_recovery.download_image_to_staging_sram(FW_IMAGE_INDEX, staging_sram_addr)
     }
 }
