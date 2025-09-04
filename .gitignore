@@ -36,3 +36,4 @@ junit.xml
 
 # FPGA Bitstream file
 **/*.pdi
+ci-tools/host-runner/secrets/
