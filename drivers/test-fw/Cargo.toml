@@ -22,7 +22,8 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
 
 [features]
 emu = ["caliptra-test-harness/emu"]
-fpga_realtime = []
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]
 
 
 # This feature is used to filter all these binary targets during normal builds
