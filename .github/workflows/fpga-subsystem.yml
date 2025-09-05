@@ -288,6 +288,7 @@ jobs:
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
               -E 'package(caliptra-drivers) and test(test_ocp_lock)'
+              -E 'package(caliptra-rom) and test(test_ocp_lock_supported)'
           )
 
           cargo-nextest nextest list \

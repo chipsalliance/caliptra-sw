@@ -131,6 +131,14 @@ pub extern "C" fn rom_entry() -> ! {
         }
     );
 
+    if cfg!(feature = "ocp-lock") {
+        if env.soc_ifc.ocp_lock_enabled() {
+            cprintln!("[ROM] OCP-LOCK Supported");
+        } else {
+            cprintln!("[ROM] HW does not support OCP-LOCK");
+        }
+    }
+
     // Set the ROM version
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     if !cfg!(feature = "fake-rom") {
