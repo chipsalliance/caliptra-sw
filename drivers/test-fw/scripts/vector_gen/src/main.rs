@@ -18,7 +18,7 @@ mod mdk;
 
 use crate::hmac384_kdf_vector_gen::Hmac384KdfVector;
 use crate::hmac384_vector_gen::Hmac384Vector;
-use crate::mdk::Mdk;
+use crate::mdk::Mek;
 
 fn hex_arr(bytes: &[u8]) -> String {
     format!(
@@ -75,10 +75,8 @@ fn main() {
     println!("  let out_pub_y = {};", hex_arr(&vec_kdf_c0.out_pub_y));
     println!();
 
-    let mdk = Mdk::default();
-    println!("mdk");
-    println!("  let input_key = {};", hex_arr(&mdk.input_key));
-    println!("  let mdk = {};", hex_arr(&mdk.mdk));
+    let mek = Mek::default();
+    println!("mek");
     println!("  let mek = {};", hex_arr(&mdk::PLAINTEXT_MEK));
-    println!("  let encrypted_mek = {};", hex_arr(&mdk.encrypted_mek));
+    println!("  let encrypted_mek = {};", hex_arr(&mek.encrypted_mek));
 }
