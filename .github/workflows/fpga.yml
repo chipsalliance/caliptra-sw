@@ -251,6 +251,7 @@ jobs:
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
+                       test(test_doe_when_debug_not_locked) |
                        test(test_sign_validation_failure) |
                        test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
                        test(test_activate_firmware::test_activate_invalid_fw_id) |
