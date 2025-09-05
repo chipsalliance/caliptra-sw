@@ -557,6 +557,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::DMA_SHA384_FPGA,
     &driver_tests::OCP_LOCK,
     &driver_tests::OCP_LOCK_WARM_RESET,
+    &driver_tests::OCP_LOCK,
     &driver_tests::DMA_AES,
     &driver_tests::AXI_BYPASS,
     &rom_tests::ASM_TESTS,

@@ -129,6 +129,7 @@ pub enum DmaWriteOrigin {
     Mbox(u32),
     AhbFifo,
     AxiRd(AxiAddr),
+    KeyVault,
 }
 
 pub struct DmaWriteTransaction {
@@ -257,6 +258,7 @@ impl Dma {
                     DmaWriteOrigin::Mbox(_) => WrRouteE::Mbox,
                     DmaWriteOrigin::AhbFifo => WrRouteE::AhbFifo,
                     DmaWriteOrigin::AxiRd(_) => WrRouteE::AxiRd,
+                    DmaWriteOrigin::KeyVault => WrRouteE::Keyvault,
                 })
                 .wr_fixed(write_transaction.fixed_addr)
                 .rd_route(|_| match write_transaction.origin {

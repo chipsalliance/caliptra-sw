@@ -20,7 +20,7 @@ Abstract:
 
 use crate::{
     kv_access::{KvAccess, KvAccessErr},
-    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x3,
+    CaliptaError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x3,
     LEArray4x4, LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;

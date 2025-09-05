@@ -11,7 +11,7 @@ use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
     aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg,
     hmac::HmacReg, kv::KvReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
-};
+use caliptra_kat::CaliptraResult;
 
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
 /// host) and the test binaries (running inside the hw-model).
@@ -44,7 +44,6 @@ pub const PLAINTEXT_MEK: [u8; 64] = [
 ];
 
 pub const OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS: u32 = 0xFEEB;
-
 #[derive(IntoBytes, KnownLayout, Immutable, Clone, Copy, Default, Eq, PartialEq, FromBytes)]
 #[repr(C)]
 pub struct DoeTestResults {
