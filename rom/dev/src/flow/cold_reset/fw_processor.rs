@@ -416,6 +416,10 @@ impl FirmwareProcessor {
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
+                        if soc_ifc.ocp_lock_enabled() {
+                            capabilities |= Capabilities::ROM_OCP_LOCK;
+                        }
+
                         let mut resp = CapabilitiesResp {
                             hdr: MailboxRespHeader::default(),
                             capabilities: capabilities.to_bytes(),

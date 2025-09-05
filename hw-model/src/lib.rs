@@ -907,6 +907,14 @@ pub trait HwModel: SocManager {
         }
     }
 
+    fn subsystem_mode(&mut self) -> bool {
+        self.soc_ifc().cptra_hw_config().read().subsystem_mode_en()
+    }
+
+    fn supports_ocp_lock(&mut self) -> bool {
+        self.soc_ifc().cptra_hw_config().read().ocp_lock_mode_en()
+    }
+
     fn cover_fw_image(&mut self, _image: &[u8]) {}
 
     fn tracing_hint(&mut self, enable: bool);
