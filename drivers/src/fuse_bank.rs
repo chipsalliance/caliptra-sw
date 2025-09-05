@@ -276,6 +276,26 @@ impl FuseBank<'_> {
         first_set_msbit(&soc_ifc_regs.fuse_runtime_svn().read())
     }
 
+    /// Get the SoC manifest fuse security version number.
+    ///
+    /// # Returns
+    ///     SoC manifest security version number
+    ///
+    pub fn soc_manifest_fuse_svn(&self) -> u32 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        first_set_msbit(&soc_ifc_regs.fuse_soc_manifest_svn().read())
+    }
+
+    /// Get the maximum SoC manifest fuse security version number.
+    ///
+    /// # Returns
+    ///     Maximum SoC manifest security version number
+    ///
+    pub fn max_soc_manifest_fuse_svn(&self) -> u32 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.fuse_soc_manifest_max_svn().read().svn()
+    }
+
     /// Get the lms revocation bits.
     ///
     /// # Returns

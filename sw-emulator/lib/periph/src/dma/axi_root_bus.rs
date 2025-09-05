@@ -29,7 +29,7 @@ pub type AxiAddr = u64;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
-const MCU_SRAM_SIZE: usize = 256 * 1024;
+const MCU_SRAM_SIZE: usize = 384 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,

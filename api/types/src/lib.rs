@@ -232,6 +232,8 @@ pub struct Fuses {
     pub fuse_pqc_key_type: u32,
     pub manuf_dbg_unlock_token: [u32; 16],
     pub debug_locked: bool,
+    pub soc_manifest_svn: [u32; 4],
+    pub soc_manifest_max_svn: u8,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -252,6 +254,8 @@ impl Default for Fuses {
             fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
             manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN_HASH,
             debug_locked: false,
+            soc_manifest_max_svn: 128,
+            soc_manifest_svn: Default::default(),
         }
     }
 }

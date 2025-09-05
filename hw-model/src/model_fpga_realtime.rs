@@ -224,13 +224,8 @@ impl ModelFpgaRealtime {
                     .read_volatile(),
             );
             val.set_axi_reset(1);
-            self.wrapper
-                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
-                .write_volatile(val.0);
-            val.set_axi_reset(0);
-            self.wrapper
-                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
-                .write_volatile(val.0);
+            // wait a few clock cycles or we can crash the FPGA
+            std::thread::sleep(std::time::Duration::from_micros(1));
         }
     }
 
