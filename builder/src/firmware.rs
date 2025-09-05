@@ -350,7 +350,7 @@ pub mod driver_tests {
     pub const DMA_SHA384_FPGA: FwId = FwId {
         bin_name: "dma_sha384",
         features: &["emu", "fpga_subsystem"],
-      ..BASE_FWID
+        ..BASE_FWID
     };
 
     pub const OCP_LOCK: FwId = FwId {
