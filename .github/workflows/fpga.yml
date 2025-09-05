@@ -271,8 +271,7 @@ jobs:
                        test(test_lms::test_lms_verify_invalid_lmots_type) |
                        test(test_lms::test_lms_verify_invalid_sig_lms_type) |
                        test(test_rtalias::test_boot_status_reporting) |
-                       binary_id(caliptra-test::fips_test_suite) |
-                       package(caliptra-rom))'
+                       binary_id(caliptra-test::fips_test_suite))'
           )
 
           cargo-nextest nextest list \
