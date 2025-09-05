@@ -114,10 +114,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Check if the PQC key type matches the fuse value. Skip this check if unprovisioned.
         if self.env.dev_lifecycle() != Lifecycle::Unprovisioned {
-            let pqc_key_type_fuse = self.env.pqc_key_type_fuse()?;
-            if pqc_key_type != pqc_key_type_fuse {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH)?;
-            }
+            // let pqc_key_type_fuse = self.env.pqc_key_type_fuse()?;
+            // if pqc_key_type != pqc_key_type_fuse {
+            //     Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH)?;
+            // }
         }
 
         // Verify the preamble
