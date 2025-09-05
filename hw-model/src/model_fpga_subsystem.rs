@@ -130,7 +130,7 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
-const DEFAULT_AXI_PAUSER: u32 = 0xcccc_cccc;
+const DEFAULT_AXI_PAUSER: u32 = 0x1;
 const OTP_SIZE: usize = 16384;
 const AXI_CLK_HZ: u32 = 199_999_000;
 const I3C_CLK_HZ: u32 = 12_500_000;
