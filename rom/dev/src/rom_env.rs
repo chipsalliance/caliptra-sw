@@ -17,13 +17,13 @@ Abstract:
 
 use caliptra_drivers::{
     Aes, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
     abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
-    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr,
+    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
     soc_ifc_trng::SocIfcTrngReg,
 };
 
@@ -43,6 +43,9 @@ pub struct RomEnv {
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
+
+    // SHA3/SHAKE
+    pub sha3: Sha3,
 
     /// Hmac Engine
     pub hmac: Hmac,
@@ -96,6 +99,7 @@ impl RomEnv {
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+            sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),

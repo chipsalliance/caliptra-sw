@@ -28,7 +28,7 @@ use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, Aes,
     CaliptraError, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, ResetReason, Sha256, Sha2_512_384,
-    Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
+    Sha2_512_384Acc, Sha3, ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -155,6 +155,9 @@ pub extern "C" fn rom_entry() -> ! {
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
+
+            // SHA3/SHAKE
+            sha3: &mut env.sha3,
 
             // Hmac-512/384 Engine
             hmac: &mut env.hmac,
@@ -392,6 +395,7 @@ fn handle_fatal_error(code: u32) -> ! {
         Sha256::zeroize();
         Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();
+        Sha3::zeroize();
 
         // Zeroize the key vault.
         KeyVault::zeroize();
