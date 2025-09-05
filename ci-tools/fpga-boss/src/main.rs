@@ -371,6 +371,9 @@ fn main_impl() -> anyhow::Result<()> {
                 open_block_dev(&sd_dev_path).with_context(|| sd_dev_path.display().to_string())?;
             if !sub_matches.is_present("read_first") || !verify_image(&mut sd_dev, &mut file)? {
                 copy_file(&mut sd_dev, &mut file)?;
+                if !verify_image(&mut sd_dev, &mut file)? {
+                    return Err(anyhow!("Failed to verify image after flashing. Please try again."));
+                }
             } else {
                 println!("Device already contains the desired image");
             }
