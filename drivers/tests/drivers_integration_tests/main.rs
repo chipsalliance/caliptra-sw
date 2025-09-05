@@ -1181,6 +1181,12 @@ fn test_dma_sha384() {
     }
 }
 
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_ocp_lock() {
+    run_driver_test(&firmware::driver_tests::OCP_LOCK);
+}
+
 // This test only works on the subsystem FPGA for now
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
