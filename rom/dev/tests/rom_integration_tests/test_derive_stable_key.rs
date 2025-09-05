@@ -8,11 +8,11 @@ use caliptra_api::mailbox::{
     MailboxRespHeaderVarSize, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
+    firmware::{self, rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::{
-    crypto::{EncryptedCmk, UnencryptedCmk},
+    crypto::{EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader},
     RomBootStatus::ColdResetComplete,
 };
@@ -43,12 +43,38 @@ fn hmac512(key: &[u8], data: &[u8]) -> [u8; 64] {
     result.into_bytes().into()
 }
 
+fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
+    assert!(
+        bytes.len() >= size_of::<EncryptedCmk>(),
+        "Byte slice too small"
+    );
+
+    let domain = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+    let domain_metadata = bytes[4..20].try_into().unwrap();
+    let iv = bytes[20..32].try_into().unwrap();
+    let ciphertext = bytes[32..(32 + UNENCRYPTED_CMK_SIZE_BYTES)]
+        .try_into()
+        .unwrap();
+    let gcm_tag_start = 32 + UNENCRYPTED_CMK_SIZE_BYTES;
+    let gcm_tag = bytes[gcm_tag_start..(gcm_tag_start + 16)]
+        .try_into()
+        .unwrap();
+
+    EncryptedCmk {
+        domain,
+        domain_metadata,
+        iv,
+        ciphertext,
+        gcm_tag,
+    }
+}
+
 #[test]
 fn test_derive_stable_key() {
     for key_type in DOT_KEY_TYPES.iter() {
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
-            &TEST_FMC_WITH_UART,
+            &TEST_FMC_INTERACTIVE,
             &APP_WITH_UART,
             ImageOptions::default(),
         )
@@ -129,8 +155,8 @@ fn test_derive_stable_key() {
 
         let aes_key = result.unwrap().unwrap();
 
-        let cmk = EncryptedCmk::ref_from_bytes(&cmk).unwrap();
-        let cmk = decrypt_cmk(&aes_key, cmk).unwrap();
+        let cmk = parse_encrypted_cmk(&cmk);
+        let cmk = decrypt_cmk(&aes_key, &cmk).unwrap();
 
         let computed_mac = hmac512(&cmk.key_material, &data);
         assert_eq!(computed_mac, expected_mac);
