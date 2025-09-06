@@ -33,6 +33,9 @@ pub const XI3C_CMD_TYPE_I3C: u8 = 1;
 
 /// BIT 4 - Resp Fifo not empty
 pub(crate) const XI3C_SR_RESP_NOT_EMPTY_MASK: u32 = 0x10;
+/// BIT 7 - IBI
+pub(crate) const XI3C_SR_IBI_MASK: u32 = 0x00000080;
+
 /// BIT 15 - Read FIFO empty
 pub(crate) const XI3C_SR_RD_FIFO_NOT_EMPTY_MASK: u32 = 0x8000;
 
@@ -792,18 +795,23 @@ impl Controller {
         self.status_handler.set(Some(handler));
     }
 
+    pub fn ibi_ready(&self) -> bool {
+        self.regs().sr.get() & XI3C_SR_IBI_MASK != 0
+    }
+
     /// This function receives data during IBI in polled mode.
     ///
     /// It polls the data register for data to come in during IBI.
     /// If controller fails to read data due to any error, it will return an Err with the status.
-    pub fn ibi_recv_polled(&self) -> Result<Vec<u8>, XI3cError> {
+    pub fn ibi_recv_polled(&self, timeout: Duration) -> Result<Vec<u8>, XI3cError> {
         let mut recv = vec![];
         let mut data_index: u16;
         let mut rx_data_available: u16;
+        let timeout = (timeout.as_micros() as u32).min(MAX_TIMEOUT_US);
         let happened = self.wait_for_event(
             XI3C_SR_RD_FIFO_NOT_EMPTY_MASK,
             XI3C_SR_RD_FIFO_NOT_EMPTY_MASK,
-            MAX_TIMEOUT_US * 10,
+            timeout,
         );
         if happened {
             println!("Got an IBI, reading data");

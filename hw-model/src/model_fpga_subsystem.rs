@@ -335,6 +335,17 @@ impl XI3CWrapper {
             .unwrap()
             .master_send(&cmd, payload, payload.len() as u16)
     }
+
+    pub fn ibi_ready(&self) -> bool {
+        self.controller.lock().unwrap().ibi_ready()
+    }
+
+    pub fn ibi_recv(&self, timeout: Option<Duration>) -> Result<Vec<u8>, XI3cError> {
+        self.controller
+            .lock()
+            .unwrap()
+            .ibi_recv_polled(timeout.unwrap_or(Duration::from_millis(1))) // 256 bytes only takes ~0.2ms to transmit, so this gives us plenty of time
+    }
 }
 
 pub struct ModelFpgaSubsystem {
