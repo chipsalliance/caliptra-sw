@@ -1457,10 +1457,35 @@ impl HwModel for ModelFpgaSubsystem {
     {
         HwModel::init_fuses(self, &boot_params.fuses);
 
+        // This is the binary for:
+        // L0: j L0
+        // i.e., loop {}
+        let mcu_fw_image = match boot_params.mcu_fw_image {
+            Some(mcu_fw_image) => mcu_fw_image.to_vec(),
+            None => {
+                let mut mcu_fw_image = vec![0x00u8, 0x00, 0x00, 0x6f];
+                mcu_fw_image.resize(256, 0);
+                mcu_fw_image
+            }
+        };
+
+        println!("Setting recovery images to BMC");
+        self.bmc
+            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
+        self.bmc.push_recovery_image(
+            boot_params
+                .soc_manifest
+                .map(|s| s.to_vec())
+                .unwrap_or_default(),
+        );
+        self.bmc.push_recovery_image(mcu_fw_image);
+
         println!("Taking subsystem out of reset");
         self.set_subsystem_reset(false);
 
-        while !self.i3c_target_configured() {}
+        while !self.i3c_target_configured() {
+            self.step();
+        }
         println!("Done starting MCU");
 
         // TODO: support passing these into MCU ROM
@@ -1503,44 +1528,10 @@ impl HwModel for ModelFpgaSubsystem {
         // println!("writing to cptra_bootfsm_go");
         // self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
+        self.i3c_controller.configure();
+        println!("Starting recovery flow (BMC)");
+        self.start_recovery_bmc();
         self.step();
-
-        // This is the binary for:
-        // L0: j L0
-        // i.e., loop {}
-        let mcu_fw_image = match boot_params.mcu_fw_image {
-            Some(mcu_fw_image) => mcu_fw_image.to_vec(),
-            None => {
-                let mut mcu_fw_image = vec![0x00u8, 0x00, 0x00, 0x6f];
-                mcu_fw_image.resize(256, 0);
-                mcu_fw_image
-            }
-        };
-
-        println!("Setting recovery images to BMC");
-        self.bmc
-            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
-        self.bmc.push_recovery_image(
-            boot_params
-                .soc_manifest
-                .map(|s| s.to_vec())
-                .unwrap_or_default(),
-        );
-        self.bmc.push_recovery_image(mcu_fw_image);
-
-        let mut xi3c_configured = false;
-        // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
-        // it is done or timeout.
-        for _ in 0..1_000_000 {
-            if !xi3c_configured && self.i3c_target_configured() {
-                xi3c_configured = true;
-                println!("I3C target configured");
-                self.i3c_controller.configure();
-                println!("Starting recovery flow (BMC)");
-                self.start_recovery_bmc();
-            }
-            self.step();
-        }
         println!("Finished booting");
 
         Ok(())
