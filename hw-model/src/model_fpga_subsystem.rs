@@ -6,6 +6,7 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
+use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
     LifecycleRawTokens, LifecycleToken,
@@ -13,6 +14,7 @@ use crate::otp_provision::{
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
+use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -350,6 +352,7 @@ pub struct ModelFpgaSubsystem {
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
     pub i3c_controller: XI3CWrapper,
+    pub jtag_tap: Option<Box<OpenOcdJtagTap>>,
     pub otp_mmio: *mut u32,
     pub lc_mmio: *mut u32,
 
@@ -1117,6 +1120,11 @@ impl ModelFpgaSubsystem {
     fn cycle_count(&mut self) -> u64 {
         self.wrapper.regs().cycle_count.get() as u64
     }
+
+    pub fn jtag_tap_connect(&mut self, params: &JtagParams, tap: JtagTap) -> Result<()> {
+        self.jtag_tap = Some(OpenOcdJtagTap::new(params, tap)?);
+        Ok(())
+    }
 }
 
 impl HwModel for ModelFpgaSubsystem {
@@ -1275,6 +1283,7 @@ impl HwModel for ModelFpgaSubsystem {
                 i3c_mmio,
                 i3c_controller_mmio,
             },
+            jtag_tap: None,
             otp_mmio,
             lc_mmio,
 

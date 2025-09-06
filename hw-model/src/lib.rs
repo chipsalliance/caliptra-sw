@@ -35,6 +35,7 @@ mod bmc;
 mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
+pub mod openocd;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
