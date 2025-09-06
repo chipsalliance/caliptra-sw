@@ -98,12 +98,12 @@ pub extern "C" fn entry_point() -> ! {
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
-    cprintln!(
-        "FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        trap_record.mcause,
-        trap_record.mscause,
-        trap_record.mepc
-    );
+    //cprintln!(
+    //"FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+    //trap_record.mcause,
+    //trap_record.mscause,
+    //trap_record.mepc
+    //);
     log_trap_record(trap_record, None);
 
     handle_fatal_error(CaliptraError::FMC_GLOBAL_EXCEPTION.into());
@@ -125,13 +125,13 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
             .read(),
     );
     log_trap_record(trap_record, Some(err_interrupt_status));
-    cprintln!(
-        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}error_internal_intr_r={:08X}",
-        trap_record.mcause,
-        trap_record.mscause,
-        trap_record.mepc,
-        err_interrupt_status,
-    );
+    //cprintln!(
+    //"FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}error_internal_intr_r={:08X}",
+    //trap_record.mcause,
+    //trap_record.mscause,
+    //trap_record.mepc,
+    //err_interrupt_status,
+    //);
     let mut error = CaliptraError::FMC_GLOBAL_NMI;
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
