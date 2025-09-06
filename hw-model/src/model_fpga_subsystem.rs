@@ -1500,8 +1500,8 @@ impl HwModel for ModelFpgaSubsystem {
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
-        println!("writing to cptra_bootfsm_go");
-        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        // println!("writing to cptra_bootfsm_go");
+        // self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         self.step();
 
