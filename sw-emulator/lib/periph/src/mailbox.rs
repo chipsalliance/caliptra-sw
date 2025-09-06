@@ -13,7 +13,7 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::{Bus, BusMmio, Clock, Ram, Timer};
+use caliptra_emu_bus::{AlignedRam, Bus, BusMmio, Clock, Timer};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -56,13 +56,13 @@ type StatusRegister = LocalRegisterCopy<u32, Status::Register>;
 
 #[derive(Clone)]
 pub struct MailboxRam {
-    ram: Rc<RefCell<Ram>>,
+    ram: Rc<RefCell<AlignedRam>>,
 }
 
 impl MailboxRam {
     pub fn new() -> Self {
         Self {
-            ram: Rc::new(RefCell::new(Ram::new(vec![
+            ram: Rc::new(RefCell::new(AlignedRam::new(vec![
                 0u8;
                 MAX_MAILBOX_CAPACITY_BYTES
             ]))),

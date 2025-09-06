@@ -15,15 +15,64 @@ Abstract:
 use crate::{mem::Mem, Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
+/// Trait defining memory access behavior
+pub trait MemAccess {
+    fn read_mem(mem: &Mem, size: RvSize, addr: RvAddr) -> Result<RvData, crate::mem::MemError>;
+    fn write_mem(
+        mem: &mut Mem,
+        size: RvSize,
+        addr: RvAddr,
+        val: RvData,
+    ) -> Result<(), crate::mem::MemError>;
+}
+
+/// Unaligned memory access (current behavior)
+pub struct UnalignedAccess;
+
+impl MemAccess for UnalignedAccess {
+    fn read_mem(mem: &Mem, size: RvSize, addr: RvAddr) -> Result<RvData, crate::mem::MemError> {
+        mem.read(size, addr)
+    }
+
+    fn write_mem(
+        mem: &mut Mem,
+        size: RvSize,
+        addr: RvAddr,
+        val: RvData,
+    ) -> Result<(), crate::mem::MemError> {
+        mem.write(size, addr, val)
+    }
+}
+
+/// Aligned memory access
+pub struct AlignedAccess;
+
+impl MemAccess for AlignedAccess {
+    fn read_mem(mem: &Mem, size: RvSize, addr: RvAddr) -> Result<RvData, crate::mem::MemError> {
+        mem.read_aligned(size, addr)
+    }
+
+    fn write_mem(
+        mem: &mut Mem,
+        size: RvSize,
+        addr: RvAddr,
+        val: RvData,
+    ) -> Result<(), crate::mem::MemError> {
+        mem.write_aligned(size, addr, val)
+    }
+}
+
 /// Random Access Memory Device
-pub struct Ram {
+pub struct RamImpl<T: MemAccess = UnalignedAccess> {
     /// Inject double-bit ECC errors on read
     pub error_injection: u8,
     /// Random Access Data
     data: Mem,
+    /// Memory access behavior
+    _phantom: std::marker::PhantomData<T>,
 }
 
-impl Ram {
+impl<T: MemAccess> RamImpl<T> {
     /// Create new RAM
     ///
     /// # Arguments
@@ -33,6 +82,7 @@ impl Ram {
         Self {
             error_injection: 0,
             data: Mem::new(data),
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -53,7 +103,7 @@ impl Ram {
     }
 }
 
-impl Bus for Ram {
+impl<T: MemAccess> Bus for RamImpl<T> {
     /// Read data of specified size from given address
     ///
     /// # Arguments
@@ -72,7 +122,7 @@ impl Bus for Ram {
         if 8 == self.error_injection {
             return Err(BusError::LoadAccessFault);
         }
-        match self.data.read(size, addr) {
+        match T::read_mem(&self.data, size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
         }
@@ -91,12 +141,18 @@ impl Bus for Ram {
     /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
     ///                   or `BusExceptionCause::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
-        match self.data.write(size, addr, val) {
+        match T::write_mem(&mut self.data, size, addr, val) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
         }
     }
 }
+
+/// Type alias for unaligned RAM (default behavior)
+pub type Ram = RamImpl<UnalignedAccess>;
+
+/// Type alias for aligned RAM
+pub type AlignedRam = RamImpl<AlignedAccess>;
 
 #[cfg(test)]
 mod tests {
