@@ -28,10 +28,16 @@ caliptra-hw-model-types.workspace = true
 caliptra-api.workspace = true
 caliptra-registers.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
+once_cell.workspace = true
 rand.workspace = true
+regex.workspace = true
+rustix.workspace = true
+scopeguard.workspace = true
+serde.workspace = true
 sha2.workspace = true
 sha3.workspace = true
 smlang.workspace = true
+thiserror.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true
