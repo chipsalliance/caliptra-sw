@@ -796,7 +796,12 @@ impl Controller {
     }
 
     pub fn ibi_ready(&self) -> bool {
-        self.regs().sr.get() & XI3C_SR_IBI_MASK != 0
+        // self.regs().sr.get() & XI3C_SR_IBI_MASK != 0
+        self.regs().sr.get() & XI3C_SR_RD_FIFO_NOT_EMPTY_MASK != 0
+    }
+
+    pub fn status(&self) -> u32 {
+        self.regs().sr.get()
     }
 
     /// This function receives data during IBI in polled mode.
