@@ -800,6 +800,14 @@ impl Controller {
         self.regs().sr.get() & XI3C_SR_RD_FIFO_NOT_EMPTY_MASK != 0
     }
 
+    pub fn interrupt_status(&self) -> u32 {
+        self.regs().intr_status.get()
+    }
+
+    pub fn interrupt_enable_set(&self, mask: u32) {
+        self.regs().intr_re.set(mask)
+    }
+
     pub fn status(&self) -> u32 {
         self.regs().sr.get()
     }
