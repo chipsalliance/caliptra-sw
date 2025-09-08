@@ -107,7 +107,7 @@ impl OutputSink {
                     .unwrap();
                 self.0.exit_status.set(Some(ExitStatus::Failed));
             }
-            0x20..=0x7f | b'\r' | b'\n' | b'\t' => {
+            0x2..=0xf7 => {
                 let mut s = self.0.new_uart_output.take();
                 s.push(ch as char);
                 self.0.new_uart_output.set(s);
