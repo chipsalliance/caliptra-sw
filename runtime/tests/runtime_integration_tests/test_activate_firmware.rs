@@ -119,6 +119,11 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     model
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -153,6 +158,11 @@ fn test_activate_mcu_fw_success() {
         .expect("We should have received a response");
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
@@ -196,6 +206,11 @@ fn test_activate_mcu_soc_fw_success() {
         .expect("We should have received a response");
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_activate_soc_fw_success() {
     let soc_image = Image {
@@ -230,6 +245,11 @@ fn test_activate_soc_fw_success() {
         .expect("We should have received a response");
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_activate_invalid_fw_id() {
     let soc_image = Image {
@@ -263,6 +283,11 @@ fn test_activate_invalid_fw_id() {
         .is_err());
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_activate_fw_id_not_in_manifest() {
     let soc_image = Image {
@@ -296,6 +321,11 @@ fn test_activate_fw_id_not_in_manifest() {
         .is_err());
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_invalid_exec_bit_in_manifest() {
     let soc_image = Image {

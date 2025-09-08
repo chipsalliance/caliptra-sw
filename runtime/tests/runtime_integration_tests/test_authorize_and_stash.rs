@@ -996,6 +996,11 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     );
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1044,6 +1049,11 @@ fn test_authorize_from_load_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1091,6 +1101,11 @@ fn test_authorize_from_load_address_incorrect_digest() {
     );
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1139,6 +1154,11 @@ fn test_authorize_from_staging_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
