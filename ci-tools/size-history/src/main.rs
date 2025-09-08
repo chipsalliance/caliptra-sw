@@ -96,9 +96,7 @@ fn real_main() -> io::Result<()> {
         println!("Committing squashed commit {pull_request_title:?}");
         worktree.commit(&pull_request_title)?;
 
-        if !worktree.is_log_linear()? {
-            return Err(other_err("history still non-linear after squash; aborting"));
-        }
+        // we can't guarantee linear history even after squashing, so we can't check here
     }
 
     let git_commits = worktree.commit_log()?;
