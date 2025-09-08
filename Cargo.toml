@@ -176,6 +176,8 @@ quote = "1.0"
 rand = "0.8"
 rfc6979 = "0.4.0"
 rusb = "0.9.3"
+rustix = { version = "1", features = ["event", "fs", "net", "process", "stdio", "termios"] }
+scopeguard = "1.2"
 serde = "1.0"
 serde_derive = "1.0.136"
 serde_json = "1.0"
@@ -187,6 +189,7 @@ smlang = "0.8.0"
 spki = { version = "0.7.3", features = ["alloc"] }
 syn = "1.0.107"
 tinytemplate = "1.1"
+thiserror = "2"
 tock-registers = { git = "https://github.com/tock/tock.git", rev = "b128ae817b86706c8c4e39d27fae5c54b98659f1" }
 toml = "0.7.0"
 ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }

@@ -35,10 +35,11 @@ mod bmc;
 mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
+pub mod openocd;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
-mod xi3c;
+pub mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
@@ -219,6 +220,9 @@ pub struct InitParams<'a> {
 
     // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
     pub mcu_rom: Option<&'a [u8]>,
+
+    // Consume MCU UART log with Caliptra UART log
+    pub enable_mcu_uart_log: bool,
 }
 
 impl Default for InitParams<'_> {
@@ -264,6 +268,7 @@ impl Default for InitParams<'_> {
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
             mcu_rom: None,
+            enable_mcu_uart_log: false,
         }
     }
 }

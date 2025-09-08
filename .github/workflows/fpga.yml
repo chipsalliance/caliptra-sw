@@ -252,7 +252,6 @@ jobs:
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
                        test(test_sign_validation_failure) |
-                       test(test_dma_sha384) |
                        test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
                        test(test_activate_firmware::test_activate_invalid_fw_id) |
                        test(test_activate_firmware::test_activate_mcu_fw_success) |
@@ -271,8 +270,11 @@ jobs:
                        test(test_lms::test_lms_verify_invalid_key_lms_type) |
                        test(test_lms::test_lms_verify_invalid_lmots_type) |
                        test(test_lms::test_lms_verify_invalid_sig_lms_type) |
+                       test(test_rtalias::test_boot_status_reporting) |
                        binary_id(caliptra-test::fips_test_suite) |
-                       package(caliptra-rom))'
+                       test(test_pmp::test_datavault_pmp_enforcement) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
           )
 
           cargo-nextest nextest list \
