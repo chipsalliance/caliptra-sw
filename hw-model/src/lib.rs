@@ -49,6 +49,8 @@ mod model_verilated;
 mod model_fpga_realtime;
 
 #[cfg(feature = "fpga_subsystem")]
+mod mcu_boot_status;
+#[cfg(feature = "fpga_subsystem")]
 mod model_fpga_subsystem;
 
 mod output;
