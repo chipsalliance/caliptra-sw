@@ -17,6 +17,7 @@ pub enum ExitStatus {
 struct OutputSinkImpl {
     exit_status: Cell<Option<ExitStatus>>,
     new_uart_output: Cell<String>,
+    new_uart_char: Cell<Vec<u8>>,
     log_writer: RefCell<LineWriter<Box<dyn std::io::Write>>>,
     at_start_of_line: Cell<bool>,
     now: Cell<u64>,
@@ -107,8 +108,15 @@ impl OutputSink {
                     .unwrap();
                 self.0.exit_status.set(Some(ExitStatus::Failed));
             }
-            0x2..=0xf7 => {
+            0x2..=0x7f => {
                 let mut s = self.0.new_uart_output.take();
+                let utf8_partial = self.0.new_uart_char.take();
+                if !utf8_partial.is_empty() {
+                    // flush pending (probably invalid) utf8 bytes
+                    for x in utf8_partial.iter().copied() {
+                        s.push(x as char);
+                    }
+                }
                 s.push(ch as char);
                 self.0.new_uart_output.set(s);
 
@@ -124,6 +132,20 @@ impl OutputSink {
                     self.0.at_start_of_line.set(true);
                 }
             }
+            0x80..=0xf7 => {
+                // utf8
+                let mut bytes = self.0.new_uart_char.take();
+                bytes.push(ch);
+                // flush to log if we are valid utf8 now
+                if let Ok(s) = String::from_utf8(bytes.clone()) {
+                    let mut output = self.0.new_uart_output.take();
+                    output += &s;
+                    self.0.new_uart_output.set(output);
+                } else {
+                    self.0.new_uart_char.set(bytes);
+                }
+            }
+
             _ => {
                 writeln!(
                     self.0.log_writer.borrow_mut(),
@@ -173,6 +195,7 @@ impl Output {
             output: "".into(),
             sink: OutputSink(Rc::new(OutputSinkImpl {
                 new_uart_output: Default::default(),
+                new_uart_char: Default::default(),
                 log_writer: RefCell::new(LineWriter::new(log_writer)),
                 exit_status: Cell::new(None),
                 at_start_of_line: Cell::new(true),
