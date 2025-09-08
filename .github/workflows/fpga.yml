@@ -267,9 +267,7 @@ jobs:
                        test(test_fips::test_fips_shutdown) |
                        test(test_lms::test_lms_verify_cmd) |
                        test(test_lms::test_lms_verify_failure) |
-                       test(test_lms::test_lms_verify_invalid_key_lms_type) |
                        test(test_lms::test_lms_verify_invalid_lmots_type) |
-                       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
                        test(test_rtalias::test_boot_status_reporting) |
                        binary_id(caliptra-test::fips_test_suite) |
                        test(test_pmp::test_datavault_pmp_enforcement) |
