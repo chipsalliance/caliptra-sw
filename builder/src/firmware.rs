@@ -222,7 +222,7 @@ pub mod driver_tests {
 
     pub const KEYVAULT_FPGA: FwId = FwId {
         bin_name: "keyvault",
-        features: &["fpga_realtime"],
+        features: &["emu", "fpga_realtime"],
         ..BASE_FWID
     };
 
@@ -346,6 +346,13 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    // TODO: delete this when AXI DMA is fixed in the FPGA
+    pub const DMA_SHA384_FPGA: FwId = FwId {
+        bin_name: "dma_sha384",
+        features: &["emu", "fpga_subsystem"],
+        ..BASE_FWID
+    };
+
     pub const OCP_LOCK: FwId = FwId {
         bin_name: "ocp_lock",
         features: &["ocp-lock", "fpga_realtime"],
@@ -354,6 +361,7 @@ pub mod driver_tests {
 
     pub const DMA_AES: FwId = FwId {
         bin_name: "dma_aes",
+        features: &["emu", "fpga_subsystem"],
         ..BASE_FWID
     };
 }
@@ -504,6 +512,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,
+    &driver_tests::DMA_SHA384_FPGA,
     &driver_tests::OCP_LOCK,
     &driver_tests::DMA_AES,
     &rom_tests::ASM_TESTS,
