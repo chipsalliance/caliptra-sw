@@ -1443,11 +1443,14 @@ impl HwModel for ModelFpgaSubsystem {
 
         self.otp_slice().copy_from_slice(&otp_mem);
 
+        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
+        // It looks like the words are backwards in the FPGA wrapper. Update
+        // this when the wrapper is updated.
+
         // Notify MCU ROM it can start loading the fuse registers
-        let gpio1 = self.wrapper.regs().mci_generic_input_wires[1]
-            .extract()
-            .get();
-        self.wrapper.regs().mci_generic_input_wires[0].set(gpio1 | 1 << 30);
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 30);
     }
 
     fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
