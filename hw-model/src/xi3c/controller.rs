@@ -664,6 +664,12 @@ impl Controller {
             msg_ptr = &msg_ptr[size..];
             space_index += 1;
         }
+        println!(
+            "[xi3c] master_send fill fifo: requested byte count = {}, sent bytes = {}, wr_fifo_space = {}, space_index = {}",
+            byte_count,
+            byte_count - (msg_ptr.len() as u16),
+            wr_fifo_space, space_index
+        );
         if (self.config.wr_threshold as u16) < byte_count {
             self.regs().intr_fe.set(self.regs().intr_fe.get() | 0x20);
         }
