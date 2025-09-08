@@ -355,7 +355,7 @@ pub mod driver_tests {
 
     pub const OCP_LOCK: FwId = FwId {
         bin_name: "ocp_lock",
-        features: &["ocp-lock", "fpga_realtime"],
+        features: &["fpga_realtime"],
         ..BASE_FWID
     };
 

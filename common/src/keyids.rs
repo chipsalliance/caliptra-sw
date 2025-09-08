@@ -50,7 +50,6 @@ pub const KEY_ID_STABLE_LDEV: KeyId = KeyId::KeyId1;
 
 pub const KEY_ID_TMP: KeyId = KeyId::KeyId3;
 
-#[cfg(feature = "ocp-lock")]
 pub mod ocp_lock {
     use super::KeyId;
 
