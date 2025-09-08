@@ -51,6 +51,8 @@ pub(crate) const XI3C_INTR_HJ_MASK: u32 = 0x100;
 
 /// BIT 0 - Core Enable
 pub(crate) const XI3C_CR_EN_MASK: u32 = 0x1;
+/// BIT 2 - Resume Operation
+pub(crate) const XI3C_CR_RESUME_MASK: u32 = 0x4;
 /// BIT 3 - IBI Enable
 pub(crate) const XI3C_CR_IBI_MASK: u32 = 0x8;
 /// BIT 4 - Hot Join Enable
@@ -442,6 +444,16 @@ impl Controller {
         data |= enable as u32;
         self.regs().cr.set(data);
         println!("XI3C: Enable set to {:x}", self.regs().cr.get());
+    }
+
+    #[inline]
+    pub fn resume(&self, resume: u8) {
+        assert!(self.ready.get());
+        let mut data = self.regs().cr.get();
+        data &= !XI3C_CR_RESUME_MASK;
+        data |= resume as u32;
+        self.regs().cr.set(data);
+        println!("XI3C: Resume set to {:x}", self.regs().cr.get());
     }
 
     #[inline]
