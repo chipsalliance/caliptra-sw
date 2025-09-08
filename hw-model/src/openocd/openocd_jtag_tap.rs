@@ -6,11 +6,16 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(dead_code)]
+
 use std::path::PathBuf;
+use std::str::FromStr;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Context, Result};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
+use crate::lcc::LcCtrlReg;
 use crate::openocd::openocd_server::{OpenOcdError, OpenOcdServer};
 
 /// Available JTAG TAPs in Calitpra Subsystem.
@@ -37,6 +42,19 @@ pub struct JtagParams {
 
     /// Whether or not to log OpenOCD server messages to stdio.
     pub log_stdio: bool,
+}
+
+/// Errors related to the JTAG interface.
+#[derive(Error, Debug, Deserialize, Serialize)]
+pub enum JtagError {
+    #[error("Operation not valid on selected JTAG TAP: {0:?}")]
+    Tap(JtagTap),
+    #[error("JTAG timeout")]
+    Timeout,
+    #[error("JTAG busy")]
+    Busy,
+    #[error("Generic error {0}")]
+    Generic(String),
 }
 
 /// A JTAG TAP accessible through an OpenOCD server.
@@ -96,5 +114,37 @@ impl OpenOcdJtagTap {
     /// Return the TAP we are currently connected to.
     pub fn tap(&self) -> JtagTap {
         self.jtag_tap
+    }
+
+    pub fn read_lc_ctrl_reg(&mut self, reg: &LcCtrlReg) -> Result<u32> {
+        ensure!(
+            matches!(self.jtag_tap, JtagTap::LccTap),
+            JtagError::Tap(self.jtag_tap)
+        );
+        let reg_offset = reg.word_offset();
+        let cmd = format!("riscv dmi_read 0x{reg_offset:x}");
+        let response = self.openocd.execute(cmd.as_str())?;
+
+        let value = u32::from_str(response.trim()).context(format!(
+            "expected response to be hexadecimal word, got '{response}'"
+        ))?;
+
+        Ok(value)
+    }
+
+    fn write_lc_ctrl_reg(&mut self, reg: &LcCtrlReg, value: u32) -> Result<()> {
+        ensure!(
+            matches!(self.jtag_tap, JtagTap::LccTap),
+            JtagError::Tap(self.jtag_tap)
+        );
+        let reg_offset = reg.word_offset();
+        let cmd = format!("riscv dmi_write 0x{reg_offset:x} 0x{value:x}");
+        let response = self.openocd.execute(cmd.as_str())?;
+
+        if !response.is_empty() {
+            bail!("unexpected response: '{response}'");
+        }
+
+        Ok(())
     }
 }
