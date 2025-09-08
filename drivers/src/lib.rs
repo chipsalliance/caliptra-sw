@@ -42,6 +42,7 @@ mod lms;
 mod mailbox;
 pub mod memory_layout;
 mod mldsa87;
+pub mod ocp_lock;
 mod okref;
 mod pcr_bank;
 pub mod pcr_log;
@@ -106,6 +107,7 @@ pub use mldsa87::{
     Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
     Mldsa87Signature,
 };
+pub use ocp_lock::HekSeedState;
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
