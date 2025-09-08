@@ -19,8 +19,8 @@ pub use crate::fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
 use crate::{
     dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
-    MAX_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL0_PAUSER_FLAG,
-    PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG,
+    PL1_DPE_ACTIVE_CONTEXT_THRESHOLD, TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
 
 use arrayvec::ArrayVec;
@@ -560,10 +560,12 @@ impl Drivers {
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             - used_pl0_dpe_context_count;
 
+        let total_used_dpe_context_count = used_pl0_dpe_context_count + used_pl1_dpe_context_count;
+
         match (
             caller_privilege_level,
             used_pl1_dpe_context_count.cmp(&PL1_DPE_ACTIVE_CONTEXT_THRESHOLD),
-            used_pl0_dpe_context_count.cmp(&PL0_DPE_ACTIVE_CONTEXT_THRESHOLD),
+            total_used_dpe_context_count.cmp(&TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD),
         ) {
             (PauserPrivileges::PL1, Equal, _) => {
                 Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED)

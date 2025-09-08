@@ -1090,11 +1090,11 @@ InvokeDpe mailbox command calling the DeriveContext or InitializeContext DPE
 commands. However, a caller could easily exhaust space in DPE's context array
 by repeatedly calling the aforementioned DPE commands with certain flags set.
 
-To prevent this, we establish active context limits for each PAUSER
-privilege level:
+To prevent this, we establish non-inactive (including active and retired) context
+limits based on PAUSER privilege level:
 
-* PL0 - 16 active contexts
-* PL1 - 16 active contexts
+* Total (PL0 + PL1) - 32 non-inactive contexts
+* PL1 - 16 non-inactive contexts
 
 If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the

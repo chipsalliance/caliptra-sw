@@ -13,7 +13,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use caliptra_runtime::{ContextState, RtBootStatus, TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
@@ -246,7 +246,7 @@ fn test_dpe_validation_illegal_state() {
 }
 
 #[test]
-fn test_dpe_validation_used_context_threshold_exceeded() {
+fn test_dpe_validation_used_context_threshold_reached() {
     let args = RuntimeTestArgs {
         test_fwid: Some(&MBOX),
         ..Default::default()
@@ -257,12 +257,14 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
+    // corrupt DPE structure by creating TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
     // make dpe.contexts[1].handle non-default in order to pass dpe state validation
     dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
-    // the mbox valid pausers measurement is already in PL0 so creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD suffices
-    for i in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+    // the mbox valid pausers measurement is already in PL0 and
+    // the RT journey is already in PL1, so creating
+    // (TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 2) suffices.
+    for i in 0..(TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 2) {
         // skip first two contexts measured by RT
         let idx = i + 2;
         // create simulation contexts in PL0
@@ -284,7 +286,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
+            == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED)
     });
 
     // check attestation disabled via FW_INFO
