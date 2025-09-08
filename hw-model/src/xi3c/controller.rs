@@ -194,7 +194,7 @@ impl Controller {
     }
 
     #[inline(always)]
-    pub(crate) const fn regs(&self) -> &XI3c {
+    pub const fn regs(&self) -> &XI3c {
         unsafe { &*(self.config.base_address as *const XI3c) }
     }
 
@@ -437,7 +437,7 @@ impl Controller {
     }
 
     #[inline]
-    fn enable(&self, enable: u8) {
+    pub fn enable(&self, enable: u8) {
         assert!(self.ready.get());
         let mut data = self.regs().cr.get();
         data &= !XI3C_CR_EN_MASK;
