@@ -30,6 +30,6 @@ hw/fpga/vivado*.log
 libcaliptra/libcaliptra.a
 
 hw-latest/verilated/out/*
-/cross-target/
+cross-target/
 caliptra-test-binaries.tar.zst
 junit.xml
