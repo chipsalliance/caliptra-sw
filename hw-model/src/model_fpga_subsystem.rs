@@ -326,7 +326,6 @@ impl XI3CWrapper {
         let target_addr = self.get_primary_addr();
         let cmd = xi3c::Command {
             no_repeated_start: 1,
-            pec: 1,
             target_addr,
             ..Default::default()
         };
