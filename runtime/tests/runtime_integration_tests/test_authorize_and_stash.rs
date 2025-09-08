@@ -997,6 +997,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1045,6 +1046,7 @@ fn test_authorize_from_load_address() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1092,6 +1094,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1140,6 +1143,7 @@ fn test_authorize_from_staging_address() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);

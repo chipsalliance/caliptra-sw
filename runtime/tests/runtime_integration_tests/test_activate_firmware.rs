@@ -120,6 +120,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
         fw_id: MCU_FW_ID_1,
@@ -154,6 +155,7 @@ fn test_activate_mcu_fw_success() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
         fw_id: MCU_FW_ID_1,
@@ -197,6 +199,7 @@ fn test_activate_mcu_soc_fw_success() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_activate_soc_fw_success() {
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
@@ -231,6 +234,7 @@ fn test_activate_soc_fw_success() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_activate_invalid_fw_id() {
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
@@ -264,6 +268,7 @@ fn test_activate_invalid_fw_id() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_activate_fw_id_not_in_manifest() {
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
@@ -297,6 +302,7 @@ fn test_activate_fw_id_not_in_manifest() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_invalid_exec_bit_in_manifest() {
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,

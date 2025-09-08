@@ -772,7 +772,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
