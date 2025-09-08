@@ -2,6 +2,7 @@
 
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{run_rt_test, RuntimeTestArgs};
+use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
@@ -13,10 +14,11 @@ use caliptra_common::{
         MailboxReqHeader, MailboxRespHeader,
     },
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::RomInfo;
+use caliptra_runtime::RtBootStatus;
 use core::mem::size_of;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -164,6 +166,7 @@ fn test_fw_info() {
         assert_eq!(info.rom_sha256_digest, rom_info.sha256_digest);
         assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
         assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
+        assert_eq!(info.most_recent_fw_error, 0x0);
 
         // Make image with newer SVN.
         let mut image_opts20 = image_opts.clone();
@@ -206,6 +209,73 @@ fn test_fw_info() {
         assert_eq!(info.min_fw_svn, 5);
         assert_eq!(info.cold_boot_fw_svn, 10);
     }
+}
+
+#[test]
+fn test_fw_most_recent_fw_error() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let info = get_fwinfo(&mut model);
+    assert_eq!(info.most_recent_fw_error, 0);
+
+    // Inject a non-fatal FW error
+    // Generate an INVALID_CHECKSUM error
+    let invalid_chksum_err = u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM);
+    // Send a command with an invalid checksum
+    let payload = MailboxReqHeader { chksum: 0xABCD };
+    let error = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap_err();
+
+    // Ensure the right non-fatal error was reported
+    if let ModelError::MailboxCmdFailed(code) = error {
+        assert_eq!(code, invalid_chksum_err);
+    } else {
+        panic!(
+            "Mailbox command should have failed with error {}, instead failed with {} error",
+            invalid_chksum_err, error
+        )
+    }
+
+    // Send another FW_INFO command
+    let info = get_fwinfo(&mut model);
+    // Fatal error should have been cleared by the new command
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0x0);
+    // Info should have still reported the old error
+    assert_eq!(info.most_recent_fw_error, invalid_chksum_err);
+
+    // Inject a different non-fatal FW error
+    // Generate an UNSUPPORTED_COMMAND error
+    let rt_unimplemented_cmd =
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
+    // Send a command with an invalid opcode
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(0xABCD, &[]),
+    };
+    let error = model
+        .mailbox_execute(0xABCD, payload.as_bytes())
+        .unwrap_err();
+
+    // Ensure the right non-fatal error was reported
+    if let ModelError::MailboxCmdFailed(code) = error {
+        assert_eq!(code, rt_unimplemented_cmd);
+    } else {
+        panic!(
+            "Mailbox command should have failed with error {}, instead failed with {} error",
+            rt_unimplemented_cmd, error
+        )
+    }
+
+    // Send another FW_INFO command
+    let info = get_fwinfo(&mut model);
+    // Fatal error should have been cleared by the new command
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0x0);
+    // Info should have still reported the old error
+    assert_eq!(info.most_recent_fw_error, rt_unimplemented_cmd);
 }
 
 #[test]
