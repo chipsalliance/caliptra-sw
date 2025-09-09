@@ -394,7 +394,7 @@ impl ModelFpgaSubsystem {
         std::thread::sleep(std::time::Duration::from_micros(1));
     }
 
-    fn set_subsystem_reset(&mut self, reset: bool) {
+    pub fn set_subsystem_reset(&mut self, reset: bool) {
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
         );

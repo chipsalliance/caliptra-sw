@@ -82,7 +82,10 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Seed, Ecc384Signature,
 };
-pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
+pub use error_reporter::{
+    clear_fw_error_non_fatal, get_fw_error_non_fatal, report_fw_error_fatal,
+    report_fw_error_non_fatal,
+};
 pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
