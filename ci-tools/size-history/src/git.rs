@@ -24,7 +24,14 @@ impl CommitInfo {
                 break;
             };
             let commit_id = expect_line_with_prefix("commit ", Some(line))?;
-            let author = expect_line_with_prefix("Author: ", lines.next())?;
+            let line = lines.next().unwrap_or_default();
+            // skip merge commit lines
+            let line = if line.starts_with("Merge:") {
+                lines.next()
+            } else {
+                Some(line)
+            };
+            let author = expect_line_with_prefix("Author: ", line)?;
             expect_line("", lines.next())?;
             let mut title = expect_line_with_prefix("    ", lines.next())?.to_string();
             'inner: loop {
