@@ -38,8 +38,8 @@ test_suite! {
     test_aes_kv_release_unlocked,
     test_hmac_regular_kv_to_ocp_lock_kv_unlocked,
     // Run `test_hmac_regular_kv_to_ocp_lock_kv_unlocked` before to avoid overwriting MDK slot.
+    test_populate_hek, // Must be before test_populate_hek
     test_populate_mdk,
-    test_populate_hek,
     // Modifies behavior of subsequent tests.
     // Tests before should test "ROM" flows, afterwards they should test "Runtime" flows.
     test_set_ocp_lock_in_progress,
@@ -132,40 +132,12 @@ fn test_aes_kv_release_locked() {
     }
 }
 
-fn test_populate_mdk() {
-    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
-    let mut test_regs = TestRegisters::default();
-
-    let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId3));
-    let mdk_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
-        KeyId::KeyId16,
-        KeyUsage::default().set_aes_key_en(),
-    )));
-
-    populate_slot(
-        &mut test_regs.hmac,
-        &mut test_regs.trng,
-        KeyId::KeyId3,
-        KeyUsage::default().set_hmac_key_en(),
-    )
-    .unwrap();
-    hmac_kdf(
-        &mut test_regs.hmac,
-        cdi_slot,
-        b"OCP_LOCK_MDK", // TODO: Use real label from spec.
-        None,
-        &mut test_regs.trng,
-        mdk_slot,
-        HmacMode::Hmac512,
-    )
-    .unwrap();
-}
-
 fn test_populate_hek() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::default();
 
     let hek_seed = test_regs.soc.fuse_bank().ocp_hek_seed();
+    assert_eq!(hek_seed, [0xABDEu32; 8].into());
 
     let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId3));
     let hek_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
@@ -187,6 +159,30 @@ fn test_populate_hek() {
         Some(hek_seed.as_bytes()),
         &mut test_regs.trng,
         hek_slot,
+        HmacMode::Hmac512,
+    )
+    .unwrap();
+}
+
+fn test_populate_mdk() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut test_regs = TestRegisters::default();
+
+    // HEK is populated in `test_populate_hek`. We mix into the MDK so we can confirm that contents
+    // of HEK match what we expect.
+    let hek_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId22));
+    let mdk_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
+        KeyId::KeyId16,
+        KeyUsage::default().set_aes_key_en(),
+    )));
+
+    hmac_kdf(
+        &mut test_regs.hmac,
+        hek_slot,
+        b"OCP_LOCK_MDK", // TODO: Use real label from spec.
+        None,
+        &mut test_regs.trng,
+        mdk_slot,
         HmacMode::Hmac512,
     )
     .unwrap();
