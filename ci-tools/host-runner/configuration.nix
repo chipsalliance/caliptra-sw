@@ -69,6 +69,7 @@ in
   imports = [
     ./hardware-configuration.nix
   ];
+  system.stateVersion = "25.05";
 
   # Keep SD card from running out of room
   nix.gc.automatic = true;
