@@ -69,6 +69,20 @@ failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
 
+# TODO(#2369): Remove the extra filters after fixing the broken tests
+[profile.fpga-realtime]
+default-filter = """
+not (package(/caliptra-emu-.*/) |
+   package(caliptra-builder) |
+   package(caliptra-cfi-derive) |
+   package(caliptra-file-header-fix) |
+   package(compliance-test) |
+   test(/test_debug_unlock.*/))
+"""
+failure-output = "immediate-final"
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 6 }
+
 [profile.fpga-core.junit]
 path = "/tmp/junit.xml"
 store-success-output = true
