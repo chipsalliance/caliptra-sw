@@ -58,6 +58,16 @@ not (package(/caliptra-emu-.*/) |
    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
 """
 
+[profile.fpga-realtime]
+default-filter = """
+not (package(/caliptra-emu-.*/) |
+   package(caliptra-builder) |
+   package(caliptra-cfi-derive) |
+   package(caliptra-file-header-fix) |
+   package(compliance-test) |
+   test(/test_debug_unlock.*/))
+"""
+
 [profile.nightly]
 failure-output = "immediate-final"
 fail-fast = false
