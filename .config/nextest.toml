@@ -1,8 +1,8 @@
 # Licensed under the Apache-2.0 license
 
+# TODO(#2369): Remove the extra filters after fixing the broken tests
 [profile.fpga-subsystem]
-default-filter = """
-package(caliptra-api) +
+default-filter = """package(caliptra-api) +
 package(caliptra-api-types) +
 package(caliptra-auth-man-types) +
 package(caliptra-cfi-lib) +
@@ -24,49 +24,55 @@ package(ureg-codegen) +
 package(ureg-schema) +
 package(ureg-systemrdl)
 """
+failure-output = "immediate-final"
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 6 }
 
+[profile.fpga-subsystem.junit]
+path = "/tmp/junit.xml"
+store-success-output = true
+store-failure-output = true
+
+# TODO(#2369): Remove the extra filters after fixing the broken tests
 [profile.fpga-core]
 default-filter = """
 not (package(/caliptra-emu-.*/) |
-   package(caliptra-builder) |
-   package(caliptra-cfi-derive) |
-   package(caliptra-file-header-fix) |
-   package(compliance-test) |
-   test(test_sign_validation_failure) |
-   test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-   test(test_activate_firmware::test_activate_invalid_fw_id) |
-   test(test_activate_firmware::test_activate_mcu_fw_success) |
-   test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-   test(test_activate_firmware::test_activate_soc_fw_success) |
-   test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-   test(test_authorize_and_stash::test_authorize_from_load_address) |
-   test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-   test(test_authorize_and_stash::test_authorize_from_staging_address) |
-   test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-   test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-   test(test_fe_programming::test_fe_programming_cmd) |
-   test(test_fips::test_fips_shutdown) |
-   test(test_lms::test_lms_verify_cmd) |
-   test(test_lms::test_lms_verify_failure) |
-   test(test_lms::test_lms_verify_invalid_key_lms_type) |
-   test(test_lms::test_lms_verify_invalid_lmots_type) |
-   test(test_lms::test_lms_verify_invalid_sig_lms_type) |
-   test(test_rtalias::test_boot_status_reporting) |
-   binary_id(caliptra-test::fips_test_suite) |
-   test(test_pmp::test_datavault_pmp_enforcement) |
-   test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-   test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
+    package(caliptra-builder) |
+    package(caliptra-cfi-derive) |
+    package(caliptra-file-header-fix) |
+    package(compliance-test) |
+    test(test_sign_validation_failure) |
+    test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
+    test(test_activate_firmware::test_activate_invalid_fw_id) |
+    test(test_activate_firmware::test_activate_mcu_fw_success) |
+    test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
+    test(test_activate_firmware::test_activate_soc_fw_success) |
+    test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
+    test(test_authorize_and_stash::test_authorize_from_load_address) |
+    test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
+    test(test_authorize_and_stash::test_authorize_from_staging_address) |
+    test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
+    test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
+    test(test_fe_programming::test_fe_programming_cmd) |
+    test(test_fips::test_fips_shutdown) |
+    test(test_lms::test_lms_verify_cmd) |
+    test(test_lms::test_lms_verify_failure) |
+    test(test_lms::test_lms_verify_invalid_key_lms_type) |
+    test(test_lms::test_lms_verify_invalid_lmots_type) |
+    test(test_lms::test_lms_verify_invalid_sig_lms_type) |
+    test(test_rtalias::test_boot_status_reporting) |
+    binary_id(caliptra-test::fips_test_suite) |
+    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
+    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
 """
+failure-output = "immediate-final"
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 6 }
 
-[profile.fpga-realtime]
-default-filter = """
-not (package(/caliptra-emu-.*/) |
-   package(caliptra-builder) |
-   package(caliptra-cfi-derive) |
-   package(caliptra-file-header-fix) |
-   package(compliance-test) |
-   test(/test_debug_unlock.*/))
-"""
+[profile.fpga-core.junit]
+path = "/tmp/junit.xml"
+store-success-output = true
+store-failure-output = true
 
 [profile.nightly]
 failure-output = "immediate-final"
