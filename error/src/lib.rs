@@ -2188,6 +2188,12 @@ impl CaliptraError {
             0xa004_0011,
             "Driver Error: AES tag is invalid"
         ),
+        // Skip to leave more error codes for the AES driver.
+        (
+            RUNTIME_DRIVER_PRECONDITIONED_KEY_INVALID_INPUT,
+            0xa004_0020,
+            "Driver Error: preconditioned key usage was invalid"
+        ),
         (
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
             0xa005_0000,
