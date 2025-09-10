@@ -982,6 +982,8 @@ Command Code: `0x494E_464F` ("INFO")
 | fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
 | runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
 | owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
+| authman_sha384_digest  | u32[12]        | Hash of the authorization manifest provided by SET_AUTH_MANIFEST.
+| most_recent_fw_error   | u32            | Most recent FW non-fatal error (shows current non-fatal error if non-zero)
 
 ### VERSION
 

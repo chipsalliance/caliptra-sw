@@ -341,6 +341,8 @@ pub struct PersistentData {
     pub cmb_aes_key_share1: LEArray4x8,
 
     pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
+
+    pub cleared_non_fatal_fw_error: u32,
 }
 
 impl PersistentData {
