@@ -62,6 +62,7 @@ not (package(/caliptra-emu-.*/) |
     test(test_lms::test_lms_verify_invalid_sig_lms_type) |
     test(test_rtalias::test_boot_status_reporting) |
     binary_id(caliptra-test::fips_test_suite) |
+    test(test_update_reset::test_update_reset_verify_image_failure) |
     test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
     test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
 """
