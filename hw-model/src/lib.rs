@@ -34,8 +34,10 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+pub mod openocd;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
@@ -48,6 +50,8 @@ mod model_verilated;
 #[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
 
+#[cfg(feature = "fpga_subsystem")]
+mod mcu_boot_status;
 #[cfg(feature = "fpga_subsystem")]
 mod model_fpga_subsystem;
 

@@ -18,17 +18,16 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
-use caliptra_common::RomBootStatus;
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
+use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, Aes,
-    CaliptraError, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, ResetReason, Sha256, Sha2_512_384,
-    Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
+    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason,
+    ShaAccLockState, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -391,51 +390,6 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
     cprintln!("[ROM] CFI Panic code=0x{:08X}", code);
 
     handle_fatal_error(code);
-}
-
-#[allow(clippy::empty_loop)]
-fn handle_fatal_error(code: u32) -> ! {
-    cprintln!("ROM Fatal Error: 0x{:08X}", code);
-    report_fw_error_fatal(code);
-    // Populate the non-fatal error code too; if there was a
-    // non-fatal error stored here before we don't want somebody
-    // mistakenly thinking that was the reason for their mailbox
-    // command failure.
-    report_fw_error_non_fatal(code);
-
-    unsafe {
-        // Zeroize the crypto blocks.
-        Aes::zeroize();
-        Ecc384::zeroize();
-        Hmac::zeroize();
-        Mldsa87::zeroize();
-        Sha256::zeroize();
-        Sha2_512_384::zeroize();
-        Sha2_512_384Acc::zeroize();
-
-        // Zeroize the key vault.
-        KeyVault::zeroize();
-
-        // Stop the watchdog timer.
-        // Note: This is an idempotent operation.
-        SocIfc::stop_wdt1();
-    }
-
-    loop {
-        unsafe {
-            // SoC firmware might be stuck waiting for Caliptra to finish
-            // executing this pending mailbox transaction. Notify them that
-            // we've failed.
-            Mailbox::abort_pending_soc_to_uc_transactions();
-
-            // The SHA accelerator may still be in use by the SoC;
-            // try to lock it as soon as possible.
-            //
-            // WDT is disabled at this point so there is no issue
-            // of it firing due to the lock taking too long.
-            Sha2_512_384Acc::try_lock();
-        }
-    }
 }
 
 #[no_mangle]

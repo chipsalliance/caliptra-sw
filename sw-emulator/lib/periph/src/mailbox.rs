@@ -13,7 +13,7 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::{Bus, BusMmio, Clock, Ram, Timer};
+use caliptra_emu_bus::{AlignedRam, Bus, BusMmio, Clock, Timer};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -57,7 +57,7 @@ type StatusRegister = LocalRegisterCopy<u32, Status::Register>;
 
 #[derive(Clone)]
 pub struct MailboxRam {
-    ram: Rc<RefCell<Ram>>,
+    ram: Rc<RefCell<AlignedRam>>,
 }
 
 impl MailboxRam {
@@ -69,7 +69,7 @@ impl MailboxRam {
             _ => panic!("Invalid HW revision"),
         };
         Self {
-            ram: Rc::new(RefCell::new(Ram::new(vec![0u8; mbox_len]))),
+            ram: Rc::new(RefCell::new(AlignedRam::new(vec![0u8; mbox_len]))),
         }
     }
 }

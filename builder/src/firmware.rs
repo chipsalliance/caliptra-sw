@@ -291,6 +291,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const PRECONDITIONED_KEYS: FwId = FwId {
+        bin_name: "preconditioned_keys",
+        ..BASE_FWID
+    };
+
     pub const SHA1: FwId = FwId {
         bin_name: "sha1",
         ..BASE_FWID
@@ -390,7 +395,7 @@ pub mod driver_tests {
 
     pub const OCP_LOCK: FwId = FwId {
         bin_name: "ocp_lock",
-        features: &["ocp-lock", "fpga_realtime"],
+        features: &["fpga_realtime"],
         ..BASE_FWID
     };
 
@@ -533,6 +538,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::ML_DSA87,
     &driver_tests::PCRBANK,
+    &driver_tests::PRECONDITIONED_KEYS,
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,

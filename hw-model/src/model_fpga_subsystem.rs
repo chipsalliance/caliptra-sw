@@ -6,6 +6,8 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
+use crate::mcu_boot_status::McuRomBootStatus;
+use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
     LifecycleRawTokens, LifecycleToken,
@@ -13,6 +15,7 @@ use crate::otp_provision::{
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
+use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -130,7 +133,7 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
-const DEFAULT_AXI_PAUSER: u32 = 0xcccc_cccc;
+const DEFAULT_AXI_PAUSER: u32 = 0x1;
 const OTP_SIZE: usize = 16384;
 const AXI_CLK_HZ: u32 = 199_999_000;
 const I3C_CLK_HZ: u32 = 12_500_000;
@@ -350,6 +353,7 @@ pub struct ModelFpgaSubsystem {
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
     pub i3c_controller: XI3CWrapper,
+    pub jtag_tap: Option<Box<OpenOcdJtagTap>>,
     pub otp_mmio: *mut u32,
     pub lc_mmio: *mut u32,
 
@@ -390,7 +394,7 @@ impl ModelFpgaSubsystem {
         std::thread::sleep(std::time::Duration::from_micros(1));
     }
 
-    fn set_subsystem_reset(&mut self, reset: bool) {
+    pub fn set_subsystem_reset(&mut self, reset: bool) {
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
         );
@@ -1110,12 +1114,23 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_mci_generic_input_wires(&mut self, value: &[u32; 2]) {
+        for (i, wire) in value.iter().copied().enumerate() {
+            self.wrapper.regs().mci_generic_input_wires[i].set(wire);
+        }
+    }
+
     fn set_itrng_divider(&mut self, divider: u32) {
         self.wrapper.regs().itrng_divisor.set(divider - 1);
     }
 
     fn cycle_count(&mut self) -> u64 {
         self.wrapper.regs().cycle_count.get() as u64
+    }
+
+    pub fn jtag_tap_connect(&mut self, params: &JtagParams, tap: JtagTap) -> Result<()> {
+        self.jtag_tap = Some(OpenOcdJtagTap::new(params, tap)?);
+        Ok(())
     }
 }
 
@@ -1136,28 +1151,6 @@ impl HwModel for ModelFpgaSubsystem {
     fn step(&mut self) {
         self.handle_log();
         self.bmc_step();
-    }
-
-    /// Create a model, and boot it to the point where CPU execution can
-    /// occur. This includes programming the fuses, initializing the
-    /// boot_fsm state machine, and (optionally) uploading firmware.
-    fn new(init_params: InitParams, boot_params: BootParams) -> Result<Self, Box<dyn Error>>
-    where
-        Self: Sized,
-    {
-        let init_params_summary = init_params.summary();
-
-        let mut hw: Self = HwModel::new_unbooted(init_params)?;
-        println!(
-            "Using hardware-model {} trng={:?}",
-            hw.type_name(),
-            hw.trng_mode(),
-        );
-        println!("{init_params_summary:#?}");
-
-        hw.boot(boot_params)?;
-
-        Ok(hw)
     }
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
@@ -1275,6 +1268,7 @@ impl HwModel for ModelFpgaSubsystem {
                 i3c_mmio,
                 i3c_controller_mmio,
             },
+            jtag_tap: None,
             otp_mmio,
             lc_mmio,
 
@@ -1301,6 +1295,8 @@ impl HwModel for ModelFpgaSubsystem {
         // Set generic input wires.
         let input_wires = [0, (!params.uds_granularity_64 as u32) << 31];
         m.set_generic_input_wires(&input_wires);
+
+        m.set_mci_generic_input_wires(&[0, 0]);
 
         println!("Set itrng divider");
         // Set divisor for ITRNG throttling
@@ -1329,9 +1325,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Currently not using strap UDS and FE
         m.set_secrets_valid(false);
-
-        // Clear the generic input wires in case they were left in a non-zero state.
-        m.set_generic_input_wires(&[0, 0]);
 
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
@@ -1404,6 +1397,17 @@ impl HwModel for ModelFpgaSubsystem {
             .regs()
             .mcu_reset_vector
             .set(FPGA_MEMORY_MAP.rom_offset);
+
+        println!("Taking subsystem out of reset");
+        m.set_subsystem_reset(false);
+
+        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+
+        // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
+        // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
+        // the BOOT_WAIT state according to the cptra_flow_status register.
+        println!("writing to cptra_bootfsm_go");
+        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
         Ok(m)
     }
 
@@ -1438,6 +1442,15 @@ impl HwModel for ModelFpgaSubsystem {
         otp_mem[FUSE_PQC_OFFSET] = val;
 
         self.otp_slice().copy_from_slice(&otp_mem);
+
+        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
+        // It looks like the words are backwards in the FPGA wrapper. Update
+        // this when the wrapper is updated.
+
+        // Notify MCU ROM it can start loading the fuse registers
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 30);
     }
 
     fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
@@ -1445,9 +1458,6 @@ impl HwModel for ModelFpgaSubsystem {
         Self: Sized,
     {
         HwModel::init_fuses(self, &boot_params.fuses);
-
-        println!("Taking subsystem out of reset");
-        self.set_subsystem_reset(false);
 
         while !self.i3c_target_configured() {}
         println!("Done starting MCU");
@@ -1485,12 +1495,6 @@ impl HwModel for ModelFpgaSubsystem {
         // Set up the PAUSER as valid for the mailbox (using index 0)
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
-
-        // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
-        // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
-        // the BOOT_WAIT state according to the cptra_flow_status register.
-        println!("writing to cptra_bootfsm_go");
-        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         self.step();
 

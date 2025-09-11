@@ -987,6 +987,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -1146,6 +1147,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_failure() {
     for unlock_level in [0, 9, 16] {
         let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());

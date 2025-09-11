@@ -12,8 +12,9 @@ Abstract:
 
 --*/
 
+use crate::utils::*;
+
 use caliptra_test::crypto::derive_ecdsa_keypair;
-use openssl::{hash::MessageDigest, pkey::PKey, sign::Signer};
 
 pub struct Hmac384KdfVector {
     pub key_0: [u8; 48],
@@ -41,32 +42,6 @@ impl Default for Hmac384KdfVector {
     }
 }
 
-fn rand_bytes(buf: &mut [u8]) {
-    openssl::rand::rand_bytes(buf).unwrap()
-}
-
-fn hmac(key: &[u8], msg: &[u8], tag: &mut [u8]) {
-    let pkey = PKey::hmac(key).unwrap();
-    let mut signer = Signer::new(MessageDigest::sha384(), &pkey).unwrap();
-    signer.update(msg).unwrap();
-    signer.sign(tag).unwrap();
-}
-
-fn kdf(key: &[u8], label: &[u8], context: Option<&[u8]>, output: &mut [u8; 48]) {
-    let ctr_be = 1_u32.to_be_bytes();
-
-    let mut msg = Vec::<u8>::default();
-    msg.extend_from_slice(&ctr_be);
-    msg.extend_from_slice(label);
-
-    if let Some(context) = context {
-        msg.push(0x00);
-        msg.extend_from_slice(context);
-    }
-
-    hmac(key, &msg, output);
-}
-
 pub fn gen_vector(label_len: usize, context_len: usize) -> Hmac384KdfVector {
     let mut vec = Hmac384KdfVector::default();
 
@@ -84,8 +59,14 @@ pub fn gen_vector(label_len: usize, context_len: usize) -> Hmac384KdfVector {
         Some(&vec.context[..])
     };
 
-    hmac(&vec.key_0, &vec.msg_0, &mut vec.kdf_key);
-    kdf(&vec.kdf_key, &vec.label[..], context, &mut vec.kdf_out);
+    hmac(&vec.key_0, &vec.msg_0, &mut vec.kdf_key, Digest::SHA384);
+    kdf(
+        &vec.kdf_key,
+        &vec.label[..],
+        context,
+        &mut vec.kdf_out,
+        Digest::SHA384,
+    );
     (_, vec.out_pub_x, vec.out_pub_y) = derive_ecdsa_keypair(&vec.kdf_out);
 
     vec
