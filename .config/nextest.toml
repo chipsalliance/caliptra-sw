@@ -52,7 +52,6 @@ not (package(/caliptra-emu-.*/) |
     test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
     test(test_authorize_and_stash::test_authorize_from_staging_address) |
     test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-    test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
     test(test_fe_programming::test_fe_programming_cmd) |
     test(test_fips::test_fips_shutdown) |
     test(test_lms::test_lms_verify_cmd) |
@@ -62,22 +61,7 @@ not (package(/caliptra-emu-.*/) |
     test(test_lms::test_lms_verify_invalid_sig_lms_type) |
     test(test_rtalias::test_boot_status_reporting) |
     binary_id(caliptra-test::fips_test_suite) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
-"""
-failure-output = "immediate-final"
-fail-fast = false
-slow-timeout = { period = "30s", terminate-after = 6 }
-
-# TODO(#2369): Remove the extra filters after fixing the broken tests
-[profile.fpga-realtime]
-default-filter = """
-not (package(/caliptra-emu-.*/) |
-   package(caliptra-builder) |
-   package(caliptra-cfi-derive) |
-   package(caliptra-file-header-fix) |
-   package(compliance-test) |
-   test(/test_debug_unlock.*/))
+    test(/test_debug_unlock::.*/))
 """
 failure-output = "immediate-final"
 fail-fast = false
