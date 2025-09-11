@@ -100,6 +100,7 @@ mod constants {
     pub const FUSE_IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_START: u32 = 0x34c;
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE_BYTES: usize = 64;
+    pub const SOC_MANIFEST_SVN_SIZE: usize = 16;
     pub const INTERNAL_OBF_KEY_SIZE: usize = 32;
     pub const INTERNAL_ICCM_LOCK_START: u32 = 0x620;
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
@@ -722,6 +723,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x38c)]
     fuse_pqc_key_type: u32,
 
+    #[register_array(offset = 0x390)]
+    fuse_soc_manifest_svn: [u32; SOC_MANIFEST_SVN_SIZE / 4],
+
+    #[register(offset = 0x3a0)]
+    fuse_soc_manifest_max_svn: u32,
+
     #[register(offset = 0x500)]
     ss_caliptra_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -992,6 +999,8 @@ impl SocRegistersImpl {
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 16],
+            fuse_soc_manifest_svn: [0; 4],
+            fuse_soc_manifest_max_svn: 128,
             ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
             ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),

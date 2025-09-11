@@ -71,7 +71,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: 4d150bf2df9b1b321bb975e543158f0e9338f1f5
+      CALIPTRA_MCU_COMMIT: d911ed5c53b5c1815cffa930686e60fbb56634a7
 
     steps:
       - name: Checkout repo
@@ -280,18 +280,18 @@ jobs:
 
           # TODO add the remaining caliptra core integration tests
           COMMON_ARGS=(
-
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
+              -E 'package(caliptra-drivers) and test(test_ocp_lock)'
           )
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --message-format json  > /tmp/nextest-list.json
+              --message-format json > /tmp/nextest-list.json
 
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \

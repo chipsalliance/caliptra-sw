@@ -206,7 +206,7 @@ zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_de
 regex = "1.10.2"
 ecdsa = { version = "0.16.9", features = ["pem"]}
 sec1 = { version = "0.7.3" }
-itertools = "0.12.0"
+itertools = { version = "0.12.0", default-features = false }
 riscv = "0.13.0"
 
 [profile.firmware]
