@@ -41,27 +41,20 @@ extern "C" fn main() {
     // s6 and sp are input arguments (as pointers)
     unsafe {
         core::arch::asm!(
-            // Load a0, a1 from offsets 24, 20 of s6
-            "lw a0, 24({s6})",
-            "lw a1, 20({s6})",
-            // Store a0, a1 to offsets 28, 24 of sp
-            "sw a0, 28({sp})",
-            "sw a1, 24({sp})",
-            // Load a0, a1 from offsets 16, 12 of s6
             "lw a0, 16({s6})",
             "lw a1, 12({s6})",
-            // Load s3, s8 from offsets 4, 8 of s6
-            "lw s3, 4({s6})",
+            "lw s3, 4({s6})", // fails
             "lw s8, 8({s6})",
-            // Store a0, a1 to offsets 20, 16 of sp
-            "sw a0, 20({sp})",
             "sw a1, 16({sp})",
+
+            // inputs
             s6 = in(reg) s6,
             sp = in(reg) sp,
-            out("a0") _, // a0 is clobbered
-            out("a1") _, // a1 is clobbered
-            out("s3") s3, // s3 is clobbered
-            out("s8") _, // s8 is clobbered
+            // output and clobbers
+            out("a0") _,
+            out("a1") _,
+            out("s3") s3,
+            out("s8") _,
         );
     }
 
