@@ -53,15 +53,15 @@ Crypto boundary):
 
 <br> *Current POR: All Caliptra FW in FIPS boundary*
 
-![Block Diagram with all Caliptra FW in FIPS boundary](doc/diagrams/Caliptra_FMC_Internal_FW_FIPS.svg)
+![Block Diagram with all Caliptra FW in FIPS boundary](images/Caliptra_FMC_Internal_FW_FIPS.svg)
 
 <br> *Alternate: Caliptra ROM and FW each have discrete FIPS modules*
 
-![Alternate block Diagram with discrete FIPS Modules in both ROM and FW](doc/diagrams/Caliptra_FMC_Discrete_FW_FIPS.svg)
+![Alternate block Diagram with discrete FIPS Modules in both ROM and FW](images/Caliptra_FMC_Discrete_FW_FIPS.svg)
 
 <br> *Alternate: Caliptra ROM implements FIPS Module used by all other components*
 
-![Alternate block Diagram with singlge discrete FIPS Module ROM](doc/diagrams/Caliptra_FMC_ROM_FIPS.svg )
+![Alternate block Diagram with singlge discrete FIPS Module ROM](images/Caliptra_FMC_ROM_FIPS.svg)
 
 </center>
 

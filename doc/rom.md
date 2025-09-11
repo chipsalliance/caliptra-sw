@@ -72,7 +72,7 @@ The firmware manifest is a combination of preamble and a signed header. It has
 public keys, signatures and table of contents which refer to the various
 firmware images contained in the bundle.
 
-![Firmware Image Bundle](doc/svg/fw-img-bundle.svg)
+![Firmware Image Bundle](images/fw-img-bundle.svg)
 
 ### Firmware manifest
 
@@ -184,7 +184,7 @@ The following sections define the various cryptographic primitives used by Calip
 
 ## Cold reset flow
 
-![COLD RESET](doc/svg/cold-reset.svg)
+![COLD RESET](images/cold-reset.svg)
 
 ROM performs all the necessary crypto derivations on cold reset. No crypto derivations are performed during warm reset or update reset.
 
@@ -375,13 +375,13 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
 
-1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement).
-2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version).
-3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_start).
-4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_get_results).
-5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
-6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
-7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#get_idevid_csr).
+1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](runtime.md#stash_measurement).
+2. **VERSION**: Get version info about the module. [Version command](runtime.md#version).
+3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](runtime.md#self_test_start).
+4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](runtime.md#self_test_get_results).
+5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](runtime.md#shutdown).
+6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](runtime.md#capabilities).
+7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](runtime.md#get_idevid_csr).
 
 ### Downloading images from mailbox
 
@@ -396,7 +396,7 @@ The following is the sequence of the steps that are required to download the par
   - This should be the last step. Clearing this bit transfers the control back to the originator of the command.
 - On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_NON_FATAL` register
 
-![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
+![DATA FROM MBOX FLOW](images/data-from-mbox.svg)
 
 ### Image validation
 
@@ -525,16 +525,16 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 ## Warm reset flow
 
-![WARM RESET](doc/svg/warm-reset.svg)
+![WARM RESET](images/warm-reset.svg)
 
 ## Update reset flow
 
-![UPDATE RESET](doc/svg/update-reset.svg)
+![UPDATE RESET](images/update-reset.svg)
 <br> *(Note: Please note that Image validation for the update reset flow has some differences as compared to the cold boot flow. Please refer to the Image Validation Section for further details.)
 
 ## Unknown/spurious reset flow
 
-![UNKNOWN RESET](doc/svg/unknown-reset.svg)
+![UNKNOWN RESET](images/unknown-reset.svg)
 
 ## Firmware image validation process
 
@@ -561,7 +561,7 @@ The basic flow for validating the firmware involves the following:
 
 ### **Overall validation flow**
 
-![Overall Validation Flow](doc/svg/overall-validation-flow.svg)
+![Overall Validation Flow](images/overall-validation-flow.svg)
 
 #### **Pre-conditions**
 
@@ -614,7 +614,7 @@ The following are the pre-conditions that should be satisfied:
 
 ## Preamble validation steps
 
-![Preamble Validation Flow](doc/svg/preamble-validation.svg)
+![Preamble Validation Flow](images/preamble-validation.svg)
 
 ## Header validation
 
@@ -628,7 +628,7 @@ The following are the pre-conditions that should be satisfied:
 
 ## Header validation steps
 
-![Header Validation Flow](doc/svg/header-validation.svg)
+![Header Validation Flow](images/header-validation.svg)
 
 ## Table of contents validation
 
@@ -646,7 +646,7 @@ The following are the pre-conditions that should be satisfied:
 
 ## Table of contents validation steps
 
-![Toc Validation Flow](doc/svg/toc-validation.svg)
+![Toc Validation Flow](images/toc-validation.svg)
 
 ## Validating image sections
 
@@ -663,7 +663,7 @@ The following are the pre-conditions that should be satisfied:
 
 ## Image section validation steps
 
-![Image Section Validation Flow](doc/svg/image-section-validation.svg)
+![Image Section Validation Flow](images/image-section-validation.svg)
 
 ## Differences in operating mode of the validation code
 
