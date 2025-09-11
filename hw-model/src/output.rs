@@ -391,10 +391,21 @@ mod tests {
     fn test_unknown_generic_load() {
         let log = Log::new();
         let mut out = Output::new(log.clone());
-        out.sink().push_uart_char(0xd3);
+        out.sink().push_uart_char(0xf8);
 
         assert_eq!(&out.take(30), "");
-        assert_eq!(log.into_string(), "Unknown generic load 0xd3\n");
+        assert_eq!(log.into_string(), "Unknown generic load 0xf8\n");
+    }
+
+    #[test]
+    fn test_utf8() {
+        let log = Log::new();
+        let mut out = Output::new(log.clone());
+        out.sink().push_uart_char(0xec);
+        out.sink().push_uart_char(0x9c);
+        out.sink().push_uart_char(0x84);
+
+        assert_eq!(&out.take(30), "위");
     }
 
     #[test]

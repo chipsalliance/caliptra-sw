@@ -19,6 +19,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi",
     "cfi-counter",
 ] }
+ufmt.workspace = true
 
 [features]
 emu = ["caliptra-test-harness/emu"]
