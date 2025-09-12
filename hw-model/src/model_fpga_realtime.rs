@@ -459,6 +459,10 @@ impl HwModel for ModelFpgaRealtime {
     where
         Self: Sized,
     {
+        if params.subsystem_mode == true {
+            return Err("InitParams.subsystem does match hardware".into());
+        }
+
         let output = Output::new(params.log_writer);
         let uio_num = usize::from_str(
             &env::var("CPTRA_UIO_NUM").expect("Set CPTRA_UIO_NUM when using the FPGA"),

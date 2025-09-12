@@ -1160,6 +1160,10 @@ impl HwModel for ModelFpgaSubsystem {
         if let Some(TrngMode::External) = params.trng_mode {
             return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
         }
+        if params.subsystem_mode == false {
+            return Err("InitParams.subsystem does match hardware".into());
+        }
+
         let mcu_rom =
             match params.mcu_rom {
                 Some(mcu_rom) => mcu_rom,
