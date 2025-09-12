@@ -1,11 +1,16 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
+use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    firmware::{
+        runtime_tests::{BOOT, PERSISTENT_RT},
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART,
+    },
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -22,7 +27,10 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
     SecurityState, StackInfo, StackRange,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_registers::soc_ifc::meta::FusePqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
@@ -77,9 +85,10 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_max_svn: Option<u32>,
 }
 
-pub fn run_rt_test_pqc(
+pub fn run_rt_test_pqc_mbox(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
+    reach_mailbox_done: bool,
 ) -> DefaultHwModel {
     let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
     model.step_until(|m| {
@@ -88,7 +97,21 @@ pub fn run_rt_test_pqc(
             .read()
             .ready_for_mb_processing()
     });
+    // With subsystem we're using the mailbox for staging MCU & Manifest.
+    // So we need a later flow status point that is inside runtime before sending new commands
+    if reach_mailbox_done {
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    }
     model
+}
+
+pub fn run_rt_test_pqc(
+    args: RuntimeTestArgs,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> DefaultHwModel {
+    let test_fwid = args.test_fwid;
+    let reach_mbox_ready = !matches!(test_fwid, Some(&BOOT) | Some(&PERSISTENT_RT));
+    run_rt_test_pqc_mbox(args, pqc_key_type, reach_mbox_ready)
 }
 
 pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
@@ -112,11 +135,38 @@ pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
     ]
 }
 
+pub fn default_manifest_and_mcu_image_with_svn(
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+) -> (Vec<u8>, Vec<u8>) {
+    let mcu_fw = vec![1, 2, 3, 4];
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn);
+    let soc_manifest = soc_manifest.as_bytes();
+    (soc_manifest.to_owned(), mcu_fw)
+}
+
+pub fn default_manifest_and_mcu_image(
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> (Vec<u8>, Vec<u8>) {
+    default_manifest_and_mcu_image_with_svn(pqc_key_type, 1)
+}
+
 pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    let default_rt_fwid = if cfg!(is_fpga) {
         &APP_WITH_UART_FPGA
     } else {
         &APP_WITH_UART
@@ -172,6 +222,29 @@ pub fn start_rt_test_pqc_model(
 
     let image = image.to_bytes().unwrap();
 
+    let (soc_manifest, mcu_fw_image) = if cfg!(has_subsystem) {
+        match (args.soc_manifest, args.mcu_fw_image) {
+            (None, None) => {
+                let (soc_manifest, mcu_fw_image) = default_manifest_and_mcu_image_with_svn(
+                    pqc_key_type,
+                    args.soc_manifest_svn.unwrap_or(1),
+                );
+                (Some(soc_manifest), Some(mcu_fw_image))
+            }
+            (Some(soc_manifest), Some(mcu_fw_image)) => {
+                (Some(soc_manifest.to_vec()), Some(mcu_fw_image.to_owned()))
+            }
+            (Some(_), None) => panic!("soc manifest without mcu fw image"),
+            (None, Some(_)) => panic!("mcu fw image without soc manifest"),
+        }
+    } else {
+        assert!(args.soc_manifest.is_none());
+        assert!(args.mcu_fw_image.is_none());
+        (None, None)
+    };
+    let soc_manifest = soc_manifest.as_deref();
+    let mcu_fw_image = mcu_fw_image.as_deref();
+
     let model = caliptra_hw_model::new(
         init_params,
         BootParams {
@@ -185,8 +258,8 @@ pub fn start_rt_test_pqc_model(
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
-            soc_manifest: args.soc_manifest,
-            mcu_fw_image: args.mcu_fw_image,
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
@@ -200,6 +273,36 @@ pub fn start_rt_test_pqc_model(
 pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
+
+pub struct UploadFirmware {
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+}
+
+impl Default for UploadFirmware {
+    fn default() -> Self {
+        Self::new(FwVerificationPqcKeyType::LMS, 1)
+    }
+}
+
+impl UploadFirmware {
+    pub const fn new(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Self {
+        Self { pqc_key_type, svn }
+    }
+
+    pub fn upload_firmware<T: HwModel>(&self, hw: &mut T, image: &[u8]) -> Result<(), ModelError> {
+        if hw.subsystem_mode() {
+            let (soc_manifest, mcu_fw_image) =
+                default_manifest_and_mcu_image_with_svn(self.pqc_key_type, self.svn);
+            hw.upload_firmware_rri(image, Some(&soc_manifest), Some(&mcu_fw_image))
+        } else {
+            hw.upload_firmware_mailbox(image)
+        }
+    }
+}
+
+pub const DEFAULT_UPLOAD_FIRMWARE: UploadFirmware =
+    UploadFirmware::new(FwVerificationPqcKeyType::LMS, 1);
 
 pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();

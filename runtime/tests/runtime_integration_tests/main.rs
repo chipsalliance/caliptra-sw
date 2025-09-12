@@ -7,6 +7,7 @@ mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_cryptographic_mailbox;
+#[cfg(has_subsystem)]
 mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
@@ -24,6 +25,7 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+#[cfg(has_subsystem)]
 mod test_recovery_flow;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;

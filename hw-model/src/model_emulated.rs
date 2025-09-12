@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::hash::Hasher;
 use std::io::Write;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -40,11 +41,25 @@ use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
 
-pub struct EmulatedApbBus<'a> {
-    model: &'a mut ModelEmulated,
+pub trait SubSystem {
+    const SUBSYSTEM: bool;
 }
 
-impl Bus for EmulatedApbBus<'_> {
+pub struct CaliptraCore;
+impl SubSystem for CaliptraCore {
+    const SUBSYSTEM: bool = false;
+}
+
+pub struct CaliptraSubSystem;
+impl SubSystem for CaliptraSubSystem {
+    const SUBSYSTEM: bool = true;
+}
+
+pub struct EmulatedApbBus<'a, T: SubSystem> {
+    model: &'a mut ModelEmulatedInt<T>,
+}
+
+impl<T: SubSystem> Bus for EmulatedApbBus<'_, T> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
@@ -63,7 +78,7 @@ impl Bus for EmulatedApbBus<'_> {
 }
 
 /// Emulated model
-pub struct ModelEmulated {
+pub struct ModelEmulatedInt<T: SubSystem> {
     cpu: Cpu<BusLogger<CaliptraRootBus>>,
     soc_to_caliptra_bus: SocToCaliptraBus,
     output: Output,
@@ -81,10 +96,11 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
+    phantom: PhantomData<T>,
 }
 
 #[cfg(feature = "coverage")]
-impl Drop for ModelEmulated {
+impl<T: SubSystem> Drop for ModelEmulatedInt<T> {
     fn drop(&mut self) {
         let cov_path =
             std::env::var(caliptra_coverage::CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
@@ -110,7 +126,7 @@ impl Drop for ModelEmulated {
 }
 
 #[cfg(feature = "coverage")]
-impl ModelEmulated {
+impl<T: SubSystem> ModelEmulatedInt<T> {
     pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
         self.cpu.code_coverage.code_coverage_bitmap()
     }
@@ -122,8 +138,11 @@ fn hash_slice(slice: &[u8]) -> u64 {
     hasher.finish()
 }
 
-impl SocManager for ModelEmulated {
-    type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
+impl<T: SubSystem> SocManager for ModelEmulatedInt<T> {
+    type TMmio<'a>
+        = BusMmio<EmulatedApbBus<'a, T>>
+    where
+        T: 'a;
 
     fn delay(&mut self) {
         self.step();
@@ -140,8 +159,11 @@ impl SocManager for ModelEmulated {
     const MAX_WAIT_CYCLES: u32 = 20_000_000;
 }
 
-impl HwModel for ModelEmulated {
-    type TBus<'a> = EmulatedApbBus<'a>;
+impl<T: SubSystem> HwModel for ModelEmulatedInt<T> {
+    type TBus<'a>
+        = EmulatedApbBus<'a, T>
+    where
+        T: 'a;
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
@@ -177,7 +199,7 @@ impl HwModel for ModelEmulated {
             }),
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
-            subsystem_mode: params.subsystem_mode,
+            subsystem_mode: T::SUBSYSTEM,
             prod_dbg_unlock_keypairs: params.prod_dbg_unlock_keypairs,
             debug_intent: params.debug_intent,
             cptra_obf_key: params.cptra_obf_key,
@@ -196,7 +218,7 @@ impl HwModel for ModelEmulated {
             (match trng_mode {
                 TrngMode::Internal => 1,
                 TrngMode::External => 0,
-            } | if params.subsystem_mode { 1 << 5 } else { 0 })
+            } | if T::SUBSYSTEM { 1 << 5 } else { 0 })
             .into(),
         );
 
@@ -229,7 +251,7 @@ impl HwModel for ModelEmulated {
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
         let image_tag = hasher.finish();
 
-        let mut m = ModelEmulated {
+        let mut m = ModelEmulatedInt {
             output,
             cpu,
             soc_to_caliptra_bus,
@@ -243,6 +265,7 @@ impl HwModel for ModelEmulated {
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
+            phantom: PhantomData,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -382,6 +405,10 @@ impl HwModel for ModelEmulated {
         soc_manifest: Option<&[u8]>,
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
+        if !T::SUBSYSTEM {
+            panic!("No subsystem")
+        }
+
         self.cpu.bus.bus.dma.axi.recovery.cms_data = vec![firmware.to_vec()];
         if let Some(soc_manifest) = soc_manifest {
             self.cpu
@@ -407,10 +434,21 @@ impl HwModel for ModelEmulated {
     }
 
     fn events_from_caliptra(&mut self) -> Vec<Event> {
+        if !T::SUBSYSTEM {
+            panic!("No subsystem")
+        }
+
         self.collected_events_from_caliptra.drain(..).collect()
     }
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
+        if !T::SUBSYSTEM {
+            panic!("No subsystem")
+        }
+
         self.events_to_caliptra.clone()
     }
 }
+
+pub type ModelEmulated = ModelEmulatedInt<CaliptraCore>;
+pub type ModelEmulatedSS = ModelEmulatedInt<CaliptraSubSystem>;

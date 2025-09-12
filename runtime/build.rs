@@ -13,6 +13,8 @@ Abstract:
 --*/
 
 fn main() {
+    caliptra_hw_model::cfg::rustc_hwmodel_cfg_flags();
+
     cfg_if::cfg_if! {
         if #[cfg(not(feature = "std"))] {
             use std::env;

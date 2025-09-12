@@ -15,6 +15,7 @@ use caliptra_hw_model::InitParams;
 use crate::helpers;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // The FPGA is too fast for the host to catch these state transitions.
+#[cfg(not(has_subsystem))] // [CAP2][TODO] needs a subsystem equivalent using RRI
 #[test]
 fn test_cold_reset_status_reporting() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {

@@ -31,6 +31,7 @@ const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId:
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO] write new tests for failed image size via RRI
 fn test_zero_firmware_size() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -51,6 +52,7 @@ fn test_zero_firmware_size() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO] write new tests for failed image size via RRI
 fn test_firmware_gt_max_size() {
     // Firmware size > 128 KB.
 
@@ -565,7 +567,7 @@ fn test_pcr_log_across_update_reset() {
         }
 
         // Trigger an update reset.
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        hw.upload_firmware_mailbox(&image_bundle.to_bytes().unwrap())
             .unwrap();
         hw.step_until_boot_status(UpdateResetComplete.into(), true);
 

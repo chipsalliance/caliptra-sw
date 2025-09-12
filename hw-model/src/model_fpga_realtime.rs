@@ -688,15 +688,15 @@ impl HwModel for ModelFpgaRealtime {
         _soc_manifest: Option<&[u8]>,
         _mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
-        todo!()
+        panic!("No subsystem");
     }
 
     fn events_from_caliptra(&mut self) -> Vec<Event> {
-        todo!()
+        panic!("No subsystem");
     }
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
-        todo!()
+        panic!("No subsystem");
     }
 }
 

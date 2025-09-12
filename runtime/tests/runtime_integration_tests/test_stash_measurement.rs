@@ -101,6 +101,10 @@ fn test_pcr31_extended_upon_stash_measurement() {
     };
     let mut model = run_rt_test(runtime_test_args);
 
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
     // Read PCR_ID_STASH_MEASUREMENT
     let pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();
     let pcr_31: [u8; 48] = pcr_31_resp.as_bytes().try_into().unwrap();

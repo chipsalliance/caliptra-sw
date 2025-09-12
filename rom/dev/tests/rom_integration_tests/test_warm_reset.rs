@@ -14,6 +14,7 @@ use caliptra_test::image_pk_desc_hash;
 use crate::helpers;
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO] needs soc manifest and mcu_fw_image to boot
 fn test_warm_reset_success() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -97,6 +98,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))]
 fn test_warm_reset_during_cold_boot_during_image_validation() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -174,6 +176,7 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))]
 fn test_warm_reset_during_update_reset() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
