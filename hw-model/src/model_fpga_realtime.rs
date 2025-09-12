@@ -700,11 +700,11 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
-        todo!()
+        Err(ModelError::SubsystemSramError)
     }
 
     fn has_ss_staging_area(&self) -> bool {
-        todo!()
+        true
     }
 }
 

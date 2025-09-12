@@ -1585,7 +1585,7 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn has_ss_staging_area(&self) -> bool {
-        todo!()
+        true
     }
 }
 
