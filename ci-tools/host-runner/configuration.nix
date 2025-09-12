@@ -44,11 +44,9 @@ let
       export GCP_PROJECT="caliptra-github-ci"
 
       cd /home/${user}
-
       set -eux
       mkdir -p ci-images
       pushd ci-images
-
 
       ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
       ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
@@ -78,6 +76,12 @@ in
 
   boot.loader.grub.enable = false;
   boot.loader.generic-extlinux-compatible.enable = true;
+
+  # we need the sg module loaded for usbsdmux, see
+  # https://github.com/linux-automation/usbsdmux?tab=readme-ov-file#troubleshooting
+  boot.kernelModules = [
+    "sg"
+  ];
 
   time.timeZone = "America/Los_Angeles";
   i18n.defaultLocale = "en_US.UTF-8";
@@ -115,6 +119,8 @@ in
         "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com"
         # jhand
         "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNAmcxogmvhKGQy/kd5R+uB382XiSb1p/hlqx/lJv3IcxT3JDVk2cRuVxipirplizT6g5+a5FWH6fGrOizQ/Rd0= publickey"
+        # leongross
+        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEjT61pnWcD2+LDTEQLoSJgdAJ0cTuLEFY0FC6smSJx0LD2Liep3aEM/+kKOg7Hbnl02UbT+OQspGBqlzxjZdXk="
       ];
   };
 
@@ -136,6 +142,7 @@ in
     ((pkgs.callPackage ./tools/fpga-boss.nix {}))
     rtool
     picocom
+    usbsdmux
   ];
 
   programs.zsh.enable = true;
@@ -144,7 +151,12 @@ in
     SUBSYSTEMS=="usb", ATTRS{idVendor}=="04e8", ATTRS{idProduct}=="6001", OWNER="${user}", GROUP="users"
     SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="2640", OWNER="${user}", GROUP="users"
     SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="4050", OWNER="${user}", GROUP="users"
+
+    # usbsdmux
+    SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="4041", OWNER="${user}", GROUP="users"
+    SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="2640", OWNER="${user}", GROUP="users"
     '';
+  services.udev.packages = [ pkgs.usbsdmux ];
 
   # Host runner secrets
   environment.etc = {

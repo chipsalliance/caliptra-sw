@@ -20,7 +20,18 @@
         export GCP_PROJECT="caliptra-github-ci"
 
         RAND_POSTFIX=$(${pkgs.python3}/bin/python3 -c 'import random; print("".join(random.choice("0123456789ABCDEF") for i in range(16)))')
-        ${fpga-boss-bin}/bin/caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE serve $IMAGE -- ${rtool-bin}/bin/rtool jitconfig "$FPGA_TARGET" 379559 40993215 "$IDENTIFIER-$RAND_POSTFIX"
+
+        # check if we operate on ZCU_SDWIRE or USBSDMUX
+        if [[ -z $USB_SDMUX ]] && [[ -n $ZCU_SDWIRE ]]; then
+          SD_MUX="--sdwire $ZCU_SDWIRE"
+        elif [[ -n $USB_SDMUX ]] && [[ -z $ZCU_SDWIRE ]]; then
+          SD_MUX="--usbsdmux $USB_SDMUX"
+        else
+          echo "Invalid combination of ZCU_SDWIRE and USB_SDMUX"
+          exit 1
+        fi
+
+        ${fpga-boss-bin}/bin/caliptra-fpga-boss --zcu104 $ZCU_FTDI $SD_MUX serve $IMAGE -- ${rtool-bin}/bin/rtool jitconfig "$FPGA_TARGET" 379559 40993215 "$IDENTIFIER-$RAND_POSTFIX"
       '';
     in
     {
@@ -61,6 +72,19 @@
         modules = [
           ./configuration.nix
           ./hostrunners/kir-2.nix
+        ];
+      };
+      nixosConfigurations."caliptra-hostrunner-bo0" = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          identifier = "0";
+          user = "hostrunner";
+          fpga-boss-script = fpga-boss-script;
+          rtool = rtool-bin;
+        };
+        modules = [
+          ./configuration.nix
+          ./hostrunners/bo-0.nix
         ];
       };
   };
