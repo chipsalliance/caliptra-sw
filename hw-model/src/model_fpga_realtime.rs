@@ -704,7 +704,7 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn has_ss_staging_area(&self) -> bool {
-        true
+        false
     }
 }
 
