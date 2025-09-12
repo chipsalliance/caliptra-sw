@@ -45,7 +45,7 @@ use openssl::{
 use std::str;
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::helpers;
+use crate::helpers::{self, assert_fatal_fw_load};
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 
@@ -1965,12 +1965,10 @@ fn test_fmc_digest_mismatch() {
         // Change the FMC image.
         image_bundle.fmc[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
+        assert_fatal_fw_load(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH,
         );
 
         assert_eq!(

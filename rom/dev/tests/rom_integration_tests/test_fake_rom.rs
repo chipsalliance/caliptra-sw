@@ -267,12 +267,10 @@ fn test_image_verify() {
             .y
             .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
+        crate::helpers::assert_fatal_fw_load(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID,
         );
 
         assert_eq!(

@@ -59,6 +59,8 @@ fn be_bytes_to_words(src: &[u8]) -> Vec<u32> {
 }
 
 fn main() {
+    caliptra_hw_model::cfg::rustc_hwmodel_cfg_flags();
+
     if cfg!(not(feature = "std")) {
         use std::fs;
 

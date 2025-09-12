@@ -47,7 +47,6 @@ fn test_datavault_pmp_enforcement_region_start() {
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            subsystem_mode: false,
             ..Default::default()
         },
         BootParams {
@@ -90,7 +89,6 @@ fn test_datavault_pmp_enforcement_region_end() {
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            subsystem_mode: false,
             ..Default::default()
         },
         BootParams {
