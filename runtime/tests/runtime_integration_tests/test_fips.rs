@@ -11,7 +11,9 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{FromBytes, IntoBytes};
 
-const HW_REV_ID: u32 = 0x12; // 2.1
+// const HW_REV_ID: u32 = 0x12; // 2.1
+// [CAP2][TODO] update once FPGA is ready
+const HW_REV_ID: u32 = 0x2;
 
 #[test]
 fn test_fips_version() {

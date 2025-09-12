@@ -422,13 +422,9 @@ impl SocRegistersInternal {
     }
 
     pub fn has_ss_staging_area(&self) -> bool {
-        let hw_rev_id = self.regs.borrow().cptra_hw_rev_id.reg.get();
-        let major = hw_rev_id & 0xf;
-        let minor = (hw_rev_id >> 4) & 0xf;
-
-        let subsystem_mode = self.regs.borrow().cptra_hw_config.reg.get()
-            == SocRegistersImpl::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE;
-        (major > 2 || (major == 2 && minor >= 1)) && subsystem_mode
+        // TODO: The hardware register should actually be set to 2.1, but the FPGA hasn't done it yet.
+        // Track 'has_ss_staging_area' based on the new() input
+        self.regs.borrow().has_ss_staging_area
     }
 }
 
@@ -892,6 +888,7 @@ struct SocRegistersImpl {
     etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
     pending_etrng_response: Option<EtrngResponse>,
     op_pending_etrng_response_action: Option<ActionHandle>,
+    has_ss_staging_area: bool,
 }
 
 impl SocRegistersImpl {
@@ -960,7 +957,8 @@ impl SocRegistersImpl {
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(
-                ((args.hw_rev.0 & 0xf) | ((args.hw_rev.1 << 4) & 0xf0)).into(),
+                // [CAP2][TODO] update when RTL does it                ((args.hw_rev.0 & 0xf) | ((args.hw_rev.1 << 4) & 0xf0)).into(),
+                2,
             ), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
@@ -1060,6 +1058,7 @@ impl SocRegistersImpl {
             ),
             ss_soc_dbg_unlock_level: [0; 2],
             ss_generic_fw_exec_ctrl: [0; 4],
+            has_ss_staging_area: args.subsystem_mode && args.hw_rev.0 == 2 && args.hw_rev.1 > 0,
         };
         regs
     }
