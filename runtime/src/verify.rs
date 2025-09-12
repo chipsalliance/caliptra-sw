@@ -19,6 +19,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult, LmsResult};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
+use core::hint::black_box;
 use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct LmsVerifyCmd;
@@ -58,7 +59,7 @@ impl LmsVerifyCmd {
         let lms_pub_key: LmsPublicKey<LMS_N> = LmsPublicKey {
             id: cmd.pub_key_id,
             digest,
-            tree_type: LmsAlgorithmType::new(cmd.pub_key_tree_type),
+            tree_type: black_box(LmsAlgorithmType::new(cmd.pub_key_tree_type)),
             otstype: LmotsAlgorithmType::new(cmd.pub_key_ots_type),
         };
 
