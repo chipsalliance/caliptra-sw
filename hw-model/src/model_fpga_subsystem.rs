@@ -1459,6 +1459,24 @@ impl HwModel for ModelFpgaSubsystem {
     {
         HwModel::init_fuses(self, &boot_params.fuses);
 
+        // Return here if there isn't any mutable code to load
+        if boot_params.fw_image.is_none()
+            && boot_params.mcu_fw_image.is_none()
+            && boot_params.soc_manifest.is_none()
+        {
+            // Give the FPGA some time to start. If this returns too quickly some of the tests fail
+            // with a kernel panic.
+            for _ in 0..5_000 {
+                self.step();
+                let flow_status = self.soc_ifc().cptra_flow_status().read();
+                if flow_status.ready_for_mb_processing() {
+                    break;
+                }
+            }
+            println!("Finished booting with no mutable firmware to load");
+            return Ok(());
+        }
+
         while !self.i3c_target_configured() {}
         println!("Done starting MCU");
 
