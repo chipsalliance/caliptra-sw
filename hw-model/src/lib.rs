@@ -252,7 +252,7 @@ impl Default for InitParams<'_> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
-            subsystem_mode: false,
+            subsystem_mode: cfg!(feature = "fpga_subsystem"),
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
