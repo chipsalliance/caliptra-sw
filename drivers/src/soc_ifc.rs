@@ -626,6 +626,35 @@ impl SocIfc {
             .at(MCU_FW_READY_WORD)
             .modify(|w| w | MCU_FW_READY_BIT);
     }
+
+    /// Returns true if this is Caliptra 2.0 only.
+    pub fn version_2_0(&self) -> bool {
+        let gen = CptraGeneration(
+            self.soc_ifc
+                .regs()
+                .cptra_hw_rev_id()
+                .read()
+                .cptra_generation(),
+        );
+        gen.major_version() == 2 && gen.minor_version() == 0
+    }
+
+    /// Returns true if the stable keys are zeroizable according to FIPS.
+    /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
+    /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
+    pub fn stable_key_zeroizable(&self) -> bool {
+        self.version_2_0() && self.subsystem_mode()
+    }
+}
+
+bitfield::bitfield! {
+    // [15:8] Patch version
+    // [ 7:4] Minor version
+    // [ 3:0] Major version
+    pub struct CptraGeneration(u32);
+    patch_version, _: 15, 8;
+    minor_version, _: 7, 4;
+    major_version, _: 3, 0;
 }
 
 bitflags::bitflags! {
