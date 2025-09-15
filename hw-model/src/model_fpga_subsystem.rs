@@ -1540,6 +1540,11 @@ impl HwModel for ModelFpgaSubsystem {
         );
         self.bmc.push_recovery_image(mcu_fw_image);
 
+        // Notify MCU ROM it can start loading firmware
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
         let mut xi3c_configured = false;
         // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
         // it is done or timeout.
