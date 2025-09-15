@@ -818,7 +818,7 @@ impl Aes {
         Ok((iv, tag))
     }
 
-    fn compute_tag(
+    pub fn compute_tag(
         &mut self,
         aad_len: usize,
         text_len: usize,
