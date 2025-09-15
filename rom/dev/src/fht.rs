@@ -17,8 +17,8 @@ use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{
-        KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_FW_KEY_LADDER,
-        KEY_ID_ROM_FMC_CDI,
+        KEY_ID_FMC_CDI, KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
+        KEY_ID_FW_KEY_LADDER,
     },
     FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
@@ -34,7 +34,7 @@ pub struct FhtDataStore {}
 impl FhtDataStore {
     /// The FMC CDI is stored in a Key Vault slot.
     pub const fn fmc_cdi_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_ROM_FMC_CDI as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_CDI as u32)
     }
     /// The FMC ECC private key is stored in a Key Vault slot.
     pub const fn fmc_ecc_priv_key_store() -> HandOffDataHandle {
