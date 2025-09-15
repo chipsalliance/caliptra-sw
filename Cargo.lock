@@ -575,6 +575,7 @@ dependencies = [
  "anyhow",
  "bit-vec",
  "bitfield",
+ "bitflags 2.9.1",
  "caliptra-api",
  "caliptra-api-types",
  "caliptra-builder",

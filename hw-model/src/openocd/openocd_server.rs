@@ -119,9 +119,8 @@ impl OpenOcdServer {
         if log_stdio {
             println!("Waiting for OpenOCD to be ready to accept a Tcl connection ...");
         }
-        static READY_REGEX: Lazy<Regex> = Lazy::new(|| {
-            Regex::new("Info : Listening on port ([0-9]+) for tcl connections").unwrap()
-        });
+        static READY_REGEX: Lazy<Regex> =
+            Lazy::new(|| Regex::new("Listening on port ([0-9]+) for tcl connections").unwrap());
         let mut buf = String::new();
         let regex_captures = Self::wait_until_regex_match(
             &mut stderr,
