@@ -1582,6 +1582,11 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
+        // Notify MCU ROM it can start loading firmware
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
         self.i3c_controller.configure();
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
