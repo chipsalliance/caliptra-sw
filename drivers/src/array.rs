@@ -301,7 +301,9 @@ impl<const W: usize, const B: usize> From<LEArray4xN<W, B>> for Array4xN<W, B> {
 pub type LEArray4x4 = LEArray4xN<4, 16>;
 pub type LEArray4x8 = LEArray4xN<8, 32>;
 pub type LEArray4x16 = LEArray4xN<16, 64>;
+pub type LEArray4x392 = LEArray4xN<392, 1568>;
 pub type LEArray4x648 = LEArray4xN<648, 2592>;
+pub type LEArray4x792 = LEArray4xN<792, 3168>;
 pub type LEArray4x1157 = LEArray4xN<1157, 4628>;
 pub type LEArray4x1224 = LEArray4xN<1224, 4896>;
 
