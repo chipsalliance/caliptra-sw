@@ -108,6 +108,12 @@ in
     isNormalUser = true;
     hashedPassword = lib.strings.trim (builtins.readFile ./secrets/${user}-pass);
     extraGroups = [ "wheel" "networkmanager" ];
+
+    # The fpga ci runner services are defined as systemd user services.
+    # These services are first started when the user is logged in.
+    # To start them on boot, enable lingering (loginctl enable-linger).
+    linger = true;
+    
     # Add your SSH public key here to gain SSH access to the host runner.
     # Remove keys you do not trust
     openssh.authorizedKeys.keys = [
