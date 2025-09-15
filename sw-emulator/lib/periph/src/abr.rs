@@ -449,7 +449,7 @@ impl Abr {
             mldsa_privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             mldsa_privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             kv_mldsa_seed_rd_ctrl: ReadWriteRegister::new(0),
-            kv_mldsa_seed_rd_status: ReadOnlyRegister::new(0),
+            kv_mldsa_seed_rd_status: ReadOnlyRegister::new(KvStatus::READY::SET.value),
             mlkem_name: [Self::MLKEM_NAME0_VAL, Self::MLKEM_NAME1_VAL],
             mlkem_version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
             mlkem_ctrl: ReadWriteRegister::new(0),

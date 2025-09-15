@@ -157,12 +157,6 @@ impl Mldsa87 {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
         // Copy seed to the hardware
         match seed {
             Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
@@ -229,12 +223,6 @@ impl Mldsa87 {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
         // Copy seed or the private key to the hardware
         match seed {
             Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
@@ -271,7 +259,9 @@ impl Mldsa87 {
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
 
-        // No need to zeroize here, as the hardware will be zeroized by verify.
+        // Clear the hardware.
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+
         let result = self.verify(pub_key, msg, &signature)?;
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
@@ -339,12 +329,6 @@ impl Mldsa87 {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
         // Sign RND.
         sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
 
@@ -379,7 +363,9 @@ impl Mldsa87 {
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
 
-        // No need to zeroize here, as the hardware will be zeroized by verify.
+        // Clear the hardware.
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+
         let result = self.verify_var(pub_key, msg, &signature)?;
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
@@ -389,42 +375,51 @@ impl Mldsa87 {
         }
     }
 
-    /// Verify the signature with specified public key and message.
-    ///
-    /// # Arguments
-    ///
-    /// * `pub_key` - Public key.
-    /// * `msg` - Message to verify.
-    /// * `signature` - Signature to verify.
-    ///
-    /// # Result
-    ///
-    /// *  `Mldsa87Result` - Mldsa87Result::Success if the signature verification passed else an error code.
-    fn verify_res(
+    /// Common setup for verification functions
+    /// Returns the truncated signature for later comparison
+    fn verify_common_setup(
         &mut self,
         pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87Msg,
         signature: &Mldsa87Signature,
-    ) -> CaliptraResult<Mldsa87VerifyRes> {
+    ) -> CaliptraResult<[u32; MLDSA87_VERIFY_RES_WORD_LEN]> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
+        }
+
+        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
+        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == empty_verify_res {
+            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
+        }
+        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
+
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Copy digest
-        msg.write_to_reg(mldsa.mldsa_msg());
 
         // Copy pubkey
         pub_key.write_to_reg(mldsa.mldsa_pubkey());
 
         // Copy signature
         signature.write_to_reg(mldsa.mldsa_signature());
+
+        Ok(truncated_signature.try_into().unwrap())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn verify(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        msg: &Mldsa87Msg,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        let truncated_signature = self.verify_common_setup(pub_key, signature)?;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Copy the message
+        msg.write_to_reg(mldsa.mldsa_msg());
 
         // Program the command register for signature verification
         mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
@@ -438,32 +433,8 @@ impl Mldsa87 {
         // Clear the hardware when done
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
-        Ok(verify_res)
-    }
-
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn verify(
-        &mut self,
-        pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87Msg,
-        signature: &Mldsa87Signature,
-    ) -> CaliptraResult<Mldsa87Result> {
-        #[cfg(feature = "fips-test-hooks")]
-        unsafe {
-            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
-        }
-
-        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
-        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
-        if truncated_signature == empty_verify_res {
-            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
-        }
-        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
-
-        let verify_res = self.verify_res(pub_key, msg, signature)?;
-
         let result = if verify_res.0 == truncated_signature {
-            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature.try_into().unwrap());
+            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
             Mldsa87Result::Success
         } else {
             Mldsa87Result::SigVerifyFailed
@@ -479,34 +450,8 @@ impl Mldsa87 {
         msg: &[u8],
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
-        #[cfg(feature = "fips-test-hooks")]
-        unsafe {
-            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
-        }
-
-        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
-        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
-        if truncated_signature == empty_verify_res {
-            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
-        }
-        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
-
+        let truncated_signature = self.verify_common_setup(pub_key, signature)?;
         let mldsa = self.mldsa87.regs_mut();
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Copy pubkey
-        pub_key.write_to_reg(mldsa.mldsa_pubkey());
-
-        // Copy signature
-        signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification with streaming
         mldsa
@@ -523,7 +468,7 @@ impl Mldsa87 {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = if verify_res.0 == truncated_signature {
-            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature.try_into().unwrap());
+            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
             Mldsa87Result::Success
         } else {
             Mldsa87Result::SigVerifyFailed
@@ -545,12 +490,6 @@ impl Mldsa87 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87Signature> {
         let mldsa = self.mldsa87.regs_mut();
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Clear the hardware before start
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
