@@ -41,7 +41,7 @@ There are a few secrets that this configuration relies on. They are not checked 
   - This should be saved at `ci-tools/host-runner/secrets/google/prod`.
   - If you or your company does not already possess a key, the github-runner deployments [README](../github-runner/deployments/README.md) describes how to create one.
 1. User password
-  - This configuration expects a hashed password to be present at `ci-tools/host-runner/secrets/host-runner-pass`.
+  - This configuration expects a hashed password to be present at `ci-tools/host-runner/secrets/hostrunner-pass`.
   - Create the password by inputting it into the `mkpasswd` CLI tool.
     - You can create a shell that has `mkpasswd` using Nix: `$ nix shell nixpkgs#mkpasswd`.
 
@@ -53,7 +53,7 @@ It's likely that you will want to make the following modifications to this confi
 
 ### Add SSH public key as an Authorized User
 
-See [configuration.nix](configuration.nix_) for where this code is located.
+See [configuration.nix](configuration.nix) for where this code is located.
 
 ```nix
     # Add your ssh public key as a string to this list.
