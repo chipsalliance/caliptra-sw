@@ -34,6 +34,8 @@ pub fn preconditioned_key_extract(
 
     let aes_key;
     let aes_key = match salt {
+        // NOTE: The HMAC Key may be byte reversed from what the AES engine expects.
+        // You must be careful to always specify the HMAC Key in the same order.
         HmacKey::Array4x16(arr) => {
             let mut aes_arr: [u32; 8] = [0; 8];
             // Truncate HMAC Key from 64 bytes to 32 bytes.
