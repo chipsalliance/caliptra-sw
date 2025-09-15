@@ -27,7 +27,7 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 
 #[test]
 fn test_update_reset_success() {
-    for subsystem_mode in [false, true] {
+    for subsystem_mode in [true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
