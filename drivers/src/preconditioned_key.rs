@@ -34,6 +34,8 @@ pub fn preconditioned_key_extract(
 
     let mut aes_key = [0; 32];
     let aes_key = match salt {
+        // NOTE: The HMAC Key may be byte reversed from what the AES engine expects.
+        // You must be careful to always specify the HMAC Key in the same order.
         HmacKey::Array4x16(arr) => {
             let arr: [u8; 64] = arr.into();
             aes_key.clone_from_slice(&arr[0..32]);
