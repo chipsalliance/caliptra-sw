@@ -48,6 +48,9 @@ pub type Mldsa87Signature = LEArray4x1157;
 /// MLDSA-87 Message (64 Bytes)
 pub type Mldsa87Msg = LEArray4x16;
 
+/// MLDSA-87 External Mu (64 Bytes)
+pub type Mldsa87Mu = LEArray4x16;
+
 /// MLDSA-87 Signature RND
 pub type Mldsa87SignRnd = LEArray4x8;
 
@@ -71,6 +74,14 @@ pub enum Mldsa87Seed<'a> {
 
     /// Private Key
     PrivKey(&'a Mldsa87PrivKey),
+}
+
+/// What type of information is being signed/verified.
+enum SigData<'a> {
+    /// Raw Sha512 hash
+    Msg(&'a Mldsa87Msg),
+    /// External Mu (64 Bytes)
+    Mu(&'a Mldsa87Mu),
 }
 
 impl<'a> From<&'a LEArray4x8> for Mldsa87Seed<'a> {
@@ -194,6 +205,73 @@ impl Mldsa87 {
         // TODO check that pubkey is valid?
     }
 
+    fn sign_internal(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &Mldsa87PubKey,
+        data: SigData,
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut gen_keypair = true;
+        let external_mu = matches!(data, SigData::Mu(_));
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
+            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
+                key,
+                mldsa.kv_mldsa_seed_rd_status(),
+                mldsa.kv_mldsa_seed_rd_ctrl(),
+            )
+            .map_err(|err| err.into_read_seed_err())?,
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.mldsa_privkey_in())
+            }
+        }
+
+        // Copy data to corresponding registers
+        match data {
+            SigData::Msg(msg) => msg.write_to_reg(mldsa.mldsa_msg()),
+            SigData::Mu(mu) => mu.write_to_reg(mldsa.mldsa_external_mu()),
+        }
+
+        // Sign RND, TODO do we want deterministic?
+        sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
+
+        // Generate an IV.
+        let iv = Self::generate_iv(trng)?;
+        iv.write_to_reg(mldsa.entropy());
+
+        // Program the command register for key generation
+        mldsa.mldsa_ctrl().write(|w| {
+            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
+                .external_mu(external_mu)
+        });
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
+
+        // Clear the hardware.
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+
+        let result = self.verify_internal(pub_key, data, &signature)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
+    }
+
     /// Sign the digest with specified private key. To defend against glitching
     /// attacks that could expose the private key, this function also verifies
     /// the generated signature.
@@ -217,58 +295,33 @@ impl Mldsa87 {
         sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
     ) -> CaliptraResult<Mldsa87Signature> {
-        let mut gen_keypair = true;
-        let mldsa = self.mldsa87.regs_mut();
+        self.sign_internal(seed, pub_key, SigData::Msg(msg), sign_rnd, trng)
+    }
 
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
-
-        // Copy seed or the private key to the hardware
-        match seed {
-            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
-            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
-                key,
-                mldsa.kv_mldsa_seed_rd_status(),
-                mldsa.kv_mldsa_seed_rd_ctrl(),
-            )
-            .map_err(|err| err.into_read_seed_err())?,
-            Mldsa87Seed::PrivKey(priv_key) => {
-                gen_keypair = false;
-                priv_key.write_to_reg(mldsa.mldsa_privkey_in())
-            }
-        }
-
-        // Copy digest
-        msg.write_to_reg(mldsa.mldsa_msg());
-
-        // Sign RND, TODO do we want deterministic?
-        sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
-
-        // Generate an IV.
-        let iv = Self::generate_iv(trng)?;
-        iv.write_to_reg(mldsa.entropy());
-
-        // Program the command register for key generation
-        mldsa
-            .mldsa_ctrl()
-            .write(|w| w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN }));
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
-
-        // Copy signature
-        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
-
-        // Clear the hardware.
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        let result = self.verify(pub_key, msg, &signature)?;
-        if result == Mldsa87Result::Success {
-            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
-            Ok(signature)
-        } else {
-            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
-        }
+    /// Sign the pre-computed external mu with specified private key. To defend
+    /// against glitching attacks that could expose the private key, this
+    /// function also verifies the generated signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - Key Vault slot containing the seed for deterministic MLDSA Key Pair generation.
+    /// * `pub_key` - Public key to verify the signature with.
+    /// * `mu` - External mu to sign.
+    /// * `sign_rnd` - Signature RND input
+    /// * `trng` - TRNG driver instance.
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa87Signature` - Generated signature
+    pub fn sign_external_mu(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &Mldsa87PubKey,
+        mu: &Mldsa87Mu,
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        self.sign_internal(seed, pub_key, SigData::Mu(mu), sign_rnd, trng)
     }
 
     fn program_var_msg(mldsa: RegisterBlock<ureg::RealMmioMut>, msg: &[u8]) -> CaliptraResult<()> {
@@ -409,20 +462,26 @@ impl Mldsa87 {
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn verify(
+    fn verify_internal(
         &mut self,
         pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87Msg,
+        data: SigData,
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
         let truncated_signature = self.verify_common_setup(pub_key, signature)?;
+        let external_mu = matches!(data, SigData::Mu(_));
         let mldsa = self.mldsa87.regs_mut();
 
-        // Copy the message
-        msg.write_to_reg(mldsa.mldsa_msg());
+        // Copy data to corresponding registers
+        match data {
+            SigData::Msg(msg) => msg.write_to_reg(mldsa.mldsa_msg()),
+            SigData::Mu(mu) => mu.write_to_reg(mldsa.mldsa_external_mu()),
+        }
 
-        // Program the command register for signature verification
-        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
+        // Program the command register for signature verification and optionally external mu.
+        mldsa
+            .mldsa_ctrl()
+            .write(|w| w.ctrl(VERIFY).external_mu(external_mu));
 
         // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -441,6 +500,26 @@ impl Mldsa87 {
         };
 
         Ok(result)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn verify(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        msg: &Mldsa87Msg,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        self.verify_internal(pub_key, SigData::Msg(msg), signature)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn verify_external_mu(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        mu: &Mldsa87Mu,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        self.verify_internal(pub_key, SigData::Mu(mu), signature)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
