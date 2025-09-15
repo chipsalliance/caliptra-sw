@@ -124,8 +124,13 @@ impl OpenOcdJtagTap {
         let reg_offset = reg.word_offset();
         let cmd = format!("riscv dmi_read 0x{reg_offset:x}");
         let response = self.openocd.execute(cmd.as_str())?;
-
-        let value = u32::from_str(response.trim()).context(format!(
+        let response_hexstr = response.trim();
+        let value = u32::from_str(
+            response_hexstr
+                .strip_prefix("0x")
+                .unwrap_or(response_hexstr),
+        )
+        .context(format!(
             "expected response to be hexadecimal word, got '{response}'"
         ))?;
 
