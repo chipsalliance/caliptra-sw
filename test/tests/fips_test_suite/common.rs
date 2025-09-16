@@ -41,9 +41,7 @@ pub struct HwExpVals {
 
 const HW_EXP_2_0_0: HwExpVals = HwExpVals { hw_revision: 0x2 };
 const HW_EXP_2_0_1: HwExpVals = HwExpVals { hw_revision: 0x102 };
-const HW_EXP_2_0_2: HwExpVals = HwExpVals {
-    hw_revision: 0x202,
-};
+const HW_EXP_2_0_2: HwExpVals = HwExpVals { hw_revision: 0x202 };
 const HW_EXP_2_1_0: HwExpVals = HwExpVals { hw_revision: 0x12 };
 
 #[cfg(all(
