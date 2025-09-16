@@ -601,7 +601,10 @@ impl<'a> DmaRecovery<'a> {
     ) -> CaliptraResult<u32> {
         let image_size_bytes = self.request_image(fw_image_index)?;
         let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
-        crate::cprintln!("Starting payload transfer from RRI to MCU SRAM");
+        crate::cprintln!(
+            "Starting payload transfer from RRI to MCU SRAM, target: {:?}",
+            u64::from(self.mci_base) + MCU_SRAM_OFFSET
+        );
         self.transfer_payload_to_axi(
             addr,
             image_size_bytes,
