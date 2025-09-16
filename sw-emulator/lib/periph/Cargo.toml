@@ -23,6 +23,7 @@ const-random.workspace = true
 fips204.workspace = true
 lazy_static.workspace = true
 ml-kem.workspace = true
+ml-dsa.workspace = true
 rand.workspace = true
 sha2.workspace = true
 sha3.workspace = true
