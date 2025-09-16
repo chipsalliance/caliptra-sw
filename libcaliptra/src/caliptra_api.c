@@ -1416,14 +1416,13 @@ bool caliptra_is_idevid_csr_ready() {
 }
 
 /**
- * @brief Starts a SHA stream using the specified mode and endianess.
+ * @brief Starts a SHA stream using the specified mode.
  *
  *        This function will lock the SHA accelerator and write the initial data to the SHA accelerator.
  *        Afterwards either call caliptra_update_sha_stream() to update the SHA stream with additional data,
  *        or call caliptra_finish_sha_stream() to finish the SHA stream, retrieve the resulting hash and clear the lock.
  *
  * @param mode The SHA mode to use (e.g., CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384).
- * @param endian The endianess to use (e.g., CALIPTRA_SHA_ACCELERATOR_ENDIANESS_BIG).
  * @param in_data Pointer to the initial data to hash.
  * @param data_len Length of the initial data to hash in bytes.
  * @return 0 on success, or an error code on failure.
