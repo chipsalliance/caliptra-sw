@@ -48,6 +48,8 @@ pub(crate) const XI3C_INTR_HJ_MASK: u32 = 0x100;
 
 /// BIT 0 - Core Enable
 pub(crate) const XI3C_CR_EN_MASK: u32 = 0x1;
+/// BIT 2 - Resume Operation
+pub(crate) const XI3C_CR_RESUME_MASK: u32 = 0x4;
 /// BIT 3 - IBI Enable
 pub(crate) const XI3C_CR_IBI_MASK: u32 = 0x8;
 /// BIT 4 - Hot Join Enable
@@ -204,22 +206,22 @@ impl Controller {
             tid: 0,
         };
         // Disable Target Events
-        println!("Broadcast CCC DISEC");
+        println!("XI3C: Broadcast CCC DISEC");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_DISEC));
         if result.is_ok() {
-            println!("Acknowledge received");
+            println!("XI3C: Acknowledge received");
         }
         // Enable Target Events
-        println!("Broadcast CCC ENEC");
+        println!("XI3C: Broadcast CCC ENEC");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENEC));
         if result.is_ok() {
-            println!("Acknowledge received");
+            println!("XI3C: Acknowledge received");
         }
         // Reset Dynamic Address assigned to all the I3C Targets
-        println!("Broadcast CCC RSTDAA");
+        println!("XI3C: Broadcast CCC RSTDAA");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_RSTDAA));
         if result.is_ok() {
-            println!("Acknowledge received");
+            println!("XI3C: Acknowledge received");
         }
         Ok(())
     }
@@ -344,11 +346,11 @@ impl Controller {
 
         let addr = dyn_addr << 1;
         println!(
-            "Controller: Assigning dynamic address with SETDASA private write {:x}",
+            "XI3C: Controller: Assigning dynamic address with SETDASA private write {:x}",
             addr >> 1
         );
         self.master_send_polled(&cmd, &[addr], 1)?;
-        println!("Acknowledged");
+        println!("XI3C: Acknowledged");
 
         let mut table = self.target_info_table.borrow_mut();
         let cur_device_count = self.cur_device_count.get() as usize;
@@ -393,16 +395,19 @@ impl Controller {
             cmd.pec = 0;
             cmd.cmd_type = 1;
 
-            println!("Controller: Assigning dynamic address 0x{:x}", addr >> 1);
+            println!(
+                "XI3C: Controller: Assigning dynamic address 0x{:x}",
+                addr >> 1
+            );
             let recv_buffer = match self.master_recv_polled(None, &cmd, 9) {
                 Ok(recv_buffer) => recv_buffer,
                 Err(err) => {
-                    println!("No ack received for assigning address");
+                    println!("XI3C: No ack received for assigning address");
                     return Err(err);
                 }
             };
 
-            println!("cur_device_count = {}", self.cur_device_count.get());
+            println!("XI3C: cur_device_count = {}", self.cur_device_count.get());
             let mut table = self.target_info_table.borrow_mut();
             let cur_device_count = self.cur_device_count.get() as usize;
             table[cur_device_count].id = ((recv_buffer[0] as u64) << 40)
@@ -412,8 +417,8 @@ impl Controller {
                 | ((recv_buffer[4] as u64) << 8)
                 | recv_buffer[5] as u64;
             table[cur_device_count].bcr = recv_buffer[6];
-            println!("Controller received BCR: {:x}", recv_buffer[6]);
-            println!("Controller received DCR: {:x}", recv_buffer[7]);
+            println!("XI3C: Controller received BCR: {:x}", recv_buffer[6]);
+            println!("XI3C: Controller received DCR: {:x}", recv_buffer[7]);
             table[cur_device_count].dcr = recv_buffer[7];
             table[cur_device_count].dyna_addr = dyna_addr[index as usize];
             self.cur_device_count.set((cur_device_count + 1) as u8);
@@ -432,13 +437,23 @@ impl Controller {
     }
 
     #[inline]
-    fn enable(&self, enable: u8) {
+    pub fn enable(&self, enable: u8) {
         assert!(self.ready.get());
         let mut data = self.regs().cr.get();
         data &= !XI3C_CR_EN_MASK;
         data |= enable as u32;
         self.regs().cr.set(data);
         println!("XI3C: Enable set to {:x}", self.regs().cr.get());
+    }
+
+    #[inline]
+    pub fn resume(&self, resume: u8) {
+        assert!(self.ready.get());
+        let mut data = self.regs().cr.get();
+        data &= !XI3C_CR_RESUME_MASK;
+        data |= resume as u32;
+        self.regs().cr.set(data);
+        println!("XI3C: Resume set to {:x}", self.regs().cr.get());
     }
 
     #[inline]
@@ -468,7 +483,7 @@ impl Controller {
         let mut addr_bcr = (table[dev_index as usize].dyna_addr & 0x7f) as u32;
         addr_bcr |= (table[dev_index as usize].bcr as u32) << 8;
         println!(
-            "Updating BCR (index {}) for device {:x}",
+            "XI3C: Updating BCR (index {}) for device {:x}",
             dev_index, addr_bcr
         );
         self.regs().target_addr_bcr.set(addr_bcr);
@@ -792,26 +807,61 @@ impl Controller {
         self.status_handler.set(Some(handler));
     }
 
+    pub fn ibi_ready(&self) -> bool {
+        self.regs().sr.get() & XI3C_SR_RD_FIFO_NOT_EMPTY_MASK != 0
+    }
+
+    pub fn interrupt_status(&self) -> u32 {
+        self.regs().intr_status.get()
+    }
+
+    pub fn interrupt_enable_set(&self, mask: u32) {
+        self.regs().intr_re.set(mask)
+    }
+
+    pub fn status(&self) -> u32 {
+        self.regs().sr.get()
+    }
+
+    /// Available space in CMD_FIFO to write
+    pub fn cmd_fifo_level(&self) -> u16 {
+        ((self.regs().fifo_lvl_status.get() >> 16) & 0xffff) as u16
+    }
+
+    /// Available space in WR_FIFO to write
+    pub fn write_fifo_level(&self) -> u16 {
+        (self.regs().fifo_lvl_status.get() & 0xffff) as u16
+    }
+
+    /// Number of RESP status details are available in RESP_FIFO to read
+    pub fn resp_fifo_level(&self) -> u16 {
+        ((self.regs().fifo_lvl_status_1.get() >> 16) & 0xffff) as u16
+    }
+
+    /// Number of read data words are available in RD_FIFO to read
+    pub fn read_fifo_level(&self) -> u16 {
+        (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16
+    }
+
     /// This function receives data during IBI in polled mode.
     ///
     /// It polls the data register for data to come in during IBI.
     /// If controller fails to read data due to any error, it will return an Err with the status.
-    pub fn ibi_recv_polled(&self) -> Result<Vec<u8>, XI3cError> {
+    pub fn ibi_recv_polled(&self, timeout: Duration) -> Result<Vec<u8>, XI3cError> {
         let mut recv = vec![];
         let mut data_index: u16;
         let mut rx_data_available: u16;
+        let timeout = (timeout.as_micros() as u32).min(MAX_TIMEOUT_US);
         let happened = self.wait_for_event(
             XI3C_SR_RD_FIFO_NOT_EMPTY_MASK,
             XI3C_SR_RD_FIFO_NOT_EMPTY_MASK,
-            MAX_TIMEOUT_US * 10,
+            timeout,
         );
         if happened {
-            println!("Got an IBI, reading data");
             while self.regs().sr.get() & XI3C_SR_RD_FIFO_NOT_EMPTY_MASK != 0
                 || self.regs().sr.get() & XI3C_SR_RESP_NOT_EMPTY_MASK == 0
             {
                 rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
-                println!("rx_data_available: {}", rx_data_available);
                 data_index = 0;
                 while data_index < rx_data_available {
                     recv.extend(self.read_rx_fifo(4));
