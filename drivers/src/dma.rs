@@ -601,6 +601,7 @@ impl<'a> DmaRecovery<'a> {
     ) -> CaliptraResult<u32> {
         let image_size_bytes = self.request_image(fw_image_index)?;
         let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
+        crate::cprintln!("Starting payload transfer from RRI to MCU SRAM");
         self.transfer_payload_to_axi(
             addr,
             image_size_bytes,
@@ -609,7 +610,9 @@ impl<'a> DmaRecovery<'a> {
             false,
             aes_mode,
         )?;
+        crate::cprintln!("Done payload transfer from RRI to MCU SRAM");
         self.wait_for_activation()?;
+        crate::cprintln!("waited for activation");
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
         self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
