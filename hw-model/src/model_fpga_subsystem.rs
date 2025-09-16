@@ -1530,9 +1530,6 @@ impl HwModel for ModelFpgaSubsystem {
         );
         self.bmc.push_recovery_image(mcu_fw_image);
 
-        println!("Taking subsystem out of reset");
-        self.set_subsystem_reset(false);
-
         while !self.i3c_target_configured() {
             self.step();
         }
