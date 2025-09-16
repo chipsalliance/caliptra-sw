@@ -667,7 +667,7 @@ const MLDSA_SEED: [u32; 8] = [
 
 const KEY_ID: KeyId = KeyId::KeyId1;
 
-fn test_gen_key_pair() {
+fn test_mldsa_name() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -682,6 +682,25 @@ fn test_gen_key_pair() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
+    let abr_reg = unsafe { AbrReg::new() };
+    let regs = abr_reg.regs();
+
+    let name = regs.mldsa_name().read();
+
+    // MLDSA_CORE_NAME from RTL: 64'h3837412D_44534D4C representing "MLDSA-87"
+    assert_eq!(name, [0x44534D4C, 0x3837412D]);
+}
+
+fn test_gen_key_pair() {
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
@@ -937,6 +956,7 @@ fn test_verify_failure() {
 }
 
 test_suite! {
+    test_mldsa_name,
     test_gen_key_pair,
     test_sign,
     test_sign_caller_provided_private_key,

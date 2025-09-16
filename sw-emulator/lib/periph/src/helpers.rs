@@ -63,7 +63,9 @@ u32_array_impl!(14);
 u32_array_impl!(15);
 u32_array_impl!(16);
 u32_array_impl!(32);
+u32_array_impl!(392);
 u32_array_impl!(648);
+u32_array_impl!(792);
 u32_array_impl!(1157);
 u32_array_impl!(1224);
 

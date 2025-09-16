@@ -16,22 +16,24 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::{
-    cprintln, Aes, AesGcmIv, AesKey, AesOperation, Dma, DmaReadTarget, DmaReadTransaction,
-    LEArray4x8, SocIfc, Trng,
+    cprintln, Aes, AesGcmIv, AesKey, AesOperation, Array4x12, Dma, DmaReadTarget,
+    DmaReadTransaction, LEArray4x8, Sha2_512_384, SocIfc, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::mcu_sram;
+use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 use zerocopy::IntoBytes;
 
 const MCU_SRAM_OFFSET: *mut u32 = mcu_sram::McuSram::PTR;
-const MCU_SRAM_SIZE: usize = 32 * 1024;
+const MCU_SRAM_SIZE: usize = 256 * 1024;
 const KEY: LEArray4x8 = LEArray4x8::new([
     0xb4f7eaf0, 0x50f4421b, 0x05bc3506, 0x11deced9, 0x593d36a5, 0x708828a6, 0xffbc27f5, 0x046e4deb,
 ]);
@@ -174,21 +176,13 @@ const EXPECTED_CIPHERTEXT: [u8; 2080] = [
 const _: () = assert!(EXPECTED_CIPHERTEXT.len() % 4 == 0);
 
 fn zeroize_axi(dma: &mut Dma, addr: u64, len: usize) {
+    // TODO: this would be faster if we queued up 256 bytes at a time
     for i in (0..len).step_by(4) {
         dma.write_dword((addr + i as u64).into(), 0);
     }
 }
 
-fn run_dma_aes_test(
-    dma: &mut Dma,
-    aes: &mut Aes,
-    trng: &mut Trng,
-    src: u64,
-    dst: u64,
-    max_len: usize,
-) {
-    let mut output = [0u32; EXPECTED_CIPHERTEXT.len() / 4];
-
+fn dma_aes(dma: &mut Dma, aes: &mut Aes, trng: &mut Trng, src: u64, dst: u64, max_len: usize) {
     // prep AES GCM
     let key = KEY;
     aes.initialize_aes_gcm(
@@ -213,25 +207,79 @@ fn run_dma_aes_test(
         0,
     );
     dma.wait_for_dma_complete();
+}
+
+fn run_dma_aes_test(
+    dma: &mut Dma,
+    aes: &mut Aes,
+    trng: &mut Trng,
+    src: u64,
+    dst: u64,
+    max_len: usize,
+) {
+    let mut output = [0u32; EXPECTED_CIPHERTEXT.len() / 4];
+    dma_aes(dma, aes, trng, src, dst, max_len);
 
     dma.flush();
+    let len = max_len.div_ceil(4).min(output.len());
     dma.setup_dma_read(
         DmaReadTransaction {
             read_addr: dst.into(), // MCU SRAM, which should be encrypted output
             fixed_addr: false,
-            length: max_len as u32,
+            length: (len * 4) as u32,
             target: DmaReadTarget::AhbFifo,
             aes_mode: false,
             aes_gcm: false,
         },
         0,
     );
-    dma.dma_read_fifo(&mut output[..max_len.div_ceil(4)]);
+    dma.dma_read_fifo(&mut output[..len]);
     dma.wait_for_dma_complete();
 
     let output: &[u8] = output.as_bytes();
-    assert_eq!(&output[..max_len], &EXPECTED_CIPHERTEXT[..max_len]);
-    println!("AES DMA len={} passed", max_len);
+    assert_eq!(&output[..len * 4], &EXPECTED_CIPHERTEXT[..len * 4]);
+}
+
+fn test_dma_aes_mcu_sram_inplace() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+
+    let mut dma = Dma::default();
+    let soc = unsafe { SocIfc::new(SocIfcReg::new()) };
+
+    // test only runs in subsystem mode
+    if !soc.subsystem_mode() {
+        return;
+    }
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    // Read and decrypt 0s from MCU SRAM to MCU SRAM
+    let mcu_sram_offset = MCU_SRAM_OFFSET as u64;
+    let mcu_base_addr = soc.mci_base_addr() + mcu_sram_offset;
+
+    let zeroize_mcu_sram = |dma: &mut Dma| {
+        zeroize_axi(dma, mcu_base_addr, EXPECTED_CIPHERTEXT.len());
+    };
+
+    let src = mcu_base_addr;
+    let dst = mcu_base_addr;
+
+    for max_len in (4..EXPECTED_CIPHERTEXT.len()).step_by(4) {
+        zeroize_mcu_sram(&mut dma);
+        run_dma_aes_test(&mut dma, &mut aes, &mut trng, src, dst, max_len);
+    }
+
+    cprintln!("AES DMA OK");
 }
 
 fn test_dma_aes_mcu_sram() {
@@ -262,11 +310,11 @@ fn test_dma_aes_mcu_sram() {
     let mcu_base_addr = soc.mci_base_addr() + mcu_sram_offset;
 
     let zeroize_mcu_sram = |dma: &mut Dma| {
-        zeroize_axi(dma, mcu_base_addr, MCU_SRAM_SIZE);
+        zeroize_axi(dma, mcu_base_addr, EXPECTED_CIPHERTEXT.len() * 3);
     };
 
     let src = mcu_base_addr;
-    let dst = mcu_base_addr;
+    let dst = mcu_base_addr + (EXPECTED_CIPHERTEXT.len() * 2) as u64; // ensure no overlap
 
     for max_len in (4..EXPECTED_CIPHERTEXT.len()).step_by(4) {
         zeroize_mcu_sram(&mut dma);
@@ -276,6 +324,86 @@ fn test_dma_aes_mcu_sram() {
     cprintln!("AES DMA OK");
 }
 
+fn test_dma_aes_mcu_sram_256kb() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+
+    let mut dma = Dma::default();
+    let soc = unsafe { SocIfc::new(SocIfcReg::new()) };
+
+    // test only runs in subsystem mode
+    if !soc.subsystem_mode() {
+        return;
+    }
+
+    let mut sha = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
+    let mut op = sha.sha384_digest_init().expect("SHA384 init failed");
+
+    // Zeroize MCU SRAM
+    zeroize_axi(
+        &mut dma,
+        soc.mci_base_addr() + MCU_SRAM_OFFSET as u64,
+        MCU_SRAM_SIZE,
+    );
+
+    // Encrypt MCU SRAM
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let mcu_sram_offset = MCU_SRAM_OFFSET as u64;
+    let mcu_base_addr = soc.mci_base_addr() + mcu_sram_offset;
+
+    dma_aes(
+        &mut dma,
+        &mut aes,
+        &mut trng,
+        mcu_base_addr,
+        mcu_base_addr,
+        MCU_SRAM_SIZE,
+    );
+
+    // Compute SHA384 of MCU SRAM
+    for i in (0..MCU_SRAM_SIZE).step_by(4) {
+        let read_addr = mcu_base_addr + i as u64;
+        op.update(&dma.read_dword(read_addr.into()).to_le_bytes())
+            .expect("SHA384 update failed");
+    }
+    let mut digest = Array4x12::default();
+    op.finalize(&mut digest).expect("SHA384 finalize failed");
+
+    // computed in Python
+    let expected_digest = Array4x12::new([
+        0x6c6a0577, 0x126d7546, 0xf2223614, 0x5a74e7ba, 0x6f835173, 0xd1dc46f0, 0xf0e62026,
+        0xcc8c8407, 0x09afbd27, 0xec2713ff, 0xb6ca302c, 0x77720db6,
+    ]);
+
+    // Compare the results
+    assert_eq!(
+        digest, expected_digest,
+        "DMA SHA384 result should match regular SHA384 result"
+    );
+
+    let tag = aes
+        .compute_tag(0, MCU_SRAM_SIZE)
+        .expect("AES compute_tag failed");
+    let expected_tag: [u8; 16] = [
+        0x57, 0x55, 0x1b, 0x03, 0x7e, 0x3a, 0x39, 0x0b, 0xd2, 0x93, 0x79, 0xf1, 0x76, 0x29, 0x9e,
+        0x1c,
+    ];
+    assert_eq!(tag, expected_tag, "AES tag should match expected tag");
+}
+
 test_suite! {
     test_dma_aes_mcu_sram,
+    test_dma_aes_mcu_sram_inplace,
+    test_dma_aes_mcu_sram_256kb,
 }
