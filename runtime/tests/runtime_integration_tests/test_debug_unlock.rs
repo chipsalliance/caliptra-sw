@@ -51,7 +51,6 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -262,7 +261,6 @@ fn test_dbg_unlock_prod_success() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -383,7 +381,6 @@ fn test_dbg_unlock_prod_invalid_length() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -843,7 +840,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);

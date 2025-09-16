@@ -52,7 +52,6 @@ not (package(/caliptra-emu-.*/) |
     test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
     test(test_authorize_and_stash::test_authorize_from_staging_address) |
     test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-    test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
     test(test_fe_programming::test_fe_programming_cmd) |
     test(test_fips::test_fips_shutdown) |
     test(test_lms::test_lms_verify_cmd) |
@@ -63,8 +62,7 @@ not (package(/caliptra-emu-.*/) |
     test(test_rtalias::test_boot_status_reporting) |
     binary_id(caliptra-test::fips_test_suite) |
     test(test_update_reset::test_update_reset_verify_image_failure) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
+    test(/test_debug_unlock::.*/))
 """
 failure-output = "immediate-final"
 fail-fast = false

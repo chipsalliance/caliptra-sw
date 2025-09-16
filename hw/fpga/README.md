@@ -125,6 +125,23 @@ sudo ./hw/fpga/setup_fpga.sh
 CPTRA_UIO_NUM=0 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
 ```
 
+#### Filtering tests locally ####
+
+It's possible to filter out known failing tests with nextest.
+
+1. Install nextest
+
+```
+cargo install cargo-nextest@0.9.100 --locked
+```
+
+1. Nextest profiles are listed in `.config/nextest.toml`.
+1. Run tests e.g.
+
+```
+cargo nextest -P fpga-core run
+```
+
 ### Processing System - Programmable Logic interfaces ###
 [FPGA Wrapper Registers](fpga_wrapper_regs.md)
 

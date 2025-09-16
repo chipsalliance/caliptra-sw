@@ -18,9 +18,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 use zerocopy::{FromBytes, IntoBytes};
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_req_in_passive_mode() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -69,9 +67,7 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
     );
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_success() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -129,9 +125,7 @@ fn test_dbg_unlock_manuf_success() {
         .manuf_dbg_unlock_success());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_wrong_cmd() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -182,9 +176,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     });
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_invalid_token() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -260,9 +252,7 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -433,9 +423,7 @@ fn test_dbg_unlock_prod_success() {
     assert!(soc_debug_level == unlock_level);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -514,9 +502,7 @@ fn test_dbg_unlock_prod_invalid_length() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -633,9 +619,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_signature() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -770,9 +754,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -904,9 +886,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_cmd() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -979,7 +959,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -1139,7 +1118,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_failure() {
     for unlock_level in [0, 9, 16] {
         let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
