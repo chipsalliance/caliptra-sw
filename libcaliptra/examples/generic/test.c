@@ -890,7 +890,7 @@ int rt_test_all_commands(const test_info* info)
         printf("Finish SHA Stream: OK\n");
 
         // Verify the hash against the expected value
-        if (memcmp(stream_hash, expected_stream_hash, 12) == 0) {
+        if (memcmp(stream_hash, expected_stream_hash, sizeof(stream_hash)) == 0) {
             printf("SHA Stream Test: Passed\n");
         } else {
             printf("SHA Stream Test: Failed - Hash does not match expected value\n");
@@ -1369,7 +1369,7 @@ int test_sha_acc(const test_info* info)
         printf("SHA final: OK\n");
 
         // Verify the hash against the expected value
-        if (memcmp(digest, expected_sha384_digest, 12) == 0) {
+        if (memcmp(digest, expected_sha384_digest, sizeof(expected_sha384_digest)) == 0) {
             printf("Split 127 byte SHA2-384 digest verified\n");
         } else {
             printf("Split 127 byte SHA2-384 digest mismatch\n");
@@ -1405,7 +1405,7 @@ int test_sha_acc(const test_info* info)
         printf("SHA final: OK\n");
 
         // Verify the hash against the expected value
-        if (memcmp(digest, msg2_expected_sha384_digest, 12) == 0) {
+        if (memcmp(digest, msg2_expected_sha384_digest, sizeof(msg2_expected_sha384_digest)) == 0) {
             printf("227 byte SHA2-384 digest verified\n");
         } else {
             printf("227 byte SHA2-384 digest mismatch\n");
@@ -1441,7 +1441,7 @@ int test_sha_acc(const test_info* info)
         printf("SHA final: OK\n");
 
         // Verify the hash against the expected value
-        if (memcmp(digest, expected_sha512_digest, 16) == 0) {
+        if (memcmp(digest, expected_sha512_digest, sizeof(expected_sha512_digest)) == 0) {
             printf("127 byte SHA2-512 digest verified\n");
         } else {
             printf("127 byte SHA2-512 digest mismatch\n");
