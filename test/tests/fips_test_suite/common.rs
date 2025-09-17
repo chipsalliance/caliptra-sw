@@ -40,23 +40,7 @@ pub struct HwExpVals {
 }
 
 const HW_EXP_2_0_0: HwExpVals = HwExpVals { hw_revision: 0x2 };
-const HW_EXP_2_0_1: HwExpVals = HwExpVals { hw_revision: 0x102 };
-const HW_EXP_2_0_2: HwExpVals = HwExpVals { hw_revision: 0x202 };
-const HW_EXP_2_1_0: HwExpVals = HwExpVals { hw_revision: 0x12 };
 
-#[cfg(all(
-    not(feature = "verilator"),
-    not(feature = "fpga_realtime"),
-    not(feature = "fpga_subsystem")
-))]
-const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x102 };
-
-// [CAP2][TODO] update once RTL sets this right
-#[cfg(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-))]
 const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x2 };
 
 // ===  ROM  ===
@@ -97,9 +81,6 @@ impl HwExpVals {
             match version.as_str() {
                 // Add more versions here
                 "2_0_0" => HW_EXP_2_0_0,
-                "2_0_1" => HW_EXP_2_0_1,
-                "2_0_2" => HW_EXP_2_0_2,
-                "2_1_0" => HW_EXP_2_1_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected HW values ({})",
                     version

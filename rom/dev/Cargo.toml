@@ -30,9 +30,7 @@ zeroize.workspace = true
 memoffset.workspace = true
 
 [build-dependencies]
-caliptra_common = { workspace = true, default-features = false, features = [
-  "std",
-] }
+caliptra_common = { workspace = true, default-features = false, features = ["std"] }
 cfg-if.workspace = true
 const-gen.workspace = true
 hex.workspace = true
@@ -75,14 +73,7 @@ std = [
   "caliptra-x509/std",
   "ufmt/std",
 ]
-fpga_realtime = [
-  "caliptra-drivers/fpga_realtime",
-  "caliptra-hw-model/fpga_realtime",
-]
-fpga_subsystem = [
-  "caliptra-drivers/fpga_subsystem",
-  "caliptra-hw-model/fpga_subsystem",
-]
+fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
