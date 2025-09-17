@@ -22,6 +22,7 @@ caliptra-registers.workspace = true
 const-random.workspace = true
 fips204.workspace = true
 lazy_static.workspace = true
+ml-kem.workspace = true
 rand.workspace = true
 sha2.workspace = true
 sha3.workspace = true
