@@ -251,11 +251,6 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
-    pub const ML_KEM: FwId = FwId {
-        bin_name: "ml_kem",
-        ..BASE_FWID
-    };
-
     pub const PCRBANK: FwId = FwId {
         bin_name: "pcrbank",
         ..BASE_FWID
@@ -503,7 +498,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS,
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::ML_DSA87,
-    &driver_tests::ML_KEM,
     &driver_tests::PCRBANK,
     &driver_tests::PRECONDITIONED_KEYS,
     &driver_tests::SHA1,
