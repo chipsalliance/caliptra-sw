@@ -54,11 +54,6 @@ pub type Mldsa87SignRnd = LEArray4x8;
 type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
-// Control register constants.
-const KEYGEN: u32 = 1;
-const SIGN: u32 = 2;
-const VERIFY: u32 = 3;
-const KEYGEN_SIGN: u32 = 4;
 
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
@@ -180,7 +175,7 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa.mldsa_ctrl().write(|w| w.ctrl(KEYGEN));
+        mldsa.mldsa_ctrl().write(|w| w.ctrl(|s| s.keygen()));
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -261,9 +256,15 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa
-            .mldsa_ctrl()
-            .write(|w| w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN }));
+        mldsa.mldsa_ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+        });
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -369,8 +370,14 @@ impl Mldsa87 {
 
         // Program the command register for key generation
         mldsa.mldsa_ctrl().write(|w| {
-            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
-                .stream_msg(true)
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+            .stream_msg(true)
         });
 
         // Program the message to the hardware
@@ -427,7 +434,7 @@ impl Mldsa87 {
         signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification
-        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
+        mldsa.mldsa_ctrl().write(|w| w.ctrl(|s| s.verifying()));
 
         // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -511,7 +518,7 @@ impl Mldsa87 {
         // Program the command register for signature verification with streaming
         mldsa
             .mldsa_ctrl()
-            .write(|w| w.ctrl(VERIFY).stream_msg(true));
+            .write(|w| w.ctrl(|s| s.verifying()).stream_msg(true));
 
         // Program the message to the hardware
         Mldsa87::program_var_msg(mldsa, msg)?;
@@ -561,7 +568,7 @@ impl Mldsa87 {
 
         mldsa
             .mldsa_ctrl()
-            .write(|w| w.pcr_sign(true).ctrl(KEYGEN_SIGN));
+            .write(|w| w.pcr_sign(true).ctrl(|s| s.keygen_sign()));
 
         // Wait for command to complete
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;

@@ -370,11 +370,11 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 );
             });
         }
-        if block.block().name == "mldsa" {
+        if block.block().name == "abr" {
             block.transform(|t| {
                 // [TODO]: Put this enumeration into the RDL and remove this hack
                 t.set_register_enum(
-                    "CTRL",
+                    "MLDSA_CTRL",
                     "CTRL",
                     Rc::new(Enum {
                         name: Some("Ctrl".into()),
