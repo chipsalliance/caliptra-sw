@@ -83,3 +83,11 @@ bitflags! {
             Self::OTP_PARTITION_ERROR.bits();
     }
 }
+
+bitflags! {
+    /// Bits of the lc_ctrl.TRANSITION_CMD register, aka [LcCtrlReg::TransitionCmd].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct LcCtrlTransitionCmd: u32 {
+        const START = 0b1;
+    }
+}
