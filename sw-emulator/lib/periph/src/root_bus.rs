@@ -19,7 +19,7 @@ use crate::{
     mci::Mci,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
+    Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha3, HashSha512, HmacSha, KeyVault,
     MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use crate::{AesClp, MailboxRequester};
@@ -302,6 +302,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, len = 0x10000)]
     pub ml_dsa87: Mldsa87,
 
+    #[peripheral(offset = 0x1003_8000, len = 0xa14)]
+    pub sha3: HashSha3,
+
     #[peripheral(offset = 0x4000_0000, len = 0x40000)]
     pub iccm: Iccm,
 
@@ -378,6 +381,7 @@ impl CaliptraRootBus {
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
+        let sha3 = HashSha3::new(clock, key_vault.clone());
         let ml_dsa87 = Mldsa87::new(clock, key_vault.clone(), sha512.clone());
 
         Self {
@@ -390,6 +394,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
+            sha3,
             ml_dsa87,
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
