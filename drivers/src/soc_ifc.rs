@@ -618,7 +618,7 @@ impl SocIfc {
     /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
     /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
     pub fn stable_key_zeroizable(&self) -> bool {
-        self.version_2_0() && !self.subsystem_mode()
+        !(self.version_2_0() && self.subsystem_mode())
     }
 
     pub fn stable_key_zeroizable_fips_status(&self) -> u32 {
