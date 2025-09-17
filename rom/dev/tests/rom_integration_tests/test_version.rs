@@ -10,19 +10,8 @@ use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
 
-#[cfg(all(
-    not(feature = "verilator"),
-    not(feature = "fpga_realtime"),
-    not(feature = "fpga_subsystem")
-))]
-const HW_REV_ID: u32 = 0x102;
-
-// [CAP2][TODO] update once RTL sets this right
-#[cfg(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-))]
+// TODO: Find a better way to get this or make it a don't-care for this test
+//       This is not going to work when we start testing against multiple hw revs
 const HW_REV_ID: u32 = 0x2;
 
 #[test]
