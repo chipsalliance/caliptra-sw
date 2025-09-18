@@ -1511,8 +1511,11 @@ impl HwModel for ModelFpgaSubsystem {
         };
 
         println!("Setting recovery images to BMC");
-        self.bmc
-            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
+        let mut fw_image = boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default();
+        while fw_image.len() % 256 != 0 {
+            fw_image.push(0);
+        }
+        self.bmc.push_recovery_image(fw_image);
         self.bmc.push_recovery_image(
             boot_params
                 .soc_manifest
