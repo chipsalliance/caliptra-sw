@@ -19,6 +19,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
+use ml_dsa_01::{MlDsa87, SigningKey, VerifyingKey};
 use ml_kem::MlKem1024Params;
 use ml_kem::{
     kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey},
@@ -683,12 +684,29 @@ impl Abr {
         }
 
         let secret_key = if caller_provided {
-            //  Unlike ECC, no dword endianness reversal is needed.
-            let privkey = bytes_from_words_le(&self.mldsa_privkey_in);
-            PrivateKey::try_from_bytes(privkey).unwrap()
+            // Unlike ECC, no dword endianness reversal is needed.
+            bytes_from_words_le(&self.mldsa_privkey_in)
         } else {
-            PrivateKey::try_from_bytes(self.mldsa_private_key).unwrap()
+            self.mldsa_private_key
         };
+
+        let signature = if self.mldsa_ctrl.reg.is_set(MlDsaControl::EXTERNAL_MU) {
+            self.mldsa_sign_mu(secret_key)
+        } else {
+            self.mldsa_sign_msg(secret_key)
+        };
+
+        // The Ml_Dsa87 signature is 4627 len but the reg is one byte longer
+        let signature_extended = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature);
+            sig
+        };
+        self.mldsa_signature = words_from_bytes_le(&signature_extended);
+    }
+
+    fn mldsa_sign_msg(&mut self, sk_bytes: [u8; SK_LEN]) -> Vec<u8> {
+        let secret_key = PrivateKey::try_from_bytes(sk_bytes).unwrap();
 
         // Get message data based on streaming mode
         let message = if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
@@ -716,16 +734,18 @@ impl Abr {
             }
         }
 
-        // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
-        let signature = secret_key
+        secret_key
             .try_sign_with_seed(&[0u8; 32], message, &ctx)
-            .unwrap();
-        let signature_extended = {
-            let mut sig = [0; SIG_LEN + 1];
-            sig[..SIG_LEN].copy_from_slice(&signature);
-            sig
-        };
-        self.mldsa_signature = words_from_bytes_le(&signature_extended);
+            .unwrap()
+            .to_vec()
+    }
+
+    fn mldsa_sign_mu(&mut self, sk_bytes: [u8; SK_LEN]) -> Vec<u8> {
+        let secret_key = SigningKey::<MlDsa87>::decode(sk_bytes.as_slice().try_into().unwrap());
+        secret_key
+            .sign_mu_deterministic(self.mldsa_external_mu.as_bytes().try_into().unwrap())
+            .encode()
+            .to_vec()
     }
 
     /// Sign the PCR digest
@@ -757,6 +777,25 @@ impl Abr {
     }
 
     fn mldsa_verify(&mut self) {
+        let key_bytes = bytes_from_words_le(&self.mldsa_pubkey);
+        let sig = bytes_from_words_le(&self.mldsa_signature);
+        let signature = &sig[..SIG_LEN].try_into().unwrap();
+
+        let success = if self.mldsa_ctrl.reg.is_set(MlDsaControl::EXTERNAL_MU) {
+            self.mldsa_verify_mu(key_bytes, signature)
+        } else {
+            self.mldsa_verify_msg(key_bytes, signature)
+        };
+
+        if success {
+            self.mldsa_verify_res
+                .copy_from_slice(&self.mldsa_signature[..(ML_DSA87_VERIFICATION_SIZE_BYTES / 4)]);
+        } else {
+            self.mldsa_verify_res = [0u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4];
+        }
+    }
+
+    fn mldsa_verify_msg(&mut self, key_bytes: [u8; PK_LEN], signature: &[u8; SIG_LEN]) -> bool {
         // Get message data based on streaming mode
         let message = if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
             // Use the streamed message
@@ -767,12 +806,7 @@ impl Abr {
             &bytes_from_words_le(&self.mldsa_msg)
         };
 
-        let public_key = {
-            let key_bytes = bytes_from_words_le(&self.mldsa_pubkey);
-            PublicKey::try_from_bytes(key_bytes).unwrap()
-        };
-
-        let signature = bytes_from_words_le(&self.mldsa_signature);
+        let public_key = PublicKey::try_from_bytes(key_bytes).unwrap();
 
         // Get context if specified
         let mut ctx: Vec<u8> = Vec::new();
@@ -791,14 +825,15 @@ impl Abr {
             }
         }
 
-        let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &ctx);
+        public_key.verify(message, signature, &ctx)
+    }
 
-        if success {
-            self.mldsa_verify_res
-                .copy_from_slice(&self.mldsa_signature[..(ML_DSA87_VERIFICATION_SIZE_BYTES / 4)]);
-        } else {
-            self.mldsa_verify_res = [0u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4];
-        }
+    fn mldsa_verify_mu(&mut self, key_bytes: [u8; PK_LEN], signature: &[u8; SIG_LEN]) -> bool {
+        let public_key = VerifyingKey::<MlDsa87>::decode(key_bytes.as_slice().try_into().unwrap());
+        public_key.verify_mu(
+            self.mldsa_external_mu.as_bytes().try_into().unwrap(),
+            &signature.as_slice().try_into().unwrap(),
+        )
     }
 
     fn mldsa_op_complete(&mut self) {
