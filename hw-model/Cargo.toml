@@ -9,6 +9,7 @@ edition = "2021"
 
 [features]
 default = ["coverage"]
+emu_subsystem = []
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 fpga_subsystem  = ["dep:uio"]
@@ -46,6 +47,7 @@ libc.workspace = true
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
 tock-registers.workspace = true
+build-print = "1.0.1"
 
 [dev-dependencies]
 caliptra-builder.workspace = true

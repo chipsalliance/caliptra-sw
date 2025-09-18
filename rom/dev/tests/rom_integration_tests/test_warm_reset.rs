@@ -97,6 +97,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))]
 fn test_warm_reset_during_cold_boot_during_image_validation() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -174,6 +175,7 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))]
 fn test_warm_reset_during_update_reset() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
