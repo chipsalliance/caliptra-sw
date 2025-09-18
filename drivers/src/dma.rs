@@ -803,6 +803,7 @@ impl<'a> DmaRecovery<'a> {
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
             // TODO: this will fail if the transaction is not a multiple of the block size
             // wait for the FIFO to be full
+            crate::cprintln!("Image byte start {:?}", k);
             if i3c {
                 self.with_regs(|r| {
                     while !r
@@ -819,6 +820,8 @@ impl<'a> DmaRecovery<'a> {
                 if i >= read_transaction.length {
                     break;
                 }
+
+                crate::cprintln!("byte {:?}", i);
 
                 // translate to single dword transfer
                 match read_transaction.target {
