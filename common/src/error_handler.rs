@@ -20,7 +20,7 @@ pub fn handle_fatal_error(code: u32) -> ! {
         Ecc384::zeroize();
         Hmac::zeroize();
         Mldsa87::zeroize_no_wait();
-        MlKem1024::zeroize();
+        MlKem1024::zeroize_no_wait();
         Sha256::zeroize();
         Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();

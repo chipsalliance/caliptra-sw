@@ -474,6 +474,22 @@ impl MlKem1024 {
         let _ = MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready());
     }
 
+    /// Zeroize the hardware registers without waiting.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize_no_wait() {
+        let mut mlkem_reg = AbrReg::new();
+        let mlkem = mlkem_reg.regs_mut();
+        mlkem.mlkem_ctrl().write(|f| f.zeroize(true));
+    }
+
     fn zeroize_internal(&mut self) -> CaliptraResult<()> {
         let mlkem = self.mlkem.regs_mut();
 
