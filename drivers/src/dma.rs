@@ -601,10 +601,6 @@ impl<'a> DmaRecovery<'a> {
     ) -> CaliptraResult<u32> {
         let image_size_bytes = self.request_image(fw_image_index)?;
         let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
-        crate::cprintln!(
-            "Starting payload transfer from RRI to MCU SRAM, target: {:?}",
-            u64::from(self.mci_base) + MCU_SRAM_OFFSET
-        );
         self.transfer_payload_to_axi(
             addr,
             image_size_bytes,
@@ -613,9 +609,7 @@ impl<'a> DmaRecovery<'a> {
             false,
             aes_mode,
         )?;
-        crate::cprintln!("Done payload transfer from RRI to MCU SRAM");
         self.wait_for_activation()?;
-        crate::cprintln!("waited for activation");
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
         self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
@@ -782,7 +776,6 @@ impl<'a> DmaRecovery<'a> {
             aes_mode: aes_mode.aes(),
             aes_gcm: aes_mode.gcm(),
         };
-        crate::cprintln!("before exec_dma_read");
         self.exec_dma_read(read_transaction)?;
         Ok(())
     }
@@ -790,8 +783,6 @@ impl<'a> DmaRecovery<'a> {
     // TODO: remove this when the FPGA can do fixed burst transfers
     #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
-        crate::cprintln!("FPGA exec_dma_read");
-
         // check if this is an I3C DMA
         let i3c = match read_transaction.read_addr {
             AxiAddr { lo, hi }
@@ -806,7 +797,6 @@ impl<'a> DmaRecovery<'a> {
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
             // TODO: this will fail if the transaction is not a multiple of the block size
             // wait for the FIFO to be full
-            crate::cprintln!("Image byte start {:?}", k);
             if i3c {
                 self.with_regs(|r| {
                     while !r
@@ -823,8 +813,6 @@ impl<'a> DmaRecovery<'a> {
                 if i >= read_transaction.length {
                     break;
                 }
-
-                crate::cprintln!("byte {:?}", i);
 
                 // translate to single dword transfer
                 match read_transaction.target {
@@ -858,7 +846,6 @@ impl<'a> DmaRecovery<'a> {
 
     #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
-        crate::cprintln!("SW-emu exec_dma_read");
         self.dma.flush();
         self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);
         self.dma.wait_for_dma_complete();
