@@ -1585,11 +1585,15 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
         let staging_offset = 0xc0000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
-        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) as *mut u8 };
+        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) };
 
-        // Copy payload to staging area
-        unsafe {
-            std::ptr::copy_nonoverlapping(payload.as_ptr(), staging_ptr, payload.len());
+        // Write complete u32 chunks
+        for (i, chunk) in payload.chunks(4).enumerate() {
+            let u32_value = u32::from_le_bytes(chunk.try_into().unwrap());
+
+            unsafe {
+                staging_ptr.add(i).write_volatile(u32_value);
+            }
         }
 
         // Return the physical address of the staging area
