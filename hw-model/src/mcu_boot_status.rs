@@ -12,16 +12,18 @@ Abstract:
 
 --*/
 
-const ROM_INITIALIZATION_BASE: u32 = 1;
-const LIFECYCLE_MANAGEMENT_BASE: u32 = 65;
-const OTP_FUSE_OPERATIONS_BASE: u32 = 129;
-const CALIPTRA_SETUP_BASE: u32 = 193;
-const FIRMWARE_LOADING_BASE: u32 = 257;
-const FIELD_ENTROPY_BASE: u32 = 321;
-const BOOT_FLOW_BASE: u32 = 385;
+use bitflags::bitflags;
+
+const ROM_INITIALIZATION_BASE: u16 = 1;
+const LIFECYCLE_MANAGEMENT_BASE: u16 = 65;
+const OTP_FUSE_OPERATIONS_BASE: u16 = 129;
+const CALIPTRA_SETUP_BASE: u16 = 193;
+const FIRMWARE_LOADING_BASE: u16 = 257;
+const FIELD_ENTROPY_BASE: u16 = 321;
+const BOOT_FLOW_BASE: u16 = 385;
 
 /// Status codes used by MCU ROM to log boot progress.
-#[repr(u32)]
+#[repr(u16)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum McuRomBootStatus {
     // ROM Initialization Statuses
@@ -82,9 +84,34 @@ pub enum McuRomBootStatus {
     HitlessUpdateFlowComplete = BOOT_FLOW_BASE + 7,
 }
 
-impl From<McuRomBootStatus> for u32 {
+impl From<McuRomBootStatus> for u16 {
     /// Converts to this type from the input type.
-    fn from(status: McuRomBootStatus) -> u32 {
-        status as u32
+    fn from(status: McuRomBootStatus) -> u16 {
+        status as u16
+    }
+}
+
+pub struct McuBootMilestones(u16);
+
+bitflags! {
+    impl McuBootMilestones: u16 {
+        const ROM_STARTED                   = 0b1 << 0;
+        const CPTRA_BOOT_GO_ASSERTED        = 0b1 << 1;
+        const CPTRA_FUSES_WRITTEN           = 0b1 << 2;
+        const RI_DOWNLOAD_COMPLETED         = 0b1 << 3;
+        const FLASH_RECOVERY_FLOW_COMPLETED = 0b1 << 4;
+        const COLD_BOOT_FLOW_COMPLETE       = 0b1 << 5;
+    }
+}
+
+impl From<u16> for McuBootMilestones {
+    fn from(value: u16) -> McuBootMilestones {
+        McuBootMilestones(value)
+    }
+}
+
+impl From<McuBootMilestones> for u16 {
+    fn from(value: McuBootMilestones) -> u16 {
+        value.0
     }
 }

@@ -6,7 +6,7 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
-use crate::mcu_boot_status::McuRomBootStatus;
+use crate::mcu_boot_status::{McuBootMilestones, McuRomBootStatus};
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
@@ -1129,6 +1129,14 @@ impl ModelFpgaSubsystem {
         self.mci.regs().fw_flow_status().read()
     }
 
+    pub fn mci_boot_checkpoint(&mut self) -> u16 {
+        (self.mci_flow_status() & 0x0000_ffff) as u16
+    }
+
+    pub fn mci_boot_milestones(&mut self) -> McuBootMilestones {
+        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
+    }
+
     fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
         FpgaRealtimeBus {
             mmio: self.caliptra_mmio,
@@ -1431,7 +1439,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+        while m.mci_boot_checkpoint() != u16::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
