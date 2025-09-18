@@ -379,7 +379,7 @@ fn test_encapsulate_and_decapsulate() {
     let mut shared_key_out = MlKem1024SharedKey::default();
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut shared_key_out),
         )
@@ -394,7 +394,7 @@ fn test_encapsulate_and_decapsulate() {
     let mut decaps_shared_key = MlKem1024SharedKey::default();
     mlkem
         .decapsulate(
-            &decaps_key,
+            decaps_key,
             &ciphertext,
             MlKem1024SharedKeyOut::Array(&mut decaps_shared_key),
         )
@@ -446,7 +446,7 @@ fn test_encapsulate_with_kv_message() {
     let mut shared_key_out = MlKem1024SharedKey::default();
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Key(KeyReadArgs::new(msg_key_id)),
             MlKem1024SharedKeyOut::Array(&mut shared_key_out),
         )
@@ -519,7 +519,7 @@ fn test_encapsulate_with_kv_message() {
 
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Key(KeyReadArgs::new(msg_key_id)),
             MlKem1024SharedKeyOut::Key(KeyWriteArgs::new(
                 msg_key_id,
@@ -613,7 +613,7 @@ fn test_encapsulate_with_kv_output() {
     let message = MlKem1024Message::from(MESSAGE);
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Key(shared_key_out),
         )
@@ -637,7 +637,7 @@ fn test_keygen_decapsulate() {
     let mut original_shared_key = MlKem1024SharedKey::default();
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut original_shared_key),
         )
@@ -672,7 +672,7 @@ fn test_keygen_decapsulate_with_kv() {
     let mut original_shared_key = MlKem1024SharedKey::default();
     let ciphertext = mlkem
         .encapsulate(
-            &encaps_key,
+            encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut original_shared_key),
         )

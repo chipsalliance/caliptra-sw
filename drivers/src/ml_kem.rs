@@ -225,7 +225,7 @@ impl MlKem1024 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn encapsulate(
         &mut self,
-        encaps_key: &MlKem1024EncapsKey,
+        encaps_key: MlKem1024EncapsKey,
         message: MlKem1024MessageSource,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<MlKem1024Ciphertext> {
@@ -310,7 +310,7 @@ impl MlKem1024 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn decapsulate(
         &mut self,
-        decaps_key: &MlKem1024DecapsKey,
+        decaps_key: MlKem1024DecapsKey,
         ciphertext: &MlKem1024Ciphertext,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<()> {
