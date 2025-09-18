@@ -9,7 +9,7 @@ use caliptra_builder::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
         },
-        APP_WITH_UART,
+        APP_WITH_UART, APP_WITH_UART_FPGA, ROM_FPGA_WITH_UART_SS,
     },
     FwId, ImageOptions,
 };
@@ -37,10 +37,10 @@ fn test_update_reset_success() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART_SS).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_FPGA_WITH_UART_SS,
                 image_options,
             )
             .unwrap();
