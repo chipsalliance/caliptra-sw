@@ -276,7 +276,7 @@ impl Default for InitParams<'_> {
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
             mcu_rom: None,
-            enable_mcu_uart_log: false,
+            enable_mcu_uart_log: true,
         }
     }
 }
