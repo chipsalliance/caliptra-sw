@@ -11,19 +11,6 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{FromBytes, IntoBytes};
 
-#[cfg(all(
-    not(feature = "verilator"),
-    not(feature = "fpga_realtime"),
-    not(feature = "fpga_subsystem")
-))]
-const HW_REV_ID: u32 = 0x102;
-
-// [CAP2][TODO] update once RTL sets this right
-#[cfg(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-))]
 const HW_REV_ID: u32 = 0x2;
 
 #[test]
