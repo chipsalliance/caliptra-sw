@@ -715,18 +715,18 @@ impl AsymEcc384 {
 
     // Clear registers
     fn zeroize(&mut self) {
-        self.seed.as_mut().fill(0);
-        self.hash.as_mut().fill(0);
-        self.priv_key_out.as_mut().fill(0);
-        self.pub_key_x.as_mut().fill(0);
-        self.pub_key_y.as_mut().fill(0);
-        self.sig_r.as_mut().fill(0);
-        self.sig_s.as_mut().fill(0);
-        self.verify_r.as_mut().fill(0);
-        self.iv.as_mut().fill(0);
-        self.nonce.as_mut().fill(0);
-        self.priv_key_in.as_mut().fill(0);
-        self.dh_shared_key.as_mut().fill(0);
+        self.seed.fill(0);
+        self.hash.fill(0);
+        self.priv_key_out.fill(0);
+        self.pub_key_x.fill(0);
+        self.pub_key_y.fill(0);
+        self.sig_r.fill(0);
+        self.sig_s.fill(0);
+        self.verify_r.fill(0);
+        self.iv.fill(0);
+        self.nonce.fill(0);
+        self.priv_key_in.fill(0);
+        self.dh_shared_key.fill(0);
     }
 
     /// Generate Diffie-Hellman shared key
