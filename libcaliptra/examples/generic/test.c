@@ -698,7 +698,6 @@ int rt_test_all_commands(const test_info* info)
         printf("DPE Command: OK\n");
     }
 
-
     // FW_INFO
     struct caliptra_fw_info_resp fw_info_resp;
 
@@ -846,6 +845,66 @@ int rt_test_all_commands(const test_info* info)
         failure = 1;
     } else {
         printf("Authorize and Stash: OK\n");
+    }
+    
+    // SHA Engine Tests
+    uint32_t stream_hash[12]; // Adjust size as needed for SHA-384 or SHA-512
+    uint8_t stream_hash_data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
+    uint8_t stream_hash_update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
+    // $ "testtest" | sha384sum -b
+    // 40e1b690e9200dd972cb29f4526a1c6597eb9bbc06bd4a2650c34dd9424cbde0327d3f3d6898d8e456f91f21fb6805c6
+    uint32_t expected_stream_hash[12] = {
+        0x40E1B690, 0xE9200DD9, 0x72CB29F4,
+        0x526A1C65, 0x97EB9BBC, 0x06BD4A26,
+        0x50C34DD9, 0x424CBDE0, 0x327D3F3D,
+        0x6898D8E4, 0x56F91F21, 0xFB6805C6,
+    };
+
+    // Start SHA Stream
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, stream_hash_data, sizeof(stream_hash_data));
+    if (status) {
+        printf("Start SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Start SHA Stream: OK\n");
+    }
+
+    // Update SHA Stream
+    status = caliptra_update_sha_stream(stream_hash_update_data, sizeof(stream_hash_update_data));
+    if (status) {
+        printf("Update SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Update SHA Stream: OK\n");
+    }
+
+    // Finish SHA Stream
+    status = caliptra_finish_sha_stream(stream_hash);
+    if (status) {
+        printf("Finish SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Finish SHA Stream: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(stream_hash, expected_stream_hash, sizeof(stream_hash)) == 0) {
+            printf("SHA Stream Test: Passed\n");
+        } else {
+            printf("SHA Stream Test: Failed - Hash does not match expected value\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", expected_stream_hash[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", stream_hash[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
     }
 
     // FIPS_VERSION
@@ -1190,6 +1249,217 @@ int upload_fw_piecewise(const test_info* info)
     return failure;
 }
 
+// Test SHA ACC
+int test_sha_acc(const test_info* info)
+{
+    int failure = 0;
+    int status;
+
+    uint32_t digest[16]; // Buffer to hold both SHA-384 or SHA-512 digests
+    uint8_t msg[127] = { // 127 byte test message
+        0xA6, 0xEC, 0x55, 0xF1, 0x4A, 0xB7, 0x8E, 0x45,
+        0x88, 0xDF, 0xC0, 0xAF, 0xB6, 0x43, 0x35, 0x27,
+        0x07, 0x81, 0x24, 0x93, 0x18, 0xCA, 0xEA, 0xDC,
+        0x46, 0x3F, 0x9C, 0xFF, 0xF3, 0xD9, 0x88, 0x75,
+        0x84, 0x30, 0x8B, 0xB2, 0x65, 0x23, 0x6D, 0x84,
+        0xE7, 0x4E, 0x46, 0x3F, 0x47, 0xF4, 0x41, 0xEF,
+        0xD3, 0x42, 0x1C, 0x17, 0xC9, 0x01, 0xCB, 0x8E,
+        0x1A, 0xE2, 0xAC, 0x33, 0x3E, 0x69, 0x70, 0xA3,
+        0xE2, 0x6C, 0x21, 0xD6, 0x08, 0x38, 0x45, 0xB7,
+        0x84, 0x70, 0x07, 0xC8, 0x5E, 0x23, 0x96, 0x59,
+        0xAA, 0x6D, 0xDF, 0xF9, 0x1D, 0xB0, 0x45, 0x07,
+        0x51, 0x89, 0x64, 0x0A, 0xC7, 0x64, 0x13, 0x6E,
+        0x6C, 0xC1, 0x74, 0x6B, 0x84, 0x7D, 0x3B, 0x02,
+        0x5B, 0x61, 0x9A, 0x1B, 0x26, 0x97, 0x03, 0xE9,
+        0x78, 0xF6, 0x1F, 0xBC, 0x89, 0xE7, 0x15, 0x94,
+        0x7A, 0xD5, 0xF7, 0xA7, 0x77, 0x51, 0xA4,
+    };
+    uint32_t expected_sha384_digest[12] = {
+        0x16BA7CE2, 0x09CBC69A, 0xB9D6C396, 0x7BD3A6EF,
+        0x9274EECE, 0xC23646D7, 0x4D25D3FD, 0xE707A965,
+        0x770C1042, 0x4CA144F2, 0x4D5B4615, 0x460A8A72,
+    };
+    uint32_t expected_sha512_digest[16] = {
+        0x86F231FE, 0xBF31B72A, 0x6870DFF2, 0xD1FA332D,
+        0x5B2DFEA2, 0xB83ED149, 0x2CEE4E8D, 0xE66F1B56,
+        0xA2385548, 0x76717157, 0xCD7E79CC, 0xC92A7522,
+        0xB037A35E, 0x42C691A2, 0x9E88A532, 0x27896CA5,
+    };
+
+    uint8_t msg2[227] = { // 227 byte test message
+        0x62, 0xc6, 0xa1, 0x69, 0xb9, 0xbe, 0x02, 0xb3,
+        0xd7, 0xb4, 0x71, 0xa9, 0x64, 0xfc, 0x0b, 0xcc,
+        0x72, 0xb4, 0x80, 0xd2, 0x6a, 0xec, 0xb2, 0xed,
+        0x46, 0x0b, 0x7f, 0x50, 0x01, 0x6d, 0xda, 0xf0,
+        0x4c, 0x51, 0x21, 0x87, 0x83, 0xf3, 0xaa, 0xdf,
+        0xdf, 0xf5, 0xa0, 0x4d, 0xed, 0x03, 0x0d, 0x7b,
+        0x3f, 0xb7, 0x37, 0x6b, 0x61, 0xba, 0x30, 0xb9,
+        0x0e, 0x2d, 0xa9, 0x21, 0xa4, 0x47, 0x07, 0x40,
+        0xd6, 0x3f, 0xb9, 0x9f, 0xa1, 0x6c, 0xc8, 0xed,
+        0x81, 0xab, 0xaf, 0x8c, 0xe4, 0x01, 0x6e, 0x50,
+        0xdf, 0x81, 0xda, 0x83, 0x20, 0x70, 0x37, 0x2c,
+        0x24, 0xa8, 0x08, 0x90, 0xaa, 0x3a, 0x26, 0xfa,
+        0x67, 0x57, 0x10, 0xb8, 0xfb, 0x71, 0x82, 0x66,
+        0x24, 0x9d, 0x49, 0x6f, 0x31, 0x3c, 0x55, 0xd0,
+        0xba, 0xda, 0x10, 0x1f, 0x8f, 0x56, 0xee, 0xcc,
+        0xee, 0x43, 0x45, 0xa8, 0xf9, 0x8f, 0x60, 0xa3,
+        0x66, 0x62, 0xcf, 0xda, 0x79, 0x49, 0x00, 0xd1,
+        0x2f, 0x94, 0x14, 0xfc, 0xbd, 0xfd, 0xeb, 0x85,
+        0x38, 0x8a, 0x81, 0x49, 0x96, 0xb4, 0x7e, 0x24,
+        0xd5, 0xc8, 0x08, 0x6e, 0x7a, 0x8e, 0xdc, 0xc5,
+        0x3d, 0x29, 0x9d, 0x0d, 0x03, 0x3e, 0x6b, 0xb6,
+        0x0c, 0x58, 0xb8, 0x3d, 0x6e, 0x8b, 0x57, 0xf6,
+        0xc2, 0x58, 0xd6, 0x08, 0x1d, 0xd1, 0x0e, 0xb9,
+        0x42, 0xfd, 0xf8, 0xec, 0x15, 0x7e, 0xc3, 0xe7,
+        0x53, 0x71, 0x23, 0x5a, 0x81, 0x96, 0xeb, 0x9d,
+        0x22, 0xb1, 0xde, 0x3a, 0x2d, 0x30, 0xc2, 0xab,
+        0xbe, 0x0d, 0xb7, 0x65, 0x0c, 0xf6, 0xc7, 0x15,
+        0x9b, 0xac, 0xbe, 0x29, 0xb3, 0xa9, 0x3c, 0x92,
+        0x10, 0x05, 0x08
+    };
+    uint32_t msg2_expected_sha384_digest[12] = {
+        0x0730e184, 0xe7795575,	0x569f8703,	0x0260bb8e,
+        0x54498e0e,	0x5d096b18,	0x285e988d,	0x245b6f34,
+        0x86d1f244,	0x7d5f85bc,	0xbe59d568,	0x9fc49425
+    };
+
+    status = boot_to_ready_for_fw(info, false);
+
+    if (status){
+        failure = 1;
+    }
+
+    status = caliptra_upload_fw(&info->image_bundle, false);
+
+    if (status)
+    {
+        printf("FW Load Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("FW Load: OK\n");
+    }
+
+    // SHA384
+    // Message split into two parts (64 bytes + 63 bytes)
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, (uint8_t*)(msg), 64);
+    if (status) {
+        printf("SHA init failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA init: OK\n");
+    }
+
+    status = caliptra_update_sha_stream((uint8_t*)(msg+64), 63);
+    if (status) {
+        printf("SHA update failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA update: OK\n");
+    }
+
+    status = caliptra_finish_sha_stream(digest);
+    if (status) {
+        printf("SHA final failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA final: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(digest, expected_sha384_digest, sizeof(expected_sha384_digest)) == 0) {
+            printf("Split 127 byte SHA2-384 digest verified\n");
+        } else {
+            printf("Split 127 byte SHA2-384 digest mismatch\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", expected_sha384_digest[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", digest[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
+    }
+
+    // SHA384 (227 byte)
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, (uint8_t*)(msg2), 227);
+    if (status) {
+        printf("SHA init failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA init: OK\n");
+    }
+
+    status = caliptra_finish_sha_stream(digest);
+    if (status) {
+        printf("SHA final failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA final: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(digest, msg2_expected_sha384_digest, sizeof(msg2_expected_sha384_digest)) == 0) {
+            printf("227 byte SHA2-384 digest verified\n");
+        } else {
+            printf("227 byte SHA2-384 digest mismatch\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", msg2_expected_sha384_digest[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%08x ", digest[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
+    }
+
+    // SHA512
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512, (uint8_t*)(msg), 127);
+    if (status) {
+        printf("SHA init failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA init: OK\n");
+    }
+
+    status = caliptra_finish_sha_stream(digest);
+    if (status) {
+        printf("SHA final failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("SHA final: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(digest, expected_sha512_digest, sizeof(expected_sha512_digest)) == 0) {
+            printf("127 byte SHA2-512 digest verified\n");
+        } else {
+            printf("127 byte SHA2-512 digest mismatch\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", expected_sha512_digest[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", digest[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
+    }
+
+    return failure;
+}
 // Test infrastructure
 
 int global_test_result = 0;
@@ -1223,6 +1493,7 @@ int run_tests(const test_info* info)
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
+    run_test(test_sha_acc, info,"Test SHA ACC");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");

@@ -1402,7 +1402,6 @@ void caliptra_req_idev_csr_complete()
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
 }
 
-
 // Check if IDEV CSR is ready.
 bool caliptra_is_idevid_csr_ready() {
     uint32_t status;
@@ -1414,4 +1413,165 @@ bool caliptra_is_idevid_csr_ready() {
     }
 
     return false;
+}
+
+/**
+ * @brief Starts a SHA stream using the specified mode.
+ *
+ *        This function will lock the SHA accelerator and write the initial data to the SHA accelerator.
+ *        Afterwards either call caliptra_update_sha_stream() to update the SHA stream with additional data,
+ *        or call caliptra_finish_sha_stream() to finish the SHA stream, retrieve the resulting hash and clear the lock.
+ *
+ * @param mode The SHA mode to use (e.g., CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384).
+ * @param in_data Pointer to the initial data to hash.
+ * @param data_len Length of the initial data to hash in bytes.
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_start_sha_stream(int mode, uint8_t* in_data, uint32_t data_len) {
+    if (!in_data || data_len < 1 || (mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384 && mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512)) {
+        return INVALID_PARAMS;
+    }
+    int error;
+
+    uint32_t lock_status;
+    // By reading the lock register we also start holding the lock if it was not already held
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+    if (lock_status & 0x1) {
+        return MBX_BUSY;
+    }
+
+    // Zeroize engine registers to start fresh
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+    // Set mode accordingly
+    uint32_t control_value = ((mode << SHA512_ACC_CSR_MODE_MODE_LOW) & SHA512_ACC_CSR_MODE_MODE_MASK);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+
+    return caliptra_update_sha_stream(in_data, data_len);
+}
+
+/**
+ * @brief Updates the SHA stream with additional data.
+ *
+ *        This function will write the data to the SHA accelerator and requires that caliptra_start_sha_stream()
+ *        has been called previously.
+ *
+ * @param in_data Pointer to the data to hash.
+ * @param data_len Length of the additional data to hash in bytes.
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_update_sha_stream(uint8_t* in_data, uint32_t data_len) {
+    int error;
+    uint32_t old_dlen;
+
+    if (!in_data || data_len < 1) {
+        return INVALID_PARAMS;
+    }
+
+    // increase the DLEN by data_len
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, &old_dlen);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, old_dlen + data_len);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+
+    // Write data to the SHA accelerator
+    uint32_t words = data_len / 4;
+    if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) {
+        // twizzle bytes on little-endian systems
+        for (uint32_t i = 0; i < words * 4; i+=4) {
+            uint32_t u32_data = in_data[i+3] | (in_data[i+2]<<8) | (in_data[i+1]<<16) | (in_data[i+0]<<24);
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, u32_data);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
+        }
+    } else {
+        for (uint32_t i = 0; i < words * 4; i+=4) {
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
+        }
+    }
+    // Handle remaining bytes if any
+    uint32_t remaining_bytes = data_len%4;
+    if (remaining_bytes != 0) {
+        uint32_t partial_u32 = 0;
+        for (uint8_t i = 0; i < remaining_bytes; i++) {
+            partial_u32 |= in_data[(data_len-remaining_bytes)+i] << (24 - 8*i);
+        }
+        error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, partial_u32);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
+    }
+
+    return NO_ERROR;
+}
+
+/**
+ * @brief Finishes the SHA stream and retrieves the resulting hash.
+ *
+ *        This function will signal the SHA accelerator to finish the stream, wait for the SHA accelerator to complete,
+ *        read out the DIGEST registers and clear the lock.
+ *
+ * @param hash Pointer to the buffer to store the resulting hash (big-endian).
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_finish_sha_stream(uint32_t* hash) {
+    int error;
+    if (!hash) {
+        return INVALID_PARAMS;
+    }
+
+    // Signal the SHA accelerator to finish the stream
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+
+    // Wait for the SHA accelerator to complete
+    uint32_t status;
+    do {
+        error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
+    } while ((status & SHA512_ACC_CSR_STATUS_VALID_MASK) == 0);
+
+    uint32_t mode;
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, &mode);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+    mode &= SHA512_ACC_CSR_MODE_MODE_MASK;
+    int hash_length = (mode == CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384) ? 12 : 16;
+
+    // Read out the DIGEST registers and place into hash buffer
+    for (int i = 0; i < hash_length; i++) {
+        error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
+    }
+
+    // Writing 1 will clear the lock
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+
+    return NO_ERROR;
 }

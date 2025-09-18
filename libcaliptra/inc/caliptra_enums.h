@@ -169,3 +169,11 @@ enum dpe_profile {
     P256Sha256 = DPE_PROFILE_256,
     P384Sha384 = DPE_PROFILE_384,
 };
+
+enum caliptra_sha_accelerator_mode {
+    CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384 = 0,
+    CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512 = 1,
+    // MBOX mode is invalid for SoC requests
+    // CALIPTRA_SHA_ACCELERATOR_MODE_MBOX_384 = 2,
+    // CALIPTRA_SHA_ACCELERATOR_MODE_MBOX_512 = 3,
+};
