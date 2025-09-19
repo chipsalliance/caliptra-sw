@@ -142,6 +142,8 @@ cbc = "0.1.2"
 const-gen = "1.6.6"
 const-oid = "0.9.6"
 ml-dsa = "0.0.4"
+# This release candidate enables usage of external-mu. We should use a stable version once it is released.
+ml-dsa-01 = { package = "ml-dsa", version = "0.1.0-rc.0" }
 cbindgen = { version = "0.24.0", default-features = false }
 cfg-if = "1.0.0"
 chrono = "0.4"
