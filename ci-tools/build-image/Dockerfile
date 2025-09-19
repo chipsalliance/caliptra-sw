@@ -8,10 +8,10 @@ FROM debian:bookworm-slim
 RUN apt update && apt install gcc git curl make gcc-aarch64-linux-gnu libssl-dev pkg-config  -y
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile=minimal -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN rustup install nightly-2025-02-15 --profile=minimal --no-self-update \
+RUN rustup install nightly-2025-02-15 --profile=default --no-self-update \
   && rustup +nightly-2025-02-15 target add riscv32imc-unknown-none-elf \
   && rustup +nightly-2025-02-15 target add aarch64-unknown-linux-gnu
-RUN rustup install 1.85 --profile=minimal --no-self-update \
+RUN rustup install 1.85 --profile=default --no-self-update \
   && rustup +1.85 target add riscv32imc-unknown-none-elf \
   && rustup +1.85 target add aarch64-unknown-linux-gnu
 RUN cargo +nightly-2025-02-15 install cargo-nextest
