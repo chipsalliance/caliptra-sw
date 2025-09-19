@@ -31,6 +31,8 @@ pub struct Csr {
 pub enum MipBits {
     Mitip0 = 29,
     Mitip1 = 28,
+    //bit 7  marks the machine timer interrupt as pending.
+    Mtip = 7,
 }
 
 impl Csr {
@@ -530,19 +532,27 @@ impl CsrFile {
         }
 
         let mie = self.system_read(priv_mode, Csr::MIE)?;
-        let (mitip0, mitip1) = self.internal_timers.interrupts_pending();
-        let mitip0 = if mitip0 {
-            1 << MipBits::Mitip0 as RvData
+        let (pending0, pending1) = self.internal_timers.interrupts_pending();
+
+        let mitip0: RvData = if pending0 {
+            1 << (MipBits::Mitip0 as u32)
         } else {
             0
         };
-        let mitip1 = if mitip1 {
-            1 << MipBits::Mitip1 as RvData
+        let mitip1: RvData = if pending1 {
+            1 << (MipBits::Mitip1 as u32)
         } else {
             0
         };
-        let val = mie & (mitip0 | mitip1);
-        Ok(val)
+
+        // MTIP pending comes from MIP’s bit 7, which set_mtip() toggles.
+        let mtip_pending: RvData = self.csrs[Csr::MIP as usize].val & (1 << (MipBits::Mtip as u32));
+
+        // Keep your current behavior of masking pending by MIE.
+        let masked_internal = mie & (mitip0 | mitip1);
+        let masked_mtip = (mie & (1 << (MipBits::Mtip as u32))) & mtip_pending;
+
+        Ok(masked_internal | masked_mtip)
     }
 
     /// Perform a (no-op) write to the MIP CSR.
@@ -1024,6 +1034,18 @@ impl CsrFile {
         }
 
         Self::CSR_FN[addr as usize].write(self, priv_mode, addr, val)
+    }
+
+    pub fn set_mtip(&mut self, asserted: bool) {
+        let mip = &mut self.csrs[Csr::MIP as usize];
+        let bit: RvData = 1u32 << (MipBits::Mtip as u32);
+        if asserted {
+            mip.val |= bit;
+        } else {
+            mip.val &= !bit;
+        }
+        // request an immediate poll so the core sees the new pending bit
+        self.timer.schedule_poll_in(0);
     }
 }
 
