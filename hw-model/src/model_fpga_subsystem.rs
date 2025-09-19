@@ -1573,6 +1573,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
         self.step();
+
         println!("Finished booting");
 
         Ok(())
@@ -1617,6 +1618,27 @@ impl HwModel for ModelFpgaSubsystem {
     ) -> Result<(), ModelError> {
         // ironically, we don't need to support this
         Ok(())
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        let staging_offset = 0xc0000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) };
+
+        // Write complete u32 chunks
+        for (i, chunk) in payload.chunks(4).enumerate() {
+            let u32_value = u32::from_le_bytes(chunk.try_into().unwrap());
+
+            unsafe {
+                staging_ptr.add(i).write_volatile(u32_value);
+            }
+        }
+
+        // Return the physical address of the staging area
+        Ok((EMULATOR_MCI_ADDR + 0xc0000) as u64)
+    }
+
+    fn has_ss_staging_area(&self) -> bool {
+        true
     }
 }
 
