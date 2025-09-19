@@ -290,6 +290,7 @@ jobs:
               -E 'package(caliptra-drivers) and test(test_ocp_lock)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
               -E 'package(caliptra-rom) and test(test_update_reset::test_update_reset_success)'
+              -E 'package(caliptra-runtime) and test(test_authorize_and_stash::test_authorize_and_stash_cmd_success)'
           )
 
           cargo-nextest nextest list \

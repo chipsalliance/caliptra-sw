@@ -18,11 +18,11 @@ pub fn rom_from_env() -> &'static FwId<'static> {
 // Without uart messages there is enough space in
 pub fn ss_rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
-        Ok("ROM") => &ROM_SS,
+        Ok("ROM") => &ROM_FPGA_WITH_UART_SS,
         Ok("ROM_WITHOUT_UART") => &ROM_SS,
         Ok("ROM_WITH_UART") => &ROM_WITH_UART_SS,
         Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
-        Err(_) => &ROM_WITH_UART_SS,
+        Err(_) => &ROM_FPGA_WITH_UART_SS,
     }
 }
 
