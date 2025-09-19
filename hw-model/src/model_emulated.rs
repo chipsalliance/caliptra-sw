@@ -432,7 +432,7 @@ impl HwModel for ModelEmulated {
             .get_mut(..payload_len)
             .ok_or(ModelError::SubsystemSramError)?
             .copy_from_slice(payload);
-        Ok(AxiRootBus::MCU_SRAM_OFFSET)
+        Ok(AxiRootBus::mcu_sram_offset())
     }
 
     fn has_ss_staging_area(&self) -> bool {
