@@ -443,6 +443,11 @@ impl CaliptraError {
             "SHA1 Error: Index out of bounds"
         ),
         (
+            DRIVER_OCP_LOCK_COLD_RESET_INVALID_HEK_SEED,
+            0x000b0000,
+            "OCP LOCK: Invalid HEK Seed state"
+        ),
+        (
             IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH,
             0x000b0001,
             "Image Verifier Error: Manifest marker mismatch"
@@ -1769,6 +1774,11 @@ impl CaliptraError {
             FW_PROC_SVN_TOO_LARGE,
             0x0102000C,
             "Firmware Processor Error: SVN too large"
+        ),
+        (
+            FW_PROC_OCP_LOCK_UNSUPPORTED,
+            0x0102000D,
+            "Firmware Processor Error: OCP LOCK is not supported"
         ),
         (
             FMC_ALIAS_CERT_VERIFY_FAILURE,

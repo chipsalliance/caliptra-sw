@@ -71,7 +71,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: 99a33fa0921ebd2ccf12ea54b64354ba9f15ba99
+      CALIPTRA_MCU_COMMIT: ac08eba85c9b5948f291d390e488f7ef9875f268
 
     steps:
       - name: Checkout repo
@@ -289,6 +289,8 @@ jobs:
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
               -E 'package(caliptra-drivers) and test(test_ocp_lock)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
+              -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
+              -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
           )
 
           cargo-nextest nextest list \
