@@ -18,13 +18,69 @@
         "type": "github"
       }
     },
+    "flake-utils_2": {
+      "inputs": {
+        "systems": "systems_2"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "fpga-boss": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "dir": "ci-tools/fpga-boss",
+        "lastModified": 1752864489,
+        "narHash": "sha256-mo25onfg4FYkM67S0gjU7UQT1M/BY27IXPgEbP3HUas=",
+        "owner": "clundin25",
+        "repo": "caliptra-sw",
+        "rev": "958dcca7956f47568ac638ce590589f100be5299",
+        "type": "github"
+      },
+      "original": {
+        "dir": "ci-tools/fpga-boss",
+        "owner": "clundin25",
+        "ref": "fpga-boss-token",
+        "repo": "caliptra-sw",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1757341549,
-        "narHash": "sha256-fRnT+bwP1sB6ne7BLw4aXkVYjr+QCZZ+e4MhbokHyd4=",
+        "lastModified": 1752620740,
+        "narHash": "sha256-f3pO+9lg66mV7IMmmIqG4PL3223TYMlnlw+pnpelbss=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "32a4e87942101f1c9f9865e04dc3ddb175f5f32e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-25.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1758070117,
+        "narHash": "sha256-uLwwHFCZnT1c3N3biVe/0hCkag2GSrf9+M56+Okf+WY=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "9d1fa9fa266631335618373f8faad570df6f9ede",
+        "rev": "e9b7f2ff62b35f711568b1f0866243c7c302028d",
         "type": "github"
       },
       "original": {
@@ -34,7 +90,7 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
+    "nixpkgs_3": {
       "locked": {
         "lastModified": 1751011381,
         "narHash": "sha256-krGXKxvkBhnrSC/kGBmg5MyupUUT5R6IBCLEzx9jhMM=",
@@ -52,22 +108,23 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs",
+        "fpga-boss": "fpga-boss",
+        "nixpkgs": "nixpkgs_2",
         "rtool": "rtool"
       }
     },
     "rtool": {
       "inputs": {
-        "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs_2"
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "dir": "ci-tools/github-runner",
-        "lastModified": 1757105851,
-        "narHash": "sha256-pipwTus5hRBgHdkSwsaeaNi0bUIHMZVDl3RweXZyaZ8=",
+        "lastModified": 1757959612,
+        "narHash": "sha256-1JvrLiL8t5ncOiWc5EgQXqOUN8fU+T8i2Y6JWSFlLqc=",
         "owner": "chipsalliance",
         "repo": "caliptra-sw",
-        "rev": "74ebff299062deac9d3bf152d5cb2997f6480e88",
+        "rev": "b7195a64c3683076917708c9169db42ee70ec12b",
         "type": "github"
       },
       "original": {
@@ -78,6 +135,21 @@
       }
     },
     "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_2": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
