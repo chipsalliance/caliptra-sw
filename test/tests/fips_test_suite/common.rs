@@ -147,6 +147,7 @@ impl RomExpVals {
             match get_ci_rom_version() {
                 CiRomVersion::Rom1_0 => ROM_EXP_1_0_3,
                 CiRomVersion::Rom1_1 => ROM_EXP_1_1_1,
+                CiRomVersion::Rom1_2 => ROM_EXP_1_2_0,
                 _ => ROM_EXP_CURRENT,
             }
         }
