@@ -797,6 +797,15 @@ impl<TBus: Bus> Cpu<TBus> {
                         save = true;
                     }
                 }
+                TimerAction::MachineTimerInterrupt => {
+                    self.csrs.set_mtip(true);
+                    if self.global_int_en && !self.halted {
+                        step_action = Some(self.handle_machine_timer_intteruppt());
+                        break;
+                    } else {
+                        save = true;
+                    }
+                }
                 TimerAction::Halt => self.halted = true,
                 _ => {}
             }
@@ -840,6 +849,25 @@ impl<TBus: Bus> Cpu<TBus> {
             self.internal_timer_local_int_counter += 1;
         }
         let mcause = 0x8000_001D - (timer_id as u32);
+        match self.handle_trap(
+            self.read_pc(),
+            mcause,
+            0,
+            // Cannot panic; mtvec is a valid CSR
+            self.read_csr_machine(Csr::MTVEC).unwrap() & !0b11,
+        ) {
+            Ok(_) => StepAction::Continue,
+            Err(_) => StepAction::Fatal,
+        }
+    }
+
+    fn handle_machine_timer_intteruppt(&mut self) -> StepAction {
+        #[cfg(test)]
+        {
+            self.internal_timer_local_int_counter += 1;
+        }
+
+        let mcause = 0x8000_0007;
         match self.handle_trap(
             self.read_pc(),
             mcause,
@@ -1015,6 +1043,10 @@ impl<TBus: Bus> Cpu<TBus> {
                 self.bus.incoming_event(Rc::new(event));
             }
         }
+    }
+
+    pub fn raise_mtip(&mut self) {
+        self.csrs.set_mtip(true);
     }
 }
 
