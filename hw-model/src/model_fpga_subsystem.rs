@@ -6,7 +6,7 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
-use crate::mcu_boot_status::McuRomBootStatus;
+use crate::mcu_boot_status::{McuBootMilestones, McuRomBootStatus};
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
@@ -314,7 +314,6 @@ impl XI3CWrapper {
         let target_addr = self.get_primary_addr();
         let cmd = xi3c::Command {
             no_repeated_start: 1,
-            pec: 1,
             target_addr,
             ..Default::default()
         };
@@ -329,7 +328,6 @@ impl XI3CWrapper {
         let target_addr = self.get_primary_addr();
         let cmd = xi3c::Command {
             no_repeated_start: 1,
-            pec: 1,
             target_addr,
             ..Default::default()
         };
@@ -337,6 +335,37 @@ impl XI3CWrapper {
             .lock()
             .unwrap()
             .master_send(&cmd, payload, payload.len() as u16)
+    }
+
+    pub fn ibi_ready(&self) -> bool {
+        self.controller.lock().unwrap().ibi_ready()
+    }
+
+    pub fn ibi_recv(&self, timeout: Option<Duration>) -> Result<Vec<u8>, XI3cError> {
+        self.controller
+            .lock()
+            .unwrap()
+            .ibi_recv_polled(timeout.unwrap_or(Duration::from_millis(1))) // 256 bytes only takes ~0.2ms to transmit, so this gives us plenty of time
+    }
+
+    /// Available space in CMD_FIFO to write
+    pub fn cmd_fifo_level(&self) -> u16 {
+        self.controller.lock().unwrap().cmd_fifo_level()
+    }
+
+    /// Available space in WR_FIFO to write
+    pub fn write_fifo_level(&self) -> u16 {
+        self.controller.lock().unwrap().write_fifo_level()
+    }
+
+    /// Number of RESP status details are available in RESP_FIFO to read
+    pub fn resp_fifo_level(&self) -> u16 {
+        self.controller.lock().unwrap().resp_fifo_level()
+    }
+
+    /// Number of read data words are available in RD_FIFO to read
+    pub fn read_fifo_level(&self) -> u16 {
+        self.controller.lock().unwrap().read_fifo_level()
     }
 }
 
@@ -353,7 +382,6 @@ pub struct ModelFpgaSubsystem {
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
     pub i3c_controller: XI3CWrapper,
-    pub jtag_tap: Option<Box<OpenOcdJtagTap>>,
     pub otp_mmio: *mut u32,
     pub lc_mmio: *mut u32,
 
@@ -1101,6 +1129,14 @@ impl ModelFpgaSubsystem {
         self.mci.regs().fw_flow_status().read()
     }
 
+    pub fn mci_boot_checkpoint(&mut self) -> u16 {
+        (self.mci_flow_status() & 0x0000_ffff) as u16
+    }
+
+    pub fn mci_boot_milestones(&mut self) -> McuBootMilestones {
+        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
+    }
+
     fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
         FpgaRealtimeBus {
             mmio: self.caliptra_mmio,
@@ -1128,9 +1164,12 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().cycle_count.get() as u64
     }
 
-    pub fn jtag_tap_connect(&mut self, params: &JtagParams, tap: JtagTap) -> Result<()> {
-        self.jtag_tap = Some(OpenOcdJtagTap::new(params, tap)?);
-        Ok(())
+    pub fn jtag_tap_connect(
+        &mut self,
+        params: &JtagParams,
+        tap: JtagTap,
+    ) -> Result<Box<OpenOcdJtagTap>> {
+        Ok(OpenOcdJtagTap::new(params, tap)?)
     }
 }
 
@@ -1268,7 +1307,6 @@ impl HwModel for ModelFpgaSubsystem {
                 i3c_mmio,
                 i3c_controller_mmio,
             },
-            jtag_tap: None,
             otp_mmio,
             lc_mmio,
 
@@ -1401,7 +1439,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+        while m.mci_boot_checkpoint() != u16::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
@@ -1459,7 +1497,50 @@ impl HwModel for ModelFpgaSubsystem {
     {
         HwModel::init_fuses(self, &boot_params.fuses);
 
-        while !self.i3c_target_configured() {}
+        // Return here if there isn't any mutable code to load
+        if boot_params.fw_image.is_none()
+            && boot_params.mcu_fw_image.is_none()
+            && boot_params.soc_manifest.is_none()
+        {
+            // Give the FPGA some time to start. If this returns too quickly some of the tests fail
+            // with a kernel panic.
+            for _ in 0..5_000 {
+                self.step();
+                let flow_status = self.soc_ifc().cptra_flow_status().read();
+                if flow_status.ready_for_mb_processing() {
+                    break;
+                }
+            }
+            println!("Finished booting with no mutable firmware to load");
+            return Ok(());
+        }
+
+        // This is the binary for:
+        // L0: j L0
+        // i.e., loop {}
+        let mcu_fw_image = match boot_params.mcu_fw_image {
+            Some(mcu_fw_image) => mcu_fw_image.to_vec(),
+            None => {
+                let mut mcu_fw_image = vec![0x00u8, 0x00, 0x00, 0x6f];
+                mcu_fw_image.resize(256, 0);
+                mcu_fw_image
+            }
+        };
+
+        println!("Setting recovery images to BMC");
+        self.bmc
+            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
+        self.bmc.push_recovery_image(
+            boot_params
+                .soc_manifest
+                .map(|s| s.to_vec())
+                .unwrap_or_default(),
+        );
+        self.bmc.push_recovery_image(mcu_fw_image);
+
+        while !self.i3c_target_configured() {
+            self.step();
+        }
         println!("Done starting MCU");
 
         // TODO: support passing these into MCU ROM
@@ -1496,44 +1577,10 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
+        self.i3c_controller.configure();
+        println!("Starting recovery flow (BMC)");
+        self.start_recovery_bmc();
         self.step();
-
-        // This is the binary for:
-        // L0: j L0
-        // i.e., loop {}
-        let mcu_fw_image = match boot_params.mcu_fw_image {
-            Some(mcu_fw_image) => mcu_fw_image.to_vec(),
-            None => {
-                let mut mcu_fw_image = vec![0x00u8, 0x00, 0x00, 0x6f];
-                mcu_fw_image.resize(256, 0);
-                mcu_fw_image
-            }
-        };
-
-        println!("Setting recovery images to BMC");
-        self.bmc
-            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
-        self.bmc.push_recovery_image(
-            boot_params
-                .soc_manifest
-                .map(|s| s.to_vec())
-                .unwrap_or_default(),
-        );
-        self.bmc.push_recovery_image(mcu_fw_image);
-
-        let mut xi3c_configured = false;
-        // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
-        // it is done or timeout.
-        for _ in 0..1_000_000 {
-            if !xi3c_configured && self.i3c_target_configured() {
-                xi3c_configured = true;
-                println!("I3C target configured");
-                self.i3c_controller.configure();
-                println!("Starting recovery flow (BMC)");
-                self.start_recovery_bmc();
-            }
-            self.step();
-        }
         println!("Finished booting");
 
         Ok(())

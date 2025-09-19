@@ -108,7 +108,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 |-------|--------|------------|
 | Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D4E32 (‘CMN2’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
-| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & LMS Keys <br> 0x2 – ECC & MLDSA Keys <br> **Byte1-Byte3:** Reserved |
+| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & MLDSA Keys <br> 0x2 – ECC & LMS Keys <br> **Byte1-Byte3:** Reserved |
 | Manufacturer ECC Key Descriptor | 196 | Public Key Descriptor for ECC keys |
 | Manufacturer LMS or MLDSA Key Descriptor | 1540 | Public Key Descriptor for LMS (1540 bytes) or MLDSA (196 bytes + 1344 unused bytes) keys |
 | Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
@@ -124,15 +124,23 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
-#### Public Key Descriptor
+#### ECC Manufacturer Public Key Descriptor
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
 | Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
-| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
-| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
+| Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
-| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4, LMS: n = 32, MLDSA: n = 4 |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
+
+#### PQC Manufacturer Public Key Descriptor
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
+| Key Hash Count | 1 | Number of valid public key hashes  |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
 
 #### Header
 
@@ -147,8 +155,8 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | TOC Entry Count | 4 | Number of entries in TOC. |
 | PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
 | TOC Digest | 48 | SHA2-384 Digest of table of contents. |
-| Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Reserved:** (10 bytes) |
-| Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
+| Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
+| Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
 #### Table of contents
 
