@@ -14,7 +14,6 @@ set I3C_CLK_MHZ 120
 # 1000 - 12500
 set I3C_SCL_RATE_KHZ 1000
 
-set APB FALSE
 set SEGMENTED FALSE
 set SEGMENTED_WRITE_NCR FALSE
 # Simplistic processing of command line arguments to override defaults
@@ -59,9 +58,6 @@ if {$CG_EN} {
 if {$ITRNG} {
   # Add option to use Caliptra's internal TRNG instead of ETRNG
   lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
-}
-if {$APB} {
-  lappend VERILOG_OPTIONS CALIPTRA_APB
 }
 lappend VERILOG_OPTIONS FPGA_VERSION=32'h$VERSION
 # Needed to inform Adam's Bridge to use key vault params. TODO: Still need to test if this works
@@ -116,79 +112,76 @@ close $xdc_fd
 #### Add AXI Infrastructure
 create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_interconnect_0
 set_property -dict [list \
-  CONFIG.NUM_MI {7} \
-  CONFIG.NUM_SI {4} \
+  CONFIG.NUM_MI {4} \
+  CONFIG.NUM_SI {2} \
 ] [get_bd_cells axi_interconnect_0]
 
-if {$APB} {
-  # Add AXI APB Bridge for Caliptra 1.x
-  create_bd_cell -type ip -vlnv xilinx.com:ip:axi_apb_bridge:3.0 axi_apb_bridge_0
-  set_property -dict [list \
-    CONFIG.C_APB_NUM_SLAVES {1} \
-    CONFIG.C_M_APB_PROTOCOL {apb4} \
-  ] [get_bd_cells axi_apb_bridge_0]
-  set_property location {3 1041 439} [get_bd_cells axi_apb_bridge_0]
-}
+# Add AXI Firewall to protect the core from crashes
+create_bd_cell -type ip -vlnv xilinx.com:ip:axi_firewall:1.2 axi_firewall_0
+set_property -dict [list \
+  CONFIG.ARUSER_WIDTH {32} \
+  CONFIG.AWUSER_WIDTH {32} \
+  CONFIG.BUSER_WIDTH {32} \
+  CONFIG.RUSER_WIDTH {32} \
+  CONFIG.WUSER_WIDTH {32} \
+  CONFIG.FIREWALL_MODE {MI_SIDE} \
+  ] [get_bd_cells axi_firewall_0]
 
-# Add AXI BRAM Controller for backdoor access to IMEM
-create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.1 axi_bram_ctrl_0
-set_property CONFIG.SINGLE_PORT_BRAM {1} [get_bd_cells axi_bram_ctrl_0]
+#### Add Devices ####
 
 # Create reset block
 create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0
 
-# Move blocks around on the block diagram. This step is optional.
-set_property location {1 177 345} [get_bd_cells ps_0]
-set_property location {2 696 373} [get_bd_cells axi_interconnect_0]
-set_property location {2 707 654} [get_bd_cells proc_sys_reset_0]
-set_property location {3 1151 617} [get_bd_cells axi_bram_ctrl_0]
-set_property location {4 1335 456} [get_bd_cells caliptra_package_top_0]
+# Add AXI BRAM Controller for backdoor access to IMEM
+create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.1 cptra_rom_backdoor_bram_0
+set_property CONFIG.SINGLE_PORT_BRAM {1} [get_bd_cells cptra_rom_backdoor_bram_0]
 
-# Create AXI bus connections
+#### axi_interconnect_0 ####
+# AXI Managers
 connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/S00_AXI] [get_bd_intf_pins $ps_m_axi]
 # Caliptra M_AXI
-connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/M_AXI_CALIPTRA] -boundary_type upper [get_bd_intf_pins axi_interconnect_0/S01_AXI]
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/S01_AXI] [get_bd_intf_pins caliptra_package_top_0/M_AXI_CALIPTRA] 
 
+# AXI Subordinates
 connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M00_AXI] [get_bd_intf_pins caliptra_package_top_0/S_AXI_WRAPPER]
-if {$APB} {
-  connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M01_AXI] [get_bd_intf_pins axi_apb_bridge_0/AXI4_LITE]
-  connect_bd_intf_net [get_bd_intf_pins axi_apb_bridge_0/APB_M] [get_bd_intf_pins caliptra_package_top_0/s_apb]
-} else {
-  connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M01_AXI] [get_bd_intf_pins caliptra_package_top_0/S_AXI_CALIPTRA]
-}
-connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M02_AXI] [get_bd_intf_pins axi_bram_ctrl_0/S_AXI]
-connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins axi_bram_ctrl_0/BRAM_PORTA]
+# Connect Caliptra through a firewall
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M01_AXI] [get_bd_intf_pins axi_firewall_0/S_AXI]
+connect_bd_intf_net [get_bd_intf_pins axi_firewall_0/M_AXI] [get_bd_intf_pins caliptra_package_top_0/S_AXI_CALIPTRA]
+
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M02_AXI] [get_bd_intf_pins cptra_rom_backdoor_bram_0/S_AXI]
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M03_AXI] [get_bd_intf_pins axi_firewall_0/S_AXI_CTL]
+
+# Connect BRAM controllers to FPGA wrapper
+connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins cptra_rom_backdoor_bram_0/BRAM_PORTA]
 
 # Create reset connections
 connect_bd_net [get_bd_pins $ps_pl_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
 connect_bd_net -net proc_sys_reset_0_peripheral_aresetn \
   [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
-  [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] \
   [get_bd_pins axi_interconnect_0/aresetn] \
   [get_bd_pins caliptra_package_top_0/S_AXI_WRAPPER_ARESETN] \
-  [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn]
+  [get_bd_pins cptra_rom_backdoor_bram_0/s_axi_aresetn] \
+  [get_bd_pins axi_firewall_0/aresetn]
 # Create clock connections
 connect_bd_net \
   [get_bd_pins $ps_pl_clk] \
   [get_bd_pins $ps_axi_aclk] \
   [get_bd_pins proc_sys_reset_0/slowest_sync_clk] \
-  [get_bd_pins axi_apb_bridge_0/s_axi_aclk] \
   [get_bd_pins axi_interconnect_0/aclk] \
   [get_bd_pins caliptra_package_top_0/core_clk] \
-  [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] \
-  [get_bd_pins caliptra_ss_package_0/core_clk]
+  [get_bd_pins cptra_rom_backdoor_bram_0/s_axi_aclk] \
+  [get_bd_pins caliptra_ss_package_0/core_clk] \
+  [get_bd_pins axi_firewall_0/aclk]
 
 
 # Create address segments for all AXI managers
 set managers {ps_0/M_AXI_FPD caliptra_package_top_0/M_AXI_CALIPTRA}
 foreach manager $managers {
-  assign_bd_address -offset 0xB0000000 -range 0x00018000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+  assign_bd_address -offset 0xB0000000 -range 0x00018000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs cptra_rom_backdoor_bram_0/S_AXI/Mem0] -force
   assign_bd_address -offset 0xA4010000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_WRAPPER/reg0] -force
-  if {$APB} {
-    assign_bd_address -offset 0xA4100000 -range 0x00100000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
-  } else {
-    assign_bd_address -offset 0xA4100000 -range 0x00100000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_CALIPTRA/reg0] -force
-  }
+  # AXI Firewall Control
+  assign_bd_address -offset 0xA4090000 -range 0x00001000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_firewall_0/S_AXI_CTL/Control] -force
+  assign_bd_address -offset 0xA4100000 -range 0x00100000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_CALIPTRA/reg0] -force
 }
 
 # Connect JTAG signals to PS GPIO pins

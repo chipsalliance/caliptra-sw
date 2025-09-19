@@ -24,18 +24,6 @@ import caliptra_fpga_realtime_regs_pkg::*;
 module caliptra_wrapper_top (
     input bit core_clk,
 
-`ifdef CALIPTRA_APB
-    // Caliptra APB Interface
-    input  wire [`CALIPTRA_APB_ADDR_WIDTH-1:0] PADDR,
-    input  wire                       PENABLE,
-    input  wire [2:0]                 PPROT,
-    output wire [`CALIPTRA_APB_DATA_WIDTH-1:0] PRDATA,
-    output wire                       PREADY,
-    input  wire                       PSEL,
-    output wire                       PSLVERR,
-    input  wire [`CALIPTRA_APB_DATA_WIDTH-1:0] PWDATA,
-    input  wire                       PWRITE,
-`else
     // Caliptra S_AXI Interface
     input  wire [31:0] S_AXI_CALIPTRA_AWADDR,
     input  wire [1:0] S_AXI_CALIPTRA_AWBURST,
@@ -113,7 +101,6 @@ module caliptra_wrapper_top (
     input wire M_AXI_CALIPTRA_RLAST,
     input wire M_AXI_CALIPTRA_RVALID,
     output  wire M_AXI_CALIPTRA_RREADY,
-`endif
 
     // ROM AXI Interface
     input  logic axi_bram_clk,
@@ -197,7 +184,7 @@ module caliptra_wrapper_top (
       end
     end
 
-`ifndef CALIPTRA_APB
+
     axi_if #(
         .AW(`CALIPTRA_SLAVE_ADDR_WIDTH(`CALIPTRA_SLAVE_SEL_SOC_IFC)),
         .DW(`CALIPTRA_AXI_DATA_WIDTH),
@@ -291,8 +278,6 @@ module caliptra_wrapper_top (
     assign m_axi.rvalid =   M_AXI_CALIPTRA_RVALID;
     assign M_AXI_CALIPTRA_RREADY = m_axi.rready;
 
-
-`endif
     el2_mem_if el2_mem_export();
     mldsa_mem_if mldsa_memory_export();
 
@@ -332,19 +317,6 @@ caliptra_top caliptra_top_dut (
     .jtag_tdo(jtag_tdo),
     // jtag_tdoEn
 
-`ifdef CALIPTRA_APB
-    // SoC APB Interface
-    .PADDR(PADDR),
-    .PPROT(PPROT),
-    .PAUSER(hwif_out.interface_regs.pauser.pauser.value),
-    .PENABLE(PENABLE),
-    .PRDATA(PRDATA),
-    .PREADY(PREADY),
-    .PSEL(PSEL),
-    .PSLVERR(PSLVERR),
-    .PWDATA(PWDATA),
-    .PWRITE(PWRITE),
-`else
     // Subordinate AXI Interface
     .s_axi_w_if(s_axi.w_sub),
     .s_axi_r_if(s_axi.r_sub),
@@ -353,9 +325,8 @@ caliptra_top caliptra_top_dut (
     .m_axi_w_if(m_axi.w_mgr),
     .m_axi_r_if(m_axi.r_mgr),
 
-    // TODO: New addition
+    // Unused SS interface
     .recovery_data_avail(0),
-`endif
 
     .el2_mem_export(el2_mem_export.veer_sram_src),
     .mldsa_memory_export(mldsa_memory_export.req),
