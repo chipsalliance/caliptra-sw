@@ -40,4 +40,4 @@ To link the API, the following must be provided:
 
 ## Implementation and consumer examples
 
-See examples/README.md for details on specific examples.
+See [examples](examples.md) for details on specific examples.
