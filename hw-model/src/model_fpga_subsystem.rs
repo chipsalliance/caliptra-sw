@@ -399,6 +399,7 @@ pub struct ModelFpgaSubsystem {
     pub bmc_step_counter: usize,
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
+    pub waiting: usize,
 }
 
 impl ModelFpgaSubsystem {
@@ -694,6 +695,10 @@ impl ModelFpgaSubsystem {
                 println!("Writing recovery fifo block {}", self.blocks_sent);
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
+                println!("Written");
+            } else {
+                println!("FIFO not empty; waiting: {}", self.waiting);
+                self.waiting += 1;
             }
         }
 
@@ -1320,6 +1325,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.enable_mcu_uart_log,
+            waiting: 0,
         };
 
         println!("AXI reset");
