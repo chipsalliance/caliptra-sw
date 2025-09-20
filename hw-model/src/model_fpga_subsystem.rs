@@ -698,7 +698,7 @@ impl ModelFpgaSubsystem {
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
                 let level_b = self.i3c_controller().write_fifo_level();
-                println!("controller wlevels: {} {}", level_a, level_b);
+                // println!("controller wlevels: {} {}", level_a, level_b);
 
                 //println!("Written");
             } else {
