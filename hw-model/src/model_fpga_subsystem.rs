@@ -694,16 +694,16 @@ impl ModelFpgaSubsystem {
                 // fifo is empty, send a block
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 //println!("Writing recovery fifo block {}", self.blocks_sent);
-                let level_a = self.i3c_controller().write_fifo_level();
-                self.blocks_sent += 1;
+                // let level_a = self.i3c_controller().write_fifo_level();
+                // self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
-                let level_b = self.i3c_controller().write_fifo_level();
+                // let level_b = self.i3c_controller().write_fifo_level();
                 // println!("controller wlevels: {} {}", level_a, level_b);
 
                 //println!("Written");
             } else {
                 //println!("FIFO not empty; waiting: {}", self.waiting);
-                self.waiting += 1;
+                // self.waiting += 1;
             }
         }
 
