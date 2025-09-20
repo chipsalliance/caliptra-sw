@@ -400,6 +400,7 @@ pub struct ModelFpgaSubsystem {
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
     pub waiting: usize,
+    pub stdin_uart: Arc<Mutex<Option<u8>>>,
 }
 
 impl ModelFpgaSubsystem {
@@ -1194,6 +1195,33 @@ impl HwModel for ModelFpgaSubsystem {
     fn step(&mut self) {
         self.handle_log();
         self.bmc_step();
+        let c = { self.stdin_uart.lock().unwrap().take() };
+        if let Some(c) = c {
+            if c == 'i' as u8 {
+                println!("Dumping status");
+                println!(
+                    "I3C controller status: {:x}",
+                    self.i3c_controller().controller.lock().unwrap().status()
+                );
+                println!(
+                    "I3C controller cmd fifo level: {}",
+                    self.i3c_controller().cmd_fifo_level()
+                );
+                println!(
+                    "I3C controller write fifo level: {}",
+                    self.i3c_controller().write_fifo_level()
+                );
+                println!(
+                    "I3C controller resp fifo level: {}",
+                    self.i3c_controller().resp_fifo_level()
+                );
+                println!(
+                    "I3C controller read fifo level: {}",
+                    self.i3c_controller().read_fifo_level()
+                );
+                self.print_i3c_registers();
+            }
+        }
     }
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
@@ -1330,6 +1358,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.enable_mcu_uart_log,
             waiting: 0,
+            stdin_uart: Arc::new(Mutex::new(None)),
         };
 
         println!("AXI reset");
