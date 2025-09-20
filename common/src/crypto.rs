@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 use crate::keyids::KEY_ID_TMP;
+use bitfield::bitfield;
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_drivers::{
     okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
     Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId,
@@ -53,10 +55,19 @@ pub enum PubKey<'a> {
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
 pub const UNENCRYPTED_CMK_SIZE_BYTES: usize = 80;
 
+bitfield! {
+    #[derive(PartialEq, Eq, Clone, Copy)]
+    pub struct UnencryptedCmkFlags(u8);
+
+    /// FIPS valid
+    pub fips_valid, set_fips_valid: 0;
+}
+
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
 pub struct UnencryptedCmk {
-    pub version: u16,
+    pub version: u8,
+    pub flags: u8,
     pub length: u16,
     pub key_usage: u8,
     pub id: [u8; 3],
@@ -65,11 +76,28 @@ pub struct UnencryptedCmk {
 }
 
 impl UnencryptedCmk {
+    pub const FIPS_INVALID: u8 = 0x0;
+    pub const FIPS_VALID: u8 = 0x1;
+
     #[allow(unused)]
     pub fn key_id(&self) -> u32 {
         self.id[0] as u32 | ((self.id[1] as u32) << 8) | ((self.id[2] as u32) << 16)
     }
+
+    pub fn fips_valid(&self) -> bool {
+        UnencryptedCmkFlags(self.flags).fips_valid()
+    }
+
+    pub fn to_mailbox_fips_status(&self) -> u32 {
+        if self.fips_valid() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
 }
+
+const _: () = assert!(core::mem::size_of::<UnencryptedCmk>() == UNENCRYPTED_CMK_SIZE_BYTES);
 
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]

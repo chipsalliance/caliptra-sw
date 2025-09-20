@@ -19,7 +19,7 @@ Abstract:
 --*/
 
 use crate::{kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
-use caliptra_api::mailbox::CmAesMode;
+use caliptra_api::mailbox::{CmAesMode, MailboxRespHeader};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
@@ -118,10 +118,25 @@ pub struct AesGcmContext {
     pub ghash_state: [u8; 16],
     pub buffer_len: u32,
     pub buffer: [u8; 16],
-    pub resreved: [u8; 16],
+    pub fips_valid: u8,
+    pub resreved: [u8; 15],
 }
 
 const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_SIZE_BYTES);
+
+impl AesGcmContext {
+    pub const fn fips_valid(&self) -> bool {
+        self.fips_valid != 0
+    }
+
+    pub const fn fips_valid_status(&self) -> u32 {
+        if self.fips_valid() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
@@ -129,7 +144,22 @@ pub struct AesContext {
     pub key: [u8; 32],
     pub last_ciphertext: [u8; 16],
     pub last_block_index: u8,
-    _padding: [u8; 75],
+    pub fips_valid: u8,
+    _padding: [u8; 74],
+}
+
+impl AesContext {
+    pub const fn fips_valid(&self) -> bool {
+        self.fips_valid != 0
+    }
+
+    pub const fn fips_valid_status(&self) -> u32 {
+        if self.fips_valid() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
 }
 
 impl Default for AesContext {
@@ -139,7 +169,8 @@ impl Default for AesContext {
             key: [0; 32],
             last_ciphertext: [0; 16],
             last_block_index: 0,
-            _padding: [0; 75],
+            fips_valid: 0,
+            _padding: [0; 74],
         }
     }
 }
@@ -200,6 +231,7 @@ impl Aes {
         key: &[u8; 32],
         iv: AesGcmIv,
         aad: &[u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesGcmContext> {
         if aad.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
@@ -227,7 +259,8 @@ impl Aes {
             ghash_state,
             buffer_len: 0,
             buffer: [0; 16],
-            resreved: [0; 16],
+            fips_valid: fips_valid.into(),
+            resreved: [0; 15],
         })
     }
 
@@ -286,7 +319,8 @@ impl Aes {
                     ghash_state: context.ghash_state,
                     buffer_len: len as u32,
                     buffer,
-                    resreved: [0; 16],
+                    fips_valid: context.fips_valid,
+                    resreved: [0; 15],
                 },
             ));
         }
@@ -351,7 +385,8 @@ impl Aes {
                 ghash_state,
                 buffer_len: len as u32,
                 buffer,
-                resreved: [0; 16],
+                fips_valid: context.fips_valid,
+                resreved: [0; 15],
             },
         ))
     }
@@ -1005,6 +1040,7 @@ impl Aes {
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesContext> {
         // trivial case is allowed
         if input.is_empty() {
@@ -1012,6 +1048,7 @@ impl Aes {
                 mode: CmAesMode::Cbc as u32,
                 key: *key,
                 last_ciphertext: *iv,
+                fips_valid: fips_valid.into(),
                 ..Default::default()
             });
         }
@@ -1069,6 +1106,7 @@ impl Aes {
             mode: CmAesMode::Cbc as u32,
             key: *key,
             last_ciphertext,
+            fips_valid: fips_valid.into(),
             ..Default::default()
         })
     }
@@ -1086,6 +1124,7 @@ impl Aes {
         block_index: usize, // index within a block
         mut input: &[u8],
         mut output: &mut [u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesContext> {
         // trivial case is allowed
         if input.is_empty() {
@@ -1094,6 +1133,7 @@ impl Aes {
                 key: *key,
                 last_ciphertext: *iv,
                 last_block_index: block_index as u8,
+                fips_valid: fips_valid.into(),
                 ..Default::default()
             });
         }
@@ -1126,6 +1166,7 @@ impl Aes {
                     key: *key,
                     last_ciphertext: iv,
                     last_block_index: (block_index + input.len()) as u8,
+                    fips_valid: fips_valid.into(),
                     ..Default::default()
                 });
             }
@@ -1150,6 +1191,7 @@ impl Aes {
                     key: *key,
                     last_ciphertext: iv,
                     last_block_index: 0,
+                    fips_valid: fips_valid.into(),
                     ..Default::default()
                 });
             }
@@ -1193,6 +1235,7 @@ impl Aes {
             key: *key,
             last_ciphertext: iv,
             last_block_index: (input.len() % AES_BLOCK_SIZE_BYTES) as u8,
+            fips_valid: fips_valid.into(),
             ..Default::default()
         })
     }

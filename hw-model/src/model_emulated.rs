@@ -81,6 +81,7 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
+    subsystem_mode: bool,
 }
 
 #[cfg(feature = "coverage")]
@@ -243,6 +244,7 @@ impl HwModel for ModelEmulated {
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
+            subsystem_mode: params.subsystem_mode,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -412,5 +414,9 @@ impl HwModel for ModelEmulated {
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         self.events_to_caliptra.clone()
+    }
+
+    fn subsystem_mode(&self) -> bool {
+        self.subsystem_mode
     }
 }

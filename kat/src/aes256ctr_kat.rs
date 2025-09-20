@@ -99,14 +99,14 @@ impl Aes256CtrKat {
 
     fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
         let mut ciphertext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
+        aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext, true)?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
         }
 
         let mut plaintext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &CT[..], &mut plaintext)?;
+        aes.aes_256_ctr(&KEY, &IV, 0, &CT[..], &mut plaintext, true)?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }

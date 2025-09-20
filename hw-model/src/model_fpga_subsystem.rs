@@ -1626,6 +1626,11 @@ impl HwModel for ModelFpgaSubsystem {
         // ironically, we don't need to support this
         Ok(())
     }
+
+    fn subsystem_mode(&self) -> bool {
+        // we only support subsystem mode
+        true
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {

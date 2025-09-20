@@ -79,6 +79,7 @@ pub fn hmac(
 
     let resp = mutrefbytes::<CmHmacResp>(resp)?;
     resp.hdr = MailboxRespHeaderVarSize::default();
+    resp.hdr.hdr.fips_status = cmk.to_mailbox_fips_status();
     resp.hdr.data_len = match cm_hash_algorithm {
         CmHashAlgorithm::Sha384 => SHA384_DIGEST_BYTE_SIZE as u32,
         CmHashAlgorithm::Sha512 => SHA512_DIGEST_BYTE_SIZE as u32,

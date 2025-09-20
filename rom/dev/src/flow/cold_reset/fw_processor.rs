@@ -546,11 +546,15 @@ impl FirmwareProcessor {
                             env.trng,
                             persistent_data,
                             &request,
+                            soc_ifc.stable_key_zeroizable(),
                         )?;
 
                         let mut resp = CmDeriveStableKeyResp {
+                            hdr: MailboxRespHeader {
+                                fips_status: soc_ifc.stable_key_zeroizable_fips_status(),
+                                ..Default::default()
+                            },
                             cmk: transmute!(encrypted_cmk),
-                            ..Default::default()
                         };
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
@@ -1142,6 +1146,7 @@ impl FirmwareProcessor {
         trng: &mut Trng,
         persistent_data: &mut PersistentData,
         request: &CmDeriveStableKeyReq,
+        fips_zeroizable: bool,
     ) -> CaliptraResult<EncryptedCmk> {
         let key_type: CmStableKeyType = request.key_type.into();
 
@@ -1175,8 +1180,13 @@ impl FirmwareProcessor {
         }
 
         // Convert the tag to CMK
+
+        // In 2.0, the stable keys are derived from UDS and FE, which cannot be guaranteed
+        // to be zeroized when in a scrap state, so we have to mark these keys and all
+        // derivates as non-FIPS compliant.
         let unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            flags: fips_zeroizable.into(),
             length: key_material.len() as u16,
             key_usage: CmKeyUsage::Hmac as u32 as u8,
             id: [0u8; 3],

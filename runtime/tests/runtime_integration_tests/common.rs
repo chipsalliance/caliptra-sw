@@ -4,6 +4,8 @@ use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
+use caliptra_auth_man_types::ImageMetadataFlags;
+use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
@@ -22,6 +24,9 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
     SecurityState, StackInfo, StackRange,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::from_hw_format;
+use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
@@ -39,7 +44,10 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use std::sync::LazyLock;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
+
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
@@ -58,6 +66,26 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
+pub const DEFAULT_MCU_FW: &[u8] = &[1, 2, 3, 4];
+pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new(|| {
+    // generate a default SoC manifest if one is not provided in subsystem mode
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    create_auth_manifest_with_metadata(metadata)
+});
+pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(||
+        // Safety: The manifest is static and valid for the lifetime of the program.
+        unsafe { std::mem::transmute(DEFAULT_SOC_MANIFEST.as_bytes()) });
+
 #[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
@@ -75,6 +103,7 @@ pub struct RuntimeTestArgs<'a> {
     pub security_state: Option<SecurityState>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub subsystem_mode: bool,
 }
 
 pub fn run_rt_test_pqc(
@@ -155,6 +184,7 @@ pub fn start_rt_test_pqc_model(
             stack_info: Some(StackInfo::new(image_info)),
             test_sram: args.test_sram,
             security_state: args.security_state.unwrap_or_default(),
+            subsystem_mode: args.subsystem_mode,
             ..Default::default()
         },
     };
@@ -172,6 +202,12 @@ pub fn start_rt_test_pqc_model(
 
     let image = image.to_bytes().unwrap();
 
+    let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
+        (Some(*DEFAULT_SOC_MANIFEST_BYTES), Some(DEFAULT_MCU_FW))
+    } else {
+        (args.soc_manifest, args.mcu_fw_image)
+    };
+
     let model = caliptra_hw_model::new(
         init_params,
         BootParams {
@@ -185,8 +221,8 @@ pub fn start_rt_test_pqc_model(
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
-            soc_manifest: args.soc_manifest,
-            mcu_fw_image: args.mcu_fw_image,
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )

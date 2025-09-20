@@ -586,6 +586,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
+ "caliptra_common",
  "libc",
  "nix",
  "once_cell",
