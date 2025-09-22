@@ -18,6 +18,7 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
