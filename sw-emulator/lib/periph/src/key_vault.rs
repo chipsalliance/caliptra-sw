@@ -257,6 +257,12 @@ bitfield! {
 
     /// Flag indicating if the key can be used as AES key.
     pub aes_key, set_aes_key: 5;
+
+    /// Flag indicating if the key can be used as ML-KEM seed
+    pub mlkem_seed, set_mlkem_seed: 6;
+
+    /// Flag indicating if the key can be used as ML-KEM message
+    pub mlkem_msg, set_mlkem_msg: 7;
 }
 
 impl From<KeyUsage> for u32 {
