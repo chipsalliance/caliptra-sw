@@ -73,12 +73,12 @@ puts "\n\nVERILOG DEFINES: [get_property verilog_define [current_fileset]]"
 ipx::package_project -root_dir $caliptrapackageDir -vendor design -library user -taxonomy /UserIP -import_files
 # Infer interfaces
 ipx::infer_bus_interfaces xilinx.com:interface:bram_rtl:1.0 [ipx::current_core]
-ipx::add_bus_parameter MASTER_TYPE [ipx::get_bus_interfaces axi_bram -of_objects [ipx::current_core]]
+ipx::add_bus_parameter MASTER_TYPE [ipx::get_bus_interfaces rom_backdoor -of_objects [ipx::current_core]]
 # Associate clocks to busses
 ipx::associate_bus_interfaces -busif S_AXI_WRAPPER -clock core_clk [ipx::current_core]
 ipx::associate_bus_interfaces -busif S_AXI_CALIPTRA -clock core_clk [ipx::current_core]
 ipx::associate_bus_interfaces -busif M_AXI_CALIPTRA -clock core_clk [ipx::current_core]
-ipx::associate_bus_interfaces -busif axi_bram -clock axi_bram_clk [ipx::current_core]
+ipx::associate_bus_interfaces -busif rom_backdoor -clock rom_backdoor_clk [ipx::current_core]
 # Other packager settings
 set_property name caliptra_package_top [ipx::current_core]
 set_property core_revision 1 [ipx::current_core]

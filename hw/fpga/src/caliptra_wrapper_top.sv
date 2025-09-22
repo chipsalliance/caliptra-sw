@@ -103,13 +103,13 @@ module caliptra_wrapper_top (
     output  wire M_AXI_CALIPTRA_RREADY,
 
     // ROM AXI Interface
-    input  logic axi_bram_clk,
-    input  logic axi_bram_en,
-    input  logic [3:0] axi_bram_we,
-    input  logic [14:0] axi_bram_addr,
-    input  logic [31:0] axi_bram_wrdata,
-    output logic [31:0] axi_bram_rddata,
-    input  logic axi_bram_rst,
+    input  logic rom_backdoor_clk,
+    input  logic rom_backdoor_en,
+    input  logic [3:0] rom_backdoor_we,
+    input  logic [14:0] rom_backdoor_addr,
+    input  logic [31:0] rom_backdoor_wrdata,
+    output logic [31:0] rom_backdoor_rddata,
+    input  logic rom_backdoor_rst,
 
     // JTAG Interface
     input logic                       jtag_tck,    // JTAG clk
@@ -197,7 +197,7 @@ module caliptra_wrapper_top (
     assign s_axi.awburst  = S_AXI_CALIPTRA_AWBURST;
     assign s_axi.awsize   = S_AXI_CALIPTRA_AWSIZE;
     assign s_axi.awlen    = S_AXI_CALIPTRA_AWLEN;
-    assign s_axi.awuser   = hwif_out.interface_regs.pauser.pauser.value; //S_AXI_CALIPTRA_AWUSER;
+    assign s_axi.awuser   = hwif_out.interface_regs.arm_user.arm_user.value; //S_AXI_CALIPTRA_AWUSER;
     assign s_axi.awid     = S_AXI_CALIPTRA_AWID;
     assign s_axi.awlock   = S_AXI_CALIPTRA_AWLOCK;
     assign s_axi.awvalid  = S_AXI_CALIPTRA_AWVALID;
@@ -218,7 +218,7 @@ module caliptra_wrapper_top (
     assign s_axi.arburst = S_AXI_CALIPTRA_ARBURST;
     assign s_axi.arsize  = S_AXI_CALIPTRA_ARSIZE;
     assign s_axi.arlen   = S_AXI_CALIPTRA_ARLEN;
-    assign s_axi.aruser  = hwif_out.interface_regs.pauser.pauser.value; // S_AXI_CALIPTRA_ARUSER;
+    assign s_axi.aruser  = hwif_out.interface_regs.arm_user.arm_user.value; // S_AXI_CALIPTRA_ARUSER;
     assign s_axi.arid    = S_AXI_CALIPTRA_ARID;
     assign s_axi.arlock  = S_AXI_CALIPTRA_ARLOCK;
     assign s_axi.arvalid = S_AXI_CALIPTRA_ARVALID;
@@ -407,7 +407,7 @@ caliptra_veer_sram_export veer_sram_export_inst (
       .injectdbiterra(0),
       .injectsbiterra(0),
       .regcea(1'b1),
-      .rsta(axi_bram_rst),
+      .rsta(rom_backdoor_rst),
       .sleep(0),
       .wea(mbox_sram_we)
 
@@ -452,28 +452,28 @@ caliptra_veer_sram_export veer_sram_export_inst (
       .dbiterra(),
       .dbiterrb(),
       .douta(imem_rdata),
-      .doutb(axi_bram_rddata),
+      .doutb(rom_backdoor_rddata),
       .sbiterra(),
       .sbiterrb(),
       .addra(imem_addr),
-      .addrb(axi_bram_addr),
+      .addrb(rom_backdoor_addr),
       .clka(core_clk),
       .clkb(core_clk),
       .dina(0),
-      .dinb(axi_bram_wrdata),
+      .dinb(rom_backdoor_wrdata),
       .ena(imem_cs),
-      .enb(axi_bram_en),
+      .enb(rom_backdoor_en),
       .injectdbiterra(0),
       .injectdbiterrb(0),
       .injectsbiterra(0),
       .injectsbiterrb(0),
       .regcea(1),
       .regceb(1),
-      .rsta(axi_bram_rst),
-      .rstb(axi_bram_rst),
+      .rsta(rom_backdoor_rst),
+      .rstb(rom_backdoor_rst),
       .sleep(0),
       .wea(8'h0),
-      .web(axi_bram_we)
+      .web(rom_backdoor_we)
    );
 
     axi4lite_intf s_axil ();

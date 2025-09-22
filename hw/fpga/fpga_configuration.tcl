@@ -3,6 +3,7 @@
 # Default settings:
 set BUILD FALSE
 set GUI   FALSE
+set OUTPUT_DIR caliptra_build
 set ITRNG TRUE
 set CG_EN FALSE
 set RTL_VERSION latest
@@ -29,7 +30,7 @@ if {[info exists VERSION] == 0} {
 
 # Create path variables
 set fpgaDir [file dirname [info script]]
-set outputDir $fpgaDir/caliptra_build
+set outputDir $fpgaDir/$OUTPUT_DIR
 set caliptrapackageDir $outputDir/caliptra_package
 
 # Clean and create output directory.
@@ -152,7 +153,7 @@ connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M02_AXI] [get_bd_intf_p
 connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M03_AXI] [get_bd_intf_pins axi_firewall_0/S_AXI_CTL]
 
 # Connect BRAM controllers to FPGA wrapper
-connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins cptra_rom_backdoor_bram_0/BRAM_PORTA]
+connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/rom_backdoor] [get_bd_intf_pins cptra_rom_backdoor_bram_0/BRAM_PORTA]
 
 # Create reset connections
 connect_bd_net [get_bd_pins $ps_pl_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
