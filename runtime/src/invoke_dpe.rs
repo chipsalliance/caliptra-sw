@@ -38,17 +38,28 @@ impl InvokeDpeCmd {
             let mut cmd = InvokeDpeReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
-            // Validate data length
-            if cmd.data_size as usize > cmd.data.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
-
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
             let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
 
             let caller_privilege_level = drivers.caller_privilege_level();
-            let dpe_context_threshold_err = drivers.is_dpe_context_threshold_exceeded();
+
+            // Validate data length
+            if cmd.data_size as usize > cmd.data.len() {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
+            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+
+            // Determine the target privilege level of a new context then check if we exceed thresholds
+            let new_context_privilege_level = match command {
+                Command::DeriveContext(cmd) if DeriveContextCmd::changes_locality(cmd) => {
+                    drivers.privilege_level_from_locality(cmd.target_locality)
+                }
+                _ => caller_privilege_level,
+            };
+            let dpe_context_threshold_err =
+                drivers.is_dpe_context_threshold_exceeded(new_context_privilege_level);
 
             let pdata = drivers.persistent_data.get_mut();
             let crypto = DpeCrypto::new(
@@ -79,15 +90,6 @@ impl InvokeDpeCmd {
             };
 
             let locality = drivers.mbox.user();
-            // This check already happened, but without it the compiler believes the below slice is
-            // out of bounds.
-            if cmd.data_size as usize > cmd.data.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
-            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
-                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
-            let flags = pdata.manifest1.header.flags;
-
             let mut dpe = &mut pdata.dpe;
             let mut context_has_tag = &mut pdata.context_has_tag;
             let mut context_tags = &mut pdata.context_tags;
@@ -108,6 +110,7 @@ impl InvokeDpeCmd {
                     // If recursive _is_ set, it will extend the existing one, which will not count
                     // against the context threshold.
                     if !DeriveContextCmd::is_recursive(cmd) {
+                        // Takes target locality into consideration if applicable. See above
                         dpe_context_threshold_err?;
                     }
                     if DeriveContextCmd::changes_locality(cmd)

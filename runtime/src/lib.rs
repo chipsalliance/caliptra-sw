@@ -30,6 +30,7 @@ pub mod info;
 mod invoke_dpe;
 mod pcr;
 mod populate_idev;
+mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
@@ -69,6 +70,7 @@ pub use get_idev_csr::GetIdevCsrCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use pcr::IncrementPcrResetCounterCmd;
+pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
@@ -119,10 +121,12 @@ pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
-pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN: usize = 2;
 
-const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+pub const CALIPTRA_LOCALITY: u32 = 0xFFFFFFFF;
+const RESERVED_PAUSER: u32 = CALIPTRA_LOCALITY;
 
 pub struct CptraDpeTypes;
 
@@ -238,6 +242,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
             RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
+            ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes)
         }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };

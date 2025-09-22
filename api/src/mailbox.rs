@@ -63,6 +63,9 @@ impl CommandId {
 
     // The revoke exported CDI handle command.
     pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
+
+    // The reallocate DPE context limits command.
+    pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
 
 impl From<u32> for CommandId {
@@ -165,6 +168,7 @@ pub enum MailboxResp {
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
+    ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
 }
 
 impl MailboxResp {
@@ -189,6 +193,7 @@ impl MailboxResp {
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
+            MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -213,6 +218,7 @@ impl MailboxResp {
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -273,6 +279,7 @@ pub enum MailboxReq {
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
+    ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq),
 }
 
 impl MailboxReq {
@@ -300,6 +307,7 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
+            MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -327,6 +335,7 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -354,6 +363,7 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
+            MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
         }
     }
 
@@ -1239,6 +1249,27 @@ pub struct AuthorizeAndStashResp {
     pub auth_req_result: u32,
 }
 impl Response for AuthorizeAndStashResp {}
+
+// REALLOCATE_DPE_CONTEXT_LIMITS
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReallocateDpeContextLimitsReq {
+    pub hdr: MailboxReqHeader,
+    pub pl0_context_limit: u32,
+}
+impl Request for ReallocateDpeContextLimitsReq {
+    const ID: CommandId = CommandId::REALLOCATE_DPE_CONTEXT_LIMITS;
+    type Resp = ReallocateDpeContextLimitsResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReallocateDpeContextLimitsResp {
+    pub hdr: MailboxRespHeader,
+    pub new_pl0_context_limit: u32,
+    pub new_pl1_context_limit: u32,
+}
+impl Response for ReallocateDpeContextLimitsResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

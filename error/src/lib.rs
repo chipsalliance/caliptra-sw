@@ -1223,6 +1223,26 @@ impl CaliptraError {
             0x000E005A,
             "Runtime Error: Revoke Exported CDI Handle Not Found"
         ),
+        (
+            RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_LESS_THAN_MIN,
+            0x000E005B,
+            "Runtime Error: Reallocate DPE context requested less than the minimum PL0 contexts"
+        ),
+        (
+            RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_GREATER_THAN_MAX,
+            0x000E005C,
+            "Runtime Error: Reallocate DPE context requested greater than the maximum PL0 contexts"
+        ),
+        (
+            RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_LESS_THAN_USED,
+            0x000E005D,
+            "Runtime Error: Reallocate DPE context requested fewer PL0 contexts than are used currently"
+        ),
+        (
+            RUNTIME_REALLOCATE_DPE_CONTEXTS_PL1_LESS_THAN_USED,
+            0x000E005E,
+            "Runtime Error: Reallocate DPE context requested fewer PL1 contexts than are used currently"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
