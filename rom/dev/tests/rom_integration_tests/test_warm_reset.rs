@@ -32,22 +32,25 @@ fn test_warm_reset_success() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0], // Equals 7
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0x7F, 0, 0, 0], // Equals 7
-                ..Default::default()
-            },
-            fw_image: Some(&image.to_bytes().unwrap()),
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -57,12 +60,7 @@ fn test_warm_reset_success() {
     }
 
     // Perform warm reset
-    hw.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        fw_svn: [0x7F, 0, 0, 0], // Equals 7
-        ..Default::default()
-    });
+    hw.warm_reset_flow(&boot_params).unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
@@ -84,7 +82,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
     hw.step_until_boot_status(IDevIdDecryptUdsComplete.into(), true);
 
     // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+    hw.warm_reset_flow(&BootParams::default()).unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -125,7 +123,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
         }
 
         // Perform a warm reset
-        hw.warm_reset_flow(&Fuses::default());
+        hw.warm_reset_flow(&BootParams::default()).unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -160,7 +158,7 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
         hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
 
         // Perform a warm reset
-        hw.warm_reset_flow(&Fuses::default());
+        hw.warm_reset_flow(&BootParams::default()).unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -212,7 +210,7 @@ fn test_warm_reset_during_update_reset() {
         hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
 
         // Perform a warm reset
-        hw.warm_reset_flow(&Fuses::default());
+        hw.warm_reset_flow(&BootParams::default()).unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
