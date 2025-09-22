@@ -29,21 +29,24 @@ fn test_rt_journey_pcr_validation() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
     let mut model = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                ..Default::default()
-            },
-            fw_image: Some(&image.to_bytes().unwrap()),
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -56,11 +59,7 @@ fn test_rt_journey_pcr_validation() {
         .unwrap();
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        ..Default::default()
-    });
+    model.warm_reset_flow(&boot_params).unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -96,21 +95,24 @@ fn test_mbox_busy_during_warm_reset() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
     let mut model = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                ..Default::default()
-            },
-            fw_image: Some(&image.to_bytes().unwrap()),
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -127,11 +129,7 @@ fn test_mbox_busy_during_warm_reset() {
         .mailbox_flow_done());
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        ..Default::default()
-    });
+    model.warm_reset_flow(&boot_params).unwrap();
 
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
@@ -162,22 +160,25 @@ fn test_mbox_idle_during_warm_reset() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0b1111111, 0, 0, 0],
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
     let mut model = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0b1111111, 0, 0, 0],
-                ..Default::default()
-            },
-            fw_image: Some(&image.to_bytes().unwrap()),
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -185,12 +186,7 @@ fn test_mbox_idle_during_warm_reset() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        fw_svn: [0b1111111, 0, 0, 0],
-        ..Default::default()
-    });
+    model.warm_reset_flow(&boot_params).unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
