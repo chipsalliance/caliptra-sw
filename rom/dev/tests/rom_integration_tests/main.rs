@@ -17,6 +17,7 @@ mod test_idevid_derivation;
 mod test_image_validation;
 mod test_mailbox_errors;
 mod test_mldsa_verify;
+mod test_ocp_lock;
 mod test_panic_missing;
 mod test_pmp;
 mod test_rom_integrity;

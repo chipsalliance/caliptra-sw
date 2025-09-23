@@ -177,6 +177,9 @@ impl CommandId {
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
+
+    // OCP LOCK Commands
+    pub const REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
 }
 
 impl From<u32> for CommandId {
@@ -537,6 +540,7 @@ pub enum MailboxReq {
     CmEcdsaSign(CmEcdsaSignReq),
     CmEcdsaVerify(CmEcdsaVerifyReq),
     CmDeriveStableKey(CmDeriveStableKeyReq),
+    ReportHekMetadata(ReportHekMetadataReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -613,6 +617,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
+            MailboxReq::ReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -687,6 +692,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ReportHekMetadata(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -769,6 +775,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
+            MailboxReq::ReportHekMetadata(_) => CommandId::REPORT_HEK_METADATA,
         }
     }
 
@@ -4060,6 +4067,41 @@ pub struct CmDeriveStableKeyResp {
     pub cmk: Cmk,
 }
 impl Response for CmDeriveStableKeyResp {}
+
+// REPORT_HEK_METADATA
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReportHekMetadataReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved0: u32,
+    pub total_slots: u16,
+    pub active_slots: u16,
+    pub seed_state: u16,
+    pub padding0: u16,
+}
+impl Request for ReportHekMetadataReq {
+    const ID: CommandId = CommandId::REPORT_HEK_METADATA;
+    type Resp = ReportHekMetadataResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReportHekMetadataRespFlags(u32);
+
+bitflags! {
+    impl ReportHekMetadataRespFlags: u32 {
+        const HEK_AVAILABLE = 1u32 << 31;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReportHekMetadataResp {
+    pub hdr: MailboxRespHeader,
+    pub flags: ReportHekMetadataRespFlags,
+    pub reserved: [u32; 3],
+}
+impl Response for ReportHekMetadataResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]
