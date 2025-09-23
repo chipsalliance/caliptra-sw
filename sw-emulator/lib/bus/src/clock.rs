@@ -188,6 +188,7 @@ impl Clock {
                 | TimerAction::SetGlobalIntEn { .. }
                 | TimerAction::SetExtIntEn { .. }
                 | TimerAction::InternalTimerLocalInterrupt { .. }
+                | TimerAction::MachineTimerInterrupt { .. }
                 | TimerAction::Halt => {}
             }
         }
@@ -250,14 +251,31 @@ pub enum TimerAction {
     Poll,
     WarmReset,
     UpdateReset,
-    Nmi { mcause: u32 },
-    SetNmiVec { addr: u32 },
-    ExtInt { irq: u8, can_wake: bool },
-    SetExtIntVec { addr: u32 },
-    SetGlobalIntEn { en: bool },
-    SetExtIntEn { en: bool },
-    InternalTimerLocalInterrupt { timer_id: u8 },
+    Nmi {
+        mcause: u32,
+    },
+    SetNmiVec {
+        addr: u32,
+    },
+    ExtInt {
+        irq: u8,
+        can_wake: bool,
+    },
+    SetExtIntVec {
+        addr: u32,
+    },
+    SetGlobalIntEn {
+        en: bool,
+    },
+    SetExtIntEn {
+        en: bool,
+    },
+    InternalTimerLocalInterrupt {
+        timer_id: u8,
+    },
     Halt,
+    /// Assert the machine timer interrupt (mip.MTIP = 1).
+    MachineTimerInterrupt, //
 }
 
 impl TimerAction {
@@ -275,6 +293,7 @@ impl TimerAction {
             TimerAction::Nmi { .. } => 8,
             TimerAction::ExtInt { .. } => 9,
             TimerAction::InternalTimerLocalInterrupt { .. } => 10,
+            TimerAction::MachineTimerInterrupt => 11,
         }
     }
 }
