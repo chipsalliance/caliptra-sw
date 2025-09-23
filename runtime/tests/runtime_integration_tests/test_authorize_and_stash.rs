@@ -55,7 +55,8 @@ fn set_auth_manifest(
     };
 
     let (soc_manifest, mcu_fw) = if subsystem_mode {
-        let mcu_fw = vec![1, 2, 3, 4];
+        let mut mcu_fw = vec![1, 2, 3, 4]; // FPGA DMA driver needs multiple of 256
+        mcu_fw.resize(256, 0);
         const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
         let mut flags = ImageMetadataFlags(0);
         flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
