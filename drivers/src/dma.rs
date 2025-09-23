@@ -465,7 +465,8 @@ impl<'a> DmaRecovery<'a> {
     pub const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
     pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
-    const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
+    // TODO(clundin): Move this back to 0xF
+    const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF00;
 
     const RESET_VAL: u32 = 0x1;
     // offset from the Caliptra base address of the SHA accelerator regs.
@@ -587,9 +588,9 @@ impl<'a> DmaRecovery<'a> {
                 .modify(|val| val.dev_status(Self::DEVICE_STATUS_PENDING));
 
             // Read RECOVERY_CTRL register 'Activate Recovery Image' field for 'Activate Recovery Image' (0xF) command.
-            while recovery.recovery_ctrl().read().activate_rec_img()
-                != Self::ACTIVATE_RECOVERY_IMAGE_CMD
-            {}
+            // TODO(clundin): Seems like the upper 2 bytes are not being sent from the MCU.
+            // Use raw values for now.
+            while u32::from(recovery.recovery_ctrl().read()) != Self::ACTIVATE_RECOVERY_IMAGE_CMD {}
         })
     }
 
