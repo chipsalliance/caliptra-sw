@@ -1140,12 +1140,14 @@ impl ModelFpgaSubsystem {
         data.extend_from_slice(&(payload.len() as u16).to_le_bytes());
         data.extend_from_slice(payload);
 
-        let res = self
-            .i3c_controller
-            .controller
-            .lock()
-            .unwrap()
-            .master_send_polled(&cmd, &data, data.len() as u16);
+        let ctrl = self.i3c_controller.controller.lock().unwrap();
+
+        if ctrl.resp_fifo_level() > 0 {
+            println!("Draining I3C controller response FIFO before write request: {} responses available", ctrl.resp_fifo_level());
+            ctrl.reset_fifos();
+        }
+
+        let res = ctrl.master_send_polled(&cmd, &data, data.len() as u16);
 
         match res {
             Ok(_) => (),
