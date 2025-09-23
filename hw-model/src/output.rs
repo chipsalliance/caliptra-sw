@@ -21,6 +21,7 @@ struct OutputSinkImpl {
     at_start_of_line: Cell<bool>,
     now: Cell<u64>,
     next_write_needs_time_prefix: Cell<bool>,
+    char_buffer: Cell<PartialUtf8>, // it's faster to copy than to manage a RefCell
 }
 
 struct PrettyU64(u64);
@@ -73,6 +74,120 @@ fn test_pretty_u64() {
     assert_eq!(PrettyU64(1_999_999_999).to_string(), "1,999,999,999");
 }
 
+#[derive(Clone, Copy)]
+struct PartialUtf8 {
+    len: usize,
+    buf: [u8; 4],
+}
+
+impl Default for PartialUtf8 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PartialUtf8 {
+    fn new() -> Self {
+        Self {
+            len: 0,
+            buf: [0; 4],
+        }
+    }
+
+    fn push(&mut self, ch: u8) {
+        self.buf[self.len] = ch;
+        self.len += 1;
+    }
+
+    fn next(&mut self) -> Option<char> {
+        if self.len == 0 {
+            return None;
+        }
+        // check partial sequences
+        for l in 1..=self.len {
+            let v = &self.buf[..l];
+            // avoid extra borrow
+            let ch = match std::str::from_utf8(v) {
+                Ok(s) => s.chars().next(),
+                _ => None,
+            };
+            if let Some(ch) = ch {
+                self.buf.copy_within(l..4, 0);
+                self.len -= l;
+                return Some(ch);
+            }
+        }
+        if self.len == 4 {
+            // Invalid UTF-8 sequence, just output one character and shift the rest down
+            let ch = self.buf[0] as char;
+            self.buf.copy_within(1..4, 0);
+            self.len -= 1;
+            Some(ch)
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_utf8_buffer() {
+        let mut p = PartialUtf8::new();
+        p.push(0x20);
+        assert!(p.next() == Some(' '));
+        assert!(p.next().is_none());
+
+        for ch in 0..0x7f {
+            // all ASCII characters are single byte
+            p.push(ch);
+            assert!(p.next() == Some(ch as char));
+            assert!(p.next().is_none());
+        }
+
+        // 2-byte UTF-8 character
+        p.push(0xCE);
+        assert_eq!(p.next(), None);
+        p.push(0x92);
+        assert_eq!(p.next(), Some('Β'));
+        assert_eq!(p.next(), None);
+
+        // 3-byte UTF-8 character
+        p.push(0xEC);
+        assert_eq!(p.next(), None);
+        p.push(0x9C);
+        assert_eq!(p.next(), None);
+        p.push(0x84);
+        assert_eq!(p.next(), Some('위'));
+        assert_eq!(p.next(), None);
+
+        // 4-byte UTF-8 character
+        p.push(0xF0);
+        assert_eq!(p.next(), None);
+        p.push(0x90);
+        assert_eq!(p.next(), None);
+        p.push(0x8D);
+        assert_eq!(p.next(), None);
+        p.push(0x85);
+        assert_eq!(p.next(), Some('𐍅'));
+        assert_eq!(p.next(), None);
+
+        // invalid UTF-8 sequence
+        p.push(0xF0);
+        assert_eq!(p.next(), None);
+        p.push(0x20);
+        assert_eq!(p.next(), None);
+        p.push(0x21);
+        assert_eq!(p.next(), None);
+        p.push(0x22);
+        assert_eq!(p.next(), Some(0xF0 as char));
+        assert_eq!(p.next(), Some(0x20 as char));
+        assert_eq!(p.next(), Some(0x21 as char));
+        assert_eq!(p.next(), Some(0x22 as char));
+    }
+}
+
 #[derive(Clone)]
 pub struct OutputSink(Rc<OutputSinkImpl>);
 impl OutputSink {
@@ -82,9 +197,29 @@ impl OutputSink {
     pub fn now(&self) -> u64 {
         self.0.now.get()
     }
-    pub fn push_uart_char(&self, ch: u8) {
-        const UART_LOG_PREFIX: &[u8] = b"UART: ";
 
+    fn push_char_valid(&self, ch: char) {
+        const UART_LOG_PREFIX: &[u8] = b"UART: ";
+        let mut s = self.0.new_uart_output.take();
+        s.push(ch);
+        self.0.new_uart_output.set(s);
+
+        let log_writer = &mut self.0.log_writer.borrow_mut();
+        if self.0.at_start_of_line.get() {
+            log_writer.flush().unwrap();
+            write!(log_writer, "{} ", PrettyU64(self.0.now.get())).unwrap();
+            log_writer.write_all(UART_LOG_PREFIX).unwrap();
+            self.0.at_start_of_line.set(false);
+        }
+        let mut buffer = [0; 4];
+        let s = ch.encode_utf8(&mut buffer);
+        log_writer.write_all(s.as_bytes()).unwrap();
+        if ch == '\n' {
+            self.0.at_start_of_line.set(true);
+        }
+    }
+
+    pub fn push_uart_char(&self, ch: u8) {
         const TESTCASE_FAILED: u8 = 0x01;
         const TESTCASE_PASSED: u8 = 0xff;
 
@@ -107,22 +242,15 @@ impl OutputSink {
                     .unwrap();
                 self.0.exit_status.set(Some(ExitStatus::Failed));
             }
-            0x20..=0x7f | b'\r' | b'\n' | b'\t' => {
-                let mut s = self.0.new_uart_output.take();
-                s.push(ch as char);
-                self.0.new_uart_output.set(s);
+            0x02..=0x7f => self.push_char_valid(ch as char),
+            0x80..=0xf4 => {
+                let mut partial = self.0.char_buffer.take();
+                partial.push(ch);
 
-                let log_writer = &mut self.0.log_writer.borrow_mut();
-                if self.0.at_start_of_line.get() {
-                    log_writer.flush().unwrap();
-                    write!(log_writer, "{} ", PrettyU64(self.0.now.get())).unwrap();
-                    log_writer.write_all(UART_LOG_PREFIX).unwrap();
-                    self.0.at_start_of_line.set(false);
+                while let Some(c) = partial.next() {
+                    self.push_char_valid(c);
                 }
-                log_writer.write_all(&[ch]).unwrap();
-                if ch == b'\n' {
-                    self.0.at_start_of_line.set(true);
-                }
+                self.0.char_buffer.set(partial);
             }
             _ => {
                 writeln!(
@@ -178,6 +306,7 @@ impl Output {
                 at_start_of_line: Cell::new(true),
                 now: Cell::new(0),
                 next_write_needs_time_prefix: Cell::new(true),
+                char_buffer: Cell::new(PartialUtf8::new()),
             })),
             search_term: None,
             search_pos: 0,
@@ -304,13 +433,16 @@ mod tests {
         out.sink().set_now(1);
         out.sink().push_uart_char(b'i');
         out.sink().push_uart_char(b'!');
+        out.sink().push_uart_char(0xe2);
+        out.sink().push_uart_char(0x98);
+        out.sink().push_uart_char(0x83);
         out.sink().push_uart_char(b'\n');
 
         assert_eq!(&out.take(2), "hi");
-        assert_eq!(&out.take(10), "!\n");
+        assert_eq!(&out.take(10), "!☃\n");
         assert_eq!(&out.take(10), "");
 
-        assert_eq!(log.into_string(), "          0 UART: hi!\n");
+        assert_eq!(log.into_string(), "          0 UART: hi!☃\n");
     }
 
     #[test]
@@ -368,10 +500,10 @@ mod tests {
     fn test_unknown_generic_load() {
         let log = Log::new();
         let mut out = Output::new(log.clone());
-        out.sink().push_uart_char(0xd3);
+        out.sink().push_uart_char(0xf8);
 
         assert_eq!(&out.take(30), "");
-        assert_eq!(log.into_string(), "Unknown generic load 0xd3\n");
+        assert_eq!(log.into_string(), "Unknown generic load 0xf8\n");
     }
 
     #[test]
