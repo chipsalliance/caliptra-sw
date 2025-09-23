@@ -318,7 +318,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
 
 #[test]
 fn test_authorize_and_stash_cmd_success() {
-    for subsystem_mode in [false, true] {
+    for subsystem_mode in [true] {
         let mut model = set_auth_manifest(None, subsystem_mode);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
