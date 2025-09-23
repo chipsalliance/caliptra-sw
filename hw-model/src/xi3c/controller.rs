@@ -612,7 +612,7 @@ impl Controller {
         );
         STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
         if !happened {
-            return Err(XI3cError::Timeout);
+            return Err(XI3cError::Timeout(self.status()));
         }
         let response_data = self.regs().resp_status_fifo.get();
         let error_code = ((response_data & 0x1e0) >> 5) as i32;
@@ -711,7 +711,7 @@ impl Controller {
                 if start_time.elapsed() < timeout_duration {
                     std::thread::sleep(Duration::from_micros(1));
                 } else {
-                    return Err(XI3cError::Timeout);
+                    return Err(XI3cError::Timeout(self.status()));
                 }
             }
 

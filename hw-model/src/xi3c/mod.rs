@@ -24,5 +24,5 @@ pub enum XI3cError {
     /// Generic transmit error
     SendError,
     /// Timeout error
-    Timeout,
+    Timeout(u32),
 }
