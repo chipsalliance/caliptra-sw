@@ -703,7 +703,10 @@ impl Controller {
         while !msg_ptr.is_empty() {
             STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
             let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
-            STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
+            STEP_STATUS.store(
+                10000 + line!() + 100000 * (wr_fifo_space as u32 + 1),
+                Ordering::Relaxed,
+            );
             let mut space_index: u16 = 0;
             while space_index < wr_fifo_space && !msg_ptr.is_empty() {
                 STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
