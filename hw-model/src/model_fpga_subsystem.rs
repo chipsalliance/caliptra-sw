@@ -23,7 +23,7 @@ use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED}
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
 use std::process::exit;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -401,6 +401,7 @@ pub struct ModelFpgaSubsystem {
     pub enable_mcu_uart_log: bool,
     pub waiting: usize,
     pub stdin_uart: Arc<Mutex<Option<u8>>>,
+    pub step_status: Arc<AtomicU32>,
 }
 
 impl ModelFpgaSubsystem {
@@ -642,6 +643,8 @@ impl ModelFpgaSubsystem {
         self.bmc_step_counter += 1;
 
         // check if we need to fill the recovey FIFO
+        self.step_status.store(line!(), Ordering::Relaxed);
+
         if self.bmc_step_counter % 2 == 0 && !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
@@ -661,7 +664,11 @@ impl ModelFpgaSubsystem {
                 ctrl.extend_from_slice(&len);
 
                 println!("Writing Indirect fifo ctrl: {:x?}", ctrl);
+                self.step_status.store(line!(), Ordering::Relaxed);
+
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoCtrl, &ctrl);
+
+                self.step_status.store(line!(), Ordering::Relaxed);
 
                 let reported_len = self
                     .i3c_core()
@@ -683,8 +690,12 @@ impl ModelFpgaSubsystem {
                         self.recovery_ctrl_len / 4
                     );
                 }
+                self.step_status.store(line!(), Ordering::Relaxed);
+
                 self.recovery_ctrl_written = true;
             }
+            self.step_status.store(line!(), Ordering::Relaxed);
+
             let fifo_status = self
                 .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
                 .expect("Device should response to indirect fifo status read request");
@@ -696,7 +707,11 @@ impl ModelFpgaSubsystem {
                 //println!("Writing recovery fifo block {}", self.blocks_sent);
                 // let level_a = self.i3c_controller().write_fifo_level();
                 // self.blocks_sent += 1;
+                self.step_status.store(line!(), Ordering::Relaxed);
+
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
+                self.step_status.store(line!(), Ordering::Relaxed);
+
                 // let level_b = self.i3c_controller().write_fifo_level();
                 // println!("controller wlevels: {} {}", level_a, level_b);
 
@@ -706,6 +721,8 @@ impl ModelFpgaSubsystem {
                 // self.waiting += 1;
             }
         }
+
+        self.step_status.store(line!(), Ordering::Relaxed);
 
         let status = self
             .i3c_core()
@@ -720,18 +737,25 @@ impl ModelFpgaSubsystem {
             return;
         }
 
+        self.step_status.store(line!(), Ordering::Relaxed);
+
         // don't run the BMC every time as it can spam requests
         if self.bmc_step_counter < 10_000 || self.bmc_step_counter % 1_000 != 0 {
             return;
         }
+        self.step_status.store(line!(), Ordering::Relaxed);
+
         self.bmc.step();
+        self.step_status.store(line!(), Ordering::Relaxed);
 
         // we need to translate from the BMC events to the I3C controller block reads and writes
         let Ok(event) = self.from_bmc.try_recv() else {
+            self.step_status.store(line!(), Ordering::Relaxed);
             return;
         };
         // ignore messages that aren't meant for Caliptra core.
         if !matches!(event.dest, Device::CaliptraCore) {
+            self.step_status.store(line!(), Ordering::Relaxed);
             return;
         }
         match event.event {
@@ -741,8 +765,10 @@ impl ModelFpgaSubsystem {
                 command_code,
             } => {
                 //println!("From BMC: Recovery block read request {:?}", command_code);
+                self.step_status.store(line!(), Ordering::Relaxed);
 
                 if let Some(payload) = self.recovery_block_read_request(command_code) {
+                    self.step_status.store(line!(), Ordering::Relaxed);
                     self.to_bmc
                         .send(Event {
                             src: Device::CaliptraCore,
@@ -755,6 +781,7 @@ impl ModelFpgaSubsystem {
                             },
                         })
                         .unwrap();
+                    self.step_status.store(line!(), Ordering::Relaxed);
                 }
             }
             EventData::RecoveryBlockWrite {
@@ -764,13 +791,16 @@ impl ModelFpgaSubsystem {
                 payload,
             } => {
                 //println!("Recovery block write request: {:?}", command_code);
+                self.step_status.store(line!(), Ordering::Relaxed);
 
                 self.recovery_block_write_request(command_code, &payload);
+                self.step_status.store(line!(), Ordering::Relaxed);
             }
             EventData::RecoveryImageAvailable { image_id: _, image } => {
                 // do the indirect fifo thing
                 println!("Recovery image available; writing blocks");
 
+                self.step_status.store(line!(), Ordering::Relaxed);
                 self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
                 // let fifo_status =
@@ -782,9 +812,11 @@ impl ModelFpgaSubsystem {
                 }
                 self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
                 self.recovery_fifo_blocks.reverse(); // reverse so we can pop from the end
+                self.step_status.store(line!(), Ordering::Relaxed);
             }
             _ => todo!(),
         }
+        self.step_status.store(line!(), Ordering::Relaxed);
     }
 
     fn command_code_to_u8(command: RecoveryCommandCode) -> u8 {
@@ -1193,8 +1225,11 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn step(&mut self) {
+        self.step_status.store(line!(), Ordering::Relaxed);
         self.handle_log();
+        self.step_status.store(line!(), Ordering::Relaxed);
         self.bmc_step();
+        self.step_status.store(line!(), Ordering::Relaxed);
         let c = { self.stdin_uart.lock().unwrap().take() };
         if let Some(c) = c {
             if c == 'i' as u8 {
@@ -1359,7 +1394,18 @@ impl HwModel for ModelFpgaSubsystem {
             enable_mcu_uart_log: params.enable_mcu_uart_log,
             waiting: 0,
             stdin_uart: Arc::new(Mutex::new(None)),
+            step_status: Arc::new(AtomicU32::new(0)),
         };
+
+        let c = m.step_status.clone();
+
+        std::thread::spawn(move || {
+            let s = c.load(Ordering::Relaxed);
+            if s != 0 {
+                println!("MCU stuck at line {}", s);
+            }
+            thread::sleep(Duration::from_secs(10));
+        });
 
         println!("AXI reset");
         m.axi_reset();
