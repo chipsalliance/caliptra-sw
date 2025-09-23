@@ -1140,16 +1140,23 @@ impl ModelFpgaSubsystem {
         data.extend_from_slice(&(payload.len() as u16).to_le_bytes());
         data.extend_from_slice(payload);
 
-        assert!(
-            self.i3c_controller
-                .controller
-                .lock()
-                .unwrap()
-                .master_send_polled(&cmd, &data, data.len() as u16)
-                .is_ok(),
-            "Failed to ack write message sent to target step_status {}",
-            STEP_STATUS.load(Ordering::Relaxed)
-        );
+        let res = self
+            .i3c_controller
+            .controller
+            .lock()
+            .unwrap()
+            .master_send_polled(&cmd, &data, data.len() as u16);
+
+        match res {
+            Ok(_) => (),
+            Err(e) => {
+                panic!(
+                    "Failed to ack write message sent to target step_status {} {:?}",
+                    STEP_STATUS.load(Ordering::Relaxed),
+                    e
+                );
+            }
+        }
     }
 
     pub fn otp_slice(&self) -> &mut [u8] {
