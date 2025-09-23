@@ -1145,7 +1145,8 @@ impl ModelFpgaSubsystem {
                 .unwrap()
                 .master_send_polled(&cmd, &data, data.len() as u16)
                 .is_ok(),
-            "Failed to ack write message sent to target"
+            "Failed to ack write message sent to target {}",
+            self.step_status.load(Ordering::Relaxed)
         );
     }
 
