@@ -1633,8 +1633,11 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
+        let mci_base_addr: u64 = u64::from(self.soc_ifc().ss_mci_base_addr_l().read())
+            | (u64::from(self.soc_ifc().ss_mci_base_addr_h().read()) << 32);
+
         // Return the physical address of the staging area
-        Ok((EMULATOR_MCI_ADDR + 0xc0000) as u64)
+        Ok(mci_base_addr + 0xc0000)
     }
 
     fn has_ss_staging_area(&self) -> bool {
