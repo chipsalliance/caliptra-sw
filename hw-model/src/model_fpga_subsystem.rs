@@ -1770,6 +1770,10 @@ impl SocManager for ModelFpgaSubsystem {
 
 impl Drop for ModelFpgaSubsystem {
     fn drop(&mut self) {
+        println!(
+            "Dropping, step status {}",
+            self.step_status.load(Ordering::Relaxed)
+        );
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
