@@ -22,7 +22,7 @@ use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
-    InstallOwnerPkHashResp, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
+    InstallOwnerPkHashResp, ReportHekMetadataReq, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -54,6 +54,8 @@ use core::mem::{size_of, ManuallyDrop};
 use dma::AesDmaMode;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
+
+use super::ocp_lock;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
 
@@ -117,6 +119,15 @@ impl FirmwareProcessor {
             &mut kats_env,
             env.persistent_data.get_mut(),
         )?;
+
+        // After processing commands but before booting into the next stage we need to complete the OCP LOCK flow.
+        if env.soc_ifc.ocp_lock_enabled() {
+            ocp_lock::complete_ocp_lock_flow(
+                &mut env.soc_ifc,
+                env.persistent_data.get_mut(),
+                &mut env.key_vault,
+            )?;
+        }
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -609,6 +620,21 @@ impl FirmwareProcessor {
 
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes_partial()?)?;
+                    }
+                    CommandId::REPORT_HEK_METADATA => {
+                        let mut request = ReportHekMetadataReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
+                        if !soc_ifc.ocp_lock_enabled() {
+                            Err(CaliptraError::FW_PROC_OCP_LOCK_UNSUPPORTED)?;
+                        }
+                        let mut resp = ocp_lock::handle_report_hek_metadata(
+                            soc_ifc.lifecycle(),
+                            persistent_data,
+                            &request,
+                        )?;
+
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
                     }
                     CommandId::INSTALL_OWNER_PK_HASH => {
                         let mut request = InstallOwnerPkHashReq::default();

@@ -236,7 +236,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
         let hek_seed = env.soc_ifc.fuse_bank().ocp_hek_seed();
-
+        // HEK will be WR locked after the mailbox command handler.
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,
@@ -247,7 +247,6 @@ impl InitDevIdLayer {
             HmacMode::Hmac512,
             KeyUsage::default().set_hmac_key_en(),
         )?;
-        env.key_vault.set_key_write_lock(KEY_ID_HEK);
         Ok(())
     }
 
@@ -268,6 +267,7 @@ impl InitDevIdLayer {
             HmacMode::Hmac512,
             KeyUsage::default().set_hmac_key_en(),
         )?;
+        // LOCK MDK to prevent later stages from overwriting.
         env.key_vault.set_key_write_lock(KEY_ID_MDK);
         Ok(())
     }
