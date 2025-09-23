@@ -348,6 +348,12 @@ fn test_ml_dsa87() {
     run_driver_test(&firmware::driver_tests::ML_DSA87);
 }
 
+// These are split because they don't all fit within the test ROM image
+#[test]
+fn test_ml_dsa87_external_mu() {
+    run_driver_test(&firmware::driver_tests::ML_DSA87_EXTERNAL_MU);
+}
+
 #[test]
 fn test_ml_kem() {
     run_driver_test(&firmware::driver_tests::ML_KEM);
