@@ -278,7 +278,8 @@ impl Dma {
     pub fn wait_for_dma_complete(&self) {
         self.with_dma(|dma| {
             if dma.status0().read().error() {
-                cprintln!("DMA error!");
+                let error_type = dma.intr_block_rf().error_internal_intr_r().read();
+                cprintln!("DMA error! ({:?})", u32::from(error_type));
             }
             while dma.status0().read().busy() {}
         });
@@ -783,6 +784,9 @@ impl<'a> DmaRecovery<'a> {
     // TODO: remove this when the FPGA can do fixed burst transfers
     #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
+        // Flush DMA before doing anything
+        self.dma.flush();
+
         // check if this is an I3C DMA
         let i3c = match read_transaction.read_addr {
             AxiAddr { lo, hi }
