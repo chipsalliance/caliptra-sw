@@ -18,7 +18,7 @@ use crate::fuse::log_fuse_data;
 use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
-use crate::run_fips_tests;
+//use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
@@ -330,7 +330,7 @@ impl FirmwareProcessor {
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<(ManuallyDrop<MailboxRecvTxn<'a>>, u32)> {
-        let mut self_test_in_progress = false;
+        //        let mut self_test_in_progress = false;
         let subsystem_mode = soc_ifc.subsystem_mode();
 
         cprintln!("[fwproc] Wait for Commands...");
@@ -388,35 +388,35 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
-                    CommandId::SELF_TEST_START => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
+                    // CommandId::SELF_TEST_START => {
+                    //     let mut request = MailboxReqHeader::default();
+                    //     Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
-                        if self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            run_fips_tests(env)?;
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = true;
-                        }
-                    }
-                    CommandId::SELF_TEST_GET_RESULTS => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
+                    //     if self_test_in_progress {
+                    //         // TODO: set non-fatal error register?
+                    //         txn.complete(false)?;
+                    //     } else {
+                    //         run_fips_tests(env)?;
+                    //         let mut resp = MailboxRespHeader::default();
+                    //         resp.populate_chksum();
+                    //         txn.send_response(resp.as_bytes())?;
+                    //         self_test_in_progress = true;
+                    //     }
+                    // }
+                    // CommandId::SELF_TEST_GET_RESULTS => {
+                    //     let mut request = MailboxReqHeader::default();
+                    //     Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
-                        if !self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = false;
-                        }
-                    }
+                    //     if !self_test_in_progress {
+                    //         // TODO: set non-fatal error register?
+                    //         txn.complete(false)?;
+                    //     } else {
+                    //         let mut resp = MailboxRespHeader::default();
+                    //         resp.populate_chksum();
+                    //         txn.send_response(resp.as_bytes())?;
+                    //         self_test_in_progress = false;
+                    //     }
+                    // }
                     CommandId::SHUTDOWN => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
