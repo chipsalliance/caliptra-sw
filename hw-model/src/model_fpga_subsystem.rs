@@ -645,7 +645,7 @@ impl ModelFpgaSubsystem {
         // check if we need to fill the recovey FIFO
         self.step_status.store(line!(), Ordering::Relaxed);
 
-        if self.bmc_step_counter % 2 == 0 && !self.recovery_fifo_blocks.is_empty() {
+        if self.bmc_step_counter % 128 == 0 && !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
@@ -740,7 +740,7 @@ impl ModelFpgaSubsystem {
         self.step_status.store(line!(), Ordering::Relaxed);
 
         // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 10_000 || self.bmc_step_counter % 1_000 != 0 {
+        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 10_000 != 0 {
             return;
         }
         self.step_status.store(line!(), Ordering::Relaxed);
@@ -1145,7 +1145,7 @@ impl ModelFpgaSubsystem {
                 .unwrap()
                 .master_send_polled(&cmd, &data, data.len() as u16)
                 .is_ok(),
-            "Failed to ack write message sent to target {}",
+            "Failed to ack write message sent to target step_status {}",
             self.step_status.load(Ordering::Relaxed)
         );
     }
