@@ -1400,7 +1400,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         let c = m.step_status.clone();
 
-        std::thread::spawn(move || {
+        std::thread::spawn(move || loop {
             let s = c.load(Ordering::Relaxed);
             if s != 0 {
                 println!("MCU stuck at line {}", s);
