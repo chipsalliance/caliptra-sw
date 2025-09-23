@@ -25,6 +25,7 @@ use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
     keyids::{
+        ocp_lock::{KEY_ID_HEK, KEY_ID_MDK},
         KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
         KEY_ID_ROM_FMC_CDI, KEY_ID_UDS,
     },
@@ -81,6 +82,9 @@ impl InitDevIdLayer {
 
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
+
+        // Run the OCP LOCK Flow while the DICE CDI is available.
+        Self::ocp_lock_cold_reset_flow(env)?;
 
         // Derive DICE ECC and MLDSA Key Pairs from CDI
         let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
@@ -204,6 +208,67 @@ impl InitDevIdLayer {
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
         report_boot_status(IDevIdCdiDerivationComplete.into());
+        Ok(())
+    }
+
+    /// Run the OCP LOCK Cold Reset flow
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn ocp_lock_cold_reset_flow(env: &mut RomEnv) -> CaliptraResult<()> {
+        if !env.soc_ifc.ocp_lock_enabled() {
+            return Ok(());
+        }
+        Self::derive_hek(env)?;
+        Self::derive_mdk(env)?;
+        Ok(())
+    }
+
+    /// Derive OCP LOCK HEK
+    ///
+    /// NOTE: The HEK _may_ be disabled once MCU has reported the HEK seed state.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
+        let hek_seed = env.soc_ifc.fuse_bank().ocp_hek_seed();
+        // HEK will be WR locked after the mailbox command handler.
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            KEY_ID_ROM_FMC_CDI,
+            b"ocp_lock_hek",
+            Some(hek_seed.as_bytes()),
+            KEY_ID_HEK,
+            HmacMode::Hmac512,
+            KeyUsage::default().set_hmac_key_en(),
+        )?;
+        Ok(())
+    }
+
+    /// Derive OCP LOCK MDK
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            KEY_ID_ROM_FMC_CDI,
+            b"ocp_lock_mdk",
+            None,
+            KEY_ID_MDK,
+            HmacMode::Hmac512,
+            KeyUsage::default().set_hmac_key_en(),
+        )?;
+        // LOCK MDK to prevent later stages from overwriting.
+        env.key_vault.set_key_write_lock(KEY_ID_MDK);
         Ok(())
     }
 
