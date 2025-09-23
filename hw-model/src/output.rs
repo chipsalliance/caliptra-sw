@@ -137,13 +137,13 @@ mod test {
         let mut p = PartialUtf8::new();
         p.push(0x20);
         assert!(p.next() == Some(' '));
-        assert!(p.next() == None);
+        assert!(p.next().is_none());
 
         for ch in 0..0x7f {
             // all ASCII characters are single byte
             p.push(ch);
             assert!(p.next() == Some(ch as char));
-            assert!(p.next() == None);
+            assert!(p.next().is_none());
         }
 
         // 2-byte UTF-8 character
@@ -201,7 +201,7 @@ impl OutputSink {
     fn push_char_valid(&self, ch: char) {
         const UART_LOG_PREFIX: &[u8] = b"UART: ";
         let mut s = self.0.new_uart_output.take();
-        s.push(ch as char);
+        s.push(ch);
         self.0.new_uart_output.set(s);
 
         let log_writer = &mut self.0.log_writer.borrow_mut();
