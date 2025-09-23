@@ -8,7 +8,10 @@
 
 mod controller;
 
+use std::sync::atomic::AtomicU32;
+
 pub use controller::{Ccc, Command, Config, Controller, XI3c};
+pub static STEP_STATUS: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XI3cError {

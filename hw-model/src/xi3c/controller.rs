@@ -8,7 +8,7 @@
 
 #![allow(dead_code)]
 
-use crate::xi3c::XI3cError;
+use crate::xi3c::{XI3cError, STEP_STATUS};
 use std::{
     cell::{Cell, RefCell},
     sync::{
@@ -604,11 +604,13 @@ impl Controller {
     }
 
     fn get_response(&self) -> Result<(), XI3cError> {
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
         let happened = self.wait_for_event(
             XI3C_SR_RESP_NOT_EMPTY_MASK,
             XI3C_SR_RESP_NOT_EMPTY_MASK,
             MAX_TIMEOUT_US,
         );
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
         if !happened {
             return Err(XI3cError::Timeout);
         }
@@ -695,7 +697,9 @@ impl Controller {
         let mut cmd = cmd.clone();
         cmd.byte_count = byte_count;
         cmd.rw = 0;
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
         self.fill_cmd_fifo(&cmd);
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
         while !msg_ptr.is_empty() {
             let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
             let mut space_index: u16 = 0;
@@ -705,7 +709,10 @@ impl Controller {
                 space_index += 1;
             }
         }
-        self.get_response()
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
+        let r = self.get_response();
+        STEP_STATUS.store(10000 + line!(), Ordering::Relaxed);
+        r
     }
 
     pub fn master_recv_polled(
