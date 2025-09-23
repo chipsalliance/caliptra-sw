@@ -255,6 +255,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             lo: external_cmd.axi_address_start_low,
             hi: external_cmd.axi_address_start_high,
         };
+        cprintln!("buffer address {:x}", u64::from(axi_addr));
         let buffer = external_cmd_buffer
             .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
