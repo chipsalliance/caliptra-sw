@@ -626,19 +626,49 @@ impl<'a> DmaRecovery<'a> {
         // Transfer the image from the recovery interface via AHB FIFO.
         let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
 
-        let read_transaction = DmaReadTransaction {
-            read_addr: addr,
-            fixed_addr: true,
-            length: image_size_bytes,
-            target: DmaReadTarget::AhbFifo,
-            aes_mode: false,
-            aes_gcm: false,
-        };
+        #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+        {
+            // FPGA implementation: wait for FIFO to be full and read dword by dword
+            for k in (0..image_size_bytes as usize).step_by(BLOCK_SIZE as usize) {
+                // Wait for the FIFO to be full
+                self.with_regs(|r| {
+                    while !r
+                        .sec_fw_recovery_if()
+                        .indirect_fifo_status_0()
+                        .read()
+                        .full()
+                    {}
+                })?;
 
-        self.dma.flush();
-        self.dma.setup_dma_read(read_transaction, 0);
-        self.dma.dma_read_fifo(buffer);
-        self.dma.wait_for_dma_complete();
+                for j in (0..BLOCK_SIZE as usize).step_by(4) {
+                    let i = k + j;
+                    let word_index = i / 4;
+
+                    if word_index >= buffer.len() || i >= image_size_bytes as usize {
+                        break;
+                    }
+
+                    buffer[word_index] = self.dma.read_dword(addr);
+                }
+            }
+        }
+
+        #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+        {
+            let read_transaction = DmaReadTransaction {
+                read_addr: addr,
+                fixed_addr: true,
+                length: image_size_bytes,
+                target: DmaReadTarget::AhbFifo,
+                aes_mode: false,
+                aes_gcm: false,
+            };
+
+            self.dma.flush();
+            self.dma.setup_dma_read(read_transaction, 0);
+            self.dma.dma_read_fifo(buffer);
+            self.dma.wait_for_dma_complete();
+        }
 
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
