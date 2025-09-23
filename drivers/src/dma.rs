@@ -553,6 +553,7 @@ impl<'a> DmaRecovery<'a> {
         fixed_addr: bool,
         offset: u32,
     ) -> CaliptraResult<()> {
+        cprintln!("Reading to mailbox");
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr,
@@ -568,12 +569,14 @@ impl<'a> DmaRecovery<'a> {
     // Downloads an image from the recovery interface to the mailbox SRAM.
     pub fn download_image_to_mbox(&self, fw_image_index: u32) -> CaliptraResult<u32> {
         let image_size_bytes = self.request_image(fw_image_index)?;
+        cprintln!("Image size OK");
         // Transfer the image from the recovery interface to the mailbox SRAM.
         let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
         self.transfer_payload_to_mbox(addr, image_size_bytes, true, 0)?;
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
+        cprintln!("Setting recovery status");
         self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
     }
@@ -587,9 +590,16 @@ impl<'a> DmaRecovery<'a> {
                 .modify(|val| val.dev_status(Self::DEVICE_STATUS_PENDING));
 
             // Read RECOVERY_CTRL register 'Activate Recovery Image' field for 'Activate Recovery Image' (0xF) command.
-            while recovery.recovery_ctrl().read().activate_rec_img()
-                != Self::ACTIVATE_RECOVERY_IMAGE_CMD
-            {}
+            let mut i = 0;
+            while u32::from(recovery.recovery_ctrl().read())
+                != 0xF00
+            {
+                let res = recovery.recovery_ctrl().read().activate_rec_img();
+                if i % 100000 == 0 {
+                    cprintln!("activate: {}", res);
+                }
+                i += 1;
+            }
         })
     }
 
@@ -650,10 +660,6 @@ impl<'a> DmaRecovery<'a> {
 
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
             // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
-            cprintln!(
-                "[dma-recovery] Set device status {}",
-                Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
-            );
             recovery.device_status_0().modify(|val| {
                 val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
                     .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
@@ -669,12 +675,18 @@ impl<'a> DmaRecovery<'a> {
         })?;
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
-        while !self.dma.payload_available() {}
+        // while !self.dma.payload_available() {} // TODO(clundin): Determine why AXI bypass
+        // doesn't signal a DMA payload is available.
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-
-            // Read the image size from INDIRECT_FIFO_CTRL1 register. Image size is in DWORDs.
-            let image_size_dwords = recovery.indirect_fifo_ctrl_1().read();
+            // Read the image size from INDIRECT_FIFO_CTRL1 register. Image size is in DWORDs
+            let mut image_size_dwords;
+            loop {
+                image_size_dwords = recovery.indirect_fifo_ctrl_1().read();
+                if image_size_dwords != 0 {
+                    break;
+                }
+            }
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
             cprintln!(
                 "[dma-recovery] Payload available, {} bytes",
@@ -754,18 +766,37 @@ impl<'a> DmaRecovery<'a> {
             // TODO: this will fail if the transaction is not a multiple of the block size
             // wait for the FIFO to be full
             if i3c {
-                self.with_regs(|r| {
-                    while !r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .full()
-                    {}
+                cprintln!("Waiting for fifo to be full");
+                let mut i = 0;
+                self.with_regs(|r| loop {
+                    let status = r.sec_fw_recovery_if().indirect_fifo_status_0().read();
+                    let recovery_ctrl = r.sec_fw_recovery_if().recovery_ctrl().read();
+                    let recovery_ctrl = u32::from(recovery_ctrl);
+                    if recovery_ctrl == 0xF00 {
+                        cprintln!("Breaking because image has been activated");
+                        break;
+                    }
+
+                    if status.full() {
+                        cprintln!("Breaking because fifo full");
+                        break;
+                    }
+                    if i % 100000 == 0 {
+                        if !status.empty() {
+                            cprintln!("status: not empty");
+                        } else {
+                            cprintln!("status: empty");
+                        }
+                        let status = u32::from(status);
+                        // cprintln!(" recovery_ctrl activate:: 0x{:x}", recovery_ctrl.activate_rec_img());
+                        let recovery_ctrl = u32::from(recovery_ctrl);
+                        // break;
+                    }
+                    i += 1;
                 })?;
             }
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
-
                 if i >= read_transaction.length {
                     break;
                 }
@@ -837,9 +868,6 @@ impl<'a> DmaRecovery<'a> {
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
             if dma_sha.lock().read().lock() {
-                cprintln!(
-                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
-                );
                 return Err(CaliptraError::RUNTIME_INTERNAL);
             }
 
@@ -859,13 +887,6 @@ impl<'a> DmaRecovery<'a> {
             let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
 
             // stream the data in to the SHA accelerator
-            cprintln!(
-                "[dma-image] SHA384 image digest calculation: source = {:08x}{:08x}, length = {}",
-                source.hi,
-                source.lo,
-                length
-            );
-
             // stream the data in to the SHA accelerator
             self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode)?;
 
