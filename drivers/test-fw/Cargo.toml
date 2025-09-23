@@ -202,6 +202,11 @@ path = "src/bin/mldsa87_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "ml_dsa87_external_mu"
+path = "src/bin/mldsa87_external_mu_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "dma_sha384"
 path = "src/bin/dma_sha384_tests.rs"
 required-features = ["riscv"]
