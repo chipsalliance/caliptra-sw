@@ -642,7 +642,7 @@ impl ModelFpgaSubsystem {
         self.bmc_step_counter += 1;
 
         // check if we need to fill the recovey FIFO
-        if self.bmc_step_counter % 128 == 0 && !self.recovery_fifo_blocks.is_empty() {
+        if self.bmc_step_counter % 2 == 0 && !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
