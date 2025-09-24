@@ -59,7 +59,7 @@ const ROM_1_1_TEST_PARAMS: RomTestParams = RomTestParams {
     tcb_fmc_info_model: None,
     tcb_info_flags: Some(0x00000001),
 };
-const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
+const ROM_1_2_TEST_PARAMS: RomTestParams = RomTestParams {
     testdata_path: "tests/caliptra_integration_tests/smoke_testdata/rom-latest",
     fmc_alias_cert_redacted_txt: include_str!(
         "smoke_testdata/rom-latest/fmc_alias_cert_redacted.txt"
@@ -69,11 +69,15 @@ const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
     ),
     ..ROM_1_1_TEST_PARAMS
 };
+const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
+    ..ROM_1_2_TEST_PARAMS
+};
 
 fn get_rom_test_params() -> RomTestParams<'static> {
     match get_ci_rom_version() {
         CiRomVersion::Rom1_0 => ROM_1_0_TEST_PARAMS,
         CiRomVersion::Rom1_1 => ROM_1_1_TEST_PARAMS,
+        CiRomVersion::Rom1_2 => ROM_1_2_TEST_PARAMS,
         _ => ROM_LATEST_TEST_PARAMS,
     }
 }
