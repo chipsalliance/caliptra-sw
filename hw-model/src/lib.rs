@@ -37,8 +37,8 @@ pub mod lcc;
 pub mod mmio;
 mod model_emulated;
 pub mod openocd;
-mod otp_digest;
-mod otp_provision;
+pub mod otp_digest;
+pub mod otp_provision;
 mod recovery;
 pub mod xi3c;
 
