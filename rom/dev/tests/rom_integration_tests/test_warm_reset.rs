@@ -412,16 +412,10 @@ fn test_warm_reset_reset_registers() {
 
     // Verify necessary registers have been reset.
     assert_eq!(u32::from(hw.soc_ifc().cptra_security_state().read()), 0);
-    assert_eq!(
-        u32::from(hw.soc_ifc().cptra_trng_valid_axi_user().read()),
-        0xffff_ffff
-    );
+    assert_eq!(hw.soc_ifc().cptra_trng_valid_axi_user().read(), 0xffff_ffff);
     assert_eq!(u32::from(hw.soc_ifc().cptra_trng_axi_user_lock().read()), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_trng_ctrl().read()), 0);
-    assert_eq!(
-        u32::from(hw.soc_ifc().cptra_dbg_manuf_service_reg().read()),
-        0
-    );
+    assert_eq!(hw.soc_ifc().cptra_dbg_manuf_service_reg().read(), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_clk_gating_en().read()), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_hw_rev_id().read()), 0x12);
     assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer1_en().read()), 0);
@@ -437,36 +431,26 @@ fn test_warm_reset_reset_registers() {
         u32::from(hw.soc_ifc().cptra_i_trng_entropy_config_1().read()),
         0
     );
-    assert_eq!(u32::from(hw.soc_ifc().cptra_hw_capabilities().read()), 0);
-    assert_eq!(u32::from(hw.soc_ifc().cptra_fw_capabilities().read()), 0);
+    assert_eq!(hw.soc_ifc().cptra_hw_capabilities().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_capabilities().read(), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_cap_lock().read()), 0);
 
     for idx in 0..2 {
+        assert_eq!(hw.soc_ifc().cptra_generic_input_wires().at(idx).read(), 0);
+        assert_eq!(hw.soc_ifc().cptra_generic_output_wires().at(idx).read(), 0);
+        assert_eq!(hw.soc_ifc().cptra_rsvd_reg().at(idx).read(), 0);
         assert_eq!(
-            u32::from(hw.soc_ifc().cptra_generic_input_wires().at(idx).read()),
-            0
-        );
-        assert_eq!(
-            u32::from(hw.soc_ifc().cptra_generic_output_wires().at(idx).read()),
-            0
-        );
-        assert_eq!(u32::from(hw.soc_ifc().cptra_rsvd_reg().at(idx).read()), 0);
-        assert_eq!(
-            u32::from(
-                hw.soc_ifc()
-                    .cptra_wdt_timer1_timeout_period()
-                    .at(idx)
-                    .read()
-            ),
+            hw.soc_ifc()
+                .cptra_wdt_timer1_timeout_period()
+                .at(idx)
+                .read(),
             0xffff_ffff
         );
         assert_eq!(
-            u32::from(
-                hw.soc_ifc()
-                    .cptra_wdt_timer2_timeout_period()
-                    .at(idx)
-                    .read()
-            ),
+            hw.soc_ifc()
+                .cptra_wdt_timer2_timeout_period()
+                .at(idx)
+                .read(),
             0xffff_ffff
         );
     }
