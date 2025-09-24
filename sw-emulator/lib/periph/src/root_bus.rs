@@ -302,7 +302,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, len = 0x10000)]
     pub abr: Abr,
 
-    #[peripheral(offset = 0x1003_8000, len = 0xa14)]
+    #[peripheral(offset = 0x1004_0000, len = 0xa14)]
     pub sha3: HashSha3,
 
     #[peripheral(offset = 0x4000_0000, len = 0x40000)]

@@ -21,7 +21,7 @@ use sha3::{
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Sha3Mode {
     SHA3 = 0x0,
-    SHAKE = 0x1,
+    SHAKE = 0x2,
 }
 
 impl From<Sha3Mode> for u32 {
@@ -36,7 +36,7 @@ impl From<u32> for Sha3Mode {
     fn from(value: u32) -> Self {
         match value {
             0x0 => Sha3Mode::SHA3,
-            0x1 => Sha3Mode::SHAKE,
+            0x2 => Sha3Mode::SHAKE,
             _ => panic!("Invalid mode"),
         }
     }
