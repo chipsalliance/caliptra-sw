@@ -1,6 +1,6 @@
 # Nix configuration for a caliptra fpga runner host
 
-{ pkgs, identifier, user, lib, rtool, ... }:
+{ pkgs, identifier, user, lib, rtool, fpga-boss, ... }:
 let 
     download-image-script = pkgs.writeShellScriptBin "download-fpga-image" ''
       export GCP_ZONE="us-central1"
@@ -145,8 +145,8 @@ in
     download-image-script
     update-bitstream-petalinux
     update-bitstream-ubuntu
-    ((pkgs.callPackage ./tools/fpga-boss.nix {}))
     rtool
+    fpga-boss
     picocom
     usbsdmux
   ];
