@@ -347,9 +347,10 @@ fn test_warm_reset_version() {
         hw.step();
     }
 
+    // hw_rev_id is reset after warm reset.
     test_version(
         &mut hw,
-        HW_REV_ID,
+        0x12,
         version::get_rom_version().into(),
         fmc_version.into(),
         app_version,
