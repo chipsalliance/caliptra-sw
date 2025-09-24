@@ -37,8 +37,8 @@ pub mod lcc;
 pub mod mmio;
 mod model_emulated;
 pub mod openocd;
-mod otp_digest;
-mod otp_provision;
+pub mod otp_digest;
+pub mod otp_provision;
 mod recovery;
 pub mod xi3c;
 
@@ -79,6 +79,8 @@ pub use model_fpga_realtime::OpenOcdError;
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::XI3CWrapper;
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::DEFAULT_LIFECYCLE_RAW_TOKEN;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't

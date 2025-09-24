@@ -202,6 +202,7 @@ impl Drivers {
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
                 Self::check_dpe_rt_journey_unchanged(self)?;
+                Self::update_fw_version(self, true, true);
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -297,6 +298,20 @@ impl Drivers {
         dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(latest_pcr);
 
         Ok(())
+    }
+
+    fn update_fw_version(drivers: &mut Drivers, update_fmc_ver: bool, update_rt_ver: bool) {
+        // This is a temp workaround since cptra_fw_rev_id registers are not sticky on a warm reset.
+        if update_fmc_ver {
+            drivers
+                .soc_ifc
+                .set_fmc_fw_rev_id(drivers.persistent_data.get().manifest1.fmc.version as u16);
+        }
+        if update_rt_ver {
+            drivers
+                .soc_ifc
+                .set_rt_fw_rev_id(drivers.persistent_data.get().manifest1.runtime.version);
+        }
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
