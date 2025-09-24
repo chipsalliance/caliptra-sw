@@ -219,3 +219,8 @@ required-features = ["riscv"]
 name = "ml_kem"
 path = "src/bin/mlkem_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "sha3"
+path = "src/bin/sha3_tests.rs"
+required-features = ["riscv"]

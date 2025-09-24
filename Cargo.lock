@@ -494,6 +494,7 @@ dependencies = [
  "p384",
  "rfc6979",
  "sha2",
+ "sha3 0.10.8",
 ]
 
 [[package]]
