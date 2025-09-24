@@ -128,7 +128,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
@@ -137,7 +137,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
