@@ -17,6 +17,7 @@
 
 module caliptra_package_axi_top (
     input wire core_clk,
+    output wire axi_reset,
 
     // Caliptra AXI Interface
     input  wire [31:0] S_AXI_CALIPTRA_AWADDR,
@@ -134,6 +135,7 @@ module caliptra_package_axi_top (
 
 caliptra_wrapper_top cptra_wrapper (
     .core_clk(core_clk),
+    .axi_reset(axi_reset),
 
     // Caliptra AXI Interface
     .S_AXI_CALIPTRA_AWADDR(S_AXI_CALIPTRA_AWADDR),

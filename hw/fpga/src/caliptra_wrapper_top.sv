@@ -23,6 +23,7 @@ import caliptra_fpga_realtime_regs_pkg::*;
 
 module caliptra_wrapper_top (
     input bit core_clk,
+    (* syn_keep = "true", mark_debug = "true" *) output reg axi_reset,
 
     // Caliptra S_AXI Interface
     input  wire [31:0] S_AXI_CALIPTRA_AWADDR,
@@ -143,7 +144,21 @@ module caliptra_wrapper_top (
 
     import soc_ifc_pkg::*;
 
-    logic                       BootFSM_BrkPoint;
+    // When sw sets trigger_axi_reset, assert the reset for 0xF cycles (requirement is 4 cycles).
+    (* syn_keep = "true", mark_debug = "true" *) reg [3:0] axi_reset_counter;
+    (* syn_keep = "true", mark_debug = "true" *) reg axi_reset_triggered;
+    always@(posedge core_clk) begin
+        axi_reset_triggered <= hwif_out.interface_regs.control.trigger_axi_reset.value;
+        if (hwif_out.interface_regs.control.trigger_axi_reset.value && ~axi_reset_triggered) begin
+            axi_reset_counter <= 4'hf;
+            axi_reset <= 0;
+        end else if (axi_reset_counter > 4'h0) begin
+            axi_reset <= 0;
+            axi_reset_counter <= axi_reset_counter - 1;
+        end else begin
+            axi_reset <= 1;
+        end
+    end
 
     logic mbox_sram_cs;
     logic mbox_sram_we;
@@ -281,10 +296,6 @@ module caliptra_wrapper_top (
     el2_mem_if el2_mem_export();
     mldsa_mem_if mldsa_memory_export();
 
-    initial begin
-        BootFSM_BrkPoint = 1'b1; //Set to 1 even before anything starts
-    end
-
     // TRNG Interface
     logic etrng_req;
     logic [3:0] itrng_data;
@@ -348,7 +359,7 @@ caliptra_top caliptra_top_dut (
     .mailbox_data_avail(hwif_in.interface_regs.status.mailbox_data_avail.next),
     .mailbox_flow_done(hwif_in.interface_regs.status.mailbox_flow_done.next),
 
-    .BootFSM_BrkPoint(BootFSM_BrkPoint),
+    .BootFSM_BrkPoint(hwif_out.interface_regs.control.bootfsm_brkpoint.value),
 
     //SoC Interrupts
     .cptra_error_fatal    (hwif_in.interface_regs.status.cptra_error_fatal.next),
