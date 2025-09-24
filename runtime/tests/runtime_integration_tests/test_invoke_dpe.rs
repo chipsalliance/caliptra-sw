@@ -479,10 +479,9 @@ fn test_fill_max_contexts() {
 
     // 32 contexts = 1 root node +
     //               1 rt_journey auto init) +
-    //               1 (valid pauser at init) +
     //               14 PL0 contexts in loop +
     //               1 PL1 context as transition +
-    //               14 PL1 contexts in loop
+    //               15 PL1 contexts in loop
 
     // Fill PL0 contexts
     for _ in 0..14 {
@@ -507,7 +506,7 @@ fn test_fill_max_contexts() {
 
     // Fill PL1 contexts
     model.set_apb_pauser(2);
-    for _ in 0..14 {
+    for _ in 0..15 {
         let _ = execute_dpe_cmd(
             &mut model,
             &mut Command::DeriveContext(&BASE_CMD),
