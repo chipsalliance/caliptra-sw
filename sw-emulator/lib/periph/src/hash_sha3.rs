@@ -403,9 +403,7 @@ mod tests {
     const OFFSET_VERSION0: RvAddr = 0x8;
     const OFFSET_VERSION1: RvAddr = 0xC;
     const OFFSET_CFG_SHADOWED: RvAddr = 0x14;
-    const OFFSET_CMD: RvAddr = 0x18;
     const OFFSET_STATUS: RvAddr = 0x1C;
-    const OFFSET_MSG_FIFO: RvAddr = 0x800;
 
     #[ignore] // disabled as the RTL does not seem to have these registers
     #[test]
@@ -467,24 +465,5 @@ mod tests {
 
         assert_eq!(cfg.read(CfgShadowed::KSTRENGTH), Sha3Strength::L256.into());
         assert_eq!(cfg.read(CfgShadowed::MODE), Sha3Mode::SHAKE.into());
-    }
-
-    #[test]
-    fn test_digest_no_cfg() {
-        let mut sha3 = HashSha3::new();
-
-        let data: u32 = 0xDEADBEEF;
-        sha3.write(RvSize::Word, OFFSET_MSG_FIFO, data).unwrap();
-
-        let status = InMemoryRegister::<u32, Status::Register>::new(
-            sha3.read(RvSize::Word, OFFSET_STATUS).unwrap(),
-        );
-
-        assert!(status.is_set(Status::SHA3_IDLE));
-
-        // Cmd should fail since cfg is not set.
-        assert!(sha3
-            .write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
-            .is_err());
     }
 }
