@@ -72,7 +72,7 @@ impl SdMux for SDWire {
             .map_err(|_| anyhow::anyhow!("Failed to parse port path"))?;
 
         let mut result = Self {
-            ftdi: FtdiCtx::open(port_path.clone(), ftdi_interface::INTERFACE_A)?,
+            ftdi: FtdiCtx::open(port_path.child(2), ftdi_interface::INTERFACE_A)?,
             port_path,
         };
 
@@ -90,11 +90,11 @@ impl SdMux for SDWire {
     }
 
     fn get_sd_dev_path(&mut self) -> anyhow::Result<PathBuf> {
-        let sdwire_hub_path = self.port_path.child(0);
-        find_usb_block_device(&sdwire_hub_path.child(1)).with_context(|| {
+        let sdwire_hub_path = self.port_path.child(1);
+        find_usb_block_device(&sdwire_hub_path).with_context(|| {
             format!(
                 "Could not find block device associated with {}",
-                sdwire_hub_path.child(1)
+                sdwire_hub_path
             )
         })
     }
