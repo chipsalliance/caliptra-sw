@@ -142,7 +142,7 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
 
 // This is a random number, but should be kept in sync with what is the default value in the FPGA ROM.
-const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
+pub const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
     LifecycleToken(0x05edb8c608fcc830de181732cfd65e57u128.to_le_bytes());
 
 const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
