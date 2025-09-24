@@ -1031,12 +1031,12 @@ impl CaliptraError {
         ),
         (
             DRIVER_SHA3_INVALID_STATE_ERR,
-            0x00010000,
+            0x0001f000,
             "SHA3 driver Error: Invalid op state"
         ),
         (
             DRIVER_SHA3_DIGEST_EXCEEDS_RATE,
-            0x00010000,
+            0x0001f001,
             "SHA3 driver Error: Requested digest greater than mode/strength rate"
         ),
         (RUNTIME_INTERNAL, 0x000E0001, "Runtime Error: Internal"),
