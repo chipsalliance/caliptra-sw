@@ -918,7 +918,7 @@ impl SocRegistersImpl {
         let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
         // To make things easy the fuse bank is part of the fuse bank controller emulation
         let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
-        let mci_base = crate::dma::axi_root_bus::AxiRootBus::SS_MCI_OFFSET;
+        let mci_base = crate::dma::axi_root_bus::AxiRootBus::ss_mci_offset();
         let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
             crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
@@ -935,7 +935,7 @@ impl SocRegistersImpl {
             cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
-            cptra_mbox_valid_axi_user: Default::default(),
+            cptra_mbox_valid_axi_user: [0xffff_ffff; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
             cptra_mbox_axi_user_lock: Default::default(),
             cptra_trng_valid_axi_user: ReadWriteRegister::new(0),
             cptra_trng_axi_user_lock: ReadWriteRegister::new(0),
@@ -1469,6 +1469,16 @@ impl SocRegistersImpl {
         self.cptra_flow_status
             .reg
             .write(FlowStatus::READY_FOR_FUSES::SET);
+
+        // Unlock the mailbox axi user lock.
+        for reg in self.cptra_mbox_axi_user_lock.iter_mut() {
+            *reg = 0;
+        }
+
+        // Reset the axi user.
+        for reg in self.cptra_mbox_valid_axi_user.iter_mut() {
+            *reg = 0xffffffff;
+        }
 
         self.reset_common();
     }

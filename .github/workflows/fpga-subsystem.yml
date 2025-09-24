@@ -71,7 +71,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: ce58b594e8ddb7ee1c374aee742d6dc2b609c3d3
+      CALIPTRA_MCU_COMMIT: 6418831e18966a05cfa0a8b7e66cbad3e4e76e5f
 
     steps:
       - name: Checkout repo
@@ -291,7 +291,7 @@ jobs:
               -E 'package(caliptra-coverage)'
               -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)'
               -E 'package(caliptra-error)'
-              -E 'package(caliptra-hw-model) - test(tests::test_axi) - test(tests::test_mbox) - test(tests::test_mbox_negative) - binary_id(caliptra-hw-model::model_tests) - test(tests::test_negative_soc_mgr_mbox_users)'
+              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom)'
               -E 'package(caliptra-hw-model-types)'
               -E 'package(caliptra-image-crypto)'
               -E 'package(caliptra-image-elf)'

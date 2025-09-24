@@ -19,6 +19,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult, LmsResult};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
+use core::hint::black_box;
 use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct LmsVerifyCmd;
@@ -44,23 +45,55 @@ impl LmsVerifyCmd {
         let cmd = LmsVerifyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
+        // Somehow doing a memcopy of 24 bytes results in unaligned access on the mbox SRAM MMIO
+        // Avoid this doing manual u32 reads
+        let digest = cmd.pub_key_digest.chunks_exact(4).enumerate().fold(
+            [U32::<LittleEndian>::new(0); LMS_N],
+            |mut acc, (i, chunk)| {
+                let dword = u32::from_le_bytes(chunk.try_into().unwrap());
+                acc[i] = U32::<LittleEndian>::from(dword);
+                acc
+            },
+        );
+
         let lms_pub_key: LmsPublicKey<LMS_N> = LmsPublicKey {
             id: cmd.pub_key_id,
-            digest: <[U32<LittleEndian>; LMS_N]>::read_from_bytes(&cmd.pub_key_digest[..])
-                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
-            tree_type: LmsAlgorithmType::new(cmd.pub_key_tree_type),
+            digest,
+            tree_type: black_box(LmsAlgorithmType::new(cmd.pub_key_tree_type)),
             otstype: LmotsAlgorithmType::new(cmd.pub_key_ots_type),
         };
 
+        // Somehow doing a memcopy of 360 bytes results in unaligned access on the mbox SRAM MMIO
+        // Avoid this doing manual u32 reads
+        let tree_path = cmd.signature_tree_path.chunks_exact(4).enumerate().fold(
+            [[U32::<LittleEndian>::new(0); LMS_N]; LMS_H],
+            |mut acc, (i, chunk)| {
+                let h = i / LMS_N;
+                let n = i % LMS_N;
+                let dword = u32::from_le_bytes(chunk.try_into().unwrap());
+                acc[h][n] = U32::<LittleEndian>::new(dword);
+                acc
+            },
+        );
+
+        // Somehow doing a memcopy of 1252 bytes results in unaligned access on the mbox SRAM MMIO
+        // Avoid this doing manual u32 reads
+        let ots_buf = cmd.signature_ots.chunks_exact(4).enumerate().fold(
+            [0u8; size_of::<LmotsSignature<LMS_N, LMS_P>>()],
+            |mut acc, (i, chunk)| {
+                let offset = i * 4;
+                acc[offset..offset + 4].copy_from_slice(chunk);
+                acc
+            },
+        );
+        let ots = <LmotsSignature<LMS_N, LMS_P>>::read_from_bytes(&ots_buf[..])
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
         let lms_sig: LmsSignature<LMS_N, LMS_P, LMS_H> = LmsSignature {
             q: <U32<BigEndian>>::from(cmd.signature_q),
-            ots: <LmotsSignature<LMS_N, LMS_P>>::read_from_bytes(&cmd.signature_ots[..])
-                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            ots,
             tree_type: LmsAlgorithmType::new(cmd.signature_tree_type),
-            tree_path: <[[U32<LittleEndian>; LMS_N]; LMS_H]>::read_from_bytes(
-                &cmd.signature_tree_path[..],
-            )
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            tree_path,
         };
 
         // Check that fixed params are correct

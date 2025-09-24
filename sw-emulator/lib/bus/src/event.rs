@@ -21,6 +21,8 @@ pub enum Device {
     TestSram,
     ExternalTestSram,
     RecoveryIntf,
+    McuMbox0Sram,
+    McuMbox1Sram,
     External(&'static str),
 }
 
