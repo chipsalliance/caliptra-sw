@@ -18,7 +18,7 @@ FPGA provides a fast environment for software development and testing that uses 
 The Zynq's Programmable Logic is programmed with the Caliptra RTL and FPGA specific SoC wrapper logic including a connection to the Processing System AXI bus.
 The Processing System ARM cores then act as the SoC Security Processor with memory mapped access to Caliptra's public register space.
 
-![](./images/fpga_module_diagram.svg)
+![](images/fpga_module_diagram.svg)
 
 ### Requirements: ###
  - Vivado
@@ -32,7 +32,7 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
    - https://ubuntu.com/download/amd-xilinx
 1. Configure SW6 to boot from SD1.
    - Mode SW6[4:1]: OFF, OFF, OFF, ON
-     ![](./images/zynq_boot_switch.jpg)
+     ![](images/zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
 
 #### Serial port configuration: ####
@@ -70,7 +70,7 @@ This script provides a number of configuration options for features that can be 
     - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
 
 ### Loading and execution Steps: ###
-[setup_fpga.sh](setup_fpga.sh) performs platform setup that is needed after each boot.
+[setup_fpga.sh](../hw/fpga/setup_fpga.sh) performs platform setup that is needed after each boot.
  - Disables CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
  - Reduces fan speed by setting the GPIO pin connected to the fan controller FULLSPD pin to output.
    - https://support.xilinx.com/s/question/0D52E00006iHuopSAC/zcu104-fan-running-at-max-speed?language=en_US
