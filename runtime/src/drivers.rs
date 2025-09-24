@@ -36,15 +36,15 @@ use caliptra_drivers::{
     cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
     Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, SocIfc, Trng,
+    Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::{
     abr::AbrReg, csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
-    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr,
+    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
     soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
@@ -82,6 +82,9 @@ pub struct Drivers {
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
+
+    // SHA3/SHAKE Engine
+    pub sha3: Sha3,
 
     /// Hmac-512/384 Engine
     pub hmac: Hmac,
@@ -150,6 +153,7 @@ impl Drivers {
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+            sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             mldsa87: Mldsa87::new(AbrReg::new()),

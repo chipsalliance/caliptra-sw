@@ -286,6 +286,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const SHA3: FwId = FwId {
+        bin_name: "sha3",
+        ..BASE_FWID
+    };
+
     pub const SHA512: FwId = FwId {
         bin_name: "sha512",
         ..BASE_FWID
@@ -515,6 +520,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
+    &driver_tests::SHA3,
     &driver_tests::SHA512,
     &driver_tests::SHA2_512_384ACC,
     &driver_tests::STATUS_REPORTER,

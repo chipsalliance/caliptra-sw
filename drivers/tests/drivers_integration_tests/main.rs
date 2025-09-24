@@ -782,6 +782,11 @@ fn test_sha2_512_384acc() {
 }
 
 #[test]
+fn test_sha3() {
+    run_driver_test(&firmware::driver_tests::SHA3);
+}
+
+#[test]
 fn test_status_reporter() {
     run_driver_test(&firmware::driver_tests::STATUS_REPORTER);
 }
