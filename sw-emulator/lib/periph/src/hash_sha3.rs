@@ -356,13 +356,6 @@ impl HashSha3 {
             Err(BusError::StoreAccessFault)?
         }
 
-        if !self.status.reg.is_set(Status::SHA3_IDLE) {
-            Err(BusError::StoreAccessFault)?
-        }
-        if !self.sha3.has_hasher() {
-            Err(BusError::StoreAccessFault)?
-        }
-
         self.cmd.reg.set(val);
 
         let cmd: CmdType = self.cmd.reg.read(Cmd::CMD).into();
