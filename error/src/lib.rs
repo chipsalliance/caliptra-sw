@@ -338,6 +338,41 @@ impl CaliptraError {
             "Driver Error: MLDSA87 signature is not supported"
         ),
         (
+            DRIVER_MLKEM_READ_SEED_KV_READ,
+            0x00059000,
+            "Driver Error: ML-KEM read seed KV read"
+        ),
+        (
+            DRIVER_MLKEM_READ_SEED_KV_WRITE,
+            0x00059001,
+            "Driver Error: ML-KEM read seed KV write"
+        ),
+        (
+            DRIVER_MLKEM_READ_SEED_KV_UNKNOWN,
+            0x00059002,
+            "Driver Error: ML-KEM read seed KV unknown"
+        ),
+        (
+            DRIVER_MLKEM_HW_ERROR,
+            0x00059003,
+            "Driver Error: ML-KEM hardware error"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_READ,
+            0x00059004,
+            "Driver Error: ML-KEM read message KV read"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_WRITE,
+            0x00059005,
+            "Driver Error: ML-KEM read message KV write"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
+            0x00059006,
+            "Driver Error: ML-KEM read message KV unknown"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"
@@ -406,6 +441,11 @@ impl CaliptraError {
             DRIVER_SHA1_INDEX_OUT_OF_BOUNDS,
             0x000a0004,
             "SHA1 Error: Index out of bounds"
+        ),
+        (
+            DRIVER_OCP_LOCK_COLD_RESET_INVALID_HEK_SEED,
+            0x000b0000,
+            "OCP LOCK: Invalid HEK Seed state"
         ),
         (
             IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH,
@@ -1736,6 +1776,11 @@ impl CaliptraError {
             "Firmware Processor Error: SVN too large"
         ),
         (
+            FW_PROC_OCP_LOCK_UNSUPPORTED,
+            0x0102000D,
+            "Firmware Processor Error: OCP LOCK is not supported"
+        ),
+        (
             FMC_ALIAS_CERT_VERIFY_FAILURE,
             0x01030001,
             "FMC Alias Layer Error: Certificate verification failure"
@@ -2191,6 +2236,12 @@ impl CaliptraError {
             RUNTIME_DRIVER_AES_INVALID_TAG,
             0xa004_0011,
             "Driver Error: AES tag is invalid"
+        ),
+        // Skip to leave more error codes for the AES driver.
+        (
+            RUNTIME_DRIVER_PRECONDITIONED_KEY_INVALID_INPUT,
+            0xa004_0020,
+            "Driver Error: preconditioned key usage was invalid"
         ),
         (
             RUNTIME_DRIVER_AES_WRITE_KV,

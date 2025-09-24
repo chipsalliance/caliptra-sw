@@ -42,4 +42,12 @@ fn test_capabilities() {
     // Verify Capabilities
     let caps = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
     assert!(caps.contains(Capabilities::ROM_BASE));
+
+    // `Capabilities::ROM_OCP_LOCK` should only be set if using a subsystem fpga with a ROM
+    // compiled with the `ocp-lock` feature.
+    if hw.subsystem_mode() && hw.supports_ocp_lock() {
+        assert!(caps.contains(Capabilities::ROM_OCP_LOCK));
+    } else {
+        assert!(!caps.contains(Capabilities::ROM_OCP_LOCK));
+    }
 }

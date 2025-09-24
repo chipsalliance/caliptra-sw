@@ -12,7 +12,8 @@ File contains DMA peripheral implementation.
 
 --*/
 
-use crate::{mci::Mci, MailboxRam, Sha512Accelerator, SocRegistersInternal};
+use crate::helpers::words_from_bytes_be;
+use crate::{mci::Mci, Aes, MailboxRam, Sha512Accelerator, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
@@ -49,6 +50,8 @@ register_bitfields! [
     Control [
         GO OFFSET(0) NUMBITS(1) [],
         FLUSH OFFSET(1) NUMBITS(1) [],
+        AES_MODE_EN OFFSET(2) NUMBITS(1) [],
+        AES_GCM_MODE OFFSET(3) NUMBITS(1) [],
         READ_ROUTE OFFSET(16) NUMBITS(2) [
             DISABLE = 0b00,
             MAILBOX = 0b01,
@@ -164,6 +167,9 @@ pub struct Dma {
     /// Mailbox
     mailbox: MailboxRam,
 
+    /// AES peripheral
+    aes: Aes,
+
     // Ongoing DMA operations
     pending_axi_to_axi: Option<WriteXfer>,
     pending_axi_to_fifo: bool,
@@ -202,12 +208,14 @@ impl Dma {
     // Minimum number of cycles for a DMA transfer.
     const DMA_CYCLES_MIN: u64 = 16;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         clock: &Clock,
         mailbox: MailboxRam,
         soc_reg: SocRegistersInternal,
         sha512_acc: Sha512Accelerator,
         mci: Mci,
+        aes: Aes,
         test_sram: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
     ) -> Self {
@@ -237,6 +245,7 @@ impl Dma {
                 use_mcu_recovery_interface,
             ),
             mailbox,
+            aes,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
             pending_axi_to_mailbox: false,
@@ -430,6 +439,12 @@ impl Dma {
     }
 
     fn write_axi_block(&mut self, block: &[u32], write_xfer: WriteXfer) {
+        let block = if self.control.reg.is_set(Control::AES_MODE_EN) {
+            self.encrypt_block(block)
+        } else {
+            block.to_vec()
+        };
+
         for i in (0..write_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let dest = write_xfer.dest + if write_xfer.fixed { 0 } else { i as AxiAddr };
             let data = block[i / 4];
@@ -437,6 +452,26 @@ impl Dma {
                 .write(Self::AXI_DATA_WIDTH.into(), dest, data)
                 .unwrap();
         }
+    }
+
+    fn encrypt_block(&mut self, block: &[u32]) -> Vec<u32> {
+        // Process each 16-byte block
+        block.chunks(4).fold(Vec::new(), |mut acc, chunk| {
+            let data = chunk
+                .iter()
+                .enumerate()
+                .fold([0u8; 16], |mut acc, (i, &word)| {
+                    let bytes = word.to_le_bytes();
+                    acc[i * 4..][..4].copy_from_slice(&bytes);
+                    acc
+                });
+
+            let encrypted_data = self.aes.process_block(&data);
+            let encrypted_data_words = words_from_bytes_be(&encrypted_data);
+
+            acc.extend_from_slice(&encrypted_data_words[..chunk.len()]);
+            acc
+        })
     }
 
     // Returns true if this completed immediately.
@@ -562,6 +597,7 @@ impl Dma {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::rc::Rc;
 
     use tock_registers::registers::InMemoryRegister;
@@ -658,12 +694,15 @@ mod tests {
         let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
         let mci = Mci::new(vec![]);
         let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, mci.clone(), args);
+        let aes_key = Rc::new(RefCell::new(None));
+        let aes = crate::Aes::new(aes_key);
         let mut dma = Dma::new(
             &clock,
             mbox_ram.clone(),
             soc_reg,
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
             mci.clone(),
+            aes,
             None,
             false,
         );

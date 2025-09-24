@@ -348,6 +348,17 @@ fn test_ml_dsa87() {
     run_driver_test(&firmware::driver_tests::ML_DSA87);
 }
 
+// These are split because they don't all fit within the test ROM image
+#[test]
+fn test_ml_dsa87_external_mu() {
+    run_driver_test(&firmware::driver_tests::ML_DSA87_EXTERNAL_MU);
+}
+
+#[test]
+fn test_ml_kem() {
+    run_driver_test(&firmware::driver_tests::ML_KEM);
+}
+
 #[test]
 fn test_error_reporter() {
     run_driver_test(&firmware::driver_tests::ERROR_REPORTER);
@@ -738,6 +749,11 @@ fn test_uc_to_soc_error_state() {
 #[test]
 fn test_pcrbank() {
     run_driver_test(&firmware::driver_tests::PCRBANK);
+}
+
+#[test]
+fn test_preconditioned_keys() {
+    run_driver_test(&firmware::driver_tests::PRECONDITIONED_KEYS);
 }
 
 #[test]
@@ -1187,8 +1203,6 @@ fn test_ocp_lock() {
     run_driver_test(&firmware::driver_tests::OCP_LOCK);
 }
 
-// This test only works on the subsystem FPGA for now
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_dma_aes() {
     run_driver_test(&firmware::driver_tests::DMA_AES);

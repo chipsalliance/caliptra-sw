@@ -33,8 +33,10 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+pub mod openocd;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
@@ -47,6 +49,8 @@ mod model_verilated;
 #[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
 
+#[cfg(feature = "fpga_subsystem")]
+mod mcu_boot_status;
 #[cfg(feature = "fpga_subsystem")]
 mod model_fpga_subsystem;
 
@@ -73,6 +77,8 @@ pub use model_fpga_realtime::OpenOcdError;
 
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::XI3CWrapper;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -901,6 +907,14 @@ pub trait HwModel: SocManager {
                 );
             }
         }
+    }
+
+    fn subsystem_mode(&mut self) -> bool {
+        self.soc_ifc().cptra_hw_config().read().subsystem_mode_en()
+    }
+
+    fn supports_ocp_lock(&mut self) -> bool {
+        self.soc_ifc().cptra_hw_config().read().ocp_lock_mode_en()
     }
 
     fn cover_fw_image(&mut self, _image: &[u8]) {}

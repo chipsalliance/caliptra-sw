@@ -108,7 +108,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 |-------|--------|------------|
 | Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D4E32 (‘CMN2’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
-| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & LMS Keys <br> 0x2 – ECC & MLDSA Keys <br> **Byte1-Byte3:** Reserved |
+| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & MLDSA Keys <br> 0x2 – ECC & LMS Keys <br> **Byte1-Byte3:** Reserved |
 | Manufacturer ECC Key Descriptor | 196 | Public Key Descriptor for ECC keys |
 | Manufacturer LMS or MLDSA Key Descriptor | 1540 | Public Key Descriptor for LMS (1540 bytes) or MLDSA (196 bytes + 1344 unused bytes) keys |
 | Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
@@ -124,15 +124,23 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
-#### Public Key Descriptor
+#### ECC Manufacturer Public Key Descriptor
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
 | Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
-| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
-| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
+| Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
-| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4, LMS: n = 32, MLDSA: n = 4 |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
+
+#### PQC Manufacturer Public Key Descriptor
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
+| Key Hash Count | 1 | Number of valid public key hashes  |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
 
 #### Header
 
@@ -636,7 +644,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#self_test_start).
 4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#self_test_get_results).
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#shutdown).
-6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#capabilities).
+6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Capabilities are documented in the [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#capabilities).
 7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#get_idevid_csr).
 8. **CM_DERIVE_STABLE_KEY**: This command is used to derive a stable key for Device Ownership Transfer or other flows. [CM_DERIVE_STABLE_KEY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_derive_stable_key)
 9. **CM_HMAC**: This command uses derived stable keys for Device Ownership Transfer or other flows. [CM_HMAC](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_hmac)
