@@ -8,3 +8,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+serde = { workspace = true, optional = true }
+serde_derive = { workspace = true, optional = true }
+
+[features]
+std = ["dep:serde", "dep:serde_derive"]
