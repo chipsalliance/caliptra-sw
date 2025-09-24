@@ -32,7 +32,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
 mod bmc;
-mod fpga_regs;
+pub mod fpga_regs;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
