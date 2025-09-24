@@ -4,15 +4,14 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     rtool.url = "github:chipsalliance/caliptra-sw?dir=ci-tools/github-runner";
-    # TODO: FPGA boss crashes the usb stack if built from a flake currently.
-    # fpga-boss.url = "github:clundin25/caliptra-sw?dir=ci-tools/fpga-boss&ref=fpga-boss-token";
+    fpga-boss.url = "github:chipsalliance/caliptra-sw?dir=ci-tools/fpga-boss";
   };
 
-  outputs = { self, nixpkgs, rtool, ... }@inputs:
+  outputs = { self, nixpkgs, rtool, fpga-boss, ... }@inputs:
     let
       pkgs = nixpkgs.legacyPackages.aarch64-linux;
       rtool-bin = rtool.packages.aarch64-linux.default;
-      fpga-boss-bin = pkgs.callPackage tools/fpga-boss.nix {};
+      fpga-boss-bin = fpga-boss.packages.aarch64-linux.default;
       fpga-boss-script = pkgs.writeShellScriptBin "fpga.sh" ''
         #!${pkgs.bash}/bin/bash
         export GCP_ZONE="us-central1"
@@ -42,6 +41,7 @@
           user = "hostrunner";
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
+          fpga-boss = fpga-boss-bin;
         };
         modules = [
           ./configuration.nix
@@ -55,6 +55,7 @@
           user = "hostrunner";
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
+          fpga-boss = fpga-boss-bin;
         };
         modules = [
           ./configuration.nix
@@ -68,6 +69,7 @@
           user = "hostrunner";
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
+          fpga-boss = fpga-boss-bin;
         };
         modules = [
           ./configuration.nix
@@ -81,6 +83,7 @@
           user = "hostrunner";
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
+          fpga-boss = fpga-boss-bin;
         };
         modules = [
           ./configuration.nix
