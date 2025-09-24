@@ -382,7 +382,7 @@ impl CaliptraRootBus {
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
         let ml_dsa87 = Abr::new(clock, key_vault.clone(), sha512.clone());
-        let sha3 = HashSha3::new(clock, key_vault.clone());
+        let sha3 = HashSha3::new();
 
         Self {
             rom,

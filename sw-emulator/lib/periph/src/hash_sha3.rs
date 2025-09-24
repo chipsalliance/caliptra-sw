@@ -12,8 +12,7 @@ Abstract:
 
 --*/
 
-use crate::KeyVault;
-use caliptra_emu_bus::{BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
+use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister};
 use caliptra_emu_crypto::Sha3;
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -137,8 +136,6 @@ const SHA3_STATE_MEMORY_SIZE: usize = 1600 / 32;
 
 /// SHA3 Peripheral
 #[derive(Bus)]
-#[warm_reset_fn(warm_reset)]
-#[update_reset_fn(update_reset)]
 pub struct HashSha3 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -192,14 +189,6 @@ pub struct HashSha3 {
 
     /// SHA3 engine
     sha3: Sha3,
-
-    /// Key Vault
-    #[allow(dead_code)]
-    key_vault: KeyVault,
-
-    /// Timer
-    #[allow(dead_code)]
-    timer: Timer,
 }
 
 struct MsgFifo {
@@ -241,6 +230,12 @@ impl caliptra_emu_bus::Bus for MsgFifo {
     }
 }
 
+impl Default for HashSha3 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HashSha3 {
     /// NAME0 Register Value
     const NAME0_VAL: RvData = 0x63616d68; // hmac
@@ -264,7 +259,7 @@ impl HashSha3 {
     /// # Returns
     ///
     /// * `Self` - Instance of HMAC-SHA-384 Engine
-    pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
+    pub fn new() -> Self {
         Self {
             sha3: Sha3::new(),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
@@ -280,8 +275,6 @@ impl HashSha3 {
             ),
             err_code: ReadOnlyRegister::new(0),
             state: [0; SHA3_STATE_MEMORY_SIZE],
-            key_vault,
-            timer: Timer::new(clock),
             msg_fifo: MsgFifo {
                 data: Vec::new(),
                 swap_endianness: false,
@@ -424,7 +417,7 @@ mod tests {
     #[ignore] // disabled as the RTL does not seem to have these registers
     #[test]
     fn test_name() {
-        let mut sha3 = HashSha3::new(&Clock::new(), KeyVault::new());
+        let mut sha3 = HashSha3::new();
 
         let name0 = sha3.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -438,7 +431,7 @@ mod tests {
     #[ignore] // disabled as the RTL does not seem to have these registers
     #[test]
     fn test_version() {
-        let mut sha3 = HashSha3::new(&Clock::new(), KeyVault::new());
+        let mut sha3 = HashSha3::new();
 
         let version0 = sha3.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -451,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_status() {
-        let mut sha3 = HashSha3::new(&Clock::new(), KeyVault::new());
+        let mut sha3 = HashSha3::new();
         let status = InMemoryRegister::<u32, Status::Register>::new(
             sha3.read(RvSize::Word, OFFSET_STATUS).unwrap(),
         );
@@ -464,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_cfg_shadowed() {
-        let mut sha3 = HashSha3::new(&Clock::new(), KeyVault::new());
+        let mut sha3 = HashSha3::new();
 
         sha3.write(
             RvSize::Word,
@@ -485,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_digest_no_cfg() {
-        let mut sha3 = HashSha3::new(&Clock::new(), KeyVault::new());
+        let mut sha3 = HashSha3::new();
 
         let data: u32 = 0xDEADBEEF;
         sha3.write(RvSize::Word, OFFSET_MSG_FIFO, data).unwrap();
