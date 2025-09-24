@@ -71,6 +71,7 @@ fn test_fw_version() {
 #[test]
 fn test_update() {
     let image_options = ImageOptions {
+        fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
         ..Default::default()
     };
