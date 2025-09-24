@@ -47,11 +47,12 @@ pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
 pub const ROM_SIZE: u32 = 96 * 1024;
-pub const MBOX_SIZE: u32 = 256 * 1024;
+pub const MAX_MBOX_SIZE: u32 = 256 * 1024; // Actual size depens on hw revision and subsystem being present
+pub const MBOX_SIZE_PASSIVE_MODE: u32 = 16 * 1024;
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
-pub const STACK_SIZE: u32 = 104 * 1024;
+pub const STACK_SIZE: u32 = 138 * 1024;
 pub const ROM_STACK_SIZE: u32 = 62 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;

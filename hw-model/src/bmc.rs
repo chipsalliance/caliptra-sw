@@ -34,10 +34,14 @@ impl Bmc {
     }
 
     pub fn push_recovery_image(&mut self, image: Vec<u8>) {
+        // The DMA driver needs images to be 256-byte aligned
+        let mut padded_image = image.clone();
+        let aligned_size = (padded_image.len() + 255) & !255;
+        padded_image.resize(aligned_size, 0);
         self.recovery_state_machine
             .context_mut()
             .recovery_images
-            .push(image);
+            .push(padded_image);
     }
 
     /// Called once every clock cycle by the emulator so the BMC can do work
