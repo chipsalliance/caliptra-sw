@@ -826,10 +826,7 @@ impl<TBus: Bus> Cpu<TBus> {
 
         let action = match self.exec_instr(instr_tracer) {
             Ok(result) => result,
-            Err(exception) => {
-                println!("Exception {:?}", exception);
-                self.handle_exception(exception)
-            }
+            Err(exception) => self.handle_exception(exception),
         };
 
         // handle incoming events at this point, if there are any

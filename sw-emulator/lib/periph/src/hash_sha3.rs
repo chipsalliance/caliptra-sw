@@ -137,7 +137,6 @@ const SHA3_STATE_MEMORY_SIZE: usize = 1600 / 32;
 
 /// SHA3 Peripheral
 #[derive(Bus)]
-#[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
 pub struct HashSha3 {
