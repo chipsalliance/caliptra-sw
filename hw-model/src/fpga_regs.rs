@@ -69,7 +69,10 @@ register_structs! {
         (0x10 => pub dbg_fifo_data_pop: ReadOnly<u32, FifoData::Register>),
         (0x14 => pub dbg_fifo_data_push: WriteOnly<u32, FifoData::Register>),
         (0x18 => pub dbg_fifo_status: ReadOnly<u32, FifoStatus::Register>),
-        (0x1c => @END),
+        (0x1c => pub msg_fifo_data_pop: ReadOnly<u32, FifoData::Register>),
+        (0x20 => pub msg_fifo_data_push: WriteOnly<u32, FifoData::Register>),
+        (0x24 => pub msg_fifo_status: ReadOnly<u32, FifoStatus::Register>),
+        (0x28 => @END),
     },
     pub WrapperRegs {
         (0x0 => pub fpga_magic: ReadOnly<u32>),
@@ -99,6 +102,8 @@ register_structs! {
         (0x128 => pub num_of_prod_debug_unlock_auth_pk_hashes: ReadWrite<u32>),
         (0x12c => pub mci_generic_input_wires: [ReadWrite<u32>; 2]),
         (0x134 => pub mci_generic_output_wires: [ReadOnly<u32>; 2]),
-        (0x13c => @END),
+        (0x13c => _reserved1),
+        (0x200 => pub ocp_lock_key_release: [ReadOnly<u32>; 16]),
+        (0x240 => @END),
     }
 }
