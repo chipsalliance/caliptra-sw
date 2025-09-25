@@ -8,7 +8,7 @@ on:
       - "ci-tools/fpga-image/**"
 
   push:
-    branches: ["main-2.x", "clundin/build-mcu-dev-image"]
+    branches: ["main-2.x", "clundin/build-mcu-dev-image", "clundin/segmented"]
     paths:
       - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"
@@ -25,24 +25,24 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core-2.0]
         include:
-          - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
+          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
             image_variant: core-2.0
           - bitstream_name: xsa_core2p0_865bf243.xsa
             image_variant: core-2.0
-          - bitstream_hash: fa87d1037263966733d337c32e10f42ced0d3d4213c4e9dd37f3d7823cee8aea
-            image_variant: core-2.1
-          - bitstream_name: xsa_core2p1_03e84982.xsa
-            image_variant: core-2.1
-          - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
-            image_variant: subsystem-2.0
-          - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
-            image_variant: subsystem-2.0
-          - bitstream_hash: d7580a2fc9ed6eb2fc436b685642e75708263b35a4f04f488b6428cdffbf5933
-            image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_01763cae.xsa
-            image_variant: subsystem-2.1
+          # - bitstream_hash: fa87d1037263966733d337c32e10f42ced0d3d4213c4e9dd37f3d7823cee8aea
+          #   image_variant: core-2.1
+          # - bitstream_name: xsa_core2p1_03e84982.xsa
+          #   image_variant: core-2.1
+          # - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
+          #   image_variant: subsystem-2.0
+          # - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
+          #   image_variant: subsystem-2.0
+          # - bitstream_hash: d7580a2fc9ed6eb2fc436b685642e75708263b35a4f04f488b6428cdffbf5933
+          #   image_variant: subsystem-2.1
+          # - bitstream_name: xsa_ss2p1_01763cae.xsa
+          #   image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
@@ -68,7 +68,8 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250822/${BITSTREAM_NAME} /tmp/system.xsa
+          # sudo scp /vck190-tools/caliptra-bitstreams/20250822/${BITSTREAM_NAME} /tmp/system.xsa
+          curl -O "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/xsa_core2p0_5d069408.xsa"
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -113,7 +114,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core-2.0]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
