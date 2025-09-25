@@ -33,12 +33,13 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+mod jtag;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
 pub mod openocd;
-mod otp_digest;
-mod otp_provision;
+pub mod otp_digest;
+pub mod otp_provision;
 mod recovery;
 pub mod xi3c;
 
@@ -79,6 +80,8 @@ pub use model_fpga_realtime::OpenOcdError;
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::XI3CWrapper;
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::DEFAULT_LIFECYCLE_RAW_TOKEN;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -316,6 +319,7 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
     std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
+#[derive(Clone)]
 pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
@@ -710,11 +714,38 @@ pub trait HwModel: SocManager {
     fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
-    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+    fn warm_reset_flow(&mut self, boot_params: &BootParams) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
         self.warm_reset();
 
-        HwModel::init_fuses(self, fuses);
+        HwModel::init_fuses(self, &boot_params.fuses);
+
+        // Set the registers that were cleared by the warm reset.
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_1()
+                .write(|_| reg);
+        }
+
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_0()
+                .write(|_| reg);
+        }
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+            .map_err(ModelError::from)?;
+
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        Ok(())
     }
 
     /// The APB bus from the SoC to Caliptra
