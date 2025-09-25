@@ -347,10 +347,9 @@ fn test_warm_reset_version() {
         hw.step();
     }
 
-    // hw_rev_id is reset after warm reset.
     test_version(
         &mut hw,
-        0x12,
+        HW_REV_ID,
         version::get_rom_version().into(),
         fmc_version.into(),
         app_version,
@@ -418,7 +417,7 @@ fn test_warm_reset_reset_registers() {
     assert_eq!(u32::from(hw.soc_ifc().cptra_trng_ctrl().read()), 0);
     assert_eq!(hw.soc_ifc().cptra_dbg_manuf_service_reg().read(), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_clk_gating_en().read()), 0);
-    assert_eq!(u32::from(hw.soc_ifc().cptra_hw_rev_id().read()), 0x12);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_hw_rev_id().read()), 0x102);
     assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer1_en().read()), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer1_ctrl().read()), 0);
     assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer2_en().read()), 0);

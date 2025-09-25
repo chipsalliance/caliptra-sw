@@ -1499,7 +1499,6 @@ impl SocRegistersImpl {
         self.cptra_clk_gating_en.reg.set(0);
         self.cptra_generic_input_wires = [0, 0];
         self.cptra_generic_output_wires = [0, 0];
-        self.cptra_hw_rev_id.reg.set(0x12);
         self.cptra_fw_rev_id = [0, 0];
         self.cptra_wdt_timer1_en.reg.set(0);
         self.cptra_wdt_timer1_ctrl.reg.set(0);
