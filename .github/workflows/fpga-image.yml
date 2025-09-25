@@ -26,16 +26,12 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
         include:
-          - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
-            image_variant: core-2.0
-          - bitstream_name: xsa_core2p0_865bf243.xsa
-            image_variant: core-2.0
-          - bitstream_hash: e9b08c20a75e5294b660bddecdd2897677c4c63d2d9806180123b229f78631d4
-            image_variant: core-2.1
-          - bitstream_name: xsa_core2p1_85dadbc6.xsa
-            image_variant: core-2.1
+          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
+            image_variant: core
+          - bitstream_name: xsa_core2p0_5d069408.xsa
+            image_variant: core
           - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
             image_variant: subsystem-2.0
           - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
@@ -69,7 +65,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250826/${BITSTREAM_NAME} /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/26092025/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -114,7 +110,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
