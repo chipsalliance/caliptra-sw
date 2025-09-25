@@ -14,7 +14,7 @@ use anyhow::{bail, ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::lcc::LcCtrlReg;
+use crate::jtag::JtagAccessibleReg;
 use crate::openocd::openocd_server::{OpenOcdError, OpenOcdServer};
 
 /// Available JTAG TAPs in Calitpra Subsystem.
@@ -115,9 +115,9 @@ impl OpenOcdJtagTap {
         self.jtag_tap
     }
 
-    pub fn read_lc_ctrl_reg(&mut self, reg: &LcCtrlReg) -> Result<u32> {
+    pub fn read_reg(&mut self, reg: &dyn JtagAccessibleReg) -> Result<u32> {
         ensure!(
-            matches!(self.jtag_tap, JtagTap::LccTap),
+            self.jtag_tap != JtagTap::NoTap,
             JtagError::Tap(self.jtag_tap)
         );
         let reg_offset = reg.word_offset();
@@ -137,9 +137,9 @@ impl OpenOcdJtagTap {
         Ok(value)
     }
 
-    pub fn write_lc_ctrl_reg(&mut self, reg: &LcCtrlReg, value: u32) -> Result<()> {
+    pub fn write_reg(&mut self, reg: &dyn JtagAccessibleReg, value: u32) -> Result<()> {
         ensure!(
-            matches!(self.jtag_tap, JtagTap::LccTap),
+            self.jtag_tap != JtagTap::NoTap,
             JtagError::Tap(self.jtag_tap)
         );
         let reg_offset = reg.word_offset();

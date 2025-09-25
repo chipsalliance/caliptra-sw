@@ -33,6 +33,7 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+mod jtag;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
