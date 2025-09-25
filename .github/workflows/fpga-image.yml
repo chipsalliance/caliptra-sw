@@ -69,7 +69,7 @@ jobs:
           source /vck190-tools/petalinux-tool/settings.sh
 
           # sudo scp /vck190-tools/caliptra-bitstreams/20250822/${BITSTREAM_NAME} /tmp/system.xsa
-          curl -o "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/${BITSTREAM_NAME}" /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
