@@ -1,3 +1,4 @@
+# Licensed under the Apache-2.0 license
 
 # Create interface ports
 set ch0_lpddr4_c0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 ch0_lpddr4_c0 ]
@@ -31,12 +32,14 @@ set_property -dict [list \
   CONFIG.DEBUG_MODE {JTAG} \
   CONFIG.DESIGN_MODE {1} \
   CONFIG.PS_PL_CONNECTIVITY_MODE {Custom} \
-  CONFIG.PS_PMC_CONFIG { \
+] [get_bd_cells ps_0]
+set_property CONFIG.PS_PMC_CONFIG [list \
     CLOCK_MODE {Custom} \
     DDR_MEMORY_MODE {Connectivity to DDR via NOC} \
     DEBUG_MODE {JTAG} \
     DESIGN_MODE {1} \
-    PMC_CRP_PL0_REF_CTRL_FREQMHZ {20} \
+    PMC_CRP_PL0_REF_CTRL_FREQMHZ "$CORE_CLK_MHZ" \
+    PMC_CRP_PL1_REF_CTRL_FREQMHZ "$I3C_CLK_MHZ" \
     PMC_GPIO0_MIO_PERIPHERAL {{ENABLE 1} {IO {PMC_MIO 0 .. 25}}} \
     PMC_GPIO1_MIO_PERIPHERAL {{ENABLE 1} {IO {PMC_MIO 26 .. 51}}} \
     PMC_MIO37 {{AUX_IO 0} {DIRECTION out} {DRIVE_STRENGTH 8mA} {OUTPUT_DATA high} {PULL pullup} {SCHMITT 0} {SLEW slow} {USAGE GPIO}} \
@@ -50,8 +53,7 @@ set_property -dict [list \
     PMC_SD1 {{CD_ENABLE 1} {CD_IO {PMC_MIO 28}} {POW_ENABLE 1} {POW_IO {PMC_MIO 51}} {RESET_ENABLE 0} {RESET_IO {PMC_MIO 12}} {WP_ENABLE 0} {WP_IO {PMC_MIO 1}}} \
     PMC_SD1_COHERENCY {0} \
     PMC_SD1_DATA_TRANSFER_MODE {8Bit} \
-    PMC_SD1_PERIPHERAL {{CLK_100_SDR_OTAP_DLY 0x3} {CLK_200_SDR_OTAP_DLY 0x2} {CLK_50_DDR_ITAP_DLY 0x36} {CLK_50_DDR_OTAP_DLY 0x3} {CLK_50_SDR_ITAP_DLY 0x2C} {CLK_50_SDR_OTAP_DLY 0x4} {ENABLE 1} {IO\
-{PMC_MIO 26 .. 36}}} \
+    PMC_SD1_PERIPHERAL {{CLK_100_SDR_OTAP_DLY 0x3} {CLK_200_SDR_OTAP_DLY 0x2} {CLK_50_DDR_ITAP_DLY 0x36} {CLK_50_DDR_OTAP_DLY 0x3} {CLK_50_SDR_ITAP_DLY 0x2C} {CLK_50_SDR_OTAP_DLY 0x4} {ENABLE 1} {IO {PMC_MIO 26 .. 36}}} \
     PMC_SD1_SLOT_TYPE {SD 3.0} \
     PMC_USE_PMC_NOC_AXI0 {1} \
     PS_CAN1_PERIPHERAL {{ENABLE 1} {IO {PMC_MIO 40 .. 41}}} \
@@ -68,7 +70,7 @@ set_property -dict [list \
     PS_GEN_IPI5_ENABLE {1} \
     PS_GEN_IPI6_ENABLE {1} \
     PS_GPIO_EMIO_PERIPHERAL_ENABLE {1} \
-    PS_GPIO_EMIO_WIDTH {5} \
+    PS_GPIO_EMIO_WIDTH {15} \
     PS_HSDP_EGRESS_TRAFFIC {JTAG} \
     PS_HSDP_INGRESS_TRAFFIC {JTAG} \
     PS_HSDP_MODE {NONE} \
@@ -90,16 +92,13 @@ set_property -dict [list \
     PS_USE_M_AXI_FPD {1} \
     PS_USE_NOC_LPD_AXI0 {1} \
     PS_USE_PMCPL_CLK0 {1} \
-    PS_USE_PMCPL_CLK1 {0} \
+    PS_USE_PMCPL_CLK1 {1} \
     PS_USE_PMCPL_CLK2 {0} \
     PS_USE_PMCPL_CLK3 {0} \
     SMON_ALARMS {Set_Alarms_On} \
     SMON_ENABLE_TEMP_AVERAGING {0} \
     SMON_TEMP_AVERAGING_SAMPLES {0} \
-  } \
 ] [get_bd_cells ps_0]
-#  CONFIG.PS_BOARD_INTERFACE {ps_pmc_fixed_io} \
-#  PS_BOARD_INTERFACE {ps_pmc_fixed_io} \
 
 # Create instance: axi_noc_0, and set properties
 set axi_noc_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_noc axi_noc_0 ]
