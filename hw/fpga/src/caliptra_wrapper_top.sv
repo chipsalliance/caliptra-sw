@@ -372,7 +372,7 @@ caliptra_top caliptra_top_dut (
     .generic_input_wires({hwif_out.interface_regs.generic_input_wires[0].value.value, hwif_out.interface_regs.generic_input_wires[1].value.value}),
     .generic_output_wires({hwif_in.interface_regs.generic_output_wires[0].value.next, hwif_in.interface_regs.generic_output_wires[1].value.next}),
 
-    .security_state({hwif_out.interface_regs.control.ss_debug_locked.value, hwif_out.interface_regs.control.ss_device_lifecycle.value}),
+    .security_state({hwif_out.interface_regs.control.debug_locked.value, hwif_out.interface_regs.control.device_lifecycle.value}),
     .scan_mode     (hwif_out.interface_regs.control.scan_mode.value)
 );
 
