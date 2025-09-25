@@ -15,7 +15,7 @@ use crate::otp_provision::{
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -23,7 +23,7 @@ use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED}
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
 use std::process::exit;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -1288,8 +1288,8 @@ impl HwModel for ModelFpgaSubsystem {
             };
 
         let output = Output::new(params.log_writer);
-        let dev0 = UioDevice::blocking_new(0)?;
-        let dev1 = UioDevice::blocking_new(1)?;
+        let dev0 = UioDevice::blocking_new(0).map_err(|err| anyhow!("Could not open /dev/uio0; are you running on an FPGA and have loaded the kernel modules? {:?}", err))?;
+        let dev1 = UioDevice::blocking_new(1).map_err(|err| anyhow!("Could not open /dev/uio1; are you running on an FPGA and have loaded the kernel modules? {:?}", err))?;
         let devs = [dev0, dev1];
 
         let wrapper = Arc::new(Wrapper {
