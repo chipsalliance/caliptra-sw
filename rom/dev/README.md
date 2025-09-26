@@ -108,7 +108,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 |-------|--------|------------|
 | Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D4E32 (‘CMN2’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
-| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & MLDSA Keys <br> 0x2 – ECC & LMS Keys <br> **Byte1-Byte3:** Reserved |
+| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & MLDSA Keys <br> 0x3 – ECC & LMS Keys <br> **Byte1-Byte3:** Reserved |
 | Manufacturer ECC Key Descriptor | 196 | Public Key Descriptor for ECC keys |
 | Manufacturer LMS or MLDSA Key Descriptor | 1540 | Public Key Descriptor for LMS (1540 bytes) or MLDSA (196 bytes + 1344 unused bytes) keys |
 | Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
@@ -128,7 +128,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
@@ -137,7 +137,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |

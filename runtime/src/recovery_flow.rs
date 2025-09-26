@@ -13,16 +13,19 @@ Abstract:
 --*/
 
 use crate::{
-    authorize_and_stash::AuthorizeAndStashCmd, set_auth_manifest::AuthManifestSource, Drivers,
-    SetAuthManifestCmd, IMAGE_AUTHORIZED,
+    activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET, authorize_and_stash::AuthorizeAndStashCmd,
+    set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, DmaMmio, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
+use ureg::MmioMut;
+
+const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;
 
 pub enum RecoveryFlow {}
 
@@ -91,10 +94,11 @@ impl RecoveryFlow {
 
         {
             let dma = &drivers.dma;
+            let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),
-                drivers.soc_ifc.mci_base_addr().into(),
+                mci_base_addr,
                 dma,
             );
 
@@ -105,6 +109,15 @@ impl RecoveryFlow {
                 )?;
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
             }
+
+            // Caliptra sets RESET_REASON.FW_BOOT_UPD_RESET
+            let mmio = &DmaMmio::new(mci_base_addr, dma);
+            unsafe {
+                mmio.write_volatile(
+                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
+                    FW_BOOT_UPD_RESET,
+                )
+            };
 
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();
