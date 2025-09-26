@@ -42,14 +42,23 @@ pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
 
-const MCI_BASE : u32 = 0xA8000000;
-const MCU_MBOX_SRAM_BASE : u32 = MCI_BASE + 0x400000;
 pub const TEST_SRAM_SIZE: usize = 0x1000;
+#[cfg(feature = "fpga_subsystem")]
+const MCI_BASE : u32 = 0xA8000000;
+#[cfg(feature = "fpga_subsystem")]
+const MCU_MBOX_SRAM_BASE : u32 = MCI_BASE + 0x400000;
+#[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_BASE: Addr64 = Addr64 {
-//    lo: 0x0050_0000,
     lo: MCU_MBOX_SRAM_BASE,
     hi: 0x0000_0000,
 };
+
+#[cfg(not(any(feature = "fpga_subsystem", feature = "fpga_realtime")))]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: 0x0050_0000,
+    hi: 0x0000_0000,
+};
+
 
 
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
@@ -1038,43 +1047,47 @@ fn get_mcu_image_metadata(mcu_image: &[u8]) -> AuthManifestImageMetadata {
 }
 
 fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64,data: &[u8]) {
-    let staging_address = address.lo as usize - TEST_SRAM_BASE.lo as usize;
-    let mut test_sram_contents = vec![0u8; TEST_SRAM_SIZE];
-    let image_size = data.len();
-    test_sram_contents[staging_address..staging_address + image_size]
-        .copy_from_slice(data);
+    // For FPGA testing, we'll use the MCU mailbox SRAMs to simulate the test SRAM.
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        let staging_address = address.lo as usize - TEST_SRAM_BASE.lo as usize;
+        let mut test_sram_contents = vec![0u8; TEST_SRAM_SIZE];
+        let image_size = data.len();
+        test_sram_contents[staging_address..staging_address + image_size]
+            .copy_from_slice(data);
 
-println!("locking  MCU mailbox SRAMs");
-    unsafe {
-        let mcu_mbox_exec_ptr  = model.mci.ptr.add(0x600018 / 4) as *mut u32;
-        println!("mcu_mbox_exec_ptr = {:p}", mcu_mbox_exec_ptr);
-        mcu_mbox_exec_ptr.write_volatile(0x1);
+    println!("locking  MCU mailbox SRAMs");
+        unsafe {
+            let mcu_mbox_exec_ptr  = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+            println!("mcu_mbox_exec_ptr = {:p}", mcu_mbox_exec_ptr);
+            mcu_mbox_exec_ptr.write_volatile(0x1);
 
-        let mcu_mbox_lock_ptr  = model.mci.ptr.add(0x600000 / 4) as *mut u32;
-        println!("mcu_mbox_lock_ptr = {:p}", mcu_mbox_lock_ptr);
-        let val = mcu_mbox_lock_ptr.read_volatile();
-        println!("Value at MCU mailbox SRAM lock location: {:08X}", val);
-    };
+            let mcu_mbox_lock_ptr  = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+            println!("mcu_mbox_lock_ptr = {:p}", mcu_mbox_lock_ptr);
+            let val = mcu_mbox_lock_ptr.read_volatile();
+            println!("Value at MCU mailbox SRAM lock location: {:08X}", val);
+        };
 
 
-    println!("Writing MCU mailbox SRAMs");
-    unsafe {
-        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+        println!("Writing MCU mailbox SRAMs");
+        unsafe {
+            let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
 
-        for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
-            let mut word = 0u32;
-            for (i, byte) in chunk.iter().enumerate() {
-                word |= (*byte as u32) << (i * 8);
+            for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
+                let mut word = 0u32;
+                for (i, byte) in chunk.iter().enumerate() {
+                    word |= (*byte as u32) << (i * 8);
+                }
+                mcu_mbox_sram_ptr.offset(count as isize).write_volatile(word);
             }
-            mcu_mbox_sram_ptr.offset(count as isize).write_volatile(word);
-        }
 
-        // Read back and verify first 16 bytes
-        for i in 0..4 {
-            let word = mcu_mbox_sram_ptr.add(i).read_volatile();
-            println!("[test] MCU mailbox SRAM word {}: {:08X}", i, word);
-        }
-    };    
+            // Read back and verify first 16 bytes
+            for i in 0..4 {
+                let word = mcu_mbox_sram_ptr.add(i).read_volatile();
+                println!("[test] MCU mailbox SRAM word {}: {:08X}", i, word);
+            }
+        };    
+    }
 }
 
 #[test]

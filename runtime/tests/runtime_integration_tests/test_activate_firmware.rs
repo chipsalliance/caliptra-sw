@@ -19,12 +19,19 @@ use zerocopy::FromBytes;
 pub const TEST_SRAM_SIZE: usize = 0x1000;
 
 
+#[cfg(feature = "fpga_subsystem")]
 const MCI_BASE : u32 = 0xA8000000;
+#[cfg(feature = "fpga_subsystem")]
 const MCU_MBOX_SRAM_BASE : u32 = MCI_BASE + 0x400000;
-
+#[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_BASE: Addr64 = Addr64 {
-//    lo: 0x0050_0000,
     lo: MCU_MBOX_SRAM_BASE,
+    hi: 0x0000_0000,
+};
+
+#[cfg(not(any(feature = "fpga_subsystem", feature = "fpga_realtime")))]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: 0x0050_0000,
     hi: 0x0000_0000,
 };
 
@@ -99,38 +106,40 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram_contents, &images[0].contents);
 
-    
-    println!("locking  MCU mailbox SRAMs");
-    unsafe {
-        let mcu_mbox_exec_ptr  = model.mci.ptr.add(0x600018 / 4) as *mut u32;
-        println!("mcu_mbox_exec_ptr = {:p}", mcu_mbox_exec_ptr);
-        mcu_mbox_exec_ptr.write_volatile(0x1);
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        println!("locking  MCU mailbox SRAMs");
+        unsafe {
+            let mcu_mbox_exec_ptr  = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+            println!("mcu_mbox_exec_ptr = {:p}", mcu_mbox_exec_ptr);
+            mcu_mbox_exec_ptr.write_volatile(0x1);
 
-        let mcu_mbox_lock_ptr  = model.mci.ptr.add(0x600000 / 4) as *mut u32;
-        println!("mcu_mbox_lock_ptr = {:p}", mcu_mbox_lock_ptr);
-        let val = mcu_mbox_lock_ptr.read_volatile();
-        println!("Value at MCU mailbox SRAM lock location: {:08X}", val);
-    };
+            let mcu_mbox_lock_ptr  = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+            println!("mcu_mbox_lock_ptr = {:p}", mcu_mbox_lock_ptr);
+            let val = mcu_mbox_lock_ptr.read_volatile();
+            println!("Value at MCU mailbox SRAM lock location: {:08X}", val);
+        };
 
 
-    println!("Writing MCU mailbox SRAMs");
-    unsafe {
-        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+        println!("Writing MCU mailbox SRAMs");
+        unsafe {
+            let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
 
-        for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
-            let mut word = 0u32;
-            for (i, byte) in chunk.iter().enumerate() {
-                word |= (*byte as u32) << (i * 8);
+            for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
+                let mut word = 0u32;
+                for (i, byte) in chunk.iter().enumerate() {
+                    word |= (*byte as u32) << (i * 8);
+                }
+                mcu_mbox_sram_ptr.offset(count as isize).write_volatile(word);
             }
-            mcu_mbox_sram_ptr.offset(count as isize).write_volatile(word);
-        }
 
-        // Read back and verify first 16 bytes
-        for i in 0..4 {
-            let word = mcu_mbox_sram_ptr.add(i).read_volatile();
-            println!("[test] MCU mailbox SRAM word {}: {:08X}", i, word);
-        }
-    };
+            // Read back and verify first 16 bytes
+            for i in 0..4 {
+                let word = mcu_mbox_sram_ptr.add(i).read_volatile();
+                println!("[test] MCU mailbox SRAM word {}: {:08X}", i, word);
+            }
+        };
+    }
 
 
 
@@ -173,26 +182,25 @@ fn send_activate_firmware_cmd(model: &mut DefaultHwModel, activate_cmd: MailboxR
         )
         .unwrap();
 
-    
-    
-    std::thread::sleep(Duration::from_secs(2));   
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        // Allow some time for Caliptra to process the command and trigger the interrupt
+        std::thread::sleep(Duration::from_secs(2));   
 
+        // Emulate MCU reset request interrupt
+        model.mci.regs().intr_block_rf().notif0_intr_trig_r().modify(|r| {
+            r.notif_cptra_mcu_reset_req_trig(true)
+        });
 
-    model.mci.regs().intr_block_rf().notif0_intr_trig_r().modify(|r| {
-        r.notif_cptra_mcu_reset_req_trig(true)
-    });
-
-    model.mci.regs().intr_block_rf().notif0_internal_intr_r().modify(|r| {
-        r.notif_cptra_mcu_reset_req_sts(true)
-    });    
-    
-    let x = model.mci.regs().intr_block_rf().notif0_internal_intr_r().read();
-    println!("MCU_RESET_REQ_STS2 = {:08x}", x.notif_cptra_mcu_reset_req_sts() as u32);    
-
-    model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
+        model.mci.regs().intr_block_rf().notif0_internal_intr_r().modify(|r| {
+            r.notif_cptra_mcu_reset_req_sts(true)
+        });     
+        model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
+    }
     model.finish_mailbox_execute()
 }
 
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -223,7 +231,7 @@ fn test_activate_mcu_fw_success() {
 
 
 
-
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
@@ -262,7 +270,7 @@ fn test_activate_mcu_soc_fw_success() {
 
 }
 
-
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_activate_soc_fw_success() {
     let mcu_image = Image {
@@ -299,6 +307,7 @@ fn test_activate_soc_fw_success() {
     send_activate_firmware_cmd(&mut model, activate_cmd).unwrap().expect("We should have received a response");
 }
 
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_activate_invalid_fw_id() {
     let mcu_image = Image {
@@ -335,6 +344,7 @@ fn test_activate_invalid_fw_id() {
     assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_activate_fw_id_not_in_manifest() {
     let mcu_image = Image {
@@ -372,6 +382,7 @@ fn test_activate_fw_id_not_in_manifest() {
     assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_invalid_exec_bit_in_manifest() {
     let mcu_image = Image {
