@@ -379,6 +379,15 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     }
 }
 
+/// Returns the most appropriate ROM for use when testing non-ROM code against
+/// a particular hardware version. DO NOT USE this for ROM-only tests.
+pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, [u8]>> {
+    let rom_from_env = firmware::rom_from_env_fpga(fpga);
+    match get_ci_rom_version() {
+        CiRomVersion::Latest => Ok(build_firmware_rom(rom_from_env)?.into()),
+    }
+}
+
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
     let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)

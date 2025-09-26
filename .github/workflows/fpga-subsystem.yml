@@ -306,6 +306,8 @@ jobs:
               -E 'package(ureg-schema)'
               -E 'package(ureg-systemrdl)'
           )
+          # Disabled due to runtime flakiness
+          # -E 'test(test_fe_programming::test_fe_programming_cmd)'
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
