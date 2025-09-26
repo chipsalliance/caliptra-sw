@@ -151,6 +151,18 @@ jobs:
           tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
 
+      - name: Download bitstream
+        run: |
+          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/core.toml
+          mv core.pdi /tmp/caliptra-bitstream.pdi
+
+      - name: 'Upload bitstream'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream.pdi
+          retention-days: 1
+
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
@@ -204,6 +216,12 @@ jobs:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
+      - name: 'Download Bitstream'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream
+
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -218,6 +236,13 @@ jobs:
         run: |
           sudo lsmod
           ls /sys/class/uio
+
+      - name: Load bitstream
+        run: |
+          sudo mkdir -p /lib/firmware
+          ls /tmp/caliptra-bitstream
+          sudo cp /tmp/caliptra-bitstream/caliptra-bitstream.pdi /lib/firmware
+          sudo bash -c 'echo "caliptra-bitstream.pdi" > /sys/class/fpga_manager/fpga0/firmware'
 
       - name: Execute tests
         run: |
