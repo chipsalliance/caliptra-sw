@@ -223,18 +223,18 @@ impl RecoveryRegisterInterface {
             Err(BusError::LoadAccessFault)?;
         }
         if self.cms_data.is_empty() {
-            println!("No image set in RRI");
+            //println!("No image set in RRI");
             return Ok(0xffff_ffff);
         }
         let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
         let Some(image) = self.cms_data.get(image_index) else {
-            println!("Recovery image index out of bounds");
+            //println!("Recovery image index out of bounds");
             return Ok(0xffff_ffff);
         };
 
         let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl0::CMS);
         if cms != 0 {
-            println!("CMS {cms} not supported");
+            //println!("CMS {cms} not supported");
             return Ok(0xffff_ffff);
         }
 
@@ -259,18 +259,18 @@ impl RecoveryRegisterInterface {
 
     pub fn indirect_fifo_data_write(&mut self, data: &[u8]) {
         if self.cms_data.is_empty() {
-            println!("No image set in RRI");
+            //println!("No image set in RRI");
             return;
         }
         let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
         let Some(image) = self.cms_data.get_mut(image_index) else {
-            println!("Recovery image index out of bounds");
+            //println!("Recovery image index out of bounds");
             return;
         };
 
         let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl0::CMS);
         if cms != 0 {
-            println!("CMS {cms} not supported");
+            //println!("CMS {cms} not supported");
             return;
         }
 
@@ -321,11 +321,11 @@ impl RecoveryRegisterInterface {
                     .reg
                     .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
             } else {
-                println!(
-                    "No Image in RRI ({} >= {})",
-                    image_index,
-                    self.cms_data.len()
-                );
+                // println!(
+                //     "No Image in RRI ({} >= {})",
+                //     image_index,
+                //     self.cms_data.len()
+                // );
                 self.indirect_fifo_status_0
                     .reg
                     .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);

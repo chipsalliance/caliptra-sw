@@ -14,6 +14,7 @@ Abstract:
 
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::fmt::Write;
 
 pub struct Uart {
     bit_rate: u8,
@@ -95,7 +96,9 @@ impl Bus for Uart {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => self.bit_rate = value as u8,
             (RvSize::Byte, Uart::ADDR_DATA_BITS) => self.data_bits = value as u8,
             (RvSize::Byte, Uart::ADDR_STOP_BITS) => self.stop_bits = value as u8,
-            (RvSize::Byte, Uart::ADDR_TX_DATA) => print!("{}", value as u8 as char),
+            (RvSize::Byte, Uart::ADDR_TX_DATA) => {
+                write!(crate::output(), "{}", value as u8 as char).unwrap();
+            }
             _ => Err(BusError::StoreAccessFault)?,
         }
         Ok(())

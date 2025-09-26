@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::fmt::Write as _;
 use std::io::{BufRead, BufReader, Write};
 use std::marker::PhantomData;
 use std::process::{Child, Command, Stdio};
@@ -11,6 +12,7 @@ use std::{env, slice, str::FromStr};
 
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Event};
+use caliptra_emu_periph::output as eoutput;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
@@ -535,7 +537,7 @@ impl HwModel for ModelFpgaRealtime {
 
         writeln!(m.output().logger(), "new_unbooted")?;
 
-        println!("AXI reset");
+        writeln!(eoutput(), "AXI reset").unwrap();
         m.axi_reset();
 
         // Set generic input wires.
@@ -730,7 +732,7 @@ impl ModelFpgaRealtime {
         let mut output = String::new();
         loop {
             if 0 == child_err.read_line(&mut output).unwrap() {
-                println!("openocd log returned EOF. Log: {output}");
+                writeln!(eoutput(), "openocd log returned EOF. Log: {output}").unwrap();
                 return Err(OpenOcdError::Closed);
             }
             if output.contains("OpenOCD setup finished") {
@@ -796,7 +798,7 @@ impl<'a> Bus for FpgaRealtimeBus<'a> {
         if let Some(ptr) = self.ptr_for_addr(addr) {
             Ok(unsafe { ptr.read_volatile() })
         } else {
-            println!("Error LoadAccessFault");
+            writeln!(eoutput(), "Error LoadAccessFault").unwrap();
             Err(BusError::LoadAccessFault)
         }
     }

@@ -422,7 +422,6 @@ impl MciRegs {
         }
     }
     fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
-        println!("[MCI] Registering outgoing events");
         self.event_sender = Some(sender);
     }
 }
@@ -440,11 +439,11 @@ impl Mci {
         }
     }
     pub fn cptra_request_mcu_reset(&self) {
-        println!("[MCI] Requesting MCU reset");
+        //println!("[MCI] Requesting MCU reset");
         self.regs.borrow_mut().intr_block_rf_notif0_intr_trig_r |=
             NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
         if let Some(sender) = &self.regs.borrow().event_sender {
-            println!("[MCI] Sending MCI interrupt for MCU reset");
+            //println!("[MCI] Sending MCI interrupt for MCU reset");
             sender
                 .send(Event::new(
                     Device::CaliptraCore,
@@ -479,7 +478,6 @@ impl Bus for Mci {
         self.regs.borrow_mut().update_reset();
     }
     fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
-        println!("[MCI] Registering outgoing events");
         self.regs
             .borrow_mut()
             .register_outgoing_events(sender.clone());

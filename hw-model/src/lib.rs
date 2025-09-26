@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{
     error::Error,
-    fmt::Display,
+    fmt::{Display, Write as _Write},
     io::{stdout, ErrorKind, Write},
 };
 
@@ -21,7 +21,7 @@ use caliptra_hw_model_types::{
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
-use caliptra_emu_periph::MailboxRequester;
+use caliptra_emu_periph::{output, MailboxRequester};
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use caliptra_registers::soc_ifc::regs::{
@@ -114,12 +114,14 @@ pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     let summary = params.summary();
     DefaultHwModel::new_unbooted(params).inspect(|hw| {
-        println!(
+        writeln!(
+            output(),
             "Using hardware-model {} trng={:?}",
             hw.type_name(),
             hw.trng_mode()
-        );
-        println!("{summary:#?}");
+        )
+        .unwrap();
+        writeln!(output(), "{summary:#?}").unwrap();
     })
 }
 
@@ -606,11 +608,11 @@ pub trait HwModel: SocManager {
 
         let mut hw: Self = HwModel::new_unbooted(init_params)?;
         let hw_rev_id = hw.soc_ifc().cptra_hw_rev_id().read();
-        println!(
+        writeln!(output(),
             "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
             hw.type_name(), hw.trng_mode(),  hw_rev_id.cptra_generation(), hw_rev_id.soc_stepping_id()
-        );
-        println!("{init_params_summary:#?}");
+        ).unwrap();
+        writeln!(output(), "{init_params_summary:#?}").unwrap();
 
         hw.boot(boot_params)?;
 
@@ -762,7 +764,7 @@ pub trait HwModel: SocManager {
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        println!("Initializing fuses");
+        writeln!(output(), "Initializing fuses").unwrap();
         if let Err(e) = caliptra_api::SocManager::init_fuses(self, fuses) {
             panic!(
                 "{}",

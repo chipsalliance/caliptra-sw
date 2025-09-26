@@ -2,7 +2,9 @@
 
 use caliptra_emu_bus::{Device, Event, EventData, ReadWriteRegister, RecoveryCommandCode};
 use caliptra_emu_periph::dma::recovery::RecoveryStatus;
+use caliptra_emu_periph::output;
 use smlang::statemachine;
+use std::fmt::Write;
 use std::sync::mpsc;
 use tock_registers::interfaces::Readable;
 use tock_registers::register_bitfields;
@@ -219,14 +221,21 @@ impl StateMachineContext for Context {
         let idx = status.reg.read(RecoveryStatus::RECOVERY_IMAGE_INDEX);
 
         if idx as usize >= self.recovery_images.len() {
-            println!(
+            writeln!(
+                output(),
                 "[emulator bmc recovery] Invalid recovery image index {}",
                 idx
-            );
+            )
+            .unwrap();
             Err(())
         } else {
             let image = &self.recovery_images[idx as usize];
-            println!("[emulator bmc recovery] Sending recovery image {}", idx);
+            writeln!(
+                output(),
+                "[emulator bmc recovery] Sending recovery image {}",
+                idx
+            )
+            .unwrap();
             self.events_to_caliptra
                 .send(Event::new(
                     Device::BMC,

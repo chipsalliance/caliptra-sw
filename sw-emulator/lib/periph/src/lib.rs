@@ -56,4 +56,27 @@ pub use root_bus::{
 };
 pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegistersInternal;
+use std::fmt::Write;
+use std::sync::Arc;
+use std::sync::RwLock;
 pub use uart::Uart;
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    pub static ref GLOBAL_OUTPUT: Arc<RwLock<Vec<u8>>> = Arc::new(RwLock::new(Vec::new()));
+}
+
+pub struct OutputWriter {}
+
+impl Write for OutputWriter {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let mut output = GLOBAL_OUTPUT.write().unwrap();
+        output.extend_from_slice(s.as_bytes());
+        Ok(())
+    }
+}
+
+pub fn output() -> OutputWriter {
+    OutputWriter {}
+}

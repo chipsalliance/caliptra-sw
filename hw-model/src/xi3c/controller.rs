@@ -206,22 +206,22 @@ impl Controller {
             tid: 0,
         };
         // Disable Target Events
-        println!("XI3C: Broadcast CCC DISEC");
+        //println!("XI3C: Broadcast CCC DISEC");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_DISEC));
         if result.is_ok() {
-            println!("XI3C: Acknowledge received");
+            //println!("XI3C: Acknowledge received");
         }
         // Enable Target Events
-        println!("XI3C: Broadcast CCC ENEC");
+        //println!("XI3C: Broadcast CCC ENEC");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENEC));
         if result.is_ok() {
-            println!("XI3C: Acknowledge received");
+            //println!("XI3C: Acknowledge received");
         }
         // Reset Dynamic Address assigned to all the I3C Targets
-        println!("XI3C: Broadcast CCC RSTDAA");
+        //println!("XI3C: Broadcast CCC RSTDAA");
         let result = self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_RSTDAA));
         if result.is_ok() {
-            println!("XI3C: Acknowledge received");
+            //println!("XI3C: Acknowledge received");
         }
         Ok(())
     }
@@ -239,7 +239,7 @@ impl Controller {
         self.reset();
         self.reset_fifos();
         if self.config.ibi_capable {
-            println!("XI3C: enabling IBI");
+            //println!("XI3C: enabling IBI");
             self.enable_ibi();
         }
         if self.config.hj_capable {
@@ -257,10 +257,10 @@ impl Controller {
                 self.dyna_addr_assign(&DYNA_ADDR_LIST, self.config.device_count)?;
             } else {
                 let static_addrs = self.config.known_static_addrs.clone();
-                println!(
-                    "XI3C: initializing dynamic addresses with SETDASA (static address: {:x?})",
-                    &static_addrs
-                );
+                // println!(
+                //     "XI3C: initializing dynamic addresses with SETDASA (static address: {:x?})",
+                //     &static_addrs
+                // );
                 let cmd = Command {
                     cmd_type: XI3C_CMD_TYPE_I3C,
                     no_repeated_start: 0,
@@ -271,9 +271,9 @@ impl Controller {
                     tid: 2,
                 };
                 assert!(self.ready.get());
-                println!("XI3C: Broadcast CCC SETDASA");
+                //println!("XI3C: Broadcast CCC SETDASA");
                 self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_SETDASA))?;
-                println!("XI3C: Acknowledged");
+                //println!("XI3C: Acknowledged");
                 for (i, addr) in static_addrs.iter().enumerate() {
                     self.dyna_addr_assign_static(
                         *addr,
@@ -345,12 +345,12 @@ impl Controller {
         };
 
         let addr = dyn_addr << 1;
-        println!(
-            "XI3C: Controller: Assigning dynamic address with SETDASA private write {:x}",
-            addr >> 1
-        );
+        // println!(
+        //     "XI3C: Controller: Assigning dynamic address with SETDASA private write {:x}",
+        //     addr >> 1
+        // );
         self.master_send_polled(&cmd, &[addr], 1)?;
-        println!("XI3C: Acknowledged");
+        //println!("XI3C: Acknowledged");
 
         let mut table = self.target_info_table.borrow_mut();
         let cur_device_count = self.cur_device_count.get() as usize;
@@ -378,9 +378,9 @@ impl Controller {
         cmd.tid = 0;
         cmd.pec = 0;
         cmd.cmd_type = 1;
-        println!("XI3C: Broadcast CCC ENTDAA");
+        //println!("XI3C: Broadcast CCC ENTDAA");
         self.send_transfer_cmd(&cmd, Ccc::Byte(XI3C_CCC_BRDCAST_ENTDAA))?;
-        println!("XI3C: Acknowledged");
+        //println!("XI3C: Acknowledged");
         let mut index = 0;
         while index < dev_count as u16 && index < 108 {
             let addr = (dyna_addr[index as usize] << 1) | get_odd_parity(dyna_addr[index as usize]);
@@ -395,19 +395,19 @@ impl Controller {
             cmd.pec = 0;
             cmd.cmd_type = 1;
 
-            println!(
-                "XI3C: Controller: Assigning dynamic address 0x{:x}",
-                addr >> 1
-            );
+            // println!(
+            //     "XI3C: Controller: Assigning dynamic address 0x{:x}",
+            //     addr >> 1
+            // );
             let recv_buffer = match self.master_recv_polled(None, &cmd, 9) {
                 Ok(recv_buffer) => recv_buffer,
                 Err(err) => {
-                    println!("XI3C: No ack received for assigning address");
+                    //println!("XI3C: No ack received for assigning address");
                     return Err(err);
                 }
             };
 
-            println!("XI3C: cur_device_count = {}", self.cur_device_count.get());
+            //println!("XI3C: cur_device_count = {}", self.cur_device_count.get());
             let mut table = self.target_info_table.borrow_mut();
             let cur_device_count = self.cur_device_count.get() as usize;
             table[cur_device_count].id = ((recv_buffer[0] as u64) << 40)
@@ -417,8 +417,8 @@ impl Controller {
                 | ((recv_buffer[4] as u64) << 8)
                 | recv_buffer[5] as u64;
             table[cur_device_count].bcr = recv_buffer[6];
-            println!("XI3C: Controller received BCR: {:x}", recv_buffer[6]);
-            println!("XI3C: Controller received DCR: {:x}", recv_buffer[7]);
+            //println!("XI3C: Controller received BCR: {:x}", recv_buffer[6]);
+            //println!("XI3C: Controller received DCR: {:x}", recv_buffer[7]);
             table[cur_device_count].dcr = recv_buffer[7];
             table[cur_device_count].dyna_addr = dyna_addr[index as usize];
             self.cur_device_count.set((cur_device_count + 1) as u8);
@@ -443,7 +443,7 @@ impl Controller {
         data &= !XI3C_CR_EN_MASK;
         data |= enable as u32;
         self.regs().cr.set(data);
-        println!("XI3C: Enable set to {:x}", self.regs().cr.get());
+        //println!("XI3C: Enable set to {:x}", self.regs().cr.get());
     }
 
     #[inline]
@@ -453,7 +453,7 @@ impl Controller {
         data &= !XI3C_CR_RESUME_MASK;
         data |= resume as u32;
         self.regs().cr.set(data);
-        println!("XI3C: Resume set to {:x}", self.regs().cr.get());
+        //println!("XI3C: Resume set to {:x}", self.regs().cr.get());
     }
 
     #[inline]
@@ -462,10 +462,10 @@ impl Controller {
         let mut data = self.regs().cr.get();
         data |= XI3C_CR_IBI_MASK;
         self.regs().cr.set(data);
-        println!(
-            "Control register after enabling IBI: {:x}",
-            self.regs().cr.get()
-        );
+        // println!(
+        //     "Control register after enabling IBI: {:x}",
+        //     self.regs().cr.get()
+        // );
     }
 
     #[inline]
@@ -482,10 +482,10 @@ impl Controller {
         let table = self.target_info_table.borrow();
         let mut addr_bcr = (table[dev_index as usize].dyna_addr & 0x7f) as u32;
         addr_bcr |= (table[dev_index as usize].bcr as u32) << 8;
-        println!(
-            "XI3C: Updating BCR (index {}) for device {:x}",
-            dev_index, addr_bcr
-        );
+        // println!(
+        //     "XI3C: Updating BCR (index {}) for device {:x}",
+        //     dev_index, addr_bcr
+        // );
         self.regs().target_addr_bcr.set(addr_bcr);
     }
 

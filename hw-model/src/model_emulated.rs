@@ -3,6 +3,7 @@
 use std::cell::Cell;
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
+use std::fmt::Write as _;
 use std::hash::Hasher;
 use std::io::Write;
 use std::path::PathBuf;
@@ -19,6 +20,7 @@ use caliptra_emu_bus::{Bus, BusMmio};
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, CpuArgs, InstrTracer, Pic};
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
+use caliptra_emu_periph::output;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
@@ -338,7 +340,7 @@ impl HwModel for ModelEmulated {
         let mut log = match LogFile::open(trace_path) {
             Ok(file) => file,
             Err(e) => {
-                eprintln!("Unable to open file {trace_path:?}: {e}");
+                writeln!(output(), "Unable to open file {trace_path:?}: {e}").unwrap();
                 return;
             }
         };
