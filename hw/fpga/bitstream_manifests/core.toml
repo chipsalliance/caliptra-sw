@@ -1,9 +1,9 @@
 # Licensed under the Apache-2.0 license
 
 [bitstream]
-name = "core-2.0"
-url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_5d069408.pdi"
-hash = "d1e98185b5a68b4af67cb33f6f358c66793a1209ba82f256d59927b33182be62"
+name = "core-2.1"
+url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_c88604f7.pdi"
+hash = "473fa3a8c8df4da97d0170cddd8978d2ee39fdb9b776f7e252d23b8ccb6b3a2c"
 caliptra_variant = "core"
-caliptra_rtl_commit = "bc89073869d2d316add13442757f904d25c87666"
+caliptra_rtl_commit = "864084b5d5f19830ee217a7cd1ff0f83960da02a"
 
