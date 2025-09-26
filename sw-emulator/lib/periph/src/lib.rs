@@ -77,6 +77,15 @@ impl Write for OutputWriter {
     }
 }
 
+impl OutputWriter {
+    pub fn take(&self) -> String {
+        let mut output = GLOBAL_OUTPUT.write().unwrap();
+        let s = String::from_utf8_lossy(&output).to_string();
+        output.clear();
+        s
+    }
+}
+
 pub fn output() -> OutputWriter {
     OutputWriter {}
 }
