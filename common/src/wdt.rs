@@ -98,7 +98,9 @@ pub fn restart_wdt(soc_ifc: &mut SocIfc) {
 ///
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
     if !soc_ifc.debug_locked() {
+        caliptra_drivers::cprintln!("[rt] Not disabling WDT1 because we are debug unlocked");
         return;
     }
+    caliptra_drivers::cprintln!("[rt] Disabling WDT1");
     soc_ifc.configure_wdt1(false);
 }
