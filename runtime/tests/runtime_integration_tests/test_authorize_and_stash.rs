@@ -1052,10 +1052,10 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
     unsafe {
         // Make sure the SRAMs are unlocked.
         // In case SRAM is locked from a previous test, we need to unlock it first
-        // by writing 1 to the exec register.
+        // by writing 0 to the exec register.
         // If it's already unlocked, this is a no-op
         let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
-        mcu_mbox_exec_ptr.write_volatile(0x1);
+        mcu_mbox_exec_ptr.write_volatile(0x0);
 
         // Read from the lock register to the lock the SRAM
         let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
