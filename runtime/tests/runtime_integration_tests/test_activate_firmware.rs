@@ -11,7 +11,7 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
 use zerocopy::FromBytes;
@@ -163,30 +163,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     model
 }
 
-#[test]
-fn test_activate_mcu_fw_success() {
-    let mcu_image = Image {
-        fw_id: MCU_FW_ID_1,
-        staging_address: MCU_STAGING_ADDRESS,
-        load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
-        exec_bit: 2,
-    };
-
-    let mut model = load_and_authorize_fw(&[mcu_image]);
-
-    // Send ActivateFirmware command
-    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id_count: 1,
-        mcu_fw_image_size: MCU_FW_SIZE as u32,
-        fw_ids: {
-            let mut arr = [0u32; 128];
-            arr[0] = MCU_FW_ID_1;
-            arr
-        },
-    });
-    activate_cmd.populate_chksum().unwrap();
+fn send_activate_firmware_cmd(model: &mut DefaultHwModel, activate_cmd: MailboxReq) -> std::result::Result<Option<Vec<u8>>, ModelError> {
     println!("Send Activate Firmware command");
     
     model
@@ -213,9 +190,39 @@ fn test_activate_mcu_fw_success() {
     println!("MCU_RESET_REQ_STS2 = {:08x}", x.notif_cptra_mcu_reset_req_sts() as u32);    
 
     model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
-    model.finish_mailbox_execute().unwrap();
-    println!("Activate Firmware command started");
+    model.finish_mailbox_execute()
 }
+
+#[test]
+fn test_activate_mcu_fw_success() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
+    let mut model = load_and_authorize_fw(&[mcu_image]);
+
+    // Send ActivateFirmware command
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+    });
+    activate_cmd.populate_chksum().unwrap();
+    send_activate_firmware_cmd(&mut model, activate_cmd).unwrap().expect("We should have received a response");
+
+}
+
+
+
 
 #[test]
 fn test_activate_mcu_soc_fw_success() {
@@ -251,14 +258,10 @@ fn test_activate_mcu_soc_fw_success() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    send_activate_firmware_cmd(&mut model, activate_cmd).unwrap().expect("We should have received a response");
+
 }
+
 
 #[test]
 fn test_activate_soc_fw_success() {
@@ -293,13 +296,7 @@ fn test_activate_soc_fw_success() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    send_activate_firmware_cmd(&mut model, activate_cmd).unwrap().expect("We should have received a response");
 }
 
 #[test]
@@ -335,12 +332,7 @@ fn test_activate_invalid_fw_id() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
 #[test]
@@ -377,12 +369,7 @@ fn test_activate_fw_id_not_in_manifest() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
 #[test]
@@ -418,10 +405,5 @@ fn test_invalid_exec_bit_in_manifest() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
