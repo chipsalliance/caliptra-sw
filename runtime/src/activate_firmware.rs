@@ -14,6 +14,7 @@ Abstract:
 
 use core::mem::offset_of;
 
+use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::ImageMetadataFlags;
@@ -22,7 +23,6 @@ use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
 
-pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 const FW_HITLESS_UPD_RESET_MASK: u32 = 0x1;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
@@ -116,7 +116,6 @@ impl ActivateFirmwareCmd {
         mcu_image_size: u32,
     ) -> Result<(), ()> {
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
-        let dma = &drivers.dma;
         let mut go_bitmap: [u32; 4] = [0; 4];
 
         // Get the current value of FW_EXEC_CTRL
@@ -143,15 +142,12 @@ impl ActivateFirmwareCmd {
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
 
-            let mmio = &DmaMmio::new(mci_base_addr, dma);
+            drivers.persistent_data.get_mut().mcu_firmware_loaded =
+                McuFwStatus::HitlessUpdateStarted.into();
+            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpdReset);
 
-            // Caliptra sets RESET_REASON.FW_HITLESS_UPD_RESET
-            unsafe {
-                mmio.write_volatile(
-                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
-                    FW_HITLESS_UPD_RESET_MASK,
-                )
-            };
+            let dma = &drivers.dma;
+            let mmio = &DmaMmio::new(mci_base_addr, dma);
 
             // Clear FW_EXEC_CTRL[2]. This should start the process of resetting MCU.
             Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
@@ -200,6 +196,7 @@ impl ActivateFirmwareCmd {
                     false,
                 )
                 .map_err(|_| ())?;
+            drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
 
         for i in 0..4 {

@@ -28,16 +28,19 @@ use crate::{
 use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+use caliptra_cfi_lib_git::{
+    cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_ne, cfi_launder,
+};
 use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
-use caliptra_drivers::Dma;
+use caliptra_common::RomBootStatus::{ColdResetComplete, UpdateResetStarted};
 use caliptra_drivers::{
     cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
     Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, SocIfc, Trng,
 };
+use caliptra_drivers::{Dma, DmaMmio};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -58,15 +61,45 @@ use dpe::{
     dpe_instance::{DpeEnv, DpeInstance},
     DPE_PROFILE,
 };
+use ureg::MmioMut;
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::CryptoBuf;
 use zerocopy::IntoBytes;
 
+pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
+
 #[derive(PartialEq, Clone)]
 pub enum PauserPrivileges {
     PL0,
     PL1,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum McuResetReason {
+    ColdReset = 0,
+    FwHitlessUpdReset = 0b1 << 0,
+    FwBootReset = 0b1 << 1,
+    WarmReset = 0b1 << 2,
+}
+
+impl From<McuResetReason> for u32 {
+    fn from(reason: McuResetReason) -> Self {
+        reason as u32
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum McuFwStatus {
+    NotLoaded,
+    Loaded,
+    HitlessUpdateStarted,
+}
+
+impl From<McuFwStatus> for u32 {
+    fn from(status: McuFwStatus) -> Self {
+        status as u32
+    }
 }
 
 pub struct Drivers {
@@ -203,6 +236,9 @@ impl Drivers {
                 Self::validate_context_tags(self)?;
                 Self::check_dpe_rt_journey_unchanged(self)?;
                 Self::update_fw_version(self, true, true);
+                if self.soc_ifc.subsystem_mode() {
+                    Self::release_mcu_sram(self)?;
+                }
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -241,6 +277,18 @@ impl Drivers {
             return Err(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT);
         }
         Ok(root_idx)
+    }
+
+    pub fn set_mcu_reset_reason(drivers: &mut Drivers, reason: McuResetReason) {
+        let dma = &drivers.dma;
+        let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();
+        let mmio = &DmaMmio::new(mci_base_addr, dma);
+        unsafe { mmio.write_volatile(MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32, reason.into()) };
+    }
+
+    pub fn request_mcu_reset(drivers: &mut Drivers, reason: McuResetReason) {
+        Self::set_mcu_reset_reason(drivers, reason);
+        drivers.soc_ifc.set_mcu_firmware_ready();
     }
 
     /// Validate DPE and disable attestation if validation fails
@@ -312,6 +360,43 @@ impl Drivers {
                 .soc_ifc
                 .set_rt_fw_rev_id(drivers.persistent_data.get().manifest1.runtime.version);
         }
+    }
+
+    /// Release MCU SRAM if MCU FW was previously loaded correctly
+    fn release_mcu_sram(drivers: &mut Drivers) -> CaliptraResult<()> {
+        // Check if MCU previous Cold-Reset was successful.
+        let persistent_data = drivers.persistent_data.get();
+        if cfi_launder(persistent_data.mcu_firmware_loaded == McuFwStatus::NotLoaded.into()) {
+            cprintln!("[rt-warm-reset] Prev Cold Reset failed");
+            return Err(CaliptraError::RUNTIME_WARM_RESET_MCU_FW_NOT_LOADED);
+        } else {
+            cfi_assert_ne(
+                persistent_data.mcu_firmware_loaded,
+                McuFwStatus::NotLoaded.into(),
+            );
+        }
+
+        // Check if MCU previous Update-Reset, if any,  was successful.
+        let persistent_data = drivers.persistent_data.get();
+        if cfi_launder(
+            persistent_data.mcu_firmware_loaded == McuFwStatus::HitlessUpdateStarted.into(),
+        ) {
+            cprintln!("[rt-warm-reset] Prev Hitless Update Reset failed");
+            return Err(CaliptraError::RUNTIME_WARM_RESET_MCU_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET);
+        } else {
+            cfi_assert_ne(
+                persistent_data.mcu_firmware_loaded,
+                McuFwStatus::HitlessUpdateStarted.into(),
+            );
+        }
+
+        cfi_assert_eq(
+            persistent_data.mcu_firmware_loaded,
+            McuFwStatus::Loaded.into(),
+        );
+        Self::request_mcu_reset(drivers, McuResetReason::FwBootReset);
+
+        Ok(())
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
