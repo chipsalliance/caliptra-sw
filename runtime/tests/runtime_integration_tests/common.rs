@@ -1,11 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
-use caliptra_auth_man_types::ImageMetadataFlags;
-use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
+use caliptra_auth_man_types::{
+    AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
@@ -25,8 +27,7 @@ use caliptra_hw_model::{
     SecurityState, StackInfo, StackRange,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_gen::from_hw_format;
-use caliptra_image_gen::ImageGeneratorCrypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
@@ -47,8 +48,6 @@ use openssl::{
 use std::sync::LazyLock;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
-
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
     24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
@@ -66,7 +65,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[1, 2, 3, 4];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f, 0, 0, 0];
 pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new(|| {
     // generate a default SoC manifest if one is not provided in subsystem mode
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
@@ -176,18 +175,19 @@ pub fn start_rt_test_pqc_model(
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let init_params = match args.init_params {
-        Some(init_params) => init_params,
-        None => InitParams {
-            rom: &rom,
-            stack_info: Some(StackInfo::new(image_info)),
-            test_sram: args.test_sram,
-            security_state: args.security_state.unwrap_or_default(),
-            subsystem_mode: args.subsystem_mode,
-            ..Default::default()
-        },
-    };
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let init_params = args.init_params.unwrap_or_else(|| InitParams {
+        rom: &rom,
+        stack_info: Some(StackInfo::new(image_info)),
+        test_sram: args.test_sram,
+        security_state: args.security_state.unwrap_or_default(),
+        subsystem_mode: args.subsystem_mode,
+        ..Default::default()
+    });
 
     let image =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();

@@ -46,6 +46,8 @@ const OTP_MAPPING: (usize, usize) = (1, 4);
 // Offsets in the OTP for fuses.
 const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
+const FUSE_SVN_OFFSET: usize = 0x390;
+const FUSE_SOC_MAX_SVN_OFFSET: usize = FUSE_SVN_OFFSET + 36;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
 const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
 
@@ -1484,6 +1486,12 @@ impl HwModel for ModelFpgaSubsystem {
         };
         otp_mem[FUSE_PQC_OFFSET] = val;
 
+        println!(
+            "Burning fuse for SOC MAX SVN {}",
+            fuses.soc_manifest_max_svn
+        );
+        otp_mem[FUSE_SOC_MAX_SVN_OFFSET] = fuses.soc_manifest_max_svn;
+
         self.otp_slice().copy_from_slice(&otp_mem);
 
         // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
@@ -1635,6 +1643,20 @@ impl HwModel for ModelFpgaSubsystem {
     fn subsystem_mode(&self) -> bool {
         // we only support subsystem mode
         true
+    }
+
+    fn upload_firmware_rri(
+        &mut self,
+        _firmware: &[u8],
+        _soc_manifest: Option<&[u8]>,
+        _mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        // ironically, we don't need to support this
+        Ok(())
+    }
+
+    fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
+        Ok(())
     }
 }
 

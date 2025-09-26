@@ -264,7 +264,6 @@ jobs:
                        test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
                        test(test_authorize_and_stash::test_authorize_from_staging_address) |
                        test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-                       test(test_fe_programming::test_fe_programming_cmd) |
                        test(test_rtalias::test_boot_status_reporting) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
