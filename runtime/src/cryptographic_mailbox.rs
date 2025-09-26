@@ -654,8 +654,8 @@ impl Commands {
 
         context.length = data_len as u32;
 
-        // copy the intermediate hash if we had enough data to generate one
-        if data_len >= SHA512_BLOCK_BYTE_SIZE {
+        // copy the intermediate hash if we had enough data to generate new one
+        if context_buffer_len + data.len() >= SHA512_BLOCK_BYTE_SIZE {
             let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
             intermediate_digest.0.iter_mut().for_each(|x| {
                 *x = x.swap_bytes();
