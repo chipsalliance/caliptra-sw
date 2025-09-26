@@ -336,7 +336,7 @@ fn test_sha384_simple() {
 }
 
 #[test]
-fn test_sha_byte_at_a_time() {
+fn test_sha_partial_update() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -345,22 +345,22 @@ fn test_sha_byte_at_a_time() {
 
     // check sha384 and sha512
     for sha in [1, 2] {
-        let input_str = "a".repeat(100);
+        let input_str = "a".repeat(2048);
         let input_copy = input_str.clone();
         let original_input_data = input_copy.as_bytes();
         let mut input_data = input_str.as_bytes().to_vec();
         let mut input_data = input_data.as_mut_slice();
 
-        let split = 1;
-        let process = 1;
+        let split = 4;
+        let initial = 1024;
 
         let mut req: CmShaInitReq = CmShaInitReq {
             hash_algorithm: sha,
-            input_size: process as u32,
+            input_size: initial as u32,
             ..Default::default()
         };
-        req.input[..process].copy_from_slice(&input_data[..process]);
-        input_data = &mut input_data[process..];
+        req.input[..initial].copy_from_slice(&input_data[..initial]);
+        input_data = &mut input_data[initial..];
 
         let mut init = MailboxReq::CmShaInit(req);
         init.populate_chksum().unwrap();
