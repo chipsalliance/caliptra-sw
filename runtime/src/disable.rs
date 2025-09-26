@@ -15,6 +15,7 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_EXPORTED_DPE_CDI;
+pub use caliptra_drivers::cprintln;
 use caliptra_drivers::{
     hmac_kdf, Array4x12, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyId, KeyReadArgs,
     KeyUsage, KeyWriteArgs,
@@ -32,6 +33,7 @@ impl DisableAttestationCmd {
         Self::zero_cdi(drivers, KEY_ID_EXPORTED_DPE_CDI)?;
         Self::generate_dice_key(drivers)?;
         drivers.persistent_data.get_mut().attestation_disabled = U8Bool::new(true);
+        cprintln!("set attestation_disabled to true");
         Ok(0)
     }
 
