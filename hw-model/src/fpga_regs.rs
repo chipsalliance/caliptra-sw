@@ -17,6 +17,15 @@ register_bitfields! {
         BootfsmBrkpoint OFFSET(6) NUMBITS(1) [],
         SsDebugIntent OFFSET(7) NUMBITS(1) [],
         I3cAxiUserIdFiltering OFFSET(8) NUMBITS(1) [],
+        RsvdDeviceLifecycle OFFSET(5) NUMBITS(2) [],
+        BootfsmBrkpoint OFFSET(7) NUMBITS(1) [],
+        ScanMode OFFSET(8) NUMBITS(1) [],
+
+        SsDebugIntent OFFSET(16) NUMBITS(1) [],
+        I3cAxiUserIdFiltering OFFSET(17) NUMBITS(1) [],
+        OcpLockEn OFFSET(18) NUMBITS(1) [],
+        LcAllowRmaOrScrapOnPpd OFFSET(19) NUMBITS(1) [],
+        FipsZeroizationPpd OFFSET(20) NUMBITS(1) [],
         AxiReset OFFSET(31) NUMBITS(1) [],
     ],
     pub MciError [

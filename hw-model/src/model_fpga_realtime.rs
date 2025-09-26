@@ -78,6 +78,15 @@ bitfield! {
     cptra_obf_field_entropy_vld, set_cptra_obf_field_entropy_vld: 3, 3;
     debug_locked, set_debug_locked: 4, 4;
     device_lifecycle, set_device_lifecycle: 6, 5;
+    bootfsm_brkpoint, set_bootfsm_brkpoint: 7, 7;
+    scan_mode, set_scan_mode: 8, 8;
+
+    rsvd_ss_debug_intent, set_rsvd_ss_debug_intent: 16, 16;
+    rsvd_i3c_axi_user_id_filtering, set_rsvd_i3c_axi_user_id_filtering: 17, 17;
+    rsvd_ocp_lock_en, set_rsvd_ocp_lock_en: 18, 18;
+    rsvd_lc_allow_rma_or_scrap_on_ppd, set_rsvd_lc_allow_rma_or_scrap_on_ppd: 19, 19;
+    rsvd_fips_zeroization_ppd, set_rsvd_fips_zeroization_ppd: 20, 20;
+
     axi_reset, set_axi_reset: 31, 31;
 }
 

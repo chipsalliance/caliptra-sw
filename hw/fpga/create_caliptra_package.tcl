@@ -1,6 +1,6 @@
 
 # Create a project to package Caliptra.
-# Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
+# Packaging Caliptra allows Vivado to recognize Caliptra as an endpoint for the memory map.
 create_project caliptra_package_project $outputDir -part $PART
 if {$BOARD eq "VCK190"} {
   set_property board_part xilinx.com:vck190:part0:3.1 [current_project]
@@ -57,19 +57,13 @@ set_property include_dirs $rtlDir/src/integration/rtl [current_fileset]
 
 
 # Set caliptra_package_top as top in case next steps fail so that the top is something useful.
-if {$APB} {
-  set_property top caliptra_package_apb_top [current_fileset]
-} else {
-  set_property top caliptra_package_axi_top [current_fileset]
-}
+
+set_property top caliptra_package_axi_top [current_fileset]
 
 # Create block diagram that includes an instance of caliptra_package_top
 create_bd_design "caliptra_package_bd"
-if {$APB} {
-  create_bd_cell -type module -reference caliptra_package_apb_top caliptra_package_top_0
-} else {
-  create_bd_cell -type module -reference caliptra_package_axi_top caliptra_package_top_0
-}
+create_bd_cell -type module -reference caliptra_package_axi_top caliptra_package_top_0
+
 save_bd_design
 close_bd_design [get_bd_designs caliptra_package_bd]
 
@@ -78,14 +72,13 @@ puts "Fileset when packaging: [current_fileset]"
 puts "\n\nVERILOG DEFINES: [get_property verilog_define [current_fileset]]"
 ipx::package_project -root_dir $caliptrapackageDir -vendor design -library user -taxonomy /UserIP -import_files
 # Infer interfaces
-ipx::infer_bus_interfaces xilinx.com:interface:apb_rtl:1.0 [ipx::current_core]
 ipx::infer_bus_interfaces xilinx.com:interface:bram_rtl:1.0 [ipx::current_core]
-ipx::add_bus_parameter MASTER_TYPE [ipx::get_bus_interfaces axi_bram -of_objects [ipx::current_core]]
+ipx::add_bus_parameter MASTER_TYPE [ipx::get_bus_interfaces rom_backdoor -of_objects [ipx::current_core]]
 # Associate clocks to busses
 ipx::associate_bus_interfaces -busif S_AXI_WRAPPER -clock core_clk [ipx::current_core]
 ipx::associate_bus_interfaces -busif S_AXI_CALIPTRA -clock core_clk [ipx::current_core]
 ipx::associate_bus_interfaces -busif M_AXI_CALIPTRA -clock core_clk [ipx::current_core]
-ipx::associate_bus_interfaces -busif axi_bram -clock axi_bram_clk [ipx::current_core]
+ipx::associate_bus_interfaces -busif rom_backdoor -clock rom_backdoor_clk [ipx::current_core]
 # Other packager settings
 set_property name caliptra_package_top [ipx::current_core]
 set_property core_revision 1 [ipx::current_core]
