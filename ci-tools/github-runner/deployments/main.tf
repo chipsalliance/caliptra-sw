@@ -83,15 +83,6 @@ resource "google_storage_bucket" "bitstreams" {
   force_destroy               = false
   uniform_bucket_level_access = true
   depends_on = [google_project_service.enabled_apis]
-
-  lifecycle_rule {
-    condition {
-      age = 90
-    }
-    action {
-      type = "Delete"
-    }
-  }
 }
 
 resource "google_storage_bucket_iam_binding" "bitstreams_public_reader" {
