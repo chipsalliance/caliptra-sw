@@ -17,13 +17,15 @@ use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
-use caliptra_drivers::DmaRecovery;
+use caliptra_drivers::{DmaMmio, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use dpe::response::DpeErrorCode;
+use ureg::Mmio;
 use zerocopy::FromBytes;
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
@@ -70,6 +72,7 @@ impl AuthorizeAndStashCmd {
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
+        cprintln!("[AAS] Authorize and Stash for FW ID: {} size: {}", cmd_fw_id, cmd.image_size);
         let auth_result = if let Some(metadata_entry) =
             find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
         {
@@ -96,6 +99,23 @@ impl AuthorizeAndStashCmd {
                 } else {
                     metadata_entry.image_staging_address
                 };
+
+                cprintln!(
+                    "[AAS] Image source address: {:#010X}{:08X}",
+                    image_source.hi,
+                    image_source.lo
+                );
+
+                let mmio = &DmaMmio::new(drivers.soc_ifc.mci_base_addr().into(), &drivers.dma);
+                let word = unsafe {
+                    mmio.read_volatile((0x40_0000 + 0x000) as *mut u32)
+                };
+                cprintln!("[AAS] MCU MAILBOX SRAM WORD: 0x000 {:08X}", word);
+
+                let word = unsafe {
+                    mmio.read_volatile((0x40_0000 + 0x200) as *mut u32)
+                };
+                cprintln!("[AAS] MCU MAILBOX SRAM WORD: 0x200 {:08X}", word);                
 
                 let measurement: [u8; 48] = dma_image
                     .sha384_image(

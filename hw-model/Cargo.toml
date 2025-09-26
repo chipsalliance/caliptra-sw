@@ -8,7 +8,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["coverage"]
+default = ["coverage", "fpga_subsystem"]
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 fpga_subsystem  = ["dep:uio"]
@@ -17,8 +17,8 @@ coverage = ["dep:caliptra-coverage"]
 
 [dependencies]
 anyhow.workspace = true
-bitfield.workspace = true
 bitflags.workspace = true
+bitfield.workspace = true
 bit-vec.workspace = true
 caliptra-api-types.workspace = true
 caliptra-emu-bus.workspace = true

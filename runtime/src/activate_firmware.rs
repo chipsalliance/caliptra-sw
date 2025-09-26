@@ -17,6 +17,7 @@ use core::mem::offset_of;
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::ImageMetadataFlags;
+use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
@@ -116,6 +117,7 @@ impl ActivateFirmwareCmd {
         mcu_image_size: u32,
     ) -> Result<(), ()> {
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
+        
         let dma = &drivers.dma;
         let mut go_bitmap: [u32; 4] = [0; 4];
 
@@ -153,10 +155,21 @@ impl ActivateFirmwareCmd {
                 )
             };
 
+            let word = unsafe {
+                mmio.read_volatile(0x40_0000 as *mut u32)
+            };
+            cprintln!("[ACTF] MCU SRAM FIRST WORD: {:08X}", word);
+
+            let word = unsafe {
+                mmio.read_volatile((0x40_0000 + 0x200) as *mut u32)
+            };
+            cprintln!("[ACTF] MCU MAILBOX SRAM WORD: 0x200 {:08X}", word);
+
             // Clear FW_EXEC_CTRL[2]. This should start the process of resetting MCU.
             Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
             drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
+            cprintln!("[rt] Waiting for MCU to acknowledge reset request");
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
             while intr_status != 0 {
@@ -165,6 +178,7 @@ impl ActivateFirmwareCmd {
                         & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
             }
 
+            cprintln!("[rt] MCU acknowledged reset request");
             // Wait until RESET_STATUS.MCU_RESET_STS is set
             let mut reset_status: u32 = 0;
             while reset_status == 0 {
@@ -173,6 +187,7 @@ impl ActivateFirmwareCmd {
                         & MCU_RESET_REQ_STS_MASK
                 };
             }
+            cprintln!("[rt] MCU is in reset");
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
             let (_, image_staging_address) =

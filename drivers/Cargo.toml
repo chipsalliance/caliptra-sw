@@ -30,6 +30,7 @@ caliptra-cfi-lib-git = { workspace = true, default-features = false, features = 
 caliptra-cfi-derive-git = { workspace = true, optional = true }
 
 [features]
+default = ["fpga_subsystem"]
 std = []
 emu = []
 riscv = []

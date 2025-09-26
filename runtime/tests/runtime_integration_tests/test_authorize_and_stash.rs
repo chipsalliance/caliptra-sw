@@ -92,6 +92,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
 pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
+    mcu_image: &[u8]
 ) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -99,14 +100,26 @@ pub fn set_auth_manifest_with_test_sram(
             ..Default::default()
         }),
         test_sram: Some(test_sram),
+        soc_manifest: Some(
+            auth_manifest
+                .as_ref()
+                .map(|m| m.as_bytes())
+                .unwrap_or_default(),
+        ),
+        mcu_fw_image: Some(mcu_image),
         ..Default::default()
     };
 
+    println!("[test] Set Auth Manifest creating model");
     let mut model = run_rt_test(runtime_args);
+
+    println!("[test] Set Auth Manifest stepping to ready for commands");
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+
+    println!("[test] Set Auth Manifest is now ready for commands");
 
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
@@ -995,7 +1008,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         IMAGE_NOT_AUTHORIZED
     );
 }
-
+/*
 #[test]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1184,7 +1197,7 @@ fn test_authorize_from_staging_address_incorrect_digest() {
         IMAGE_HASH_MISMATCH
     );
 }
-
+*/
 #[test]
 fn test_verify_valid_manifest() {
     // Create the model

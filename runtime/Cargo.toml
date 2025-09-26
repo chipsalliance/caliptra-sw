@@ -78,7 +78,7 @@ x509-parser.workspace = true
 x509-cert.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "fpga_subsystem"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-drivers/itrng", "caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
