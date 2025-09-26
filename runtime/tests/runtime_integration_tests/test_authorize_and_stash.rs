@@ -54,7 +54,7 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     hi: 0x0000_0000,
 };
 
-#[cfg(not(any(feature = "fpga_subsystem", feature = "fpga_realtime")))]
+#[cfg(not(feature = "fpga_subsystem"))]
 pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     lo: 0x0050_0000,
     hi: 0x0000_0000,
