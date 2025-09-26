@@ -12,7 +12,9 @@ Abstract:
 
 --*/
 
+use crate::cprintln;
 use crate::kv_access::{KvAccess, KvAccessErr};
+use crate::printer::HexBytes;
 use crate::{array::Array4x32, wait, Array4x12, Array4x16, Array4x8, PcrId};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -227,6 +229,10 @@ impl Sha2_512_384 {
         let sha = self.sha512.regs();
         // digest_block() only waits until the peripheral is ready for the next
         // command; the result register may not be valid yet
+        cprintln!(
+            "sha read digest status {:08x}",
+            u32::from(sha.status().read())
+        );
         wait::until(|| sha.status().read().valid());
         Array4x16::read_from_reg(sha.digest())
     }
@@ -580,6 +586,7 @@ pub trait Sha2DigestOpTrait<'a, V>: Sized {
 
             // If the buffer is full calculate the digest of accumulated data
             if this.buf_idx == this.buf.len() {
+                cprintln!("sha update block: {}", HexBytes(&this.buf));
                 this.sha.digest_block(
                     Self::sha_mode(),
                     &this.buf,
