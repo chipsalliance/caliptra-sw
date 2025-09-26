@@ -108,29 +108,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
 
     #[cfg(feature = "fpga_subsystem")]
     {
-        println!("locking  MCU mailbox SRAMs");
-        unsafe {
-            let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
-            mcu_mbox_exec_ptr.write_volatile(0x1);
-
-            let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
-            let _ = mcu_mbox_lock_ptr.read_volatile();
-        };
-
-        println!("Writing MCU mailbox SRAMs");
-        unsafe {
-            let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
-
-            for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
-                let mut word = 0u32;
-                for (i, byte) in chunk.iter().enumerate() {
-                    word |= (*byte as u32) << (i * 8);
-                }
-                mcu_mbox_sram_ptr
-                    .offset(count as isize)
-                    .write_volatile(word);
-            }
-        };
+        crate::test_authorize_and_stash::write_mcu_mbox_sram(&mut model, &test_sram_contents);
     }
 
     for image in images {
@@ -196,7 +174,7 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -226,7 +204,7 @@ fn test_activate_mcu_fw_success() {
         .expect("We should have received a response");
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
@@ -266,7 +244,7 @@ fn test_activate_mcu_soc_fw_success() {
         .expect("We should have received a response");
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_soc_fw_success() {
     let mcu_image = Image {
@@ -305,7 +283,7 @@ fn test_activate_soc_fw_success() {
         .expect("We should have received a response");
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_invalid_fw_id() {
     let mcu_image = Image {
@@ -342,7 +320,7 @@ fn test_activate_invalid_fw_id() {
     assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_fw_id_not_in_manifest() {
     let mcu_image = Image {
@@ -379,7 +357,7 @@ fn test_activate_fw_id_not_in_manifest() {
     assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_invalid_exec_bit_in_manifest() {
     let mcu_image = Image {

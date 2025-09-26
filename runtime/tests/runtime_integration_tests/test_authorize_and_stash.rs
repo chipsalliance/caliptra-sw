@@ -1046,6 +1046,34 @@ fn get_mcu_image_metadata(mcu_image: &[u8]) -> AuthManifestImageMetadata {
     }
 }
 
+#[cfg(feature = "fpga_subsystem")]
+pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
+    println!("locking  MCU mailbox SRAMs");
+    unsafe {
+        // Make sure the SRAMs are unlocked.
+        // In case SRAM is locked from a previous test, we need to unlock it first
+        // by writing 1 to the exec register.
+        // If it's already unlocked, this is a no-op
+        let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+        mcu_mbox_exec_ptr.write_volatile(0x1);
+
+        // Read from the lock register to the lock the SRAM
+        let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+        let _ = mcu_mbox_lock_ptr.read_volatile();
+    };
+
+    println!("Writing MCU mailbox SRAMs");
+    unsafe {
+        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+
+        for (count, chunk) in data.chunks(4).enumerate() {
+            mcu_mbox_sram_ptr
+                .offset(count as isize)
+                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+        }
+    };
+}
+
 fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) {
     // For FPGA testing, we'll use the MCU mailbox SRAMs to simulate the test SRAM.
     #[cfg(feature = "fpga_subsystem")]
@@ -1055,29 +1083,7 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
         let image_size = data.len();
         test_sram_contents[staging_address..staging_address + image_size].copy_from_slice(data);
 
-        println!("locking  MCU mailbox SRAMs");
-        unsafe {
-            let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
-            mcu_mbox_exec_ptr.write_volatile(0x1);
-
-            let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
-            let _ = mcu_mbox_lock_ptr.read_volatile();
-        };
-
-        println!("Writing MCU mailbox SRAMs");
-        unsafe {
-            let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
-
-            for (count, chunk) in test_sram_contents.chunks(4).enumerate() {
-                let mut word = 0u32;
-                for (i, byte) in chunk.iter().enumerate() {
-                    word |= (*byte as u32) << (i * 8);
-                }
-                mcu_mbox_sram_ptr
-                    .offset(count as isize)
-                    .write_volatile(word);
-            }
-        };
+        write_mcu_mbox_sram(model, &test_sram_contents);
     }
     #[cfg(not(feature = "fpga_subsystem"))]
     {
@@ -1087,6 +1093,7 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1109,7 +1116,14 @@ fn test_authorize_from_load_address() {
         },
         ..Default::default()
     };
-    let mcu_image = [0xAAu8; 256];
+    let mcu_image = {
+        let mut arr = [0u8; 256];
+        for (i, item) in arr.iter_mut().enumerate() {
+            *item = i as u8;
+        }
+        arr
+    };
+
     let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
@@ -1144,6 +1158,7 @@ fn test_authorize_from_load_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1200,6 +1215,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1257,6 +1273,7 @@ fn test_authorize_from_staging_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
