@@ -52,7 +52,8 @@ pub enum CaliptraCoreReg {
 }
 
 impl JtagAccessibleReg for CaliptraCoreReg {
+    // The offsets above are word offsets.
     fn byte_offset(&self) -> u32 {
-        *self as u32
+        *self as u32 * 4
     }
 }
