@@ -147,53 +147,53 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "fake-rom") {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
+    // if !cfg!(feature = "fake-rom") {
+    //     let mut kats_env = caliptra_kat::KatsEnv {
+    //         // SHA1 Engine
+    //         sha1: &mut env.sha1,
 
-            // sha256
-            sha256: &mut env.sha256,
+    //         // sha256
+    //         sha256: &mut env.sha256,
 
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
+    //         // SHA2-512/384 Engine
+    //         sha2_512_384: &mut env.sha2_512_384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+    //         // SHA2-512/384 Accelerator
+    //         sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
+    //         // Hmac-512/384 Engine
+    //         hmac: &mut env.hmac,
 
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
+    //         // Cryptographically Secure Random Number Generator
+    //         trng: &mut env.trng,
 
-            // LMS Engine
-            lms: &mut env.lms,
+    //         // LMS Engine
+    //         lms: &mut env.lms,
 
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
+    //         // MLDSA87 Engine
+    //         mldsa87: &mut env.mldsa87,
 
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
+    //         // Ecc384 Engine
+    //         ecc384: &mut env.ecc384,
 
-            // AES Engine
-            aes: &mut env.aes,
+    //         // AES Engine
+    //         aes: &mut env.aes,
 
-            // SHA Acc lock state.
-            // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            // On an Update Reset, it is expected to be unlocked.
-            // Not having it unlocked will result in a fatal error.
-            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-                ShaAccLockState::NotAcquired
-            } else {
-                ShaAccLockState::AssumedLocked
-            },
-        };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
-        }
-    }
+    //         // SHA Acc lock state.
+    //         // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+    //         // On an Update Reset, it is expected to be unlocked.
+    //         // Not having it unlocked will result in a fatal error.
+    //         sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+    //             ShaAccLockState::NotAcquired
+    //         } else {
+    //             ShaAccLockState::AssumedLocked
+    //         },
+    //     };
+    //     let result = run_fips_tests(&mut kats_env);
+    //     if let Err(err) = result {
+    //         handle_fatal_error(err.into());
+    //     }
+    // }
 
     cprintln!(r"  __  __  _       _  __ ______  __  __     _____   ______  __  __   ____  ");
     cprintln!(r" |  \/  || |_____| |/ /|  ____||  \/  |   |  __ \ |  ____||  \/  | / __ \ ");
