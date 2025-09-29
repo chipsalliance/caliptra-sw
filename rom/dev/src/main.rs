@@ -195,6 +195,18 @@ pub extern "C" fn rom_entry() -> ! {
         }
     }
 
+    cprintln!(r"  __  __  _       _  __ ______  __  __     _____   ______  __  __   ____  ");
+    cprintln!(r" |  \/  || |_____| |/ /|  ____||  \/  |   |  __ \ |  ____||  \/  | / __ \ ");
+    cprintln!(r" | \  / || |     | ' / | |__   | \  / |   | |  | || |__   | \  / || |  | |");
+    cprintln!(r" | |\/| || |     |  <  |  __|  | |\/| |   | |  | ||  __|  | |\/| || |  | |");
+    cprintln!(r" | |  | || |____ | . \ | |____ | |  | |   | |__| || |____ | |  | || |__| |");
+    cprintln!(r" |_|  |_||______||_|\_\|______||_|  |_|   |_____/ |______||_|  |_| \____/ ");
+
+    cprintln!("PRETEND THIS IS A COOL ML-KEM DEMO");
+    if true {
+        loop {}
+    }
+
     if let Err(err) = flow::run(&mut env) {
         //
         // For the update reset case, when we fail the image validation
