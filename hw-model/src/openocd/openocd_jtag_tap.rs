@@ -94,7 +94,6 @@ impl OpenOcdJtagTap {
 
         // Capture outputs during initialization to see if error has occurred during the process.
         let resp = openocd.execute("capture init")?;
-        println!("Resp: {}", resp);
         if resp.contains("JTAG scan chain interrogation failed") {
             bail!(OpenOcdError::InitializeFailure(resp));
         }

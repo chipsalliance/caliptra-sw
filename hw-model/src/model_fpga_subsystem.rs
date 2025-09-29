@@ -416,6 +416,20 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_ss_debug_intent(&mut self, val: bool) {
+        if val {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::CLEAR);
+        }
+    }
+
     fn axi_reset(&mut self) {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
@@ -1428,6 +1442,11 @@ impl HwModel for ModelFpgaSubsystem {
         let mcu_rom_slice =
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
+
+        // Setup debug intent signal if requested.
+        m.set_ss_debug_intent(params.debug_intent);
+        // Set BootFSM break if requested.
+        m.set_bootfsm_break(params.bootfsm_break);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
