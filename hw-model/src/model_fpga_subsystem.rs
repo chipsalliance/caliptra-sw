@@ -1275,22 +1275,22 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn step(&mut self) {
-        if !self.i3c_controller_configured && self.i3c_target_configured() {
-            self.i3c_controller_configured = true;
-            writeln!(
-                eoutput(),
-                "Detected I3C target configured; configuring I3C controller"
-            );
-            self.i3c_controller.configure();
-            writeln!(eoutput(), "Starting recovery flow (BMC)");
-            self.start_recovery_bmc();
-            writeln!(eoutput(), "Finished booting");
-        }
+        // if !self.i3c_controller_configured && self.i3c_target_configured() {
+        //     self.i3c_controller_configured = true;
+        //     writeln!(
+        //         eoutput(),
+        //         "Detected I3C target configured; configuring I3C controller"
+        //     );
+        //     self.i3c_controller.configure();
+        //     writeln!(eoutput(), "Starting recovery flow (BMC)");
+        //     self.start_recovery_bmc();
+        //     writeln!(eoutput(), "Finished booting");
+        // }
 
         //        STEP_STATUS.store(line!(), Ordering::Relaxed);
         self.handle_log();
         //STEP_STATUS.store(line!(), Ordering::Relaxed);
-        self.bmc_step();
+        // self.bmc_step();
         //STEP_STATUS.store(line!(), Ordering::Relaxed);
         // let c = { self.stdin_uart.lock().unwrap().take() };
         // if let Some(c) = c {
