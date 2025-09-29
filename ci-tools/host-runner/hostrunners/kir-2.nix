@@ -1,5 +1,25 @@
 { config, pkgs, user, fpga-boss-script, ... }:
 {
+  systemd.user.services.vck-6 = {
+    enable = true;
+    description = "VCK-6 Service";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
+      Restart = "on-failure";
+      RestartSec = "15s";
+      Environment = [
+        ''ZCU_FTDI="1-1.2.1.4"''
+        ''ZCU_SDWIRE="1-1.2.1.3"''
+        ''IDENTIFIER="caliptra-kir-vck190-6"''
+        ''FPGA_TARGET="vck190"''
+        ''IMAGE="/home/${user}/ci-images/vck190.img"''
+      ];
+    };
+  };
   # systemd.user.services.vck-5 = {
   #   description = "VCK-5 Service";
   #   after = [ "network.target" ];
@@ -76,6 +96,13 @@
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.2.1.1"
         export ZCU_SDWIRE="1-1.2.1.2"
+
+        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
+     ''))
+      ((pkgs.writeShellScriptBin "vck-6-debug" ''
+        #!${pkgs.bash}/bin/bash
+        export ZCU_FTDI="1-1.2.1.4"
+        export ZCU_SDWIRE="1-1.2.1.3"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
      ''))
