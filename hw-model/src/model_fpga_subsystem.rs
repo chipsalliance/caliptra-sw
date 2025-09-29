@@ -387,6 +387,7 @@ pub struct ModelFpgaSubsystem {
     pub i3c_mmio: *mut u32,
     pub i3c_controller_mmio: *mut u32,
     pub i3c_controller: XI3CWrapper,
+    pub i3c_controller_configured: bool,
     pub otp_mmio: *mut u32,
     pub lc_mmio: *mut u32,
 
@@ -1274,48 +1275,60 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn step(&mut self) {
-        STEP_STATUS.store(line!(), Ordering::Relaxed);
-        self.handle_log();
-        STEP_STATUS.store(line!(), Ordering::Relaxed);
-        self.bmc_step();
-        STEP_STATUS.store(line!(), Ordering::Relaxed);
-        let c = { self.stdin_uart.lock().unwrap().take() };
-        if let Some(c) = c {
-            if c == 'i' as u8 {
-                writeln!(eoutput(), "Dumping status");
-                writeln!(
-                    eoutput(),
-                    "I3C controller status: {:x}",
-                    self.i3c_controller().controller.lock().unwrap().status()
-                )
-                .unwrap();
-                writeln!(
-                    eoutput(),
-                    "I3C controller cmd fifo level: {}",
-                    self.i3c_controller().cmd_fifo_level()
-                )
-                .unwrap();
-                writeln!(
-                    eoutput(),
-                    "I3C controller write fifo level: {}",
-                    self.i3c_controller().write_fifo_level()
-                )
-                .unwrap();
-                writeln!(
-                    eoutput(),
-                    "I3C controller resp fifo level: {}",
-                    self.i3c_controller().resp_fifo_level()
-                )
-                .unwrap();
-                writeln!(
-                    eoutput(),
-                    "I3C controller read fifo level: {}",
-                    self.i3c_controller().read_fifo_level()
-                )
-                .unwrap();
-                self.print_i3c_registers();
-            }
+        if !self.i3c_controller_configured && self.i3c_target_configured() {
+            self.i3c_controller_configured = true;
+            writeln!(
+                eoutput(),
+                "Detected I3C target configured; configuring I3C controller"
+            );
+            self.i3c_controller.configure();
+            writeln!(eoutput(), "Starting recovery flow (BMC)");
+            self.start_recovery_bmc();
+            writeln!(eoutput(), "Finished booting");
         }
+
+        //        STEP_STATUS.store(line!(), Ordering::Relaxed);
+        self.handle_log();
+        //STEP_STATUS.store(line!(), Ordering::Relaxed);
+        self.bmc_step();
+        //STEP_STATUS.store(line!(), Ordering::Relaxed);
+        // let c = { self.stdin_uart.lock().unwrap().take() };
+        // if let Some(c) = c {
+        //     if c == 'i' as u8 {
+        //         writeln!(eoutput(), "Dumping status");
+        //         writeln!(
+        //             eoutput(),
+        //             "I3C controller status: {:x}",
+        //             self.i3c_controller().controller.lock().unwrap().status()
+        //         )
+        //         .unwrap();
+        //         writeln!(
+        //             eoutput(),
+        //             "I3C controller cmd fifo level: {}",
+        //             self.i3c_controller().cmd_fifo_level()
+        //         )
+        //         .unwrap();
+        //         writeln!(
+        //             eoutput(),
+        //             "I3C controller write fifo level: {}",
+        //             self.i3c_controller().write_fifo_level()
+        //         )
+        //         .unwrap();
+        //         writeln!(
+        //             eoutput(),
+        //             "I3C controller resp fifo level: {}",
+        //             self.i3c_controller().resp_fifo_level()
+        //         )
+        //         .unwrap();
+        //         writeln!(
+        //             eoutput(),
+        //             "I3C controller read fifo level: {}",
+        //             self.i3c_controller().read_fifo_level()
+        //         )
+        //         .unwrap();
+        //         self.print_i3c_registers();
+        //     }
+        // }
     }
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
@@ -1433,6 +1446,7 @@ impl HwModel for ModelFpgaSubsystem {
                 i3c_mmio,
                 i3c_controller_mmio,
             },
+            i3c_controller_configured: false,
             otp_mmio,
             lc_mmio,
 
@@ -1686,9 +1700,6 @@ impl HwModel for ModelFpgaSubsystem {
         );
         self.bmc.push_recovery_image(mcu_fw_image);
 
-        while !self.i3c_target_configured() {
-            self.step();
-        }
         writeln!(eoutput(), "Done starting MCU");
 
         // TODO: support passing these into MCU ROM
@@ -1724,12 +1735,6 @@ impl HwModel for ModelFpgaSubsystem {
         // Set up the PAUSER as valid for the mailbox (using index 0)
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
-
-        self.i3c_controller.configure();
-        writeln!(eoutput(), "Starting recovery flow (BMC)");
-        self.start_recovery_bmc();
-        self.step();
-        writeln!(eoutput(), "Finished booting");
 
         Ok(())
     }
