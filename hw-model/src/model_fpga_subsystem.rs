@@ -717,11 +717,11 @@ impl ModelFpgaSubsystem {
             if empty {
                 // fifo is empty, send a block
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
-                writeln!(
-                    eoutput(),
-                    "Writing recovery fifo block {}",
-                    self.blocks_sent
-                );
+                // writeln!(
+                //     eoutput(),
+                //     "Writing recovery fifo block {}",
+                //     self.blocks_sent
+                // );
                 // let level_a = self.i3c_controller().write_fifo_level();
                 self.blocks_sent += 1;
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
@@ -788,11 +788,11 @@ impl ModelFpgaSubsystem {
                 target_addr,
                 command_code,
             } => {
-                writeln!(
-                    eoutput(),
-                    "From BMC: Recovery block read request {:?}",
-                    command_code
-                );
+                // writeln!(
+                //     eoutput(),
+                //     "From BMC: Recovery block read request {:?}",
+                //     command_code
+                // );
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                 if let Some(payload) = self.recovery_block_read_request(command_code) {

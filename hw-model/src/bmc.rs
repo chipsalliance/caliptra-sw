@@ -70,12 +70,12 @@ impl Bmc {
         }
 
         self.recovery_step();
-        writeln!(
-            output(),
-            "[emulator bmc] Recovery step(), state: {:?}",
-            self.recovery_state_machine.state()
-        )
-        .unwrap();
+        // writeln!(
+        //     output(),
+        //     "[emulator bmc] Recovery step(), state: {:?}",
+        //     self.recovery_state_machine.state()
+        // )
+        // .unwrap();
         if prev_state != *self.recovery_state_machine.state() {
             writeln!(
                 output(),
@@ -95,12 +95,12 @@ impl Bmc {
         }
 
         if let Some(event) = recovery::state_to_read_request(state) {
-            writeln!(
-                output(),
-                "[emulator bmc recovery] Sending read request: {:?}",
-                event
-            )
-            .unwrap();
+            // writeln!(
+            //     output(),
+            //     "[emulator bmc recovery] Sending read request: {:?}",
+            //     event
+            // )
+            // .unwrap();
             self.events_to_caliptra.send(event).unwrap();
         }
     }
