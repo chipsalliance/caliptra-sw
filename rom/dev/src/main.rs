@@ -205,7 +205,6 @@ pub extern "C" fn rom_entry() -> ! {
     cprintln!(r" | |  | || |____ | . \ | |____ | |  | |   | |__| || |____ | |  | || |__| |");
     cprintln!(r" |_|  |_||______||_|\_\|______||_|  |_|   |_____/ |______||_|  |_| \____/ ");
 
-    cprintln!("PRETEND THIS IS A COOL ML-KEM DEMO");
     if true {
         const SEED_D: [u32; 8] = [
             0x12345678, 0x9abcdef0, 0x11223344, 0x55667788, 0xaabbccdd, 0xeeff0011, 0x22334455,
