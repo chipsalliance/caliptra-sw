@@ -240,7 +240,7 @@ impl XI3CWrapper {
 
     /// Start receiving data (non-blocking).
     pub fn read_start(&self, len: u16) -> Result<(), XI3cError> {
-        let target_addr = self.get_primary_addr();
+        let target_addr = self.get_primary_addr().ok_or(XI3cError::NoData)?;
         let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 0,
@@ -252,7 +252,7 @@ impl XI3CWrapper {
 
     /// Finish receiving data (blocking).
     pub fn read_finish(&self, len: u16) -> Result<Vec<u8>, XI3cError> {
-        let target_addr = self.get_primary_addr();
+        let target_addr = self.get_primary_addr().ok_or(XI3cError::NoData)?;
         let cmd = xi3c::Command {
             cmd_type: 1,
             no_repeated_start: 1,
@@ -268,7 +268,7 @@ impl XI3CWrapper {
 
     /// Receive data (blocking).
     pub fn read(&self, len: u16) -> Result<Vec<u8>, XI3cError> {
-        let target_addr = self.get_primary_addr();
+        let target_addr = self.get_primary_addr().ok_or(XI3cError::NoData)?;
         let cmd = xi3c::Command {
             no_repeated_start: 1,
             target_addr,
@@ -280,7 +280,7 @@ impl XI3CWrapper {
             .master_recv_polled(None, &cmd, len)
     }
 
-    pub fn get_primary_addr(&self) -> u8 {
+    pub fn get_primary_addr(&self) -> Option<u8> {
         // Safety: we are only reading the register
         let reg = unsafe {
             self.i3c_core()
@@ -289,11 +289,11 @@ impl XI3CWrapper {
                 .read()
         };
         if reg.dynamic_addr_valid() {
-            reg.dynamic_addr() as u8
+            Some(reg.dynamic_addr() as u8)
         } else if reg.static_addr_valid() {
-            reg.static_addr() as u8
+            Some(reg.static_addr() as u8)
         } else {
-            panic!("I3C target does not have a valid address set");
+            None
         }
     }
 
@@ -316,7 +316,7 @@ impl XI3CWrapper {
 
     /// Write data and wait for ACK (blocking).
     pub fn write(&self, payload: &[u8]) -> Result<(), XI3cError> {
-        let target_addr = self.get_primary_addr();
+        let target_addr = self.get_primary_addr().ok_or(XI3cError::NoData)?;
         let cmd = xi3c::Command {
             no_repeated_start: 1,
             target_addr,
@@ -330,7 +330,7 @@ impl XI3CWrapper {
 
     /// Send data but don't wait for ACK (non-blocking).
     pub fn write_nowait(&self, payload: &[u8]) -> Result<(), XI3cError> {
-        let target_addr = self.get_primary_addr();
+        let target_addr = self.get_primary_addr().ok_or(XI3cError::NoData)?;
         let cmd = xi3c::Command {
             no_repeated_start: 1,
             target_addr,
