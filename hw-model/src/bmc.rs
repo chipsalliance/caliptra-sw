@@ -89,6 +89,12 @@ impl Bmc {
         }
 
         if let Some(event) = recovery::state_to_read_request(state) {
+            writeln!(
+                output(),
+                "[emulator bmc recovery] Sending read request: {:?}",
+                event
+            )
+            .unwrap();
             self.events_to_caliptra.send(event).unwrap();
         }
     }
