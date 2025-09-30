@@ -15,6 +15,21 @@ pub fn rom_from_env() -> &'static FwId<'static> {
     }
 }
 
+pub fn rom_from_env_fpga(fpga: bool) -> &'static FwId<'static> {
+    match (
+        std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()),
+        fpga,
+    ) {
+        (Ok("ROM"), _) => &ROM,
+        (Ok("ROM_WITHOUT_UART"), _) => &ROM,
+        (Ok("ROM_WITH_UART"), true) => &ROM_FPGA_WITH_UART,
+        (Ok("ROM_WITH_UART"), false) => &ROM_WITH_UART,
+        (Ok(s), _) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+        (Err(_), true) => &ROM_FPGA_WITH_UART,
+        (Err(_), false) => &ROM_WITH_UART,
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",

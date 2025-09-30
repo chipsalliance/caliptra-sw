@@ -2,8 +2,10 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
+use caliptra_common::CptraGeneration;
 use caliptra_emu_bus::{Bus, Event};
 use core::panic;
 use std::path::PathBuf;
@@ -33,6 +35,7 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+pub mod jtag;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
@@ -188,7 +191,11 @@ pub struct InitParams<'a> {
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
+
+    // Whether or not to set the BootFSM break signal.
+    pub bootfsm_break: bool,
 
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
@@ -260,6 +267,7 @@ impl Default for InitParams<'_> {
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
+            bootfsm_break: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
@@ -1161,6 +1169,29 @@ pub trait HwModel: SocManager {
         }
 
         Ok(())
+    }
+
+    fn subsystem_mode(&self) -> bool;
+
+    /// Returns true if this is Caliptra 2.0 only.
+    fn version_2_0(&mut self) -> bool {
+        let gen = CptraGeneration(self.soc_ifc().cptra_hw_rev_id().read().cptra_generation());
+        gen.major_version() == 2 && gen.minor_version() == 0
+    }
+
+    /// Returns true if the stable keys are zeroizable according to FIPS.
+    /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
+    /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
+    fn stable_key_zeroizable(&mut self) -> bool {
+        !(self.version_2_0() && self.subsystem_mode())
+    }
+
+    fn stable_key_zeroizable_fips_status(&mut self) -> u32 {
+        if self.stable_key_zeroizable() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
     }
 }
 

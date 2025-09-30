@@ -128,7 +128,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
@@ -137,7 +137,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
 | Key Hash Count | 1 | Number of valid public key hashes  |
 | Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
@@ -646,7 +646,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#shutdown).
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#capabilities).
 7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#get_idevid_csr).
-8. **CM_DERIVE_STABLE_KEY**: This command is used to derive a stable key for Device Ownership Transfer or other flows. [CM_DERIVE_STABLE_KEY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_derive_stable_key)
+8. **CM_DERIVE_STABLE_KEY**: This command is used to derive a stable key for Device Ownership Transfer or other flows. Note that in Caliptra 2.0 in subsystem mode, derived stable keys, their derivatives, and commands using them will be marked with a FIPS status of invalid since the UDS and FE cannot be completely zeroized. See [CM_DERIVE_STABLE_KEY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_derive_stable_key).
 9. **CM_HMAC**: This command uses derived stable keys for Device Ownership Transfer or other flows. [CM_HMAC](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_hmac)
 10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
 11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)

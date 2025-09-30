@@ -122,7 +122,8 @@ Internally, the unecrypted CMKs have the following structure:
 
 | **Name**      | **Bits** | **Description**                        |
 | ------------- | -------- | -------------------------------------- |
-| version       | 16       | CMK version. Currently always 1.       |
+| version       | 8        | CMK version. Currently always 1.       |
+| flags         | 8        | Bit 0 = FIPS valid                     |
 | length        | 16       | how many bits of key material are used |
 | key usage     | 8        | represents which kind of key this is   |
 | id            | 24       | ID number                              |
@@ -1675,7 +1676,8 @@ The encrypted and authenticated context's internal structure will be:
 | mode           | u32      |                                |
 | key            | u8[32]   |                                |
 | iv             | u8[16]   |                                |
-| reserved       | u8[76]   | Reserved for additional fields |
+| fips_status    | u8       | 1 = FIPS valid                 |
+| reserved       | u8[75]   | Reserved for additional fields |
 
 The size of the (encrypted) context is always exactly 156 bytes,
 and we will use the type `AES_CONTEXT` to represent `u8[156]`.
@@ -1815,7 +1817,8 @@ The encrypted and authenticated context's internal structure will be:
 | GHASH state    | u8[16]   |                             |
 | current length | u32      | value mod 16 is buffer size |
 | buffer         | u8[16]   |                             |
-| reserved       | u8[16]   |                             |
+| fips_status    | u8       | 1 = FIPS valid                 |
+| reserved       | u8[15]   |                             |
 
 The size of the (encrypted) context is always exactly 128 bytes,
 and we will use the type `AES_GCM_CONTEXT` to represent `u8[128]` below.
@@ -2191,6 +2194,8 @@ will always need to be re-derived after every *cold* reset.
 If a key usage other than HMAC is desired, then the KDF or HKDF
 mailbox functions can be used to derive a key from the returned CMK.
 
+Note that in Caliptra 2.0 in subsystem mode, derived stable keys, their derivatives, and commands using them will be marked with a FIPS status of invalid since the UDS and FE cannot be completely zeroized.
+
 Command Code: `0x434D_4453` ("CMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*
@@ -2212,6 +2217,9 @@ Command Code: `0x434D_4453` ("CMDS")
 Imports the specified key and returns a CMK for it.
 
 Usage information is required so that the key can be verified and used appropriately.
+
+Note that it is the caller's responsibility to ensure that the source
+key material meets FIPS requirements, such as zeroization.
 
 Command Code: `0x434D_494D` ("CMIM")
 
