@@ -1869,7 +1869,9 @@ impl Drop for ModelFpgaSubsystem {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
-        self.i3c_controller.controller.lock().unwrap().off();
+        if let Ok(controller) = self.i3c_controller.controller.lock() {
+            controller.off();
+        }
 
         self.set_subsystem_reset(true);
 
