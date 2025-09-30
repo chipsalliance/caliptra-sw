@@ -641,11 +641,14 @@ impl ModelFpgaSubsystem {
     }
 
     fn bmc_step(&mut self) {
+        writeln!(eoutput(), "bmc_step()");
         if !self.recovery_started {
+            writeln!(eoutput(), "bmc_step() skip");
             return;
         }
 
         self.bmc_step_counter += 1;
+        writeln!(eoutput(), "bmc_step() count {}", self.bmc_step_counter);
 
         // check if we need to fill the recovey FIFO
         STEP_STATUS.store(line!(), Ordering::Relaxed);
@@ -764,6 +767,7 @@ impl ModelFpgaSubsystem {
         // }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
+        writeln!(eoutput(), "BMC step").unwrap();
         self.bmc.step();
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
