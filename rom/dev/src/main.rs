@@ -21,18 +21,21 @@ use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
+use caliptra_registers::abr::AbrReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason,
-    ShaAccLockState, Trng,
+    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, LEArray4x8, MlKem1024,
+    MlKem1024Message, MlKem1024MessageSource, MlKem1024Seeds, MlKem1024SharedKey,
+    MlKem1024SharedKeyOut, ResetReason, ShaAccLockState, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
 use caliptra_kat::KatsEnv;
 use rom_env::RomEnv;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
@@ -204,6 +207,64 @@ pub extern "C" fn rom_entry() -> ! {
 
     cprintln!("PRETEND THIS IS A COOL ML-KEM DEMO");
     if true {
+        const SEED_D: [u32; 8] = [
+            0x12345678, 0x9abcdef0, 0x11223344, 0x55667788, 0xaabbccdd, 0xeeff0011, 0x22334455,
+            0x66778899,
+        ];
+
+        const SEED_Z: [u32; 8] = [
+            0x87654321, 0x0fedcba9, 0x44332211, 0x88776655, 0xddccbbaa, 0x1100ffee, 0x55443322,
+            0x99887766,
+        ];
+
+        const MESSAGE: [u32; 8] = [
+            0xdeadbeef, 0xcafebabe, 0x12345678, 0x9abcdef0, 0x11223344, 0x55667788, 0xaabbccdd,
+            0xeeff0011,
+        ];
+        let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()) };
+
+        // Generate key pair
+        let seed_d = LEArray4x8::from(SEED_D);
+        let seed_z = LEArray4x8::from(SEED_Z);
+        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
+        let message = MlKem1024Message::from(MESSAGE);
+
+        cprintln!("Seed D: {}", HexBytes(seed_d.as_bytes()));
+        cprintln!("Seed Z: {}", HexBytes(seed_z.as_bytes()));
+        cprintln!("Input message: {}", HexBytes(message.as_bytes()));
+
+        let (encaps_key, decaps_key) = mlkem.key_pair(seeds).unwrap();
+        cprintln!("Encaps Key: {}", HexBytes(encaps_key.as_bytes()));
+        cprintln!("Decaps Key: {}", HexBytes(decaps_key.as_bytes()));
+
+        let mut shared_key_out = MlKem1024SharedKey::default();
+        let ciphertext = mlkem
+            .encapsulate(
+                encaps_key,
+                MlKem1024MessageSource::Array(&message),
+                MlKem1024SharedKeyOut::Array(&mut shared_key_out),
+            )
+            .unwrap();
+        cprintln!(
+            "Shared Key (encaps side): {}",
+            HexBytes(shared_key_out.as_bytes())
+        );
+        cprintln!("Ciphertext: {}", HexBytes(ciphertext.as_bytes()));
+
+        let mut decaps_shared_key = MlKem1024SharedKey::default();
+        mlkem
+            .decapsulate(
+                decaps_key,
+                &ciphertext,
+                MlKem1024SharedKeyOut::Array(&mut decaps_shared_key),
+            )
+            .unwrap();
+
+        cprintln!(
+            "Shared Key (decaps side): {}",
+            HexBytes(decaps_shared_key.as_bytes())
+        );
+
         loop {}
     }
 
