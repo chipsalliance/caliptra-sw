@@ -70,6 +70,12 @@ impl Bmc {
         }
 
         self.recovery_step();
+        writeln!(
+            output(),
+            "[emulator bmc] Recovery step(), state: {:?}",
+            self.recovery_state_machine.state()
+        )
+        .unwrap();
         if prev_state != *self.recovery_state_machine.state() {
             writeln!(
                 output(),
