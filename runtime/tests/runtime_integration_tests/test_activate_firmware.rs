@@ -1,5 +1,4 @@
 // Licensed under the Apache-2.0 license
-
 use crate::test_authorize_and_stash::set_auth_manifest_with_test_sram;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_api::mailbox::ActivateFirmwareReq;
@@ -9,13 +8,24 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
 use zerocopy::FromBytes;
 
 pub const TEST_SRAM_SIZE: usize = 0x1000;
 
+#[cfg(feature = "fpga_subsystem")]
+const MCI_BASE: u32 = 0xA8000000;
+#[cfg(feature = "fpga_subsystem")]
+const MCU_MBOX_SRAM_BASE: u32 = MCI_BASE + 0x400000;
+#[cfg(feature = "fpga_subsystem")]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: MCU_MBOX_SRAM_BASE,
+    hi: 0x0000_0000,
+};
+
+#[cfg(not(any(feature = "fpga_subsystem")))]
 pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     lo: 0x0050_0000,
     hi: 0x0000_0000,
@@ -26,22 +36,22 @@ pub const SOC_FW_ID_1: u32 = 0x3;
 pub const INVALID_FW_ID: u32 = 128;
 
 pub const MCU_LOAD_ADDRESS: Addr64 = Addr64 {
-    lo: 0x0050_0000,
+    lo: TEST_SRAM_BASE.lo,
     hi: 0x0000_0000,
 };
 
 pub const MCU_STAGING_ADDRESS: Addr64 = Addr64 {
-    lo: 0x0050_0200,
+    lo: TEST_SRAM_BASE.lo + 0x200,
     hi: 0x0000_0000,
 };
 
 pub const SOC_LOAD_ADDRESS: Addr64 = Addr64 {
-    lo: 0x0050_0100,
+    lo: TEST_SRAM_BASE.lo + 0x100,
     hi: 0x0000_0000,
 };
 
 pub const SOC_STAGING_ADDRESS: Addr64 = Addr64 {
-    lo: 0x0050_0300,
+    lo: TEST_SRAM_BASE.lo + 0x300,
     hi: 0x0000_0000,
 };
 
@@ -90,7 +100,16 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     }
 
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram_contents);
+    let mut model = set_auth_manifest_with_test_sram(
+        Some(auth_manifest),
+        &test_sram_contents,
+        &images[0].contents,
+    );
+
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        crate::test_authorize_and_stash::write_mcu_mbox_sram(&mut model, &test_sram_contents);
+    }
 
     for image in images {
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -102,6 +121,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
             image_size: image.contents.len() as u32,
             ..Default::default()
         });
+
         authorize_and_stash_cmd.populate_chksum().unwrap();
 
         let resp = model
@@ -119,6 +139,42 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     model
 }
 
+fn send_activate_firmware_cmd(
+    model: &mut DefaultHwModel,
+    activate_cmd: MailboxReq,
+) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+    model
+        .start_mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        )
+        .unwrap();
+
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        // Allow some time for Caliptra to process the command and trigger the interrupt
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        // Emulate MCU reset request interrupt
+        model
+            .mci
+            .regs()
+            .intr_block_rf()
+            .notif0_intr_trig_r()
+            .modify(|r| r.notif_cptra_mcu_reset_req_trig(true));
+
+        model
+            .mci
+            .regs()
+            .intr_block_rf()
+            .notif0_internal_intr_r()
+            .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
+        model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
+    }
+    model.finish_mailbox_execute()
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -143,16 +199,12 @@ fn test_activate_mcu_fw_success() {
         },
     });
     activate_cmd.populate_chksum().unwrap();
-
-    model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
+    send_activate_firmware_cmd(&mut model, activate_cmd)
         .unwrap()
         .expect("We should have received a response");
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
@@ -187,17 +239,22 @@ fn test_activate_mcu_soc_fw_success() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
+    send_activate_firmware_cmd(&mut model, activate_cmd)
         .unwrap()
         .expect("We should have received a response");
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_soc_fw_success() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
         staging_address: SOC_STAGING_ADDRESS,
@@ -206,7 +263,7 @@ fn test_activate_soc_fw_success() {
         exec_bit: 3,
     };
 
-    let mut model = load_and_authorize_fw(&[soc_image]);
+    let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -221,17 +278,22 @@ fn test_activate_soc_fw_success() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
+    send_activate_firmware_cmd(&mut model, activate_cmd)
         .unwrap()
         .expect("We should have received a response");
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_invalid_fw_id() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
         staging_address: SOC_STAGING_ADDRESS,
@@ -240,7 +302,7 @@ fn test_activate_invalid_fw_id() {
         exec_bit: 3,
     };
 
-    let mut model = load_and_authorize_fw(&[soc_image]);
+    let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -255,16 +317,20 @@ fn test_activate_invalid_fw_id() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_fw_id_not_in_manifest() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
         staging_address: SOC_STAGING_ADDRESS,
@@ -273,7 +339,7 @@ fn test_activate_fw_id_not_in_manifest() {
         exec_bit: 3,
     };
 
-    let mut model = load_and_authorize_fw(&[soc_image]);
+    let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -288,16 +354,20 @@ fn test_activate_fw_id_not_in_manifest() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_invalid_exec_bit_in_manifest() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
     let soc_image = Image {
         fw_id: SOC_FW_ID_1,
         staging_address: SOC_STAGING_ADDRESS,
@@ -306,7 +376,7 @@ fn test_invalid_exec_bit_in_manifest() {
         exec_bit: 0,
     };
 
-    let mut model = load_and_authorize_fw(&[soc_image]);
+    let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -321,10 +391,5 @@ fn test_invalid_exec_bit_in_manifest() {
     });
     activate_cmd.populate_chksum().unwrap();
 
-    assert!(model
-        .mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .is_err());
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd).is_err());
 }
