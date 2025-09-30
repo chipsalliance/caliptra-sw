@@ -104,8 +104,8 @@ cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
 # Calculate rootfs size and create rootfs file (if needed)
 if [[ -n "$BUILD_DEV_IMAGE" ]]; then
-    # Rootfs hardcoded to 8GB to fit on GitHub Actions runner
-    rootfs_blocks=16777216
+    # Rootfs hardcoded to 200MB to fit on GitHub Actions runner
+    rootfs_blocks=409600
 else
     # Build a squashed filesystem from the rootfs
     rm -f out/rootfs.sqsh
