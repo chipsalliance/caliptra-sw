@@ -759,9 +759,9 @@ impl ModelFpgaSubsystem {
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
         // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 100 || self.bmc_step_counter % 100 != 0 {
-            return;
-        }
+        // if self.bmc_step_counter < 10 || self.bmc_step_counter % 100 != 0 {
+        //     return;
+        // }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
         self.bmc.step();
