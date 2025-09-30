@@ -9,7 +9,9 @@
 echo 3 > /proc/sys/kernel/printk
 
 # Overlay exists so we can proceed.
-if grep -q "overlay" /proc/mounts; then
+if [[ -f "/etc/no_overlayfs" ]]; then
+    echo "Skipping overlayfs setup for development image."
+elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
     # TODO(clundin): Get this at job runtime instead.

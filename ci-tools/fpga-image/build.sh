@@ -102,12 +102,20 @@ chroot out/rootfs systemctl enable startup-script.service
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
-# Build a squashed filesystem from the rootfs
-rm out/rootfs.sqsh || true
-sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
+# Calculate rootfs size and create rootfs file (if needed)
+if [[ -n "$BUILD_DEV_IMAGE" ]]; then
+    # Rootfs hardcoded to 8GB to fit on GitHub Actions runner
+    rootfs_blocks=16777216
+else
+    # Build a squashed filesystem from the rootfs
+    rm -f out/rootfs.sqsh
+    sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
+    rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
+    rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
+fi
+
+rm -f out/image.img
 bootfs_blocks="$((80000 * 4))"
-rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
-rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
 persistfs_blocks=14680064
 
 # Allocate the disk image
@@ -155,8 +163,28 @@ tar xvzf out/system-boot.tar.gz -C out/bootfs --no-same-owner
 umount out/bootfs
 trap cleanup1 EXIT
 
-# Write the rootfs squashed filesystem to the image partition
-dd if=out/rootfs.sqsh of="${LOOPBACK_DEV}p3"
+# Create the rootfs partition (ext4 or squashfs)
+# If `BUILD_DEV_IMAGE` is set, then the rootfs will persist across boots. Additionally, the image
+# will be much larger.
+if [[ -n "$BUILD_DEV_IMAGE" ]]; then
+    # Format and populate the rootfs partition
+    sudo mkfs.ext4 -F "${LOOPBACK_DEV}p3"
+    mkdir -p out/rootfs_mount
+    mount "${LOOPBACK_DEV}p3" out/rootfs_mount
+    function cleanup3 {
+        umount out/rootfs_mount
+        cleanup1
+    }
+    trap cleanup3 EXIT
+    cp -a out/rootfs/. out/rootfs_mount/
+    touch out/rootfs_mount/etc/no_overlayfs
+    umount out/rootfs_mount
+    rmdir out/rootfs_mount
+    trap cleanup1 EXIT
+else
+    # Write the rootfs squashed filesystem to the image partition
+    dd if=out/rootfs.sqsh of="${LOOPBACK_DEV}p3"
+fi
 
 # Write a sentinel value to the configuration partition
 echo CONFIG_PARTITION > "${LOOPBACK_DEV}p2"
