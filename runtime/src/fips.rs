@@ -160,6 +160,9 @@ pub mod fips_self_test_cmd {
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
+            // SHA3/SHAKE
+            sha3: &mut env.sha3,
+
             // Hmac-512/384 Engine
             hmac: &mut env.hmac,
 
