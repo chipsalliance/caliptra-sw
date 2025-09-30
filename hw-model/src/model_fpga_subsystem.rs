@@ -763,7 +763,7 @@ impl ModelFpgaSubsystem {
 
         // don't run the BMC every time as it can spam requests
         // TODO: use cycles
-        if self.bmc_step_counter < 500 {
+        if self.bmc_step_counter < 5000 || self.bmc_step_counter % 1000 != 0 {
             return;
         }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
