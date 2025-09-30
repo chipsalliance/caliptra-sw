@@ -653,7 +653,7 @@ impl ModelFpgaSubsystem {
         // check if we need to fill the recovey FIFO
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-        if self.bmc_step_counter % 32 == 0 && !self.recovery_fifo_blocks.is_empty() {
+        if self.bmc_step_counter % 64 == 0 && !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
@@ -737,6 +737,8 @@ impl ModelFpgaSubsystem {
                 //writeln!(eoutput(), "FIFO not empty; waiting: {}", self.waiting);
                 // self.waiting += 1;
             }
+            // don't do any other recovery processing while we are filling the FIFO
+            return;
         }
 
         STEP_STATUS.store(line!(), Ordering::Relaxed);
