@@ -56,14 +56,28 @@ impl Aes256CbcKat {
 
     fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
         let mut ciphertext: [u8; 48] = [0u8; 48];
-        aes.aes_256_cbc(&KEY, &IV, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
+        aes.aes_256_cbc(
+            &KEY,
+            &IV,
+            AesOperation::Encrypt,
+            &PT[..],
+            &mut ciphertext,
+            true,
+        )?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
         }
 
         let mut plaintext: [u8; 48] = [0u8; 48];
-        aes.aes_256_cbc(&KEY, &IV, AesOperation::Decrypt, &CT[..], &mut plaintext)?;
+        aes.aes_256_cbc(
+            &KEY,
+            &IV,
+            AesOperation::Decrypt,
+            &CT[..],
+            &mut plaintext,
+            true,
+        )?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }

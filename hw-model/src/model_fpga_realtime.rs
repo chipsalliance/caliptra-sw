@@ -707,6 +707,11 @@ impl HwModel for ModelFpgaRealtime {
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
+
+    fn subsystem_mode(&self) -> bool {
+        // we only support passive mode
+        false
+    }
 }
 
 impl ModelFpgaRealtime {
