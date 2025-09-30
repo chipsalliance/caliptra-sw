@@ -1281,7 +1281,7 @@ impl HwModel for ModelFpgaSubsystem {
                 eoutput(),
                 "Detected I3C target configured; configuring I3C controller"
             );
-            //self.i3c_controller.configure();
+            self.i3c_controller.configure();
             writeln!(eoutput(), "Starting recovery flow (BMC)");
             self.start_recovery_bmc();
             writeln!(eoutput(), "Finished booting");
