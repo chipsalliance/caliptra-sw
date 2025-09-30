@@ -650,7 +650,7 @@ impl ModelFpgaSubsystem {
         // check if we need to fill the recovey FIFO
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-        if self.bmc_step_counter % 128 == 0 && !self.recovery_fifo_blocks.is_empty() {
+        if self.bmc_step_counter % 16 == 0 && !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
@@ -659,7 +659,7 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 && self.bmc_step_counter % 127 == 0 {
+                if status != 3 && self.bmc_step_counter % 15 == 0 {
                     writeln!(
                         eoutput(),
                         "Waiting for device status to be 3, currently: {}",
@@ -759,7 +759,7 @@ impl ModelFpgaSubsystem {
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
         // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 10_000 != 0 {
+        if self.bmc_step_counter < 100 || self.bmc_step_counter % 100 != 0 {
             return;
         }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
