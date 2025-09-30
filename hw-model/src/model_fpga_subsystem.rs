@@ -659,7 +659,7 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 && self.bmc_step_counter % 65536 == 0 {
+                if status != 3 && self.bmc_step_counter % 127 == 0 {
                     writeln!(
                         eoutput(),
                         "Waiting for device status to be 3, currently: {}",
@@ -783,7 +783,11 @@ impl ModelFpgaSubsystem {
                 target_addr,
                 command_code,
             } => {
-                //writeln!(eoutput(), "From BMC: Recovery block read request {:?}", command_code);
+                writeln!(
+                    eoutput(),
+                    "From BMC: Recovery block read request {:?}",
+                    command_code
+                );
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                 if let Some(payload) = self.recovery_block_read_request(command_code) {
@@ -809,7 +813,11 @@ impl ModelFpgaSubsystem {
                 command_code,
                 payload,
             } => {
-                //writeln!(eoutput(), "Recovery block write request: {:?}", command_code);
+                writeln!(
+                    eoutput(),
+                    "Recovery block write request: {:?}",
+                    command_code
+                );
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                 self.recovery_block_write_request(command_code, &payload);
