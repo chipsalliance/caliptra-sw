@@ -65,6 +65,8 @@ const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
 const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
 const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
 
+const WAIT_I3C_SEND: Duration = Duration::from_micros(200);
+
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -326,7 +328,9 @@ impl XI3CWrapper {
         self.controller
             .lock()
             .unwrap()
-            .master_send_polled(&cmd, payload, payload.len() as u16)
+            .master_send_polled(&cmd, payload, payload.len() as u16)?;
+        std::thread::sleep(WAIT_I3C_SEND);
+        Ok(())
     }
 
     /// Send data but don't wait for ACK (non-blocking).
@@ -1180,6 +1184,7 @@ impl ModelFpgaSubsystem {
         {
             return None;
         }
+        std::thread::sleep(WAIT_I3C_SEND);
 
         // then we send a private read for the minimum length
         let len_range = Self::command_code_to_len(command);
@@ -1204,6 +1209,7 @@ impl ModelFpgaSubsystem {
                 len_range.0 + 2,
             )
             .unwrap_or_else(|_| panic!("Expected to read {}+ bytes", len_range.0 + 2));
+        std::thread::sleep(WAIT_I3C_SEND);
 
         if resp.len() < 2 {
             panic!("Expected to read at least 2 bytes from target for recovery block length");
@@ -1259,13 +1265,15 @@ impl ModelFpgaSubsystem {
         let res = ctrl.master_send_polled(&cmd, &data, data.len() as u16);
 
         match res {
-            Ok(_) => Ok(()),
+            Ok(_) => (),
             Err(e) => Err(anyhow!(
                 "Failed to ack write message sent to target step_status {} {:?}",
                 STEP_STATUS.load(Ordering::Relaxed),
                 e
-            )),
+            ))?,
         }
+        std::thread::sleep(WAIT_I3C_SEND);
+        Ok(())
     }
 
     pub fn otp_slice(&self) -> &mut [u8] {
