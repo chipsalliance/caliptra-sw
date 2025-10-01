@@ -27,9 +27,9 @@ jobs:
       matrix:
         image_variant: [core-2.0]
         include:
-          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
+          - bitstream_hash: 0a63c7f88ec50aa6b9014cd51642293488b9ec083d9ddb399823928488522c47
             image_variant: core-2.0
-          - bitstream_name: xsa_core2p0_5d069408.xsa
+          - bitstream_name: xsa_core2p1_c88604f7.xsa
             image_variant: core-2.0
           # - bitstream_hash: fa87d1037263966733d337c32e10f42ced0d3d4213c4e9dd37f3d7823cee8aea
           #   image_variant: core-2.1
