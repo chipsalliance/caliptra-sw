@@ -727,18 +727,26 @@ impl ModelFpgaSubsystem {
                     //     "Writing recovery fifo block {}",
                     //     self.blocks_sent
                     // );
-                    // let level_a = self.i3c_controller().write_fifo_level();
+                    let level_a = self.i3c_controller().write_fifo_level();
                     self.blocks_sent += 1;
                     STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                     self.recovery_block_write_request(
                         RecoveryCommandCode::IndirectFifoData,
                         &chunk,
-                    )?;
+                    )
+                    .map_err(|e| {
+                        let level_b = self.i3c_controller().resp_fifo_level();
+                        let level_c = self.i3c_controller().write_fifo_level();
+                        anyhow!(
+                            "Failed to write recovery fifo data: {:?}; controller wlevels: {} {} {}",
+                            e,
+                            level_a,
+                            level_b,
+                            level_c,
+                        )
+                    })?;
                     STEP_STATUS.store(line!(), Ordering::Relaxed);
-
-                    // let level_b = self.i3c_controller().write_fifo_level();
-                    // writeln!(eoutput(), "controller wlevels: {} {}", level_a, level_b);
 
                     //writeln!(eoutput(), "Written");
                 } else {
