@@ -5,6 +5,7 @@ package caliptra_fpga_realtime_regs_pkg;
 
     localparam CALIPTRA_FPGA_REALTIME_REGS_DATA_WIDTH = 32;
     localparam CALIPTRA_FPGA_REALTIME_REGS_MIN_ADDR_WIDTH = 32;
+    localparam CALIPTRA_FPGA_REALTIME_REGS_SIZE = 'ha401101c;
 
     typedef struct {
         logic [31:0] next;
@@ -69,10 +70,60 @@ package caliptra_fpga_realtime_regs_pkg;
     } interface_regs__generic_output_wires__in_t;
 
     typedef struct {
+        logic next;
+    } interface_regs__ss_all_error__ss_all_error_fatal__in_t;
+
+    typedef struct {
+        logic next;
+    } interface_regs__ss_all_error__ss_all_error_non_fatal__in_t;
+
+    typedef struct {
+        interface_regs__ss_all_error__ss_all_error_fatal__in_t ss_all_error_fatal;
+        interface_regs__ss_all_error__ss_all_error_non_fatal__in_t ss_all_error_non_fatal;
+    } interface_regs__ss_all_error__in_t;
+
+    typedef struct {
+        logic [31:0] next;
+    } interface_regs__mci_generic_output_wires__value__in_t;
+
+    typedef struct {
+        interface_regs__mci_generic_output_wires__value__in_t value;
+    } interface_regs__mci_generic_output_wires__in_t;
+
+    typedef struct {
+        logic [31:0] next;
+    } interface_regs__ss_key_release_base_addr__ss_key_release_base_addr__in_t;
+
+    typedef struct {
+        interface_regs__ss_key_release_base_addr__ss_key_release_base_addr__in_t ss_key_release_base_addr;
+    } interface_regs__ss_key_release_base_addr__in_t;
+
+    typedef struct {
+        logic [15:0] next;
+    } interface_regs__ss_key_release_key_size__ss_key_release_key_size__in_t;
+
+    typedef struct {
+        interface_regs__ss_key_release_key_size__ss_key_release_key_size__in_t ss_key_release_key_size;
+    } interface_regs__ss_key_release_key_size__in_t;
+
+    typedef struct {
+        logic [31:0] next;
+    } interface_regs__ss_external_staging_area_base_addr__ss_external_staging_area_base_addr__in_t;
+
+    typedef struct {
+        interface_regs__ss_external_staging_area_base_addr__ss_external_staging_area_base_addr__in_t ss_external_staging_area_base_addr;
+    } interface_regs__ss_external_staging_area_base_addr__in_t;
+
+    typedef struct {
         interface_regs__fpga_version__in_t fpga_version;
         interface_regs__status__in_t status;
         interface_regs__cycle_count__in_t cycle_count;
         interface_regs__generic_output_wires__in_t generic_output_wires[2];
+        interface_regs__ss_all_error__in_t ss_all_error;
+        interface_regs__mci_generic_output_wires__in_t mci_generic_output_wires[2];
+        interface_regs__ss_key_release_base_addr__in_t ss_key_release_base_addr;
+        interface_regs__ss_key_release_key_size__in_t ss_key_release_key_size;
+        interface_regs__ss_external_staging_area_base_addr__in_t ss_external_staging_area_base_addr;
     } interface_regs__in_t;
 
     typedef struct {
@@ -115,9 +166,32 @@ package caliptra_fpga_realtime_regs_pkg;
     } fifo_regs__itrng_fifo_status__in_t;
 
     typedef struct {
+        logic [31:0] next;
+    } fifo_regs__dbg_fifo_pop__out_data__in_t;
+
+    typedef struct {
+        fifo_regs__dbg_fifo_pop__out_data__in_t out_data;
+    } fifo_regs__dbg_fifo_pop__in_t;
+
+    typedef struct {
+        logic next;
+    } fifo_regs__dbg_fifo_status__dbg_fifo_empty__in_t;
+
+    typedef struct {
+        logic next;
+    } fifo_regs__dbg_fifo_status__dbg_fifo_full__in_t;
+
+    typedef struct {
+        fifo_regs__dbg_fifo_status__dbg_fifo_empty__in_t dbg_fifo_empty;
+        fifo_regs__dbg_fifo_status__dbg_fifo_full__in_t dbg_fifo_full;
+    } fifo_regs__dbg_fifo_status__in_t;
+
+    typedef struct {
         fifo_regs__log_fifo_data__in_t log_fifo_data;
         fifo_regs__log_fifo_status__in_t log_fifo_status;
         fifo_regs__itrng_fifo_status__in_t itrng_fifo_status;
+        fifo_regs__dbg_fifo_pop__in_t dbg_fifo_pop;
+        fifo_regs__dbg_fifo_status__in_t dbg_fifo_status;
     } fifo_regs__in_t;
 
     typedef struct {
@@ -159,11 +233,15 @@ package caliptra_fpga_realtime_regs_pkg;
 
     typedef struct {
         logic value;
-    } interface_regs__control__ss_debug_locked__out_t;
+    } interface_regs__control__debug_locked__out_t;
 
     typedef struct {
         logic [1:0] value;
-    } interface_regs__control__ss_device_lifecycle__out_t;
+    } interface_regs__control__device_lifecycle__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__bootfsm_brkpoint__out_t;
 
     typedef struct {
         logic value;
@@ -171,17 +249,43 @@ package caliptra_fpga_realtime_regs_pkg;
 
     typedef struct {
         logic value;
-    } interface_regs__control__bootfsm_brkpoint__out_t;
+    } interface_regs__control__ss_debug_intent__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__i3c_axi_user_id_filtering__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__ocp_lock_en__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__lc_Allow_RMA_or_SCRAP_on_PPD__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__FIPS_ZEROIZATION_PPD__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__control__trigger_axi_reset__out_t;
 
     typedef struct {
         interface_regs__control__cptra_pwrgood__out_t cptra_pwrgood;
         interface_regs__control__cptra_rst_b__out_t cptra_rst_b;
         interface_regs__control__cptra_obf_uds_seed_vld__out_t cptra_obf_uds_seed_vld;
         interface_regs__control__cptra_obf_field_entropy_vld__out_t cptra_obf_field_entropy_vld;
-        interface_regs__control__ss_debug_locked__out_t ss_debug_locked;
-        interface_regs__control__ss_device_lifecycle__out_t ss_device_lifecycle;
-        interface_regs__control__scan_mode__out_t scan_mode;
+        interface_regs__control__debug_locked__out_t debug_locked;
+        interface_regs__control__device_lifecycle__out_t device_lifecycle;
         interface_regs__control__bootfsm_brkpoint__out_t bootfsm_brkpoint;
+        interface_regs__control__scan_mode__out_t scan_mode;
+        interface_regs__control__ss_debug_intent__out_t ss_debug_intent;
+        interface_regs__control__i3c_axi_user_id_filtering__out_t i3c_axi_user_id_filtering;
+        interface_regs__control__ocp_lock_en__out_t ocp_lock_en;
+        interface_regs__control__lc_Allow_RMA_or_SCRAP_on_PPD__out_t lc_Allow_RMA_or_SCRAP_on_PPD;
+        interface_regs__control__FIPS_ZEROIZATION_PPD__out_t FIPS_ZEROIZATION_PPD;
+        interface_regs__control__trigger_axi_reset__out_t trigger_axi_reset;
     } interface_regs__control__out_t;
 
     typedef struct {
@@ -224,11 +328,11 @@ package caliptra_fpga_realtime_regs_pkg;
 
     typedef struct {
         logic [31:0] value;
-    } interface_regs__pauser__pauser__out_t;
+    } interface_regs__arm_user__arm_user__out_t;
 
     typedef struct {
-        interface_regs__pauser__pauser__out_t pauser;
-    } interface_regs__pauser__out_t;
+        interface_regs__arm_user__arm_user__out_t arm_user;
+    } interface_regs__arm_user__out_t;
 
     typedef struct {
         logic [31:0] value;
@@ -295,11 +399,177 @@ package caliptra_fpga_realtime_regs_pkg;
     } interface_regs__cptra_obf_field_entropy__out_t;
 
     typedef struct {
+        logic [31:0] value;
+    } interface_regs__lsu_user__lsu_user__out_t;
+
+    typedef struct {
+        interface_regs__lsu_user__lsu_user__out_t lsu_user;
+    } interface_regs__lsu_user__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__ifu_user__ifu_user__out_t;
+
+    typedef struct {
+        interface_regs__ifu_user__ifu_user__out_t ifu_user;
+    } interface_regs__ifu_user__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__dma_axi_user__dma_axi_user__out_t;
+
+    typedef struct {
+        interface_regs__dma_axi_user__dma_axi_user__out_t dma_axi_user;
+    } interface_regs__dma_axi_user__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__soc_config_user__soc_config_user__out_t;
+
+    typedef struct {
+        interface_regs__soc_config_user__soc_config_user__out_t soc_config_user;
+    } interface_regs__soc_config_user__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__sram_config_user__sram_config_user__out_t;
+
+    typedef struct {
+        interface_regs__sram_config_user__sram_config_user__out_t sram_config_user;
+    } interface_regs__sram_config_user__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__mcu_reset_vector__mcu_reset_vector__out_t;
+
+    typedef struct {
+        interface_regs__mcu_reset_vector__mcu_reset_vector__out_t mcu_reset_vector;
+    } interface_regs__mcu_reset_vector__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__ss_all_error__ss_all_error_fatal__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__ss_all_error__ss_all_error_non_fatal__out_t;
+
+    typedef struct {
+        interface_regs__ss_all_error__ss_all_error_fatal__out_t ss_all_error_fatal;
+        interface_regs__ss_all_error__ss_all_error_non_fatal__out_t ss_all_error_non_fatal;
+    } interface_regs__ss_all_error__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__mcu_no_rom_config__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__cptra_ss_mci_boot_seq_brkpoint_i__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__cptra_ss_lc_Allow_RMA_on_PPD_i__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__cptra_ss_lc_ctrl_scan_rst_ni_i__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__cptra_ss_lc_esclate_scrap_state0_i__out_t;
+
+    typedef struct {
+        logic value;
+    } interface_regs__mcu_config__cptra_ss_lc_esclate_scrap_state1_i__out_t;
+
+    typedef struct {
+        interface_regs__mcu_config__mcu_no_rom_config__out_t mcu_no_rom_config;
+        interface_regs__mcu_config__cptra_ss_mci_boot_seq_brkpoint_i__out_t cptra_ss_mci_boot_seq_brkpoint_i;
+        interface_regs__mcu_config__cptra_ss_lc_Allow_RMA_on_PPD_i__out_t cptra_ss_lc_Allow_RMA_on_PPD_i;
+        interface_regs__mcu_config__cptra_ss_lc_ctrl_scan_rst_ni_i__out_t cptra_ss_lc_ctrl_scan_rst_ni_i;
+        interface_regs__mcu_config__cptra_ss_lc_esclate_scrap_state0_i__out_t cptra_ss_lc_esclate_scrap_state0_i;
+        interface_regs__mcu_config__cptra_ss_lc_esclate_scrap_state1_i__out_t cptra_ss_lc_esclate_scrap_state1_i;
+    } interface_regs__mcu_config__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__uds_seed_base_addr__uds_seed_base_addr__out_t;
+
+    typedef struct {
+        interface_regs__uds_seed_base_addr__uds_seed_base_addr__out_t uds_seed_base_addr;
+    } interface_regs__uds_seed_base_addr__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__prod_debug_unlock_auth_pk_hash_reg_bank_offset__prod_debug_unlock_auth_pk_hash_reg_bank_offset__out_t;
+
+    typedef struct {
+        interface_regs__prod_debug_unlock_auth_pk_hash_reg_bank_offset__prod_debug_unlock_auth_pk_hash_reg_bank_offset__out_t prod_debug_unlock_auth_pk_hash_reg_bank_offset;
+    } interface_regs__prod_debug_unlock_auth_pk_hash_reg_bank_offset__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__num_of_prod_debug_unlock_auth_pk_hashes__num_of_prod_debug_unlock_auth_pk_hashes__out_t;
+
+    typedef struct {
+        interface_regs__num_of_prod_debug_unlock_auth_pk_hashes__num_of_prod_debug_unlock_auth_pk_hashes__out_t num_of_prod_debug_unlock_auth_pk_hashes;
+    } interface_regs__num_of_prod_debug_unlock_auth_pk_hashes__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__mci_generic_input_wires__value__out_t;
+
+    typedef struct {
+        interface_regs__mci_generic_input_wires__value__out_t value;
+    } interface_regs__mci_generic_input_wires__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__mci_generic_output_wires__value__out_t;
+
+    typedef struct {
+        interface_regs__mci_generic_output_wires__value__out_t value;
+    } interface_regs__mci_generic_output_wires__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__ss_key_release_base_addr__ss_key_release_base_addr__out_t;
+
+    typedef struct {
+        interface_regs__ss_key_release_base_addr__ss_key_release_base_addr__out_t ss_key_release_base_addr;
+    } interface_regs__ss_key_release_base_addr__out_t;
+
+    typedef struct {
+        logic [15:0] value;
+    } interface_regs__ss_key_release_key_size__ss_key_release_key_size__out_t;
+
+    typedef struct {
+        interface_regs__ss_key_release_key_size__ss_key_release_key_size__out_t ss_key_release_key_size;
+    } interface_regs__ss_key_release_key_size__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__ss_external_staging_area_base_addr__ss_external_staging_area_base_addr__out_t;
+
+    typedef struct {
+        interface_regs__ss_external_staging_area_base_addr__ss_external_staging_area_base_addr__out_t ss_external_staging_area_base_addr;
+    } interface_regs__ss_external_staging_area_base_addr__out_t;
+
+    typedef struct {
+        logic [28:0] value;
+    } interface_regs__cptra_ss_mcu_ext_int__cptra_ss_mcu_ext_int__out_t;
+
+    typedef struct {
+        interface_regs__cptra_ss_mcu_ext_int__cptra_ss_mcu_ext_int__out_t cptra_ss_mcu_ext_int;
+    } interface_regs__cptra_ss_mcu_ext_int__out_t;
+
+    typedef struct {
         interface_regs__fpga_magic__out_t fpga_magic;
         interface_regs__fpga_version__out_t fpga_version;
         interface_regs__control__out_t control;
         interface_regs__status__out_t status;
-        interface_regs__pauser__out_t pauser;
+        interface_regs__arm_user__out_t arm_user;
         interface_regs__itrng_divisor__out_t itrng_divisor;
         interface_regs__cycle_count__out_t cycle_count;
         interface_regs__generic_input_wires__out_t generic_input_wires[2];
@@ -308,6 +578,23 @@ package caliptra_fpga_realtime_regs_pkg;
         interface_regs__cptra_csr_hmac_key__out_t cptra_csr_hmac_key[16];
         interface_regs__cptra_obf_uds_seed__out_t cptra_obf_uds_seed[16];
         interface_regs__cptra_obf_field_entropy__out_t cptra_obf_field_entropy[8];
+        interface_regs__lsu_user__out_t lsu_user;
+        interface_regs__ifu_user__out_t ifu_user;
+        interface_regs__dma_axi_user__out_t dma_axi_user;
+        interface_regs__soc_config_user__out_t soc_config_user;
+        interface_regs__sram_config_user__out_t sram_config_user;
+        interface_regs__mcu_reset_vector__out_t mcu_reset_vector;
+        interface_regs__ss_all_error__out_t ss_all_error;
+        interface_regs__mcu_config__out_t mcu_config;
+        interface_regs__uds_seed_base_addr__out_t uds_seed_base_addr;
+        interface_regs__prod_debug_unlock_auth_pk_hash_reg_bank_offset__out_t prod_debug_unlock_auth_pk_hash_reg_bank_offset;
+        interface_regs__num_of_prod_debug_unlock_auth_pk_hashes__out_t num_of_prod_debug_unlock_auth_pk_hashes;
+        interface_regs__mci_generic_input_wires__out_t mci_generic_input_wires[2];
+        interface_regs__mci_generic_output_wires__out_t mci_generic_output_wires[2];
+        interface_regs__ss_key_release_base_addr__out_t ss_key_release_base_addr;
+        interface_regs__ss_key_release_key_size__out_t ss_key_release_key_size;
+        interface_regs__ss_external_staging_area_base_addr__out_t ss_external_staging_area_base_addr;
+        interface_regs__cptra_ss_mcu_ext_int__out_t cptra_ss_mcu_ext_int;
     } interface_regs__out_t;
 
     typedef struct {
@@ -365,10 +652,44 @@ package caliptra_fpga_realtime_regs_pkg;
     } fifo_regs__itrng_fifo_status__out_t;
 
     typedef struct {
+        logic [31:0] value;
+        logic rd_swacc;
+    } fifo_regs__dbg_fifo_pop__out_data__out_t;
+
+    typedef struct {
+        fifo_regs__dbg_fifo_pop__out_data__out_t out_data;
+    } fifo_regs__dbg_fifo_pop__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+        logic wr_swacc;
+    } fifo_regs__dbg_fifo_push__in_data__out_t;
+
+    typedef struct {
+        fifo_regs__dbg_fifo_push__in_data__out_t in_data;
+    } fifo_regs__dbg_fifo_push__out_t;
+
+    typedef struct {
+        logic value;
+    } fifo_regs__dbg_fifo_status__dbg_fifo_empty__out_t;
+
+    typedef struct {
+        logic value;
+    } fifo_regs__dbg_fifo_status__dbg_fifo_full__out_t;
+
+    typedef struct {
+        fifo_regs__dbg_fifo_status__dbg_fifo_empty__out_t dbg_fifo_empty;
+        fifo_regs__dbg_fifo_status__dbg_fifo_full__out_t dbg_fifo_full;
+    } fifo_regs__dbg_fifo_status__out_t;
+
+    typedef struct {
         fifo_regs__log_fifo_data__out_t log_fifo_data;
         fifo_regs__log_fifo_status__out_t log_fifo_status;
         fifo_regs__itrng_fifo_data__out_t itrng_fifo_data;
         fifo_regs__itrng_fifo_status__out_t itrng_fifo_status;
+        fifo_regs__dbg_fifo_pop__out_t dbg_fifo_pop;
+        fifo_regs__dbg_fifo_push__out_t dbg_fifo_push;
+        fifo_regs__dbg_fifo_status__out_t dbg_fifo_status;
     } fifo_regs__out_t;
 
     typedef struct {
