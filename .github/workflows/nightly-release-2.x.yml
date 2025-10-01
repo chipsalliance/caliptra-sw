@@ -2,14 +2,17 @@ name: Nightly Release 2.x
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["clundin/nightly-release-changes"]
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
 
+
 jobs:
   find-latest-release-2_x:
     name: Find Latest Release 2.x
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       create_release: ${{ steps.find.outputs.create_release }}
       new_release_tag: ${{ steps.find.outputs.new_release_tag }}
@@ -20,7 +23,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
           ref: main-2.x
           submodules: 'true'
@@ -65,6 +68,8 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-etrng-log
       extra-features: slow_tests
       rom-logging: true
+      branch: "main-2.x"
+      runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-etrng-nolog-2_x:
     name: sw-emulator Suite (etrng, nolog) 2_x
@@ -75,6 +80,8 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
+      branch: "main-2.x"
+      runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-itrng-log-2_x:
     name: sw-emulator Suite (itrng, log) 2_x
@@ -85,6 +92,8 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-itrng-log
       extra-features: slow_tests,itrng
       rom-logging: true
+      branch: "main-2.x"
+      runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-itrng-nolog-2_x:
     name: sw-emulator Suite (itrng, nolog) 2_x
@@ -95,6 +104,8 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
       extra-features: slow_tests,itrng
       rom-logging: false
+      branch: "main-2.x"
+      runner: '["ubuntu-24.04"]'
 
   create-release-2_x:
     name: Create New Release 2_x
@@ -105,7 +116,7 @@ jobs:
       - sw-emulator-hw-latest-full-suite-itrng-log-2_x
       - sw-emulator-hw-latest-full-suite-itrng-nolog-2_x
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     permissions:
       contents: write
