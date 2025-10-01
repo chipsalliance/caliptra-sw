@@ -408,6 +408,7 @@ pub struct ModelFpgaSubsystem {
     pub enable_mcu_uart_log: bool,
     pub waiting: usize,
     pub stdin_uart: Arc<Mutex<Option<u8>>>,
+    pub last_recovery_block_written: Option<Instant>,
 }
 
 impl ModelFpgaSubsystem {
@@ -655,104 +656,107 @@ impl ModelFpgaSubsystem {
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
         if !self.recovery_fifo_blocks.is_empty() {
-            if self.bmc_step_counter % 48 == 0 {
-                if !self.recovery_ctrl_written {
-                    let status = self
-                        .i3c_core()
-                        .sec_fw_recovery_if()
-                        .device_status_0()
-                        .read()
-                        .dev_status();
+            if let Some(last) = self.last_recovery_block_written {
+                // 12.5 MHz
+                // Packets are 256 bytes = 2048 bits
+                // 163 microseconds to transmit
+                // add some margin
+                if last.elapsed() < Duration::from_millis(1) {
+                    return Ok(());
+                }
+            }
 
-                    if status != 3 && self.bmc_step_counter % 15 == 0 {
-                        writeln!(
-                            eoutput(),
-                            "Waiting for device status to be 3, currently: {}",
-                            status
-                        )?;
-                        return Ok(());
-                    }
+            if !self.recovery_ctrl_written {
+                self.last_recovery_block_written = Some(Instant::now());
+                let status = self
+                    .i3c_core()
+                    .sec_fw_recovery_if()
+                    .device_status_0()
+                    .read()
+                    .dev_status();
 
-                    let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
-                    let mut ctrl = vec![0, 1];
-                    ctrl.extend_from_slice(&len);
+                if status != 3 && self.bmc_step_counter % 15 == 0 {
+                    writeln!(
+                        eoutput(),
+                        "Waiting for device status to be 3, currently: {}",
+                        status
+                    )?;
+                    return Ok(());
+                }
 
-                    writeln!(eoutput(), "Writing Indirect fifo ctrl: {:x?}", ctrl)?;
-                    STEP_STATUS.store(line!(), Ordering::Relaxed);
+                let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
+                let mut ctrl = vec![0, 1];
+                ctrl.extend_from_slice(&len);
 
-                    self.recovery_block_write_request(
-                        RecoveryCommandCode::IndirectFifoCtrl,
-                        &ctrl,
+                writeln!(eoutput(), "Writing Indirect fifo ctrl: {:x?}", ctrl)?;
+                STEP_STATUS.store(line!(), Ordering::Relaxed);
+
+                self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoCtrl, &ctrl)?;
+
+                STEP_STATUS.store(line!(), Ordering::Relaxed);
+
+                let reported_len = self
+                    .i3c_core()
+                    .sec_fw_recovery_if()
+                    .indirect_fifo_ctrl_1()
+                    .read();
+
+                writeln!(eoutput(), "I3C core reported length: {}", reported_len)?;
+                if reported_len as usize != self.recovery_ctrl_len / 4 {
+                    writeln!(
+                        eoutput(),
+                        "I3C core reported length should have been {}",
+                        self.recovery_ctrl_len / 4
                     )?;
 
-                    STEP_STATUS.store(line!(), Ordering::Relaxed);
+                    self.print_i3c_registers();
 
-                    let reported_len = self
-                        .i3c_core()
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_ctrl_1()
-                        .read();
-
-                    writeln!(eoutput(), "I3C core reported length: {}", reported_len)?;
-                    if reported_len as usize != self.recovery_ctrl_len / 4 {
-                        writeln!(
-                            eoutput(),
-                            "I3C core reported length should have been {}",
-                            self.recovery_ctrl_len / 4
-                        )?;
-
-                        self.print_i3c_registers();
-
-                        bail!(
-                            "I3C core reported length should have been {}",
-                            self.recovery_ctrl_len / 4
-                        );
-                    }
-                    STEP_STATUS.store(line!(), Ordering::Relaxed);
-
-                    self.recovery_ctrl_written = true;
+                    bail!(
+                        "I3C core reported length should have been {}",
+                        self.recovery_ctrl_len / 4
+                    );
                 }
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-                let fifo_status = self
-                    .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
-                    .expect("Device should response to indirect fifo status read request");
-                let empty = fifo_status[0] & 1 == 1;
-                // while empty send
-                if empty {
-                    // fifo is empty, send a block
-                    let chunk = self.recovery_fifo_blocks.pop().unwrap();
-                    // writeln!(
-                    //     eoutput(),
-                    //     "Writing recovery fifo block {}",
-                    //     self.blocks_sent
-                    // );
-                    let level_a = self.i3c_controller().write_fifo_level();
-                    self.blocks_sent += 1;
-                    STEP_STATUS.store(line!(), Ordering::Relaxed);
+                self.recovery_ctrl_written = true;
+            }
+            STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-                    self.recovery_block_write_request(
-                        RecoveryCommandCode::IndirectFifoData,
-                        &chunk,
-                    )
+            let fifo_status = self
+                .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
+                .expect("Device should response to indirect fifo status read request");
+            let empty = fifo_status[0] & 1 == 1;
+            // while empty send
+            if empty {
+                // fifo is empty, send a block
+                let chunk = self.recovery_fifo_blocks.pop().unwrap();
+                // writeln!(
+                //     eoutput(),
+                //     "Writing recovery fifo block {}",
+                //     self.blocks_sent
+                // );
+                let level_a = self.i3c_controller().write_fifo_level();
+                self.blocks_sent += 1;
+                STEP_STATUS.store(line!(), Ordering::Relaxed);
+
+                self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk)
                     .map_err(|e| {
                         let level_b = self.i3c_controller().resp_fifo_level();
                         let level_c = self.i3c_controller().write_fifo_level();
                         anyhow!(
-                            "Failed to write recovery fifo data: {:?}; controller wlevels: {} {} {}",
-                            e,
-                            level_a,
-                            level_b,
-                            level_c,
-                        )
+                        "Failed to write recovery fifo data: {:?}; controller wlevels: {} {} {}",
+                        e,
+                        level_a,
+                        level_b,
+                        level_c,
+                    )
                     })?;
-                    STEP_STATUS.store(line!(), Ordering::Relaxed);
+                STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-                    //writeln!(eoutput(), "Written");
-                } else {
-                    //writeln!(eoutput(), "FIFO not empty; waiting: {}", self.waiting);
-                    // self.waiting += 1;
-                }
+                //writeln!(eoutput(), "Written");
+            } else {
+                //writeln!(eoutput(), "FIFO not empty; waiting: {}", self.waiting);
+                // self.waiting += 1;
             }
             // don't do any other recovery processing while we are filling the FIFO
             return Ok(());
@@ -1536,6 +1540,7 @@ impl HwModel for ModelFpgaSubsystem {
             enable_mcu_uart_log: params.enable_mcu_uart_log,
             waiting: 0,
             stdin_uart: Arc::new(Mutex::new(None)),
+            last_recovery_block_written: None,
         };
 
         writeln!(eoutput(), "AXI reset")?;
