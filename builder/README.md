@@ -12,12 +12,9 @@ Run `cargo build` from the `builder` directory. The binary will be created as `t
 
 | Flag                    | Argument    | Description |
 |-------------------------|-------------|-------------|
-| `--rom-no-log`          | `[FILE]`    | ROM binary image (production version without logging). |
-| `--rom-with-log`        | `[FILE]`    | ROM binary image (with logging enabled). |
 | `--fw`                  | `[FILE]`    | Firmware bundle image. |
 | `--fw-svn`              | `[integer]` | Security Version Number of the firmware image. |
 | `--all_elfs`            | `[DIR]`     | Directory to build all firmware ELF files. |
-| `--fake-rom`            | `[FILE]`    | Fake ROM image for testing. |
 | `--fake-fw`             | `[FILE]`    | Fake firmware bundle image for testing. |
 | `--hashes`              | `[FILE]`    | File path for output JSON file containing image bundle header hashes for external signing tools. |
 | `--zeros`               |             | Build an image bundle with zeroed FMC and RT. This will NMI immediately. |
