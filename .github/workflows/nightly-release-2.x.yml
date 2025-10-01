@@ -156,6 +156,7 @@ jobs:
       hw-version: "latest"
       rom-logging: false
       fpga-itrng: true
+      branch: "main-2.x"
 
   create-release-2_x:
     name: Create New Release 2_x
