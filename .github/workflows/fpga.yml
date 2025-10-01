@@ -189,7 +189,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
+    runs-on: vck190-staging
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
