@@ -35,7 +35,7 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
-mod jtag;
+pub mod jtag;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
@@ -191,7 +191,11 @@ pub struct InitParams<'a> {
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
+
+    // Whether or not to set the BootFSM break signal.
+    pub bootfsm_break: bool,
 
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
@@ -263,6 +267,7 @@ impl Default for InitParams<'_> {
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
+            bootfsm_break: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
