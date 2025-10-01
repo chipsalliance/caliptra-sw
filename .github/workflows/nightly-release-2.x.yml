@@ -109,7 +109,7 @@ jobs:
 
   fpga-latest-full-suite-etrng-log:
     name: FPGA Suite (hw-latest, etrng, log)
-    needs: find-latest-release
+    needs: find-latest-release-2_x
     if: needs.find-latest-release.outputs.create_release
     uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main-2.x
     with:
