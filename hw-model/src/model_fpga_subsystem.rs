@@ -15,7 +15,7 @@ use crate::otp_provision::{
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_periph::output as eoutput;
@@ -224,18 +224,19 @@ impl XI3CWrapper {
     }
 
     pub fn configure(&self) {
-        writeln!(eoutput(), "I3C controller initializing");
+        writeln!(eoutput(), "I3C controller initializing").unwrap();
         // Safety: we are only reading the register
         writeln!(eoutput(), "XI3C HW version = {:x}", unsafe {
             self.regs().version.get()
-        });
+        })
+        .unwrap();
         const I3C_MODE: u8 = 1;
         self.controller
             .lock()
             .unwrap()
             .set_s_clk(AXI_CLK_HZ, I3C_CLK_HZ, I3C_MODE);
         self.controller.lock().unwrap().cfg_initialize().unwrap();
-        writeln!(eoutput(), "I3C controller finished initializing");
+        writeln!(eoutput(), "I3C controller finished initializing").unwrap();
     }
 
     /// Start receiving data (non-blocking).
@@ -444,7 +445,7 @@ impl ModelFpgaSubsystem {
     }
 
     fn clear_logs(&mut self) {
-        writeln!(eoutput(), "Clearing Caliptra logs");
+        writeln!(eoutput(), "Clearing Caliptra logs").unwrap();
         loop {
             if self
                 .wrapper
@@ -464,7 +465,7 @@ impl ModelFpgaSubsystem {
             }
         }
 
-        writeln!(eoutput(), "Clearing MCU logs");
+        writeln!(eoutput(), "Clearing MCU logs").unwrap();
         loop {
             if self
                 .wrapper
@@ -542,7 +543,7 @@ impl ModelFpgaSubsystem {
             }
         }
         if self.output().exit_requested() {
-            writeln!(eoutput(), "Exiting firmware request");
+            writeln!(eoutput(), "Exiting firmware request").unwrap();
             let code = match self.output().exit_status() {
                 Some(ExitStatus::Passed) => 0,
                 Some(ExitStatus::Failed) => 1,
@@ -640,11 +641,11 @@ impl ModelFpgaSubsystem {
         self.recovery_started = true;
     }
 
-    fn bmc_step(&mut self) {
+    fn bmc_step(&mut self) -> Result<()> {
         // writeln!(eoutput(), "bmc_step()");
         if !self.recovery_started {
             // writeln!(eoutput(), "bmc_step() skip");
-            return;
+            return Ok(());
         }
 
         self.bmc_step_counter += 1;
@@ -654,7 +655,7 @@ impl ModelFpgaSubsystem {
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
         if !self.recovery_fifo_blocks.is_empty() {
-            if self.bmc_step_counter % 32 == 0 {
+            if self.bmc_step_counter % 48 == 0 {
                 if !self.recovery_ctrl_written {
                     let status = self
                         .i3c_core()
@@ -668,18 +669,21 @@ impl ModelFpgaSubsystem {
                             eoutput(),
                             "Waiting for device status to be 3, currently: {}",
                             status
-                        );
-                        return;
+                        )?;
+                        return Ok(());
                     }
 
                     let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
                     let mut ctrl = vec![0, 1];
                     ctrl.extend_from_slice(&len);
 
-                    writeln!(eoutput(), "Writing Indirect fifo ctrl: {:x?}", ctrl);
+                    writeln!(eoutput(), "Writing Indirect fifo ctrl: {:x?}", ctrl)?;
                     STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-                    self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoCtrl, &ctrl);
+                    self.recovery_block_write_request(
+                        RecoveryCommandCode::IndirectFifoCtrl,
+                        &ctrl,
+                    )?;
 
                     STEP_STATUS.store(line!(), Ordering::Relaxed);
 
@@ -689,17 +693,17 @@ impl ModelFpgaSubsystem {
                         .indirect_fifo_ctrl_1()
                         .read();
 
-                    writeln!(eoutput(), "I3C core reported length: {}", reported_len);
+                    writeln!(eoutput(), "I3C core reported length: {}", reported_len)?;
                     if reported_len as usize != self.recovery_ctrl_len / 4 {
                         writeln!(
                             eoutput(),
                             "I3C core reported length should have been {}",
                             self.recovery_ctrl_len / 4
-                        );
+                        )?;
 
                         self.print_i3c_registers();
 
-                        panic!(
+                        bail!(
                             "I3C core reported length should have been {}",
                             self.recovery_ctrl_len / 4
                         );
@@ -730,7 +734,7 @@ impl ModelFpgaSubsystem {
                     self.recovery_block_write_request(
                         RecoveryCommandCode::IndirectFifoData,
                         &chunk,
-                    );
+                    )?;
                     STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                     // let level_b = self.i3c_controller().write_fifo_level();
@@ -743,7 +747,7 @@ impl ModelFpgaSubsystem {
                 }
             }
             // don't do any other recovery processing while we are filling the FIFO
-            return;
+            return Ok(());
         }
 
         STEP_STATUS.store(line!(), Ordering::Relaxed);
@@ -763,7 +767,7 @@ impl ModelFpgaSubsystem {
             )
             .unwrap();
             self.recovery_started = false;
-            return;
+            return Ok(());
         }
 
         STEP_STATUS.store(line!(), Ordering::Relaxed);
@@ -771,7 +775,7 @@ impl ModelFpgaSubsystem {
         // don't run the BMC every time as it can spam requests
         // TODO: use cycles
         if self.bmc_step_counter < 5000 || self.bmc_step_counter % 1000 != 0 {
-            return;
+            return Ok(());
         }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
 
@@ -782,13 +786,14 @@ impl ModelFpgaSubsystem {
         // we need to translate from the BMC events to the I3C controller block reads and writes
         let Ok(event) = self.from_bmc.try_recv() else {
             STEP_STATUS.store(line!(), Ordering::Relaxed);
-            return;
+            return Ok(());
         };
         // ignore messages that aren't meant for Caliptra core.
         if !matches!(event.dest, Device::CaliptraCore) {
             STEP_STATUS.store(line!(), Ordering::Relaxed);
-            return;
+            return Ok(());
         }
+
         match event.event {
             EventData::RecoveryBlockReadRequest {
                 source_addr,
@@ -829,15 +834,15 @@ impl ModelFpgaSubsystem {
                     eoutput(),
                     "Recovery block write request: {:?}",
                     command_code
-                );
+                )?;
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-                self.recovery_block_write_request(command_code, &payload);
+                self.recovery_block_write_request(command_code, &payload)?;
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
             }
             EventData::RecoveryImageAvailable { image_id: _, image } => {
                 // do the indirect fifo thing
-                writeln!(eoutput(), "Recovery image available; writing blocks");
+                writeln!(eoutput(), "Recovery image available; writing blocks")?;
 
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
                 self.recovery_ctrl_len = image.len();
@@ -856,6 +861,7 @@ impl ModelFpgaSubsystem {
             _ => todo!(),
         }
         STEP_STATUS.store(line!(), Ordering::Relaxed);
+        Ok(())
     }
 
     fn command_code_to_u8(command: RecoveryCommandCode) -> u8 {
@@ -897,7 +903,7 @@ impl ModelFpgaSubsystem {
     }
 
     fn print_i3c_registers(&mut self) {
-        writeln!(eoutput(), "Dumping registers");
+        writeln!(eoutput(), "Dumping registers").unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_prot_cap_0: {:08x}",
@@ -906,7 +912,8 @@ impl ModelFpgaSubsystem {
                 .prot_cap_0()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_prot_cap_1: {:08x}",
@@ -915,22 +922,26 @@ impl ModelFpgaSubsystem {
                 .prot_cap_1()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_prot_cap_2: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().prot_cap_2().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_prot_cap_3: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().prot_cap_3().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_0: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().device_id_0().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_1: {:08x}",
@@ -939,7 +950,8 @@ impl ModelFpgaSubsystem {
                 .device_id_1()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_2: {:08x}",
@@ -948,7 +960,8 @@ impl ModelFpgaSubsystem {
                 .device_id_2()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_3: {:08x}",
@@ -957,7 +970,8 @@ impl ModelFpgaSubsystem {
                 .device_id_3()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_4: {:08x}",
@@ -966,7 +980,8 @@ impl ModelFpgaSubsystem {
                 .device_id_4()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_5: {:08x}",
@@ -975,7 +990,8 @@ impl ModelFpgaSubsystem {
                 .device_id_5()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_id_reserved: {:08x}",
@@ -984,7 +1000,8 @@ impl ModelFpgaSubsystem {
                 .device_id_reserved()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_status_0: {:08x}",
@@ -995,7 +1012,8 @@ impl ModelFpgaSubsystem {
                     .read()
             )
             .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_status_1: {:08x}",
@@ -1006,17 +1024,20 @@ impl ModelFpgaSubsystem {
                     .read()
             )
             .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_device_reset: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().device_reset().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_recovery_ctrl: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().recovery_ctrl().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_recovery_status: {:08x}",
@@ -1027,12 +1048,14 @@ impl ModelFpgaSubsystem {
                     .read()
             )
             .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_hw_status: {:08x}",
             u32::from(self.i3c_core().sec_fw_recovery_if().hw_status().read()).swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_ctrl_0: {:08x}",
@@ -1043,7 +1066,8 @@ impl ModelFpgaSubsystem {
                     .read()
             )
             .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_ctrl_1: {:08x}",
@@ -1052,7 +1076,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_ctrl_1()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_status_0: {:08x}",
@@ -1063,7 +1088,8 @@ impl ModelFpgaSubsystem {
                     .read()
             )
             .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_status_1: {:08x}",
@@ -1072,7 +1098,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_status_1()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_status_2: {:08x}",
@@ -1081,7 +1108,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_status_2()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_status_3: {:08x}",
@@ -1090,7 +1118,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_status_3()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_status_4: {:08x}",
@@ -1099,7 +1128,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_status_4()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
         writeln!(
             eoutput(),
             "sec_fw_recovery_if_indirect_fifo_reserved: {:08x}",
@@ -1108,7 +1138,8 @@ impl ModelFpgaSubsystem {
                 .indirect_fifo_reserved()
                 .read()
                 .swap_bytes()
-        );
+        )
+        .unwrap();
     }
 
     // send a recovery block read request to the I3C target
@@ -1185,7 +1216,11 @@ impl ModelFpgaSubsystem {
     }
 
     // send a recovery block write request to the I3C target
-    fn recovery_block_write_request(&mut self, command: RecoveryCommandCode, payload: &[u8]) {
+    fn recovery_block_write_request(
+        &mut self,
+        command: RecoveryCommandCode,
+        payload: &[u8],
+    ) -> Result<()> {
         // per the recovery spec, this maps to a private write
 
         let target_addr = self.i3c_controller.get_recovery_addr();
@@ -1205,21 +1240,19 @@ impl ModelFpgaSubsystem {
         let ctrl = self.i3c_controller.controller.lock().unwrap();
 
         if ctrl.resp_fifo_level() > 0 {
-            writeln!(eoutput(), "Draining I3C controller response FIFO before write request: {} responses available", ctrl.resp_fifo_level());
+            writeln!(eoutput(), "Draining I3C controller response FIFO before write request: {} responses available", ctrl.resp_fifo_level())?;
             ctrl.reset_fifos();
         }
 
         let res = ctrl.master_send_polled(&cmd, &data, data.len() as u16);
 
         match res {
-            Ok(_) => (),
-            Err(e) => {
-                panic!(
-                    "Failed to ack write message sent to target step_status {} {:?}",
-                    STEP_STATUS.load(Ordering::Relaxed),
-                    e
-                );
-            }
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow!(
+                "Failed to ack write message sent to target step_status {} {:?}",
+                STEP_STATUS.load(Ordering::Relaxed),
+                e
+            )),
         }
     }
 
@@ -1231,7 +1264,7 @@ impl ModelFpgaSubsystem {
         let otp = self.otp_slice();
         for (i, oi) in otp.iter().copied().enumerate() {
             if oi != 0 {
-                writeln!(eoutput(), "OTP mem: {:03x}: {:02x}", i, oi);
+                writeln!(eoutput(), "OTP mem: {:03x}: {:02x}", i, oi).unwrap();
             }
         }
     }
@@ -1282,39 +1315,23 @@ impl ModelFpgaSubsystem {
     ) -> Result<Box<OpenOcdJtagTap>> {
         Ok(OpenOcdJtagTap::new(params, tap)?)
     }
-}
 
-impl HwModel for ModelFpgaSubsystem {
-    type TBus<'a> = FpgaRealtimeBus<'a>;
-
-    fn trng_mode(&self) -> TrngMode {
-        TrngMode::Internal
-    }
-
-    fn apb_bus(&mut self) -> Self::TBus<'_> {
-        FpgaRealtimeBus {
-            mmio: self.caliptra_mmio,
-            phantom: Default::default(),
-        }
-    }
-
-    fn step(&mut self) {
+    pub fn maybe_step(&mut self) -> Result<()> {
         if !self.i3c_controller_configured && self.i3c_target_configured() {
             self.i3c_controller_configured = true;
             writeln!(
                 eoutput(),
                 "Detected I3C target configured; configuring I3C controller"
-            );
+            )?;
             self.i3c_controller.configure();
-            writeln!(eoutput(), "Starting recovery flow (BMC)");
+            writeln!(eoutput(), "Starting recovery flow (BMC)")?;
             self.start_recovery_bmc();
-            writeln!(eoutput(), "Finished booting");
+            writeln!(eoutput(), "Finished booting")?;
         }
 
-        //        STEP_STATUS.store(line!(), Ordering::Relaxed);
         self.handle_log();
         //STEP_STATUS.store(line!(), Ordering::Relaxed);
-        self.bmc_step();
+        self.bmc_step()?;
         //STEP_STATUS.store(line!(), Ordering::Relaxed);
         // let c = { self.stdin_uart.lock().unwrap().take() };
         // if let Some(c) = c {
@@ -1353,6 +1370,26 @@ impl HwModel for ModelFpgaSubsystem {
         //         self.print_i3c_registers();
         //     }
         // }
+        Ok(())
+    }
+}
+
+impl HwModel for ModelFpgaSubsystem {
+    type TBus<'a> = FpgaRealtimeBus<'a>;
+
+    fn trng_mode(&self) -> TrngMode {
+        TrngMode::Internal
+    }
+
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
+        FpgaRealtimeBus {
+            mmio: self.caliptra_mmio,
+            phantom: Default::default(),
+        }
+    }
+
+    fn step(&mut self) {
+        self.maybe_step().unwrap();
     }
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
@@ -1493,15 +1530,7 @@ impl HwModel for ModelFpgaSubsystem {
             stdin_uart: Arc::new(Mutex::new(None)),
         };
 
-        std::thread::spawn(move || loop {
-            let s = STEP_STATUS.load(Ordering::Relaxed);
-            if s != 0 {
-                writeln!(eoutput(), "MCU stuck at line {}", s);
-            }
-            thread::sleep(Duration::from_secs(10));
-        });
-
-        writeln!(eoutput(), "AXI reset");
+        writeln!(eoutput(), "AXI reset")?;
         m.axi_reset();
 
         // Set generic input wires.
@@ -1510,11 +1539,11 @@ impl HwModel for ModelFpgaSubsystem {
 
         m.set_mci_generic_input_wires(&[0, 0]);
 
-        writeln!(eoutput(), "Set itrng divider");
+        writeln!(eoutput(), "Set itrng divider")?;
         // Set divisor for ITRNG throttling
         m.set_itrng_divider(ITRNG_DIVISOR);
 
-        writeln!(eoutput(), "Set deobf key");
+        writeln!(eoutput(), "Set deobf key")?;
         // Set deobfuscation key
         for i in 0..8 {
             m.wrapper.regs().cptra_obf_key[i].set(params.cptra_obf_key[i]);
@@ -1538,14 +1567,14 @@ impl HwModel for ModelFpgaSubsystem {
         // Currently not using strap UDS and FE
         m.set_secrets_valid(false);
 
-        writeln!(eoutput(), "Putting subsystem into reset");
+        writeln!(eoutput(), "Putting subsystem into reset")?;
         m.set_subsystem_reset(true);
 
         let mut otp_data = vec![0; OTP_SIZE];
 
         if !m.otp_init.is_empty() {
             // write the initial contents of the OTP memory
-            writeln!(eoutput(), "Initializing OTP with initialized data");
+            writeln!(eoutput(), "Initializing OTP with initialized data")?;
             if m.otp_init.len() > otp_data.len() {
                 Err(format!(
                     "OTP initialization data is larger than OTP memory {} > {}",
@@ -1566,7 +1595,7 @@ impl HwModel for ModelFpgaSubsystem {
             eoutput(),
             "Setting lifecycle controller state to {}",
             lc_state
-        );
+        )?;
         let mem = lc_generate_memory(lc_state, 1)?;
         let offset = FUSE_LIFECYCLE_STATE_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
@@ -1579,19 +1608,19 @@ impl HwModel for ModelFpgaSubsystem {
         let otp_mem = m.otp_slice();
         otp_mem.copy_from_slice(&otp_data);
 
-        writeln!(eoutput(), "Clearing fifo");
+        writeln!(eoutput(), "Clearing fifo")?;
         // Sometimes there's garbage in here; clean it out
         m.clear_logs();
 
-        writeln!(eoutput(), "new_unbooted");
+        writeln!(eoutput(), "new_unbooted")?;
 
         // Set initial PAUSER
         m.set_axi_user(DEFAULT_AXI_PAUSER);
 
-        writeln!(eoutput(), "AXI user written {:x}", DEFAULT_AXI_PAUSER);
+        writeln!(eoutput(), "AXI user written {:x}", DEFAULT_AXI_PAUSER)?;
 
         // copy the ROM data
-        writeln!(eoutput(), "Writing Caliptra ROM");
+        writeln!(eoutput(), "Writing Caliptra ROM")?;
         let mut caliptra_rom_data = vec![0; caliptra_rom_size];
         caliptra_rom_data[..params.rom.len()].clone_from_slice(params.rom);
 
@@ -1599,7 +1628,7 @@ impl HwModel for ModelFpgaSubsystem {
             unsafe { core::slice::from_raw_parts_mut(m.caliptra_rom_backdoor, caliptra_rom_size) };
         caliptra_rom_slice.copy_from_slice(&caliptra_rom_data);
 
-        writeln!(eoutput(), "Writing MCU ROM");
+        writeln!(eoutput(), "Writing MCU ROM")?;
         let mut mcu_rom_data = vec![0; mcu_rom_size];
         mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
 
@@ -1608,13 +1637,13 @@ impl HwModel for ModelFpgaSubsystem {
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
         // set the reset vector to point to the ROM backdoor
-        writeln!(eoutput(), "Writing MCU reset vector");
+        writeln!(eoutput(), "Writing MCU reset vector")?;
         m.wrapper
             .regs()
             .mcu_reset_vector
             .set(FPGA_MEMORY_MAP.rom_offset);
 
-        writeln!(eoutput(), "Taking subsystem out of reset");
+        writeln!(eoutput(), "Taking subsystem out of reset")?;
         m.set_subsystem_reset(false);
 
         while m.mci_boot_checkpoint() != u16::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
@@ -1622,7 +1651,7 @@ impl HwModel for ModelFpgaSubsystem {
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
-        writeln!(eoutput(), "writing to cptra_bootfsm_go");
+        writeln!(eoutput(), "writing to cptra_bootfsm_go")?;
         m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
         Ok(m)
     }
@@ -1713,7 +1742,7 @@ impl HwModel for ModelFpgaSubsystem {
             }
         };
 
-        writeln!(eoutput(), "Setting recovery images to BMC");
+        writeln!(eoutput(), "Setting recovery images to BMC")?;
         self.bmc
             .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
         self.bmc.push_recovery_image(
@@ -1724,7 +1753,7 @@ impl HwModel for ModelFpgaSubsystem {
         );
         self.bmc.push_recovery_image(mcu_fw_image);
 
-        writeln!(eoutput(), "Done starting MCU");
+        writeln!(eoutput(), "Done starting MCU")?;
 
         // TODO: support passing these into MCU ROM
         // self.soc_ifc()
@@ -1828,7 +1857,7 @@ impl Bus for FpgaRealtimeBus<'_> {
         if let Some(ptr) = self.ptr_for_addr(addr) {
             Ok(unsafe { ptr.read_volatile() })
         } else {
-            writeln!(eoutput(), "Error LoadAccessFault at address 0x{:x}", addr);
+            writeln!(eoutput(), "Error LoadAccessFault at address 0x{:x}", addr).unwrap();
             Err(BusError::LoadAccessFault)
         }
     }
