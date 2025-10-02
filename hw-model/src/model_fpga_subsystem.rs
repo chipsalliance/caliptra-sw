@@ -6,11 +6,12 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
-use crate::mcu_boot_status::McuRomBootStatus;
+use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
-    lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
-    LifecycleRawTokens, LifecycleToken,
+    lc_generate_memory, otp_generate_lifecycle_tokens_mem,
+    otp_generate_manuf_debug_unlock_token_mem, LifecycleControllerState, LifecycleRawTokens,
+    LifecycleToken, ManufDebugUnlockToken,
 };
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
@@ -44,8 +45,11 @@ const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
 // Offsets in the OTP for fuses.
+const FUSE_MANUF_DEBUG_UNLOCK_TOKEN_OFFSET: usize = 0x0;
 const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
+const FUSE_SVN_OFFSET: usize = 0x390;
+const FUSE_SOC_MAX_SVN_OFFSET: usize = FUSE_SVN_OFFSET + 36;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
 const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
 
@@ -142,7 +146,7 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
 
 // This is a random number, but should be kept in sync with what is the default value in the FPGA ROM.
-const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
+pub const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
     LifecycleToken(0x05edb8c608fcc830de181732cfd65e57u128.to_le_bytes());
 
 const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
@@ -152,6 +156,11 @@ const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
     prod_to_prod_end: DEFAULT_LIFECYCLE_RAW_TOKEN,
     rma: DEFAULT_LIFECYCLE_RAW_TOKEN,
 };
+
+// This is the default manuf debug unlock token.
+pub const DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN: ManufDebugUnlockToken = ManufDebugUnlockToken([
+    0xABCDEFEB, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0xF888888A,
+]);
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -413,6 +422,20 @@ impl ModelFpgaSubsystem {
                 .regs()
                 .control
                 .modify(Control::BootfsmBrkpoint::CLEAR);
+        }
+    }
+
+    fn set_ss_debug_intent(&mut self, val: bool) {
+        if val {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::CLEAR);
         }
     }
 
@@ -1129,6 +1152,14 @@ impl ModelFpgaSubsystem {
         self.mci.regs().fw_flow_status().read()
     }
 
+    pub fn mci_boot_checkpoint(&mut self) -> u16 {
+        (self.mci_flow_status() & 0x0000_ffff) as u16
+    }
+
+    pub fn mci_boot_milestones(&mut self) -> McuBootMilestones {
+        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
+    }
+
     fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
         FpgaRealtimeBus {
             mmio: self.caliptra_mmio,
@@ -1385,9 +1416,15 @@ impl HwModel for ModelFpgaSubsystem {
         let offset = FUSE_LIFECYCLE_STATE_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
+        // Compute and provision default LC tokens.
         let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
         let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
         let offset = FUSE_LIFECYCLE_TOKENS_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Compute and provision default manuf debug unlock token.
+        let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
+        let offset = FUSE_MANUF_DEBUG_UNLOCK_TOKEN_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         let otp_mem = m.otp_slice();
@@ -1421,6 +1458,11 @@ impl HwModel for ModelFpgaSubsystem {
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
+        // Setup debug intent signal if requested.
+        m.set_ss_debug_intent(params.debug_intent);
+        // Set BootFSM break if requested.
+        m.set_bootfsm_break(params.bootfsm_break);
+
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
         m.wrapper
@@ -1431,13 +1473,23 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+        while !m
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+        {
+            m.step();
+        }
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
-        println!("writing to cptra_bootfsm_go");
-        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        //
+        // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
+        // entering debug unlock modes.
+        if !params.bootfsm_break {
+            println!("writing to cptra_bootfsm_go");
+            m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        }
         Ok(m)
     }
 
@@ -1470,6 +1522,12 @@ impl HwModel for ModelFpgaSubsystem {
             FwVerificationPqcKeyType::LMS => 1,
         };
         otp_mem[FUSE_PQC_OFFSET] = val;
+
+        println!(
+            "Burning fuse for SOC MAX SVN {}",
+            fuses.soc_manifest_max_svn
+        );
+        otp_mem[FUSE_SOC_MAX_SVN_OFFSET] = fuses.soc_manifest_max_svn;
 
         self.otp_slice().copy_from_slice(&otp_mem);
 
@@ -1569,6 +1627,11 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
+        // Notify MCU ROM it can start loading firmware
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
         self.i3c_controller.configure();
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
@@ -1616,6 +1679,25 @@ impl HwModel for ModelFpgaSubsystem {
         _mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
         // ironically, we don't need to support this
+        Ok(())
+    }
+
+    fn subsystem_mode(&self) -> bool {
+        // we only support subsystem mode
+        true
+    }
+
+    fn upload_firmware_rri(
+        &mut self,
+        _firmware: &[u8],
+        _soc_manifest: Option<&[u8]>,
+        _mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        // ironically, we don't need to support this
+        Ok(())
+    }
+
+    fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         Ok(())
     }
 }

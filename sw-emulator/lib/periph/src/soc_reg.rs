@@ -935,7 +935,7 @@ impl SocRegistersImpl {
             cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
-            cptra_mbox_valid_axi_user: Default::default(),
+            cptra_mbox_valid_axi_user: [0xffff_ffff; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
             cptra_mbox_axi_user_lock: Default::default(),
             cptra_trng_valid_axi_user: ReadWriteRegister::new(0),
             cptra_trng_axi_user_lock: ReadWriteRegister::new(0),
@@ -949,7 +949,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x102), // [3:0] Major, [7:4] Minor, [15:8] Patch
+            cptra_hw_rev_id: ReadOnlyRegister::new(0x202), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
                 Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
@@ -1469,6 +1469,16 @@ impl SocRegistersImpl {
         self.cptra_flow_status
             .reg
             .write(FlowStatus::READY_FOR_FUSES::SET);
+
+        // Unlock the mailbox axi user lock.
+        for reg in self.cptra_mbox_axi_user_lock.iter_mut() {
+            *reg = 0;
+        }
+
+        // Reset the axi user.
+        for reg in self.cptra_mbox_valid_axi_user.iter_mut() {
+            *reg = 0xffffffff;
+        }
 
         self.reset_common();
     }

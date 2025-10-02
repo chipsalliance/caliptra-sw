@@ -27,6 +27,9 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      branch:
+        default: "main"
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -48,9 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -74,9 +78,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'true'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -151,6 +156,18 @@ jobs:
           tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
 
+      - name: Download bitstream
+        run: |
+          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/core.toml
+          mv core.pdi /tmp/caliptra-bitstream.pdi
+
+      - name: 'Upload bitstream'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream.pdi
+          retention-days: 1
+
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
@@ -177,7 +194,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190-core-2.0
+    runs-on: vck190
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
@@ -188,9 +205,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -203,6 +221,12 @@ jobs:
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
+
+      - name: 'Download Bitstream'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream
 
       - name: Mount binaries
         run: |
@@ -218,6 +242,13 @@ jobs:
         run: |
           sudo lsmod
           ls /sys/class/uio
+
+      - name: Load bitstream
+        run: |
+          sudo mkdir -p /lib/firmware
+          ls /tmp/caliptra-bitstream
+          sudo cp /tmp/caliptra-bitstream/caliptra-bitstream.pdi /lib/firmware
+          sudo bash -c 'echo "caliptra-bitstream.pdi" > /sys/class/fpga_manager/fpga0/firmware'
 
       - name: Execute tests
         run: |
@@ -241,6 +272,8 @@ jobs:
           echo VARS=${VARS}
 
           # TODO(#2369): Remove the extra filters after fixing the broken tests
+          # Unstable tests: test_rtalias::test_boot_status_reporting, test_update_reset::test_update_reset_verify_image_failure
+          # These test(s) are expected to be skipped on the FPGA: package(caliptra-cfi-derive)
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -252,22 +285,9 @@ jobs:
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
                        test(test_sign_validation_failure) |
-                       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-                       test(test_activate_firmware::test_activate_invalid_fw_id) |
-                       test(test_activate_firmware::test_activate_mcu_fw_success) |
-                       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-                       test(test_activate_firmware::test_activate_soc_fw_success) |
-                       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-                       test(test_fe_programming::test_fe_programming_cmd) |
-                       test(test_fips::test_fips_shutdown) |
                        test(test_rtalias::test_boot_status_reporting) |
-                       binary_id(caliptra-test::fips_test_suite) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
           )

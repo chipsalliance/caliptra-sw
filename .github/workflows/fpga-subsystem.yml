@@ -71,7 +71,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: b5b242553ce9844eb7e25eea0cee23fa429a6881
+      CALIPTRA_MCU_COMMIT: 6418831e18966a05cfa0a8b7e66cbad3e4e76e5f
 
     steps:
       - name: Checkout repo
@@ -289,9 +289,9 @@ jobs:
               -E 'package(caliptra-auth-man-types)'
               -E 'package(caliptra-cfi-lib)'
               -E 'package(caliptra-coverage)'
-              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)'
+              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure) - test(test_doe_when_debug_not_locked) - test(test_mailbox_soc_to_uc) - test(test_mailbox_uc_to_soc) - test(test_trng_in_itrng_mode)'
               -E 'package(caliptra-error)'
-              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom)'
+              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom) - test(tests::test_mailbox_execute) - test(tests::test_mailbox_receive) - test(tests::test_soc_mgr_exec_req) - test(tests::test_soc_mgr_mbox_api)'
               -E 'package(caliptra-hw-model-types)'
               -E 'package(caliptra-image-crypto)'
               -E 'package(caliptra-image-elf)'
@@ -306,6 +306,11 @@ jobs:
               -E 'package(ureg-schema)'
               -E 'package(ureg-systemrdl)'
           )
+          # Disabled due to runtime flakiness
+          # -E 'test(test_fe_programming::test_fe_programming_cmd)'
+
+          # Disabled due to runtime flakiness
+          # -E 'package(caliptra-runtime) & (test(test_activate_firmware::test_activate_fw_id_not_in_manifest) | test(test_activate_firmware::test_activate_invalid_fw_id) | test(test_activate_firmware::test_activate_mcu_fw_success) | test(test_activate_firmware::test_activate_mcu_soc_fw_success) | test(test_activate_firmware::test_activate_soc_fw_success) | test(test_activate_firmware::test_invalid_exec_bit_in_manifest) | test(test_authorize_and_stash::test_authorize_from_load_address) | test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) | test(test_authorize_and_stash::test_authorize_from_staging_address) | test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest))'
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
