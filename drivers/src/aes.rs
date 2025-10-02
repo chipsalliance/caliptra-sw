@@ -19,6 +19,7 @@ Abstract:
 --*/
 
 use crate::{
+    cprintln,
     kv_access::{KvAccess, KvAccessErr},
     CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x4,
     LEArray4x8, Trng,
@@ -969,17 +970,22 @@ impl Aes {
 
         // Set Dest KV in AES Ctrl register
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
+            cprintln!("wait for idle 1");
             wait_for_idle(&aes);
+            cprintln!("wait for idle done 1");
             KvAccess::begin_copy_to_kv(
                 aes_clp.aes_kv_wr_status(),
                 aes_clp.aes_kv_wr_ctrl(),
                 output_kv,
             )?;
+            cprintln!("finished copy to kv");
             Ok(())
         })?;
 
         self.with_aes(|aes, _| {
+            cprintln!("wait for idle 2");
             wait_for_idle(&aes);
+            cprintln!("wait for idle 2 done");
             for _ in 0..2 {
                 aes.ctrl_shadowed().write(|w| {
                     w.key_len(AesKeyLen::_256 as u32)
@@ -989,7 +995,9 @@ impl Aes {
                         .sideload(key.sideload())
                 });
             }
+            cprintln!("wait for idle 3");
             wait_for_idle(&aes);
+            cprintln!("wait for idle 3 done");
         });
 
         // Load 64 bytes of data
@@ -999,6 +1007,7 @@ impl Aes {
 
         // Wait for HW to release result to KV
         self.with_aes::<CaliptraResult<()>>(|_, aes_clp| {
+            cprintln!("end copy to kv");
             match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), output_kv) {
                 Ok(_) => Ok(()),
                 Err(KvAccessErr::KeyRead) => {
@@ -1008,8 +1017,10 @@ impl Aes {
                 _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
             }
         })?;
+        cprintln!("end copy to kv done");
 
         self.zeroize_internal();
+        cprintln!("zeroize finish");
         Ok(())
     }
 

@@ -15,27 +15,36 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
-
+#![allow(unused_imports)]
+#![allow(dead_code)]
+use crate::lock::lock_cold_reset_reg;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, RomBootStatus};
-use caliptra_kat::*;
-use caliptra_registers::abr::AbrReg;
-use caliptra_registers::soc_ifc::SocIfcReg;
-use core::hint::black_box;
-
-use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, LEArray4x8, MlKem1024,
-    MlKem1024Message, MlKem1024MessageSource, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, ResetReason, ShaAccLockState, Trng,
+    cprintln, hmac_kdf, report_boot_status, report_fw_error_non_fatal, Aes, AesKey, Array4x16,
+    Array4x4, AxiAddr, CaliptraError, DeobfuscationEngine, Dma, DmaWriteOrigin,
+    DmaWriteTransaction, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
+    KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seeds,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, ResetReason, ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
 use caliptra_kat::KatsEnv;
+use caliptra_kat::*;
+use caliptra_registers::abr::AbrReg;
+use caliptra_registers::aes::AesReg;
+use caliptra_registers::aes_clp::AesClpReg;
+use caliptra_registers::csrng::CsrngReg;
+use caliptra_registers::doe::DoeReg;
+use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::hmac::HmacReg;
+use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
+use core::hint::black_box;
 use rom_env::RomEnv;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
@@ -66,6 +75,78 @@ Running Caliptra ROM ...
 
 extern "C" {
     static CALIPTRA_ROM_INFO: RomInfo;
+}
+
+/// Populates a KV slot with a known constant.
+pub fn populate_slot(
+    hmac: &mut Hmac,
+    trng: &mut Trng,
+    slot: KeyId,
+    usage: KeyUsage,
+) -> CaliptraResult<()> {
+    hmac.hmac(
+        HmacKey::Array4x16(&Array4x16::default()),
+        HmacData::from(&[0]),
+        trng,
+        KeyWriteArgs::new(slot, usage).into(),
+        HmacMode::Hmac512,
+    )
+}
+
+pub struct TestRegisters {
+    pub soc: SocIfc,
+    pub hmac: Hmac,
+    pub aes: Aes,
+    pub trng: Trng,
+    pub dma: Dma,
+    pub doe: DeobfuscationEngine,
+}
+
+impl Default for TestRegisters {
+    fn default() -> Self {
+        let soc_ifc = unsafe { SocIfcReg::new() };
+        let soc = SocIfc::new(soc_ifc);
+        let hmac = unsafe { Hmac::new(HmacReg::new()) };
+        let aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+        let trng = unsafe {
+            Trng::new(
+                CsrngReg::new(),
+                EntropySrcReg::new(),
+                SocIfcTrngReg::new(),
+                &SocIfcReg::new(),
+            )
+            .unwrap()
+        };
+        let dma = Dma::default();
+        let doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
+
+        Self {
+            soc,
+            hmac,
+            aes,
+            trng,
+            dma,
+            doe,
+        }
+    }
+}
+
+pub fn kv_release(test_regs: &mut TestRegisters) {
+    let fuse_addr = 0xa401_0200u64;
+    cprintln!("[demo] OCP LOCK key release addr: {:08x}", fuse_addr);
+    let kv_release_size = 64;
+
+    let write_addr = AxiAddr::from(fuse_addr);
+    let write_transaction = DmaWriteTransaction {
+        write_addr,
+        fixed_addr: false,
+        length: kv_release_size,
+        origin: DmaWriteOrigin::KeyVault,
+        aes_mode: false,
+        aes_gcm: false,
+    };
+    test_regs.dma.setup_dma_write(write_transaction, 0);
+    test_regs.dma.wait_for_dma_complete();
 }
 
 #[no_mangle]
@@ -150,120 +231,160 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    // if !cfg!(feature = "fake-rom") {
-    //     let mut kats_env = caliptra_kat::KatsEnv {
-    //         // SHA1 Engine
-    //         sha1: &mut env.sha1,
+    cprintln!(
+        r"  ______     ______ .______       __        ______     ______  __  ___     _______   _______ .___  ___.   ______   "
+    );
+    cprintln!(
+        r" /  __  \   /      ||   _  \     |  |      /  __  \   /      ||  |/  /    |       \ |   ____||   \/   |  /  __  \  "
+    );
+    cprintln!(
+        r"|  |  |  | |  ,----'|  |_)  |    |  |     |  |  |  | |  ,----'|  '  /     |  .--.  ||  |__   |  \  /  | |  |  |  | "
+    );
+    cprintln!(
+        r"|  |  |  | |  |     |   ___/     |  |     |  |  |  | |  |     |    <      |  |  |  ||   __|  |  |\/|  | |  |  |  | "
+    );
+    cprintln!(
+        r"|  `--'  | |  `----.|  |         |  `----.|  `--'  | |  `----.|  .  \     |  '--'  ||  |____ |  |  |  | |  `--'  | "
+    );
+    cprintln!(
+        r" \______/   \______|| _|         |_______| \______/   \______||__|\__\    |_______/ |_______||__|  |__|  \______/  "
+    );
+    cprintln!(
+        r"                                                                                                                   "
+    );
 
-    //         // sha256
-    //         sha256: &mut env.sha256,
+    let mut test_regs = TestRegisters::default();
 
-    //         // SHA2-512/384 Engine
-    //         sha2_512_384: &mut env.sha2_512_384,
+    cprintln!(
+        "[demo] OCP LOCK enabled? {}",
+        test_regs.soc.ocp_lock_enabled()
+    );
 
-    //         // SHA2-512/384 Accelerator
-    //         sha2_512_384_acc: &mut env.sha2_512_384_acc,
+    if !test_regs.soc.ocp_lock_enabled() {
+        cprintln!("[demo] OCP LOCK not enabled, skipping demo");
+        loop {}
+    }
 
-    //         // Hmac-512/384 Engine
-    //         hmac: &mut env.hmac,
+    pub const DOE_TEST_IV: [u32; 4] = [0xc6b407a2, 0xd119a37d, 0xb7a5bdeb, 0x26214aed];
 
-    //         // Cryptographically Secure Random Number Generator
-    //         trng: &mut env.trng,
+    cprintln!(
+        "[demo] OCP LOCK Decrypt HEK seed from with IV {} into slot 22",
+        HexBytes(DOE_TEST_IV.as_bytes())
+    );
 
-    //         // LMS Engine
-    //         lms: &mut env.lms,
+    test_regs
+        .doe
+        .decrypt_hek_seed(&Array4x4::from(DOE_TEST_IV), KeyId::KeyId22)
+        .unwrap();
 
-    //         // MLDSA87 Engine
-    //         mldsa87: &mut env.mldsa87,
+    const ENCRYPTED_MEK: [u8; 64] = [
+        0xa5, 0x30, 0x8a, 0x37, 0xfa, 0x5d, 0xdd, 0x82, 0xee, 0x36, 0xf1, 0x7f, 0x0a, 0x96, 0x0a,
+        0xc2, 0xbc, 0xe6, 0xde, 0x51, 0xdc, 0xca, 0xa8, 0x69, 0x8e, 0x6b, 0x9b, 0x36, 0xf3, 0xe5,
+        0x75, 0xfd, 0x55, 0x87, 0x81, 0x23, 0x49, 0x15, 0x4a, 0x12, 0x82, 0xd9, 0x03, 0x01, 0xe6,
+        0x34, 0xdb, 0xc1, 0x26, 0x5e, 0x85, 0x81, 0x5e, 0x38, 0xc6, 0x90, 0xf9, 0x08, 0xe2, 0x2a,
+        0x18, 0x37, 0x6e, 0x6f,
+    ];
 
-    //         // Ecc384 Engine
-    //         ecc384: &mut env.ecc384,
+    let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId3));
+    let mdk_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
+        KeyId::KeyId16,
+        KeyUsage::default().set_aes_key_en(),
+    )));
 
-    //         // AES Engine
-    //         aes: &mut env.aes,
+    cprintln!("[demo] Populating slot 3");
 
-    //         // SHA Acc lock state.
-    //         // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-    //         // On an Update Reset, it is expected to be unlocked.
-    //         // Not having it unlocked will result in a fatal error.
-    //         sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-    //             ShaAccLockState::NotAcquired
-    //         } else {
-    //             ShaAccLockState::AssumedLocked
-    //         },
-    //     };
-    //     let result = run_fips_tests(&mut kats_env);
-    //     if let Err(err) = result {
-    //         handle_fatal_error(err.into());
-    //     }
-    // }
+    populate_slot(
+        &mut test_regs.hmac,
+        &mut test_regs.trng,
+        KeyId::KeyId3,
+        KeyUsage::default().set_hmac_key_en(),
+    )
+    .unwrap();
 
-    cprintln!(r"  __  __  _       _  __ ______  __  __     _____   ______  __  __   ____  ");
-    cprintln!(r" |  \/  || |_____| |/ /|  ____||  \/  |   |  __ \ |  ____||  \/  | / __ \ ");
-    cprintln!(r" | \  / || |     | ' / | |__   | \  / |   | |  | || |__   | \  / || |  | |");
-    cprintln!(r" | |\/| || |     |  <  |  __|  | |\/| |   | |  | ||  __|  | |\/| || |  | |");
-    cprintln!(r" | |  | || |____ | . \ | |____ | |  | |   | |__| || |____ | |  | || |__| |");
-    cprintln!(r" |_|  |_||______||_|\_\|______||_|  |_|   |_____/ |______||_|  |_| \____/ ");
+    cprintln!("[demo] Deriving MDK into slot 16");
+
+    hmac_kdf(
+        &mut test_regs.hmac,
+        cdi_slot,
+        b"OCP_LOCK_MDK",
+        None,
+        &mut test_regs.trng,
+        mdk_slot,
+        HmacMode::Hmac512,
+    )
+    .unwrap();
+
+    // If you uncomment this, then aes_256_ecb_decrypt_kv succeeds
+    // populate_slot(
+    //     &mut test_regs.hmac,
+    //     &mut test_regs.trng,
+    //     KeyId::KeyId16,
+    //     KeyUsage::default().set_hmac_key_en(),
+    // )
+    // .unwrap();
+
+    cprintln!("[demo] Populating slot 3");
+    let hek_seed = test_regs.soc.fuse_bank().ocp_hek_seed();
+
+    let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId3));
+    let hek_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
+        KeyId::KeyId22,
+        KeyUsage::default().set_hmac_key_en(),
+    )));
+
+    populate_slot(
+        &mut test_regs.hmac,
+        &mut test_regs.trng,
+        KeyId::KeyId3,
+        KeyUsage::default().set_hmac_key_en(),
+    )
+    .unwrap();
+
+    cprintln!("[demo] Deriving HEK into slot 16");
+
+    hmac_kdf(
+        &mut test_regs.hmac,
+        cdi_slot,
+        b"OCP_LOCK_HEK", // TODO: Use real label from spec.
+        Some(hek_seed.as_bytes()),
+        &mut test_regs.trng,
+        hek_slot,
+        HmacMode::Hmac512,
+    )
+    .unwrap();
+
+    if test_regs.soc.ocp_lock_get_lock_in_progress() {
+        cprintln!("[demo] OCP LOCK in progress already!");
+        loop {}
+    }
+
+    cprintln!("[demo] OCP LOCK set in progress");
+    test_regs.soc.ocp_lock_set_lock_in_progress();
+
+    if !test_regs.soc.ocp_lock_get_lock_in_progress() {
+        cprintln!("[demo] OCP LOCK not in progress");
+        loop {}
+    }
+
+    cprintln!(
+        "[demo] OCP LOCK decrypting encrypted MEK: {}",
+        HexBytes(&ENCRYPTED_MEK)
+    );
+
+    if let Err(e) = test_regs.aes.aes_256_ecb_decrypt_kv(&ENCRYPTED_MEK) {
+        cprintln!(
+            "[demo] OCP LOCK error decrypting encrypted MEK: {}",
+            u32::from(e)
+        );
+    }
+
+    cprintln!("[demo] OCP LOCK releasing key");
+
+    kv_release(&mut test_regs);
+
+    cprintln!("[demo] OCP LOCK key release complete");
 
     if true {
-        const SEED_D: [u32; 8] = [
-            0x12345678, 0x9abcdef0, 0x11223344, 0x55667788, 0xaabbccdd, 0xeeff0011, 0x22334455,
-            0x66778899,
-        ];
-
-        const SEED_Z: [u32; 8] = [
-            0x87654321, 0x0fedcba9, 0x44332211, 0x88776655, 0xddccbbaa, 0x1100ffee, 0x55443322,
-            0x99887766,
-        ];
-
-        const MESSAGE: [u32; 8] = [
-            0xdeadbeef, 0xcafebabe, 0x12345678, 0x9abcdef0, 0x11223344, 0x55667788, 0xaabbccdd,
-            0xeeff0011,
-        ];
-        let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()) };
-
-        // Generate key pair
-        let seed_d = LEArray4x8::from(SEED_D);
-        let seed_z = LEArray4x8::from(SEED_Z);
-        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-        let message = MlKem1024Message::from(MESSAGE);
-
-        cprintln!("Seed D: {}", HexBytes(seed_d.as_bytes()));
-        cprintln!("Seed Z: {}", HexBytes(seed_z.as_bytes()));
-        cprintln!("Input message: {}", HexBytes(message.as_bytes()));
-
-        let (encaps_key, decaps_key) = mlkem.key_pair(seeds).unwrap();
-        cprintln!("Encaps Key: {}", HexBytes(encaps_key.as_bytes()));
-        cprintln!("Decaps Key: {}", HexBytes(decaps_key.as_bytes()));
-
-        let mut shared_key_out = MlKem1024SharedKey::default();
-        let ciphertext = mlkem
-            .encapsulate(
-                encaps_key,
-                MlKem1024MessageSource::Array(&message),
-                MlKem1024SharedKeyOut::Array(&mut shared_key_out),
-            )
-            .unwrap();
-        cprintln!(
-            "Shared Key (encaps side): {}",
-            HexBytes(shared_key_out.as_bytes())
-        );
-        cprintln!("Ciphertext: {}", HexBytes(ciphertext.as_bytes()));
-
-        let mut decaps_shared_key = MlKem1024SharedKey::default();
-        mlkem
-            .decapsulate(
-                decaps_key,
-                &ciphertext,
-                MlKem1024SharedKeyOut::Array(&mut decaps_shared_key),
-            )
-            .unwrap();
-
-        cprintln!(
-            "Shared Key (decaps side): {}",
-            HexBytes(decaps_shared_key.as_bytes())
-        );
-
         loop {}
     }
 

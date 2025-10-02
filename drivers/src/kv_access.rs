@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::array::Array4xN;
-use crate::{wait, CaliptraResult, KeyId, KeyUsage, PcrId};
+use crate::{cprintln, wait, CaliptraResult, KeyId, KeyUsage, PcrId};
 use caliptra_registers::enums::KvErrorE;
 use caliptra_registers::regs::{KvReadCtrlRegWriteVal, KvStatusRegReadVal, KvWriteCtrlRegWriteVal};
 use ureg::{Mmio, MmioMut};
@@ -162,6 +162,7 @@ impl KvAccess {
         status_reg: ureg::RegRef<SReg, TMmio>,
         _key: KeyWriteArgs,
     ) -> Result<(), KvAccessErr> {
+        cprintln!("KV status reg {:08x}", u32::from(status_reg.read()));
         wait::until(|| status_reg.read().valid());
         match status_reg.read().error() {
             KvErrorE::Success => Ok(()),
