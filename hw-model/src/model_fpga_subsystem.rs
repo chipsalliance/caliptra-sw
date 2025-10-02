@@ -451,6 +451,13 @@ impl ModelFpgaSubsystem {
         );
     }
 
+    pub fn set_cptra_ss_rst_b(&mut self, value: bool) {
+        self.wrapper
+            .regs()
+            .control
+            .modify(Control::CptraSsRstB.val(value as u32));
+    }
+
     fn set_secrets_valid(&mut self, value: bool) {
         self.wrapper.regs().control.modify(
             Control::CptraObfUdsSeedVld.val(value as u32)
@@ -1699,6 +1706,18 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         Ok(())
+    }
+
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.set_cptra_ss_rst_b(false);
+        std::thread::sleep(std::time::Duration::from_micros(1));
+        self.set_cptra_ss_rst_b(true);
+
+        self.step_until(|hw| {
+            hw.mci_boot_milestones()
+                .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
+        });
     }
 }
 
