@@ -12,6 +12,8 @@ use crate::helpers;
 
 // TODO: Find a better way to get this or make it a don't-care for this test
 //       This is not going to work when we start testing against multiple hw revs
+// const HW_REV_ID: u32 = 0x12; // 2.1
+// [CAP2][TODO] update once FPGA is ready
 const HW_REV_ID: u32 = 0x2;
 
 #[test]

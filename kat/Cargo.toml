@@ -15,3 +15,6 @@ caliptra-registers.workspace = true
 caliptra-lms-types.workspace = true
 zerocopy.workspace = true
 ufmt.workspace = true
+
+[features]
+rom = []
