@@ -436,6 +436,13 @@ impl ModelFpgaSubsystem {
         std::thread::sleep(std::time::Duration::from_micros(1));
     }
 
+    fn set_ocp_lock_enabled(&mut self, enabled: bool) {
+        self.wrapper
+            .regs()
+            .control
+            .modify(Control::OcpLockEn.val(enabled as u32));
+    }
+
     pub fn set_subsystem_reset(&mut self, reset: bool) {
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
@@ -1553,6 +1560,9 @@ impl HwModel for ModelFpgaSubsystem {
 
         writeln!(eoutput(), "AXI reset")?;
         m.axi_reset();
+
+        writeln!(eoutput(), "Set OCP LOCK enabled")?;
+        m.set_ocp_lock_enabled(true);
 
         // Set generic input wires.
         let input_wires = [0, (!params.uds_granularity_64 as u32) << 31];
