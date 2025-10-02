@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::generate_test_x509_cert;
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
     build_and_sign_image, build_firmware_rom,
@@ -9,7 +10,10 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     checksum::{calc_checksum, verify_checksum},
-    mailbox_api::{CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader},
+    mailbox_api::{
+        CapabilitiesResp, CommandId, GetIdevCertResp, GetIdevEcc384CertReq, MailboxReq,
+        MailboxReqHeader, MailboxRespHeader,
+    },
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -21,6 +25,23 @@ use caliptra_image_types::RomInfo;
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 use zerocopy::{FromBytes, IntoBytes};
+
+use caliptra_common::x509::get_tbs;
+
+use openssl::asn1::Asn1TimeRef;
+use openssl::ecdsa::EcdsaSig;
+
+use openssl::x509::X509;
+
+use std::cmp::Ordering;
+
+use openssl::{
+    bn::{BigNum, BigNumContext},
+    ec::{EcGroup, EcKey, EcPoint},
+    nid::Nid,
+    pkey::{PKey, Private},
+    sha::sha384,
+};
 
 #[test]
 fn test_rt_journey_pcr_validation() {
@@ -382,4 +403,207 @@ fn test_capabilities_after_warm_reset() {
         capabilities_after.to_bytes(),
         "Capability bitflags changed across warm reset"
     ); //
+}
+
+/// Compare two X509 certs by semantic fields rather than raw bytes.
+fn assert_x509_semantic_eq(a: &X509, b: &X509) {
+    // Issuer / Subject
+    assert_eq!(
+        a.issuer_name().entries().count(),
+        b.issuer_name().entries().count(),
+        "issuer entry count mismatch"
+    );
+    assert_eq!(
+        a.issuer_name().to_der().unwrap(),
+        b.issuer_name().to_der().unwrap(),
+        "issuer differs"
+    );
+
+    assert_eq!(
+        a.subject_name().entries().count(),
+        b.subject_name().entries().count(),
+        "subject entry count mismatch"
+    );
+    assert_eq!(
+        a.subject_name().to_der().unwrap(),
+        b.subject_name().to_der().unwrap(),
+        "subject differs"
+    );
+
+    // Serial number
+    let a_sn = a.serial_number().to_bn().unwrap().to_vec();
+    let b_sn = b.serial_number().to_bn().unwrap().to_vec();
+    assert_eq!(a_sn, b_sn, "serial number differs");
+
+    // Public key
+    let a_pk = a.public_key().unwrap().public_key_to_der().unwrap();
+    let b_pk = b.public_key().unwrap().public_key_to_der().unwrap();
+    assert_eq!(a_pk, b_pk, "public key differs");
+
+    // Signature algorithm OID (not the signature value)
+    let a_sig_oid = a.signature_algorithm().object().nid();
+    let b_sig_oid = b.signature_algorithm().object().nid();
+    assert_eq!(a_sig_oid, b_sig_oid, "signature algorithm differs");
+
+    //check validity
+    assert_same_time(a.not_before(), b.not_before(), "notBefore");
+    assert_same_time(a.not_after(), b.not_after(), "notAfter");
+}
+
+fn assert_same_time(a: &Asn1TimeRef, b: &Asn1TimeRef, label: &str) {
+    let d = a.diff(b).expect("ASN.1 time diff failed");
+    // Equal iff  day delta is 0 and second deltas is less than 10
+
+    // Must be the same day
+    assert_eq!(
+        d.days, 0,
+        "{label} differs by {} days, {} secs",
+        d.days, d.secs
+    );
+
+    // Seconds delta allowed up to 10
+    assert!(
+        d.secs.abs() <= 10,
+        "{label} differs by {} secs (allowed ≤ 10)",
+        d.secs
+    );
+}
+
+/// Deterministically derive a P-384 EC key from `seed`.
+/// Same seed => same key.
+pub fn deterministic_p384_key_from_seed(seed: &[u8]) -> PKey<Private> {
+    // Curve group and order n
+    let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let mut n = BigNum::new().unwrap();
+    group
+        .order(&mut n, &mut BigNumContext::new().unwrap())
+        .unwrap();
+
+    // Helper: portable zero check
+    fn is_zero_bn(bn: &BigNum) -> bool {
+        bn.num_bits() == 0
+    }
+
+    // Find d in [1, n-1] by hashing (seed || counter) until d < n and d != 0
+    let mut ctr: u32 = 0;
+    let d = loop {
+        let mut buf = Vec::with_capacity(seed.len() + 4);
+        buf.extend_from_slice(seed);
+        buf.extend_from_slice(&ctr.to_be_bytes());
+        let h = sha384(&buf);
+
+        let cand = BigNum::from_slice(&h).unwrap();
+        if !is_zero_bn(&cand) && cand.ucmp(&n) == Ordering::Less {
+            break cand;
+        }
+        ctr = ctr.wrapping_add(1);
+    };
+
+    // Q = d·G
+    let ctx = BigNumContext::new().unwrap();
+    let mut q = EcPoint::new(&group).unwrap();
+    q.mul_generator(&group, &d, &ctx).unwrap();
+
+    // EcKey(d, Q) -> PKey
+    let ec_key = EcKey::from_private_components(&group, &d, &q).unwrap();
+    PKey::from_ec_key(ec_key).unwrap()
+}
+
+/// Issue GET_IDEV_ECC384_CERT once and return the parsed X509.
+fn get_idev_cert(model: &mut DefaultHwModel) -> X509 {
+    // Build deterministic ec_Key so pub key will be the same
+
+    const TEST_SEED: &[u8] = b"idev-cert-seed-v1";
+    let ec_key = deterministic_p384_key_from_seed(TEST_SEED);
+
+    let cert = generate_test_x509_cert(&ec_key);
+    assert!(
+        cert.verify(&ec_key).unwrap(),
+        "self-check: test cert must verify"
+    );
+
+    let sig_bytes = cert.signature().as_slice();
+    let signature = EcdsaSig::from_der(sig_bytes).unwrap();
+    let signature_r: [u8; 48] = signature.r().to_vec_padded(48).unwrap().try_into().unwrap();
+    let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
+
+    let tbs = get_tbs(cert.to_der().unwrap());
+    let tbs_len = tbs.len();
+
+    let mut req = GetIdevEcc384CertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tbs: [0; GetIdevEcc384CertReq::DATA_MAX_SIZE],
+        signature_r,
+        signature_s,
+        tbs_size: tbs_len as u32,
+    };
+    req.tbs[..tbs_len].copy_from_slice(&tbs);
+
+    let mut cmd = MailboxReq::GetIdevEcc384Cert(req);
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_ECC384_CERT),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("expected response");
+
+    assert!(
+        resp.len() <= core::mem::size_of::<GetIdevCertResp>(),
+        "unexpected payload size"
+    );
+    let mut cert_resp = GetIdevCertResp::default();
+    cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+
+    // Verify checksum on variable-sized payload (everything after chksum)
+    assert!(
+        verify_checksum(
+            cert_resp.hdr.chksum,
+            0x0,
+            &resp[core::mem::size_of_val(&cert_resp.hdr.chksum)..],
+        ),
+        "response checksum invalid"
+    );
+
+    assert_eq!(
+        cert_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        "CERT FIPS not APPROVED"
+    );
+    assert!(
+        (cert_resp.data_size as usize) <= cert_resp.data.len(),
+        "data_size exceeds buffer"
+    );
+    let der = &cert_resp.data[..(cert_resp.data_size as usize)];
+
+    X509::from_der(der).unwrap()
+}
+
+#[test]
+fn test_get_idev_ecc384_cert_after_warm_reset() {
+    // Build runtime using your helper
+    let args = BuildArgs {
+        security_state: *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production),
+        fmc_version: 3,
+        app_version: 5,
+        fw_svn: 9,
+    };
+    let (mut model, _image_bytes) = build_ready_runtime_model(args);
+
+    // Before warm reset
+    let cert_before = get_idev_cert(&mut model);
+
+    // Warm reset
+    model.warm_reset();
+    wait_runtime_ready(&mut model);
+
+    // After warm reset
+    let cert_after = get_idev_cert(&mut model);
+
+    // Compare semantically
+    assert_x509_semantic_eq(&cert_before, &cert_after);
 }
