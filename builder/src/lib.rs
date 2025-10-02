@@ -40,6 +40,7 @@ pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 pub enum CiRomVersion {
     Rom1_0,
     Rom1_1,
+    Rom1_2,
     Latest,
 }
 
@@ -376,6 +377,7 @@ pub fn get_ci_rom_version() -> CiRomVersion {
     match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
         Ok("1.0") => CiRomVersion::Rom1_0,
         Ok("1.1") => CiRomVersion::Rom1_1,
+        Ok("1.2") => CiRomVersion::Rom1_2,
         Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
         Err(_) => CiRomVersion::Latest,
     }
@@ -416,6 +418,23 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
             } else if rom_from_env == &firmware::ROM_WITH_UART {
                 Ok(include_bytes!(
                     "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.1-d6713db.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
+        }
+        CiRomVersion::Rom1_2 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/1.2/caliptra-rom-1.2.0-3b50c6a.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/1.2/caliptra-rom-with-log-1.2.0-3b50c6a.bin"
                 )
                 .as_slice()
                 .into())
