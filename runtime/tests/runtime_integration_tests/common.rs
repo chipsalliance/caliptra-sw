@@ -138,7 +138,7 @@ pub fn default_manifest_and_mcu_image_with_svn(
     pqc_key_type: FwVerificationPqcKeyType,
     svn: u32,
 ) -> (Vec<u8>, Vec<u8>) {
-    let mcu_fw = vec![1, 2, 3, 4];
+    let mcu_fw: Vec<u8> = (1..=256).map(|i| (i % 256) as u8).collect();
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
@@ -151,8 +151,10 @@ pub fn default_manifest_and_mcu_image_with_svn(
         ..Default::default()
     }];
     let soc_manifest = create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn);
-    let soc_manifest = soc_manifest.as_bytes();
-    (soc_manifest.to_owned(), mcu_fw)
+    let mut soc_manifest = soc_manifest.as_bytes().to_owned();
+    let padding = (256 - (soc_manifest.len() % 256)) % 256;
+    soc_manifest.resize(soc_manifest.len() + padding, 0);
+    (soc_manifest, mcu_fw)
 }
 
 pub fn default_manifest_and_mcu_image(
