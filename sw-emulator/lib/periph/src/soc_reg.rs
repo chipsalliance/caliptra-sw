@@ -99,6 +99,8 @@ mod constants {
     pub const FUSE_IDEVID_MANUF_HSM_ID_START: u32 = 0x32c;
     pub const FUSE_IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_START: u32 = 0x34c;
+    pub const FUSE_HEK_SEED_START: u32 = 0x3c0;
+    pub const FUSE_HEK_SEED_SIZE: usize = 32;
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE_BYTES: usize = 64;
     pub const SOC_MANIFEST_SVN_SIZE: usize = 16;
     pub const INTERNAL_OBF_KEY_SIZE: usize = 32;
@@ -719,6 +721,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x3a0)]
     fuse_soc_manifest_max_svn: u32,
 
+    #[register_array(offset = 0x3c0)]
+    fuse_hek_seed: [u32; FUSE_HEK_SEED_SIZE / 4],
+
     #[register(offset = 0x500)]
     ss_caliptra_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -762,6 +767,15 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x534)]
     ss_caliptra_dma_axi_user: u32,
+
+    #[register(offset = 0x540)]
+    ss_key_release_base_addr_l: u32,
+
+    #[register(offset = 0x544)]
+    ss_key_release_base_addr_h: u32,
+
+    #[register(offset = 0x548)]
+    ss_key_release_size: u32,
 
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
@@ -989,6 +1003,7 @@ impl SocRegistersImpl {
             fuse_manuf_dbg_unlock_token: [0; 16],
             fuse_soc_manifest_svn: [0; 4],
             fuse_soc_manifest_max_svn: 128,
+            fuse_hek_seed: [0; 8],
             ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
             ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
@@ -997,6 +1012,9 @@ impl SocRegistersImpl {
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
             ss_caliptra_dma_axi_user: 0,
+            ss_key_release_base_addr_l: 0,
+            ss_key_release_base_addr_h: 0,
+            ss_key_release_size: 0,
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
