@@ -29,3 +29,4 @@ hw/fpga/vivado*.log
 # libcaliptra build artifacts
 libcaliptra/libcaliptra.a
 ci-tools/host-runner/secrets/
+/book/
