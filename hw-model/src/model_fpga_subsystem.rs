@@ -458,43 +458,23 @@ impl ModelFpgaSubsystem {
 
     fn clear_logs(&mut self) {
         writeln!(eoutput(), "Clearing Caliptra logs").unwrap();
-        loop {
-            if self
-                .wrapper
-                .fifo_regs()
-                .log_fifo_status
-                .is_set(FifoStatus::Empty)
-            {
-                break;
-            }
-            if !self
-                .wrapper
-                .fifo_regs()
-                .log_fifo_data
-                .is_set(FifoData::CharValid)
-            {
-                break;
-            }
+        while !self
+            .wrapper
+            .fifo_regs()
+            .log_fifo_status
+            .is_set(FifoStatus::Empty)
+        {
+            self.wrapper.fifo_regs().log_fifo_data.get();
         }
 
         writeln!(eoutput(), "Clearing MCU logs").unwrap();
-        loop {
-            if self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_status
-                .is_set(FifoStatus::Empty)
-            {
-                break;
-            }
-            if !self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_data_pop
-                .is_set(FifoData::CharValid)
-            {
-                break;
-            }
+        while !self
+            .wrapper
+            .fifo_regs()
+            .dbg_fifo_status
+            .is_set(FifoStatus::Empty)
+        {
+            self.wrapper.fifo_regs().dbg_fifo_data_pop.get();
         }
     }
 
