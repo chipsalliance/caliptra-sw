@@ -50,17 +50,23 @@ let
 
       ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
       ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
-      (mv zcu104.img zcu104.img.old || true)
+      DATE_SUFFIX=$(date +%Y%m%d)
+      (mv zcu104.img zcu104.img.old."$DATE_SUFFIX" || true)
       mv image.img zcu104.img
       rm caliptra-fpga-image.zip
 
       for VARIANT in "caliptra-fpga-image-core-2.0" "caliptra-fpga-image-core-2.1" "caliptra-fpga-image-subsystem-2.0" "caliptra-fpga-image-subsystem-2.1"; do
           ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main-2.x > $VARIANT.zip
           ${pkgs.unzip}/bin/unzip $VARIANT.zip
-          (mv $VARIANT.img $VARIANT.img.old || true)
+          (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
           mv image.img $VARIANT.img
           rm $VARIANT.zip
        done
+    '';
+    cleanup-old-images-script = pkgs.writeShellScriptBin "cleanup-old-images" ''
+      set -eux
+      cd /home/${user}/ci-images
+      ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
     '';
 in
 {
@@ -149,6 +155,7 @@ in
     fpga-boss
     picocom
     usbsdmux
+    cleanup-old-images-script
   ];
 
   programs.zsh.enable = true;
@@ -191,6 +198,22 @@ in
       Type = "oneshot";
       User = "${user}";
       ExecStart = "${update-fpga-script}/bin/update-fpga-image";
+    };
+  };
+
+  systemd.timers."cleanup-old-images" = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "Sat *-*-* 05:00:00";
+      Persistent = true;
+    };
+  };
+
+  systemd.services."cleanup-old-images" = {
+    serviceConfig = {
+      Type = "oneshot";
+      User = "${user}";
+      ExecStart = "${cleanup-old-images-script}/bin/cleanup-old-images";
     };
   };
 }
