@@ -329,7 +329,9 @@ fn main() -> io::Result<()> {
     let mut root_bus = CaliptraRootBus::new(bus_args);
     // Populate the RRI data
     if subsystem_mode {
-        root_bus.dma.axi.recovery.cms_data = vec![current_fw_buf.as_ref().clone()];
+        if let Some(dma) = &mut root_bus.dma {
+            dma.axi.recovery.cms_data = vec![current_fw_buf.as_ref().clone()];
+        }
     }
 
     let soc_ifc = unsafe {

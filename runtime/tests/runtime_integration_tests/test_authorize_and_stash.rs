@@ -7,8 +7,10 @@ use crate::test_set_auth_manifest::{
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_api::SocManager;
+#[cfg(has_subsystem)]
+use caliptra_auth_man_types::Addr64;
 use caliptra_auth_man_types::{
-    Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{
@@ -90,6 +92,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     model
 }
 
+#[cfg(has_subsystem)]
 pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
@@ -998,6 +1001,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1046,6 +1050,7 @@ fn test_authorize_from_load_address() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1093,6 +1098,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1141,6 +1147,7 @@ fn test_authorize_from_staging_address() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);

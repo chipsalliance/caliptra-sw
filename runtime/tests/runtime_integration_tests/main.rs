@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 mod common;
+#[cfg(has_subsystem)]
 mod test_activate_firmware;
 mod test_authorize_and_stash;
 mod test_boot;
@@ -11,6 +12,7 @@ mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
+#[cfg(has_subsystem)]
 mod test_fe_programming;
 mod test_fips;
 mod test_get_fmc_alias_csr;

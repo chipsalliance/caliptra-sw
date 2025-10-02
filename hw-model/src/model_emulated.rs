@@ -296,19 +296,14 @@ impl<T: SubSystem> HwModel for ModelEmulatedInt<T> {
         // do the bare minimum for the recovery flow: activating the recovery image
         const DEVICE_STATUS_PENDING: u32 = 0x4;
         const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
-        if DeviceStatus0ReadVal::from(self.cpu.bus.bus.dma.axi.recovery.device_status_0.reg.get())
-            .dev_status()
-            == DEVICE_STATUS_PENDING
-        {
-            self.cpu
-                .bus
-                .bus
-                .dma
-                .axi
-                .recovery
-                .recovery_ctrl
-                .reg
-                .modify(RecoveryControl::ACTIVATE_RECOVERY_IMAGE.val(ACTIVATE_RECOVERY_IMAGE_CMD));
+        if let Some(dma) = &mut self.cpu.bus.bus.dma {
+            if DeviceStatus0ReadVal::from(dma.axi.recovery.device_status_0.reg.get()).dev_status()
+                == DEVICE_STATUS_PENDING
+            {
+                dma.axi.recovery.recovery_ctrl.reg.modify(
+                    RecoveryControl::ACTIVATE_RECOVERY_IMAGE.val(ACTIVATE_RECOVERY_IMAGE_CMD),
+                );
+            }
         }
 
         for event in self.events_from_caliptra.try_iter() {
@@ -317,21 +312,23 @@ impl<T: SubSystem> HwModel for ModelEmulatedInt<T> {
             if let (Device::MCU, EventData::MemoryRead { start_addr, len }) =
                 (event.dest, event.event)
             {
-                let addr = start_addr as usize;
-                let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data_mut();
-                let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
-                    continue;
-                };
-                self.events_to_caliptra
-                    .send(Event {
-                        src: Device::MCU,
-                        dest: Device::CaliptraCore,
-                        event: EventData::MemoryReadResponse {
-                            start_addr,
-                            data: dest.to_vec(),
-                        },
-                    })
-                    .unwrap();
+                if let Some(dma) = &mut self.cpu.bus.bus.dma {
+                    let addr = start_addr as usize;
+                    let mcu_sram_data = dma.axi.mcu_sram.data_mut();
+                    let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
+                        continue;
+                    };
+                    self.events_to_caliptra
+                        .send(Event {
+                            src: Device::MCU,
+                            dest: Device::CaliptraCore,
+                            event: EventData::MemoryReadResponse {
+                                start_addr,
+                                data: dest.to_vec(),
+                            },
+                        })
+                        .unwrap();
+                }
             }
         }
     }
@@ -409,25 +406,13 @@ impl<T: SubSystem> HwModel for ModelEmulatedInt<T> {
             panic!("No subsystem")
         }
 
-        self.cpu.bus.bus.dma.axi.recovery.cms_data = vec![firmware.to_vec()];
-        if let Some(soc_manifest) = soc_manifest {
-            self.cpu
-                .bus
-                .bus
-                .dma
-                .axi
-                .recovery
-                .cms_data
-                .push(soc_manifest.to_vec());
-            if let Some(mcu_fw) = mcu_firmware {
-                self.cpu
-                    .bus
-                    .bus
-                    .dma
-                    .axi
-                    .recovery
-                    .cms_data
-                    .push(mcu_fw.to_vec());
+        if let Some(dma) = &mut self.cpu.bus.bus.dma {
+            dma.axi.recovery.cms_data = vec![firmware.to_vec()];
+            if let Some(soc_manifest) = soc_manifest {
+                dma.axi.recovery.cms_data.push(soc_manifest.to_vec());
+                if let Some(mcu_fw) = mcu_firmware {
+                    dma.axi.recovery.cms_data.push(mcu_fw.to_vec());
+                }
             }
         }
         Ok(())
