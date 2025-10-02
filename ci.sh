@@ -17,7 +17,7 @@ function cleanup() {
 trap cleanup EXIT
 
 function optional_task_enabled() {
-    for i in "${ARGV[@]}"; do
+    for i in ${ARGV[@]}; do
         if [[ $i == $1 ]]; then
             return 0
         fi
@@ -26,7 +26,7 @@ function optional_task_enabled() {
 }
 
 function task_enabled() {
-    if [ $ARGC -eq 0 ]; then 
+    if [ $ARGC -eq 0 ]; then
       # If no arguments, run all the non-optional tasks
       return 0
     fi
