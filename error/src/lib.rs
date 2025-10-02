@@ -1532,16 +1532,6 @@ impl CaliptraError {
             0x000E006F,
             "Runtime Error: FE programming invalid partition number"
         ),
-        (
-            RUNTIME_WARM_RESET_MCU_FW_NOT_LOADED,
-            0x000E0070,
-            "Runtime Error: Warm reset in Subsystem mode, but MCU FW not loaded"
-        ),
-        (
-            RUNTIME_WARM_RESET_MCU_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET,
-            0x000E0071,
-            "Runtime Error: Warm reset in Subsystem mode, but last MCU hitless update failed"
-        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,

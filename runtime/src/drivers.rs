@@ -365,35 +365,20 @@ impl Drivers {
     /// Release MCU SRAM if MCU FW was previously loaded correctly
     fn release_mcu_sram(drivers: &mut Drivers) -> CaliptraResult<()> {
         // Check if MCU previous Cold-Reset was successful.
-        let persistent_data = drivers.persistent_data.get();
-        if cfi_launder(persistent_data.mcu_firmware_loaded == McuFwStatus::NotLoaded.into()) {
-            cprintln!("[rt-warm-reset] Prev Cold Reset failed");
-            return Err(CaliptraError::RUNTIME_WARM_RESET_MCU_FW_NOT_LOADED);
-        } else {
-            cfi_assert_ne(
-                persistent_data.mcu_firmware_loaded,
-                McuFwStatus::NotLoaded.into(),
+        let mcu_firmware_loaded = drivers.persistent_data.get().mcu_firmware_loaded;
+        if mcu_firmware_loaded == McuFwStatus::NotLoaded.into() {
+            cprintln!("[rt-warm-reset] Warning: Prev Cold Reset failed, not releasing MCU SRAM");
+        }
+
+        // Check if MCU previous Update-Reset, if any, was successful.
+        if mcu_firmware_loaded == McuFwStatus::HitlessUpdateStarted.into() {
+            cprintln!(
+                "[rt-warm-reset] Warning: Prev Hitless Update Reset failed, not releasing MCU SRAM"
             );
         }
 
-        // Check if MCU previous Update-Reset, if any,  was successful.
-        let persistent_data = drivers.persistent_data.get();
-        if cfi_launder(
-            persistent_data.mcu_firmware_loaded == McuFwStatus::HitlessUpdateStarted.into(),
-        ) {
-            cprintln!("[rt-warm-reset] Prev Hitless Update Reset failed");
-            return Err(CaliptraError::RUNTIME_WARM_RESET_MCU_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET);
-        } else {
-            cfi_assert_ne(
-                persistent_data.mcu_firmware_loaded,
-                McuFwStatus::HitlessUpdateStarted.into(),
-            );
-        }
-
-        cfi_assert_eq(
-            persistent_data.mcu_firmware_loaded,
-            McuFwStatus::Loaded.into(),
-        );
+        cfi_assert_eq(mcu_firmware_loaded, McuFwStatus::Loaded.into());
+        cprintln!("[rt-warm-reset] MCU FW is loaded in SRAM");
         Self::request_mcu_reset(drivers, McuResetReason::FwBoot);
 
         Ok(())
