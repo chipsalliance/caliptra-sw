@@ -28,6 +28,7 @@ pub enum CaliptraCoreReg {
     FwNonFatalError = 0x5b,
     CptraDbgManufServiceReg = 0x60,
     BootfsmGo = 0x61,
+    MboxDin = 0x62,
     SsDebugIntent = 0x63,
     SsCaliptraBaseAddrL = 0x64,
     SsCaliptraBaseAddrH = 0x65,

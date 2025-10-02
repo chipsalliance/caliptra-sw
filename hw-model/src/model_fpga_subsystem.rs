@@ -9,8 +9,9 @@ use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus,
 use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
-    lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
-    LifecycleRawTokens, LifecycleToken,
+    lc_generate_memory, otp_generate_lifecycle_tokens_mem,
+    otp_generate_manuf_debug_unlock_token_mem, LifecycleControllerState, LifecycleRawTokens,
+    LifecycleToken, ManufDebugUnlockToken,
 };
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
@@ -44,6 +45,7 @@ const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
 // Offsets in the OTP for fuses.
+const FUSE_MANUF_DEBUG_UNLOCK_TOKEN_OFFSET: usize = 0x0;
 const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
@@ -152,6 +154,11 @@ const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
     prod_to_prod_end: DEFAULT_LIFECYCLE_RAW_TOKEN,
     rma: DEFAULT_LIFECYCLE_RAW_TOKEN,
 };
+
+// This is the default manuf debug unlock token.
+pub const DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN: ManufDebugUnlockToken = ManufDebugUnlockToken([
+    0xABCDEFEB, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0xF888888A,
+]);
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -1407,9 +1414,15 @@ impl HwModel for ModelFpgaSubsystem {
         let offset = FUSE_LIFECYCLE_STATE_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
+        // Compute and provision default LC tokens.
         let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
         let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
         let offset = FUSE_LIFECYCLE_TOKENS_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Compute and provision default manuf debug unlock token.
+        let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
+        let offset = FUSE_MANUF_DEBUG_UNLOCK_TOKEN_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         let otp_mem = m.otp_slice();
@@ -1468,8 +1481,13 @@ impl HwModel for ModelFpgaSubsystem {
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
-        println!("writing to cptra_bootfsm_go");
-        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        //
+        // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
+        // entering debug unlock modes.
+        if !params.bootfsm_break {
+            println!("writing to cptra_bootfsm_go");
+            m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        }
         Ok(m)
     }
 

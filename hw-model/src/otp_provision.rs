@@ -4,6 +4,7 @@
 
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
 use anyhow::{bail, Result};
+use sha2::{Digest, Sha512};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
 
 /// Unhashed token, suitable for doing lifecycle transitions.
@@ -22,7 +23,7 @@ impl From<LifecycleToken> for [u8; 16] {
     }
 }
 
-/// Raw tokens
+/// Raw lifecycle tokens.
 pub struct LifecycleRawTokens {
     pub test_unlock: [LifecycleToken; 7],
     pub manuf: LifecycleToken,
@@ -30,6 +31,10 @@ pub struct LifecycleRawTokens {
     pub prod_to_prod_end: LifecycleToken,
     pub rma: LifecycleToken,
 }
+
+/// Hashed token, suitable for burning into OTP.
+#[derive(Clone, Copy)]
+pub struct LifecycleHashedToken(pub [u8; 16]);
 
 impl From<[u8; 16]> for LifecycleHashedToken {
     fn from(value: [u8; 16]) -> Self {
@@ -43,7 +48,7 @@ impl From<LifecycleHashedToken> for [u8; 16] {
     }
 }
 
-/// Hashed tokens to be burned into the OTP for lifecycle transitions.
+/// Hashed lifecycle tokens to be burned into OTP to enable lifecycle transitions.
 pub struct LifecycleHashedTokens {
     pub test_unlock: [LifecycleHashedToken; 7],
     pub manuf: LifecycleHashedToken,
@@ -52,9 +57,50 @@ pub struct LifecycleHashedTokens {
     pub rma: LifecycleHashedToken,
 }
 
-/// Hashed token, suitable for burning into the OTP.
+/// Raw (unhashed) manuf debug unlock token.
 #[derive(Clone, Copy)]
-pub struct LifecycleHashedToken(pub [u8; 16]);
+pub struct ManufDebugUnlockToken(pub [u32; 8]);
+
+impl From<[u32; 8]> for ManufDebugUnlockToken {
+    fn from(value: [u32; 8]) -> Self {
+        ManufDebugUnlockToken(value)
+    }
+}
+
+impl From<ManufDebugUnlockToken> for [u32; 8] {
+    fn from(value: ManufDebugUnlockToken) -> Self {
+        value.0
+    }
+}
+
+impl From<ManufDebugUnlockToken> for [u8; 32] {
+    fn from(value: ManufDebugUnlockToken) -> Self {
+        let mut dest = [0u8; 32];
+        let mut offset = 0;
+        for &val in value.0.iter() {
+            let bytes = val.to_le_bytes(); // Returns [u8; 4]
+            dest[offset..offset + 4].copy_from_slice(&bytes);
+            offset += 4;
+        }
+        dest
+    }
+}
+
+/// Hashed (SHA512) manuf debug unlock token.
+#[derive(Clone, Copy)]
+pub struct ManufDebugUnlockHashedToken(pub [u8; 64]);
+
+impl From<[u8; 64]> for ManufDebugUnlockHashedToken {
+    fn from(value: [u8; 64]) -> Self {
+        ManufDebugUnlockHashedToken(value)
+    }
+}
+
+impl From<ManufDebugUnlockHashedToken> for [u8; 64] {
+    fn from(value: ManufDebugUnlockHashedToken) -> Self {
+        value.0
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -529,8 +575,16 @@ fn hash_token(raw_token: &[u8; 16]) -> [u8; 16] {
     output
 }
 
+fn hash_manuf_debug_token(raw_token: &[u8; 32]) -> [u8; 64] {
+    let mut hasher: Sha512 = Sha512::new();
+    sha2::Digest::update(&mut hasher, raw_token);
+    let output: [u8; 64] = hasher.finalize().into();
+    output
+}
+
 pub const DIGEST_SIZE: usize = 8;
 pub const LIFECYCLE_TOKENS_MEM_SIZE: usize = 184; // 11 tokens of 16 bytes each + 8 bytes for the digest
+pub const MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE: usize = 72; // 1 token of 64 bytes + 8 bytes for the digest
 
 // Default from caliptra-ss/src/fuse_ctrl/rtl/otp_ctrl_part_pkg.sv
 const OTP_IV: u64 = 0x90C7F21F6224F027;
@@ -605,6 +659,29 @@ pub fn otp_generate_lifecycle_tokens_mem(
         OTP_CNST,
     );
     output[LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE..].copy_from_slice(&digest.to_le_bytes());
+    Ok(output)
+}
+
+/// Generate the OTP memory contents for the manuf debug unlock token partition (including the digest).
+pub fn otp_generate_manuf_debug_unlock_token_mem(
+    token: &ManufDebugUnlockToken,
+) -> Result<[u8; MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE]> {
+    let mut output = [0u8; MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE];
+    let mut hash = hash_manuf_debug_token(&<[u8; 32]>::from(*token));
+    // Reverse the byte order before setting in OTP so the token is read properly by the HW.
+    let mut i = 0;
+    for chunk in hash.chunks_exact_mut(4) {
+        let word = u32::from_be_bytes(chunk.try_into().unwrap());
+        output[i..i + 4].copy_from_slice(&word.to_le_bytes());
+        i += 4;
+    }
+    let digest = otp_digest(
+        &output[..MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE - DIGEST_SIZE],
+        OTP_IV,
+        OTP_CNST,
+    );
+    output[MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE - DIGEST_SIZE..]
+        .copy_from_slice(&digest.to_le_bytes());
     Ok(output)
 }
 
