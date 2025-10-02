@@ -77,10 +77,10 @@ pub enum PauserPrivileges {
 
 #[derive(Debug, Copy, Clone)]
 pub enum McuResetReason {
-    ColdReset = 0,
-    FwHitlessUpdReset = 0b1 << 0,
-    FwBootReset = 0b1 << 1,
-    WarmReset = 0b1 << 2,
+    Cold = 0,
+    FwHitlessUpd = 0b1 << 0,
+    FwBoot = 0b1 << 1,
+    Warm = 0b1 << 2,
 }
 
 impl From<McuResetReason> for u32 {
@@ -394,7 +394,7 @@ impl Drivers {
             persistent_data.mcu_firmware_loaded,
             McuFwStatus::Loaded.into(),
         );
-        Self::request_mcu_reset(drivers, McuResetReason::FwBootReset);
+        Self::request_mcu_reset(drivers, McuResetReason::FwBoot);
 
         Ok(())
     }

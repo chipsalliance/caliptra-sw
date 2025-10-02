@@ -144,7 +144,7 @@ impl ActivateFirmwareCmd {
 
             drivers.persistent_data.get_mut().mcu_firmware_loaded =
                 McuFwStatus::HitlessUpdateStarted.into();
-            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpdReset);
+            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpd);
 
             let dma = &drivers.dma;
             let mmio = &DmaMmio::new(mci_base_addr, dma);
