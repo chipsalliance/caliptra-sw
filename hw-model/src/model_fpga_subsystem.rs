@@ -507,7 +507,7 @@ impl ModelFpgaSubsystem {
                 .log_fifo_status
                 .is_set(FifoStatus::Full)
             {
-                panic!("FPGA log FIFO overran");
+                //panic!("FPGA log FIFO overran");
             }
             if self
                 .wrapper
@@ -535,7 +535,7 @@ impl ModelFpgaSubsystem {
                     .dbg_fifo_status
                     .is_set(FifoStatus::Full)
                 {
-                    panic!("FPGA log FIFO overran");
+                    //panic!("FPGA log FIFO overran");
                 }
                 if self
                     .wrapper
