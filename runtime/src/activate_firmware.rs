@@ -21,9 +21,8 @@ use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
-use ureg::{Mmio, MmioMut};
+use ureg::Mmio;
 
-const FW_HITLESS_UPD_RESET_MASK: u32 = 0x1;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
 const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;

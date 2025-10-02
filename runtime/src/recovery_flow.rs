@@ -23,11 +23,8 @@ use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, AxiAddr, Dma, DmaMmio, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
-use ureg::MmioMut;
-
-const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;
 
 pub enum RecoveryFlow {}
 
