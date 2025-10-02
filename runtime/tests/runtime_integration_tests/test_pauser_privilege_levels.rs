@@ -1,8 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{
-    default_manifest_and_mcu_image, UploadFirmware, DEFAULT_UPLOAD_FIRMWARE, PQC_KEY_TYPE,
-};
+use crate::common::{UploadFirmware, DEFAULT_UPLOAD_FIRMWARE, PQC_KEY_TYPE};
 use caliptra_api::{
     mailbox::{RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq},
     SocManager,

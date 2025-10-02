@@ -13,6 +13,7 @@ Abstract:
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
+#[cfg(not(has_subsystem))]
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
 

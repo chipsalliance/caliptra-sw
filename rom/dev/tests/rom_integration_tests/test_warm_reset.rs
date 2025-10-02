@@ -1,14 +1,21 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
+#[cfg(not(has_subsystem))]
 use caliptra_builder::firmware::FMC_WITH_UART;
+#[cfg(not(has_subsystem))]
 use caliptra_builder::firmware::{APP_WITH_UART, ROM_WITH_UART};
 use caliptra_builder::ImageOptions;
+#[cfg(not(has_subsystem))]
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::DeviceLifecycle;
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::Fuses;
+use caliptra_hw_model::HwModel;
+#[cfg(not(has_subsystem))]
+use caliptra_hw_model::{BootParams, InitParams, SecurityState};
+#[cfg(not(has_subsystem))]
 use caliptra_test::image_pk_desc_hash;
 
 use crate::helpers;

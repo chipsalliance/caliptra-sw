@@ -30,7 +30,6 @@ use caliptra_hw_model::{
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_registers::soc_ifc::meta::FusePqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},

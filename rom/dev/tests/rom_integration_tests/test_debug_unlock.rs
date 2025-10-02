@@ -1,22 +1,32 @@
 // Licensed under the Apache-2.0 license
 
+#[cfg(has_subsystem)]
 use std::mem::size_of;
 
+use caliptra_api::mailbox::{CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq};
+#[cfg(has_subsystem)]
 use caliptra_api::mailbox::{
-    CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
-    ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
+    ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
+    ProductionAuthDebugUnlockToken,
 };
+#[cfg(has_subsystem)]
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState,
 };
+#[cfg(has_subsystem)]
 use fips204::traits::{SerDes, Signer};
+#[cfg(has_subsystem)]
 use p384::ecdsa::VerifyingKey;
+#[cfg(has_subsystem)]
 use rand::{rngs::StdRng, SeedableRng};
+#[cfg(has_subsystem)]
 use sha2::Digest;
-use zerocopy::{FromBytes, IntoBytes};
+#[cfg(has_subsystem)]
+use zerocopy::FromBytes;
+use zerocopy::IntoBytes;
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
@@ -234,6 +244,7 @@ fn test_dbg_unlock_manuf_invalid_token() {
         .manuf_dbg_unlock_fail());
 }
 
+#[cfg(has_subsystem)]
 fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
     input
         .chunks(4)
@@ -245,6 +256,7 @@ fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
+#[cfg(has_subsystem)]
 fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
     input
         .chunks(4)

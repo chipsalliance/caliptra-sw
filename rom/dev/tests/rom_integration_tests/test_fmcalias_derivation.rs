@@ -20,7 +20,9 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, Secu
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_BYTE_SIZE};
+use caliptra_image_types::FwVerificationPqcKeyType;
+#[cfg(not(has_subsystem))]
+use caliptra_image_types::IMAGE_BYTE_SIZE;
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};

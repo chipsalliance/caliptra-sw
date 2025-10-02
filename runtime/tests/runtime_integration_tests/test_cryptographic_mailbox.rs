@@ -3,8 +3,7 @@
 use std::collections::VecDeque;
 
 use crate::common::{
-    assert_error, default_manifest_and_mcu_image, run_rt_test, start_rt_test_pqc_model,
-    RuntimeTestArgs, DEFAULT_UPLOAD_FIRMWARE,
+    assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs, DEFAULT_UPLOAD_FIRMWARE,
 };
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
