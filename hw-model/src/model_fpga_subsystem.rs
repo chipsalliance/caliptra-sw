@@ -712,7 +712,11 @@ impl ModelFpgaSubsystem {
                     .indirect_fifo_ctrl_1()
                     .read();
 
-                writeln!(eoutput(), "I3C core reported length: {}", reported_len)?;
+                writeln!(
+                    eoutput(),
+                    "I3C core reported length: {} bytes",
+                    reported_len * 4
+                )?;
                 if reported_len as usize != self.recovery_ctrl_len / 4 {
                     writeln!(
                         eoutput(),
@@ -730,13 +734,21 @@ impl ModelFpgaSubsystem {
                 STEP_STATUS.store(line!(), Ordering::Relaxed);
 
                 self.recovery_ctrl_written = true;
+                return Ok(());
             }
             STEP_STATUS.store(line!(), Ordering::Relaxed);
 
-            let fifo_status = self
-                .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
-                .expect("Device should response to indirect fifo status read request");
-            let empty = fifo_status[0] & 1 == 1;
+            // let fifo_status = self
+            //     .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
+            //     .expect("Device should respond to indirect fifo status read request");
+            // let empty = fifo_status[0] & 1 == 1;
+            let empty = self
+                .i3c_core()
+                .sec_fw_recovery_if()
+                .indirect_fifo_status_0()
+                .read()
+                .empty();
+
             // while empty send
             if empty {
                 // fifo is empty, send a block
