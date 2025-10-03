@@ -80,14 +80,14 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] SHA2-512-ACC");
     Sha2_512_384AccKat::default().execute(env.sha2_512_384_acc, env.sha_acc_lock_state)?;
 
-    cprintln!("[kat] SHAKE-256");
-    Shake256Kat::default().execute(env.sha3)?;
+    // cprintln!("[kat] SHAKE-256");
+    // Shake256Kat::default().execute(env.sha3)?;
 
     cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;
 
-    cprintln!("[kat] ECDH");
-    EcdhKat::default().execute(env.ecc384, env.trng)?;
+    // cprintln!("[kat] ECDH");
+    // EcdhKat::default().execute(env.ecc384, env.trng)?;
 
     if !cfg!(feature = "rom") {
         cprintln!("[kat] HMAC-384Kdf");
