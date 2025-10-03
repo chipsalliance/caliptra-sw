@@ -646,6 +646,15 @@ impl SocIfc {
             .at(MCU_FW_READY_WORD)
             .modify(|w| w | MCU_FW_READY_BIT);
     }
+
+    pub fn fw_ctrl(&mut self, idx: usize) -> u32 {
+        self.soc_ifc
+            .regs_mut()
+            .ss_generic_fw_exec_ctrl()
+            .at(idx)
+            .read()
+            .into()
+    }
 }
 
 bitflags::bitflags! {

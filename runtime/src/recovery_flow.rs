@@ -135,8 +135,16 @@ impl RecoveryFlow {
                 )
             };
 
+            cprintln!("[rt] Setting MCU firmware ready");
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();
+            cprintln!(
+                "[rt] Setting MCU firmware ready: {:08x}{:08x}{:08x}{:08x}",
+                drivers.soc_ifc.fw_ctrl(0),
+                drivers.soc_ifc.fw_ctrl(1),
+                drivers.soc_ifc.fw_ctrl(2),
+                drivers.soc_ifc.fw_ctrl(3)
+            );
 
             // we're done with recovery
             dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
