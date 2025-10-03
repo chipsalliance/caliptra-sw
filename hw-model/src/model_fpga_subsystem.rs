@@ -44,10 +44,13 @@ const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
 // Offsets in the OTP for fuses.
-const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
+const FUSE_MANUF_DEBUG_UNLOCK_TOKEN_OFFSET: usize = 0x0;
+const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x420;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
-const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
-const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
+const FUSE_SVN_OFFSET: usize = 0x3b8;
+const FUSE_SOC_MAX_SVN_OFFSET: usize = FUSE_SVN_OFFSET + 36;
+const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x300;
+const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xe30;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
@@ -1431,7 +1434,23 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+        let start_count = m.cycle_count();
+
+        const MCU_MAX_BOOT_CYCLES: u64 = 20_000_000;
+        while m.mci_flow_status() < u32::from(McuRomBootStatus::CaliptraBootGoAsserted)
+            && m.cycle_count() - start_count < MCU_MAX_BOOT_CYCLES
+        {
+            m.handle_log();
+        }
+
+        if m.mci_flow_status() < u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {
+            m.handle_log();
+            Err(format!(
+                "MCU ROM did not assert cptra_boot_go after {} cycles; MCU boot ROM status: 0x{:x}",
+                m.cycle_count() - start_count,
+                m.mci_flow_status()
+            ))?;
+        }
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
@@ -1470,6 +1489,12 @@ impl HwModel for ModelFpgaSubsystem {
             FwVerificationPqcKeyType::LMS => 1,
         };
         otp_mem[FUSE_PQC_OFFSET] = val;
+
+        println!(
+            "Burning fuse for SOC MAX SVN {}",
+            fuses.soc_manifest_max_svn
+        );
+        otp_mem[FUSE_SOC_MAX_SVN_OFFSET] = fuses.soc_manifest_max_svn;
 
         self.otp_slice().copy_from_slice(&otp_mem);
 

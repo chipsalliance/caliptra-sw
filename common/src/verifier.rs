@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::*;
+use caliptra_drivers::{printer::HexBytes, *};
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
@@ -56,6 +56,10 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
             let result =
                 dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len, dma::AesDmaMode::None)?;
+            cprintln!(
+                "[rt] SHA384 digest calculated: {}",
+                HexBytes(result.as_bytes())
+            );
             Ok(result.into())
         } else {
             let data = self

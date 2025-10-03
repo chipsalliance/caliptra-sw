@@ -20,7 +20,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder,
 };
-use caliptra_drivers::*;
+use caliptra_drivers::{printer::HexBytes, *};
 use caliptra_image_types::*;
 use memoffset::{offset_of, span_of};
 use zerocopy::{FromBytes, IntoBytes};
@@ -455,6 +455,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Read expected value from the fuses
         let expected = &self.env.vendor_pub_key_info_digest_fuses();
+        cprintln!(
+            "[rt] Vendor PK digest from fuses: {}",
+            HexBytes(expected.as_bytes())
+        );
 
         // Vendor public key digest from the fuses must never be zero
         if cfi_launder(expected) == ZERO_DIGEST {
@@ -512,6 +516,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         )?;
 
         if cfi_launder(expected) != actual {
+            cprintln!(
+                "Expected {} actual {}",
+                HexBytes(expected.as_bytes()),
+                HexBytes(actual.as_bytes())
+            );
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
