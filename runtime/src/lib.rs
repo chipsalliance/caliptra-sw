@@ -283,6 +283,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
+        cprintln!("Validated buffer len {}, passing to command {:x}", cmd_bytes.len(), cmd_id);
     }
 
     // stage the response once on the stack
@@ -512,6 +513,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // should be impossible
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     }
+
     let mbox = &mut drivers.mbox;
     let resp = &mut resp[..len];
     // Generate response checksum
