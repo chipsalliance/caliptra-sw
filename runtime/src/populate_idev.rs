@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{PopulateIdevEcc384CertReq, PopulateIdevMldsa87CertReq};
+use caliptra_drivers::cprintln;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -38,6 +39,7 @@ impl PopulateIDevIdEcc384CertCmd {
 
         let cert_size = cmd.cert_size as usize;
         if cert_size > cmd.cert.len() {
+            cprintln!("size {} {}", cert_size, cmd.cert.len());
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
