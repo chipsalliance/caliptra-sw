@@ -14,7 +14,7 @@ use caliptra_common::mailbox_api::{
     CommandId, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_types::{FwVerificationPqcKeyType, FwVerificationPqcKeyType::LMS};
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -98,7 +98,7 @@ fn test_get_image_info_success() {
             ..Default::default()
         },
     ];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
@@ -153,7 +153,7 @@ fn test_get_image_info_2() {
             ..Default::default()
         },
     ];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
@@ -208,7 +208,7 @@ fn test_get_image_info_non_existent() {
             ..Default::default()
         },
     ];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {

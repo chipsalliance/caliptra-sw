@@ -38,7 +38,7 @@ pub fn report_boot_status(val: u32) {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
     // [TODO][CAP2]: remove this when debug unlock is fixed
-    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    if cfg!(is_fpga) {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
 }

@@ -89,6 +89,11 @@ fn test_read_rom_info_from_fmc() {
         )
         .unwrap();
 
+        hw.step_until_boot_status(
+            caliptra_common::RomBootStatus::ColdResetComplete.into(),
+            true,
+        );
+
         // 0x1000_0008 is test-fmc/read_rom_info()
         let rom_info_from_hw = hw.mailbox_execute(0x1000_0008, &[]).unwrap().unwrap();
         let rom_info_from_fw = RomInfo::ref_from_bytes(&rom_info_from_hw).unwrap();

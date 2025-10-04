@@ -1,4 +1,5 @@
 // Licensed under the Apache-2.0 license
+use crate::common::UploadFirmware;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
@@ -229,11 +230,16 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             .upload_measurement(measurement_log_entry.as_bytes().unwrap())
             .unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
+        UploadFirmware::new(*pqc_key_type, 1)
+            .upload_firmware(&mut model, &image_bundle.to_bytes().unwrap())
             .unwrap();
 
         model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
+        // With subsystem we're using the mailbox for staging MCU & Manifest.
+        // So we need a later flow status point that is inside runtime before sending new commands
+        if cfg!(has_subsystem) {
+            model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+        }
 
         let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
         let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();

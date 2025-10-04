@@ -22,6 +22,7 @@ use caliptra_hw_model::{
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
+use caliptra_image_types::FwVerificationPqcKeyType::LMS;
 use fips204::traits::{SerDes, Signer};
 use p384::ecdsa::VerifyingKey;
 use rand::{rngs::StdRng, SeedableRng};
@@ -51,7 +52,7 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -107,7 +108,6 @@ fn test_dbg_unlock_prod_success() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -124,7 +124,7 @@ fn test_dbg_unlock_prod_success() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
 
     let runtime_args = RuntimeTestArgs {
@@ -135,9 +135,6 @@ fn test_dbg_unlock_prod_success() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -262,7 +259,7 @@ fn test_dbg_unlock_prod_success() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -318,7 +315,6 @@ fn test_dbg_unlock_prod_invalid_length() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -335,7 +331,7 @@ fn test_dbg_unlock_prod_invalid_length() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
 
     let runtime_args = RuntimeTestArgs {
@@ -346,9 +342,6 @@ fn test_dbg_unlock_prod_invalid_length() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -383,7 +376,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -439,7 +432,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -456,7 +448,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
 
     let runtime_args = RuntimeTestArgs {
@@ -467,9 +459,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -546,6 +535,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -617,7 +607,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -634,7 +623,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
 
     let runtime_args = RuntimeTestArgs {
@@ -645,9 +634,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -724,6 +710,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_wrong_cmd() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -779,7 +766,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -796,7 +782,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
 
     let runtime_args = RuntimeTestArgs {
@@ -807,9 +793,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -843,7 +826,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -900,7 +883,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             security_state,
             prod_dbg_unlock_keypairs,
             debug_intent: true,
-            subsystem_mode: true,
             stack_info: Some(StackInfo::new(image_info)),
             ..Default::default()
         };
@@ -917,7 +899,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             digest,
             ..Default::default()
         }];
-        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
         let soc_manifest = soc_manifest.as_bytes();
 
         let runtime_args = RuntimeTestArgs {
@@ -928,9 +910,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         };
 
         let mut model = run_rt_test(runtime_args);
-        model
-            .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-            .unwrap();
 
         // Set the request bit
         model
