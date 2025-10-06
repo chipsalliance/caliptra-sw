@@ -211,6 +211,7 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
+        enable_mcu_uart_log: args.subsystem_mode,
         ..Default::default()
     });
 
