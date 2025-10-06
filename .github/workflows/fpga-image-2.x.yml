@@ -1,0 +1,20 @@
+name: Build FPGA SD image for main-2.x
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/fpga-image-2.x.yml"
+
+  schedule:
+    # 5:13 AM PST tuesday, thursday
+    - cron: '13 13 * * 2,4'
+
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build_sd_image:
+    name: Build 2.x images
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-image.yml@main-2.x
+    with:
+      branch: "main-2.x"
