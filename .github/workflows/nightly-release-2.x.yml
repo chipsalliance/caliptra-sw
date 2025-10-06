@@ -118,18 +118,44 @@ jobs:
       fpga-itrng: true
       branch: "main-2.x"
 
-  # TODO(clundin): Uncomment once the nightly is setup and we have enough FPGA availability.
-  # fpga-latest-full-suite-itrng-log:
-  #   name: FPGA Suite (hw-latest, itrng, log)
-  #   needs: find-latest-release
-  #   if: needs.find-latest-release.outputs.create_release
-  #   uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main-2.x
-  #   with:
-  #     artifact-suffix: -fpga-realtime-latest-itrng-log
-  #     extra-features: slow_tests,itrng
-  #     hw-version: "latest"
-  #     rom-logging: true
-  #     fpga-itrng: true
+  fpga-latest-full-suite-itrng-log:
+    name: FPGA Suite (hw-latest, itrng, log)
+    needs: find-latest-release-2_x
+    if: needs.find-latest-release-2_x.outputs.create_release
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main-2.x
+    with:
+      artifact-suffix: -fpga-realtime-latest-itrng-log
+      extra-features: slow_tests,itrng
+      hw-version: "latest"
+      rom-logging: true
+      fpga-itrng: true
+      branch: "main-2.x"
+
+  fpga-subsystem-latest-full-suite-itrng-nolog:
+    name: FPGA Subsystem Suite (hw-latest, itrng, nolog)
+    needs: find-latest-release-2_x
+    if: needs.find-latest-release-2_x.outputs.create_release
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@main-2.x
+    with:
+      artifact-suffix: -fpga-subsystem-realtime-latest-itrng-nolog
+      extra-features: slow_tests,itrng
+      hw-version: "latest"
+      rom-logging: false
+      fpga-itrng: true
+      branch: "main-2.x"
+
+  fpga-subsystem-latest-full-suite-itrng-log:
+    name: FPGA Subsystem Suite (hw-latest, itrng, log)
+    needs: find-latest-release-2_x
+    if: needs.find-latest-release-2_x.outputs.create_release
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@main-2.x
+    with:
+      artifact-suffix: -fpga-subsystem-realtime-latest-itrng-log
+      extra-features: slow_tests,itrng
+      hw-version: "latest"
+      rom-logging: true
+      fpga-itrng: true
+      branch: "main-2.x"
   
 
   create-release-2_x:
