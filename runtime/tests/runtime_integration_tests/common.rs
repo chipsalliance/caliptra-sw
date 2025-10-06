@@ -85,7 +85,6 @@ pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(|
         // Safety: The manifest is static and valid for the lifetime of the program.
         unsafe { std::mem::transmute(DEFAULT_SOC_MANIFEST.as_bytes()) });
 
-#[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_fmc_fwid: Option<&'static FwId<'static>>,
@@ -103,6 +102,26 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
+}
+
+impl<'a> Default for RuntimeTestArgs<'a> {
+    fn default() -> Self {
+        Self {
+            test_fwid: None,
+            test_fmc_fwid: None,
+            test_image_options: None,
+            init_params: None,
+            test_mfg_flags: None,
+            soc_manifest: None,
+            mcu_fw_image: None,
+            test_sram: None,
+            stop_at_rom: false,
+            security_state: None,
+            soc_manifest_svn: None,
+            soc_manifest_max_svn: None,
+            subsystem_mode: cfg!(feature = "fpga_subsystem"),
+        }
+    }
 }
 
 pub fn run_rt_test_pqc(
