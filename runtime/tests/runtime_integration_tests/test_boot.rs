@@ -230,9 +230,11 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             .upload_measurement(measurement_log_entry.as_bytes().unwrap())
             .unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::common::test_upload_firmware(
+            &mut model,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
 
