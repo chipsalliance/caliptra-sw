@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
@@ -66,7 +66,19 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 ];
 
 pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
-pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new(|| {
+pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> =
+    LazyLock::new(|| default_soc_manifest(FwVerificationPqcKeyType::LMS, 1));
+pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(|| {
+    let manifest_bytes = DEFAULT_SOC_MANIFEST.as_bytes();
+    let len = manifest_bytes.len();
+    // Pad to a multiple of 256 bytes
+    let padded_len = ((len + 255) / 256) * 256;
+    let mut padded = vec![0u8; padded_len];
+    padded[..len].copy_from_slice(manifest_bytes);
+    Box::leak(padded.into_boxed_slice())
+});
+
+fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
@@ -79,17 +91,19 @@ pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new
         digest,
         ..Default::default()
     }];
-    create_auth_manifest_with_metadata(metadata)
-});
-pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(|| {
-    let manifest_bytes = DEFAULT_SOC_MANIFEST.as_bytes();
+    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+}
+
+fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    let manifest_bytes = manifest.as_bytes();
     let len = manifest_bytes.len();
     // Pad to a multiple of 256 bytes
     let padded_len = ((len + 255) / 256) * 256;
     let mut padded = vec![0u8; padded_len];
     padded[..len].copy_from_slice(manifest_bytes);
-    Box::leak(padded.into_boxed_slice())
-});
+    padded
+}
 
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
@@ -228,8 +242,11 @@ pub fn start_rt_test_pqc_model(
 
     let image = image.to_bytes().unwrap();
 
+    let default_manifest_bytes;
     let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
-        (Some(*DEFAULT_SOC_MANIFEST_BYTES), Some(DEFAULT_MCU_FW))
+        default_manifest_bytes =
+            default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
+        (Some(&default_manifest_bytes[..]), Some(DEFAULT_MCU_FW))
     } else {
         (args.soc_manifest, args.mcu_fw_image)
     };
