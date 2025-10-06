@@ -142,8 +142,21 @@ pub fn create_auth_manifest(cfg: &AuthManifestBuilderCfg) -> AuthorizationManife
     gen.generate(&gen_config).unwrap()
 }
 
+// Default
 pub fn create_auth_manifest_with_metadata(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
+) -> AuthorizationManifest {
+    create_auth_manifest_with_metadata_with_svn(
+        image_metadata_list,
+        FwVerificationPqcKeyType::LMS,
+        1,
+    )
+}
+
+pub fn create_auth_manifest_with_metadata_with_svn(
+    image_metadata_list: Vec<AuthManifestImageMetadata>,
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
 ) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeysConfig {
@@ -207,8 +220,8 @@ pub fn create_auth_manifest_with_metadata(
         image_metadata_list,
         version: 1,
         flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        svn: 1,
+        pqc_key_type,
+        svn,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
