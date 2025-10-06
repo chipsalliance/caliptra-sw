@@ -19,6 +19,9 @@ on:
     - cron: '13 13 * * 2,4'
 
   workflow_call:
+    branch:
+      default: ${{ github.sha }}
+      type: string
   workflow_dispatch:
 jobs:
   build_kernel:
@@ -50,6 +53,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
 
       - name: Install pre-requisites
         run: |
@@ -119,6 +124,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
         uses: actions/download-artifact@v4
