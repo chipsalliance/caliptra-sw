@@ -28,7 +28,7 @@ on:
         default: true
         type: boolean
       branch:
-        default: {{ github.sha }}
+        default: ${{ github.sha }}
         type: string
 
   workflow_dispatch:
