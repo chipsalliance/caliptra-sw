@@ -45,7 +45,6 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
-use std::sync::LazyLock;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
@@ -66,17 +65,6 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 ];
 
 pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
-pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> =
-    LazyLock::new(|| default_soc_manifest(FwVerificationPqcKeyType::LMS, 1));
-pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(|| {
-    let manifest_bytes = DEFAULT_SOC_MANIFEST.as_bytes();
-    let len = manifest_bytes.len();
-    // Pad to a multiple of 256 bytes
-    let padded_len = ((len + 255) / 256) * 256;
-    let mut padded = vec![0u8; padded_len];
-    padded[..len].copy_from_slice(manifest_bytes);
-    Box::leak(padded.into_boxed_slice())
-});
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
@@ -103,6 +91,24 @@ fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) 
     let mut padded = vec![0u8; padded_len];
     padded[..len].copy_from_slice(manifest_bytes);
     padded
+}
+
+pub fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                &fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(&fw_image).unwrap();
+    }
 }
 
 pub struct RuntimeTestArgs<'a> {

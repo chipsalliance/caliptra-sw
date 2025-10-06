@@ -653,7 +653,7 @@ pub fn test_all_measurement_apis() {
             .unwrap();
 
         // Get to runtime
-        hw.upload_firmware(&fw_image).unwrap();
+        crate::common::test_upload_firmware(&mut hw, &fw_image, *pqc_key_type);
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
