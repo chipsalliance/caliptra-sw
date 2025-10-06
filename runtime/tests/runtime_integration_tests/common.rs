@@ -65,7 +65,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f, 0, 0, 0];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
 pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new(|| {
     // generate a default SoC manifest if one is not provided in subsystem mode
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
@@ -81,9 +81,15 @@ pub static DEFAULT_SOC_MANIFEST: LazyLock<AuthorizationManifest> = LazyLock::new
     }];
     create_auth_manifest_with_metadata(metadata)
 });
-pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(||
-        // Safety: The manifest is static and valid for the lifetime of the program.
-        unsafe { std::mem::transmute(DEFAULT_SOC_MANIFEST.as_bytes()) });
+pub static DEFAULT_SOC_MANIFEST_BYTES: LazyLock<&'static [u8]> = LazyLock::new(|| {
+    let manifest_bytes = DEFAULT_SOC_MANIFEST.as_bytes();
+    let len = manifest_bytes.len();
+    // Pad to a multiple of 256 bytes
+    let padded_len = ((len + 255) / 256) * 256;
+    let mut padded = vec![0u8; padded_len];
+    padded[..len].copy_from_slice(manifest_bytes);
+    Box::leak(padded.into_boxed_slice())
+});
 
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
