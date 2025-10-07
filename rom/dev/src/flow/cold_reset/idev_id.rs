@@ -23,7 +23,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::MAX_CSR_SIZE;
+use caliptra_drivers::MAX_IDEVID_CSR_SIZE;
 use caliptra_drivers::*;
 use caliptra_x509::*;
 use zeroize::Zeroize;
@@ -260,7 +260,7 @@ impl InitDevIdLayer {
         cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mut csr_buf = [0; MAX_CSR_SIZE];
+        let mut csr_buf = [0; MAX_IDEVID_CSR_SIZE];
         let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
         sig.zeroize();

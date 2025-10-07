@@ -64,9 +64,27 @@ fn gen_fmc_alias_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 5)
+        .add_basic_constraints_ext(true, 3)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
+        .add_ueid_ext(&[0xFF; 17])
+        .add_fmc_dice_tcb_info_ext(
+            /*device_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_DEVICE_INFO_HASH",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xEF; 48],
+                },
+            }],
+            /*fmc_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_FMC_TCI",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xCD; 48],
+                },
+            }],
+        );
     let template = bldr.tbs_template("Caliptra 1.0 FMC Alias");
     CodeGen::gen_code("FmcAliasCsrTbs", template, out_dir);
 }

@@ -28,7 +28,8 @@ use crate::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 use crate::{pcr_reset::PcrResetCounter, KeyId};
 
-pub const MAX_CSR_SIZE: usize = 512;
+pub const MAX_IDEVID_CSR_SIZE: usize = 512;
+pub const MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
 pub const MAN1_SIZE: u32 = 6 * 1024;
 pub const MAN2_SIZE: u32 = 6 * 1024;
 pub const FHT_SIZE: u32 = 2 * 1024;
@@ -86,14 +87,14 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
-const _: () = assert!(MAX_CSR_SIZE < IDEVID_CSR_SIZE as usize);
-const _: () = assert!(MAX_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
+const _: () = assert!(MAX_IDEVID_CSR_SIZE < IDEVID_CSR_SIZE as usize);
+const _: () = assert!(MAX_FMC_ALIAS_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
 
 #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
 #[repr(C)]
 pub struct IdevIdCsr {
     csr_len: u32,
-    csr: [u8; MAX_CSR_SIZE],
+    csr: [u8; MAX_IDEVID_CSR_SIZE],
 }
 
 pub mod fmc_alias_csr {
@@ -105,14 +106,14 @@ pub mod fmc_alias_csr {
     #[repr(C)]
     pub struct FmcAliasCsr {
         csr_len: u32,
-        csr: [u8; MAX_CSR_SIZE],
+        csr: [u8; MAX_FMC_ALIAS_CSR_SIZE],
     }
 
     impl Default for FmcAliasCsr {
         fn default() -> Self {
             Self {
                 csr_len: Self::UNPROVISIONED_CSR,
-                csr: [0; MAX_CSR_SIZE],
+                csr: [0; MAX_FMC_ALIAS_CSR_SIZE],
             }
         }
     }
@@ -134,13 +135,13 @@ pub mod fmc_alias_csr {
 
         /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
         pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
-            if csr_len >= MAX_CSR_SIZE {
+            if csr_len >= MAX_FMC_ALIAS_CSR_SIZE {
                 return Err(CaliptraError::FMC_ALIAS_INVALID_CSR);
             }
 
             let mut _self = Self {
                 csr_len: csr_len as u32,
-                csr: [0; MAX_CSR_SIZE],
+                csr: [0; MAX_FMC_ALIAS_CSR_SIZE],
             };
             _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
 
@@ -163,7 +164,7 @@ impl Default for IdevIdCsr {
     fn default() -> Self {
         Self {
             csr_len: Self::UNPROVISIONED_CSR,
-            csr: [0; MAX_CSR_SIZE],
+            csr: [0; MAX_IDEVID_CSR_SIZE],
         }
     }
 }
@@ -185,13 +186,13 @@ impl IdevIdCsr {
 
     /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
     pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
-        if csr_len >= MAX_CSR_SIZE {
+        if csr_len >= MAX_IDEVID_CSR_SIZE {
             return Err(CaliptraError::ROM_IDEVID_INVALID_CSR);
         }
 
         let mut _self = Self {
             csr_len: csr_len as u32,
-            csr: [0; MAX_CSR_SIZE],
+            csr: [0; MAX_IDEVID_CSR_SIZE],
         };
         _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
 

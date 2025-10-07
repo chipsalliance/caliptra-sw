@@ -283,7 +283,7 @@ struct caliptra_get_fmc_alias_csr_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
-    uint8_t data[512];
+    uint8_t data[768];
 };
 
 struct caliptra_sign_with_exported_ecdsa_req

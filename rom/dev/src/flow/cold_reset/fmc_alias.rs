@@ -27,7 +27,7 @@ use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
+use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zeroize::Zeroize;
 
@@ -151,7 +151,7 @@ impl FmcAliasLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
-        let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = env.data_vault.fmc_svn() as u8;
         let fuse_svn = fw_proc_info.fmc_effective_fuse_svn as u8;
@@ -231,27 +231,5 @@ impl FmcAliasLayer {
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())
-    }
-
-    /// Generate flags for DICE evidence
-    ///
-    /// # Arguments
-    ///
-    /// * `device_lifecycle` - Device lifecycle
-    /// * `debug_locked`     - Debug locked
-    fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
-        let mut flags: u32 = dice::FLAG_BIT_FIXED_WIDTH;
-
-        flags |= match device_lifecycle {
-            Lifecycle::Unprovisioned => dice::FLAG_BIT_NOT_CONFIGURED,
-            Lifecycle::Manufacturing => dice::FLAG_BIT_NOT_SECURE,
-            _ => 0,
-        };
-
-        if !debug_locked {
-            flags |= dice::FLAG_BIT_DEBUG;
-        }
-
-        flags.reverse_bits().to_be_bytes()
     }
 }
