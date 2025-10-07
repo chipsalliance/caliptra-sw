@@ -65,7 +65,7 @@ const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
 const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
 const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
 
-const WAIT_I3C_SEND: Duration = Duration::from_micros(1);
+const WAIT_I3C_SEND: Duration = Duration::from_micros(100);
 
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
