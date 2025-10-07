@@ -56,7 +56,7 @@ let
       rm caliptra-fpga-image.zip
 
       for VARIANT in "caliptra-fpga-image-core-2.0" "caliptra-fpga-image-core-2.1" "caliptra-fpga-image-subsystem-2.0" "caliptra-fpga-image-subsystem-2.1"; do
-          ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main-2.x > $VARIANT.zip
+          ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-2.x.yml $VARIANT main > $VARIANT.zip
           ${pkgs.unzip}/bin/unzip $VARIANT.zip
           (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
           mv image.img $VARIANT.img
