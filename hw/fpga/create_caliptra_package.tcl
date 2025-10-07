@@ -41,6 +41,12 @@ add_files [ glob $fpgaDir/src/*.v]
 # Replace RAM with FPGA block ram
 remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 
+# Workaround for https://github.com/chipsalliance/caliptra-rtl/issues/1075
+file copy [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ] $outputDir/ahb_lite_address_decoder.sv
+exec sed -i {1i `include \"config_defines.svh\"} $outputDir/ahb_lite_address_decoder.sv
+remove_files [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ]
+add_files $outputDir/ahb_lite_address_decoder.sv
+
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
 
