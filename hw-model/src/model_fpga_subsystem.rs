@@ -49,10 +49,10 @@ const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
 // Offsets in the OTP for fuses.
-const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
+const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x420;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
-const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
-const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
+const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x300;
+const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xe30;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
