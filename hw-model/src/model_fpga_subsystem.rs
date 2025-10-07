@@ -1561,7 +1561,8 @@ impl HwModel for ModelFpgaSubsystem {
         {
             // Give the FPGA some time to start. If this returns too quickly some of the tests fail
             // with a kernel panic.
-            for _ in 0..5_000 {
+            let start = self.cycle_count();
+            while self.cycle_count().wrapping_sub(start) < 10_000_000 {
                 self.step();
                 let flow_status = self.soc_ifc().cptra_flow_status().read();
                 if flow_status.ready_for_mb_processing() {

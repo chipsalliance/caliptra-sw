@@ -27,6 +27,9 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      branch:
+        default: ${{ github.sha }}
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -48,9 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -75,9 +79,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'true'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -225,9 +230,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -289,9 +295,9 @@ jobs:
               -E 'package(caliptra-auth-man-types)'
               -E 'package(caliptra-cfi-lib)'
               -E 'package(caliptra-coverage)'
-              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure) - test(test_doe_when_debug_not_locked) - test(test_mailbox_soc_to_uc) - test(test_mailbox_uc_to_soc) - test(test_trng_in_itrng_mode)'
+              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)'
               -E 'package(caliptra-error)'
-              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom) - test(tests::test_mailbox_execute) - test(tests::test_mailbox_receive) - test(tests::test_soc_mgr_exec_req) - test(tests::test_soc_mgr_mbox_api)'
+              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom)'
               -E 'package(caliptra-hw-model-types)'
               -E 'package(caliptra-image-crypto)'
               -E 'package(caliptra-image-elf)'

@@ -19,8 +19,11 @@ on:
     - cron: '13 13 * * 2,4'
 
   workflow_call:
+    inputs:
+      branch:
+        default: ${{ github.sha }}
+        type: string
   workflow_dispatch:
-
 jobs:
   build_kernel:
     runs-on: [e2-standard-32, vck190-tools]
@@ -51,6 +54,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
 
       - name: Install pre-requisites
         run: |
@@ -120,6 +125,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
         uses: actions/download-artifact@v4
@@ -139,10 +146,23 @@ jobs:
           sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
-      - name: Build SD image
+      - name: Build SD images
         run: |
+          # Build Dev image
           cd ci-tools/fpga-image
-          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo BUILD_DEV_IMAGE=true KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          # Save Dev image for upload
+          sudo mv out/image.img dev-image.img
+          sudo rm -rf out/
+          # Now build CI image
+          sudo BUILD_DEV_IMAGE=false KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+
+      - name: 'Upload dev-image as artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-fpga-image-${{ matrix.image_variant }}-dev
+          path: ci-tools/fpga-image/dev-image.img
+          retention-days: 90
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4
