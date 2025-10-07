@@ -52,7 +52,8 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
-pub const DOT_OWNER_SIZE: u32 = 52;
+pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
+pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
@@ -357,6 +358,8 @@ pub struct PersistentData {
 
     // TODO(clundin): For runtime we may want to gate this behind a feature flag.
     pub ocp_lock_metadata: OcpLockMetadata,
+
+    pub mcu_firmware_loaded: u32,
 }
 
 impl PersistentData {
@@ -503,7 +506,7 @@ impl PersistentData {
                 addr_of!((*P).dot_owner_pk_hash) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            persistent_data_offset += DOT_OWNER_SIZE;
+            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
             assert_eq!(
                 addr_of!((*P).cleared_non_fatal_fw_error) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -512,6 +515,11 @@ impl PersistentData {
             persistent_data_offset += core::mem::size_of::<u32>() as u32;
             assert_eq!(
                 addr_of!((*P).ocp_lock_metadata) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
