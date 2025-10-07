@@ -1068,7 +1068,7 @@ impl Default for GetFmcAliasCsrResp {
 }
 
 impl GetFmcAliasCsrResp {
-    pub const DATA_MAX_SIZE: usize = 512;
+    pub const DATA_MAX_SIZE: usize = 768;
 }
 impl ResponseVarSize for GetFmcAliasCsrResp {}
 
