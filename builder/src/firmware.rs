@@ -145,6 +145,11 @@ pub mod hw_model_tests {
         ..BASE_FWID
     };
 
+    pub const MCU_HITLESS_UPDATE_FLOW: FwId = FwId {
+        bin_name: "mcu_hitless_update_flow",
+        ..BASE_FWID
+    };
+
     pub const TEST_ICCM_BYTE_WRITE: FwId = FwId {
         bin_name: "test_iccm_byte_write",
         ..BASE_FWID
@@ -479,6 +484,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
     &hw_model_tests::MAILBOX_SENDER,
+    &hw_model_tests::MCU_HITLESS_UPDATE_FLOW,
     &hw_model_tests::TEST_ICCM_BYTE_WRITE,
     &hw_model_tests::TEST_ICCM_UNALIGNED_WRITE,
     &hw_model_tests::TEST_ICCM_WRITE_LOCKED,

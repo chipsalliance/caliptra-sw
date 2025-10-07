@@ -629,6 +629,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness",
  "ufmt",
+ "ureg",
 ]
 
 [[package]]
