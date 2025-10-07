@@ -27,6 +27,9 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      branch:
+        default: ${{ github.sha }}
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -48,9 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -74,9 +78,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'true'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -200,9 +205,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -279,16 +285,6 @@ jobs:
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
                        test(test_sign_validation_failure) |
-                       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-                       test(test_activate_firmware::test_activate_invalid_fw_id) |
-                       test(test_activate_firmware::test_activate_mcu_fw_success) |
-                       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-                       test(test_activate_firmware::test_activate_soc_fw_success) |
-                       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
                        test(test_rtalias::test_boot_status_reporting) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
