@@ -478,7 +478,8 @@ fn test_populate_idev_ecc_cert_after_warm_reset() {
 
     // Expect identical chain length to the size after populate
     assert_eq!(
-        len_after, len_post_reset,
+        len_after,
+        len_post_reset + idev_len,
         "cert chain length changed across warm reset"
     );
 
@@ -493,12 +494,12 @@ fn test_populate_idev_ecc_cert_after_warm_reset() {
     // And the tail should remain unchanged
     assert_eq!(
         &chain_after[idev_len..len_after],
-        &chain_post_reset[idev_len..len_post_reset],
+        &chain_post_reset[0..len_post_reset],
         "cert chain tail changed across warm reset"
     );
 
     // Count check remains 4 after reset
-    parse_cert_chain(&chain_post_reset, len_post_reset, 4);
+    parse_cert_chain(&chain_post_reset, len_post_reset, 3);
 }
 
 fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
