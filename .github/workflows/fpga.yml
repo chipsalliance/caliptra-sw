@@ -265,8 +265,6 @@ jobs:
 
           echo VARS=${VARS}
 
-          # TODO(#2369): Remove the extra filters after fixing the broken tests
-          # Tracking bug for ML-KEM test: https://github.com/chipsalliance/caliptra-sw/issues/2595
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -298,7 +296,6 @@ jobs:
                        test(test_lms::test_lms_verify_invalid_lmots_type) |
                        test(test_lms::test_lms_verify_invalid_sig_lms_type) |
                        binary_id(caliptra-test::fips_test_suite) |
-                       test(test_ml_kem) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
