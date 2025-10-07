@@ -16,7 +16,7 @@ Abstract:
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_common::crypto::Crypto;
-use caliptra_common::keyids::{KEY_ID_FW_KEY_LADDER, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::keyids::{KEY_ID_FW_KEY_LADDER, KEY_ID_LDEVID_CDI};
 use caliptra_drivers::{Hmac, HmacMode, KeyId, KeyUsage, Trng};
 use caliptra_error::CaliptraResult;
 
@@ -24,7 +24,7 @@ use crate::rom_env::RomEnv;
 
 // This KeyId only holds the LDevID CDI during a specific phase of cold-boot: after
 // the LDevID has been derived, but before firmware has been verified and executed.
-const LDEVID_CDI: KeyId = KEY_ID_ROM_FMC_CDI;
+const LDEVID_CDI: KeyId = KEY_ID_LDEVID_CDI;
 const LADDER_KEY: KeyId = KEY_ID_FW_KEY_LADDER;
 
 /// Initialize key ladder on cold reset, bound to the lifecycle and debug states.

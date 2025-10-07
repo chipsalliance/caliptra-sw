@@ -25,7 +25,7 @@ use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::cfi_check;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
-    KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+    KEY_ID_FMC_CDI, KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
 };
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
@@ -53,7 +53,7 @@ impl FmcAliasLayer {
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_FMC_CDI as u8);
         cprintln!(
             "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
             KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
@@ -74,14 +74,14 @@ impl FmcAliasLayer {
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
         // Derive the DICE CDI from the measurement
-        let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
+        let result = Self::derive_cdi(env, &measurement, KEY_ID_FMC_CDI);
         measurement.0.zeroize();
         result?;
 
         // Derive DICE ECC and MLDSA Key Pairs from CDI
         let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
             env,
-            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_FMC_CDI,
             KEY_ID_FMC_ECDSA_PRIV_KEY,
             KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
         )?;
@@ -143,7 +143,7 @@ impl FmcAliasLayer {
             cdi,
             b"alias_fmc_cdi",
             Some(&measurements),
-            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_FMC_CDI,
             HmacMode::Hmac512,
             KeyUsage::default()
                 .set_ecc_key_gen_seed_en()

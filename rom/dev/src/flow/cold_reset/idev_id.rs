@@ -26,8 +26,8 @@ use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
     keyids::{
         ocp_lock::{KEY_ID_HEK, KEY_ID_MDK},
-        KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
-        KEY_ID_ROM_FMC_CDI, KEY_ID_UDS,
+        KEY_ID_FE, KEY_ID_FMC_CDI, KEY_ID_IDEVID_CDI, KEY_ID_IDEVID_ECDSA_PRIV_KEY,
+        KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_UDS,
     },
     x509,
     RomBootStatus::*,
@@ -57,7 +57,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
-        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
+        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_IDEVID_CDI as u8);
         cprintln!(
             "[idev] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
             KEY_ID_IDEVID_ECDSA_PRIV_KEY as u8,
@@ -81,7 +81,7 @@ impl InitDevIdLayer {
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
+        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_IDEVID_CDI)?;
 
         // Run the OCP LOCK Flow while the DICE CDI is available.
         Self::ocp_lock_cold_reset_flow(env)?;
@@ -89,7 +89,7 @@ impl InitDevIdLayer {
         // Derive DICE ECC and MLDSA Key Pairs from CDI
         let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
             env,
-            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_IDEVID_CDI,
             KEY_ID_IDEVID_ECDSA_PRIV_KEY,
             KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
         )?;
@@ -240,7 +240,7 @@ impl InitDevIdLayer {
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,
-            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_FMC_CDI,
             b"ocp_lock_hek",
             Some(hek_seed.as_bytes()),
             KEY_ID_HEK,
@@ -260,7 +260,7 @@ impl InitDevIdLayer {
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,
-            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_FMC_CDI,
             b"ocp_lock_mdk",
             None,
             KEY_ID_MDK,
