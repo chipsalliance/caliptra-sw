@@ -109,6 +109,7 @@ type MachineInfo struct {
 	machineType    string
 	hasFpgaTools   bool
 	hasVck190Tools bool
+	hasBigDisk bool
 }
 
 func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
@@ -126,6 +127,9 @@ func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
 		}
 		if item == "vck190-tools" {
 			result.hasVck190Tools = true
+		}
+		if item == "big-disk" {
+			result.hasBigDisk = true
 		}
 	}
 	if result.machineType == "" {
@@ -167,6 +171,9 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 			Source: proto.String(fmt.Sprintf("zones/%s/disks/vck190-tools", gcpZone)),
 			Mode:   proto.String("READ_ONLY"),
 		})
+	}
+	if machineInfo.hasBigDisk {
+        disks = singleDisk("global/images/family/github-runner", 64)
 	}
 
 	script := strings.ReplaceAll(launchStartupScript, "${JITCONFIG}", runner.JitConfig)
