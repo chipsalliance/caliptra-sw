@@ -7,8 +7,8 @@ use crate::common::{
 use caliptra_common::{
     checksum::verify_checksum,
     mailbox_api::{
-        CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, MailboxReq,
-        MailboxReqHeader, MailboxRespHeader, PopulateIdevEcc384CertReq,
+        CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetLdevCertResp,
+        MailboxReq, MailboxReqHeader, MailboxRespHeader, PopulateIdevEcc384CertReq,
     },
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
@@ -499,4 +499,76 @@ fn test_populate_idev_ecc_cert_after_warm_reset() {
 
     // Count check remains 4 after reset
     parse_cert_chain(&chain_post_reset, len_post_reset, 4);
+}
+
+fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
+    let hdr = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_LDEV_ECC384_CERT), hdr.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut ldev_resp = GetLdevCertResp::default();
+    ldev_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+
+    // checksum (over everything after the chksum field)
+    assert!(verify_checksum(
+        ldev_resp.hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&ldev_resp.hdr.chksum)..],
+    ));
+
+    // FIPS Approved (bitmask)
+    assert_eq!(
+        ldev_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        "CERT FIPS not APPROVED"
+    );
+
+    let size = ldev_resp.data_size as usize;
+    assert!(size <= ldev_resp.data.len());
+    let der = ldev_resp.data[..size].to_vec();
+    let x509 = X509::from_der(&der).unwrap();
+    (der, x509)
+}
+
+#[test]
+fn test_get_ldev_ecc384_cert_after_warm_reset() {
+    // Boot runtime
+    let args = BuildArgs {
+        security_state: *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production),
+        fmc_version: 3,
+        app_version: 5,
+        fw_svn: 9,
+    };
+    let (mut model, _image_bytes) = build_ready_runtime_model(args);
+
+    // BEFORE warm reset: fetch LDev cert and IDev pubkey
+    let (ldev_der_before, ldev_cert_before) = get_ldev_ecc384_cert(&mut model);
+    let (_, _x_before, _y_before, idev_pk_before) = get_idev_384_info(&mut model);
+
+    //  verify under IDev pubkey (before)
+    assert!(ldev_cert_before.verify(&idev_pk_before).unwrap());
+
+    // Warm reset and wait ready
+    model.warm_reset();
+    wait_runtime_ready(&mut model);
+
+    // AFTER warm reset: fetch again
+    let (ldev_der_after, ldev_cert_after) = get_ldev_ecc384_cert(&mut model);
+    let (_, _x_after, _y_after, idev_pk_after) = get_idev_384_info(&mut model);
+
+    // verify under post-reset IDev pubkey too
+    assert!(ldev_cert_after.verify(&idev_pk_after).unwrap());
+
+    // LDev DER should be identical across warm reset
+    assert_eq!(ldev_der_before, ldev_der_after, "LDev cert DER changed");
 }
