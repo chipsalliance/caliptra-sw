@@ -167,7 +167,7 @@ fn test_boot_tci_data() {
         &firmware::runtime_tests::MBOX
     };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&fw_id),
+        test_fwid: Some(fw_id),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -222,7 +222,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             &firmware::runtime_tests::MBOX
         };
         let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &fw_id, image_options).unwrap();
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, fw_id, image_options).unwrap();
 
         // Upload measurement to measurement log
         let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
