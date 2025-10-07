@@ -6,6 +6,8 @@ mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
+
+mod test_cert_warmreset;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;

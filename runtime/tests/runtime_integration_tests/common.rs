@@ -9,7 +9,8 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    build_and_sign_image, build_firmware_rom,
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -23,12 +24,13 @@ use caliptra_common::{
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    SecurityState, StackInfo, StackRange,
+    BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
+    ModelError, SecurityState, StackInfo, StackRange,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_gen::{from_hw_format, ImageGenerator, ImageGeneratorCrypto};
+use caliptra_image_types::{FwVerificationPqcKeyType, RomInfo};
+
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
@@ -251,12 +253,19 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder.set_subject_name(&subject_name).unwrap();
     cert_builder.set_issuer_name(&subject_name).unwrap();
     cert_builder.set_pubkey(private_key).unwrap();
-    cert_builder
+    /*cert_builder
         .set_not_before(&Asn1Time::days_from_now(0).unwrap())
         .unwrap();
     cert_builder
         .set_not_after(&Asn1Time::days_from_now(365).unwrap())
-        .unwrap();
+        .unwrap();*/
+
+    //Fixed validity: 2023-01-01 00:00:00Z → 2033-01-01 00:00:00Z
+    let not_before = Asn1Time::from_str_x509("20230101000000Z").unwrap();
+    let not_after = Asn1Time::from_str_x509("20330101000000Z").unwrap();
+
+    cert_builder.set_not_before(&not_before).unwrap();
+    cert_builder.set_not_after(&not_after).unwrap();
 
     // Use appropriate message digest based on key type
     let digest = match private_key.id() {
@@ -502,4 +511,111 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
+}
+
+pub struct BuildArgs {
+    pub security_state: SecurityState,
+    pub fmc_version: u32,
+    pub app_version: u32,
+    pub fw_svn: u32,
+}
+
+impl Default for BuildArgs {
+    fn default() -> Self {
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production);
+        Self {
+            security_state,
+            fmc_version: 3,
+            app_version: 5,
+            fw_svn: 9,
+        }
+    }
+}
+
+pub fn build_ready_runtime_model(args: BuildArgs) -> (DefaultHwModel, Vec<u8>) {
+    // Security state & versions from args
+    let security_state = args.security_state;
+    let fmc_version = args.fmc_version;
+    let app_version = args.app_version;
+
+    // ROM & image
+    let rom = build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image = build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions {
+            fmc_version: fmc_version.try_into().unwrap(),
+            app_version,
+            fw_svn: args.fw_svn,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    // compute rom_info + owner_pub_key_hash
+    let _rom_info = find_rom_info(&rom).unwrap();
+    let _owner_pub_key_hash = ImageGenerator::new(Crypto::default())
+        .owner_pubkey_digest(&image.manifest.preamble)
+        .unwrap();
+
+    // Fuses / boot params
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+    let image_bytes = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0],
+            ..Default::default()
+        },
+        fw_image: Some(&image_bytes),
+        ..Default::default()
+    };
+
+    // Model
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        boot_params.clone(),
+    )
+    .unwrap();
+
+    // Wait until runtime ready
+    wait_runtime_ready(&mut model);
+    (model, image_bytes)
+}
+
+pub fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
+    // RomInfo is 64-byte aligned and the last data in the ROM bin
+    // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
+    for i in (0..rom.len() - 63).rev().step_by(64) {
+        let chunk = &rom[i..i + 64];
+
+        // Check if the chunk contains non-zero data
+        if chunk.iter().any(|&byte| byte != 0) {
+            // Found non-zero data, return RomInfo constructed from the data
+            if let Ok(rom_info) = RomInfo::read_from_bytes(&rom[i..i + size_of::<RomInfo>()]) {
+                return Some(rom_info);
+            }
+        }
+    }
+
+    // No non-zero data found
+    None
+}
+
+pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
+    while !model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime()
+    {
+        model.step();
+    }
 }
