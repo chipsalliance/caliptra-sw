@@ -829,7 +829,7 @@ impl<'a> DmaRecovery<'a> {
         };
 
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
-            cprintln!("Transferring bytes {}..{}", k, k + BLOCK_SIZE);
+            //cprintln!("Transferring bytes {}..{}", k, k + BLOCK_SIZE);
             // TODO: this will fail if the transaction is not a multiple of the block size
             // wait for the FIFO to be full
             if i3c {
