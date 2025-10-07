@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-//! A very simple program that responds to the mailbox.
+//! A very simple program that tests all of the steps in the MCU hitless update
+//! flow. This needs to be paired with a test rom in the MCU repo to manipulate
+//! the MCU side of the flow.
 
 #![no_main]
 #![no_std]
