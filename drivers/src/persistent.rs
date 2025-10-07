@@ -52,6 +52,7 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
+pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
@@ -343,6 +344,8 @@ pub struct PersistentData {
     pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
 
     pub cleared_non_fatal_fw_error: u32,
+
+    pub mcu_firmware_loaded: u32,
 }
 
 impl PersistentData {
@@ -487,6 +490,11 @@ impl PersistentData {
             persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
             assert_eq!(
                 addr_of!((*P).dot_owner_pk_hash) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
+            assert_eq!(
+                addr_of!((*P).cleared_non_fatal_fw_error) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
