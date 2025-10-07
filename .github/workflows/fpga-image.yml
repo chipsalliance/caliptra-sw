@@ -8,7 +8,7 @@ on:
       - "ci-tools/fpga-image/**"
 
   push:
-    branches: ["main-2.x"]
+    branches: ["main-2.x", "clundin/new-bitstreams-oct"]
     paths:
       - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"
@@ -29,7 +29,7 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [subsystem-2.1]
         include:
           - bitstream_hash: f537303edefef80e07ada9d2c592705d1b5f92e8895292cbab22c55c3bdc3467
             image_variant: core-2.0
@@ -43,9 +43,9 @@ jobs:
             image_variant: subsystem-2.0
           - bitstream_name: xsa_ss2p0_d9a32582.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: a2c5d4e7bcee795076a7ed663cc349bd6391441a3754ac6d469ae9518a9d9df2
+          - bitstream_hash: 04612d7cc65cb8274c68d6fb39807f0da8ce4477cc8d38b6bba77b62cb1a4f09
             image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_31002060.xsa
+          - bitstream_name: xsa_ss2p1_f84723cd.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
@@ -119,7 +119,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
