@@ -722,7 +722,14 @@ fn test_random_stir_itrng() {
     }
 }
 
-#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)] // FPGA always has an itrng
+#[cfg_attr(
+    any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem",
+        feature = "itrng"
+    ),
+    ignore
+)] // FPGA always has an itrng
 #[test]
 fn test_random_stir_etrng_not_supported() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
