@@ -62,7 +62,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20250930/${BITSTREAM_NAME}" -o /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251007/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
