@@ -253,7 +253,7 @@ impl Output {
     }
 
     pub fn exit_status(&self) -> Option<ExitStatus> {
-        self.sink.0.exit_status.get()
+        self.sink.0.exit_status.take()
     }
 }
 

@@ -541,7 +541,7 @@ impl ModelFpgaSubsystem {
                 Some(ExitStatus::Failed) => 1,
                 None => 0,
             };
-            exit(code);
+            // exit(code);
         }
     }
 
