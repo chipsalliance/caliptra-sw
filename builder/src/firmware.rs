@@ -448,6 +448,12 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
+    pub const MBOX_FPGA: FwId = FwId {
+        bin_name: "mbox",
+        features: &["emu", "riscv", "runtime", "fpga_realtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
     // Used to test updates between RT FW images.
     pub const MBOX_WITHOUT_UART: FwId = FwId {
         bin_name: "mbox",
@@ -537,6 +543,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::TEST_PMP_TESTS,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
+    &runtime_tests::MBOX_FPGA,
     &runtime_tests::MBOX_WITHOUT_UART,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
