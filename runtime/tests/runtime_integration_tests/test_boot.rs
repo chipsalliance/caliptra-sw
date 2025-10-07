@@ -93,6 +93,8 @@ fn test_update() {
     // via the mailbox.
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
     model
@@ -135,6 +137,7 @@ fn test_stress_update() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let stress_num = if cfg!(feature = "slow_tests") { 250 } else { 1 };
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     let mut image_select = 0;
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
