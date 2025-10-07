@@ -101,13 +101,13 @@ pub fn test_upload_firmware<T: HwModel>(
     if model.subsystem_mode() {
         model
             .upload_firmware_rri(
-                &fw_image,
+                fw_image,
                 Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
                 Some(DEFAULT_MCU_FW),
             )
             .unwrap();
     } else {
-        model.upload_firmware(&fw_image).unwrap();
+        model.upload_firmware(fw_image).unwrap();
     }
 }
 
@@ -130,7 +130,9 @@ pub struct RuntimeTestArgs<'a> {
     pub subsystem_mode: bool,
 }
 
-impl<'a> Default for RuntimeTestArgs<'a> {
+// clippy gets confused about cfg(feature = "...")
+#[allow(clippy::derivable_impls)]
+impl Default for RuntimeTestArgs<'_> {
     fn default() -> Self {
         Self {
             test_fwid: None,
