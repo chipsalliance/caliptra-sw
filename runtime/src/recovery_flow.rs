@@ -13,8 +13,11 @@ Abstract:
 --*/
 
 use crate::{
-    activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET, authorize_and_stash::AuthorizeAndStashCmd,
-    set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
+    activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET,
+    authorize_and_stash::AuthorizeAndStashCmd,
+    drivers::{McuFwStatus, McuResetReason},
+    set_auth_manifest::AuthManifestSource,
+    Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
 use caliptra_cfi_derive_git::cfi_impl_fn;
@@ -147,6 +150,10 @@ impl RecoveryFlow {
             // we're done with recovery
             dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
         }
+
+        // notify MCU that it can boot its firmware
+        drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
+        Drivers::request_mcu_reset(drivers, McuResetReason::FwBoot);
 
         Ok(())
     }
