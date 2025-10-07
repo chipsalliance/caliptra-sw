@@ -632,11 +632,18 @@ fn test_random_generate() {
 
 #[test]
 fn test_random_stir_itrng() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(all(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(InitParams {
             rom: &rom,
             trng_mode: Some(TrngMode::Internal),
+            enable_mcu_uart_log: subsystem_mode,
+            subsystem_mode,
             ..Default::default()
         }),
         ..Default::default()
