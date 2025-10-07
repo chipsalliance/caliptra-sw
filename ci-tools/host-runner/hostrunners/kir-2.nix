@@ -1,27 +1,8 @@
 { config, pkgs, user, fpga-boss-script, ... }:
 {
-  systemd.user.services.vck-6 = {
-    enable = true;
-    description = "VCK-6 Service";
-    after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
-
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-      Restart = "on-failure";
-      RestartSec = "15s";
-      Environment = [
-        ''ZCU_FTDI="1-1.2.1.4"''
-        ''ZCU_SDWIRE="1-1.2.1.3"''
-        ''IDENTIFIER="caliptra-kir-vck190-6"''
-        ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/ci-images/vck190.img"''
-      ];
-    };
-  };
-  # systemd.user.services.vck-5 = {
-  #   description = "VCK-5 Service";
+  # systemd.user.services.vck-6 = {
+  #   enable = true;
+  #   description = "VCK-6 Service";
   #   after = [ "network.target" ];
   #   wantedBy = [ "multi-user.target" ];
   #
@@ -31,14 +12,33 @@
   #     Restart = "on-failure";
   #     RestartSec = "15s";
   #     Environment = [
-  #       ''ZCU_FTDI="1-1.2.1.1"''
-  #       ''ZCU_SDWIRE="1-1.2.1.2"''
-  #       ''IDENTIFIER="caliptra-kir-vck190-5"''
+  #       ''ZCU_FTDI="1-1.2.1.4"''
+  #       ''ZCU_SDWIRE="1-1.2.1.3"''
+  #       ''IDENTIFIER="caliptra-kir-vck190-6"''
   #       ''FPGA_TARGET="vck190"''
-  #       ''IMAGE="/home/${user}/vck190.img"''
+  #       ''IMAGE="/home/${user}/ci-images/vck190.img"''
   #     ];
   #   };
   # };
+  systemd.user.services.vck-5 = {
+    description = "VCK-5 Service";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
+      Restart = "on-failure";
+      RestartSec = "15s";
+      Environment = [
+        ''ZCU_FTDI="1-1.2.1.1"''
+        ''ZCU_SDWIRE="1-1.2.1.2"''
+        ''IDENTIFIER="caliptra-kir-vck190-5"''
+        ''FPGA_TARGET="vck190"''
+        ''IMAGE="/home/${user}/ci-images/vck190.img"''
+      ];
+    };
+  };
   # systemd.user.services.vck-3 = {
   #   description = "VCK-3 Service";
   #   after = [ "network.target" ];
@@ -72,8 +72,8 @@
         ''ZCU_FTDI="1-1.4"''
         ''ZCU_SDWIRE="1-1.3"''
         ''IDENTIFIER="caliptra-kir-vck190-2"''
-        ''FPGA_TARGET="vck190-core-2.1"''
-        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-core-2.1.img"''
+        ''FPGA_TARGET="vck190"''
+        ''IMAGE="/home/${user}/ci-images/vck190.img"''
       ];
     };
   };
