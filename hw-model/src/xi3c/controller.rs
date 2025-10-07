@@ -795,14 +795,12 @@ impl Controller {
         let mut recv = vec![];
         let running = running.unwrap_or_else(|| Arc::new(AtomicBool::new(true)));
         while running.load(Ordering::Relaxed) && recv_byte_count > 0 {
-            let rx_data_available = (self.regs().fifo_lvl_status_1.get() & 0xffff) as u16;
-            let mut data_index: u16 = 0;
-            while data_index < rx_data_available && recv_byte_count > 0 {
-                let new_bytes = self.read_rx_fifo(recv_byte_count);
-                recv.extend(&new_bytes);
-                recv_byte_count = recv_byte_count.saturating_sub(new_bytes.len() as u16);
-                data_index += 1;
+            if self.read_fifo_level() == 0 {
+                continue;
             }
+            let new_bytes = self.read_rx_fifo(recv_byte_count);
+            recv.extend(&new_bytes);
+            recv_byte_count = recv_byte_count.saturating_sub(new_bytes.len() as u16);
         }
         self.get_response()?;
         Ok(recv)
