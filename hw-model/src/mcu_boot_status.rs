@@ -101,6 +101,8 @@ bitflags! {
         const RI_DOWNLOAD_COMPLETED         = 0b1 << 3;
         const FLASH_RECOVERY_FLOW_COMPLETED = 0b1 << 4;
         const COLD_BOOT_FLOW_COMPLETE       = 0b1 << 5;
+        const WARM_RESET_FLOW_COMPLETE      = 0b1 << 6;
+        const FIRMWARE_BOOT_FLOW_COMPLETE   = 0b1 << 7;
     }
 }
 
