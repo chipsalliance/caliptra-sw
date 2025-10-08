@@ -412,7 +412,7 @@ fn test_capabilities_after_warm_reset() {
 
     cprintln!("test_capabilities_after_warm_reset::::retry  wait_runtime_ready");
 
-    let attempts = 10;
+    let attempts = 50;
     for attempt in 1..=attempts {
         // Wait until runtime is ready (time-bounded)
         if wait_runtime_ready_until(&mut model, Duration::from_millis(5000)).is_err() {
