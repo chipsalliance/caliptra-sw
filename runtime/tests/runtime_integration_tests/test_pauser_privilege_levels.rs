@@ -19,7 +19,7 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    RtBootStatus, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD, TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
 
 use dpe::{
@@ -64,10 +64,11 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times. When we initialize
-    // DPE, we measure mailbox valid pausers in pl0_pauser's locality. Thus, we can call derive child
-    // from PL0 exactly 7 times, and the last iteration of this loop, is expected to throw a threshold breached error.
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
+    // Note that this loop runs (TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 1) times. When we initialize
+    // DPE, we measure mailbox valid pausers in pl0_pauser's locality and rt journey in Caliptra's
+    // locality. Thus, we can call derive child from PL0 exactly TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 1
+    // times, and the last iteration of this loop, is expected to throw a threshold breached error.
+    let num_iterations = TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let derive_context_cmd = DeriveContextCmd {
             handle,
@@ -180,7 +181,8 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
+    // minus 1 because of rt journey measurment in PL0
+    let num_iterations = TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
 
@@ -573,7 +575,8 @@ fn test_stash_measurement_pl_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
+    // minus 1 because of rt journey measurment in PL0
+    let num_iterations = TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -618,10 +621,10 @@ fn test_measurement_log_pl_context_threshold() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Upload PL0_DPE_ACTIVE_CONTEXT_THRESHOLD measurements to measurement log
+    // Upload DPE_ACTIVE_CONTEXT_THRESHOLD - 1 measurements to measurement log
     // Since there are some other measurements taken by Caliptra upon startup, this will cause
-    // the PL0_DPE_ACTIVE_CONTEXT_THRESHOLD to be breached.
-    for idx in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 {
+    // the DPE_ACTIVE_CONTEXT_THRESHOLD to be breached.
+    for idx in 0..(TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 - 1) {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
             hdr: MailboxReqHeader { chksum: 0 },
@@ -635,7 +638,7 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement_req = MailboxReq::StashMeasurement(measurement);
         measurement_req.populate_chksum().unwrap();
 
-        if idx == PL0_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 - 1 {
+        if idx == TOTAL_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 - 2 {
             model
                 .upload_measurement(measurement_req.as_bytes().unwrap())
                 .unwrap_err();
