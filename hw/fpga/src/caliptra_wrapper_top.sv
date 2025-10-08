@@ -23,19 +23,8 @@ import caliptra_fpga_realtime_regs_pkg::*;
 
 module caliptra_wrapper_top (
     input bit core_clk,
+    (* syn_keep = "true", mark_debug = "true" *) output reg axi_reset,
 
-`ifdef CALIPTRA_APB
-    // Caliptra APB Interface
-    input  wire [`CALIPTRA_APB_ADDR_WIDTH-1:0] PADDR,
-    input  wire                       PENABLE,
-    input  wire [2:0]                 PPROT,
-    output wire [`CALIPTRA_APB_DATA_WIDTH-1:0] PRDATA,
-    output wire                       PREADY,
-    input  wire                       PSEL,
-    output wire                       PSLVERR,
-    input  wire [`CALIPTRA_APB_DATA_WIDTH-1:0] PWDATA,
-    input  wire                       PWRITE,
-`else
     // Caliptra S_AXI Interface
     input  wire [31:0] S_AXI_CALIPTRA_AWADDR,
     input  wire [1:0] S_AXI_CALIPTRA_AWBURST,
@@ -113,16 +102,15 @@ module caliptra_wrapper_top (
     input wire M_AXI_CALIPTRA_RLAST,
     input wire M_AXI_CALIPTRA_RVALID,
     output  wire M_AXI_CALIPTRA_RREADY,
-`endif
 
     // ROM AXI Interface
-    input  logic axi_bram_clk,
-    input  logic axi_bram_en,
-    input  logic [3:0] axi_bram_we,
-    input  logic [14:0] axi_bram_addr,
-    input  logic [31:0] axi_bram_wrdata,
-    output logic [31:0] axi_bram_rddata,
-    input  logic axi_bram_rst,
+    input  logic rom_backdoor_clk,
+    input  logic rom_backdoor_en,
+    input  logic [3:0] rom_backdoor_we,
+    input  logic [14:0] rom_backdoor_addr,
+    input  logic [31:0] rom_backdoor_wrdata,
+    output logic [31:0] rom_backdoor_rddata,
+    input  logic rom_backdoor_rst,
 
     // JTAG Interface
     input logic                       jtag_tck,    // JTAG clk
@@ -156,7 +144,21 @@ module caliptra_wrapper_top (
 
     import soc_ifc_pkg::*;
 
-    logic                       BootFSM_BrkPoint;
+    // When sw sets trigger_axi_reset, assert the reset for 0xF cycles (requirement is 4 cycles).
+    (* syn_keep = "true", mark_debug = "true" *) reg [3:0] axi_reset_counter;
+    (* syn_keep = "true", mark_debug = "true" *) reg axi_reset_triggered;
+    always@(posedge core_clk) begin
+        axi_reset_triggered <= hwif_out.interface_regs.control.trigger_axi_reset.value;
+        if (hwif_out.interface_regs.control.trigger_axi_reset.value && ~axi_reset_triggered) begin
+            axi_reset_counter <= 4'hf;
+            axi_reset <= 0;
+        end else if (axi_reset_counter > 4'h0) begin
+            axi_reset <= 0;
+            axi_reset_counter <= axi_reset_counter - 1;
+        end else begin
+            axi_reset <= 1;
+        end
+    end
 
     logic mbox_sram_cs;
     logic mbox_sram_we;
@@ -197,7 +199,7 @@ module caliptra_wrapper_top (
       end
     end
 
-`ifndef CALIPTRA_APB
+
     axi_if #(
         .AW(`CALIPTRA_SLAVE_ADDR_WIDTH(`CALIPTRA_SLAVE_SEL_SOC_IFC)),
         .DW(`CALIPTRA_AXI_DATA_WIDTH),
@@ -210,7 +212,7 @@ module caliptra_wrapper_top (
     assign s_axi.awburst  = S_AXI_CALIPTRA_AWBURST;
     assign s_axi.awsize   = S_AXI_CALIPTRA_AWSIZE;
     assign s_axi.awlen    = S_AXI_CALIPTRA_AWLEN;
-    assign s_axi.awuser   = hwif_out.interface_regs.pauser.pauser.value; //S_AXI_CALIPTRA_AWUSER;
+    assign s_axi.awuser   = hwif_out.interface_regs.arm_user.arm_user.value; //S_AXI_CALIPTRA_AWUSER;
     assign s_axi.awid     = S_AXI_CALIPTRA_AWID;
     assign s_axi.awlock   = S_AXI_CALIPTRA_AWLOCK;
     assign s_axi.awvalid  = S_AXI_CALIPTRA_AWVALID;
@@ -231,7 +233,7 @@ module caliptra_wrapper_top (
     assign s_axi.arburst = S_AXI_CALIPTRA_ARBURST;
     assign s_axi.arsize  = S_AXI_CALIPTRA_ARSIZE;
     assign s_axi.arlen   = S_AXI_CALIPTRA_ARLEN;
-    assign s_axi.aruser  = hwif_out.interface_regs.pauser.pauser.value; // S_AXI_CALIPTRA_ARUSER;
+    assign s_axi.aruser  = hwif_out.interface_regs.arm_user.arm_user.value; // S_AXI_CALIPTRA_ARUSER;
     assign s_axi.arid    = S_AXI_CALIPTRA_ARID;
     assign s_axi.arlock  = S_AXI_CALIPTRA_ARLOCK;
     assign s_axi.arvalid = S_AXI_CALIPTRA_ARVALID;
@@ -291,14 +293,8 @@ module caliptra_wrapper_top (
     assign m_axi.rvalid =   M_AXI_CALIPTRA_RVALID;
     assign M_AXI_CALIPTRA_RREADY = m_axi.rready;
 
-
-`endif
     el2_mem_if el2_mem_export();
     mldsa_mem_if mldsa_memory_export();
-
-    initial begin
-        BootFSM_BrkPoint = 1'b1; //Set to 1 even before anything starts
-    end
 
     // TRNG Interface
     logic etrng_req;
@@ -332,19 +328,6 @@ caliptra_top caliptra_top_dut (
     .jtag_tdo(jtag_tdo),
     // jtag_tdoEn
 
-`ifdef CALIPTRA_APB
-    // SoC APB Interface
-    .PADDR(PADDR),
-    .PPROT(PPROT),
-    .PAUSER(hwif_out.interface_regs.pauser.pauser.value),
-    .PENABLE(PENABLE),
-    .PRDATA(PRDATA),
-    .PREADY(PREADY),
-    .PSEL(PSEL),
-    .PSLVERR(PSLVERR),
-    .PWDATA(PWDATA),
-    .PWRITE(PWRITE),
-`else
     // Subordinate AXI Interface
     .s_axi_w_if(s_axi.w_sub),
     .s_axi_r_if(s_axi.r_sub),
@@ -353,9 +336,8 @@ caliptra_top caliptra_top_dut (
     .m_axi_w_if(m_axi.w_mgr),
     .m_axi_r_if(m_axi.r_mgr),
 
-    // TODO: New addition
+    // Unused SS interface
     .recovery_data_avail(0),
-`endif
 
     .el2_mem_export(el2_mem_export.veer_sram_src),
     .mldsa_memory_export(mldsa_memory_export.req),
@@ -377,7 +359,7 @@ caliptra_top caliptra_top_dut (
     .mailbox_data_avail(hwif_in.interface_regs.status.mailbox_data_avail.next),
     .mailbox_flow_done(hwif_in.interface_regs.status.mailbox_flow_done.next),
 
-    .BootFSM_BrkPoint(BootFSM_BrkPoint),
+    .BootFSM_BrkPoint(hwif_out.interface_regs.control.bootfsm_brkpoint.value),
 
     //SoC Interrupts
     .cptra_error_fatal    (hwif_in.interface_regs.status.cptra_error_fatal.next),
@@ -390,7 +372,7 @@ caliptra_top caliptra_top_dut (
     .generic_input_wires({hwif_out.interface_regs.generic_input_wires[0].value.value, hwif_out.interface_regs.generic_input_wires[1].value.value}),
     .generic_output_wires({hwif_in.interface_regs.generic_output_wires[0].value.next, hwif_in.interface_regs.generic_output_wires[1].value.next}),
 
-    .security_state({hwif_out.interface_regs.control.ss_debug_locked.value, hwif_out.interface_regs.control.ss_device_lifecycle.value}),
+    .security_state({hwif_out.interface_regs.control.debug_locked.value, hwif_out.interface_regs.control.device_lifecycle.value}),
     .scan_mode     (hwif_out.interface_regs.control.scan_mode.value)
 );
 
@@ -436,7 +418,7 @@ caliptra_veer_sram_export veer_sram_export_inst (
       .injectdbiterra(0),
       .injectsbiterra(0),
       .regcea(1'b1),
-      .rsta(axi_bram_rst),
+      .rsta(rom_backdoor_rst),
       .sleep(0),
       .wea(mbox_sram_we)
 
@@ -481,28 +463,28 @@ caliptra_veer_sram_export veer_sram_export_inst (
       .dbiterra(),
       .dbiterrb(),
       .douta(imem_rdata),
-      .doutb(axi_bram_rddata),
+      .doutb(rom_backdoor_rddata),
       .sbiterra(),
       .sbiterrb(),
       .addra(imem_addr),
-      .addrb(axi_bram_addr),
+      .addrb(rom_backdoor_addr),
       .clka(core_clk),
       .clkb(core_clk),
       .dina(0),
-      .dinb(axi_bram_wrdata),
+      .dinb(rom_backdoor_wrdata),
       .ena(imem_cs),
-      .enb(axi_bram_en),
+      .enb(rom_backdoor_en),
       .injectdbiterra(0),
       .injectdbiterrb(0),
       .injectsbiterra(0),
       .injectsbiterrb(0),
       .regcea(1),
       .regceb(1),
-      .rsta(axi_bram_rst),
-      .rstb(axi_bram_rst),
+      .rsta(rom_backdoor_rst),
+      .rstb(rom_backdoor_rst),
       .sleep(0),
       .wea(8'h0),
-      .web(axi_bram_we)
+      .web(rom_backdoor_we)
    );
 
     axi4lite_intf s_axil ();
