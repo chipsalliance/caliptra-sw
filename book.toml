@@ -1,0 +1,15 @@
+[book]
+authors = ["Mikhail Modin"]
+language = "en"
+src = "doc"
+title = "Caliptra firmware and software"
+
+[build]
+use-default-preprocessors = false
+create-missing = false
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
