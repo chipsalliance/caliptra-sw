@@ -51,8 +51,8 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
-use caliptra_common::{HexBytes, cfi_check};
 use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
+use caliptra_common::{cfi_check, HexBytes};
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
@@ -283,7 +283,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
-        cprintln!("Validated buffer len {}, passing to command {:x}", cmd_bytes.len(), cmd_id);
+        cprintln!(
+            "Validated buffer len {}, passing to command {:x}",
+            cmd_bytes.len(),
+            cmd_id
+        );
         cprintln!("Validated buffer {}", HexBytes(cmd_bytes));
     }
 
