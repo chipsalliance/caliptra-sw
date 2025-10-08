@@ -27,13 +27,13 @@ endmenu
 endif
 
 if !SUBSYSTEM_DISTRO_PETALINUX
-source /fourtb/jlmahowa/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
 endif
 
 if SUBSYSTEM_DISTRO_PETALINUX
 menu "Yocto Settings"
 
-source /fourtb/jlmahowa/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
 
 if SUBSYSTEM_SDT_FLOW
 config MC_PLNX_IMAGES_LOCATION
