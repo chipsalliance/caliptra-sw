@@ -24,6 +24,9 @@ use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 use zerocopy::{FromBytes, IntoBytes};
 
+use std::time::Duration;
+use std::time::Instant;
+
 #[test]
 fn test_rt_journey_pcr_validation() {
     let security_state = *SecurityState::default()
@@ -350,6 +353,35 @@ pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
     }
 }
 
+fn wait_runtime_ready_until(
+    model: &mut DefaultHwModel,
+    timeout: Duration,
+) -> Result<(), &'static str> {
+    let start = Instant::now();
+    // Step in batches to avoid per-step overhead
+    const STEP_BATCH: u64 = 10_000;
+
+    loop {
+        if model
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_runtime()
+        {
+            return Ok(());
+        }
+
+        // Advance the model a bit
+        for _ in 0..STEP_BATCH {
+            model.step();
+        }
+
+        if start.elapsed() >= timeout {
+            return Err("timeout waiting for runtime ready");
+        }
+    }
+}
+
 #[test]
 fn test_capabilities_after_warm_reset() {
     let (mut model, _image_bytes) = build_ready_runtime_model(BuildArgs::default());
@@ -368,7 +400,36 @@ fn test_capabilities_after_warm_reset() {
 
     // --- Warm reset ---
     model.warm_reset();
-    wait_runtime_ready(&mut model);
+    cprintln!("test_capabilities_after_warm_reset::::finish warm_reset");
+
+    //   wait_runtime_ready(&mut model);
+
+    //brief settle after reset
+    let stop = Instant::now() + Duration::from_millis(2000);
+    while Instant::now() < stop {
+        model.step();
+    }
+
+    cprintln!("test_capabilities_after_warm_reset::::retry  wait_runtime_ready");
+
+    let attempts = 10;
+    for attempt in 1..=attempts {
+        // Wait until runtime is ready (time-bounded)
+        if wait_runtime_ready_until(&mut model, Duration::from_millis(5000)).is_err() {
+            // allow some time to progress before retrying
+            let stop = Instant::now() + Duration::from_millis(500);
+            while Instant::now() < stop {
+                model.step();
+            }
+            if attempt == attempts {
+                panic!(
+                    "runtime not ready after {} attempts (per-attempt timeout {:?})",
+                    attempts, 5000
+                );
+            }
+            continue;
+        }
+    }
     cprintln!("test_capabilities_after_warm_reset::::finish wait_runtime_ready");
 
     // --- After warm reset ---
