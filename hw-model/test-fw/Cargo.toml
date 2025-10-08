@@ -17,6 +17,7 @@ caliptra-registers.workspace = true
 caliptra-test-harness.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 ufmt.workspace = true
+ureg.workspace = true
 
 [[bin]]
 name = "test_iccm_unaligned_write"
@@ -42,6 +43,11 @@ required-features = ["riscv"]
 [[bin]]
 name = "mailbox_sender"
 path = "mailbox_sender.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mcu_hitless_update_flow"
+path = "mcu_hitless_update_flow.rs"
 required-features = ["riscv"]
 
 
