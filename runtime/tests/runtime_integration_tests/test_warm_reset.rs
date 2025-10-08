@@ -361,11 +361,16 @@ fn test_capabilities_after_warm_reset() {
     // --- Warm reset ---
     model.warm_reset();
     wait_runtime_ready(&mut model);
+    println!("finish wait_runtime_ready");
 
     // --- After warm reset ---
     let (cap_resp_after, raw_resp_after) = get_capabilities(&mut model);
+
+    println!("get_capabilities");
+
     let capabilities_after =
         Capabilities::try_from(&cap_resp_after.capabilities[..]).expect("decode caps");
+
     assert!(capabilities_after.contains(Capabilities::RT_BASE));
 
     assert_eq!(
