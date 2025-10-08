@@ -167,7 +167,7 @@ impl ActivateFirmwareCmd {
             Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
             drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
-             // Wait for MCU to clear interrupt
+            // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
             while intr_status != 0 {
                 intr_status =
