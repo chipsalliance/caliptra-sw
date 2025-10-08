@@ -355,7 +355,13 @@ fn test_capabilities_after_warm_reset() {
     let (mut model, _image_bytes) = build_ready_runtime_model(BuildArgs::default());
 
     // --- Before warm reset ---
+
+    cprintln!("test_capabilities_after_warm_reset::::finish build_ready_runtime_model");
+
     let (cap_resp_before, raw_resp_before) = get_capabilities(&mut model);
+
+    cprintln!("test_capabilities_after_warm_reset::::get_capabilities before warm reset");
+
     let capabilities_before =
         Capabilities::try_from(&cap_resp_before.capabilities[..]).expect("decode caps");
     assert!(capabilities_before.contains(Capabilities::RT_BASE));
