@@ -9,8 +9,10 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     checksum::{calc_checksum, verify_checksum},
+    cprintln,
     mailbox_api::{CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader},
 };
+
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
@@ -361,12 +363,12 @@ fn test_capabilities_after_warm_reset() {
     // --- Warm reset ---
     model.warm_reset();
     wait_runtime_ready(&mut model);
-    println!("finish wait_runtime_ready");
+    cprintln!("test_capabilities_after_warm_reset::::finish wait_runtime_ready");
 
     // --- After warm reset ---
     let (cap_resp_after, raw_resp_after) = get_capabilities(&mut model);
 
-    println!("get_capabilities");
+    cprintln!("test_capabilities_after_warm_reset::::get_capabilities");
 
     let capabilities_after =
         Capabilities::try_from(&cap_resp_after.capabilities[..]).expect("decode caps");
