@@ -157,12 +157,7 @@ pub fn run_rt_test_pqc(
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
     let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
-    model.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
-    });
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
     model
 }
 
