@@ -70,7 +70,7 @@ jobs:
 
   build_test_binaries:
     runs-on: [e2-standard-8]
-    timeout-minutes: 60
+    timeout-minutes: 360
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
