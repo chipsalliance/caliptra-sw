@@ -587,7 +587,6 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }
-
 #[allow(dead_code)]
 /// Compare two X509 certs by semantic fields rather than raw bytes.
 pub fn assert_x509_semantic_eq(a: &X509, b: &X509) {
