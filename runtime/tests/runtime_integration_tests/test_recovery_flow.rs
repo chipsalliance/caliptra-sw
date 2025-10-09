@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{run_rt_test, run_rt_test_pqc_mbox, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
 use caliptra_emu_bus::{Device, EventData};
@@ -9,19 +9,13 @@ use caliptra_hw_model::{HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::from_hw_format;
 use caliptra_image_gen::ImageGeneratorCrypto;
+use caliptra_image_types::FwVerificationPqcKeyType::LMS;
 use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
-#[cfg_attr(
-    any(
-        feature = "verilator",
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    ),
-    ignore
-)]
 #[test]
+#[cfg(has_subsystem)]
 fn test_loads_mcu_fw() {
     // Test that the recovery flow runs and loads MCU's firmware
 
@@ -37,13 +31,12 @@ fn test_loads_mcu_fw() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
-        subsystem_mode: true,
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);
@@ -62,15 +55,8 @@ fn test_loads_mcu_fw() {
     assert!(found);
 }
 
-#[cfg_attr(
-    any(
-        feature = "verilator",
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    ),
-    ignore
-)]
 #[test]
+#[cfg(has_subsystem)]
 fn test_mcu_fw_bad_signature() {
     // Test that the recovery flow runs and loads MCU's firmware
 
@@ -88,18 +74,17 @@ fn test_mcu_fw_bad_signature() {
         digest,
         ..Default::default()
     }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = create_auth_manifest_with_metadata(metadata, LMS);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
-        subsystem_mode: true,
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);
     args.mcu_fw_image = Some(&mcu_fw);
-    let mut model = run_rt_test(args);
+    let mut model = run_rt_test_pqc_mbox(args, LMS, false);
     model.step_until_fatal_error(
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into(),
         30_000_000,

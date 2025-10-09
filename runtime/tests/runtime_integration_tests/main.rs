@@ -1,15 +1,18 @@
 // Licensed under the Apache-2.0 license
 
 mod common;
+#[cfg(has_subsystem)]
 mod test_activate_firmware;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_cryptographic_mailbox;
+#[cfg(has_subsystem)]
 mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
+#[cfg(has_subsystem)]
 mod test_fe_programming;
 mod test_fips;
 mod test_get_fmc_alias_csr;
@@ -24,6 +27,7 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+#[cfg(has_subsystem)]
 mod test_recovery_flow;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;

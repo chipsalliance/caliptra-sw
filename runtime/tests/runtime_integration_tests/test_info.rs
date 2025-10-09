@@ -105,15 +105,27 @@ fn test_fw_info() {
             ..Default::default()
         };
 
+        let (soc_manifest, mcu_fw_image) = if cfg!(has_subsystem) {
+            let (soc_manifest, mcu_firmware) =
+                crate::common::default_manifest_and_mcu_image(*pqc_key_type);
+            (Some(soc_manifest), Some(mcu_firmware))
+        } else {
+            (None, None)
+        };
+        let (soc_manifest, mcu_fw_image) = (soc_manifest.as_deref(), mcu_fw_image.as_deref());
+
         let mut model = caliptra_hw_model::new(
             init_params,
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
+                soc_manifest,
+                mcu_fw_image,
                 fuses,
                 ..Default::default()
             },
         )
         .unwrap();
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
         let rom_info = find_rom_info(&rom).unwrap();
 
