@@ -1,8 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::{
-    Aes, Ecc384, Hmac, Lms, Mldsa87, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3,
-    ShaAccLockState, Trng,
+    Ecc384, Hmac, Lms, Mldsa87, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, Trng, Sha3
 };
 
 pub struct KatsEnv<'a> {
@@ -38,8 +37,4 @@ pub struct KatsEnv<'a> {
 
     /// MLDSA Engine
     pub mldsa87: &'a mut Mldsa87,
-
-    /// AES Engine
-    //#[cfg(feature = "runtime")]
-    pub aes: &'a mut Aes,
 }

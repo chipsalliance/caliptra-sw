@@ -108,7 +108,7 @@ impl FirmwareProcessor {
             ecc384: &mut env.ecc384,
 
             // AES Engine
-            aes: &mut env.aes,
+//            aes: &mut env.aes,
 
             // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
@@ -567,25 +567,7 @@ impl FirmwareProcessor {
                         report_boot_status(FwProcessorDownloadImageComplete.into());
                         return Ok((txn, image_size_bytes));
                     }
-                    CommandId::CM_DERIVE_STABLE_KEY => {
-                        let mut request = CmDeriveStableKeyReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
-                        let encrypted_cmk = Self::derive_stable_key(
-                            env.aes,
-                            env.hmac,
-                            env.trng,
-                            persistent_data,
-                            &request,
-                        )?;
-
-                        let mut resp = CmDeriveStableKeyResp {
-                            cmk: transmute!(encrypted_cmk),
-                            ..Default::default()
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-                    }
                     CommandId::CM_RANDOM_GENERATE => {
                         let mut request = CmRandomGenerateReq::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
@@ -608,22 +590,7 @@ impl FirmwareProcessor {
                             txn.send_response(resp.as_bytes_partial()?)?;
                         }
                     }
-                    CommandId::CM_HMAC => {
-                        let mut request = CmHmacReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
-                        let mut resp = CmHmacResp::default();
-                        hmac(
-                            env.hmac,
-                            env.aes,
-                            env.trng,
-                            Crypto::get_cmb_aes_key(persistent_data),
-                            request.as_bytes(),
-                            resp.as_mut_bytes(),
-                        )?;
 
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes_partial()?)?;
-                    }
                     CommandId::REPORT_HEK_METADATA => {
                         let mut request = ReportHekMetadataReq::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
