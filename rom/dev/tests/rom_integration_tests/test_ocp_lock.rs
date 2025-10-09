@@ -22,6 +22,9 @@ const ALL_HEK_SEED_STATES: &[HekSeedState] = &[
 // TODO(clundin): Once runtime is complete, add tests based on `REPORT_HEK_METADATA` scenarios.
 // Particularly what happens if `REPORT_HEK_METADATA` is never called.
 // Tracked in https://github.com/chipsalliance/caliptra-sw/issues/2450.
+//
+// TODO(clundin): Add a test case for a `Programmed` but empty HEK seed. Blocked on writing MCU fuses
+// from core tests.
 
 #[test]
 fn test_hek_seed_states() {

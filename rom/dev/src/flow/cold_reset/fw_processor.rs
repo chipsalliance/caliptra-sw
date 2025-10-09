@@ -621,6 +621,7 @@ impl FirmwareProcessor {
                             soc_ifc.lifecycle(),
                             persistent_data,
                             &request,
+                            &soc_ifc.fuse_bank().ocp_hek_seed(),
                         )?;
 
                         resp.populate_chksum();
