@@ -21,7 +21,7 @@ use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
-use caliptra_common::keyids::KEY_ID_ROM_FMC_CDI;
+use caliptra_common::keyids::KEY_ID_LDEVID_CDI;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::cprintln;
@@ -106,7 +106,7 @@ fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
         HmacKey::Array4x16(&fake_key),
         HmacData::Slice(b""),
         &mut env.trng,
-        KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
+        KeyWriteArgs::new(KEY_ID_LDEVID_CDI, KeyUsage::default().set_hmac_key_en()).into(),
         HmacMode::Hmac512,
     )
 }
