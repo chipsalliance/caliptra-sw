@@ -45,6 +45,13 @@ use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
 use zerocopy::{FromBytes, IntoBytes};
 
+#[cfg(feature = "fpga_subsystem")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
+#[cfg(feature = "fpga_realtime")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
+
 #[test]
 fn test_status() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -2897,7 +2904,7 @@ fn test_ecdsa_sign_verify() {
 
 #[test]
 fn test_derive_stable_key_from_rom() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 
         // derive a stable key from ROM
@@ -3110,7 +3117,7 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
 
 #[test]
 fn test_stable_key_aes_gcm_fips_invalid() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3147,7 +3154,7 @@ fn test_stable_key_aes_gcm_fips_invalid() {
 
 #[test]
 fn test_stable_key_ecdsa_sign_verify_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3193,7 +3200,7 @@ fn test_stable_key_ecdsa_sign_verify_fips_status() {
 
 #[test]
 fn test_stable_key_ecdsa_public_key_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3222,7 +3229,7 @@ fn test_stable_key_ecdsa_public_key_fips_status() {
 
 #[test]
 fn test_stable_key_mldsa_sign_verify_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3269,7 +3276,7 @@ fn test_stable_key_mldsa_sign_verify_fips_status() {
 
 #[test]
 fn test_stable_key_mldsa_public_key_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3306,7 +3313,7 @@ fn test_stable_key_hkdf_fips_status() {
             CmHashAlgorithm::Sha512
         };
 
-        for subsystem_mode in [false, true] {
+        for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
             let mut model = run_rt_test(RuntimeTestArgs {
                 subsystem_mode,
                 ..Default::default()
@@ -3375,7 +3382,7 @@ fn test_stable_key_hmac_fips_status() {
         } else {
             CmHashAlgorithm::Sha512
         };
-        for subsystem_mode in [false, true] {
+        for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
             let mut model = run_rt_test(RuntimeTestArgs {
                 subsystem_mode,
                 ..Default::default()
@@ -3417,7 +3424,7 @@ fn test_stable_key_hmac_fips_status() {
 #[test]
 fn test_stable_key_aes_gcm_spdm_fips_status() {
     // TODO: add subsystem mode for emulator
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3458,7 +3465,7 @@ fn test_stable_key_aes_gcm_spdm_fips_status() {
 
 #[test]
 fn test_stable_key_aes_ctr_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3495,7 +3502,7 @@ fn test_stable_key_aes_ctr_fips_status() {
 // Random encrypt and decrypt CBC stress test.
 #[test]
 fn test_stable_key_aes_cbc_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
