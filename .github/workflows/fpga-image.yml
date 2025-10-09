@@ -29,16 +29,12 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
         include:
-          - bitstream_hash: f537303edefef80e07ada9d2c592705d1b5f92e8895292cbab22c55c3bdc3467
-            image_variant: core-2.0
+          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
+            image_variant: core
           - bitstream_name: xsa_core2p0_5d069408.xsa
-            image_variant: core-2.0
-          - bitstream_hash: 7b653e926495ceb8ca45963e2e6805bf3a700f4244bb5429e5a3a8d68a72b15b
-            image_variant: core-2.1
-          - bitstream_name: xsa_core2p1_c88604f7.xsa
-            image_variant: core-2.1
+            image_variant: core
           - bitstream_hash: c6a1febdece4e8036e12e5c2f753e96c3595937aeaee7983714db66c29ae63c8
             image_variant: subsystem-2.0
           - bitstream_name: xsa_ss2p0_d9a32582.xsa
@@ -119,7 +115,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
