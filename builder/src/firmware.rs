@@ -551,6 +551,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MBOX,
     &runtime_tests::MBOX_FPGA,
     &runtime_tests::MBOX_WITHOUT_UART,
+    &runtime_tests::MBOX_WITHOUT_UART_FPGA,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
 ];
