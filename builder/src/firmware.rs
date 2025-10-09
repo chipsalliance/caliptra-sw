@@ -461,6 +461,12 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
+    pub const MBOX_WITHOUT_UART_FPGA: FwId = FwId {
+        bin_name: "mbox",
+        features: &["riscv", "runtime", "fpga_realtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
     pub const PERSISTENT_RT: FwId = FwId {
         bin_name: "persistent_rt",
         ..RUNTIME_TEST_FWID_BASE
