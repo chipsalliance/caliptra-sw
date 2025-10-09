@@ -5,7 +5,9 @@ use caliptra_api::mailbox::{
 };
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::keyids::ocp_lock::KEY_ID_HEK;
-use caliptra_drivers::{CaliptraResult, HekSeedState, KeyVault, Lifecycle, PersistentData, SocIfc};
+use caliptra_drivers::{
+    Array4x8, CaliptraResult, HekSeedState, KeyVault, Lifecycle, PersistentData, SocIfc,
+};
 
 /// Handle `ReportHekMetadataReq` command from MCU.
 ///
@@ -15,9 +17,10 @@ pub fn handle_report_hek_metadata(
     lifecycle_state: Lifecycle,
     pdata: &mut PersistentData,
     req: &ReportHekMetadataReq,
+    hek_seed: &Array4x8,
 ) -> CaliptraResult<ReportHekMetadataResp> {
     let hek_seed_state = HekSeedState::try_from(req.seed_state)?;
-    let hek_available = hek_seed_state.hek_is_available(lifecycle_state);
+    let hek_available = hek_seed_state.hek_is_available(lifecycle_state, hek_seed);
 
     pdata.ocp_lock_metadata.hek_available = hek_available;
     pdata.ocp_lock_metadata.total_hek_seed_slots = req.total_slots;
