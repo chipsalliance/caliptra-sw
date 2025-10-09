@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
