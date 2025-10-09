@@ -515,8 +515,7 @@ pub fn build_ready_runtime_model(
     let rom_info = find_rom_info(&rom).unwrap();
     let owner_pub_key_hash: [u32; 12] = ImageGenerator::new(Crypto::default())
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap()
-        .into(); // digest -> [u8; 48]
+        .unwrap(); // digest -> [u8; 48]
 
     // Fuses / boot params
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
@@ -578,7 +577,6 @@ pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
 }
 
 #[allow(dead_code)]
-
 /// Compare two X509 certs by semantic fields rather than raw bytes.
 pub fn assert_x509_semantic_eq(a: &X509, b: &X509) {
     // Issuer / Subject
