@@ -413,6 +413,8 @@ pub struct ModelFpgaSubsystem {
     pub waiting: usize,
     pub stdin_uart: Arc<Mutex<Option<u8>>>,
     pub last_recovery_block_written: Option<Instant>,
+    pub last_cycle_count: u64,
+    pub cycle_count_hi: u64,
 }
 
 impl ModelFpgaSubsystem {
@@ -1324,7 +1326,13 @@ impl ModelFpgaSubsystem {
     }
 
     fn cycle_count(&mut self) -> u64 {
-        self.wrapper.regs().cycle_count.get() as u64
+        let old = self.last_cycle_count;
+        let new = self.wrapper.regs().cycle_count.get() as u64;
+        if new < old {
+            self.cycle_count_hi += 1;
+        }
+        let last_cycle_count = new;
+        (self.cycle_count_hi << 32) | new
     }
 
     pub fn jtag_tap_connect(
@@ -1548,6 +1556,8 @@ impl HwModel for ModelFpgaSubsystem {
             waiting: 0,
             stdin_uart: Arc::new(Mutex::new(None)),
             last_recovery_block_written: None,
+            last_cycle_count: 0,
+            cycle_count_hi: 0,
         };
 
         writeln!(eoutput(), "AXI reset")?;
@@ -1816,7 +1826,7 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        let cycle = self.wrapper.regs().cycle_count.get();
+        let cycle = self.cycle_count();
         self.output.sink().set_now(u64::from(cycle));
         &mut self.output
     }
