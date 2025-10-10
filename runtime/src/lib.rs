@@ -282,6 +282,32 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
+
+        let bytes = cmd_id.to_be_bytes();
+        let ascii = {
+            if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
+                None
+            } else {
+                core::str::from_utf8(&bytes).ok()
+            }
+        };
+
+        if let Some(ascii) = ascii {
+            cprintln!(
+                "[rt] Received external command=0x{:x} ({}), len={}",
+                cmd_id,
+                ascii,
+                buffer.len()
+            );
+        } else {
+            // Create human-readable name of command.
+            let bytes = req_packet.cmd.to_be_bytes();
+            cprintln!(
+                "[rt] Received external command=0x{:x}, len={}",
+                cmd_id,
+                buffer.len()
+            );
+        }        
     }
 
     // stage the response once on the stack
