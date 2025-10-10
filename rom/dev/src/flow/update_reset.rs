@@ -117,6 +117,7 @@ impl UpdateResetFlow {
                 dma: &env.dma,
                 persistent_data: env.persistent_data.get(),
                 image_in_mcu,
+                staging_addr,
             };
 
             let info = {

@@ -162,6 +162,7 @@ impl FirmwareProcessor {
             dma: &mut env.dma,
             persistent_data: env.persistent_data.get(),
             image_in_mcu,
+            staging_addr: None,
         };
 
         // Verify the image

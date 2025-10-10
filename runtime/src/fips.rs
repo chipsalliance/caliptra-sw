@@ -122,6 +122,7 @@ pub mod fips_self_test_cmd {
             dma: &env.dma,
             persistent_data: &env.persistent_data.get(),
             image_in_mcu,
+            staging_addr: None,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
