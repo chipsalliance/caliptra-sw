@@ -5,8 +5,6 @@ use caliptra_drivers::{
 };
 
 pub struct KatsEnv<'a> {
-    // SHA1 Engine
-    pub sha1: &'a mut Sha1,
 
     // SHA2-256 Engine
     pub sha256: &'a mut Sha256,
@@ -16,9 +14,6 @@ pub struct KatsEnv<'a> {
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
-
-    // SHA3/SHAKE Engine
-    pub sha3: &'a mut Sha3,
 
     /// Hmac-512/384 Engine
     pub hmac: &'a mut Hmac,

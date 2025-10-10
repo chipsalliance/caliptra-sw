@@ -14,7 +14,6 @@ Abstract:
 
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 
-use crate::cryptographic_mailbox::CmStorage;
 use crate::debug_unlock::ProductionDebugUnlock;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
@@ -83,9 +82,6 @@ pub struct Drivers {
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
-    // SHA3/SHAKE Engine
-    pub sha3: Sha3,
-
     /// Hmac-512/384 Engine
     pub hmac: Hmac,
 
@@ -101,8 +97,6 @@ pub struct Drivers {
     pub persistent_data: PersistentDataAccessor,
 
     pub lms: Lms,
-
-    pub sha1: Sha1,
 
     pub pcr_bank: PcrBank,
 
@@ -122,9 +116,6 @@ pub struct Drivers {
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
     pub exported_cdi_slots: ExportedCdiHandles,
     pub dma: Dma,
-
-    pub cryptographic_mailbox: CmStorage,
-    pub aes: Aes,
 
     pub debug_unlock: ProductionDebugUnlock,
 }
@@ -153,11 +144,9 @@ impl Drivers {
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             mldsa87: Mldsa87::new(AbrReg::new()),
-            sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
@@ -171,17 +160,13 @@ impl Drivers {
             dmtf_device_info: None,
             exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
             dma: Dma::default(),
-            cryptographic_mailbox: CmStorage::new(),
             debug_unlock: ProductionDebugUnlock::new(),
-            aes,
         })
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
-        self.cryptographic_mailbox
-            .init(&self.persistent_data, &mut self.trng)?;
         if self.persistent_data.get().attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
