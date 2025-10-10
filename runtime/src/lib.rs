@@ -288,6 +288,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
     let len = match CommandId::from(cmd_id) {
+        CommandId::ACTIVATE_FIRMWARE => {
+            activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
+        }        
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
