@@ -15,7 +15,6 @@ use caliptra_hw_model::{
 };
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
-use zerocopy::IntoBytes;
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
@@ -222,7 +221,7 @@ fn test_warm_reset_during_update_reset() {
     );
 }
 
-const HW_REV_ID: u32 = 0x102;
+const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
 
 fn test_version(
     hw: &mut DefaultHwModel,
@@ -295,20 +294,10 @@ fn test_warm_reset_version() {
         },
     )
     .unwrap();
-
-    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
-
-    let binding = image.to_bytes().unwrap();
-    let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0], // Equals 7
-            ..Default::default()
-        },
-        fw_image: Some(&binding),
-        ..Default::default()
-    };
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -316,7 +305,16 @@ fn test_warm_reset_version() {
             security_state,
             ..Default::default()
         },
-        boot_params.clone(),
+        BootParams {
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                fmc_key_manifest_svn: 0b1111111,
+                ..Default::default()
+            },
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -334,7 +332,7 @@ fn test_warm_reset_version() {
     );
 
     // Perform warm reset
-    hw.warm_reset_flow(&boot_params).unwrap();
+    hw.warm_reset_flow(&Fuses::default());
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
