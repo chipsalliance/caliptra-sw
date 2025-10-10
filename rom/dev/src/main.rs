@@ -200,7 +200,7 @@ pub extern "C" fn rom_entry() -> ! {
             ecc384: &mut env.ecc384,
 
             // AES Engine
-            aes: &mut env.aes,
+            // aes: &mut env.aes,
 
             // SHA Acc lock state.
             // SHA Acc is guaranteed to be locked on Cold and Warm Resets;

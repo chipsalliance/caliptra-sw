@@ -553,7 +553,7 @@ pub enum MailboxReq {
     FeProg(FeProgReq),
 }
 
-pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
+pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>() + 4; // add extra for a checksum
 
 impl MailboxReq {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
