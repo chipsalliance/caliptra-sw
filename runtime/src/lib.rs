@@ -257,7 +257,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             lo: external_cmd.axi_address_start_low,
             hi: external_cmd.axi_address_start_high,
         };
-        cprintln!("buffer address {:x}", u64::from(axi_addr));
         let buffer = external_cmd_buffer
             .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
@@ -283,12 +282,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
-        cprintln!(
-            "Validated buffer len {}, passing to command {:x}",
-            cmd_bytes.len(),
-            cmd_id
-        );
-        cprintln!("Validated buffer {}", HexBytes(cmd_bytes));
     }
 
     // stage the response once on the stack
@@ -298,6 +291,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 
