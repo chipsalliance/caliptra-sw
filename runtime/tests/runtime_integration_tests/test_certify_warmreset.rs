@@ -9,7 +9,7 @@ use caliptra_common::{
         CertifyKeyExtendedResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
@@ -69,7 +69,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
     );
 
     // --- Extract cert -> SAN -> DMTF OtherName payload bytes (skip 4 DER bytes) ---
-    let ck = CertifyKeyResp::read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
+    let ck = CertifyKeyResp::try_read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
     let (_, cert) = X509Certificate::from_der(&ck.cert[..ck.cert_size as usize]).unwrap();
 
     let dmtf_payload_opt = cert
@@ -219,7 +219,7 @@ fn test_add_subject_alt_name_after_warm_reset() {
 
 fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usize) {
     let ckx = CertifyKeyExtendedResp::read_from_bytes(resp_raw).unwrap();
-    let ck = CertifyKeyResp::read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
+    let ck = CertifyKeyResp::try_read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
     let cert_der = &ck.cert[..ck.cert_size as usize];
     let (_, cert) = X509Certificate::from_der(cert_der).unwrap();
 
