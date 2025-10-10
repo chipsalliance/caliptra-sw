@@ -20,7 +20,7 @@ on:
         default: "main"
         type: string
       runner:
-        default: "[ubuntu-22.04]"
+        default: '["ubuntu-22.04"]'
         type: string
 
 jobs:
