@@ -257,18 +257,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             lo: external_cmd.axi_address_start_low,
             hi: external_cmd.axi_address_start_high,
         };
-        cprintln!(
-            "buffer address {:x} len {} (max len {})",
-            u64::from(axi_addr),
-            external_cmd.command_size,
-            external_cmd_buffer.len() * 4
-        );
         let buffer = external_cmd_buffer
             .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         drivers.dma.read_buffer(axi_addr, buffer);
         cmd_bytes = buffer.as_bytes();
-        cprintln!("caliptra first bytes {}", HexBytes(&cmd_bytes[..16]));
 
         // Verify incoming checksum
         // Make sure enough data was sent to even have a checksum
@@ -289,7 +282,32 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
-        cprintln!("Validated buffer {}", HexBytes(&cmd_bytes[..16]));
+
+        let bytes = cmd_id.to_be_bytes();
+        let ascii = {
+            if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
+                None
+            } else {
+                core::str::from_utf8(&bytes).ok()
+            }
+        };
+
+        if let Some(ascii) = ascii {
+            cprintln!(
+                "[rt] Received external command=0x{:x} ({}), len={}",
+                cmd_id,
+                ascii,
+                buffer.len()
+            );
+        } else {
+            // Create human-readable name of command.
+            let bytes = req_packet.cmd.to_be_bytes();
+            cprintln!(
+                "[rt] Received external command=0x{:x}, len={}",
+                cmd_id,
+                buffer.len()
+            );
+        }
     }
 
     // stage the response once on the stack
