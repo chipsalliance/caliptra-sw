@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
@@ -16,7 +16,12 @@ fn test_rt_journey_pcr_validation() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
@@ -44,6 +49,7 @@ fn test_rt_journey_pcr_validation() {
         InitParams {
             rom: &rom,
             security_state,
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
             ..Default::default()
         },
         boot_params.clone(),
@@ -82,7 +88,12 @@ fn test_mbox_busy_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MBOX,
@@ -110,6 +121,7 @@ fn test_mbox_busy_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
             ..Default::default()
         },
         boot_params.clone(),
@@ -147,7 +159,12 @@ fn test_mbox_idle_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -176,6 +193,7 @@ fn test_mbox_idle_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
             ..Default::default()
         },
         boot_params.clone(),

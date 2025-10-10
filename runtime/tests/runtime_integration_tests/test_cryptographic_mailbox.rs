@@ -2,10 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::common::{
-    assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs, DEFAULT_MCU_FW,
-    DEFAULT_SOC_MANIFEST_BYTES,
-};
+use crate::common::{assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs};
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
@@ -47,6 +44,13 @@ use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
 use zerocopy::{FromBytes, IntoBytes};
+
+#[cfg(feature = "fpga_subsystem")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
+#[cfg(feature = "fpga_realtime")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
 
 #[test]
 fn test_status() {
@@ -635,11 +639,18 @@ fn test_random_generate() {
 
 #[test]
 fn test_random_stir_itrng() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(all(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(InitParams {
             rom: &rom,
             trng_mode: Some(TrngMode::Internal),
+            enable_mcu_uart_log: subsystem_mode,
+            subsystem_mode,
             ..Default::default()
         }),
         ..Default::default()
@@ -2893,7 +2904,7 @@ fn test_ecdsa_sign_verify() {
 
 #[test]
 fn test_derive_stable_key_from_rom() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 
         // derive a stable key from ROM
@@ -2962,17 +2973,8 @@ fn test_derive_stable_key_from_rom() {
         let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
 
         // now step until runtime
-        if subsystem_mode {
-            model
-                .upload_firmware_rri(
-                    &fw_image,
-                    Some(*DEFAULT_SOC_MANIFEST_BYTES),
-                    Some(DEFAULT_MCU_FW),
-                )
-                .unwrap();
-        } else {
-            model.upload_firmware(&fw_image).unwrap();
-        }
+        crate::common::test_upload_firmware(&mut model, &fw_image, FwVerificationPqcKeyType::LMS);
+
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
@@ -3115,7 +3117,7 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
 
 #[test]
 fn test_stable_key_aes_gcm_fips_invalid() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3152,7 +3154,7 @@ fn test_stable_key_aes_gcm_fips_invalid() {
 
 #[test]
 fn test_stable_key_ecdsa_sign_verify_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3198,7 +3200,7 @@ fn test_stable_key_ecdsa_sign_verify_fips_status() {
 
 #[test]
 fn test_stable_key_ecdsa_public_key_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3227,7 +3229,7 @@ fn test_stable_key_ecdsa_public_key_fips_status() {
 
 #[test]
 fn test_stable_key_mldsa_sign_verify_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3274,7 +3276,7 @@ fn test_stable_key_mldsa_sign_verify_fips_status() {
 
 #[test]
 fn test_stable_key_mldsa_public_key_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3311,7 +3313,7 @@ fn test_stable_key_hkdf_fips_status() {
             CmHashAlgorithm::Sha512
         };
 
-        for subsystem_mode in [false, true] {
+        for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
             let mut model = run_rt_test(RuntimeTestArgs {
                 subsystem_mode,
                 ..Default::default()
@@ -3380,7 +3382,7 @@ fn test_stable_key_hmac_fips_status() {
         } else {
             CmHashAlgorithm::Sha512
         };
-        for subsystem_mode in [false, true] {
+        for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
             let mut model = run_rt_test(RuntimeTestArgs {
                 subsystem_mode,
                 ..Default::default()
@@ -3422,7 +3424,7 @@ fn test_stable_key_hmac_fips_status() {
 #[test]
 fn test_stable_key_aes_gcm_spdm_fips_status() {
     // TODO: add subsystem mode for emulator
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3463,7 +3465,7 @@ fn test_stable_key_aes_gcm_spdm_fips_status() {
 
 #[test]
 fn test_stable_key_aes_ctr_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()
@@ -3500,7 +3502,7 @@ fn test_stable_key_aes_ctr_fips_status() {
 // Random encrypt and decrypt CBC stress test.
 #[test]
 fn test_stable_key_aes_cbc_fips_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let mut model = run_rt_test(RuntimeTestArgs {
             subsystem_mode,
             ..Default::default()

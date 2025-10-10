@@ -333,6 +333,7 @@ impl FirmwareProcessor {
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
                     if subsystem_mode {
+                        cprintln!("Received FIRMWARE_LOAD but in subsystem mode");
                         Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_SUBSYSTEM_MODE)?;
                     }
                     cfi_assert_bool(!subsystem_mode);
