@@ -50,7 +50,21 @@ use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_status() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -72,7 +86,21 @@ fn test_status() {
 
 #[test]
 fn test_import() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -151,7 +179,21 @@ fn test_import() {
 
 #[test]
 fn test_import_full() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -197,7 +239,21 @@ fn test_import_full() {
 // Test that we can import more than 2^24 keys as long as we delete them occasionally.
 #[test]
 fn test_import_wraparound() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -240,7 +296,21 @@ fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
 
 #[test]
 fn test_delete() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -260,7 +330,21 @@ fn test_delete() {
 
 #[test]
 fn test_clear() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -293,7 +377,21 @@ fn test_clear() {
 
 #[test]
 fn test_sha384_simple() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -344,7 +442,21 @@ fn test_sha384_simple() {
 
 #[test]
 fn test_sha_partial_update() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -436,7 +548,21 @@ fn test_sha_partial_update() {
 
 #[test]
 fn test_sha_many() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -530,7 +656,21 @@ fn test_sha_many() {
 
 #[test]
 fn test_random_generate() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -732,7 +872,21 @@ fn test_random_stir_itrng() {
 )] // FPGA always has an itrng
 #[test]
 fn test_random_stir_etrng_not_supported() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -760,7 +914,21 @@ fn test_random_stir_etrng_not_supported() {
 
 #[test]
 fn test_aes_gcm_edge_cases() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -821,7 +989,21 @@ fn test_aes_gcm_edge_cases() {
 // Check a simple encryption with 4 bytes of data.
 #[test]
 fn test_aes_gcm_simple() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -904,7 +1086,21 @@ fn test_aes_gcm_random_encrypt_decrypt() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -963,7 +1159,21 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -1032,7 +1242,21 @@ fn test_aes_gcm_spdm_mode() {
     // generate_iv endian (0x0)
     // generate_iv (0xc) - 01 00 00 00 00 00 00 00 00 00 00 00
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -1137,7 +1361,21 @@ fn test_aes_cbc_random_encrypt_decrypt() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -1221,7 +1459,21 @@ fn test_aes_ctr_crypt_1() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -1273,7 +1525,21 @@ fn test_aes_ctr_random_encrypt_decrypt() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -1982,7 +2248,21 @@ fn import_key(model: &mut DefaultHwModel, key: &[u8], key_usage: CmKeyUsage) -> 
 
 #[test]
 fn test_ecdh() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -2069,7 +2349,21 @@ fn test_ecdh() {
 // We can't do HMAC-SHA-512 on a 384-bit key in HW.
 #[test]
 fn test_hmac_cant_use_sha512_on_384_key() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -2109,7 +2403,22 @@ fn test_hmac_random() {
         } else {
             CmHashAlgorithm::Sha512
         };
-        let mut model = run_rt_test(RuntimeTestArgs::default());
+        let subsystem_mode = cfg!(feature = "fpga_subsystem");
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
+        let init_params = InitParams {
+            rom: &rom,
+            enable_mcu_uart_log: subsystem_mode,
+            subsystem_mode,
+            ..Default::default()
+        };
+
+        let mut model = run_rt_test(RuntimeTestArgs {
+            init_params: Some(init_params),
+            subsystem_mode,
+            ..Default::default()
+        });
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
@@ -2175,7 +2484,22 @@ fn test_hmac_kdf_counter_random() {
         } else {
             CmHashAlgorithm::Sha512
         };
-        let mut model = run_rt_test(RuntimeTestArgs::default());
+        let subsystem_mode = cfg!(feature = "fpga_subsystem");
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
+        let init_params = InitParams {
+            rom: &rom,
+            enable_mcu_uart_log: subsystem_mode,
+            subsystem_mode,
+            ..Default::default()
+        };
+
+        let mut model = run_rt_test(RuntimeTestArgs {
+            init_params: Some(init_params),
+            subsystem_mode,
+            ..Default::default()
+        });
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
@@ -2309,7 +2633,22 @@ fn test_hkdf_random() {
         } else {
             CmHashAlgorithm::Sha512
         };
-        let mut model = run_rt_test(RuntimeTestArgs::default());
+        let subsystem_mode = cfg!(feature = "fpga_subsystem");
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
+        let init_params = InitParams {
+            rom: &rom,
+            enable_mcu_uart_log: subsystem_mode,
+            subsystem_mode,
+            ..Default::default()
+        };
+
+        let mut model = run_rt_test(RuntimeTestArgs {
+            init_params: Some(init_params),
+            subsystem_mode,
+            ..Default::default()
+        });
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
@@ -2408,7 +2747,21 @@ fn test_hkdf_random() {
 
 #[test]
 fn test_mldsa_public_key() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -2659,7 +3012,21 @@ impl CryptoRng for SeedOnlyRng {}
 
 #[test]
 fn test_mldsa_sign_verify() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -2746,7 +3113,21 @@ fn test_mldsa_sign_verify() {
 
 #[test]
 fn test_ecdsa_public_key() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -2799,7 +3180,21 @@ fn rustcrypto_ecdsa_sign(priv_key: &[u8; 48], hash: &[u8; 48]) -> ([u8; 48], [u8
 
 #[test]
 fn test_ecdsa_sign_verify() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        enable_mcu_uart_log: subsystem_mode,
+        subsystem_mode,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode,
+        ..Default::default()
+    });
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
