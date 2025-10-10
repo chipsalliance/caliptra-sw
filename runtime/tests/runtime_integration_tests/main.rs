@@ -8,6 +8,8 @@ mod test_cap_warmreset;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_certs_384_warmreset;
+
+mod test_certs_mldsa87_warmreset;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
