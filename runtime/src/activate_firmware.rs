@@ -143,7 +143,7 @@ impl ActivateFirmwareCmd {
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
 
             let mmio = &DmaMmio::new(mci_base_addr, dma);
-
+            unsafe { mmio.write_volatile(MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32, FW_HITLESS_UPD_RESET_MASK) };
             // Trigger MCU reset request
             unsafe {
                 mmio.write_volatile(

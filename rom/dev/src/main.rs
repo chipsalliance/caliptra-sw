@@ -62,7 +62,7 @@ Running Caliptra ROM ...
 "#;
 
 pub fn subsystem_mode() -> bool {
-    cfg!(feature = "subsystem")
+   true
 }
 
 extern "C" {

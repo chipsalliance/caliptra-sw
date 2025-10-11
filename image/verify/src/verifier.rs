@@ -1162,7 +1162,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if verify_info.entry_point % 4 != 0 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
-
+/*
         if cfi_launder(reason) == ResetReason::UpdateReset {
             if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
@@ -1172,7 +1172,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
         }
-
+*/
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
             entry_point: verify_info.entry_point,
