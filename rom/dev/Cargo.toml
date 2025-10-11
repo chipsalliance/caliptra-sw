@@ -65,7 +65,7 @@ zerocopy.workspace = true
 
 [features]
 riscv = []
-default = ["std"]
+default = ["std","subsystem"]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra_common/std",
