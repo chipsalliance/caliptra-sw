@@ -47,6 +47,8 @@ use openssl::{
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
     24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
@@ -207,6 +209,14 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
 
+fn asn1_time_round_to_minute(offset: Duration) -> Asn1Time {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let t = now + offset;
+    let t_secs = t.as_secs() as i64;
+    let rounded = t_secs - (t_secs % 60); // force SS = 00
+    Asn1Time::from_unix(rounded).unwrap()
+}
+
 pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();
     cert_builder.set_version(2).unwrap();
@@ -221,12 +231,12 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder.set_subject_name(&subject_name).unwrap();
     cert_builder.set_issuer_name(&subject_name).unwrap();
     cert_builder.set_pubkey(private_key).unwrap();
-    cert_builder
-        .set_not_before(&Asn1Time::days_from_now(0).unwrap())
-        .unwrap();
-    cert_builder
-        .set_not_after(&Asn1Time::days_from_now(365).unwrap())
-        .unwrap();
+
+    let not_before = asn1_time_round_to_minute(Duration::from_secs(0));
+    let not_after = asn1_time_round_to_minute(Duration::from_secs(365 * 24 * 60 * 60));
+
+    cert_builder.set_not_before(&not_before).unwrap();
+    cert_builder.set_not_after(&not_after).unwrap();
 
     // Use appropriate message digest based on key type
     let digest = match private_key.id() {
