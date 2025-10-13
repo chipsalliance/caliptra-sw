@@ -152,10 +152,6 @@ fn test_get_idev_mldsa87_cert_across_warm_reset() {
     );
 
     assert_x509_semantic_eq(&x509_before, &x509_after);
-    /*  assert_eq!(
-        x509_before, x509_after,
-        "IDev MLDSA cert object changed across warm reset"
-    );*/
 }
 
 fn der_from_ldev_resp(resp: &GetLdevCertResp) -> &[u8] {
@@ -177,15 +173,13 @@ fn get_idev_mldsa87_pubkey(
         .unwrap();
     let idev = GetIdevMldsa87InfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
-    // Build ML-DSA public key for OpenSSL-style verify (via your builder)
+    // Build ML-DSA public key for OpenSSL-style verify
     PKeyMlDsaBuilder::<Public>::new(Variant::MlDsa87, &idev.idev_pub_key, None)
         .unwrap()
         .build()
         .unwrap()
 }
 
-/// Your existing helper from the prompt; included here for completeness.
-/// (If already defined elsewhere, just re-use.)
 fn get_ldev_mldsa_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     let payload = MailboxReqHeader {
         chksum: calc_checksum(u32::from(CommandId::GET_LDEV_MLDSA87_CERT), &[]),
@@ -438,7 +432,6 @@ fn test_get_idev_mldsa87_info_after_warm_reset() {
     let pk_before_der = pk_before.public_key_to_der().unwrap();
     assert!(!pk_before_der.is_empty(), "empty IDev MLDSA87 DER (before)");
 
-    // (Optional but recommended, mirrors your ECC chain check)
     // Verify the LDev cert under the IDev key (before)
     let ldev_before_resp: GetLdevCertResp = get_ldev_mldsa_cert(&mut model);
     let ldev_before =
@@ -476,7 +469,7 @@ fn test_get_idev_mldsa87_info_after_warm_reset() {
         "LDev cert failed under IDev key (after)"
     );
 
-    // ----- Stability checks across warm reset (mirrors your ECC assertions) -----
+    // ----- Stability checks across warm reset ----
     assert_eq!(
         info_before.idev_pub_key, info_after.idev_pub_key,
         "IDev MLDSA87 public key bytes changed"
