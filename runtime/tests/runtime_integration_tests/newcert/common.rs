@@ -473,6 +473,7 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }
+
 pub struct BuildArgs {
     pub security_state: SecurityState,
     pub fmc_version: u16,

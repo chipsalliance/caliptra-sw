@@ -10,17 +10,15 @@ use caliptra_common::{
         CommandId, GetIdevCertResp, GetIdevMldsa87CertReq, GetIdevMldsa87InfoResp, GetLdevCertResp,
         MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
+    x509::get_tbs,
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use zerocopy::{FromBytes, IntoBytes};
 
-use caliptra_common::x509::get_tbs;
-
-use openssl::x509::X509;
-
 use openssl::{
     pkey::{PKey, Private, Public},
     pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant},
+    x509::X509,
 };
 
 /// Single-shot helper: build request, call GET_IDEV_MLDSA87_CERT, verify + parse.
@@ -340,7 +338,6 @@ fn test_get_rt_alias_mldsa87_cert_after_warm_reset() {
     let (mut model, _, _, _) = build_ready_runtime_model(args);
 
     // ---------- BEFORE warm reset ----------
-    // FMC-alias (issuer of RT-alias)
     let fmc_before = {
         let r = get_mldsa_fmc_alias_cert(&mut model);
         X509::from_der(&r.data[..r.data_size as usize]).unwrap()
