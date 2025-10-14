@@ -135,9 +135,6 @@ fn test_dbg_unlock_prod_success() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -346,9 +343,6 @@ fn test_dbg_unlock_prod_invalid_length() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -467,9 +461,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -645,9 +636,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -812,9 +800,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -933,9 +918,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         };
 
         let mut model = run_rt_test(runtime_args);
-        model
-            .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-            .unwrap();
 
         // Set the request bit
         model
