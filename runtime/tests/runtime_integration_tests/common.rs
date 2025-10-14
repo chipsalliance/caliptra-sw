@@ -128,6 +128,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
+    pub successful_reach_rt: bool,
 }
 
 // clippy gets confused about cfg(feature = "...")
@@ -148,6 +149,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            successful_reach_rt: true,
         }
     }
 }
@@ -156,8 +158,19 @@ pub fn run_rt_test_pqc(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
+    let successful_reach_rt = args.successful_reach_rt;
     let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    if successful_reach_rt {
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    } else {
+        model.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+    }
+
     model
 }
 
