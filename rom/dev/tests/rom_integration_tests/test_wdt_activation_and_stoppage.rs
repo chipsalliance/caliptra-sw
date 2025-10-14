@@ -3,9 +3,7 @@
 use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::rom_tests::TEST_FMC_INTERACTIVE,
-    firmware::{self, APP_WITH_UART},
-    ImageOptions,
+    firmware::rom_tests::TEST_FMC_INTERACTIVE, firmware::APP_WITH_UART, ImageOptions,
 };
 use caliptra_common::RomBootStatus::{self, KatStarted};
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, SecurityState};
@@ -33,8 +31,7 @@ fn test_wdt_activation_and_stoppage() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env())
-            .unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             caliptra_hw_model::InitParams {
                 rom: &rom,
@@ -67,12 +64,10 @@ fn test_wdt_activation_and_stoppage() {
                 .read()
                 .ready_for_mb_processing()
         });
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
 
         // Keep going until we jump to fake FMC
-        hw.step_until_output_contains("Running Caliptra FMC")
-            .unwrap();
+        crate::helpers::wait_until_test_fmc(&mut hw).unwrap();
 
         // Make sure the wdt1 timer is enabled.
         assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
@@ -85,7 +80,7 @@ fn test_wdt_not_enabled_on_debug_part() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
@@ -114,7 +109,7 @@ fn test_rom_wdt_timeout() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
