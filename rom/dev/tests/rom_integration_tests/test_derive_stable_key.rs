@@ -8,7 +8,7 @@ use caliptra_api::mailbox::{
     MailboxRespHeaderVarSize, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
+    firmware::{rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::{
@@ -18,12 +18,20 @@ use caliptra_common::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use hmac::{Hmac, Mac};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sha2::Sha512;
 use zerocopy::{FromBytes, IntoBytes};
 
 const DOT_KEY_TYPES: [CmStableKeyType; 2] = [CmStableKeyType::IDevId, CmStableKeyType::LDevId];
+
+#[cfg(feature = "fpga_subsystem")]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
+#[cfg(feature = "fpga_realtime")]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
 
 fn decrypt_cmk(key: &[u8], cmk: &EncryptedCmk) -> Option<UnencryptedCmk> {
     use aes_gcm::KeyInit;
@@ -71,9 +79,9 @@ fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
 
 #[test]
 fn test_derive_stable_key() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for key_type in DOT_KEY_TYPES.iter() {
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -159,12 +167,11 @@ fn test_derive_stable_key() {
             assert_eq!(resp.hdr.hdr.fips_status, expected_fips_status);
             let expected_mac = resp.mac;
 
-            if subsystem_mode {
-                hw.upload_firmware_rri(image_bundle.as_bytes(), None, None)
-                    .unwrap();
-            } else {
-                hw.upload_firmware(image_bundle.as_bytes()).unwrap();
-            }
+            crate::helpers::test_upload_firmware(
+                &mut hw,
+                image_bundle.as_bytes(),
+                FwVerificationPqcKeyType::MLDSA,
+            );
             hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
             let result = hw.mailbox_execute(0x1000_0012, &[]);

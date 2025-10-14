@@ -3,7 +3,6 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
-        self,
         rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
         APP_WITH_UART,
     },
@@ -25,7 +24,7 @@ use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
-use crate::helpers;
+use crate::helpers::{self, assert_fatal_fw_load};
 
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
@@ -36,21 +35,23 @@ fn test_zero_firmware_size() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // Zero-sized firmware.
-    assert_eq!(
-        hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE))
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(LDevIdDerivationComplete)
-    );
+    let error = if hw.subsystem_mode() {
+        CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
+    } else {
+        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE
+    };
+    assert_fatal_fw_load(&mut hw, FwVerificationPqcKeyType::LMS, &[], error);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), u32::from(error));
+    if !hw.subsystem_mode() {
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(LDevIdDerivationComplete)
+        );
+    }
 }
 
 #[test]
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_firmware_gt_max_size() {
     // Firmware size > 128 KB.
 
@@ -148,7 +149,7 @@ fn test_pcr_log() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -176,8 +177,7 @@ fn test_pcr_log() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -259,7 +259,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -285,8 +285,11 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -359,7 +362,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -386,8 +389,11 @@ fn test_pcr_log_fmc_fuse_svn() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -507,7 +513,7 @@ fn test_pcr_log_across_update_reset() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -534,8 +540,11 @@ fn test_pcr_log_across_update_reset() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -611,7 +620,7 @@ fn test_fuse_log() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -638,9 +647,11 @@ fn test_fuse_log() {
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap();
 
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
+    crate::helpers::test_upload_firmware(
+        &mut hw,
+        &image_bundle.to_bytes().unwrap(),
+        FwVerificationPqcKeyType::LMS,
+    );
     hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let fuse_entry_arr = hw.mailbox_execute(0x1000_0002, &[]).unwrap().unwrap();
@@ -758,7 +769,7 @@ fn test_fht_info() {
             ..Default::default()
         };
 
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -777,8 +788,11 @@ fn test_fht_info() {
             image_options,
         )
         .unwrap();
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -800,7 +814,7 @@ fn test_check_rom_cold_boot_status_reg() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -821,8 +835,11 @@ fn test_check_rom_cold_boot_status_reg() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -847,7 +864,7 @@ fn test_upload_single_measurement() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -889,8 +906,11 @@ fn test_upload_single_measurement() {
 
         hw.upload_measurement(measurement.as_bytes()).unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -924,7 +944,7 @@ fn test_upload_measurement_limit() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -972,8 +992,11 @@ fn test_upload_measurement_limit() {
             hw.upload_measurement(measurement.as_bytes()).unwrap();
         }
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
@@ -1006,7 +1029,7 @@ fn test_upload_measurement_limit() {
 #[test]
 fn test_upload_measurement_limit_plus_one() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -1077,7 +1100,7 @@ fn test_upload_no_measurement() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -1098,8 +1121,11 @@ fn test_upload_no_measurement() {
         )
         .unwrap();
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
