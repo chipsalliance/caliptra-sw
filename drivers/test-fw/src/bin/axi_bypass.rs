@@ -37,10 +37,9 @@ fn test_axi_bypass() {
 
     let caliptra_base = AxiAddr::from(soc_ifc.caliptra_base_axi_addr());
     let recovery_base = AxiAddr::from(soc_ifc.recovery_interface_base_addr());
-    let mci_base = soc_ifc.mci_base_addr();
+    let mci_base = AxiAddr::from(soc_ifc.mci_base_addr());
 
-    let dma_recovery =
-        DmaRecovery::new(recovery_base, caliptra_base, AxiAddr::from(mci_base), &dma);
+    let dma_recovery = DmaRecovery::new(recovery_base, caliptra_base, mci_base, &dma);
     dma_recovery
         .set_device_status(DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
         .unwrap();
