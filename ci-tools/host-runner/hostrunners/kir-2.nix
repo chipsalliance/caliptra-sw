@@ -35,7 +35,7 @@
         ''ZCU_SDWIRE="1-1.2.1.2"''
         ''IDENTIFIER="caliptra-kir-vck190-5"''
         ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/ci-images/vck190.img"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-core.img"''
       ];
     };
   };
@@ -73,7 +73,7 @@
         ''ZCU_SDWIRE="1-1.3"''
         ''IDENTIFIER="caliptra-kir-vck190-2"''
         ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/ci-images/vck190.img"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-core.img"''
       ];
     };
   };
