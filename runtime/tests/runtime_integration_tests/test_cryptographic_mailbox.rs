@@ -28,7 +28,7 @@ use caliptra_api::mailbox::{
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
-use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
+use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel, InitParams, TrngMode};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use cbc::cipher::BlockEncryptMut;
@@ -2781,4 +2781,1676 @@ fn test_derive_stable_key() {
     let fw_hmac_fw_cmk: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
 
     assert_eq!(rom_hmac, fw_hmac_fw_cmk);
+}
+
+#[test]
+fn test_import_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        input_size: 1000,
+        input: [0xaa; 64],
+    });
+    assert_eq!(
+        cm_import_cmd.populate_chksum().unwrap_err(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+    );
+
+    // wrong size
+    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        input_size: 64,
+        input: [0xaa; 64],
+    });
+    cm_import_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_IMPORT),
+            cm_import_cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+        resp,
+    );
+
+    // AES key import
+    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        input_size: 32,
+        input: [0xaa; 64],
+    });
+    cm_import_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_IMPORT),
+            cm_import_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
+    let cmk = cm_import_resp.cmk.as_bytes();
+    assert_eq!(CMK_SIZE_BYTES, cmk.len());
+    assert!(!cmk.iter().all(|&x| x == 0));
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
+    };
+    let status_resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
+    assert_eq!(cm_resp.used_usage_storage, 1);
+    assert_eq!(cm_resp.total_usage_storage, 256);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // AES key import
+    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        input_size: 32,
+        input: [0xaa; 64],
+    });
+    cm_import_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_IMPORT),
+            cm_import_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
+    let cmk = cm_import_resp.cmk.as_bytes();
+    assert_eq!(CMK_SIZE_BYTES, cmk.len());
+    assert!(!cmk.iter().all(|&x| x == 0));
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
+    };
+    let status_resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
+    assert_eq!(cm_resp.used_usage_storage, 1);
+    assert_eq!(cm_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_delete_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 1);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    delete_key(&mut model, &cmk);
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 1);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    delete_key(&mut model, &cmk);
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_clear_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmClear(MailboxReqHeader::default());
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..256 {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+    }
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 256);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    model
+        .mailbox_execute(u32::from(CommandId::CM_CLEAR), req)
+        .unwrap()
+        .expect("We should have received a response");
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..256 {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+    }
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 256);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    model
+        .mailbox_execute(u32::from(CommandId::CM_CLEAR), req)
+        .unwrap()
+        .expect("We should have received a response");
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_status_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_resp = CmStatusResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(cm_resp.used_usage_storage, 0);
+    assert_eq!(cm_resp.total_usage_storage, 256);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_resp = CmStatusResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(cm_resp.used_usage_storage, 0);
+    assert_eq!(cm_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_sha384_simple_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let input_data = "a".repeat(129);
+    let input_data = input_data.as_bytes();
+
+    // Simple case
+    let mut req = CmShaInitReq {
+        hash_algorithm: 1, // SHA384
+        input_size: input_data.len() as u32,
+        ..Default::default()
+    };
+    req.input[..input_data.len()].copy_from_slice(input_data);
+
+    let mut init = MailboxReq::CmShaInit(req);
+    init.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(u32::from(CommandId::CM_SHA_INIT), init.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a context");
+    let resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let req = CmShaFinalReq {
+        context: resp.context,
+        ..Default::default()
+    };
+
+    let mut fin = MailboxReq::CmShaFinal(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(u32::from(CommandId::CM_SHA_FINAL), fin.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a context");
+
+    let mut expected_resp = CmShaFinalResp::default();
+    expected_resp.hdr.data_len = 48;
+
+    let mut hasher = Sha384::new();
+    hasher.update(input_data);
+    let expected_hash = hasher.finalize();
+    expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
+    populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+    let expected_bytes = expected_resp.as_bytes_partial().unwrap();
+    assert_eq!(expected_bytes, resp_bytes);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Simple case
+    let mut req = CmShaInitReq {
+        hash_algorithm: 1, // SHA384
+        input_size: input_data.len() as u32,
+        ..Default::default()
+    };
+    req.input[..input_data.len()].copy_from_slice(input_data);
+
+    let mut init = MailboxReq::CmShaInit(req);
+    init.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(u32::from(CommandId::CM_SHA_INIT), init.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a context");
+    let resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let req = CmShaFinalReq {
+        context: resp.context,
+        ..Default::default()
+    };
+
+    let mut fin = MailboxReq::CmShaFinal(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(u32::from(CommandId::CM_SHA_FINAL), fin.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a context");
+
+    let mut expected_resp = CmShaFinalResp::default();
+    expected_resp.hdr.data_len = 48;
+
+    let mut hasher = Sha384::new();
+    hasher.update(input_data);
+    let expected_hash = hasher.finalize();
+    expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
+    populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+    let expected_bytes = expected_resp.as_bytes_partial().unwrap();
+    assert_eq!(expected_bytes, resp_bytes);
+}
+
+#[test]
+fn test_sha_many_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check sha384 and sha512
+    for sha in [1, 2] {
+        // 467 is a prime so should exercise different edge cases in sizes but not take too long
+        for i in (0..MAX_CMB_DATA_SIZE * 4).step_by(467) {
+            let input_str = "a".repeat(i);
+            let input_copy = input_str.clone();
+            let original_input_data = input_copy.as_bytes();
+            let mut input_data = input_str.as_bytes().to_vec();
+            let mut input_data = input_data.as_mut_slice();
+
+            let process = input_data.len().min(MAX_CMB_DATA_SIZE);
+
+            let mut req: CmShaInitReq = CmShaInitReq {
+                hash_algorithm: sha,
+                input_size: process as u32,
+                ..Default::default()
+            };
+            req.input[..process].copy_from_slice(&input_data[..process]);
+            input_data = &mut input_data[process..];
+
+            let mut init = MailboxReq::CmShaInit(req);
+            init.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_SHA_INIT), init.as_bytes().unwrap())
+                .unwrap()
+                .expect("Should have gotten a context");
+            let mut resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+            let mut resp_bytes: Vec<u8>;
+
+            while input_data.len() > MAX_CMB_DATA_SIZE {
+                let mut req = CmShaUpdateReq {
+                    input_size: MAX_CMB_DATA_SIZE as u32,
+                    context: resp.context,
+                    ..Default::default()
+                };
+                req.input.copy_from_slice(&input_data[..MAX_CMB_DATA_SIZE]);
+
+                let mut update = MailboxReq::CmShaUpdate(req);
+                update.populate_chksum().unwrap();
+                resp_bytes = model
+                    .mailbox_execute(
+                        u32::from(CommandId::CM_SHA_UPDATE),
+                        update.as_bytes().unwrap(),
+                    )
+                    .unwrap()
+                    .expect("Should have gotten a context");
+
+                resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+                input_data = &mut input_data[MAX_CMB_DATA_SIZE..];
+            }
+
+            let mut req = CmShaFinalReq {
+                input_size: input_data.len() as u32,
+                context: resp.context,
+                ..Default::default()
+            };
+            req.input[..input_data.len()].copy_from_slice(input_data);
+
+            let mut fin = MailboxReq::CmShaFinal(req);
+            fin.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_SHA_FINAL), fin.as_bytes().unwrap())
+                .unwrap()
+                .expect("Should have gotten a context");
+
+            let mut expected_resp = CmShaFinalResp::default();
+            if sha == 1 {
+                let mut hasher = Sha384::new();
+                hasher.update(original_input_data);
+                let expected_hash = hasher.finalize();
+                expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
+                expected_resp.hdr.data_len = 48;
+            } else {
+                let mut hasher = Sha512::new();
+                hasher.update(original_input_data);
+                let expected_hash = hasher.finalize();
+                expected_resp.hash.copy_from_slice(expected_hash.as_bytes());
+                expected_resp.hdr.data_len = 64;
+            };
+            populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+            let expected_bytes = expected_resp.as_bytes_partial().unwrap();
+            assert_eq!(expected_bytes, resp_bytes);
+        }
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check sha384 and sha512
+    for sha in [1, 2] {
+        // 467 is a prime so should exercise different edge cases in sizes but not take too long
+        for i in (0..MAX_CMB_DATA_SIZE * 4).step_by(467) {
+            let input_str = "a".repeat(i);
+            let input_copy = input_str.clone();
+            let original_input_data = input_copy.as_bytes();
+            let mut input_data = input_str.as_bytes().to_vec();
+            let mut input_data = input_data.as_mut_slice();
+
+            let process = input_data.len().min(MAX_CMB_DATA_SIZE);
+
+            let mut req: CmShaInitReq = CmShaInitReq {
+                hash_algorithm: sha,
+                input_size: process as u32,
+                ..Default::default()
+            };
+            req.input[..process].copy_from_slice(&input_data[..process]);
+            input_data = &mut input_data[process..];
+
+            let mut init = MailboxReq::CmShaInit(req);
+            init.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_SHA_INIT), init.as_bytes().unwrap())
+                .unwrap()
+                .expect("Should have gotten a context");
+            let mut resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+            let mut resp_bytes: Vec<u8>;
+
+            while input_data.len() > MAX_CMB_DATA_SIZE {
+                let mut req = CmShaUpdateReq {
+                    input_size: MAX_CMB_DATA_SIZE as u32,
+                    context: resp.context,
+                    ..Default::default()
+                };
+                req.input.copy_from_slice(&input_data[..MAX_CMB_DATA_SIZE]);
+
+                let mut update = MailboxReq::CmShaUpdate(req);
+                update.populate_chksum().unwrap();
+                resp_bytes = model
+                    .mailbox_execute(
+                        u32::from(CommandId::CM_SHA_UPDATE),
+                        update.as_bytes().unwrap(),
+                    )
+                    .unwrap()
+                    .expect("Should have gotten a context");
+
+                resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+                input_data = &mut input_data[MAX_CMB_DATA_SIZE..];
+            }
+
+            let mut req = CmShaFinalReq {
+                input_size: input_data.len() as u32,
+                context: resp.context,
+                ..Default::default()
+            };
+            req.input[..input_data.len()].copy_from_slice(input_data);
+
+            let mut fin = MailboxReq::CmShaFinal(req);
+            fin.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_SHA_FINAL), fin.as_bytes().unwrap())
+                .unwrap()
+                .expect("Should have gotten a context");
+
+            let mut expected_resp = CmShaFinalResp::default();
+            if sha == 1 {
+                let mut hasher = Sha384::new();
+                hasher.update(original_input_data);
+                let expected_hash = hasher.finalize();
+                expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
+                expected_resp.hdr.data_len = 48;
+            } else {
+                let mut hasher = Sha512::new();
+                hasher.update(original_input_data);
+                let expected_hash = hasher.finalize();
+                expected_resp.hash.copy_from_slice(expected_hash.as_bytes());
+                expected_resp.hdr.data_len = 64;
+            };
+            populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+            let expected_bytes = expected_resp.as_bytes_partial().unwrap();
+            assert_eq!(expected_bytes, resp_bytes);
+        }
+    }
+}
+
+#[test]
+fn test_random_generate_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: u32::MAX,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
+    // 0 bytes
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 0,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp::default();
+    const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+    resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
+    assert_eq!(resp.hdr.data_len, 0);
+    assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
+
+    // 1 byte
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 1,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert_eq!(len, 1);
+    resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+    // We can't check if it is non-zero because it will randomly be 0 sometimes.
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+            hdr: MailboxReqHeader::default(),
+            size: req_len as u32,
+        });
+        cm_random_generate.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_GENERATE),
+                cm_random_generate.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let mut resp = CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        assert_eq!(len, req_len);
+        resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+        assert!(
+            resp.data[..len]
+                .iter()
+                .copied()
+                .reduce(|a, b| (a | b))
+                .unwrap()
+                != 0
+        );
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: u32::MAX,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
+    // 0 bytes
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 0,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    assert_eq!(resp.hdr.data_len, 0);
+    assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
+
+    // 1 byte
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 1,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert_eq!(len, 1);
+    resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+    // We can't check if it is non-zero because it will randomly be 0 sometimes.
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+            hdr: MailboxReqHeader::default(),
+            size: req_len as u32,
+        });
+        cm_random_generate.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_GENERATE),
+                cm_random_generate.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let mut resp = CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        assert_eq!(len, req_len);
+        resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+        assert!(
+            resp.data[..len]
+                .iter()
+                .copied()
+                .reduce(|a, b| (a | b))
+                .unwrap()
+                != 0
+        );
+    }
+}
+
+#[test]
+fn test_random_stir_itrng_warm_reset() {
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: u32::MAX,
+        ..Default::default()
+    });
+    assert_eq!(
+        cm_random_stir.populate_chksum().unwrap_err(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+    );
+
+    // 0 bytes
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 0,
+        ..Default::default()
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    // 1 byte
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 1,
+        input: [0xff; MAX_CMB_DATA_SIZE],
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+            hdr: MailboxReqHeader::default(),
+            input_size: req_len as u32,
+            input: [0xff; MAX_CMB_DATA_SIZE],
+        });
+        cm_random_stir.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_STIR),
+                cm_random_stir.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        // There's nothing we can really check other than success.
+        let _ = MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()])
+            .unwrap();
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: u32::MAX,
+        ..Default::default()
+    });
+    assert_eq!(
+        cm_random_stir.populate_chksum().unwrap_err(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+    );
+
+    // 0 bytes
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 0,
+        ..Default::default()
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    // 1 byte
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 1,
+        input: [0xff; MAX_CMB_DATA_SIZE],
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+            hdr: MailboxReqHeader::default(),
+            input_size: req_len as u32,
+            input: [0xff; MAX_CMB_DATA_SIZE],
+        });
+        cm_random_stir.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_STIR),
+                cm_random_stir.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        // There's nothing we can really check other than success.
+        let _ = MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()])
+            .unwrap();
+    }
+}
+
+#[test]
+fn test_aes_cbc_random_encrypt_decrypt_warm_reset() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    const KEYS: usize = 16;
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng
+            .gen_range(0..MAX_CMB_DATA_SIZE * 3)
+            .next_multiple_of(AES_BLOCK_SIZE_BYTES);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let (iv, ciphertext) = mailbox_aes_encrypt(
+            &mut model,
+            &cmks[key_idx],
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+            CmAesMode::Cbc,
+        );
+        let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        let dplaintext = mailbox_aes_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &ciphertext,
+            MAX_CMB_DATA_SIZE,
+            CmAesMode::Cbc,
+        );
+        assert_eq!(dplaintext, plaintext);
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng
+            .gen_range(0..MAX_CMB_DATA_SIZE * 3)
+            .next_multiple_of(AES_BLOCK_SIZE_BYTES);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let (iv, ciphertext) = mailbox_aes_encrypt(
+            &mut model,
+            &cmks[key_idx],
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+            CmAesMode::Cbc,
+        );
+        let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        let dplaintext = mailbox_aes_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &ciphertext,
+            MAX_CMB_DATA_SIZE,
+            CmAesMode::Cbc,
+        );
+        assert_eq!(dplaintext, plaintext);
+    }
+}
+
+#[test]
+fn test_aes_gcm_random_encrypt_decrypt_warm_reset() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    const KEYS: usize = 16;
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE * 3);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let aad_len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+        let mut aad = vec![0u8; aad_len];
+        seeded_rng.fill_bytes(&mut aad);
+
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+            &mut model,
+            &cmks[key_idx],
+            &aad,
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+        );
+        let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        assert_eq!(tag, rtag);
+        let (dtag, dplaintext) = mailbox_gcm_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &aad,
+            &ciphertext,
+            &tag,
+            MAX_CMB_DATA_SIZE,
+        );
+        assert_eq!(dplaintext, plaintext);
+        assert!(dtag);
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE * 3);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let aad_len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+        let mut aad = vec![0u8; aad_len];
+        seeded_rng.fill_bytes(&mut aad);
+
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+            &mut model,
+            &cmks[key_idx],
+            &aad,
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+        );
+        let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        assert_eq!(tag, rtag);
+        let (dtag, dplaintext) = mailbox_gcm_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &aad,
+            &ciphertext,
+            &tag,
+            MAX_CMB_DATA_SIZE,
+        );
+        assert_eq!(dplaintext, plaintext);
+        assert!(dtag);
+    }
+}
+
+#[test]
+fn test_ecdh_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp = CmEcdhGenerateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Calculate our side of the exchange and the shared secret.
+    // Based on the flow in https://wiki.openssl.org/index.php/Elliptic_Curve_Diffie_Hellman.
+    let mut bn_ctx = openssl::bn::BigNumContext::new().unwrap();
+    let curve = openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::SECP384R1).unwrap();
+    let mut a_exchange_data = vec![4];
+    a_exchange_data.extend_from_slice(&resp.exchange_data);
+    let a_public_point =
+        openssl::ec::EcPoint::from_bytes(&curve, &a_exchange_data, &mut bn_ctx).unwrap();
+    let a_key = openssl::ec::EcKey::from_public_key(&curve, &a_public_point).unwrap();
+
+    let b_key = openssl::ec::EcKey::generate(&curve).unwrap();
+    let b_exchange_data = &b_key
+        .public_key()
+        .to_bytes(
+            &curve,
+            openssl::ec::PointConversionForm::UNCOMPRESSED,
+            &mut bn_ctx,
+        )
+        .unwrap()[1..];
+    let a_pkey = openssl::pkey::PKey::from_ec_key(a_key).unwrap();
+    let b_pkey = openssl::pkey::PKey::from_ec_key(b_key).unwrap();
+    let mut deriver = openssl::derive::Deriver::new(&b_pkey).unwrap();
+    deriver.set_peer(&a_pkey).unwrap();
+    let shared_secret = deriver.derive_to_vec().unwrap();
+
+    // calculate the shared secret using the cryptographic mailbox
+    let mut send_exchange_data = [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE];
+    send_exchange_data[..b_exchange_data.len()].copy_from_slice(b_exchange_data);
+    let req = CmEcdhFinishReq {
+        context: resp.context,
+        key_usage: CmKeyUsage::Aes.into(),
+        incoming_exchange_data: send_exchange_data,
+        ..Default::default()
+    };
+    let mut fin = MailboxReq::CmEcdhFinish(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(fin.cmd_code().into(), fin.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+
+    let resp = CmEcdhFinishResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let cmk = &resp.output;
+
+    // use the CMK shared secret to AES encrypt a known plaintext.
+    let plaintext = [0u8; 16];
+    let (iv, tag, ciphertext) =
+        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+    // encrypt with RustCrypto and check if everything matches
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
+
+    // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+    assert_eq!(ciphertext, rciphertext);
+    assert_eq!(tag, rtag);
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp = CmEcdhGenerateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Calculate our side of the exchange and the shared secret.
+    // Based on the flow in https://wiki.openssl.org/index.php/Elliptic_Curve_Diffie_Hellman.
+    let mut bn_ctx = openssl::bn::BigNumContext::new().unwrap();
+    let curve = openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::SECP384R1).unwrap();
+    let mut a_exchange_data = vec![4];
+    a_exchange_data.extend_from_slice(&resp.exchange_data);
+    let a_public_point =
+        openssl::ec::EcPoint::from_bytes(&curve, &a_exchange_data, &mut bn_ctx).unwrap();
+    let a_key = openssl::ec::EcKey::from_public_key(&curve, &a_public_point).unwrap();
+
+    let b_key = openssl::ec::EcKey::generate(&curve).unwrap();
+    let b_exchange_data = &b_key
+        .public_key()
+        .to_bytes(
+            &curve,
+            openssl::ec::PointConversionForm::UNCOMPRESSED,
+            &mut bn_ctx,
+        )
+        .unwrap()[1..];
+    let a_pkey = openssl::pkey::PKey::from_ec_key(a_key).unwrap();
+    let b_pkey = openssl::pkey::PKey::from_ec_key(b_key).unwrap();
+    let mut deriver = openssl::derive::Deriver::new(&b_pkey).unwrap();
+    deriver.set_peer(&a_pkey).unwrap();
+    let shared_secret = deriver.derive_to_vec().unwrap();
+
+    // calculate the shared secret using the cryptographic mailbox
+    let mut send_exchange_data = [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE];
+    send_exchange_data[..b_exchange_data.len()].copy_from_slice(b_exchange_data);
+    let req = CmEcdhFinishReq {
+        context: resp.context,
+        key_usage: CmKeyUsage::Aes.into(),
+        incoming_exchange_data: send_exchange_data,
+        ..Default::default()
+    };
+    let mut fin = MailboxReq::CmEcdhFinish(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(fin.cmd_code().into(), fin.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+
+    let resp = CmEcdhFinishResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let cmk = &resp.output;
+
+    // use the CMK shared secret to AES encrypt a known plaintext.
+    let plaintext = [0u8; 16];
+    let (iv, tag, ciphertext) =
+        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+    // encrypt with RustCrypto and check if everything matches
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
+
+    // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+    assert_eq!(ciphertext, rciphertext);
+    assert_eq!(tag, rtag);
+}
+
+#[test]
+fn test_hmac_random_warm_reset() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac = CmHmacReq {
+                cmk: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                data_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac.data[..len].copy_from_slice(&data);
+            let mut cm_hmac = MailboxReq::CmHmac(cm_hmac);
+            cm_hmac.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_HMAC), cm_hmac.as_bytes().unwrap())
+                .expect("Should have succeeded")
+                .unwrap();
+            const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            assert_eq!(len, resp.hdr.data_len as usize);
+            let expected_hmac = rustcrypto_hmac(hash_algorithm, &keys[key_idx], &data);
+            assert_eq!(resp.mac[..len], expected_hmac);
+        }
+
+        // Perform warm reset
+        model.warm_reset_flow(&Fuses::default());
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac = CmHmacReq {
+                cmk: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                data_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac.data[..len].copy_from_slice(&data);
+            let mut cm_hmac = MailboxReq::CmHmac(cm_hmac);
+            cm_hmac.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_HMAC), cm_hmac.as_bytes().unwrap())
+                .expect("Should have succeeded")
+                .unwrap();
+            const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            assert_eq!(len, resp.hdr.data_len as usize);
+            let expected_hmac = rustcrypto_hmac(hash_algorithm, &keys[key_idx], &data);
+            assert_eq!(resp.mac[..len], expected_hmac);
+        }
+    }
+}
+
+#[test]
+fn test_hmac_kdf_counter_random_warm_reset() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac_kdf = CmHmacKdfCounterReq {
+                kin: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                label_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac_kdf.label[..len].copy_from_slice(&data);
+            let mut cm_hmac_kdf = MailboxReq::CmHmacKdfCounter(cm_hmac_kdf);
+            cm_hmac_kdf.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HMAC_KDF_COUNTER),
+                    cm_hmac_kdf.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.kout;
+
+            let key = rustcrypto_hmac_hkdf_counter(hash_algorithm, &keys[key_idx], &data);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
+
+        // Perform warm reset
+        model.warm_reset_flow(&Fuses::default());
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac_kdf = CmHmacKdfCounterReq {
+                kin: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                label_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac_kdf.label[..len].copy_from_slice(&data);
+            let mut cm_hmac_kdf = MailboxReq::CmHmacKdfCounter(cm_hmac_kdf);
+            cm_hmac_kdf.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HMAC_KDF_COUNTER),
+                    cm_hmac_kdf.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.kout;
+
+            let key = rustcrypto_hmac_hkdf_counter(hash_algorithm, &keys[key_idx], &data);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
+    }
+}
+
+#[test]
+fn test_hkdf_random_warm_reset() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..25 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let salt_len = seeded_rng.gen_range(0..size);
+            let mut salt = [0u8; 64];
+            seeded_rng.fill_bytes(&mut salt[..salt_len]);
+
+            let salt_cmk = import_key(&mut model, &salt[..size], CmKeyUsage::Hmac);
+
+            let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                ikm: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                salt: salt_cmk,
+                ..Default::default()
+            });
+            cm_hkdf_extract.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXTRACT),
+                    cm_hkdf_extract.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut info = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut info);
+
+            let mut cm_hkdf_expand = CmHkdfExpandReq {
+                prk: resp.prk.clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                info_size: len as u32,
+                ..Default::default()
+            };
+            cm_hkdf_expand.info[..len].copy_from_slice(&info);
+            let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
+            cm_hkdf_expand.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXPAND),
+                    cm_hkdf_expand.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.okm;
+            let key = rustcrypto_hkdf(hash_algorithm, &keys[key_idx], &salt[..salt_len], &info);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
+
+        // Perform warm reset
+        model.warm_reset_flow(&Fuses::default());
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..25 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let salt_len = seeded_rng.gen_range(0..size);
+            let mut salt = [0u8; 64];
+            seeded_rng.fill_bytes(&mut salt[..salt_len]);
+
+            let salt_cmk = import_key(&mut model, &salt[..size], CmKeyUsage::Hmac);
+
+            let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                ikm: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                salt: salt_cmk,
+                ..Default::default()
+            });
+            cm_hkdf_extract.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXTRACT),
+                    cm_hkdf_extract.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut info = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut info);
+
+            let mut cm_hkdf_expand = CmHkdfExpandReq {
+                prk: resp.prk.clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                info_size: len as u32,
+                ..Default::default()
+            };
+            cm_hkdf_expand.info[..len].copy_from_slice(&info);
+            let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
+            cm_hkdf_expand.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXPAND),
+                    cm_hkdf_expand.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.okm;
+            let key = rustcrypto_hkdf(hash_algorithm, &keys[key_idx], &salt[..salt_len], &info);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
+    }
 }
