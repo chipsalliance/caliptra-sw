@@ -370,6 +370,12 @@ pub mod driver_tests {
         bin_name: "dma_aes",
         ..BASE_FWID
     };
+
+    pub const AXI_BYPASS: FwId = FwId {
+        bin_name: "axi_bypass",
+        features: &["emu", "fpga_subsystem"],
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -523,6 +529,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,
     &driver_tests::DMA_AES,
+    &driver_tests::AXI_BYPASS,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,

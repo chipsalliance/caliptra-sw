@@ -224,3 +224,8 @@ required-features = ["riscv"]
 name = "sha3"
 path = "src/bin/sha3_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "axi_bypass"
+path = "src/bin/axi_bypass.rs"
+required-features = ["riscv"]
