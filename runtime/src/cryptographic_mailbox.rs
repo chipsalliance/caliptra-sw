@@ -1795,7 +1795,7 @@ impl Commands {
     ) -> CaliptraResult<()> {
         match (cm_hash_algorithm, key_usage, key_size) {
             (_, CmKeyUsage::Aes, 32) => {}
-            (_, CmKeyUsage::Ecdsa, 32) => {}
+            (_, CmKeyUsage::Ecdsa, 48) => {}
             (_, CmKeyUsage::Mldsa, 32) => {}
             (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
             (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
