@@ -9,7 +9,6 @@ set -ex
 
 mkdir -p out
 
-cp ${KERNEL_ARCHIVE} out/system-boot.tar.gz
 cp ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 
 # Build the rootfs
@@ -127,7 +126,7 @@ chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
 cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
-cp out/io-module.ko out/rootfs/home/runner/io-module.ko
+mv out/io-module.ko out/rootfs/home/runner/io-module.ko
 
 rm -f out/image.img
 bootfs_blocks="$((80000 * 4))"
@@ -202,7 +201,7 @@ function cleanup2 {
 trap cleanup2 EXIT
 
 # Write bootfs contents
-tar xvzf out/system-boot.tar.gz -C out/bootfs --no-same-owner
+tar xvzf ${KERNEL_ARCHIVE} -C out/bootfs --no-same-owner
 
 umount out/bootfs
 trap cleanup1 EXIT
