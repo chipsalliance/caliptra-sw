@@ -145,7 +145,6 @@ jobs:
 
       - name: Build SD images
         run: |
-          sudo rm -rf out/
           # Now build CI image
           sudo BUILD_DEV_IMAGE=false KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
