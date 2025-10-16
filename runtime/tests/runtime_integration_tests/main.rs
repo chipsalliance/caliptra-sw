@@ -2,6 +2,8 @@
 
 mod common;
 mod test_activate_firmware;
+
+mod test_attestation_warmreset;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
@@ -13,6 +15,7 @@ mod test_certs_mldsa87_warmreset;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
+mod test_dpe_warmreset;
 mod test_ecdsa;
 mod test_fe_programming;
 mod test_fips;
@@ -33,6 +36,7 @@ mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
 mod test_stash_measurement;
+mod test_statsh_warmreset;
 mod test_tagging;
 mod test_update_reset;
 mod test_warm_reset;
