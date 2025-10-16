@@ -38,7 +38,6 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            subsystem_mode: true,
             ..default_init_params()
         },
         BootParams::default(),

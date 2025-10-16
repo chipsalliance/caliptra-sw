@@ -7,8 +7,11 @@ use caliptra_builder::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_image_types::FwVerificationPqcKeyType::MLDSA;
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
+
+use crate::common::default_manifest_and_mcu_image_with_svn;
 
 #[test]
 fn test_rt_journey_pcr_validation() {
@@ -17,17 +20,26 @@ fn test_rt_journey_pcr_validation() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             ..Default::default()
         },
     )
     .unwrap();
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let (soc_manifest, mcu_fw_image) = if cfg!(has_subsystem) {
+        let (soc_manifest, mcu_image) = default_manifest_and_mcu_image_with_svn(MLDSA, fw_svn);
+        (Some(soc_manifest), Some(mcu_image))
+    } else {
+        (None, None)
+    };
+    let (soc_manifest, mcu_fw_image) = (soc_manifest.as_deref(), mcu_fw_image.as_deref());
 
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -42,6 +54,8 @@ fn test_rt_journey_pcr_validation() {
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
@@ -84,17 +98,26 @@ fn test_mbox_busy_during_warm_reset() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MBOX,
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             ..Default::default()
         },
     )
     .unwrap();
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let (soc_manifest, mcu_fw_image) = if cfg!(has_subsystem) {
+        let (soc_manifest, mcu_image) = default_manifest_and_mcu_image_with_svn(MLDSA, fw_svn);
+        (Some(soc_manifest), Some(mcu_image))
+    } else {
+        (None, None)
+    };
+    let (soc_manifest, mcu_fw_image) = (soc_manifest.as_deref(), mcu_fw_image.as_deref());
 
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -109,6 +132,8 @@ fn test_mbox_busy_during_warm_reset() {
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
@@ -150,17 +175,26 @@ fn test_mbox_idle_during_warm_reset() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             ..Default::default()
         },
     )
     .unwrap();
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let (soc_manifest, mcu_fw_image) = if cfg!(has_subsystem) {
+        let (soc_manifest, mcu_image) = default_manifest_and_mcu_image_with_svn(MLDSA, fw_svn);
+        (Some(soc_manifest), Some(mcu_image))
+    } else {
+        (None, None)
+    };
+    let (soc_manifest, mcu_fw_image) = (soc_manifest.as_deref(), mcu_fw_image.as_deref());
 
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -176,6 +210,8 @@ fn test_mbox_idle_during_warm_reset() {
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )

@@ -324,7 +324,7 @@ pub struct CaliptraRootBus {
     pub sha512_acc: Sha512Accelerator,
 
     #[peripheral(offset = 0x3002_2000, len = 0xa14)]
-    pub dma: Dma,
+    pub dma: Option<Dma>,
 
     #[peripheral(offset = 0x3003_0000, len = 0xa38)]
     pub soc_reg: SocRegistersInternal,
@@ -347,6 +347,7 @@ impl CaliptraRootBus {
     pub const DCCM_SIZE: usize = 256 * 1024;
 
     pub fn new(mut args: CaliptraRootBusArgs<'_>) -> Self {
+        let subsystem_mode = args.subsystem_mode;
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
@@ -369,16 +370,20 @@ impl CaliptraRootBus {
 
         let aes_key = Rc::new(RefCell::new(None));
         let aes = Aes::new(aes_key.clone());
-        let dma = Dma::new(
-            clock,
-            mailbox_ram.clone(),
-            soc_reg.clone(),
-            sha512_acc.clone(),
-            mci.clone(),
-            aes.clone(),
-            test_sram,
-            use_mcu_recovery_interface,
-        );
+        let dma = if subsystem_mode {
+            Some(Dma::new(
+                clock,
+                mailbox_ram.clone(),
+                soc_reg.clone(),
+                sha512_acc.clone(),
+                mci.clone(),
+                aes.clone(),
+                test_sram,
+                use_mcu_recovery_interface,
+            ))
+        } else {
+            None
+        };
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
         let ml_dsa87 = Abr::new(clock, key_vault.clone(), sha512.clone());
@@ -442,7 +447,9 @@ impl CaliptraRootBus {
         self.mailbox_sram.incoming_event(event.clone());
         self.mailbox.incoming_event(event.clone());
         self.sha512_acc.incoming_event(event.clone());
-        self.dma.incoming_event(event.clone());
+        if let Some(dma) = &mut self.dma {
+            dma.incoming_event(event.clone());
+        }
         self.csrng.incoming_event(event.clone());
         self.pic_regs.incoming_event(event);
     }
@@ -467,7 +474,9 @@ impl CaliptraRootBus {
         self.mailbox_sram.register_outgoing_events(sender.clone());
         self.mailbox.register_outgoing_events(sender.clone());
         self.sha512_acc.register_outgoing_events(sender.clone());
-        self.dma.register_outgoing_events(sender.clone());
+        if let Some(dma) = &mut self.dma {
+            dma.register_outgoing_events(sender.clone());
+        }
         self.csrng.register_outgoing_events(sender.clone());
         self.pic_regs.register_outgoing_events(sender.clone());
         self.mci.register_outgoing_events(sender.clone());
