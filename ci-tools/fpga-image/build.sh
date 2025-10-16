@@ -18,7 +18,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   mkdir -p out/rootfs
   PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
   if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
-    PACKAGES="$PACKAGES,ssh,rsync,tmux"
+    PACKAGES="$PACKAGES,ssh,rsync,tmux,cloud-guest-utils"
   fi
   debootstrap --include "$PACKAGES" --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
@@ -68,6 +68,31 @@ if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
 
       # Add jlmahowa-amd
       chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIER1Qp/fV0TrAdlUpQZwApMvLLdnQecLraHiIlKAQazi luke.mahowald@amd.com >> ~/.ssh/authorized_keys\""
+
+      # Add rootfs resize script and service
+      cat <<'EOF' > out/rootfs/usr/sbin/resize-rootfs.sh
+#!/bin/bash
+set -x
+growpart /dev/mmcblk0 3
+resize2fs /dev/mmcblk0p3
+EOF
+      chroot out/rootfs chmod +x /usr/sbin/resize-rootfs.sh
+
+      cat <<'EOF' > out/rootfs/etc/systemd/system/resize-rootfs.service
+[Unit]
+Description=Resize root partition to fill disk
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/resize-rootfs.sh
+ExecStartPost=/bin/systemctl disable resize-rootfs.service
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+      chroot out/rootfs systemctl enable resize-rootfs.service
   fi
 
   # Comment this line out if you don't trust folks with physical access to the
@@ -104,27 +129,45 @@ chroot out/rootfs systemctl enable startup-script.service
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
+rm -f out/image.img
+bootfs_blocks="$((80000 * 4))"
+
 # Calculate rootfs size and create rootfs file (if needed)
 if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
-    # Rootfs hardcoded to 2GB to fit on GitHub Actions runner
+    # Rootfs is about 2 GB. This keeps the image small for transfers and flashing images.
+    # It will be resized on first boot.
     rootfs_blocks=4194304
+
+    # Allocate the disk image
+    fallocate -l $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
+
+    # Partition the disk image
+    # Rootfs is partition 3 to match CI image. Otherwise we need to tweak kernel boot params.
+    cat <<EOF | sfdisk out/image.img
+label: dos
+label-id: 0x4effe30a
+device: image.img
+unit: sectors
+sector-size: 512
+
+p1 : start=2048, size=${bootfs_blocks}, type=c, bootable
+p2 : start=$((2048 + $bootfs_blocks)), size=8, type=83
+p3 : start=$((2048 + 8 + $bootfs_blocks)), size=${rootfs_blocks}, type=83
+EOF
+    truncate -s $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
 else
     # Build a squashed filesystem from the rootfs
     rm -f out/rootfs.sqsh
     sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
     rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
     rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
-fi
+    persistfs_blocks=14680064
 
-rm -f out/image.img
-bootfs_blocks="$((80000 * 4))"
-persistfs_blocks=14680064
+    # Allocate the disk image
+    fallocate -l $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks + $persistfs_blocks) * 512)) out/image.img
 
-# Allocate the disk image
-fallocate -l $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks + $persistfs_blocks) * 512)) out/image.img
-
-# Partition the disk image
-cat <<EOF | sfdisk out/image.img
+    # Partition the disk image
+    cat <<EOF | sfdisk out/image.img
 label: dos
 label-id: 0x4effe30a
 device: image.img
@@ -136,8 +179,8 @@ p2 : start=$((2048 + $bootfs_blocks)), size=8, type=83
 p3 : start=$((2048 + 8 + $bootfs_blocks)), size=${rootfs_blocks}, type=83
 p4 : start=$((2048 + 8 + $bootfs_blocks + $rootfs_blocks)), size=${persistfs_blocks}, type=83
 EOF
-truncate -s $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
-
+    truncate -s $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
+fi
 
 LOOPBACK_DEV="$(losetup --show -Pf out/image.img)"
 function cleanup1 {
