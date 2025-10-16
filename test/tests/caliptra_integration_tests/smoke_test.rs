@@ -4,14 +4,14 @@ use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, get_ci_rom_version, CiRomVersion, ImageOptions};
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
+    GetFmcAliasCertReq, GetFmcAliasCsrReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
+use caliptra_test::{derive, redact_cert, redact_csr, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
@@ -320,43 +320,42 @@ fn smoke_test() {
     hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
-    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
-    assert_eq!(
-        dice_tcb_info,
-        [
-            DiceTcbInfo {
-                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-                model: get_rom_test_params()
-                    .tcb_device_info_model
-                    .map(String::from),
-                // This is from the SVN in the fuses (7 bits set)
-                svn: Some(0x107),
-                fwids: vec![DiceFwid {
-                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: device_info_hash.to_vec(),
-                },],
+    let fmc_expected_tcb_info = [
+        DiceTcbInfo {
+            vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+            model: get_rom_test_params()
+                .tcb_device_info_model
+                .map(String::from),
+            // This is from the SVN in the fuses (7 bits set)
+            svn: Some(0x107),
+            fwids: vec![DiceFwid {
+                hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: device_info_hash.to_vec(),
+            }],
 
-                flags: get_rom_test_params().tcb_info_flags,
-                ty: Some(b"DEVICE_INFO".to_vec()),
-                ..Default::default()
-            },
-            DiceTcbInfo {
-                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-                model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
-                // This is from the SVN in the image (9)
-                svn: Some(0x109),
-                fwids: vec![DiceFwid {
-                    // FMC
-                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: swap_word_bytes(&image.manifest.fmc.digest)
-                        .as_bytes()
-                        .to_vec(),
-                },],
-                ty: Some(b"FMC_INFO".to_vec()),
-                ..Default::default()
-            },
-        ]
-    );
+            flags: get_rom_test_params().tcb_info_flags,
+            ty: Some(b"DEVICE_INFO".to_vec()),
+            ..Default::default()
+        },
+        DiceTcbInfo {
+            vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+            model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
+            // This is from the SVN in the image (9)
+            svn: Some(0x109),
+            fwids: vec![DiceFwid {
+                // FMC
+                hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: swap_word_bytes(&image.manifest.fmc.digest)
+                    .as_bytes()
+                    .to_vec(),
+            }],
+            ty: Some(b"FMC_INFO".to_vec()),
+            ..Default::default()
+        },
+    ];
+
+    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
+    assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
 
     let expected_fmc_alias_key = FmcAliasKey::derive(
         &Pcr0::derive(&Pcr0Input {
@@ -466,6 +465,69 @@ fn smoke_test() {
         );
     }
 
+    // Get FMC Alias CSR so we can verify it
+    let fmc_alias_csr_resp: caliptra_api::mailbox::GetFmcAliasCsrResp = hw
+        .mailbox_execute_req(GetFmcAliasCsrReq::default())
+        .unwrap();
+
+    // Extract the CSR from the response
+    let fmc_alias_csr_der = fmc_alias_csr_resp.data().unwrap();
+    let fmc_alias_csr = openssl::x509::X509Req::from_der(fmc_alias_csr_der).unwrap();
+
+    println!(
+        "fmc-alias csr: {}",
+        String::from_utf8_lossy(&fmc_alias_csr.to_text().unwrap())
+    );
+
+    // Validate TCB info
+    let dice_tcb_info = DiceTcbInfo::find_multiple_in_csr(fmc_alias_csr_der).unwrap();
+    // Use the same expected TCB info from FMC Alias cert
+    assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
+
+    // Use the same expected public key from FMC Alias cert
+    assert!(expected_fmc_alias_key
+        .derive_public_key()
+        .public_eq(&fmc_alias_csr.public_key().unwrap()));
+    assert!(
+        fmc_alias_csr.verify(&fmc_alias_pubkey).unwrap(),
+        "fmc_alias csr failed to validate with fmc alias pubkey"
+    );
+
+    // Validate the fmc-alias CSR fields that are redacted in the testdata because they can change:
+    assert_eq!(
+        &fmc_alias_csr
+            .subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+        derive::serial_number_str(&fmc_alias_pubkey),
+    );
+
+    {
+        // When comparing fmc-alias CSR golden-data, redact fields that will change
+        let fmc_alias_csr_redacted_der = redact_csr(fmc_alias_csr_der);
+        let fmc_alias_csr_redacted =
+            openssl::x509::X509Req::from_der(&fmc_alias_csr_redacted_der).unwrap();
+        let fmc_alias_csr_redacted_txt =
+            String::from_utf8(fmc_alias_csr_redacted.to_text().unwrap()).unwrap();
+
+        // To update the CSR testdata:
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr.txt", &fmc_alias_csr_redacted_txt).unwrap();
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr.der", &fmc_alias_csr_redacted_der).unwrap();
+
+        assert_eq!(
+            fmc_alias_csr_redacted_txt.as_str(),
+            include_str!("smoke_testdata/fmc_alias_csr.txt")
+        );
+        assert_eq!(
+            fmc_alias_csr_redacted_der,
+            include_bytes!("smoke_testdata/fmc_alias_csr.der")
+        );
+    }
+
+    // Get the RT Alias Cert so we can verify it
     let rt_alias_cert_resp = hw
         .mailbox_execute_req(GetRtAliasCertReq::default())
         .unwrap();
