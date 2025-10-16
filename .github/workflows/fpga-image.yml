@@ -111,7 +111,8 @@ jobs:
           retention-days: 1
 
   build_sd_image:
-    runs-on: ubuntu-22.04
+    runs-on: [e2-standard-4, big-disk]
+    container: debian:bookworm
     needs: [build_kernel]
     strategy:
       matrix:
