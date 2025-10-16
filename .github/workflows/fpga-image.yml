@@ -53,19 +53,31 @@ jobs:
         with: 
           ref: ${{ inputs.branch }}
 
+      - name: Cache Kernel output
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
+            /tmp/io-module-${{ matrix.image_variant }}.ko
+          key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}-${{ hashFiles('hw/fpga/**') }}
+
       - name: Install pre-requisites
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt install gcc libncurses-dev zlib1g:i386 zlib1g-dev net-tools xterm autoconf libtool texinfo gcc-multilib build-essential device-tree-compiler xvfb apt-transport-https ca-certificates gnupg curl -y
 
       - name: Mount FPGA tools
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           echo "Starting work"
           sudo mkdir /vck190-tools
           sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
 
       - name: Build Kernel
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
