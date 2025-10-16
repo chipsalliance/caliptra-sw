@@ -37,7 +37,8 @@ impl StashMeasurementCmd {
         measurement: &[u8; 48],
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
-            match drivers.caller_privilege_level() {
+            let caller_privilege_level = drivers.caller_privilege_level();
+            match caller_privilege_level {
                 // Only PL0 can call STASH_MEASUREMENT
                 PauserPrivileges::PL0 => (),
                 PauserPrivileges::PL1 => {
@@ -47,7 +48,7 @@ impl StashMeasurementCmd {
 
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
-            drivers.is_dpe_context_threshold_exceeded()?;
+            drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
