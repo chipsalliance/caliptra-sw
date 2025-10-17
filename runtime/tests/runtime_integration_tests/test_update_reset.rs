@@ -42,7 +42,7 @@ pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: 
 }
 
 fn mbox_test_image() -> &'static FwId<'static> {
-    if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &MBOX_FPGA
     } else {
         &MBOX
@@ -148,7 +148,7 @@ fn test_context_tags_validation() {
         .unwrap();
 
     // trigger update reset
-    let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    let fw_id = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &MBOX_WITHOUT_UART
     } else {
         &MBOX_WITHOUT_UART_FPGA

@@ -164,7 +164,7 @@ fn test_stress_update() {
 
 #[test]
 fn test_boot_tci_data() {
-    let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    let fw_id = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &firmware::runtime_tests::MBOX_FPGA
     } else {
         &firmware::runtime_tests::MBOX
@@ -219,7 +219,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         )
         .unwrap();
 
-        let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        let fw_id = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
             &firmware::runtime_tests::MBOX_FPGA
         } else {
             &firmware::runtime_tests::MBOX
