@@ -2,10 +2,13 @@
 
 #![allow(dead_code)]
 
+use crate::keys::{DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY, DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY};
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
+
 use anyhow::{bail, Result};
-use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha384, Sha512};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
+use zerocopy::{FromBytes, KnownLayout};
 
 /// Unhashed token, suitable for doing lifecycle transitions.
 #[derive(Clone, Copy)]
@@ -688,6 +691,129 @@ pub fn otp_generate_manuf_debug_unlock_token_mem(
     );
     output[OTP_SW_TEST_UNLOCK_PARTITION_SIZE - DIGEST_SIZE..]
         .copy_from_slice(&digest.to_le_bytes());
+    Ok(output)
+}
+
+// TODO(timothytrippel): autogenerate these field sizes from the OTP memory map.
+#[derive(Debug, FromBytes, KnownLayout)]
+pub struct OtpSwManufPartition {
+    pub anti_rollback_disable: u32,
+    pub idevid_cert_attr: [u8; 96],
+    pub idevid_cert: u32,
+    pub hsm_id: u64,
+    pub stepping_id: u32,
+    pub prod_debug_unlock_pks_0: [u8; 48],
+    pub prod_debug_unlock_pks_1: [u8; 48],
+    pub prod_debug_unlock_pks_2: [u8; 48],
+    pub prod_debug_unlock_pks_3: [u8; 48],
+    pub prod_debug_unlock_pks_4: [u8; 48],
+    pub prod_debug_unlock_pks_5: [u8; 48],
+    pub prod_debug_unlock_pks_6: [u8; 48],
+    pub prod_debug_unlock_pks_7: [u8; 48],
+}
+
+impl Default for OtpSwManufPartition {
+    fn default() -> Self {
+        // Compute the SHA2-384 hash of the default ECDSA and ML-DSA public keys.
+        let mut ecdsa_pubkey = [0u8; 96];
+        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY.iter().enumerate() {
+            ecdsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        let mut mldsa_pubkey = [0u8; 2592];
+        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY.iter().enumerate() {
+            mldsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        let mut hasher = Sha384::new();
+        sha2::Digest::update(&mut hasher, ecdsa_pubkey);
+        sha2::Digest::update(&mut hasher, mldsa_pubkey);
+        let prod_debug_unlock_pks_0: [u8; 48] = hasher.finalize().into();
+
+        Self {
+            anti_rollback_disable: 0x1,
+            idevid_cert_attr: [0; 96],
+            idevid_cert: 0,
+            hsm_id: 0,
+            stepping_id: 0,
+            prod_debug_unlock_pks_0,
+            prod_debug_unlock_pks_1: [0; 48],
+            prod_debug_unlock_pks_2: [0; 48],
+            prod_debug_unlock_pks_3: [0; 48],
+            prod_debug_unlock_pks_4: [0; 48],
+            prod_debug_unlock_pks_5: [0; 48],
+            prod_debug_unlock_pks_6: [0; 48],
+            prod_debug_unlock_pks_7: [0; 48],
+        }
+    }
+}
+
+/// Generate the OTP memory contents for the SW_MANUF partition, including the digest.
+pub fn otp_generate_sw_manuf_partition_mem(
+    sw_manuf_partition: &OtpSwManufPartition,
+) -> Result<[u8; OTP_SW_MANUF_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SW_MANUF_PARTITION_SIZE];
+    let mut offset = 0;
+
+    // Anti-Rollback Disable field.
+    let mut len = sw_manuf_partition.anti_rollback_disable.to_le_bytes().len();
+    output[offset..offset + len]
+        .copy_from_slice(&sw_manuf_partition.anti_rollback_disable.to_le_bytes());
+    offset += len;
+
+    // IDevID Cert Attributes field.
+    len = sw_manuf_partition.idevid_cert_attr.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.idevid_cert_attr);
+    offset += len;
+
+    // IDevID Cert field.
+    len = sw_manuf_partition.idevid_cert.to_le_bytes().len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.idevid_cert.to_le_bytes());
+    offset += len;
+
+    // HSM ID field.
+    len = sw_manuf_partition.hsm_id.to_le_bytes().len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.hsm_id.to_le_bytes());
+    offset += len;
+
+    // Stepping ID field.
+    len = sw_manuf_partition.stepping_id.to_le_bytes().len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.stepping_id.to_le_bytes());
+    offset += len;
+
+    // Prod debug unlock public key hash fields.
+    len = sw_manuf_partition.prod_debug_unlock_pks_0.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_0);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_1.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_1);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_2.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_2);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_3.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_3);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_4.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_4);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_5.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_5);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_6.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_6);
+    offset += len;
+    len = sw_manuf_partition.prod_debug_unlock_pks_7.len();
+    output[offset..offset + len].copy_from_slice(&sw_manuf_partition.prod_debug_unlock_pks_7);
+    offset += len;
+
+    // Compute and write digest field to lock the partition.
+    output[offset..OTP_SW_MANUF_PARTITION_SIZE - DIGEST_SIZE].fill(0);
+    let digest = otp_digest(
+        &output[..OTP_SW_MANUF_PARTITION_SIZE - DIGEST_SIZE],
+        OTP_IV,
+        OTP_CNST,
+    );
+    output[OTP_SW_MANUF_PARTITION_SIZE - DIGEST_SIZE..].copy_from_slice(&digest.to_le_bytes());
+
     Ok(output)
 }
 
