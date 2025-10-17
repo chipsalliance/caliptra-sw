@@ -26,10 +26,10 @@ on:
   workflow_dispatch:
 jobs:
   build_kernel:
-    runs-on: [e2-standard-32, vck190-tools]
+    runs-on: [e2-standard-16, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [subsystem-2.1]
         include:
           - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
             image_variant: core
@@ -115,7 +115,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
@@ -144,6 +144,8 @@ jobs:
 
       - name: Build SD images
         run: |
+          # Build Dev image
+          cd ci-tools/fpga-image
           # Now build CI image
           sudo BUILD_DEV_IMAGE=false KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
       - name: 'Upload image as artifact'
