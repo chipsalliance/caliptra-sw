@@ -36,7 +36,7 @@ fn test_datavault_pmp_enforcement_region_start() {
         fuse_pqc_key_type: 1,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
@@ -79,7 +79,7 @@ fn test_datavault_pmp_enforcement_region_end() {
         fuse_pqc_key_type: 1,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,

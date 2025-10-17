@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware;
 use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::ImageOptions;
@@ -14,7 +13,7 @@ use caliptra_hw_model::InitParams;
 
 use crate::helpers;
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // The FPGA is too fast for the host to catch these state transitions.
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)] // The FPGA is too fast for the host to catch these state transitions.
 #[test]
 fn test_cold_reset_status_reporting() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -107,7 +106,7 @@ fn test_cold_reset_success() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
             &APP_WITH_UART,
@@ -146,7 +145,7 @@ fn test_cold_reset_no_rng() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
             &APP_WITH_UART,

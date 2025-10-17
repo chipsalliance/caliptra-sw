@@ -2,13 +2,13 @@
 
 use std::{collections::HashMap, mem};
 
-use caliptra_builder::{firmware, Symbol};
+use caliptra_builder::Symbol;
 use caliptra_cfi_lib::CfiState;
 use caliptra_drivers::memory_layout;
 
 #[test]
 fn test_linker_symbols_match_memory_layout() {
-    let elf_bytes = caliptra_builder::build_firmware_elf(firmware::rom_from_env()).unwrap();
+    let elf_bytes = caliptra_builder::build_firmware_elf(crate::helpers::rom_from_env()).unwrap();
     let symbols = caliptra_builder::elf_symbols(&elf_bytes).unwrap();
     let symbols: HashMap<&str, Symbol> = symbols.into_iter().map(|s| (s.name, s)).collect();
 

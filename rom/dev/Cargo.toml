@@ -49,6 +49,8 @@ caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
+caliptra-auth-man-types.workspace = true
+caliptra-auth-man-gen.workspace = true
 caliptra-test.workspace = true
 elf.workspace = true
 fips204.workspace = true
@@ -74,6 +76,7 @@ std = [
   "ufmt/std",
 ]
 fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
+fpga_subsystem = ["caliptra-drivers/fpga_subsystem", "caliptra-hw-model/fpga_subsystem"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
