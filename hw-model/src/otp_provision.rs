@@ -583,8 +583,13 @@ fn hash_manuf_debug_token(raw_token: &[u8; 32]) -> [u8; 64] {
 }
 
 pub const DIGEST_SIZE: usize = 8;
-pub const LIFECYCLE_TOKENS_MEM_SIZE: usize = 184; // 11 tokens of 16 bytes each + 8 bytes for the digest
-pub const MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE: usize = 72; // 1 token of 64 bytes + 8 bytes for the digest
+
+// TODO(timothytrippel): autogenerate these from the OTP memory map definition
+// OTP partition sizes.
+// Partition sizes are in bytes and include the digest and zeroization fields.
+const OTP_SECRET_LC_TRANSITION_PARTITION_SIZE: usize = 184;
+const OTP_SW_TEST_UNLOCK_PARTITION_SIZE: usize = 72;
+const OTP_SW_MANUF_PARTITION_SIZE: usize = 520;
 
 // Default from caliptra-ss/src/fuse_ctrl/rtl/otp_ctrl_part_pkg.sv
 const OTP_IV: u64 = 0x90C7F21F6224F027;
@@ -637,8 +642,8 @@ fn otp_unscramble_data(data: &mut [u8], key_idx: usize) -> Result<()> {
 /// Generate the OTP memory contents for lifecycle tokens partition (including the digest).
 pub fn otp_generate_lifecycle_tokens_mem(
     tokens: &LifecycleRawTokens,
-) -> Result<[u8; LIFECYCLE_TOKENS_MEM_SIZE]> {
-    let mut output = [0u8; LIFECYCLE_TOKENS_MEM_SIZE];
+) -> Result<[u8; OTP_SECRET_LC_TRANSITION_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SECRET_LC_TRANSITION_PARTITION_SIZE];
     for (i, token) in tokens.test_unlock.iter().enumerate() {
         let hashed_token = hash_token(&token.0);
         output[i * 16..(i + 1) * 16].copy_from_slice(&hashed_token);
@@ -649,24 +654,25 @@ pub fn otp_generate_lifecycle_tokens_mem(
     output[10 * 16..11 * 16].copy_from_slice(&hash_token(&tokens.rma.0));
 
     otp_scramble_data(
-        &mut output[..LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE],
+        &mut output[..OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE],
         LC_TOKENS_KEY_IDX,
     )?;
 
     let digest = otp_digest(
-        &output[..LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE],
+        &output[..OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE],
         OTP_IV,
         OTP_CNST,
     );
-    output[LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE..].copy_from_slice(&digest.to_le_bytes());
+    output[OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE..]
+        .copy_from_slice(&digest.to_le_bytes());
     Ok(output)
 }
 
 /// Generate the OTP memory contents for the manuf debug unlock token partition (including the digest).
 pub fn otp_generate_manuf_debug_unlock_token_mem(
     token: &ManufDebugUnlockToken,
-) -> Result<[u8; MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE]> {
-    let mut output = [0u8; MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE];
+) -> Result<[u8; OTP_SW_TEST_UNLOCK_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SW_TEST_UNLOCK_PARTITION_SIZE];
     let mut hash = hash_manuf_debug_token(&<[u8; 32]>::from(*token));
     // Reverse the byte order before setting in OTP so the token is read properly by the HW.
     let mut i = 0;
@@ -676,11 +682,11 @@ pub fn otp_generate_manuf_debug_unlock_token_mem(
         i += 4;
     }
     let digest = otp_digest(
-        &output[..MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE - DIGEST_SIZE],
+        &output[..OTP_SW_TEST_UNLOCK_PARTITION_SIZE - DIGEST_SIZE],
         OTP_IV,
         OTP_CNST,
     );
-    output[MANUF_DEBUG_UNLOCK_TOKEN_MEM_SIZE - DIGEST_SIZE..]
+    output[OTP_SW_TEST_UNLOCK_PARTITION_SIZE - DIGEST_SIZE..]
         .copy_from_slice(&digest.to_le_bytes());
     Ok(output)
 }
