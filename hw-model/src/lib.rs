@@ -36,6 +36,7 @@ use sha2::Digest;
 mod bmc;
 mod fpga_regs;
 pub mod jtag;
+pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
@@ -79,11 +80,11 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 pub use model_fpga_realtime::OpenOcdError;
 
 #[cfg(feature = "fpga_subsystem")]
+pub use keys::{DEFAULT_LIFECYCLE_RAW_TOKEN, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
+#[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::XI3CWrapper;
-#[cfg(feature = "fpga_subsystem")]
-pub use model_fpga_subsystem::{DEFAULT_LIFECYCLE_RAW_TOKEN, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
