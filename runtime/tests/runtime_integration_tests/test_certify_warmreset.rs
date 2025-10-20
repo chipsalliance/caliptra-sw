@@ -9,6 +9,7 @@ use caliptra_common::{
         CertifyKeyExtendedResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
+
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use caliptra_hw_model::{DefaultHwModel, HwModel};
