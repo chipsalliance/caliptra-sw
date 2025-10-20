@@ -6,12 +6,13 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
+use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem,
-    otp_generate_manuf_debug_unlock_token_mem, LifecycleControllerState, LifecycleRawTokens,
-    LifecycleToken, ManufDebugUnlockToken,
+    otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
+    LifecycleControllerState, OtpSwManufPartition,
 };
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
@@ -153,23 +154,6 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
-
-// This is a random number, but should be kept in sync with what is the default value in the FPGA ROM.
-pub const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
-    LifecycleToken(0x05edb8c608fcc830de181732cfd65e57u128.to_le_bytes());
-
-const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
-    test_unlock: [DEFAULT_LIFECYCLE_RAW_TOKEN; 7],
-    manuf: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    manuf_to_prod: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    prod_to_prod_end: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    rma: DEFAULT_LIFECYCLE_RAW_TOKEN,
-};
-
-// This is the default manuf debug unlock token.
-pub const DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN: ManufDebugUnlockToken = ManufDebugUnlockToken([
-    0xABCDEFEB, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0xF888888A,
-]);
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -1198,6 +1182,12 @@ impl ModelFpgaSubsystem {
         println!("Provisioning SW_TEST_UNLOCK partition.");
         let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
         let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Provision default SW_MANUF partition.
+        println!("Provisioning SW_MANUF partition.");
+        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition::default())?;
+        let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
