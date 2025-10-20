@@ -1707,7 +1707,7 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(())
     }
 
-    fn subsystem_mode(&self) -> bool {
+    fn subsystem_mode(&mut self) -> bool {
         // we only support subsystem mode
         true
     }
