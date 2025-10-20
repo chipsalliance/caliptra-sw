@@ -556,6 +556,19 @@ pub fn build_ready_runtime_model(
     (model, image_bundle, rom_info, owner_pub_key_hash)
 }
 
+pub fn build_model_ready() -> DefaultHwModel {
+    let args = BuildArgs {
+        security_state: *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production),
+        fmc_version: 3,
+        app_version: 5,
+        fw_svn: 9,
+    };
+    let (model, _, _, _) = build_ready_runtime_model(args);
+    model
+}
+
 pub fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
     // RomInfo is 64-byte aligned and the last data in the ROM bin
     // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
