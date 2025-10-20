@@ -321,7 +321,10 @@ fn test_update_reset_boot_status() {
             )
             .unwrap();
 
-            if cfg!(not(feature = "fpga_realtime")) {
+            if cfg!(not(any(
+                feature = "fpga_realtime",
+                feature = "fpga_subsystem"
+            ))) {
                 hw.step_until_boot_status(CfiInitialized.into(), false);
                 hw.step_until_boot_status(KatStarted.into(), false);
                 hw.step_until_boot_status(KatComplete.into(), false);
@@ -490,6 +493,8 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         .unwrap();
 
         hw.step_until_boot_status(ColdResetComplete.into(), true);
+        hw.step_until_output_contains("Running Caliptra FMC ...")
+            .unwrap();
 
         assert_eq!(
             hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
