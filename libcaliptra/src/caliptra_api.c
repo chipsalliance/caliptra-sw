@@ -1454,6 +1454,11 @@ int caliptra_start_sha_stream(int mode, uint8_t* in_data, uint32_t data_len) {
     if (error) {
         return REG_ACCESS_ERROR;
     }
+    // Clear and initialize DLEN used in the previous process
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, 0);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     return caliptra_update_sha_stream(in_data, data_len);
 }
