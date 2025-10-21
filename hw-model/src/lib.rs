@@ -193,6 +193,14 @@ pub struct InitParams<'a> {
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Number of public key hashes for production debug unlock levels.
+    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
+    // OTP settings are used.
+    pub num_prod_dbg_unlock_pk_hashes: u32,
+
+    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
+    pub prod_dbg_unlock_pk_hashes_offset: u32,
+
     // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
 
@@ -285,8 +293,12 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
+
+            // Only relevant for SS Model.
             mcu_rom: None,
             enable_mcu_uart_log: false,
+            num_prod_dbg_unlock_pk_hashes: 0,
+            prod_dbg_unlock_pk_hashes_offset: 0,
         }
     }
 }

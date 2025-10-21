@@ -1185,6 +1185,8 @@ impl ModelFpgaSubsystem {
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         // Provision default SW_MANUF partition.
+        // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
+        // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
         let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition::default())?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
@@ -1513,6 +1515,15 @@ impl HwModel for ModelFpgaSubsystem {
         m.set_ss_debug_intent(params.debug_intent);
         // Set BootFSM break if requested.
         m.set_bootfsm_break(params.bootfsm_break);
+        // Set prod debug unlock authentication settings.
+        m.wrapper
+            .regs()
+            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
+            .set(params.prod_dbg_unlock_pk_hashes_offset);
+        m.wrapper
+            .regs()
+            .num_of_prod_debug_unlock_auth_pk_hashes
+            .set(params.num_prod_dbg_unlock_pk_hashes);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
