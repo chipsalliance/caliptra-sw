@@ -14,9 +14,11 @@ Abstract:
 
 use core::mem::offset_of;
 
+use crate::authorize_and_stash::AuthorizeAndStashCmd;
 use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
+use caliptra_api::mailbox::{AuthAndStashFlags, AuthorizeAndStashReq, ImageHashSource};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
@@ -201,6 +203,20 @@ impl ActivateFirmwareCmd {
                     false,
                 )
                 .map_err(|_| ())?;
+
+            // Verify MCU after loading
+            let auth_and_stash_req = AuthorizeAndStashReq {
+                fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
+                measurement: [0; 48],
+                source: ImageHashSource::LoadAddress.into(),
+                flags: AuthAndStashFlags::SKIP_STASH.bits(),
+                ..Default::default()
+            };
+
+            AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)
+                .map(|_| ())
+                .map_err(|_| ())?;
+
             drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
 
