@@ -86,7 +86,7 @@ slow-timeout = { period = "30s", terminate-after = 140 }
 
 [[profile.nightly.overrides]]
 filter = 'test(test_stress_update)'
-slow-timeout = { period = "30s", terminate-after = 17 }
+slow-timeout = { period = "30s", terminate-after = 100 }
 
 [profile.nightly.junit]
 path = "/tmp/junit.xml"

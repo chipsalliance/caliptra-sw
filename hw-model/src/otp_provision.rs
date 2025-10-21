@@ -2,9 +2,13 @@
 
 #![allow(dead_code)]
 
+use crate::keys::{DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY, DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY};
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
+
 use anyhow::{bail, Result};
+use sha2::{Digest, Sha384, Sha512};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
+use zerocopy::{FromBytes, KnownLayout};
 
 /// Unhashed token, suitable for doing lifecycle transitions.
 #[derive(Clone, Copy)]
@@ -22,7 +26,7 @@ impl From<LifecycleToken> for [u8; 16] {
     }
 }
 
-/// Raw tokens
+/// Raw lifecycle tokens.
 pub struct LifecycleRawTokens {
     pub test_unlock: [LifecycleToken; 7],
     pub manuf: LifecycleToken,
@@ -30,6 +34,10 @@ pub struct LifecycleRawTokens {
     pub prod_to_prod_end: LifecycleToken,
     pub rma: LifecycleToken,
 }
+
+/// Hashed token, suitable for burning into OTP.
+#[derive(Clone, Copy)]
+pub struct LifecycleHashedToken(pub [u8; 16]);
 
 impl From<[u8; 16]> for LifecycleHashedToken {
     fn from(value: [u8; 16]) -> Self {
@@ -43,7 +51,7 @@ impl From<LifecycleHashedToken> for [u8; 16] {
     }
 }
 
-/// Hashed tokens to be burned into the OTP for lifecycle transitions.
+/// Hashed lifecycle tokens to be burned into OTP to enable lifecycle transitions.
 pub struct LifecycleHashedTokens {
     pub test_unlock: [LifecycleHashedToken; 7],
     pub manuf: LifecycleHashedToken,
@@ -52,9 +60,50 @@ pub struct LifecycleHashedTokens {
     pub rma: LifecycleHashedToken,
 }
 
-/// Hashed token, suitable for burning into the OTP.
+/// Raw (unhashed) manuf debug unlock token.
 #[derive(Clone, Copy)]
-pub struct LifecycleHashedToken(pub [u8; 16]);
+pub struct ManufDebugUnlockToken(pub [u32; 8]);
+
+impl From<[u32; 8]> for ManufDebugUnlockToken {
+    fn from(value: [u32; 8]) -> Self {
+        ManufDebugUnlockToken(value)
+    }
+}
+
+impl From<ManufDebugUnlockToken> for [u32; 8] {
+    fn from(value: ManufDebugUnlockToken) -> Self {
+        value.0
+    }
+}
+
+impl From<ManufDebugUnlockToken> for [u8; 32] {
+    fn from(value: ManufDebugUnlockToken) -> Self {
+        let mut dest = [0u8; 32];
+        let mut offset = 0;
+        for &val in value.0.iter() {
+            let bytes = val.to_le_bytes(); // Returns [u8; 4]
+            dest[offset..offset + 4].copy_from_slice(&bytes);
+            offset += 4;
+        }
+        dest
+    }
+}
+
+/// Hashed (SHA512) manuf debug unlock token.
+#[derive(Clone, Copy)]
+pub struct ManufDebugUnlockHashedToken(pub [u8; 64]);
+
+impl From<[u8; 64]> for ManufDebugUnlockHashedToken {
+    fn from(value: [u8; 64]) -> Self {
+        ManufDebugUnlockHashedToken(value)
+    }
+}
+
+impl From<ManufDebugUnlockHashedToken> for [u8; 64] {
+    fn from(value: ManufDebugUnlockHashedToken) -> Self {
+        value.0
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -529,8 +578,21 @@ fn hash_token(raw_token: &[u8; 16]) -> [u8; 16] {
     output
 }
 
+fn hash_manuf_debug_token(raw_token: &[u8; 32]) -> [u8; 64] {
+    let mut hasher: Sha512 = Sha512::new();
+    sha2::Digest::update(&mut hasher, raw_token);
+    let output: [u8; 64] = hasher.finalize().into();
+    output
+}
+
 pub const DIGEST_SIZE: usize = 8;
-pub const LIFECYCLE_TOKENS_MEM_SIZE: usize = 184; // 11 tokens of 16 bytes each + 8 bytes for the digest
+
+// TODO(timothytrippel): autogenerate these from the OTP memory map definition
+// OTP partition sizes.
+// Partition sizes are in bytes and include the digest and zeroization fields.
+const OTP_SECRET_LC_TRANSITION_PARTITION_SIZE: usize = 184;
+const OTP_SW_TEST_UNLOCK_PARTITION_SIZE: usize = 72;
+const OTP_SW_MANUF_PARTITION_SIZE: usize = 520;
 
 // Default from caliptra-ss/src/fuse_ctrl/rtl/otp_ctrl_part_pkg.sv
 const OTP_IV: u64 = 0x90C7F21F6224F027;
@@ -583,8 +645,8 @@ fn otp_unscramble_data(data: &mut [u8], key_idx: usize) -> Result<()> {
 /// Generate the OTP memory contents for lifecycle tokens partition (including the digest).
 pub fn otp_generate_lifecycle_tokens_mem(
     tokens: &LifecycleRawTokens,
-) -> Result<[u8; LIFECYCLE_TOKENS_MEM_SIZE]> {
-    let mut output = [0u8; LIFECYCLE_TOKENS_MEM_SIZE];
+) -> Result<[u8; OTP_SECRET_LC_TRANSITION_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SECRET_LC_TRANSITION_PARTITION_SIZE];
     for (i, token) in tokens.test_unlock.iter().enumerate() {
         let hashed_token = hash_token(&token.0);
         output[i * 16..(i + 1) * 16].copy_from_slice(&hashed_token);
@@ -595,16 +657,144 @@ pub fn otp_generate_lifecycle_tokens_mem(
     output[10 * 16..11 * 16].copy_from_slice(&hash_token(&tokens.rma.0));
 
     otp_scramble_data(
-        &mut output[..LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE],
+        &mut output[..OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE],
         LC_TOKENS_KEY_IDX,
     )?;
 
     let digest = otp_digest(
-        &output[..LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE],
+        &output[..OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE],
         OTP_IV,
         OTP_CNST,
     );
-    output[LIFECYCLE_TOKENS_MEM_SIZE - DIGEST_SIZE..].copy_from_slice(&digest.to_le_bytes());
+    output[OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE..]
+        .copy_from_slice(&digest.to_le_bytes());
+    Ok(output)
+}
+
+/// Generate the OTP memory contents for the manuf debug unlock token partition (including the digest).
+pub fn otp_generate_manuf_debug_unlock_token_mem(
+    token: &ManufDebugUnlockToken,
+) -> Result<[u8; OTP_SW_TEST_UNLOCK_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SW_TEST_UNLOCK_PARTITION_SIZE];
+    let mut hash = hash_manuf_debug_token(&<[u8; 32]>::from(*token));
+    // Reverse the byte order before setting in OTP so the token is read properly by the HW.
+    let mut i = 0;
+    for chunk in hash.chunks_exact_mut(4) {
+        let word = u32::from_be_bytes(chunk.try_into().unwrap());
+        output[i..i + 4].copy_from_slice(&word.to_le_bytes());
+        i += 4;
+    }
+    let digest = otp_digest(
+        &output[..OTP_SW_TEST_UNLOCK_PARTITION_SIZE - DIGEST_SIZE],
+        OTP_IV,
+        OTP_CNST,
+    );
+    output[OTP_SW_TEST_UNLOCK_PARTITION_SIZE - DIGEST_SIZE..]
+        .copy_from_slice(&digest.to_le_bytes());
+    Ok(output)
+}
+
+// TODO(timothytrippel): autogenerate these field sizes from the OTP memory map.
+#[derive(Debug, FromBytes, KnownLayout)]
+pub struct OtpSwManufPartition {
+    pub anti_rollback_disable: u32,
+    pub idevid_cert_attr: [u8; 96],
+    pub idevid_cert: u32,
+    pub hsm_id: u64,
+    pub stepping_id: u32,
+    pub prod_debug_unlock_pks_0: [u8; 48],
+    pub prod_debug_unlock_pks_1: [u8; 48],
+    pub prod_debug_unlock_pks_2: [u8; 48],
+    pub prod_debug_unlock_pks_3: [u8; 48],
+    pub prod_debug_unlock_pks_4: [u8; 48],
+    pub prod_debug_unlock_pks_5: [u8; 48],
+    pub prod_debug_unlock_pks_6: [u8; 48],
+    pub prod_debug_unlock_pks_7: [u8; 48],
+}
+
+impl Default for OtpSwManufPartition {
+    fn default() -> Self {
+        // Compute the SHA2-384 hash of the default ECDSA and ML-DSA public keys.
+        let mut ecdsa_pubkey = [0u8; 96];
+        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY.iter().enumerate() {
+            ecdsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        let mut mldsa_pubkey = [0u8; 2592];
+        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY.iter().enumerate() {
+            mldsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        let mut hasher = Sha384::new();
+        sha2::Digest::update(&mut hasher, ecdsa_pubkey);
+        sha2::Digest::update(&mut hasher, mldsa_pubkey);
+        let prod_debug_unlock_pks_0: [u8; 48] = hasher.finalize().into();
+
+        Self {
+            anti_rollback_disable: 0x1,
+            idevid_cert_attr: [0; 96],
+            idevid_cert: 0,
+            hsm_id: 0,
+            stepping_id: 0,
+            prod_debug_unlock_pks_0,
+            prod_debug_unlock_pks_1: [0; 48],
+            prod_debug_unlock_pks_2: [0; 48],
+            prod_debug_unlock_pks_3: [0; 48],
+            prod_debug_unlock_pks_4: [0; 48],
+            prod_debug_unlock_pks_5: [0; 48],
+            prod_debug_unlock_pks_6: [0; 48],
+            prod_debug_unlock_pks_7: [0; 48],
+        }
+    }
+}
+
+/// Generate the OTP memory contents for the SW_MANUF partition, including the digest.
+pub fn otp_generate_sw_manuf_partition_mem(
+    sw_manuf_partition: &OtpSwManufPartition,
+) -> Result<[u8; OTP_SW_MANUF_PARTITION_SIZE]> {
+    let mut output = [0u8; OTP_SW_MANUF_PARTITION_SIZE];
+    let mut offset = 0;
+    let out = &mut output;
+    let off = &mut offset;
+
+    fn push(out_buf: &mut [u8], out_offset: &mut usize, src_buf: &[u8]) {
+        let len = src_buf.len();
+        out_buf[*out_offset..*out_offset + len].copy_from_slice(src_buf);
+        *out_offset += len;
+    }
+
+    // Anti-Rollback Disable field.
+    push(
+        out,
+        off,
+        &sw_manuf_partition.anti_rollback_disable.to_le_bytes(),
+    );
+
+    // IDevID Cert Attributes field.
+    push(out, off, &sw_manuf_partition.idevid_cert_attr);
+    // IDevID Cert field.
+    push(out, off, &sw_manuf_partition.idevid_cert.to_le_bytes());
+    // HSM ID field.
+    push(out, off, &sw_manuf_partition.hsm_id.to_le_bytes());
+    // Stepping ID field.
+    push(out, off, &sw_manuf_partition.stepping_id.to_le_bytes());
+
+    // Prod debug unlock public key hash fields.
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_0);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_1);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_2);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_3);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_4);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_5);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_6);
+    push(out, off, &sw_manuf_partition.prod_debug_unlock_pks_7);
+
+    // Compute and write digest field to lock the partition.
+    let digest = otp_digest(
+        &output[..OTP_SW_MANUF_PARTITION_SIZE - DIGEST_SIZE],
+        OTP_IV,
+        OTP_CNST,
+    );
+    output[OTP_SW_MANUF_PARTITION_SIZE - DIGEST_SIZE..].copy_from_slice(&digest.to_le_bytes());
+
     Ok(output)
 }
 

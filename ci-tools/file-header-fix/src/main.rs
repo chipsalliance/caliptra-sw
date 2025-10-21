@@ -18,6 +18,8 @@ const IGNORED_PATHS: &[&str] = &[
     "./hw/fpga/petalinux_project",
     "./hw/1.0/rtl",
     "./hw/latest/rtl",
+    "./hw/latest/caliptra-ss",
+    "./hw/latest/i3c-core-rtl",
     "./ci-tools/fpga-boss/image/mnt",
     "./ci-tools/fpga-image/out",
 ];

@@ -26,6 +26,23 @@ pub fn expect_line_with_prefix<'a>(prefix: &str, line: Option<&'a str>) -> io::R
     ))
 }
 
+pub fn expect_line_with_prefix_ignore_case<'a>(
+    prefix: &str,
+    line: Option<&'a str>,
+) -> io::Result<&'a str> {
+    if let Some(line) = line {
+        if let Some(line_prefix) = line.get(..prefix.len()) {
+            if line_prefix.eq_ignore_ascii_case(prefix) {
+                return Ok(&line[prefix.len()..]);
+            }
+        }
+    };
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        format!("Expected line with prefix {prefix:?}; was {line:?}"),
+    ))
+}
+
 pub fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
 
