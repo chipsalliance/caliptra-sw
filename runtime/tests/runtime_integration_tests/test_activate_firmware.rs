@@ -8,6 +8,7 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader,
 };
+use caliptra_emu_bus::Register;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
@@ -149,7 +150,6 @@ fn send_activate_firmware_cmd(
             activate_cmd.as_bytes().unwrap(),
         )
         .unwrap();
-
     #[cfg(feature = "fpga_subsystem")]
     {
         // Allow some time for Caliptra to process the command and trigger the interrupt
@@ -170,6 +170,22 @@ fn send_activate_firmware_cmd(
             .notif0_internal_intr_r()
             .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
         model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
+    }
+    #[cfg(all(
+        not(feature = "verilator"),
+        not(feature = "fpga_realtime"),
+        not(feature = "fpga_subsystem")
+    ))]
+    {
+        // For sw-emulator, wait for the MCI interrupt to be set, then clear
+        // In a full subsystem, the MCU would do this
+        model.step_until(|m| m.mci.regs.borrow().intr_block_rf_notif0_internal_intr_r != 0);
+        const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
+        model
+            .mci
+            .regs
+            .borrow_mut()
+            .intr_block_rf_notif0_internal_intr_r &= !NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
     }
     model.finish_mailbox_execute()
 }
