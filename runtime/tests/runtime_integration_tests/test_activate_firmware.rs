@@ -10,6 +10,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_image_types::FwVerificationPqcKeyType::LMS;
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
 use zerocopy::FromBytes;
@@ -89,7 +90,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
             .copy_from_slice(&image.contents);
     }
 
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram_contents);
 
     for image in images {

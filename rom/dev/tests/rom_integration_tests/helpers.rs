@@ -15,6 +15,7 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
+use caliptra_kat::CaliptraError;
 use zerocopy::TryFromBytes;
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
@@ -112,6 +113,18 @@ pub fn change_dword_endianess(data: &mut [u8]) {
     for idx in (0..data.len()).step_by(4) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
+    }
+}
+
+pub fn assert_fatal_fw_load(hw: &mut DefaultHwModel, data: &[u8], err: CaliptraError) {
+    if cfg!(has_subsystem) {
+        let _ = hw.upload_firmware(data);
+        hw.step_until_fatal_error(err.into(), 1000000)
+    } else {
+        assert_eq!(
+            ModelError::MailboxCmdFailed(err.into()),
+            hw.upload_firmware(data).unwrap_err()
+        );
     }
 }
 

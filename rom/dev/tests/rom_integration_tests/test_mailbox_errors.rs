@@ -32,6 +32,7 @@ fn test_unknown_command_is_fatal() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))]
 fn test_mailbox_command_aborted_after_handle_fatal_error() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {

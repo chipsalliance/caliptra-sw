@@ -32,6 +32,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
 mod bmc;
+pub mod cfg;
 mod fpga_regs;
 pub mod lcc;
 pub mod mmio;
@@ -65,6 +66,7 @@ pub use output::ExitStatus;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
+pub use model_emulated::ModelEmulatedSS;
 
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
@@ -89,9 +91,17 @@ pub use model_fpga_subsystem::XI3CWrapper;
 #[cfg(all(
     not(feature = "verilator"),
     not(feature = "fpga_realtime"),
-    not(feature = "fpga_subsystem")
+    not(feature = "fpga_subsystem"),
+    not(feature = "emu_subsystem")
 ))]
 pub type DefaultHwModel = ModelEmulated;
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem"),
+    feature = "emu_subsystem"
+))]
+pub type DefaultHwModel = ModelEmulatedSS;
 
 #[cfg(feature = "verilator")]
 pub type DefaultHwModel = ModelVerilated;
@@ -178,8 +188,6 @@ pub struct InitParams<'a> {
 
     pub dbg_manuf_service: DbgManufServiceRegReq,
 
-    pub subsystem_mode: bool,
-
     pub uds_granularity_64: bool,
 
     // Keypairs for production debug unlock levels, from low to high
@@ -254,7 +262,6 @@ impl Default for InitParams<'_> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
-            subsystem_mode: false,
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
@@ -696,7 +703,7 @@ pub trait HwModel: SocManager {
                     boot_params.mcu_fw_image,
                 )?;
             } else {
-                self.upload_firmware(fw_image)?;
+                self.upload_firmware_mailbox(fw_image)?;
             }
         }
 
@@ -1044,8 +1051,17 @@ pub trait HwModel: SocManager {
         Ok(Some(result))
     }
 
-    /// Upload firmware to the mailbox.
+    /// Upload firmware via rri or mailbox, in the case of rri it's without soc_manifest or mcu_firmware
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        if self.subsystem_mode() {
+            self.upload_firmware_rri(firmware, None, None)
+        } else {
+            self.upload_firmware_mailbox(firmware)
+        }
+    }
+
+    /// upload firmware via mailbox
+    fn upload_firmware_mailbox(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
