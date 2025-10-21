@@ -16,7 +16,7 @@ assignees: ''
 * [edit] Overview of anticipated changes to specifications or other documentation (e.g. Caliptra runtime specification)
 * [edit] Overview of changes to security posture per FIPS 140-3
 * [edit] Expected impact to memory consumption
-* [edit] Expected impact to timing
+* [edit] Expected impact to runtime (if applicable)
 
 ## Rationale
 [edit] The motivation and justification for the change, including why it is important to include in a specific Caliptra release version.
