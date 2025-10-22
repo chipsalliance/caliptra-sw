@@ -8,7 +8,6 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader,
 };
-use caliptra_emu_bus::Register;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
