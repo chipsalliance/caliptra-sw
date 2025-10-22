@@ -17,6 +17,7 @@ use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
+    SubsystemInitParams,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
@@ -575,10 +576,18 @@ fn make_model_with_security_state(
         test_fwid: Some(app),
         test_fmc_fwid: Some(fmc),
         init_params: Some(InitParams {
-            rom: &caliptra_builder::rom_for_fw_integration_tests().unwrap(),
+            rom: &caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(
+                feature = "fpga_subsystem"
+            ))
+            .unwrap(),
             security_state: *SecurityState::default()
                 .set_debug_locked(debug_locked)
                 .set_device_lifecycle(lifecycle),
+            subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         }),
         ..Default::default()

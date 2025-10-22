@@ -111,6 +111,14 @@ pub fn test_upload_firmware<T: HwModel>(
     }
 }
 
+pub fn default_rt_fwid() -> &'static FwId<'static> {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    }
+}
+
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_fmc_fwid: Option<&'static FwId<'static>>,
@@ -154,6 +162,10 @@ impl Default for RuntimeTestArgs<'_> {
     }
 }
 
+pub fn wait_for_runtime<T: HwModel>(model: &mut T) {
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+}
+
 pub fn run_rt_test_pqc(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
@@ -161,7 +173,7 @@ pub fn run_rt_test_pqc(
     let successful_reach_rt = args.successful_reach_rt;
     let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
     if successful_reach_rt {
-        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+        wait_for_runtime(&mut model);
     } else {
         model.step_until(|m| {
             m.soc_ifc()
@@ -199,11 +211,7 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-        &APP_WITH_UART_FPGA
-    } else {
-        &APP_WITH_UART
-    };
+    let default_rt_fwid = default_rt_fwid();
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
     let fmc_fwid = args.test_fmc_fwid.unwrap_or(&FMC_WITH_UART);
 

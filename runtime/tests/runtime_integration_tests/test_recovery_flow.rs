@@ -5,7 +5,7 @@ use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
 use caliptra_emu_bus::{Device, EventData};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, InitParams};
+use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::from_hw_format;
 use caliptra_image_gen::ImageGeneratorCrypto;
@@ -40,10 +40,15 @@ fn test_loads_mcu_fw() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);
@@ -91,10 +96,15 @@ fn test_mcu_fw_bad_signature() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);

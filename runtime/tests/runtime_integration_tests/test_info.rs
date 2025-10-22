@@ -84,15 +84,20 @@ fn test_fw_info() {
         image_opts10.fw_svn = 10;
 
         // Cannot use run_rt_test since we need the rom and image to verify info
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
         let init_params = InitParams {
             rom: &rom,
             ..Default::default()
         };
 
-        let image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
-                .unwrap();
+        let image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            crate::common::default_rt_fwid(),
+            image_opts10,
+        )
+        .unwrap();
 
         // Set fuses
         let owner_pub_key_hash = ImageGenerator::new(Crypto::default())

@@ -59,10 +59,15 @@ fn test_fe_programming_cmd() {
 
 #[test]
 fn test_fe_programming_invalid_partition() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ..Default::default()
+        },
         ..Default::default()
     };
 

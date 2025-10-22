@@ -6,7 +6,7 @@ use crate::common::{
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
     RuntimeTestArgs, TEST_LABEL,
 };
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::firmware::FMC_WITH_UART;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
@@ -15,7 +15,9 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_common::x509::get_tbs;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_hw_model::{
+    BootParams, DefaultHwModel, Fuses, HwModel, InitParams, SubsystemInitParams,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
@@ -603,9 +605,12 @@ pub fn test_all_measurement_apis() {
         // Shared inputs for all 3 methods
         let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
         let tci_type: [u8; 4] = [101, 102, 103, 104];
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
+        let rt_fwid = crate::common::default_rt_fwid();
         let fw_image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fwid, image_options)
                 .unwrap()
                 .to_bytes()
                 .unwrap();
@@ -622,6 +627,10 @@ pub fn test_all_measurement_apis() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             BootParams {
@@ -654,6 +663,7 @@ pub fn test_all_measurement_apis() {
 
         // Get to runtime
         crate::common::test_upload_firmware(&mut hw, &fw_image, *pqc_key_type);
+        crate::common::wait_for_runtime(&mut hw);
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
