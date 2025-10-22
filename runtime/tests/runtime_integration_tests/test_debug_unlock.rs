@@ -18,7 +18,7 @@ use caliptra_common::{
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{
     CodeRange, DeviceLifecycle, HwModel, ImageInfo, InitParams, ModelError, SecurityState,
-    StackInfo, StackRange,
+    StackInfo, StackRange, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
@@ -772,7 +772,10 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         prod_dbg_unlock_keypairs,
         debug_intent: true,
         subsystem_mode: true,
-        enable_mcu_uart_log: true,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };

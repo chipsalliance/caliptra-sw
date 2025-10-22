@@ -1313,7 +1313,7 @@ impl HwModel for ModelFpgaSubsystem {
             return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
         }
         let mcu_rom =
-            match params.mcu_rom {
+            match params.ss_init_params.mcu_rom {
                 Some(mcu_rom) => mcu_rom,
                 None => &std::fs::read(std::env::var("CPTRA_MCU_ROM").expect(
                     "set the ENV VAR CPTRA_MCU_ROM to the absolute path of caliptra-mcu rom",
@@ -1437,7 +1437,7 @@ impl HwModel for ModelFpgaSubsystem {
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
-            enable_mcu_uart_log: params.enable_mcu_uart_log,
+            enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
         };
 
         println!("AXI reset");
@@ -1519,11 +1519,11 @@ impl HwModel for ModelFpgaSubsystem {
         m.wrapper
             .regs()
             .prod_debug_unlock_auth_pk_hash_reg_bank_offset
-            .set(params.prod_dbg_unlock_pk_hashes_offset);
+            .set(params.ss_init_params.prod_dbg_unlock_pk_hashes_offset);
         m.wrapper
             .regs()
             .num_of_prod_debug_unlock_auth_pk_hashes
-            .set(params.num_prod_dbg_unlock_pk_hashes);
+            .set(params.ss_init_params.num_prod_dbg_unlock_pk_hashes);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
