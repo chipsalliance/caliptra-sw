@@ -36,6 +36,10 @@ path = "../../../drivers"
 [dependencies.caliptra-image-verify]
 path = ".."
 
+[dependencies.caliptra-cfi-lib]
+path = "../../../cfi/lib"
+features = ["cfi", "cfi-counter", "cfi-test"]
+
 [features]
 struct-aware = ["arbitrary"]
 

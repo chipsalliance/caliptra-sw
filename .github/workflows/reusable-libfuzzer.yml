@@ -37,31 +37,46 @@ jobs:
         with:
           submodules: 'true'
 
+      # This is necessary as that job runs on another VM
+      - name: Restore Image Verifier common corpus
+        uses: actions/cache/restore@v3
+        with:
+          path: ./image/verify/fuzz/common_corpus/
+          key: image_verify-common_corpus-${{ env.CACHE_BUSTER }}
+
       - name: Install dependencies
         run: |
           rustup toolchain install nightly-2023-04-15
           rustup component add --toolchain nightly-2023-04-15 llvm-tools
-          cargo +nightly-2023-04-15 install cargo-fuzz
+          cargo +nightly-2023-04-15 install cargo-fuzz@=0.12 --locked
 
       - name: Restore corpus dir
         uses: actions/cache/restore@v3
+        id: corpus_restore
         with:
           path: ${{ inputs.fuzz_target_path }}/corpus/
           key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
 
+      - name: Populate corpus
+        if: steps.corpus_restore.outputs.cache-hit != 'true'
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir -p corpus/${{ inputs.fuzz_target_name }}
+          cp common_corpus/* corpus/${{ inputs.fuzz_target_name }}/
+
       - name: Run fuzzing
         run: |
           cd ${{ inputs.fuzz_target_path }}
-          mkdir -p {corpus,artifacts}/${{ inputs.fuzz_target_name }}
+          # target crash is not CI error (TODO: refine)
           cargo +nightly-2023-04-15 fuzz run \
             --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
             -s ${{ inputs.fuzzer_sanitiser }} \
             ${{ inputs.fuzz_target_name }} \
-            corpus/${{ inputs.fuzz_target_name }} common_corpus \
+            corpus/${{ inputs.fuzz_target_name }} \
             -- \
             -max_len=${{ inputs.fuzz_target_max_len }} \
             -max_total_time=3600 \
-            -jobs=480 -workers=$(($(nproc) / 2))
+            -workers=$(( $(nproc) / 2 )) || true
 
       - name: Export coverage
         run: |
@@ -70,7 +85,7 @@ jobs:
             --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
             -s ${{ inputs.fuzzer_sanitiser }} \
             ${{ inputs.fuzz_target_name }} \
-            corpus/${{ inputs.fuzz_target_name }} common_corpus \
+            corpus/${{ inputs.fuzz_target_name }} \
             -- \
             -max_len=${{ inputs.fuzz_target_max_len }}
           ~/.rustup/toolchains/nightly-2023-04-15-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-cov show \
@@ -82,31 +97,31 @@ jobs:
       - name: Merge corpus between runs
         run: |
           cd ${{ inputs.fuzz_target_path }}
-          mkdir new_corpus
           cargo +nightly-2023-04-15 fuzz cmin \
             --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
             -s ${{ inputs.fuzzer_sanitiser }} \
             ${{ inputs.fuzz_target_name }} \
-            new_corpus corpus \
+            corpus \
             -- \
             -max_len=${{ inputs.fuzz_target_max_len }} \
-            -jobs=480 -workers=$(($(nproc) / 2)) \
-          rm -rf corpus && mv new_corpus corpus
+            -workers=$(( $(nproc) / 2 ))
 
       - name: Attempt to minimise each crash for test cases
         run: |
           cd ${{ inputs.fuzz_target_path }}
           mkdir test_cases
-          for crashing_input in artifacts/${{ inputs.fuzz_target_name }}/*; do
+          # Return early, the following globs will fail
+          [[ $(ls -A corpus/${{ inputs.fuzz_target_name }}/) ]] || exit
+          for crashing_input in corpus/${{ inputs.fuzz_target_name }}/*; do
             cargo +nightly-2023-04-15 fuzz tmin \
               --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
               -s ${{ inputs.fuzzer_sanitiser }} \
               ${{ inputs.fuzz_target_name }} \
               $crashing_input \
               -- \
-              -max_len=${{ inputs.fuzz_target_max_len }} \
+              -max_len=${{ inputs.fuzz_target_max_len }}
           done
-          mv artifacts/${{ inputs.fuzz_target_name }}/minimized-from-* test_cases/
+          mv corpus/${{ inputs.fuzz_target_name }}/minimized-from-* test_cases/
 
       - name: Save corpus dir
         uses: actions/cache/save@v3
