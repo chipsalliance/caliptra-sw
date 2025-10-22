@@ -1,8 +1,12 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
+};
+use caliptra_auth_man_types::{
+    AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
@@ -20,8 +24,10 @@ use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    StackInfo, StackRange,
+    SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
@@ -58,7 +64,53 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-#[derive(Default)]
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+
+fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
+    // generate a default SoC manifest if one is not provided in subsystem mode
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+}
+
+fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    let manifest_bytes = manifest.as_bytes();
+    let len = manifest_bytes.len();
+    // Pad to a multiple of 256 bytes
+    let padded_len = ((len + 255) / 256) * 256;
+    let mut padded = vec![0u8; padded_len];
+    padded[..len].copy_from_slice(manifest_bytes);
+    padded
+}
+
+pub fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(fw_image).unwrap();
+    }
+}
+
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_fmc_fwid: Option<&'static FwId<'static>>,
@@ -71,13 +123,83 @@ pub struct RuntimeTestArgs<'a> {
     pub mcu_fw_image: Option<&'a [u8]>,
     /// Initial content of the test SRAM
     pub test_sram: Option<&'a [u8]>,
+    pub stop_at_rom: bool,
+    pub security_state: Option<SecurityState>,
+    pub soc_manifest_svn: Option<u32>,
+    pub soc_manifest_max_svn: Option<u32>,
+    pub subsystem_mode: bool,
+    pub successful_reach_rt: bool,
+}
+
+// clippy gets confused about cfg(feature = "...")
+#[allow(clippy::derivable_impls)]
+impl Default for RuntimeTestArgs<'_> {
+    fn default() -> Self {
+        Self {
+            test_fwid: None,
+            test_fmc_fwid: None,
+            test_image_options: None,
+            init_params: None,
+            test_mfg_flags: None,
+            soc_manifest: None,
+            mcu_fw_image: None,
+            test_sram: None,
+            stop_at_rom: false,
+            security_state: None,
+            soc_manifest_svn: None,
+            soc_manifest_max_svn: None,
+            subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            successful_reach_rt: true,
+        }
+    }
 }
 
 pub fn run_rt_test_pqc(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
-    let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
+    let successful_reach_rt = args.successful_reach_rt;
+    let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
+    if successful_reach_rt {
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    } else {
+        model.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+    }
+
+    model
+}
+
+pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
+    let n = if svn > 128 { 128 } else { svn };
+
+    // Build a 128-bit value with the lowest `n` bits set.
+    // Shifting by 128 is invalid, so handle that case explicitly.
+    let val: u128 = if n == 0 {
+        0
+    } else if n == 128 {
+        u128::MAX
+    } else {
+        (1u128 << n) - 1
+    };
+
+    [
+        (val & 0xffff_ffff) as u32,
+        ((val >> 32) & 0xffff_ffff) as u32,
+        ((val >> 64) & 0xffff_ffff) as u32,
+        ((val >> 96) & 0xffff_ffff) as u32,
+    ]
+}
+
+pub fn start_rt_test_pqc_model(
+    args: RuntimeTestArgs,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> (DefaultHwModel, Vec<u8>) {
+    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &APP_WITH_UART_FPGA
     } else {
         &APP_WITH_UART
@@ -108,16 +230,23 @@ pub fn run_rt_test_pqc(
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let init_params = match args.init_params {
-        Some(init_params) => init_params,
-        None => InitParams {
-            rom: &rom,
-            stack_info: Some(StackInfo::new(image_info)),
-            test_sram: args.test_sram,
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let init_params = args.init_params.unwrap_or_else(|| InitParams {
+        rom: &rom,
+        stack_info: Some(StackInfo::new(image_info)),
+        test_sram: args.test_sram,
+        security_state: args.security_state.unwrap_or_default(),
+        subsystem_mode: args.subsystem_mode,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()
         },
-    };
+        ..Default::default()
+    });
 
     let image =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
@@ -130,32 +259,38 @@ pub fn run_rt_test_pqc(
         0
     };
 
-    let mut model = caliptra_hw_model::new(
+    let image = image.to_bytes().unwrap();
+
+    let default_manifest_bytes;
+    let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
+        default_manifest_bytes =
+            default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
+        (Some(&default_manifest_bytes[..]), Some(DEFAULT_MCU_FW))
+    } else {
+        (args.soc_manifest, args.mcu_fw_image)
+    };
+
+    let model = caliptra_hw_model::new(
         init_params,
         BootParams {
-            fw_image: Some(&image.to_bytes().unwrap()),
+            fw_image: if args.stop_at_rom { None } else { Some(&image) },
             fuses: Fuses {
                 fuse_pqc_key_type: pqc_key_type as u32,
                 vendor_pk_hash,
                 owner_pk_hash,
+                soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
+                soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
-            soc_manifest: args.soc_manifest,
-            mcu_fw_image: args.mcu_fw_image,
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
     .unwrap();
 
-    model.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
-    });
-
-    model
+    (model, image)
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,

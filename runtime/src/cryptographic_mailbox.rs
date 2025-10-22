@@ -14,35 +14,40 @@ Abstract:
 
 use crate::{mutrefbytes, Drivers};
 use arrayvec::ArrayVec;
+use bitfield::bitfield;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     hmac_cm::hmac,
+    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
     mailbox_api::{
         CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
         CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp,
         CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
         CmAesGcmDecryptUpdateResp, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
         CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-        CmAesGcmEncryptUpdateResp, CmAesMode, CmAesResp, CmDeleteReq, CmEcdhFinishReq,
-        CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
-        CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm,
-        CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp,
-        CmHmacKdfCounterReq, CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage,
-        CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp,
-        CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq,
-        CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
-        Cmk as MailboxCmk, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+        CmAesGcmEncryptUpdateResp, CmAesGcmSpdmDecryptInitReq, CmAesGcmSpdmDecryptInitResp,
+        CmAesGcmSpdmEncryptInitReq, CmAesGcmSpdmEncryptInitResp, CmAesMode, CmAesResp, CmDeleteReq,
+        CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp,
+        CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
+        CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq,
+        CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
+        CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq,
+        CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
+        CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
+        CmShaInitResp, CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
+        MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
         CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-        CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+        CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES,
+        MAX_CMB_DATA_SIZE,
     },
 };
 use caliptra_drivers::{
-    hkdf_expand, hkdf_extract, hmac_kdf,
+    cmac_kdf, hkdf_expand, hkdf_extract, hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacMode, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
+    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
     PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
     AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
@@ -52,11 +57,19 @@ use caliptra_image_types::{
 };
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
+pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
 pub const MLDSA_SEED_SIZE: usize = 32;
 
 // We have 24 bits for the key ID.
 const MAX_KEY_ID: u32 = 0xffffff;
+
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct SpdmFlags(u32);
+    pub version, set_image_version: 7, 0;
+    pub counter_big_endian, set_counter_big_endian: 8, 8;
+}
 
 /// Holds data for the cryptographic mailbox system.
 #[derive(Default)]
@@ -437,6 +450,8 @@ impl Commands {
         let raw_key = &cmd.input[..cmd.input_size as usize];
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            // The caller is responsible for managing the original source material.
+            flags: UnencryptedCmk::FIPS_VALID,
             length: cmd.input_size as u16,
             key_usage: key_usage as u32 as u8,
             id: if matches!(key_usage, CmKeyUsage::Aes) {
@@ -457,6 +472,9 @@ impl Commands {
 
         let resp = mutrefbytes::<CmImportResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        // The caller is responsible for managing the original
+        // source material.
+        resp.hdr.fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
         resp.cmk = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmImportResp>())
     }
@@ -636,8 +654,8 @@ impl Commands {
 
         context.length = data_len as u32;
 
-        // copy the intermediate hash if we had enough data to generate one
-        if data_len >= SHA512_BLOCK_BYTE_SIZE {
+        // copy the intermediate hash if we had enough data to generate new one
+        if context_buffer_len + data.len() >= SHA512_BLOCK_BYTE_SIZE {
             let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
             intermediate_digest.0.iter_mut().for_each(|x| {
                 *x = x.swap_bytes();
@@ -826,12 +844,16 @@ impl Commands {
                 AesOperation::Encrypt,
                 plaintext,
                 &mut resp.ciphertext,
+                cmk.fips_valid(),
             )?,
-            CmAesMode::Ctr => {
-                drivers
-                    .aes
-                    .aes_256_ctr(key, &iv, 0, plaintext, &mut resp.ciphertext)?
-            }
+            CmAesMode::Ctr => drivers.aes.aes_256_ctr(
+                key,
+                &iv,
+                0,
+                plaintext,
+                &mut resp.ciphertext,
+                cmk.fips_valid(),
+            )?,
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
 
@@ -842,6 +864,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = unencrypted_context.fips_valid_status();
         resp.hdr.iv = iv;
         resp.hdr.context = transmute!(encrypted_context);
         resp.hdr.ciphertext_size = plaintext.len() as u32;
@@ -932,12 +955,16 @@ impl Commands {
                 AesOperation::Decrypt,
                 ciphertext,
                 &mut resp.output,
+                cmk.fips_valid(),
             )?,
-            CmAesMode::Ctr => {
-                drivers
-                    .aes
-                    .aes_256_ctr(key, &cmd.iv, 0, ciphertext, &mut resp.output)?
-            }
+            CmAesMode::Ctr => drivers.aes.aes_256_ctr(
+                key,
+                &cmd.iv,
+                0,
+                ciphertext,
+                &mut resp.output,
+                cmk.fips_valid(),
+            )?,
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
@@ -947,6 +974,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = unencrypted_context.fips_valid_status();
         resp.hdr.context = transmute!(encrypted_context);
         resp.hdr.output_size = ciphertext.len() as u32;
 
@@ -1008,6 +1036,7 @@ impl Commands {
             op,
             input,
             &mut resp.output,
+            context.fips_valid(),
         )?;
 
         let new_encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
@@ -1017,6 +1046,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.context = transmute!(new_encrypted_context);
         resp.hdr.output_size = input.len() as u32;
         resp.partial_len()
@@ -1035,6 +1065,7 @@ impl Commands {
             context.last_block_index as usize,
             input,
             &mut resp.output,
+            context.fips_valid(),
         )?;
 
         let new_encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
@@ -1044,6 +1075,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.context = transmute!(new_encrypted_context);
         resp.hdr.output_size = input.len() as u32;
         resp.partial_len()
@@ -1068,17 +1100,49 @@ impl Commands {
 
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
         let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
             encrypted_cmk,
         )?;
-        drivers.cryptographic_mailbox.increment_counter(&cmk)?;
-        let key = &cmk.key_material[..32].try_into().unwrap();
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let iv_arr;
+        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        let (key, iv) = if cmd.flags != 0 {
+            if !matches!(key_usage, CmKeyUsage::Hmac) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let spdm_version: SpdmVersion = (cmd.flags as u8).try_into()?;
+            let (key, iv) = Self::spdm_derive_key_and_iv(
+                drivers,
+                &cmk.key_material[..cmk.length as usize],
+                spdm_version,
+            )?;
+            iv_arr = iv;
+            (key, AesGcmIv::Array(&iv_arr))
+        } else {
+            // increment and check usage
+            if !matches!(key_usage, CmKeyUsage::Aes) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let counter = drivers.cryptographic_mailbox.increment_counter(&cmk)?;
+            if counter > GCM_MAX_KEY_USES {
+                Err(CaliptraError::RUNTIME_GCM_KEY_USAGE_LIMIT_REACHED)?;
+            }
+            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
+            (key, AesGcmIv::Random)
+        };
+
         let unencrypted_context =
             drivers
                 .aes
-                .aes_256_gcm_init(&mut drivers.trng, key, AesGcmIv::Random, aad)?;
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1087,9 +1151,86 @@ impl Commands {
 
         let resp = mutrefbytes::<CmAesGcmEncryptInitResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_context.fips_valid_status();
         resp.iv = unencrypted_context.iv;
         resp.context = transmute!(encrypted_context);
         Ok(core::mem::size_of::<CmAesGcmEncryptInitResp>())
+    }
+
+    fn xor_iv(iv: &[u8; 12], counter: &[u8; 8], big_endian_counter_xor: bool) -> [u8; 12] {
+        let mut result = *iv;
+        if big_endian_counter_xor {
+            for (i, byte) in counter.iter().enumerate() {
+                result[11 - i] ^= byte;
+            }
+        } else {
+            for (i, byte) in counter.iter().enumerate() {
+                result[i] ^= byte;
+            }
+        }
+        result
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub(crate) fn aes_256_gcm_spdm_encrypt_init(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmEncryptInitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmSpdmEncryptInitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let aad = &cmd.aad[..cmd.aad_size as usize];
+
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        if !matches!(key_usage, CmKeyUsage::Hmac) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+        let spdm_flags = SpdmFlags(cmd.spdm_flags);
+        let spdm_version: SpdmVersion = (spdm_flags.version() as u8).try_into()?;
+        let (key, iv) = Self::spdm_derive_key_and_iv(
+            drivers,
+            &cmk.key_material[..cmk.length as usize],
+            spdm_version,
+        )?;
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, spdm_flags.counter_big_endian() == 1);
+        let iv = AesGcmIv::Array(&iv);
+
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_context,
+        )?;
+
+        let resp = mutrefbytes::<CmAesGcmSpdmEncryptInitResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_context.fips_valid_status();
+        resp.context = transmute!(encrypted_context);
+        Ok(core::mem::size_of::<CmAesGcmSpdmEncryptInitResp>())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -1131,6 +1272,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.context = transmute!(new_encrypted_context);
         resp.hdr.ciphertext_size = written as u32;
 
@@ -1170,12 +1312,15 @@ impl Commands {
                 .aes_256_gcm_encrypt_final(context, plaintext, &mut resp.ciphertext)?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.tag = tag;
         resp.hdr.ciphertext_size = written as u32;
 
         resp.partial_len()
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn aes_256_gcm_decrypt_init(
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
@@ -1199,11 +1344,40 @@ impl Commands {
             &mut drivers.trng,
             encrypted_cmk,
         )?;
-        let key = &cmk.key_material[..32].try_into().unwrap();
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let iv_arr;
+        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        let (key, iv) = if cmd.flags != 0 {
+            if !matches!(key_usage, CmKeyUsage::Hmac) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let spdm_version: SpdmVersion = (cmd.flags as u8).try_into()?;
+            let (key, iv) = Self::spdm_derive_key_and_iv(
+                drivers,
+                &cmk.key_material[..cmk.length as usize],
+                spdm_version,
+            )?;
+            iv_arr = iv;
+            (key, AesGcmIv::Array(&iv_arr))
+        } else {
+            // check usage
+            if !matches!(key_usage, CmKeyUsage::Aes) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
+            (key, AesGcmIv::Array(&cmd.iv))
+        };
+
         let unencrypted_context =
             drivers
                 .aes
-                .aes_256_gcm_init(&mut drivers.trng, key, AesGcmIv::Array(&cmd.iv), aad)?;
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1212,10 +1386,74 @@ impl Commands {
 
         let resp = mutrefbytes::<CmAesGcmDecryptInitResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_context.fips_valid_status();
         resp.iv = unencrypted_context.iv;
         resp.context = transmute!(encrypted_context);
 
         Ok(core::mem::size_of::<CmAesGcmDecryptInitResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_spdm_decrypt_init(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmDecryptInitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmSpdmDecryptInitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let aad = &cmd.aad[..cmd.aad_size as usize];
+
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        if !matches!(key_usage, CmKeyUsage::Hmac) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+        let spdm_version: SpdmVersion = (cmd.spdm_flags as u8).try_into()?;
+        let (key, iv) = Self::spdm_derive_key_and_iv(
+            drivers,
+            &cmk.key_material[..cmk.length as usize],
+            spdm_version,
+        )?;
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
+        let iv = AesGcmIv::Array(&iv);
+
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_context,
+        )?;
+
+        let resp = mutrefbytes::<CmAesGcmSpdmDecryptInitResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_context.fips_valid_status();
+        resp.context = transmute!(encrypted_context);
+
+        Ok(core::mem::size_of::<CmAesGcmSpdmDecryptInitResp>())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -1257,6 +1495,7 @@ impl Commands {
         )?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.context = transmute!(new_encrypted_context);
         resp.hdr.plaintext_size = written as u32;
 
@@ -1301,6 +1540,7 @@ impl Commands {
                 .aes_256_gcm_decrypt_final(context, ciphertext, &mut resp.plaintext, tag)?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
+        resp.hdr.hdr.fips_status = context.fips_valid_status();
         resp.hdr.tag_verified = tag_verified as u32;
         resp.hdr.plaintext_size = written as u32;
 
@@ -1408,6 +1648,7 @@ impl Commands {
         let raw_key = &shared_key_out.as_bytes()[..key_len];
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            flags: UnencryptedCmk::FIPS_VALID,
             length: key_len as u16,
             key_usage: key_usage as u32 as u8,
             id: if matches!(key_usage, CmKeyUsage::Aes) {
@@ -1500,6 +1741,7 @@ impl Commands {
 
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            flags: cmk.flags, // propagate FIPS flag
             length: key_size as u16,
             key_usage: key_usage as u32 as u8,
             id: if matches!(key_usage, CmKeyUsage::Aes) {
@@ -1559,6 +1801,7 @@ impl Commands {
 
         let resp = mutrefbytes::<CmHmacKdfCounterResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_cmk.to_mailbox_fips_status();
         resp.kout = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1574,7 +1817,7 @@ impl Commands {
     ) -> CaliptraResult<()> {
         match (cm_hash_algorithm, key_usage, key_size) {
             (_, CmKeyUsage::Aes, 32) => {}
-            (_, CmKeyUsage::Ecdsa, 32) => {}
+            (_, CmKeyUsage::Ecdsa, 48) => {}
             (_, CmKeyUsage::Mldsa, 32) => {}
             (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
             (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
@@ -1600,9 +1843,10 @@ impl Commands {
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
         let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
-        let cmk = Self::decrypt_hmac_key(drivers, &cmd.ikm)?;
+        let ikm = Self::decrypt_hmac_key(drivers, &cmd.ikm)?;
+        let salt = Self::decrypt_hmac_key(drivers, &cmd.salt)?;
 
-        match (cm_hash_algorithm, cmk.length) {
+        match (cm_hash_algorithm, ikm.length) {
             (CmHashAlgorithm::Sha384, 48) => {}
             (CmHashAlgorithm::Sha512, 64) => {}
             _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
@@ -1610,7 +1854,8 @@ impl Commands {
 
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
-            length: cmk.length,
+            flags: ikm.flags, // propagate FIPS flag from IKM
+            length: ikm.length,
             key_usage: CmKeyUsage::Hmac as u32 as u8,
             id: [0u8; 3],
             usage_counter: 0,
@@ -1622,8 +1867,8 @@ impl Commands {
                 let mut tag = Array4x12::default();
                 hkdf_extract(
                     &mut drivers.hmac,
-                    &cmk.key_material[..48],
-                    &cmd.salt[..48],
+                    &ikm.key_material[..48],
+                    &salt.key_material[..48],
                     &mut drivers.trng,
                     (&mut tag).into(),
                     HmacMode::Hmac384,
@@ -1639,8 +1884,8 @@ impl Commands {
                 let mut tag = Array4x16::default();
                 hkdf_extract(
                     &mut drivers.hmac,
-                    &cmk.key_material[..64],
-                    &cmd.salt,
+                    &ikm.key_material[..64],
+                    &salt.key_material[..64],
                     &mut drivers.trng,
                     (&mut tag).into(),
                     HmacMode::Hmac512,
@@ -1657,6 +1902,7 @@ impl Commands {
 
         let resp = mutrefbytes::<CmHkdfExtractResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_cmk.to_mailbox_fips_status();
         resp.prk = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1697,6 +1943,7 @@ impl Commands {
 
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            flags: cmk.flags, // propagate FIPS flag
             length: key_size as u16,
             key_usage: key_usage as u32 as u8,
             id: if matches!(key_usage, CmKeyUsage::Aes) {
@@ -1710,50 +1957,23 @@ impl Commands {
 
         match cm_hash_algorithm {
             CmHashAlgorithm::Sha384 => {
-                let arr: [u8; 48] = cmk.key_material[..48].try_into().unwrap();
-                let key: Array4x12 = arr.into();
-                let mut tag = Array4x12::default();
-                hkdf_expand(
-                    &mut drivers.hmac,
-                    (&key).into(),
-                    info,
-                    &mut drivers.trng,
-                    (&mut tag).into(),
-                    HmacMode::Hmac384,
-                )?;
-                // convert out of HW format
-                tag.0.iter_mut().for_each(|x| {
-                    *x = x.swap_bytes();
-                });
+                let tag = Self::hkdf_expand384(drivers, &cmk.key_material[..48], info)?;
                 // truncate the key
-                let len = tag.as_bytes().len().min(key_size);
-                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+                let len = tag.len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag[..len])
             }
             CmHashAlgorithm::Sha512 => {
-                let arr: [u8; 64] = cmk.key_material[..64].try_into().unwrap();
-                let key: Array4x16 = arr.into();
-                let mut tag = Array4x16::default();
-                hkdf_expand(
-                    &mut drivers.hmac,
-                    (&key).into(),
-                    info,
-                    &mut drivers.trng,
-                    (&mut tag).into(),
-                    HmacMode::Hmac512,
-                )?;
-                // convert out of HW format
-                tag.0.iter_mut().for_each(|x| {
-                    *x = x.swap_bytes();
-                });
+                let tag = Self::hkdf_expand512(drivers, &cmk.key_material[..64], info)?;
                 // truncate the key
-                let len = tag.as_bytes().len().min(key_size);
-                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+                let len = tag.len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag[..len])
             }
             _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
 
         let resp = mutrefbytes::<CmHkdfExpandResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_cmk.to_mailbox_fips_status();
         resp.okm = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1762,7 +1982,11 @@ impl Commands {
         Ok(core::mem::size_of::<CmHkdfExpandResp>())
     }
 
-    fn decrypt_mldsa_seed(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<LEArray4x8> {
+    // returns the seed and whether it is FIPS valid
+    fn decrypt_mldsa_seed(
+        drivers: &mut Drivers,
+        cmk: &MailboxCmk,
+    ) -> CaliptraResult<(LEArray4x8, bool)> {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
@@ -1778,7 +2002,7 @@ impl Commands {
 
         let seed = &cmk.key_material[..MLDSA_SEED_SIZE];
         let seed: &[u8; MLDSA_SEED_SIZE] = seed.try_into().unwrap();
-        Ok(seed.into())
+        Ok((seed.into(), cmk.fips_valid()))
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -1794,12 +2018,17 @@ impl Commands {
         let cmd = CmMldsaPublicKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
-        let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
         let public_key = drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
 
         let resp = mutrefbytes::<CmMldsaPublicKeyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = if fips_valid {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        };
         resp.public_key.copy_from_slice(public_key.as_bytes());
         Ok(core::mem::size_of::<CmMldsaPublicKeyResp>())
     }
@@ -1822,7 +2051,7 @@ impl Commands {
         }
         let msg = &cmd.message[..cmd.message_size as usize];
 
-        let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
         let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
 
@@ -1835,6 +2064,11 @@ impl Commands {
 
         let resp = mutrefbytes::<CmMldsaSignResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = if fips_valid {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        };
         resp.signature.copy_from_slice(signature.as_bytes());
         Ok(core::mem::size_of::<CmMldsaSignResp>())
     }
@@ -1857,7 +2091,7 @@ impl Commands {
         }
         let msg = &cmd.message[..cmd.message_size as usize];
 
-        let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
         let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
 
@@ -1867,6 +2101,11 @@ impl Commands {
             Mldsa87Result::Success => {
                 let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
                 *resp = MailboxRespHeader::default();
+                resp.fips_status = if fips_valid {
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                } else {
+                    MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+                };
                 Ok(core::mem::size_of::<MailboxRespHeader>())
             }
             Mldsa87Result::SigVerifyFailed => {
@@ -1875,7 +2114,11 @@ impl Commands {
         }
     }
 
-    fn decrypt_ecdsa_seed(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<Array4x12> {
+    // returns the seed and whether it is FIPS valid
+    fn decrypt_ecdsa_seed(
+        drivers: &mut Drivers,
+        cmk: &MailboxCmk,
+    ) -> CaliptraResult<(Array4x12, bool)> {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
@@ -1891,7 +2134,7 @@ impl Commands {
 
         let seed = &cmk.key_material[..ECC384_SCALAR_BYTE_SIZE];
         let seed: &[u8; ECC384_SCALAR_BYTE_SIZE] = seed.try_into().unwrap();
-        Ok(seed.into())
+        Ok((seed.into(), cmk.fips_valid()))
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -1907,7 +2150,7 @@ impl Commands {
         let cmd = CmEcdsaPublicKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
-        let seed = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
         let mut ignore = Array4x12::default();
         let pub_key = drivers.ecc384.key_pair(
             Ecc384Seed::Array4x12(&seed),
@@ -1917,6 +2160,11 @@ impl Commands {
         )?;
         let resp = mutrefbytes::<CmEcdsaPublicKeyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = if fips_valid {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        };
         let x: [u8; ECC384_SCALAR_BYTE_SIZE] = pub_key.x.into();
         let y: [u8; ECC384_SCALAR_BYTE_SIZE] = pub_key.y.into();
         resp.public_key_x.copy_from_slice(&x);
@@ -1944,7 +2192,7 @@ impl Commands {
         let msg = &cmd.message[..cmd.message_size as usize];
         let hash = drivers.sha2_512_384.sha384_digest(msg)?;
 
-        let seed = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
         let mut priv_key: Array4x12 = Array4x12::default();
         let pub_key = &drivers.ecc384.key_pair(
             Ecc384Seed::Array4x12(&seed),
@@ -1962,6 +2210,11 @@ impl Commands {
 
         let resp = mutrefbytes::<CmEcdsaSignResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = if fips_valid {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        };
         resp.signature_r = signature.r.into();
         resp.signature_s = signature.s.into();
         Ok(core::mem::size_of::<CmEcdsaSignResp>())
@@ -1987,7 +2240,7 @@ impl Commands {
         let msg = &cmd.message[..cmd.message_size as usize];
         let hash = drivers.sha2_512_384.sha384_digest(msg)?;
 
-        let seed = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
+        let (seed, fips_valid) = Self::decrypt_ecdsa_seed(drivers, &cmd.cmk)?;
         let mut priv_key: Array4x12 = Array4x12::default();
         let pub_key = &drivers.ecc384.key_pair(
             Ecc384Seed::Array4x12(&seed),
@@ -2010,11 +2263,233 @@ impl Commands {
             Ecc384Result::Success => {
                 let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
                 *resp = MailboxRespHeader::default();
+                resp.fips_status = if fips_valid {
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                } else {
+                    MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+                };
                 Ok(core::mem::size_of::<MailboxRespHeader>())
             }
             Ecc384Result::SigVerifyFailed => {
                 Err(CaliptraError::RUNTIME_MAILBOX_SIGNATURE_MISMATCH)?
             }
         }
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn derive_stable_key(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() != core::mem::size_of::<CmDeriveStableKeyReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let request = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let key_type: CmStableKeyType = request.key_type.into();
+
+        let aes_key = match key_type {
+            CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
+            CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+        };
+        let k0 = cmac_kdf(&mut drivers.aes, aes_key, &request.info, None, 4)?;
+
+        // Prepend "DOT Final" to info and use as label for HMAC KDF
+        const PREFIX: &[u8] = b"DOT Final";
+        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
+        data[..PREFIX.len()].copy_from_slice(PREFIX);
+        data[PREFIX.len()..].copy_from_slice(&request.info);
+
+        let mut tag: Array4x16 = Array4x16::default();
+        hmac_kdf(
+            &mut drivers.hmac,
+            (&Array4x16::from(k0)).into(),
+            &data[..],
+            None,
+            &mut drivers.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )?;
+        let mut key_material = [0u8; 64];
+        for (i, word) in tag.0.iter().enumerate() {
+            key_material[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+
+        // Convert the tag to CMK
+        let unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            flags: drivers.soc_ifc.stable_key_zeroizable().into(),
+            length: key_material.len() as u16,
+            key_usage: CmKeyUsage::Hmac as u32 as u8,
+            id: [0u8; 3],
+            usage_counter: 0,
+            key_material,
+        };
+
+        let encrypted_cmk = drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?;
+
+        let resp = mutrefbytes::<CmDeriveStableKeyResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.hdr.fips_status = unencrypted_cmk.to_mailbox_fips_status();
+        resp.cmk = transmute!(encrypted_cmk);
+        Ok(core::mem::size_of::<CmDeriveStableKeyResp>())
+    }
+
+    fn spdm_derive_key_and_iv(
+        drivers: &mut Drivers,
+        major_secret: &[u8],
+        version: SpdmVersion,
+    ) -> CaliptraResult<([u8; 32], [u8; 12])> {
+        // EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
+        // IV = HKDF-Expand(major-secret, bin_str6, iv_length);
+        // bin_str5 = BinConcat(key_length, Version, "key", null);
+        // bin_str6 = BinConcat(iv_length, Version, "iv", null);
+        let mut bin_str5 = [0u8; 13];
+        let mut bin_str6 = [0u8; 12];
+        spdm_bin_concat(32, version, "key", &[], &mut bin_str5)?;
+        spdm_bin_concat(12, version, "iv", &[], &mut bin_str6)?;
+
+        let mut key = [0u8; 32];
+        let mut iv = [0u8; 12];
+
+        match major_secret.len() {
+            48 => {
+                let hkdf_key = Self::hkdf_expand384(drivers, major_secret, &bin_str5)?;
+                let hkdf_iv = Self::hkdf_expand384(drivers, major_secret, &bin_str6)?;
+                key.copy_from_slice(&hkdf_key[..32]);
+                iv.copy_from_slice(&hkdf_iv[..12]);
+            }
+            64 => {
+                let hkdf_key = Self::hkdf_expand512(drivers, major_secret, &bin_str5)?;
+                let hkdf_iv = Self::hkdf_expand512(drivers, major_secret, &bin_str6)?;
+                key.copy_from_slice(&hkdf_key[..32]);
+                iv.copy_from_slice(&hkdf_iv[..12]);
+            }
+            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        }
+        Ok((key, iv))
+    }
+
+    fn hkdf_expand384(
+        drivers: &mut Drivers,
+        major_secret: &[u8],
+        info: &[u8],
+    ) -> CaliptraResult<[u8; 48]> {
+        let arr: [u8; 48] = major_secret[..48]
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+        let key: Array4x12 = arr.into();
+        let mut tag = Array4x12::default();
+        hkdf_expand(
+            &mut drivers.hmac,
+            (&key).into(),
+            info,
+            &mut drivers.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac384,
+        )?;
+        // convert out of HW format
+        tag.0.iter_mut().for_each(|x| {
+            *x = x.swap_bytes();
+        });
+        // truncate the key
+        tag.as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)
+    }
+
+    fn hkdf_expand512(
+        drivers: &mut Drivers,
+        major_secret: &[u8],
+        info: &[u8],
+    ) -> CaliptraResult<[u8; 64]> {
+        let arr: [u8; 64] = major_secret[..64]
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+        let key: Array4x16 = arr.into();
+        let mut tag = Array4x16::default();
+        hkdf_expand(
+            &mut drivers.hmac,
+            (&key).into(),
+            info,
+            &mut drivers.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )?;
+
+        // convert out of HW format
+        tag.0.iter_mut().for_each(|x| {
+            *x = x.swap_bytes();
+        });
+        // truncate the key
+        tag.as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum SpdmVersion {
+    V10,
+    V11,
+    V12,
+    V13,
+    V14,
+}
+
+impl TryFrom<u8> for SpdmVersion {
+    type Error = CaliptraError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0x10 => Ok(SpdmVersion::V10),
+            0x11 => Ok(SpdmVersion::V11),
+            0x12 => Ok(SpdmVersion::V12),
+            0x13 => Ok(SpdmVersion::V13),
+            0x14 => Ok(SpdmVersion::V14),
+            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+        }
+    }
+}
+
+// 1. Length   Binary  Little           16 bits
+// 2. Version  Text    Text             8 bytes
+// 3. Label    Text    Text             Variable
+// 4. Context  Binary  Hash byte order  Hash.Length
+fn spdm_bin_concat(
+    length: u16,
+    version: SpdmVersion,
+    text: &str,
+    context: &[u8],
+    output: &mut [u8],
+) -> CaliptraResult<()> {
+    if 10 + text.len() + context.len() > output.len() {
+        Err(CaliptraError::RUNTIME_INTERNAL)?;
+    }
+    output[0..2].copy_from_slice(&length.to_le_bytes());
+    output[2..10].copy_from_slice(spdm_version_str(version));
+    let text_bytes = text.as_bytes();
+    output[10..10 + text_bytes.len()].copy_from_slice(text_bytes);
+    output[10 + text_bytes.len()..10 + text_bytes.len() + context.len()].copy_from_slice(context);
+    Ok(())
+}
+
+const fn spdm_version_str(version: SpdmVersion) -> &'static [u8; 8] {
+    match version {
+        // SPDM 1.0 does not support key exchange so has no need of this, but we include it anyway for completeness sake
+        SpdmVersion::V10 => b"spdm1.0 ",
+        SpdmVersion::V11 => b"spdm1.1 ",
+        SpdmVersion::V12 => b"spdm1.2 ",
+        SpdmVersion::V13 => b"spdm1.3 ",
+        SpdmVersion::V14 => b"spdm1.4 ", // technically not in the spec but we include it because it was likely an oversight
     }
 }

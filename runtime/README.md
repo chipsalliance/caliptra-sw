@@ -122,7 +122,8 @@ Internally, the unecrypted CMKs have the following structure:
 
 | **Name**      | **Bits** | **Description**                        |
 | ------------- | -------- | -------------------------------------- |
-| version       | 16       | CMK version. Currently always 1.       |
+| version       | 8        | CMK version. Currently always 1.       |
+| flags         | 8        | Bit 0 = FIPS valid                     |
 | length        | 16       | how many bits of key material are used |
 | key usage     | 8        | represents which kind of key this is   |
 | id            | 24       | ID number                              |
@@ -669,6 +670,34 @@ Command Code: `0x4C4D_5632` ("LMV2")
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
+### MLDSA87_SIGNATURE_VERIFY
+
+Verifies the signature against the message and MLDSA-87 public key.
+
+The public key and signature formats are described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x4D4C_5632` ("MLV2")
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` input arguments*
+| **Name**  | **Type**     | **Description**    |
+| --------- | ------------ | ------------------ |
+| chksum    | u32          |                    |
+| pub_key   | u8[2592]     | Public key         |
+| signature | u8[4627]     | Signature to check |
+| padding   | u8[1]        |                    |
+| data len  | u32          | Length of message  |
+| data      | u8[data len] | Message to check   |
+
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+
+
 ### STASH\_MEASUREMENT
 
 Makes a measurement into the DPE default context. This command is intended for
@@ -954,6 +983,8 @@ Command Code: `0x494E_464F` ("INFO")
 | fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
 | runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
 | owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
+| authman_sha384_digest  | u32[12]        | Hash of the authorization manifest provided by SET_AUTH_MANIFEST.
+| most_recent_fw_error   | u32            | Most recent FW non-fatal error (shows current non-fatal error if non-zero)
 
 ### VERSION
 
@@ -1141,6 +1172,14 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 | Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 
+### VERIFY_AUTH_MANIFEST
+
+This command verifies the integrity and authenticity of the provided image manifest. Unlike `SET_AUTH_MANIFEST`, it performs validation only and does not persist the manifest in DCCM.
+
+Command Code: `0x4154_564D` ("ATVM")
+
+The input arguments are the same as the `SET_AUTH_MANIFEST` command.
+
 
 ### AUTHORIZE_AND_STASH
 
@@ -1325,7 +1364,7 @@ Command Code: `0x434D_5346` ("CMSF")
 | hash size   | u32           |                           |
 | hash        | u8[hash size] |                           |
 
-### CM_HMAC
+### CM\_HMAC
 
 Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data must fit into a single mailbox command.
 
@@ -1389,7 +1428,10 @@ Command Code: `0x434D_4B43` ("CMKC")
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC usage. The output will be tagged for HMAC usage.
+The CMKs for IKM and salt must have been created for HMAC usage. The output will be tagged for HMAC usage.
+
+Use CM_IMPORT to import non-secret (plaintext) salt or IKMs to use
+with HKDF-Extract after right-padding to 48 or 64 bytes with zeros.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
@@ -1397,13 +1439,12 @@ Command Code: `0x434D_4B54` ("CMKT")
 | **Name**       | **Type** | **Description**           |
 | -------------- | -------- | ------------------------- |
 | chksum         | u32      |                           |
-| IKM CMK        | CMK      | Input key material CMK    |
 | hash algorithm | u32      | Enum.                     |
 |                |          | Value 0 = reserved        |
 |                |          | Value 1 = SHA2-384        |
 |                |          | Value 2 = SHA2-512        |
-| salt           | u8[64]   | Salt. Only 48 bytes used  |
-|                |          | in SHA384 mode. Can be 0s |
+| salt CMK       | CMK      | Salt CMK.                 |
+| IKM CMK        | CMK      | Input key material CMK    |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
 | **Name**    | **Type** | **Description**                         |
@@ -1635,7 +1676,8 @@ The encrypted and authenticated context's internal structure will be:
 | mode           | u32      |                                |
 | key            | u8[32]   |                                |
 | iv             | u8[16]   |                                |
-| reserved       | u8[76]   | Reserved for additional fields |
+| fips_status    | u8       | 1 = FIPS valid                 |
+| reserved       | u8[75]   | Reserved for additional fields |
 
 The size of the (encrypted) context is always exactly 156 bytes,
 and we will use the type `AES_CONTEXT` to represent `u8[156]`.
@@ -1741,9 +1783,9 @@ Command Code: `0x434D_4155` ("CMAU")
 
 Currently only supports AES-256-GCM with a random 96-bit IV.
 
-The CMK must have been created for AES usage.
-
 Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
+The CMK must have been created for AES usage, except if the SPDM mode flag has been used, in which case the CMK must have been created for HMAC usage.
 
 Command Code: `0x434D_4749` ("CMGI")
 
@@ -1751,6 +1793,7 @@ Command Code: `0x434D_4749` ("CMGI")
 | **Name**       | **Type**           | **Description**                  |
 | -------------- | ------------------ | -------------------------------- |
 | chksum         | u32                |                                  |
+| reserved       | u32                |                                  |
 | CMK            | CMK                | CMK of the key to use to encrypt |
 | aad size       | u32                |                                  |
 | aad            | u8[aad size]       | Additional authenticated data    |
@@ -1774,11 +1817,68 @@ The encrypted and authenticated context's internal structure will be:
 | GHASH state    | u8[16]   |                             |
 | current length | u32      | value mod 16 is buffer size |
 | buffer         | u8[16]   |                             |
-| reserved       | u8[16]   |                             |
+| fips_status    | u8       | 1 = FIPS valid                 |
+| reserved       | u8[15]   |                             |
 
 The size of the (encrypted) context is always exactly 128 bytes,
 and we will use the type `AES_GCM_CONTEXT` to represent `u8[128]` below.
 
+
+### CM_AES_GCM_SPDM_ENCRYPT_INIT
+
+Derives the AES key and IV following the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) and [Secured Messages using SPDM 1.1](https://www.dmtf.org/dsp/dsp0277) specifications.
+
+Currently only supports AES-256-GCM.
+
+Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
+The CMK must have been created for **HMAC** usage.
+
+The CMK passed in should be the SPDM major secret CMK created for HMAC usage. The key and IV used for encryption shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7 derivation with `key_length` equal to 32 bytes and `iv_length` equal to 12 bytes.
+
+```
+EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
+IV = HKDF-Expand(major-secret, bin_str6, iv_length);
+bin_str5 = BinConcat(key_length, Version, "key", null);
+bin_str6 = BinConcat(iv_length, Version, "iv", null);
+```
+
+The provided 64-bit message counter will be XOR'd with the IV to produce the message IV. The Secure SPDM standard requires the counter endianness flag to be little, but big endian is also supported to aid in compatibility with some implementations.
+
+Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing so could compromise the plaintext of the messages.
+
+For the update and final operations, there are not any SPDM-specific commands; `CM_AES_GCM_ENCRYPT_UPDATE` and `CM_AES_GCM_ENCRYPT_FINAL` should be used.
+
+Command Code: `0x434D_5345` ("CMSE")
+
+*Table: `CM_AES_GCM_SPDM_ENCRYPT_INIT` input arguments*
+| **Name**           | **Type**           | **Description**                   |
+| ------------------ | ------------------ | --------------------------------- |
+| chksum             | u32                |                                   |
+| spdm version       | u8                 | The value should be equal to the  |
+|                    |                    | byte representation of the SPDM   |
+|                    |                    | version, e.g., 0x13 = SPDM 1.3    |
+| counter endianness | u8                 | XOR the counter with the IV using |
+|                    |                    | the given endianness.             |
+|                    |                    | 0 = Little endian (standard)      |
+|                    |                    | 1 = Big endian                    |
+| reserved           | u8[2]              | Reserved                          |
+| counter            | u8[8]              | 8-byte counter in little-endian   |
+|                    |                    | format that is XOR'd into the IV  |
+| CMK                | CMK                | CMK of the key to use to encrypt  |
+| aad size           | u32                |                                   |
+| aad                | u8[aad size]       | Additional authenticated data     |
+
+*Table: `CM_AES_GCM_SPDM_ENCRYPT_INIT` output arguments*
+| **Name**       | **Type**            | **Description**                  |
+| -------------- | ------------------- | -------------------------------- |
+| chksum         | u32                 |                                  |
+| fips_status    | u32                 | FIPS approved or an error        |
+| context        | AES_GCM_CONTEXT     |                                  |
+
+Unlike in the standard AES GCM encrypt init command, the IV is *not* returned.
+
+The encrypted and authenticated context's internal structure will be the same as for described in [CM_AES_GCM_ENCRYPT_INIT](#CM_AES_GCM_ENCRYPT_INIT).
 
 ### CM_AES_GCM_ENCRYPT_UPDATE
 
@@ -1838,24 +1938,79 @@ Starts an AES-256-GCM decryption computation.
 
 Currently only supports AES-256-GCM with a 96-bit IV.
 
-The CMK must have been created for AES usage.
-
 Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
 
 The AAD and IV must match what was passed and returned from the encryption operation.
 
+The CMK must have been created for **AES** usage.
+
 Command Code: `0x434D_4449` ("CMDI")
 
 *Table: `CM_AES_GCM_DECRYPT_INIT` input arguments*
-| **Name**        | **Type**            | **Description**               |
-| --------------- | ------------------- | ----------------------------- |
-| chksum          | u32                 |                               |
-| CMK             | CMK                 | CMK to use for decryption     |
-| iv              | u8[12]              |                               |
-| aad size        | u32                 |                               |
-| aad             | u8[aad size]        | Additional authenticated data |
+| **Name**        | **Type**     | **Description**                  |
+| --------------- | ------------ | -------------------------------- |
+| chksum          | u32          |                                  |
+| reserved        | u32          | Reserved                         |
+| CMK             | CMK          | CMK to use for decryption        |
+| iv              | u8[12]       |                                  |
+| aad size        | u32          |                                  |
+| aad             | u8[aad size] | Additional authenticated data    |
 
 *Table: `CM_AES_GCM_DECRYPT_INIT` output arguments*
+| **Name**       | **Type**           | **Description**           |
+| -------------- | ------------------ | ------------------------- |
+| chksum         | u32                |                           |
+| fips_status    | u32                | FIPS approved or an error |
+| context        | AES_GCM_CONTEXT    |                           |
+
+The encrypted and authenticated context's internal structure will be the same as for encryption.
+
+### CM_AES_SPDM_GCM_DECRYPT_INIT
+
+Starts an AES-256-GCM decryption computation in SPDM mode.
+
+Currently only supports AES-256-GCM with a 96-bit IV.
+
+Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
+The AAD must match what was passed and returned from the encryption operation.
+
+The CMK must have been created for **HMAC** usage.
+
+The CMK passed in should be the SPDM major secret CMK created for HMAC usage. The key and IV used for encryption shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7 derivation with `key_length` 256 and `iv_length` 96.
+
+```
+EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
+IV = HKDF-Expand(major-secret, bin_str6, iv_length);
+bin_str5 = BinConcat(key_length, Version, "key", null);
+bin_str6 = BinConcat(iv_length, Version, "iv", null);
+```
+
+The provided 64-bit message counter will be XOR'd with the IV to produce the message IV. The Secure SPDM standard requires the counter endianness flag to be little, but big endian is also supported to aid in compatibility with some implementations.
+
+Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing so could compromise the plaintext of the messages.
+
+Command Code: `0x434D_5344` ("CMSD")
+
+*Table: `CM_AES_GCM_SPDM_DECRYPT_INIT` input arguments*
+| **Name**           | **Type**           | **Description**                   |
+| ------------------ | ------------------ | --------------------------------- |
+| chksum             | u32                |                                   |
+| spdm version       | u8                 | The value should be equal to the  |
+|                    |                    | byte representation of the SPDM   |
+|                    |                    | version, e.g., 0x13 = SPDM 1.3    |
+| counter endianness | u8                 | XOR the counter with the IV using |
+|                    |                    | the given endianness.             |
+|                    |                    | 0 = Little endian (standard)      |
+|                    |                    | 1 = Big endian                    |
+| reserved           | u8[2]              | Reserved                          |
+| counter            | u8[8]              | 8-byte counter in little-endian   |
+|                    |                    | format that is XOR'd into the IV  |
+| CMK                | CMK                | CMK to use for decryption         |
+| aad size           | u32                |                                   |
+| aad                | u8[aad size]       | Additional authenticated data     |
+
+*Table: `CM_AES_GCM_SPDM_DECRYPT_INIT` output arguments*
 | **Name**       | **Type**           | **Description**           |
 | -------------- | ------------------ | ------------------------- |
 | chksum         | u32                |                           |
@@ -2026,11 +2181,45 @@ Command Code: `0x434D_5247` ("CMRG")
 | output size | u32             | size of output            |
 | output      | u8[output size] |                           |
 
+### CM\_DERIVE\_STABLE\_KEY
+
+Derives an HMAC key that has a stable value across resets from either
+IDevId or LDevId.
+
+The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs.
+The actual encrypted bytes of the CMK will *not* be the same, and
+the encrypted CMK itself cannot be used across resets. So, the key
+will always need to be re-derived after every *cold* reset.
+
+If a key usage other than HMAC is desired, then the KDF or HKDF
+mailbox functions can be used to derive a key from the returned CMK.
+
+Note that in Caliptra 2.0 in subsystem mode, derived stable keys, their derivatives, and commands using them will be marked with a FIPS status of invalid since the UDS and FE cannot be completely zeroized.
+
+Command Code: `0x434D_4453` ("CMDS")
+
+*Table: `CM_DERIVE_STABLE_KEY` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| info          | u8[32]   | Data to use in the key derivation. |
+
+*Table: `CM_DERIVE_STABLE_KEY` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| cmk           | CMK      | CMK that stores the stable key material |
+
 ### CM_IMPORT
 
 Imports the specified key and returns a CMK for it.
 
 Usage information is required so that the key can be verified and used appropriately.
+
+Note that it is the caller's responsibility to ensure that the source
+key material meets FIPS requirements, such as zeroization.
 
 Command Code: `0x434D_494D` ("CMIM")
 
@@ -2220,27 +2409,6 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
-
-### DERIVE\_STABLE\_KEY
-
-Derives an exportable HMAC key from either IDEVID or LDEVID. 
-
-Command Code: `0x4453_4B45` ("DSKE")
-
-*Table: `DERIVE_STABLE_KEY` input arguments*
-
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
-| info          | u8[32]   | Data to use in the key derivation |
-
-*Table: `DERIVE_STABLE_KEY` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| cmk           | CMK      | CMK that stores the stable key material |
-
 
 ## Checksum
 

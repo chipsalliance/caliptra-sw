@@ -22,7 +22,8 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
 
 [features]
 emu = ["caliptra-test-harness/emu"]
-fpga_realtime = []
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -114,6 +115,11 @@ path = "src/bin/persistent_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "preconditioned_keys"
+path = "src/bin/preconditioned_keys_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha2_512_384acc"
 path = "src/bin/sha2_512_384acc_tests.rs"
 required-features = ["riscv"]
@@ -191,4 +197,9 @@ required-features = ["riscv"]
 [[bin]]
 name = "ml_dsa87"
 path = "src/bin/mldsa87_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "dma_sha384"
+path = "src/bin/dma_sha384_tests.rs"
 required-features = ["riscv"]

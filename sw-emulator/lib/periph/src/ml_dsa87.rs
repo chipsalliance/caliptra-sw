@@ -307,7 +307,7 @@ impl Mldsa87 {
             privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             kv_rd_seed_ctrl: ReadWriteRegister::new(0),
-            kv_rd_seed_status: ReadOnlyRegister::new(0),
+            kv_rd_seed_status: ReadOnlyRegister::new(KvRdSeedStatus::READY::SET.value),
             error_global_intr: ReadOnlyRegister::new(0),
             error_internal_intr: ReadOnlyRegister::new(0),
             private_key: [0; ML_DSA87_PRIVKEY_SIZE],

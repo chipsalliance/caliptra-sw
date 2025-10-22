@@ -19,7 +19,7 @@ Abstract:
 --*/
 
 use crate::{kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
-use caliptra_api::mailbox::CmAesMode;
+use caliptra_api::mailbox::{CmAesMode, MailboxRespHeader};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
@@ -118,10 +118,25 @@ pub struct AesGcmContext {
     pub ghash_state: [u8; 16],
     pub buffer_len: u32,
     pub buffer: [u8; 16],
-    pub resreved: [u8; 16],
+    pub fips_valid: u8,
+    pub resreved: [u8; 15],
 }
 
 const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_SIZE_BYTES);
+
+impl AesGcmContext {
+    pub const fn fips_valid(&self) -> bool {
+        self.fips_valid != 0
+    }
+
+    pub const fn fips_valid_status(&self) -> u32 {
+        if self.fips_valid() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
@@ -129,7 +144,22 @@ pub struct AesContext {
     pub key: [u8; 32],
     pub last_ciphertext: [u8; 16],
     pub last_block_index: u8,
-    _padding: [u8; 75],
+    pub fips_valid: u8,
+    _padding: [u8; 74],
+}
+
+impl AesContext {
+    pub const fn fips_valid(&self) -> bool {
+        self.fips_valid != 0
+    }
+
+    pub const fn fips_valid_status(&self) -> u32 {
+        if self.fips_valid() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
 }
 
 impl Default for AesContext {
@@ -139,7 +169,8 @@ impl Default for AesContext {
             key: [0; 32],
             last_ciphertext: [0; 16],
             last_block_index: 0,
-            _padding: [0; 75],
+            fips_valid: 0,
+            _padding: [0; 74],
         }
     }
 }
@@ -200,6 +231,7 @@ impl Aes {
         key: &[u8; 32],
         iv: AesGcmIv,
         aad: &[u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesGcmContext> {
         if aad.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
@@ -212,7 +244,13 @@ impl Aes {
             AesOperation::Encrypt, // doesn't matter
         )?;
 
-        let ghash_state = self.save()?;
+        let ghash_state = if aad.is_empty() {
+            // Edge case where we have not actually done any AES operations,
+            // so the GHASH state should not be saved.
+            [0; 16]
+        } else {
+            self.save()?
+        };
         self.zeroize_internal();
         Ok(AesGcmContext {
             key: *key,
@@ -221,7 +259,8 @@ impl Aes {
             ghash_state,
             buffer_len: 0,
             buffer: [0; 16],
-            resreved: [0; 16],
+            fips_valid: fips_valid.into(),
+            resreved: [0; 15],
         })
     }
 
@@ -280,7 +319,8 @@ impl Aes {
                     ghash_state: context.ghash_state,
                     buffer_len: len as u32,
                     buffer,
-                    resreved: [0; 16],
+                    fips_valid: context.fips_valid,
+                    resreved: [0; 15],
                 },
             ));
         }
@@ -288,6 +328,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -327,7 +368,13 @@ impl Aes {
         let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
         buffer[..input.len()].copy_from_slice(input);
 
-        let ghash_state = self.save()?;
+        let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
+            // Edge case where we have not actually done any AES operations,
+            // so the GHASH state should not be saved.
+            [0; 16]
+        } else {
+            self.save()?
+        };
         self.zeroize_internal();
         Ok((
             written,
@@ -338,7 +385,8 @@ impl Aes {
                 ghash_state,
                 buffer_len: len as u32,
                 buffer,
-                resreved: [0; 16],
+                fips_valid: context.fips_valid,
+                resreved: [0; 15],
             },
         ))
     }
@@ -391,6 +439,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -474,6 +523,7 @@ impl Aes {
         &mut self,
         key: AesKey,
         iv: &[u8; AES_IV_SIZE_BYTES],
+        aad_len: u32,
         len: u32,
         ghash_state: &[u8; AES_BLOCK_SIZE_BYTES],
         op: AesOperation,
@@ -534,9 +584,15 @@ impl Aes {
 
             wait_for_idle(&aes);
 
+            // if we haven't actually written any AAD or input, then
+            // we can skip the restore operation.
+            // This avoids some edge cases in the hardware.
+            if aad_len == 0 && len == 0 {
+                return Ok(());
+            }
+
             // Restore the GHASH state to data_in registers, which will load the state into the
             // GHASH unit.
-
             for _ in 0..2 {
                 aes.ctrl_gcm_shadowed()
                     .write(|w| w.phase(GcmPhase::Restore as u32));
@@ -929,6 +985,54 @@ impl Aes {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn aes_256_ecb(
+        &mut self,
+        key: AesKey,
+        op: AesOperation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<()> {
+        if input.is_empty() {
+            return Ok(());
+        }
+        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if output.len() < input.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+
+        if key.sideload() {
+            self.load_key(key)?;
+        }
+
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(op as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        if !key.sideload() {
+            self.load_key(key)?;
+        }
+
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+            self.read_data_block(output, block_num)?;
+        }
+
+        Ok(())
+    }
+
     pub fn aes_256_cbc(
         &mut self,
         key: &[u8; 32],
@@ -936,6 +1040,7 @@ impl Aes {
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesContext> {
         // trivial case is allowed
         if input.is_empty() {
@@ -943,6 +1048,7 @@ impl Aes {
                 mode: CmAesMode::Cbc as u32,
                 key: *key,
                 last_ciphertext: *iv,
+                fips_valid: fips_valid.into(),
                 ..Default::default()
             });
         }
@@ -1000,6 +1106,7 @@ impl Aes {
             mode: CmAesMode::Cbc as u32,
             key: *key,
             last_ciphertext,
+            fips_valid: fips_valid.into(),
             ..Default::default()
         })
     }
@@ -1017,6 +1124,7 @@ impl Aes {
         block_index: usize, // index within a block
         mut input: &[u8],
         mut output: &mut [u8],
+        fips_valid: bool,
     ) -> CaliptraResult<AesContext> {
         // trivial case is allowed
         if input.is_empty() {
@@ -1025,6 +1133,7 @@ impl Aes {
                 key: *key,
                 last_ciphertext: *iv,
                 last_block_index: block_index as u8,
+                fips_valid: fips_valid.into(),
                 ..Default::default()
             });
         }
@@ -1057,6 +1166,7 @@ impl Aes {
                     key: *key,
                     last_ciphertext: iv,
                     last_block_index: (block_index + input.len()) as u8,
+                    fips_valid: fips_valid.into(),
                     ..Default::default()
                 });
             }
@@ -1081,6 +1191,7 @@ impl Aes {
                     key: *key,
                     last_ciphertext: iv,
                     last_block_index: 0,
+                    fips_valid: fips_valid.into(),
                     ..Default::default()
                 });
             }
@@ -1124,6 +1235,7 @@ impl Aes {
             key: *key,
             last_ciphertext: iv,
             last_block_index: (input.len() % AES_BLOCK_SIZE_BYTES) as u8,
+            fips_valid: fips_valid.into(),
             ..Default::default()
         })
     }
@@ -1239,21 +1351,46 @@ impl Aes {
         Ok(c)
     }
 
-    /// Zeroize the hardware registers.
-    fn zeroize_internal(&mut self) {
-        Self::zeroize_regs(&mut self.aes);
+    /// Zeroize the GCM hardware state.
+    fn zeroize_gcm(&mut self) {
+        self.with_aes(|aes, _| {
+            // recommended way to clear GCM state in 2.0: Reset GCM to init with valid bytes set to 16
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Gcm as u32)
+                        .operation(AesOperation::Encrypt as u32)
+                        .manual_operation(false)
+                        .sideload(false)
+                });
+            }
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Init as u32).num_valid_bytes(16));
+            }
+            wait_for_idle(&aes);
+        });
     }
 
-    /// Helper function to zeroize the hardware registers.
-    fn zeroize_regs(aes: &mut AesReg) {
-        let aes = aes.regs_mut();
-        // Disable autostarting the engine.
-        for _ in 0..2 {
-            aes.ctrl_shadowed().write(|w| w.manual_operation(true));
-        }
-        // Clear IV, keys, input, output registers.
-        aes.trigger()
-            .write(|w| w.key_iv_data_in_clear(true).data_out_clear(true));
+    /// Zeroize the non-GHASH hardware registers.
+    fn zeroize_iv_data(&mut self) {
+        self.with_aes(|aes, _| {
+            // Disable autostarting the engine.
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| w.manual_operation(true));
+            }
+            // Clear IV, keys, input, output registers.
+            aes.trigger()
+                .write(|w| w.key_iv_data_in_clear(true).data_out_clear(true));
+        });
+    }
+
+    /// Zeroize the hardware registers.
+    fn zeroize_internal(&mut self) {
+        self.zeroize_gcm();
+        self.zeroize_iv_data();
     }
 
     /// Zeroize the hardware registers.
@@ -1267,7 +1404,8 @@ impl Aes {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut aes = AesReg::new();
-        Self::zeroize_regs(&mut aes);
+        let aes = AesReg::new();
+        let aes_clp = AesClpReg::new();
+        Aes::new(aes, aes_clp).zeroize_internal();
     }
 }

@@ -23,7 +23,7 @@ mod bounded_address;
 pub mod cmac_kdf;
 mod csrng;
 mod data_vault;
-mod dma;
+pub mod dma;
 mod doe;
 mod ecc384;
 mod error_reporter;
@@ -48,6 +48,7 @@ pub mod pcr_log;
 pub mod pcr_reset;
 mod persistent;
 pub mod pic;
+pub mod preconditioned_key;
 pub mod printer;
 mod sha1;
 mod sha256;
@@ -82,7 +83,10 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Seed, Ecc384Signature,
 };
-pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
+pub use error_reporter::{
+    clear_fw_error_non_fatal, get_fw_error_non_fatal, report_fw_error_fatal,
+    report_fw_error_non_fatal,
+};
 pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
@@ -119,7 +123,7 @@ pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
-pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
+pub use soc_ifc::{report_boot_status, CptraGeneration, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
 #[allow(unused_imports)]

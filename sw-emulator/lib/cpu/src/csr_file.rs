@@ -31,6 +31,8 @@ pub struct Csr {
 pub enum MipBits {
     Mitip0 = 29,
     Mitip1 = 28,
+    //bit 7  marks the machine timer interrupt as pending.
+    Mtip = 7,
 }
 
 impl Csr {
@@ -225,7 +227,7 @@ pub struct CsrFile {
     /// Maximum set PMPCFGi register
     max_pmpcfgi: Option<usize>,
     /// Internal Timers
-    internal_timers: InternalTimers,
+    pub(crate) internal_timers: InternalTimers,
     /// Reference to PIC
     pic: Rc<Pic>,
 }
@@ -354,7 +356,18 @@ impl CsrFile {
             CsrFile::meihap_read,
             CsrFile::system_write
         );
-
+        csr_fn!(
+            table,
+            Csr::MCYCLE,
+            CsrFile::mcycle_read,
+            CsrFile::mcycle_write
+        );
+        csr_fn!(
+            table,
+            Csr::MCYCLEH,
+            CsrFile::mcycleh_read,
+            CsrFile::mcycleh_write
+        );
         table
     };
 
@@ -403,6 +416,8 @@ impl CsrFile {
         csr_val!(csrs, Csr::MITB1, 0xFFFF_FFFF, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MITCTL0, 0x0000_0001, 0x0000_000F);
         csr_val!(csrs, Csr::MITCTL1, 0x0000_0001, 0x0000_000F);
+        csr_val!(csrs, Csr::MCYCLE, 0x0000_0000, 0xFFFF_FFFF);
+        csr_val!(csrs, Csr::MCYCLEH, 0x0000_0000, 0xFFFF_FFFF);
 
         Self {
             csrs,
@@ -517,19 +532,27 @@ impl CsrFile {
         }
 
         let mie = self.system_read(priv_mode, Csr::MIE)?;
-        let (mitip0, mitip1) = self.internal_timers.interrupts_pending();
-        let mitip0 = if mitip0 {
-            1 << MipBits::Mitip0 as RvData
+        let (pending0, pending1) = self.internal_timers.interrupts_pending();
+
+        let mitip0: RvData = if pending0 {
+            1 << (MipBits::Mitip0 as u32)
         } else {
             0
         };
-        let mitip1 = if mitip1 {
-            1 << MipBits::Mitip1 as RvData
+        let mitip1: RvData = if pending1 {
+            1 << (MipBits::Mitip1 as u32)
         } else {
             0
         };
-        let val = mie & (mitip0 | mitip1);
-        Ok(val)
+
+        // MTIP pending comes from MIP’s bit 7, which set_mtip() toggles.
+        let mtip_pending: RvData = self.csrs[Csr::MIP as usize].val & (1 << (MipBits::Mtip as u32));
+
+        // Keep your current behavior of masking pending by MIE.
+        let masked_internal = mie & (mitip0 | mitip1);
+        let masked_mtip = (mie & (1 << (MipBits::Mtip as u32))) & mtip_pending;
+
+        Ok(masked_internal | masked_mtip)
     }
 
     /// Perform a (no-op) write to the MIP CSR.
@@ -931,6 +954,40 @@ impl CsrFile {
         Ok(())
     }
 
+    fn mcycle_read(&self, priv_mode: RvPrivMode, _addr: RvAddr) -> Result<RvData, RvException> {
+        if priv_mode != RvPrivMode::M {
+            return Err(RvException::illegal_register());
+        }
+        Ok(self.timer.now() as u32)
+    }
+
+    fn mcycle_write(
+        &mut self,
+        _priv_mod: RvPrivMode,
+        _addr: RvAddr,
+        _val: RvData,
+    ) -> Result<(), RvException> {
+        // TODO: this should set the low 32 bits of the cycle counter to this value
+        Ok(())
+    }
+
+    fn mcycleh_read(&self, priv_mode: RvPrivMode, _addr: RvAddr) -> Result<RvData, RvException> {
+        if priv_mode != RvPrivMode::M {
+            return Err(RvException::illegal_register());
+        }
+        Ok((self.timer.now() >> 32) as u32)
+    }
+
+    fn mcycleh_write(
+        &mut self,
+        _priv_mod: RvPrivMode,
+        _addr: RvAddr,
+        _val: RvData,
+    ) -> Result<(), RvException> {
+        // TODO: this should set the high 32 bits of the cycle counter to this value
+        Ok(())
+    }
+
     /// Read the specified configuration status register, taking into account the privilege mode
     ///
     /// # Arguments
@@ -977,6 +1034,18 @@ impl CsrFile {
         }
 
         Self::CSR_FN[addr as usize].write(self, priv_mode, addr, val)
+    }
+
+    pub fn set_mtip(&mut self, asserted: bool) {
+        let mip = &mut self.csrs[Csr::MIP as usize];
+        let bit: RvData = 1u32 << (MipBits::Mtip as u32);
+        if asserted {
+            mip.val |= bit;
+        } else {
+            mip.val &= !bit;
+        }
+        // request an immediate poll so the core sees the new pending bit
+        self.timer.schedule_poll_in(0);
     }
 }
 
@@ -1032,6 +1101,17 @@ mod tests {
             csrs.read(RvPrivMode::U, Csr::MISA).err(),
             Some(RvException::illegal_register())
         );
+    }
+
+    #[test]
+    fn test_cycle() {
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
+        let csrs = CsrFile::new(clock.clone(), pic);
+        clock.increment(0x1234_5678_9abc);
+
+        assert_eq!(csrs.read(RvPrivMode::M, Csr::MCYCLE), Ok(0x5678_9abc));
+        assert_eq!(csrs.read(RvPrivMode::M, Csr::MCYCLEH), Ok(0x1234));
     }
 
     #[test]

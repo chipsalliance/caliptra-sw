@@ -106,9 +106,9 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D414E (‘CMAN’ in ASCII)|
+| Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D4E32 (‘CMN2’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
-| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & LMS Keys <br> 0x2 – ECC & MLDSA Keys <br> **Byte1-Byte3:** Reserved |
+| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & MLDSA Keys <br> 0x3 – ECC & LMS Keys <br> **Byte1-Byte3:** Reserved |
 | Manufacturer ECC Key Descriptor | 196 | Public Key Descriptor for ECC keys |
 | Manufacturer LMS or MLDSA Key Descriptor | 1540 | Public Key Descriptor for LMS (1540 bytes) or MLDSA (196 bytes + 1344 unused bytes) keys |
 | Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
@@ -124,15 +124,23 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
-#### Public Key Descriptor
+#### ECC Manufacturer Public Key Descriptor
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
-| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
-| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
-| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4, LMS: n = 32, MLDSA: n = 4 |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
+
+#### PQC Manufacturer Public Key Descriptor
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
+| Key Hash Count | 1 | Number of valid public key hashes  |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
 
 #### Header
 
@@ -147,8 +155,8 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | TOC Entry Count | 4 | Number of entries in TOC. |
 | PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
 | TOC Digest | 48 | SHA2-384 Digest of table of contents. |
-| Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Reserved:** (10 bytes) |
-| Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
+| Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
+| Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
 #### Table of contents
 
@@ -631,13 +639,18 @@ During this phase, the ROM executes specific mailbox commands. Based on the oper
 
 ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in ACTIVE mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
-1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement).
-2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version).
-3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_start).
-4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_get_results).
-5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
-6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
-7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#get_idevid_csr).
+1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#stash_measurement).
+2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#version).
+3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#self_test_start).
+4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#self_test_get_results).
+5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#shutdown).
+6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#capabilities).
+7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#get_idevid_csr).
+8. **CM_DERIVE_STABLE_KEY**: This command is used to derive a stable key for Device Ownership Transfer or other flows. Note that in Caliptra 2.0 in subsystem mode, derived stable keys, their derivatives, and commands using them will be marked with a FIPS status of invalid since the UDS and FE cannot be completely zeroized. See [CM_DERIVE_STABLE_KEY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_derive_stable_key).
+9. **CM_HMAC**: This command uses derived stable keys for Device Ownership Transfer or other flows. [CM_HMAC](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_hmac)
+10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
+11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)
+12. **CM_RANDOM_GENERATE**: This command returns random numbers from Caliptra's RNG for Device Ownership Transfer or other flows. [CM_RANDOM_GENERATE](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_random_generate)
 
 #### Downloading firmware image from mailbox
 

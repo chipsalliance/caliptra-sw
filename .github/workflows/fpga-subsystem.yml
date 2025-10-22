@@ -1,0 +1,337 @@
+
+name: Subsystem FPGA Build
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      artifact-suffix:
+        type: string
+        required: false
+      extra-features:
+        default:
+        type: string
+      rom-logging:
+        default: true
+        type: boolean
+      fpga-itrng:
+        default: true
+        type: boolean
+      hw-version:
+        default: "latest"
+        type: string
+      rom-version:
+        default: "latest"
+        type: string
+      workflow_call:
+        description: 'Set true for workflow_call'
+        default: true
+        type: boolean
+      branch:
+        default: ${{ github.sha }}
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      fpga-itrng:
+        default: true
+        type: boolean
+
+
+jobs:
+  check_cache:
+    runs-on: ubuntu-22.04
+
+    env:
+      CACHE_BUSTER: 79cee50b6134
+
+    outputs:
+      rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
+      rtl_cache_hit: ${{ steps.restore_rtl_bitstream_cache.outputs.cache-hit }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+          submodules: recursive
+      - name: Compute cache-keys
+        id: cache_key
+        run: |
+          # Compute the key from the tree hash of the fpga directory and the rtl
+          # root directory.
+          if [ "${{ inputs.workflow_call }}" ]; then
+            RTL_VERSION="${{ inputs.hw-version }}"
+          else
+            RTL_VERSION="latest"
+          fi
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+
+
+  build_test_binaries:
+    runs-on: [e2-standard-8]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+      CALIPTRA_MCU_COMMIT: 6418831e18966a05cfa0a8b7e66cbad3e4e76e5f
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+          submodules: recursive
+
+      - name: Restore sysroot from cache
+        uses: actions/cache/restore@v3
+        id: restore_sysroot_cache
+        with:
+          path: /tmp/caliptra-fpga-sysroot.tar
+          key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Extract sysroot
+        if: "steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo tar xvf /tmp/caliptra-fpga-sysroot.tar
+
+      - name: Install sysroot pre-requisites
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+
+      - name: build sysroot
+        # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
+        # it is missing xilinx-provided kernel headers needed to build kernel modules
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo mkdir /tmp/caliptra-fpga-sysroot
+          sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
+          sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
+
+          # Remove unnecesary files
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type c -or -type b -or -type p -or -type s \) -exec rm -f {} \;
+
+          sudo tar cvf /tmp/caliptra-fpga-sysroot.tar /tmp/caliptra-fpga-sysroot
+
+      - name: Save FPGA sysroot to cache
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        uses: actions/cache/save@v3
+        with:
+          path: /tmp/caliptra-fpga-sysroot.tar
+          key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
+          rustup toolchain install 1.84-x86_64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Restore MCU ROM from cache
+        uses: actions/cache/restore@v3
+        id: restore_mcu_rom_cache
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
+
+      - name: Extract MCU ROM from cache
+        if: "steps.restore_mcu_rom_cache.outputs.cache-hit"
+        run: |
+          sudo tar xvf /tmp/caliptra-mcu-binaries.tar.gz
+
+      - name: Build test MCU ROM
+        if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
+        run: |
+          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
+          pushd caliptra-mcu-sw
+          git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
+          git reset --hard ${CALIPTRA_MCU_COMMIT}
+          git submodule update --init --recursive
+
+          echo "Building MCU ROM from commit: $(git rev-list HEAD | head -n 1)"
+
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+          cargo xtask-fpga rom-build --platform fpga --features core_test
+          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga-core_test.bin target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin
+          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin ../mcu-rom-fpga.bin
+          tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
+
+      - name: Save test MCU ROM to cache
+        if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
+        uses: actions/cache/save@v3
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
+
+      - name: Build test binaries
+        run: |
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+          if [ "${{ inputs.rom-version }}" != "latest" ]; then
+            export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+          fi
+
+          if [ "${{ inputs.workflow_call }}" ]; then
+            FEATURES=fpga_subsystem,${{ inputs.extra-features }}
+          else
+            FEATURES=fpga_subsystem,itrng
+          fi
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
+          fi
+          cargo nextest archive \
+            --features=${FEATURES} \
+            --release \
+            --target=aarch64-unknown-linux-gnu \
+            --archive-file=/tmp/caliptra-test-binaries.tar.zst
+
+          mkdir /tmp/caliptra-test-binaries/
+          tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
+          mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
+
+      - name: 'Upload test binaries artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-binaries.sqsh
+          retention-days: 1
+
+      - name: Build test firmware
+        run: |
+          rustup target add riscv32imc-unknown-none-elf
+          mkdir /tmp/caliptra-test-firmware
+
+          FEATURES=""
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=hw-${{ inputs.hw-version }}
+          fi
+          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          cp mcu-rom-fpga.bin /tmp/caliptra-test-firmware/mcu-rom-fpga.bin
+
+      - name: 'Upload test firmware artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-firmware
+          retention-days: 1
+
+  test_artifacts:
+    runs-on: vck190-subsystem-2.0
+    needs: [check_cache, build_test_binaries]
+    timeout-minutes: 120
+    if: |
+      !cancelled() &&
+      needs.check_cache.result == 'success' &&
+      (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped')
+
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+          submodules: recursive
+
+      - name: 'Download Test Binaries Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-binaries.sqsh
+
+      - name: 'Download Test Firmware Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-firmware
+
+      - name: Mount binaries
+        run: |
+          # We don't have enough DRAM on the FPGA board to extract a tarball
+          # into the overlaid tmpfs, so use squashfs instead
+          echo mkdir
+          sudo mkdir /tmp/caliptra-test-binaries
+          echo mount squashfs
+          sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          find /tmp/caliptra-test-binaries
+
+      - name: Check kernel modules
+        run: |
+          sudo lsmod
+          ls /sys/class/uio
+
+      - name: Execute tests
+        run: |
+          export RUST_TEST_THREADS=1
+
+          TEST_BIN=/tmp/caliptra-test-binaries
+          VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1 CPTRA_MCU_ROM=/tmp/caliptra-test-firmware/mcu-rom-fpga.bin"
+
+          if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
+          elif [ "${{ inputs.rom-logging }}" == false ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITHOUT_UART"
+          else
+            echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
+            exit 1
+          fi
+
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
+            VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+          fi
+
+          echo VARS=${VARS}
+
+          # TODO add the remaining caliptra core integration tests
+          COMMON_ARGS=(
+              --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
+              --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
+              --target-dir-remap="${TEST_BIN}/target"
+              --workspace-remap=.
+              -E 'package(caliptra-runtime) - test(test_activate_firmware::test_activate_fw_id_not_in_manifest) - test(test_activate_firmware::test_activate_invalid_fw_id) - test(test_activate_firmware::test_activate_mcu_fw_success) - test(test_activate_firmware::test_activate_mcu_soc_fw_success) - test(test_activate_firmware::test_activate_soc_fw_success) - test(test_activate_firmware::test_invalid_exec_bit_in_manifest) - test(test_authorize_and_stash::test_authorize_from_load_address) - test(test_authorize_and_stash::test_authorize_from_staging_address)  - test(test_pcr31_extended_upon_stash_measurement) - test(test_stash_measurement::test_pcr31_extended_upon_stash_measurement) - test(test_warm_reset::)  - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd) - test(test_fe_programming::test_fe_programming_invalid_partition) - test(test_pauser_privilege_levels::test_pl0_unset_in_header) - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds
+) - test(test_pauser_privilege_levels::test_user_not_pl0) - test(test_fips::test_fips_version) - test(test_get_idev_csr::test_get_ecc_csr) - test(test_get_idev_csr::test_get_mldsa_csr) - test(test_set_auth_manifest::test_set_auth_manifest_svn_lt_fuse) - test(test_set_auth_manifest::test_set_auth_manifest_svn_gt_128) - test(test_mailbox::test_reserved_pauser) - test(test_pauser_privilege_levels::test_change_locality) - test(test_certs::test_all_measurement_apis) - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_info::test_fw_info)'
+              -E 'package(caliptra-rom) & (test(test_capabilities) | test(test_cfi) | test(test_cpu_fault))'
+              -E 'package(caliptra-api)'
+              -E 'package(caliptra-api-types)'
+              -E 'package(caliptra-auth-man-types)'
+              -E 'package(caliptra-cfi-lib)'
+              -E 'package(caliptra-coverage)'
+              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)'
+              -E 'package(caliptra-error)'
+              -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom)'
+              -E 'package(caliptra-hw-model-types)'
+              -E 'package(caliptra-image-crypto)'
+              -E 'package(caliptra-image-elf)'
+              -E 'package(caliptra-image-types)'
+              -E 'package(caliptra-lms-types)'
+              -E 'package(caliptra-size-history)'
+              -E 'package(caliptra-systemrdl)'
+              -E 'package(caliptra-verilated)'
+              -E 'package(caliptra-x509)'
+              -E 'package(ureg)'
+              -E 'package(ureg-codegen)'
+              -E 'package(ureg-schema)'
+              -E 'package(ureg-systemrdl)'
+          )
+
+          cargo-nextest nextest list \
+              "${COMMON_ARGS[@]}" \
+              --message-format json > /tmp/nextest-list.json
+
+          sudo ${VARS} cargo-nextest nextest run \
+              "${COMMON_ARGS[@]}" \
+              --test-threads=1 \
+              --no-fail-fast \
+              --profile=nightly
+
+      - name: 'Upload test results'
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: |
+            /tmp/junit.xml
+            /tmp/nextest-list.json

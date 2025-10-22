@@ -26,7 +26,12 @@ use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 
 const BLOCK_SIZE: u32 = 256; // Block size for DMA transfers
-const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+// SHA384 of empty stream
+const SHA384_EMPTY: Array4x12 = Array4x12::new([
+    0x38b060a7, 0x51ac9638, 0x4cd9327e, 0xb1b1e36a, 0x21fdb711, 0x14be0743, 0x4c0cc7bf, 0x63f6e1da,
+    0x274edebf, 0xe76f65fb, 0xd51ad2f1, 0x4898b95b,
+]);
 
 pub enum DmaReadTarget {
     Mbox(u32),
@@ -685,7 +690,7 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // TODO: remove this when the FPGA can do fixed burst transfers
-    #[cfg(feature = "fpga_realtime")]
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         // check if this is an I3C DMA
         let i3c = match read_transaction.read_addr {
@@ -712,6 +717,10 @@ impl<'a> DmaRecovery<'a> {
             }
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
+
+                if i >= read_transaction.length {
+                    break;
+                }
 
                 // translate to single dword transfer
                 match read_transaction.target {
@@ -741,7 +750,7 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
-    #[cfg(not(feature = "fpga_realtime"))]
+    #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         self.dma.flush();
         self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);
@@ -764,6 +773,11 @@ impl<'a> DmaRecovery<'a> {
         source: AxiAddr,
         length: u32,
     ) -> CaliptraResult<Array4x12> {
+        // the hardware does not support hashing an empty stream
+        if length == 0 {
+            return Ok(SHA384_EMPTY);
+        }
+
         // This is tricky, because we need to lock and write to several registers over DMA
         // so that the AXI user is set correctly, but we want the guarantees of the
         // Sha2_512_384Acc without making that too generic.
@@ -777,7 +791,7 @@ impl<'a> DmaRecovery<'a> {
                 return Err(CaliptraError::RUNTIME_INTERNAL);
             }
 
-            // we only use the raw SHA accelerator driver to get the digest at the end and unlock when dropped.
+            // we only use the raw SHA accelerator driver to get the digest at the end.
             let mut acc_op = sha_acc
                 .try_start_operation(ShaAccLockState::AssumedLocked)?
                 .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
@@ -786,7 +800,9 @@ impl<'a> DmaRecovery<'a> {
                 w.endian_toggle(false) // false means swap endianness to match SHA engine
                     .mode(|_| ShaCmdE::ShaStream384)
             });
+
             dma_sha.dlen().write(|_| length);
+
             // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
             let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
 
@@ -804,7 +820,13 @@ impl<'a> DmaRecovery<'a> {
             dma_sha.execute().write(|w| w.execute(true));
 
             let mut digest = Array4x12::default();
+
+            // this is read-only so is safe to do with acc_op
             acc_op.stream_wait_for_done_384(&mut digest)?;
+            drop(acc_op); // this causes acc_op to try to drop the lock, but it will fail
+
+            // we have to release the SHA accelerator lock over DMA for it to take effect
+            dma_sha.lock().write(|w| w.lock(true));
             Ok(digest)
         })?
     }

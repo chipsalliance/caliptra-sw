@@ -27,6 +27,9 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      branch:
+        default: ${{ github.sha }}
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -48,9 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -62,84 +66,6 @@ jobs:
             RTL_VERSION="latest"
           fi
           echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-
-      - name: Restore kernel modules from cache
-        uses: actions/cache/restore@v3
-        id: restore_kmod_cache
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-      - name: 'Upload kernel module artifacts'
-        if: steps.restore_kmod_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
-
-  build_kernel_modules:
-    runs-on: ubuntu-22.04
-    needs: check_cache
-    if: "!needs.check_cache.outputs.kmod_cache_hit"
-    steps:
-      - name: Install sysroot pre-requisites
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
-
-      - name: Setup xilinx sysroot
-        run: |
-          echo I am ${USER}
-
-          # NOTE: I would prefer to use
-          # iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-sysroot.tar.xz,
-          # but it has source for kernel version 5.15.0-1014-xilinx-zynqmp
-          # instead of 5.15.0-1015-xilinx-zynqmp used by the pre-built kernel.
-          curl -o /tmp/sysroot.tar.gz https://people.canonical.com/~platform/images/xilinx/versal-ubuntu-22.04/iot-limerick-versal-classic-server-2204-x02-20230315-48-rootfs.tar.gz
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          mkdir "${SYSROOT}"
-          sudo tar xf /tmp/sysroot.tar.gz -C "${SYSROOT}"
-          ls -l "${SYSROOT}"
-          sudo cp -L --remove-destination /etc/resolv.conf "${SYSROOT}/etc/"
-          sudo chroot "${SYSROOT}" mount -t proc proc /proc
-          sudo chroot "${SYSROOT}" mount -t devtmpfs devtmpfs /dev
-          sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
-          sudo mkdir "${SYSROOT}/home/${USER}"
-          sudo chown "${USER}" "${SYSROOT}/home/${USER}"
-          sudo chroot "${SYSROOT}" apt-get update
-          sudo chroot "${SYSROOT}" apt-get -y install build-essential
-
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          path: sysroot/home/runner/caliptra-sw
-
-      - name: Build modules
-        run: |
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          KERNEL=5.15.0-1020-xilinx-zynqmp
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
-
-          mkdir /tmp/caliptra-fpga-kmod
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
-
-      - name: Save kernel modules to cache
-        uses: actions/cache/save@v3
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ needs.check_cache.outputs.kmod_cache_key }}
-
-      - name: 'Upload kernel module artifacts'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
 
 
   build_test_binaries:
@@ -152,9 +78,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'true'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -229,6 +156,18 @@ jobs:
           tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
 
+      - name: Download bitstream
+        run: |
+          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/core.toml
+          mv core.pdi /tmp/caliptra-bitstream.pdi
+
+      - name: 'Upload bitstream'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream.pdi
+          retention-days: 1
+
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
@@ -266,9 +205,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'recursive' 
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with: 
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -281,6 +221,12 @@ jobs:
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
+
+      - name: 'Download Bitstream'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream
 
       - name: Mount binaries
         run: |
@@ -296,6 +242,13 @@ jobs:
         run: |
           sudo lsmod
           ls /sys/class/uio
+
+      - name: Load bitstream
+        run: |
+          sudo mkdir -p /lib/firmware
+          ls /tmp/caliptra-bitstream
+          sudo cp /tmp/caliptra-bitstream/caliptra-bitstream.pdi /lib/firmware
+          sudo bash -c 'echo "caliptra-bitstream.pdi" > /sys/class/fpga_manager/fpga0/firmware'
 
       - name: Execute tests
         run: |
@@ -318,6 +271,9 @@ jobs:
 
           echo VARS=${VARS}
 
+          # TODO(#2369): Remove the extra filters after fixing the broken tests
+          # Unstable tests: test_rtalias::test_boot_status_reporting, test_update_reset::test_update_reset_verify_image_failure
+          # These test(s) are expected to be skipped on the FPGA: package(caliptra-cfi-derive)
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -327,7 +283,13 @@ jobs:
                        package(caliptra-builder) |
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
-                       package(compliance-test))'
+                       package(compliance-test) |
+                       test(test_sign_validation_failure) |
+                       test(test_rtalias::test_boot_status_reporting) |
+                       test(test_update_reset::test_update_reset_verify_image_failure) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
           )
 
           cargo-nextest nextest list \

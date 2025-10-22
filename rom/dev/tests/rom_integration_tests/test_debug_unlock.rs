@@ -10,7 +10,7 @@ use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState,
+    DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState, SubsystemInitParams,
 };
 use fips204::traits::{SerDes, Signer};
 use p384::ecdsa::VerifyingKey;
@@ -37,6 +37,10 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: false,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -88,6 +92,10 @@ fn test_dbg_unlock_manuf_success() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -148,6 +156,10 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -201,6 +213,10 @@ fn test_dbg_unlock_manuf_invalid_token() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -309,6 +325,10 @@ fn test_dbg_unlock_prod_success() {
             prod_dbg_unlock_keypairs,
             debug_intent: true,
             subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -555,6 +575,10 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
             )],
             subsystem_mode: true,
             debug_intent: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -979,6 +1003,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -1024,6 +1049,10 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
                 prod_dbg_unlock_keypairs,
                 debug_intent: true,
                 subsystem_mode: true,
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),
@@ -1138,6 +1167,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_failure() {
     for unlock_level in [0, 9, 16] {
         let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -1176,6 +1206,10 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
                 )],
                 debug_intent: true,
                 subsystem_mode: true,
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),

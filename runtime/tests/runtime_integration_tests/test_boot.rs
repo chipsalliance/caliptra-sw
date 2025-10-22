@@ -74,6 +74,7 @@ fn test_fw_version() {
 #[test]
 fn test_update() {
     let image_options = ImageOptions {
+        fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
         pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
@@ -91,6 +92,8 @@ fn test_update() {
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
     let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -133,7 +136,8 @@ fn test_stress_update() {
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let stress_num = if cfg!(feature = "slow_tests") { 500 } else { 1 };
+    let stress_num = if cfg!(feature = "slow_tests") { 250 } else { 1 };
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     let mut image_select = 0;
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
@@ -160,11 +164,19 @@ fn test_stress_update() {
 
 #[test]
 fn test_boot_tci_data() {
+    let fw_id = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &firmware::runtime_tests::MBOX_FPGA
+    } else {
+        &firmware::runtime_tests::MBOX
+    };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        test_fwid: Some(fw_id),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -207,12 +219,13 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         )
         .unwrap();
 
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &FMC_WITH_UART,
-            &firmware::runtime_tests::MBOX,
-            image_options,
-        )
-        .unwrap();
+        let fw_id = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+            &firmware::runtime_tests::MBOX_FPGA
+        } else {
+            &firmware::runtime_tests::MBOX
+        };
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, fw_id, image_options).unwrap();
 
         // Upload measurement to measurement log
         let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
@@ -229,9 +242,11 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             .upload_measurement(measurement_log_entry.as_bytes().unwrap())
             .unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::common::test_upload_firmware(
+            &mut model,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
 

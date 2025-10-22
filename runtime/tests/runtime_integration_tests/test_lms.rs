@@ -791,7 +791,10 @@ fn execute_lms_cmd<T: HwModel>(
 
     // Send LMS verify command
     let resp = model
-        .mailbox_execute(u32::from(CommandId::LMS_VERIFY), cmd.as_bytes().unwrap())?
+        .mailbox_execute(
+            u32::from(CommandId::LMS_SIGNATURE_VERIFY),
+            cmd.as_bytes().unwrap(),
+        )?
         .expect("We should have received a response");
 
     let resp_hdr: &MailboxRespHeader = MailboxRespHeader::ref_from_bytes(resp.as_bytes()).unwrap();

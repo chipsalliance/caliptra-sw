@@ -63,9 +63,9 @@ impl CommandId {
     pub const GET_FMC_ALIAS_MLDSA87_CERT: Self = Self(0x434D4346); // "CMCF"
     pub const GET_RT_ALIAS_MLDSA87_CERT: Self = Self(0x434D4352); // "CMCR"
     pub const GET_IDEV_MLDSA87_INFO: Self = Self(0x49444D49); // "IDMI"
-    pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
-    pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
-    pub const MLDSA87_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
+    pub const ECDSA384_SIGNATURE_VERIFY: Self = Self(0x45435632); // "ECV2"
+    pub const LMS_SIGNATURE_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
+    pub const MLDSA87_SIGNATURE_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
@@ -95,6 +95,9 @@ impl CommandId {
     // The authorization manifest set command.
     pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
 
+    // Verify the authorization manifest command.
+    pub const VERIFY_AUTH_MANIFEST: Self = Self(0x4154_564D); // "ATVM"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
@@ -122,6 +125,9 @@ impl CommandId {
     // The sign with exported mldsa command.
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
+    // The FE programming command.
+    pub const FE_PROG: Self = Self(0x4645_5052); // "FEPR"
+
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
 
@@ -132,9 +138,6 @@ impl CommandId {
 
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
-
-    // Stable key derivation command
-    pub const DERIVE_STABLE_KEY: Self = Self(0x44534B45); // "DSKE"
 
     // Device Ownership Transfer command
     pub const INSTALL_OWNER_PK_HASH: Self = Self(0x4F574E50); // "OWNP"
@@ -154,9 +157,11 @@ impl CommandId {
     pub const CM_AES_DECRYPT_INIT: Self = Self(0x434D_414A); // "CMAJ"
     pub const CM_AES_DECRYPT_UPDATE: Self = Self(0x434D_4156); // "CMAV"
     pub const CM_AES_GCM_ENCRYPT_INIT: Self = Self(0x434D_4749); // "CMGI"
+    pub const CM_AES_GCM_SPDM_ENCRYPT_INIT: Self = Self(0x434D_5345); // "CMSE"
     pub const CM_AES_GCM_ENCRYPT_UPDATE: Self = Self(0x434D_4755); // "CMGU"
     pub const CM_AES_GCM_ENCRYPT_FINAL: Self = Self(0x434D_4746); // "CMGF"
     pub const CM_AES_GCM_DECRYPT_INIT: Self = Self(0x434D_4449); // "CMDI"
+    pub const CM_AES_GCM_SPDM_DECRYPT_INIT: Self = Self(0x434D_5344); // "CMSD"
     pub const CM_AES_GCM_DECRYPT_UPDATE: Self = Self(0x434D_4455); // "CMDU"
     pub const CM_AES_GCM_DECRYPT_FINAL: Self = Self(0x434D_4446); // "CMDF"
     pub const CM_ECDH_GENERATE: Self = Self(0x434D_4547); // "CMEG"
@@ -171,6 +176,7 @@ impl CommandId {
     pub const CM_ECDSA_PUBLIC_KEY: Self = Self(0x434D_4550); // "CMEP"
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
+    pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
 }
 
 impl From<u32> for CommandId {
@@ -288,9 +294,11 @@ pub enum MailboxResp {
     CmAesDecryptInit(CmAesResp),
     CmAesDecryptUpdate(CmAesResp),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitResp),
+    CmAesGcmSpdmEncryptInit(CmAesGcmSpdmEncryptInitResp),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateResp),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalResp),
     CmAesGcmDecryptInit(CmAesGcmDecryptInitResp),
+    CmAesGcmSpdmDecryptInit(CmAesGcmSpdmDecryptInitResp),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateResp),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalResp),
     CmEcdhGenerate(CmEcdhGenerateResp),
@@ -303,6 +311,7 @@ pub enum MailboxResp {
     CmMldsaSign(CmMldsaSignResp),
     CmEcdsaPublicKey(CmEcdsaPublicKeyResp),
     CmEcdsaSign(CmEcdsaSignResp),
+    CmDeriveStableKey(CmDeriveStableKeyResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
 }
@@ -346,9 +355,11 @@ impl MailboxResp {
             MailboxResp::CmAesDecryptInit(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmAesGcmSpdmEncryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmAesGcmSpdmDecryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_bytes()),
@@ -361,6 +372,7 @@ impl MailboxResp {
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
         }
@@ -402,9 +414,11 @@ impl MailboxResp {
             MailboxResp::CmAesDecryptInit(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmAesGcmSpdmEncryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmAesGcmSpdmDecryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_mut_bytes()),
@@ -417,6 +431,7 @@ impl MailboxResp {
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
         }
@@ -460,6 +475,7 @@ pub enum MailboxReq {
     ActivateFirmware(ActivateFirmwareReq),
     EcdsaVerify(EcdsaVerifyReq),
     LmsVerify(LmsVerifyReq),
+    MldsaVerify(MldsaVerifyReq),
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
     GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
@@ -482,6 +498,7 @@ pub enum MailboxReq {
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
+    VerifyAuthManifest(VerifyAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
@@ -500,9 +517,11 @@ pub enum MailboxReq {
     CmAesDecryptInit(CmAesDecryptInitReq),
     CmAesDecryptUpdate(CmAesDecryptUpdateReq),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitReq),
+    CmAesGcmSpdmEncryptInit(CmAesGcmSpdmEncryptInitReq),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateReq),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalReq),
     CmAesGcmDecryptInit(CmAesGcmDecryptInitReq),
+    CmAesGcmSpdmDecryptInit(CmAesGcmSpdmDecryptInitReq),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateReq),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq),
     CmEcdhGenerate(CmEcdhGenerateReq),
@@ -517,9 +536,11 @@ pub enum MailboxReq {
     CmEcdsaPublicKey(CmEcdsaPublicKeyReq),
     CmEcdsaSign(CmEcdsaSignReq),
     CmEcdsaVerify(CmEcdsaVerifyReq),
+    CmDeriveStableKey(CmDeriveStableKeyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    FeProg(FeProgReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -530,6 +551,7 @@ impl MailboxReq {
             MailboxReq::ActivateFirmware(req) => Ok(req.as_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::MldsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
@@ -552,6 +574,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
@@ -570,9 +593,11 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesGcmSpdmEncryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesGcmSpdmDecryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_bytes()),
@@ -587,9 +612,11 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(req) => Ok(req.as_bytes()),
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
+            MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -598,6 +625,7 @@ impl MailboxReq {
             MailboxReq::ActivateFirmware(req) => Ok(req.as_mut_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::MldsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
@@ -620,6 +648,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
@@ -638,8 +667,10 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesGcmSpdmEncryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesGcmSpdmDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial_mut(),
@@ -655,17 +686,20 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
 
     pub fn cmd_code(&self) -> CommandId {
         match self {
             MailboxReq::ActivateFirmware(_) => CommandId::ACTIVATE_FIRMWARE,
-            MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
-            MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
+            MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_SIGNATURE_VERIFY,
+            MailboxReq::LmsVerify(_) => CommandId::LMS_SIGNATURE_VERIFY,
+            MailboxReq::MldsaVerify(_) => CommandId::MLDSA87_SIGNATURE_VERIFY,
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
             MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
@@ -688,6 +722,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
@@ -706,9 +741,11 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(_) => CommandId::CM_AES_DECRYPT_INIT,
             MailboxReq::CmAesDecryptUpdate(_) => CommandId::CM_AES_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptInit(_) => CommandId::CM_AES_GCM_ENCRYPT_INIT,
+            MailboxReq::CmAesGcmSpdmEncryptInit(_) => CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT,
             MailboxReq::CmAesGcmEncryptUpdate(_) => CommandId::CM_AES_GCM_ENCRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptFinal(_) => CommandId::CM_AES_GCM_ENCRYPT_FINAL,
             MailboxReq::CmAesGcmDecryptInit(_) => CommandId::CM_AES_GCM_DECRYPT_INIT,
+            MailboxReq::CmAesGcmSpdmDecryptInit(_) => CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT,
             MailboxReq::CmAesGcmDecryptUpdate(_) => CommandId::CM_AES_GCM_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmDecryptFinal(_) => CommandId::CM_AES_GCM_DECRYPT_FINAL,
             MailboxReq::CmEcdhGenerate(_) => CommandId::CM_ECDH_GENERATE,
@@ -723,7 +760,9 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(_) => CommandId::CM_ECDSA_PUBLIC_KEY,
             MailboxReq::CmEcdsaSign(_) => CommandId::CM_ECDSA_SIGN,
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
+            MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
+            MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -770,6 +809,7 @@ impl Response for MailboxRespHeader {}
 
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
+    pub const FIPS_STATUS_NON_ZEROIZABLE_KEY: u32 = 0x4241_444B; // "BADK"
 }
 
 impl Default for MailboxRespHeader {
@@ -1012,7 +1052,7 @@ pub struct EcdsaVerifyReq {
     pub hash: [u8; 48],
 }
 impl Request for EcdsaVerifyReq {
-    const ID: CommandId = CommandId::ECDSA384_VERIFY;
+    const ID: CommandId = CommandId::ECDSA384_SIGNATURE_VERIFY;
     type Resp = MailboxRespHeader;
 }
 // No command-specific output args
@@ -1033,7 +1073,101 @@ pub struct LmsVerifyReq {
     pub hash: [u8; 48],
 }
 impl Request for LmsVerifyReq {
-    const ID: CommandId = CommandId::LMS_VERIFY;
+    const ID: CommandId = CommandId::LMS_SIGNATURE_VERIFY;
+    type Resp = MailboxRespHeader;
+}
+// No command-specific output args
+
+// MLDSA87_SIGNATURE_VERIFY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct MldsaVerifyReq {
+    pub hdr: MailboxReqHeader,
+    pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub message_size: u32,
+    pub message: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl MldsaVerifyReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    // We avoid using zerocopy because it requires the entire object to reside either
+    // on the stack or in mailbox SRAM with sufficient space. Instead, we prefer methods
+    // that can return references to portions of the struct. This involves no copying.
+    /// Extract the header from a byte slice
+    pub fn hdr(bytes: &[u8]) -> Option<&MailboxReqHeader> {
+        let offset = core::mem::offset_of!(Self, hdr);
+        let end = offset + core::mem::size_of::<MailboxReqHeader>();
+        let slice = bytes.get(offset..end)?;
+        MailboxReqHeader::ref_from_bytes(slice).ok()
+    }
+
+    /// Extract the public key from a byte slice
+    pub fn pub_key(bytes: &[u8]) -> Option<&[u8; MLDSA87_PUB_KEY_BYTE_SIZE]> {
+        let offset = core::mem::offset_of!(Self, pub_key);
+        let end = offset + MLDSA87_PUB_KEY_BYTE_SIZE;
+        let slice = bytes.get(offset..end)?;
+        slice.try_into().ok()
+    }
+
+    /// Extract the signature from a byte slice
+    pub fn signature(bytes: &[u8]) -> Option<&[u8; MLDSA87_SIGNATURE_BYTE_SIZE]> {
+        let offset = core::mem::offset_of!(Self, signature);
+        let end = offset + MLDSA87_SIGNATURE_BYTE_SIZE;
+        let slice = bytes.get(offset..end)?;
+        slice.try_into().ok()
+    }
+
+    /// Extract the message size from a byte slice
+    pub fn message_size(bytes: &[u8]) -> Option<u32> {
+        let offset = core::mem::offset_of!(Self, message_size);
+        let end = offset + core::mem::size_of::<u32>();
+        let slice = bytes.get(offset..end)?;
+        let bytes_array: &[u8; 4] = slice.try_into().ok()?;
+        Some(u32::from_le_bytes(*bytes_array))
+    }
+
+    /// Extract the message from a byte slice, using the decoded message_size for proper length
+    pub fn message(bytes: &[u8]) -> Option<&[u8]> {
+        let msg_size = Self::message_size(bytes)? as usize;
+        if msg_size > MAX_CMB_DATA_SIZE {
+            return None;
+        }
+        let offset = core::mem::offset_of!(Self, message);
+        let slice = bytes.get(offset..)?;
+        slice.get(..msg_size)
+    }
+}
+
+impl Default for MldsaVerifyReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            pub_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+            message_size: 0,
+            message: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl Request for MldsaVerifyReq {
+    const ID: CommandId = CommandId::MLDSA87_SIGNATURE_VERIFY;
     type Resp = MailboxRespHeader;
 }
 // No command-specific output args
@@ -1256,6 +1390,7 @@ pub struct FwInfoResp {
     pub runtime_sha384_digest: [u32; 12],
     pub owner_pub_key_hash: [u32; 12],
     pub authman_sha384_digest: [u32; 12],
+    pub most_recent_fw_error: u32,
 }
 
 // CAPABILITIES
@@ -1514,6 +1649,46 @@ impl Default for SetAuthManifestReq {
             manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
         }
     }
+}
+
+// VERIFY_AUTH_MANIFEST
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VerifyAuthManifestReq {
+    // This should be the same as SetAuthManifestReq
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
+}
+impl VerifyAuthManifestReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for VerifyAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+impl Request for VerifyAuthManifestReq {
+    const ID: CommandId = CommandId::VERIFY_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
 }
 
 // GET_IDEV_ECC384_CSR
@@ -2632,6 +2807,7 @@ impl ResponseVarSize for CmAesResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmEncryptInitReq {
     pub hdr: MailboxReqHeader,
+    pub flags: u32,
     pub cmk: Cmk,
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
@@ -2641,6 +2817,7 @@ impl Default for CmAesGcmEncryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
+            flags: 0,
             cmk: Cmk::default(),
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
@@ -2690,6 +2867,72 @@ impl Default for CmAesGcmEncryptInitResp {
 }
 
 impl Response for CmAesGcmEncryptInitResp {}
+
+// CM_AES_GCM_SPDM_ENCRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmEncryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub spdm_flags: u32,
+    pub spdm_counter: [u8; 8],
+    pub cmk: Cmk,
+    pub aad_size: u32,
+    pub aad: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesGcmSpdmEncryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            spdm_flags: 0,
+            spdm_counter: [0u8; 8],
+            cmk: Cmk::default(),
+            aad_size: 0,
+            aad: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesGcmSpdmEncryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesGcmSpdmEncryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT;
+    type Resp = CmAesGcmSpdmEncryptInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmEncryptInitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+}
+
+impl Default for CmAesGcmSpdmEncryptInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmAesGcmSpdmEncryptInitResp {}
 
 // CM_AES_GCM_ENCRYPT_UPDATE
 #[repr(C)]
@@ -2878,6 +3121,7 @@ impl ResponseVarSize for CmAesGcmEncryptFinalResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmDecryptInitReq {
     pub hdr: MailboxReqHeader,
+    pub flags: u32,
     pub cmk: Cmk,
     pub iv: [u8; 12],
     pub aad_size: u32,
@@ -2888,6 +3132,7 @@ impl Default for CmAesGcmDecryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
+            flags: 0,
             cmk: Cmk::default(),
             iv: [0u8; 12],
             aad_size: 0,
@@ -2938,6 +3183,72 @@ impl Default for CmAesGcmDecryptInitResp {
 }
 
 impl Response for CmAesGcmDecryptInitResp {}
+
+// CM_AES_GCM_SPDM_DECRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmDecryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub spdm_flags: u32,
+    pub spdm_counter: [u8; 8],
+    pub cmk: Cmk,
+    pub aad_size: u32,
+    pub aad: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesGcmSpdmDecryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            spdm_flags: 0,
+            spdm_counter: [0u8; 8],
+            cmk: Cmk::default(),
+            aad_size: 0,
+            aad: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesGcmSpdmDecryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesGcmSpdmDecryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT;
+    type Resp = CmAesGcmSpdmDecryptInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmDecryptInitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+}
+
+impl Default for CmAesGcmSpdmDecryptInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmAesGcmSpdmDecryptInitResp {}
 
 // CM_AES_GCM_DECRYPT_UPDATE
 #[repr(C)]
@@ -3183,19 +3494,10 @@ impl Request for CmEcdhFinishReq {
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmEcdhFinishResp {
     pub hdr: MailboxRespHeader,
-    pub output: [u8; CMK_SIZE_BYTES],
-}
-
-impl Default for CmEcdhFinishResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            output: [0u8; CMK_SIZE_BYTES],
-        }
-    }
+    pub output: Cmk,
 }
 
 impl Response for CmEcdhFinishResp {}
@@ -3325,23 +3627,12 @@ impl Response for CmHmacKdfCounterResp {}
 
 // CM_HKDF_EXTRACT
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmHkdfExtractReq {
     pub hdr: MailboxReqHeader,
-    pub ikm: Cmk,
     pub hash_algorithm: u32,
-    pub salt: [u8; 64],
-}
-
-impl Default for CmHkdfExtractReq {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxReqHeader::default(),
-            ikm: Cmk::default(),
-            hash_algorithm: 0,
-            salt: [0u8; 64],
-        }
-    }
+    pub salt: Cmk,
+    pub ikm: Cmk,
 }
 
 impl Request for CmHkdfExtractReq {
@@ -3653,6 +3944,17 @@ impl Default for CmEcdsaSignResp {
 
 impl Response for CmEcdsaSignResp {}
 
+// FE (Field Entropy) Programming
+//
+// FE partitions are limited to values 0-3 (4 total partitions).
+// Valid partition numbers: 0, 1, 2, 3
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct FeProgReq {
+    pub hdr: MailboxReqHeader,
+    pub partition: u32,
+}
+
 // CM_ECDSA_VERIFY
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -3701,64 +4003,64 @@ impl Request for CmEcdsaVerifyReq {
     type Resp = MailboxRespHeader;
 }
 
-// DERIVE_STABLE_KEY
-pub const STABLE_KEY_INFO_SIZE_BYTES: usize = 32;
+// CM_DERIVE_STABLE_KEY
+pub const CM_STABLE_KEY_INFO_SIZE_BYTES: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StableKeyType {
+pub enum CmStableKeyType {
     Reserved = 0,
     IDevId,
     LDevId,
 }
 
-impl From<u32> for StableKeyType {
+impl From<u32> for CmStableKeyType {
     fn from(val: u32) -> Self {
         match val {
-            1_u32 => StableKeyType::IDevId,
-            2_u32 => StableKeyType::LDevId,
-            _ => StableKeyType::Reserved,
+            1_u32 => CmStableKeyType::IDevId,
+            2_u32 => CmStableKeyType::LDevId,
+            _ => CmStableKeyType::Reserved,
         }
     }
 }
 
-impl From<StableKeyType> for u32 {
-    fn from(val: StableKeyType) -> Self {
+impl From<CmStableKeyType> for u32 {
+    fn from(val: CmStableKeyType) -> Self {
         match val {
-            StableKeyType::IDevId => 1,
-            StableKeyType::LDevId => 2,
-            StableKeyType::Reserved => 0,
+            CmStableKeyType::IDevId => 1,
+            CmStableKeyType::LDevId => 2,
+            CmStableKeyType::Reserved => 0,
         }
     }
 }
 
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct DeriveStableKeyReq {
+pub struct CmDeriveStableKeyReq {
     pub hdr: MailboxReqHeader,
     pub key_type: u32,
-    pub info: [u8; STABLE_KEY_INFO_SIZE_BYTES],
+    pub info: [u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
 }
-impl Default for DeriveStableKeyReq {
+impl Default for CmDeriveStableKeyReq {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
-            key_type: StableKeyType::Reserved as u32,
+            info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+            key_type: CmStableKeyType::Reserved as u32,
         }
     }
 }
-impl Request for DeriveStableKeyReq {
-    const ID: CommandId = CommandId::DERIVE_STABLE_KEY;
-    type Resp = DeriveStableKeyResp;
+impl Request for CmDeriveStableKeyReq {
+    const ID: CommandId = CommandId::CM_DERIVE_STABLE_KEY;
+    type Resp = CmDeriveStableKeyResp;
 }
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct DeriveStableKeyResp {
+pub struct CmDeriveStableKeyResp {
     pub hdr: MailboxRespHeader,
     pub cmk: Cmk,
 }
-impl Response for DeriveStableKeyResp {}
+impl Response for CmDeriveStableKeyResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

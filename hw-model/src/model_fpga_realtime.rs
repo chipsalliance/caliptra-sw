@@ -40,7 +40,7 @@ const ROM_MAPPING: usize = 2;
 const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_AXI_PAUSER: u32 = 0x1;
 
-fn fmt_uio_error(err: UioError) -> String {
+pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
@@ -78,6 +78,16 @@ bitfield! {
     cptra_obf_field_entropy_vld, set_cptra_obf_field_entropy_vld: 3, 3;
     debug_locked, set_debug_locked: 4, 4;
     device_lifecycle, set_device_lifecycle: 6, 5;
+    bootfsm_brkpoint, set_bootfsm_brkpoint: 7, 7;
+    scan_mode, set_scan_mode: 8, 8;
+
+    rsvd_ss_debug_intent, set_rsvd_ss_debug_intent: 16, 16;
+    rsvd_i3c_axi_user_id_filtering, set_rsvd_i3c_axi_user_id_filtering: 17, 17;
+    rsvd_ocp_lock_en, set_rsvd_ocp_lock_en: 18, 18;
+    rsvd_lc_allow_rma_or_scrap_on_ppd, set_rsvd_lc_allow_rma_or_scrap_on_ppd: 19, 19;
+    rsvd_fips_zeroization_ppd, set_rsvd_fips_zeroization_ppd: 20, 20;
+
+    axi_reset, set_axi_reset: 31, 31;
 }
 
 bitfield! {
@@ -212,6 +222,19 @@ impl ModelFpgaRealtime {
                 }
             }
             thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    fn axi_reset(&mut self) {
+        unsafe {
+            let mut val = WrapperControl(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                    .read_volatile(),
+            );
+            val.set_axi_reset(1);
+            // wait a few clock cycles or we can crash the FPGA
+            std::thread::sleep(std::time::Duration::from_micros(1));
         }
     }
 
@@ -446,7 +469,9 @@ impl HwModel for ModelFpgaRealtime {
         Self: Sized,
     {
         let output = Output::new(params.log_writer);
-        let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
+        let uio_num = usize::from_str(
+            &env::var("CPTRA_UIO_NUM").expect("Set CPTRA_UIO_NUM when using the FPGA"),
+        )?;
         // This locks the device, and so acts as a test mutex so that only one test can run at a time.
         let dev = UioDevice::blocking_new(uio_num)
             .expect("UIO driver not found. Run \"sudo ./hw/fpga/setup_fpga.sh\"");
@@ -456,6 +481,7 @@ impl HwModel for ModelFpgaRealtime {
             .map_err(fmt_uio_error)? as *mut u32;
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let rom = dev.map_mapping(ROM_MAPPING).map_err(fmt_uio_error)? as *mut u8;
+        let rom_size = dev.map_size(ROM_MAPPING).map_err(fmt_uio_error)?;
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
@@ -518,6 +544,9 @@ impl HwModel for ModelFpgaRealtime {
 
         writeln!(m.output().logger(), "new_unbooted")?;
 
+        println!("AXI reset");
+        m.axi_reset();
+
         // Set generic input wires.
         let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
@@ -572,8 +601,12 @@ impl HwModel for ModelFpgaRealtime {
 
         // Write ROM image over backdoor
         writeln!(m.output().logger(), "Writing ROM")?;
-        let rom_slice = unsafe { slice::from_raw_parts_mut(rom, params.rom.len()) };
-        rom_slice.copy_from_slice(params.rom);
+
+        let mut rom_data = vec![0; rom_size];
+        rom_data[..params.rom.len()].clone_from_slice(params.rom);
+
+        let rom_slice = unsafe { slice::from_raw_parts_mut(rom, rom_size) };
+        rom_slice.copy_from_slice(&rom_data);
 
         // Sometimes there's garbage in here; clean it out
         m.clear_log_fifo();
@@ -674,6 +707,11 @@ impl HwModel for ModelFpgaRealtime {
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
+
+    fn subsystem_mode(&self) -> bool {
+        // we only support passive mode
+        false
+    }
 }
 
 impl ModelFpgaRealtime {
@@ -735,6 +773,9 @@ impl Drop for ModelFpgaRealtime {
         self.realtime_thread_exit_flag
             .store(true, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
+
+        // reset the AXI bus as we leave
+        self.axi_reset();
 
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);

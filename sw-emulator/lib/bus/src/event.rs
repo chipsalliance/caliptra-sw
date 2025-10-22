@@ -21,6 +21,8 @@ pub enum Device {
     TestSram,
     ExternalTestSram,
     RecoveryIntf,
+    McuMbox0Sram,
+    McuMbox1Sram,
     External(&'static str),
 }
 
@@ -76,6 +78,9 @@ pub enum EventData {
         ibi: u8,
         descriptor: [u8; 8],
         data: Vec<u8>,
+    },
+    MciInterrupt {
+        asserted: bool,
     },
 }
 

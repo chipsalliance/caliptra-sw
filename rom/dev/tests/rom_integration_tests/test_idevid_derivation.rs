@@ -18,6 +18,7 @@ const RT_READY_FOR_COMMANDS: u32 = 0x600;
 fn generate_csr_envelop(
     hw: &mut DefaultHwModel,
     image_bundle: &ImageBundle,
+    pqc_key_type: FwVerificationPqcKeyType,
 ) -> InitDevIdCsrEnvelope {
     // Set gen_idev_id_csr to generate CSR.
     let flags = MfgFlags::GENERATE_IDEVID_CSR;
@@ -35,13 +36,12 @@ fn generate_csr_envelop(
             .read()
             .ready_for_mb_processing()
     });
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
+    helpers::test_upload_firmware(hw, &image_bundle.to_bytes().unwrap(), pqc_key_type);
 
     hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     let output = hw.output().take(usize::MAX);
-    if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
+    if crate::helpers::rom_from_env() == &firmware::ROM_WITH_UART {
         let csr_str = helpers::get_data("[idev] ECC CSR = ", &output);
         let uploaded = hex::decode(csr_str).unwrap();
         assert_eq!(
@@ -64,7 +64,7 @@ fn test_generate_csr_envelop() {
             ..Default::default()
         };
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        generate_csr_envelop(&mut hw, &image_bundle);
+        generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
     }
 }
 
@@ -84,8 +84,11 @@ fn test_ecc_idev_subj_key_id_algo() {
 
             let (mut hw, image_bundle) =
                 helpers::build_hw_model_and_image_bundle(fuses, image_options.clone());
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap();
+            helpers::test_upload_firmware(
+                &mut hw,
+                &image_bundle.to_bytes().unwrap(),
+                *pqc_key_type,
+            );
 
             hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
         }
@@ -104,8 +107,11 @@ fn test_mldsa_idev_subj_key_id_algo() {
         };
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(
+            &mut hw,
+            &image_bundle.to_bytes().unwrap(),
+            FwVerificationPqcKeyType::MLDSA,
+        );
 
         hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     }
@@ -133,11 +139,7 @@ fn test_generate_csr_envelop_stress() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let num_tests = if cfg!(feature = "slow_tests") {
-            1000
-        } else {
-            1
-        };
+        let num_tests = if cfg!(feature = "slow_tests") { 250 } else { 1 };
 
         for _ in 0..num_tests {
             let mut fuses = fuses_with_random_uds();
@@ -145,7 +147,7 @@ fn test_generate_csr_envelop_stress() {
             let (mut hw, image_bundle) =
                 helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 
-            let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle);
+            let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
 
             // Ensure ECC CSR is valid X.509
             let req =

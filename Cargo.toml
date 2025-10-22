@@ -22,6 +22,9 @@ exclude = [
 
   # test-matrix depends on octocrab (github API), which is very heavyweight.
   "ci-tools/test-matrix",
+
+  # Don't pull reqwest into workspace.
+  "ci-tools/bitstream-downloader",
 ]
 
 members = [
@@ -157,6 +160,7 @@ crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
 fips204 = "0.4.6"
+fslock = "0.2.1"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
@@ -175,6 +179,8 @@ quote = "1.0"
 rand = "0.8"
 rfc6979 = "0.4.0"
 rusb = "0.9.3"
+rustix = { version = "1", features = ["event", "fs", "net", "process", "stdio", "termios"] }
+scopeguard = "1.2"
 serde = "1.0"
 serde_derive = "1.0.136"
 serde_json = "1.0"
@@ -182,10 +188,11 @@ sha1 = "0.10.6"
 sha2 = { version = "0.10.8", default-features = false, features = ["compress"] }
 sha3 = "0.10.8"
 signature = "2.2.0"
-smlang = "0.6.0"
+smlang = "0.8.0"
 spki = { version = "0.7.3", features = ["alloc"] }
 syn = "1.0.107"
 tinytemplate = "1.1"
+thiserror = "2"
 tock-registers = { git = "https://github.com/tock/tock.git", rev = "b128ae817b86706c8c4e39d27fae5c54b98659f1" }
 toml = "0.7.0"
 ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }

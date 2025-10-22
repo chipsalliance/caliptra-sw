@@ -18,7 +18,9 @@ pub mod hmac_cm;
 pub mod keyids;
 pub mod macros;
 pub mod pmp;
+pub mod uds_fe_programming;
 pub mod verifier;
+pub mod verify;
 pub mod wdt;
 pub mod x509;
 
@@ -38,6 +40,7 @@ pub use caliptra_drivers::memory_layout;
 pub use caliptra_drivers::pcr_log as pcr;
 pub use caliptra_drivers::printer::HexBytes;
 pub use caliptra_drivers::printer::Printer;
+pub use caliptra_drivers::CptraGeneration;
 pub use error_handler::handle_fatal_error;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
@@ -46,7 +49,7 @@ pub use pmp::lock_datavault_region;
 pub const FMC_ORG: u32 = 0x40000000;
 pub const FMC_SIZE: u32 = 32 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
-pub const RUNTIME_SIZE: u32 = 136 * 1024;
+pub const RUNTIME_SIZE: u32 = 144 * 1024;
 
 pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};

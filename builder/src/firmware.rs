@@ -15,6 +15,21 @@ pub fn rom_from_env() -> &'static FwId<'static> {
     }
 }
 
+pub fn rom_from_env_fpga(fpga: bool) -> &'static FwId<'static> {
+    match (
+        std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()),
+        fpga,
+    ) {
+        (Ok("ROM"), _) => &ROM,
+        (Ok("ROM_WITHOUT_UART"), _) => &ROM,
+        (Ok("ROM_WITH_UART"), true) => &ROM_FPGA_WITH_UART,
+        (Ok("ROM_WITH_UART"), false) => &ROM_WITH_UART,
+        (Ok(s), _) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+        (Err(_), true) => &ROM_FPGA_WITH_UART,
+        (Err(_), false) => &ROM_WITH_UART,
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -130,6 +145,11 @@ pub mod hw_model_tests {
         ..BASE_FWID
     };
 
+    pub const MCU_HITLESS_UPDATE_FLOW: FwId = FwId {
+        bin_name: "mcu_hitless_update_flow",
+        ..BASE_FWID
+    };
+
     pub const TEST_ICCM_BYTE_WRITE: FwId = FwId {
         bin_name: "test_iccm_byte_write",
         ..BASE_FWID
@@ -222,7 +242,7 @@ pub mod driver_tests {
 
     pub const KEYVAULT_FPGA: FwId = FwId {
         bin_name: "keyvault",
-        features: &["fpga_realtime"],
+        features: &["emu", "fpga_realtime"],
         ..BASE_FWID
     };
 
@@ -253,6 +273,11 @@ pub mod driver_tests {
 
     pub const PCRBANK: FwId = FwId {
         bin_name: "pcrbank",
+        ..BASE_FWID
+    };
+
+    pub const PRECONDITIONED_KEYS: FwId = FwId {
+        bin_name: "preconditioned_keys",
         ..BASE_FWID
     };
 
@@ -340,6 +365,18 @@ pub mod driver_tests {
         bin_name: "persistent",
         ..BASE_FWID
     };
+
+    pub const DMA_SHA384: FwId = FwId {
+        bin_name: "dma_sha384",
+        ..BASE_FWID
+    };
+
+    // TODO: delete this when AXI DMA is fixed in the FPGA
+    pub const DMA_SHA384_FPGA: FwId = FwId {
+        bin_name: "dma_sha384",
+        features: &["emu", "fpga_subsystem"],
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -411,10 +448,22 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
+    pub const MBOX_FPGA: FwId = FwId {
+        bin_name: "mbox",
+        features: &["emu", "riscv", "runtime", "fpga_realtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
     // Used to test updates between RT FW images.
     pub const MBOX_WITHOUT_UART: FwId = FwId {
         bin_name: "mbox",
         features: &["riscv", "runtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
+    pub const MBOX_WITHOUT_UART_FPGA: FwId = FwId {
+        bin_name: "mbox",
+        features: &["riscv", "runtime", "fpga_realtime"],
         ..RUNTIME_TEST_FWID_BASE
     };
 
@@ -447,6 +496,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
     &hw_model_tests::MAILBOX_SENDER,
+    &hw_model_tests::MCU_HITLESS_UPDATE_FLOW,
     &hw_model_tests::TEST_ICCM_BYTE_WRITE,
     &hw_model_tests::TEST_ICCM_UNALIGNED_WRITE,
     &hw_model_tests::TEST_ICCM_WRITE_LOCKED,
@@ -470,6 +520,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::ML_DSA87,
     &driver_tests::PCRBANK,
+    &driver_tests::PRECONDITIONED_KEYS,
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
@@ -487,6 +538,8 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_FAIL_ADAPTP_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
+    &driver_tests::DMA_SHA384,
+    &driver_tests::DMA_SHA384_FPGA,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
@@ -496,7 +549,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::TEST_PMP_TESTS,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
+    &runtime_tests::MBOX_FPGA,
     &runtime_tests::MBOX_WITHOUT_UART,
+    &runtime_tests::MBOX_WITHOUT_UART_FPGA,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
 ];

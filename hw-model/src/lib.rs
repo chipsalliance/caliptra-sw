@@ -2,8 +2,10 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
+use caliptra_common::CptraGeneration;
 use caliptra_emu_bus::{Bus, Event};
 use core::panic;
 use std::path::PathBuf;
@@ -31,8 +33,18 @@ use caliptra_registers::soc_ifc::regs::{
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
+mod bmc;
+mod fpga_regs;
+pub mod jtag;
+pub mod keys;
+pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+pub mod openocd;
+pub mod otp_digest;
+pub mod otp_provision;
+mod recovery;
+pub mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
@@ -41,6 +53,11 @@ mod model_verilated;
 #[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
 
+#[cfg(feature = "fpga_subsystem")]
+mod mcu_boot_status;
+#[cfg(feature = "fpga_subsystem")]
+mod model_fpga_subsystem;
+
 mod output;
 mod rv32_builder;
 
@@ -48,7 +65,7 @@ pub use api::mailbox::mbox_write_fifo;
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
-use output::ExitStatus;
+pub use output::ExitStatus;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
@@ -62,13 +79,24 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::OpenOcdError;
 
+#[cfg(feature = "fpga_subsystem")]
+pub use keys::{DEFAULT_LIFECYCLE_RAW_TOKEN, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::ModelFpgaSubsystem;
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::XI3CWrapper;
+
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
 /// available on all HwModel implementations.  Unfortunately, rust-analyzer
 /// (used by IDEs) can't fully resolve associated types from `impl Trait`, so
 /// such functions should use `DefaultHwModel` until they fix that. Users should
 /// treat `DefaultHwModel` as if it were `impl HwModel`.
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 pub type DefaultHwModel = ModelEmulated;
 
 #[cfg(feature = "verilator")]
@@ -76,6 +104,9 @@ pub type DefaultHwModel = ModelVerilated;
 
 #[cfg(feature = "fpga_realtime")]
 pub type DefaultHwModel = ModelFpgaRealtime;
+
+#[cfg(feature = "fpga_subsystem")]
+pub type DefaultHwModel = ModelFpgaSubsystem;
 
 pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
@@ -161,7 +192,11 @@ pub struct InitParams<'a> {
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
+
+    // Whether or not to set the BootFSM break signal.
+    pub bootfsm_break: bool,
 
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
@@ -197,7 +232,28 @@ pub struct InitParams<'a> {
 
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
+
+    // Subsystem initialization parameters.
+    pub ss_init_params: SubsystemInitParams<'a>,
 }
+
+#[derive(Default)]
+pub struct SubsystemInitParams<'a> {
+    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
+    pub mcu_rom: Option<&'a [u8]>,
+
+    // Consume MCU UART log with Caliptra UART log
+    pub enable_mcu_uart_log: bool,
+
+    // Number of public key hashes for production debug unlock levels.
+    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
+    // OTP settings are used.
+    pub num_prod_dbg_unlock_pk_hashes: u32,
+
+    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
+    pub prod_dbg_unlock_pk_hashes_offset: u32,
+}
+
 impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
@@ -226,6 +282,7 @@ impl Default for InitParams<'_> {
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
+            bootfsm_break: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
@@ -240,6 +297,7 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
+            ss_init_params: Default::default(),
         }
     }
 }
@@ -282,6 +340,7 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
     std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
+#[derive(Clone)]
 pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
@@ -644,7 +703,7 @@ pub trait HwModel: SocManager {
                 }
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
-            self.cover_fw_mage(fw_image);
+            self.cover_fw_image(fw_image);
             let subsystem_mode = self.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
             writeln!(
                 self.output().logger(),
@@ -676,11 +735,38 @@ pub trait HwModel: SocManager {
     fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
-    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+    fn warm_reset_flow(&mut self, boot_params: &BootParams) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
         self.warm_reset();
 
-        HwModel::init_fuses(self, fuses);
+        HwModel::init_fuses(self, &boot_params.fuses);
+
+        // Set the registers that were cleared by the warm reset.
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_1()
+                .write(|_| reg);
+        }
+
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_0()
+                .write(|_| reg);
+        }
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+            .map_err(ModelError::from)?;
+
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        Ok(())
     }
 
     /// The APB bus from the SoC to Caliptra
@@ -875,7 +961,7 @@ pub trait HwModel: SocManager {
         }
     }
 
-    fn cover_fw_mage(&mut self, _image: &[u8]) {}
+    fn cover_fw_image(&mut self, _image: &[u8]) {}
 
     fn tracing_hint(&mut self, enable: bool);
 
@@ -986,7 +1072,10 @@ pub trait HwModel: SocManager {
 
         self.soc_mbox().execute().write(|w| w.execute(false));
 
-        if cfg!(not(feature = "fpga_realtime")) {
+        if cfg!(not(any(
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ))) {
             // Don't check for mbox_idle() unless the hw-model supports
             // fine-grained timing control; the firmware may proceed to lock the
             // mailbox shortly after the mailbox transcation finishes.
@@ -1094,6 +1183,29 @@ pub trait HwModel: SocManager {
         }
 
         Ok(())
+    }
+
+    fn subsystem_mode(&self) -> bool;
+
+    /// Returns true if this is Caliptra 2.0 only.
+    fn version_2_0(&mut self) -> bool {
+        let gen = CptraGeneration(self.soc_ifc().cptra_hw_rev_id().read().cptra_generation());
+        gen.major_version() == 2 && gen.minor_version() == 0
+    }
+
+    /// Returns true if the stable keys are zeroizable according to FIPS.
+    /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
+    /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
+    fn stable_key_zeroizable(&mut self) -> bool {
+        !(self.version_2_0() && self.subsystem_mode())
+    }
+
+    fn stable_key_zeroizable_fips_status(&mut self) -> u32 {
+        if self.stable_key_zeroizable() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
     }
 }
 
@@ -1316,7 +1428,7 @@ mod tests {
         )
         .unwrap();
 
-        if cfg!(feature = "fpga_realtime") {
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
             // The fpga_realtime model can't pause execution precisely, so just assert the
             // entire output of the program.
             assert_eq!(
@@ -1829,7 +1941,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+    #[cfg(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ))]
     pub fn test_cold_reset() {
         let mut model = caliptra_hw_model::new(
             InitParams {

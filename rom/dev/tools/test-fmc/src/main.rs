@@ -251,10 +251,13 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             validate_fmc_rt_load_in_iccm(mbox);
         }
         0x1000_0010 => {
-            test_datavault_pmp(true);
+            test_datavault_pmp(mbox, true);
         }
         0x1000_0011 => {
-            test_datavault_pmp(false);
+            test_datavault_pmp(mbox, false);
+        }
+        0x1000_0012 => {
+            get_cmb_aes_key(mbox);
         }
         _ => {}
     }
@@ -275,7 +278,18 @@ fn process_mailbox_commands() {
     process_mailbox_command(&mbox);
 }
 
-fn test_datavault_pmp(start: bool) {
+fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let key0 = persistent_data.get().cmb_aes_key_share0;
+    let key1 = persistent_data.get().cmb_aes_key_share1;
+    let mut key = [0u8; 32];
+    for (i, element) in key.iter_mut().enumerate() {
+        *element = key0[i] ^ key1[i];
+    }
+    send_to_mailbox(mbox, &key, true);
+}
+
+fn test_datavault_pmp(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>, start: bool) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     let data_vault = &persistent_data.get().data_vault;
 
@@ -285,6 +299,8 @@ fn test_datavault_pmp(start: bool) {
             core::mem::size_of_val(data_vault),
         )
     };
+
+    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
 
     if start {
         dv_bytes[0] = 0xFF;

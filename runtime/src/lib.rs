@@ -24,6 +24,7 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
+mod fe_programming;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
@@ -52,6 +53,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
+use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -84,7 +86,7 @@ pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
-pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
+pub use verify::LmsVerifyCmd;
 pub mod packet;
 use caliptra_common::mailbox_api::{AlgorithmType, CommandId};
 use packet::Packet;
@@ -202,11 +204,30 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
 
-    cprintln!(
-        "[rt] Received command=0x{:x}, len={}",
-        req_packet.cmd,
-        req_packet.payload().len()
-    );
+    // Create human-readable name of command.
+    let bytes = req_packet.cmd.to_be_bytes();
+    let ascii = {
+        if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
+            None
+        } else {
+            core::str::from_utf8(&bytes).ok()
+        }
+    };
+
+    if let Some(ascii) = ascii {
+        cprintln!(
+            "[rt] Received command=0x{:x} ({}), len={}",
+            req_packet.cmd,
+            ascii,
+            req_packet.payload().len()
+        );
+    } else {
+        cprintln!(
+            "[rt] Received command=0x{:x}, len={}",
+            req_packet.cmd,
+            req_packet.payload().len()
+        );
+    }
 
     // stage the response once on the stack
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
@@ -237,8 +258,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::ECDSA384_SIGNATURE_VERIFY => {
+            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
+        }
+        CommandId::LMS_SIGNATURE_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::MLDSA87_SIGNATURE_VERIFY => {
+            caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, cmd_bytes)
+        }
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
@@ -297,7 +323,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
-        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
+        CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
@@ -347,6 +374,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_encrypt_init(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes, resp)
         }
@@ -355,6 +385,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_AES_GCM_DECRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes, resp)
@@ -396,6 +429,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_ECDSA_VERIFY => {
             cryptographic_mailbox::Commands::ecdsa_verify(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_DERIVE_STABLE_KEY => {
+            cryptographic_mailbox::Commands::derive_stable_key(drivers, cmd_bytes, resp)
+        }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,
             &drivers.soc_ifc,
@@ -411,6 +447,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             &mut drivers.dma,
             cmd_bytes,
         ),
+        CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 
@@ -519,7 +556,10 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
-            caliptra_drivers::report_fw_error_non_fatal(0);
+
+            // Clear non-fatal error before processing command
+            caliptra_drivers::clear_fw_error_non_fatal(drivers.persistent_data.get_mut());
+
             let command_result = handle_command(drivers);
             cfi_check!(command_result);
             match command_result {

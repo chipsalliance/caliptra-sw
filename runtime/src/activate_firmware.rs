@@ -14,15 +14,15 @@ Abstract:
 
 use core::mem::offset_of;
 
+use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
+use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
-use ureg::{Mmio, MmioMut};
+use ureg::Mmio;
 
-const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
-const FW_HITLESS_UPD_RESET_MASK: u32 = 0x1;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
 const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
@@ -115,7 +115,6 @@ impl ActivateFirmwareCmd {
         mcu_image_size: u32,
     ) -> Result<(), ()> {
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
-        let dma = &drivers.dma;
         let mut go_bitmap: [u32; 4] = [0; 4];
 
         // Get the current value of FW_EXEC_CTRL
@@ -123,9 +122,15 @@ impl ActivateFirmwareCmd {
 
         let mut temp_bitmap: [u32; 4] = [0; 4];
 
-        // Caliptra clears FW_EXEC_CTRL[2] for all affected images.
+        // Caliptra clears FW_EXEC_CTRL for all affected images
         for i in 0..4 {
             temp_bitmap[i] = go_bitmap[i] & !activate_bitmap[i];
+        }
+
+        // Leave MCU image bit as is, we will set it later after the reset_reason is set to avoid race condition
+        // between Caliptra and MCU
+        if Self::is_bit_set(&go_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+            Self::set_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
         }
 
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
@@ -136,7 +141,16 @@ impl ActivateFirmwareCmd {
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
 
+            drivers.persistent_data.get_mut().mcu_firmware_loaded =
+                McuFwStatus::HitlessUpdateStarted.into();
+            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpd);
+
+            let dma = &drivers.dma;
             let mmio = &DmaMmio::new(mci_base_addr, dma);
+
+            // Clear FW_EXEC_CTRL[2]. This should start the process of resetting MCU.
+            Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
+            drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
@@ -156,7 +170,7 @@ impl ActivateFirmwareCmd {
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
-            let (image_load_address, image_staging_address) =
+            let (_, image_staging_address) =
                 Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
             let dma_image = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -164,6 +178,8 @@ impl ActivateFirmwareCmd {
                 drivers.soc_ifc.mci_base_addr().into(),
                 &drivers.dma,
             );
+            let mcu_sram_addr: u64 =
+                ((mci_base_addr.hi as u64) << 32) + (mci_base_addr.lo as u64) + MCU_SRAM_OFFSET;
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
@@ -172,21 +188,14 @@ impl ActivateFirmwareCmd {
                     },
                     mcu_image_size,
                     AxiAddr {
-                        hi: image_load_address.hi,
-                        lo: image_load_address.lo,
+                        hi: (mcu_sram_addr >> 32) as u32,
+                        lo: mcu_sram_addr as u32,
                     },
                     false,
-                    true,
+                    false,
                 )
                 .map_err(|_| ())?;
-
-            // Caliptra sets RESET_REASON.FW_HITLESS_UPD_RESET
-            unsafe {
-                mmio.write_volatile(
-                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
-                    FW_HITLESS_UPD_RESET_MASK,
-                )
-            };
+            drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
 
         for i in 0..4 {
@@ -243,6 +252,14 @@ impl ActivateFirmwareCmd {
             let idx = bit / 32;
             let offset = bit % 32;
             bitmap[idx] |= 1 << offset;
+        }
+    }
+
+    fn clear_bit(bitmap: &mut [u32; 4], bit: usize) {
+        if bit < core::mem::size_of_val(bitmap) * 8 {
+            let idx = bit / 32;
+            let offset = bit % 32;
+            bitmap[idx] &= !(1 << offset);
         }
     }
 

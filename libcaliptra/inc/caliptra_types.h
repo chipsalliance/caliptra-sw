@@ -40,6 +40,8 @@ struct caliptra_fuses
     uint32_t idevid_manuf_hsm_id[4];
     enum device_lifecycle life_cycle;
     uint32_t lms_revocation;
+    uint32_t mldsa_revocation;
+    uint32_t fuse_pqc_key_type;
     uint16_t soc_stepping_id;
 };
 
@@ -211,6 +213,7 @@ struct caliptra_fw_info_resp
     uint32_t runtime_sha384_digest[12];
     uint32_t owner_pub_key_hash[12];
     uint32_t authman_sha384_digest[12];
+    uint32_t most_recent_fw_error;
 };
 
 struct caliptra_dpe_tag_tci_req

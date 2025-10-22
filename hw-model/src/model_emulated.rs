@@ -81,6 +81,7 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
+    subsystem_mode: bool,
 }
 
 #[cfg(feature = "coverage")]
@@ -243,6 +244,7 @@ impl HwModel for ModelEmulated {
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
+            subsystem_mode: params.subsystem_mode,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -295,11 +297,8 @@ impl HwModel for ModelEmulated {
                 (event.dest, event.event)
             {
                 let addr = start_addr as usize;
-                let Some(mcu_firmware) = self.cpu.bus.bus.dma.axi.recovery.cms_data.get_mut(2)
-                else {
-                    continue;
-                };
-                let Some(dest) = mcu_firmware.get_mut(addr..addr + len as usize) else {
+                let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data_mut();
+                let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
                     continue;
                 };
                 self.events_to_caliptra
@@ -323,7 +322,7 @@ impl HwModel for ModelEmulated {
         &mut self.output
     }
 
-    fn cover_fw_mage(&mut self, fw_image: &[u8]) {
+    fn cover_fw_image(&mut self, fw_image: &[u8]) {
         let iccm_image = &fw_image[IMAGE_MANIFEST_BYTE_SIZE..];
         self.iccm_image_tag = Some(hash_slice(iccm_image));
     }
@@ -415,5 +414,9 @@ impl HwModel for ModelEmulated {
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         self.events_to_caliptra.clone()
+    }
+
+    fn subsystem_mode(&self) -> bool {
+        self.subsystem_mode
     }
 }

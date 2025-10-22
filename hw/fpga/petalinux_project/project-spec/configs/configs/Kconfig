@@ -1,0 +1,24 @@
+
+mainmenu "PetaLinux System Configuration"
+config SUBSYSTEM_TYPE_LINUX
+        bool
+        default y
+        select SYSTEM_VERSAL
+
+config SYSTEM_VERSAL
+        bool "VERSAL Configuration"
+        help
+          VERSAL Configuration for petalinux project.
+          All these config options will be in /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/config
+
+config SUBSYSTEM_VARIANT_VERSALAI-CORE
+        bool
+        default y
+        help
+
+config SUBSYSTEM_DISTRO_PETALINUX
+        bool
+        default y
+        help
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.main

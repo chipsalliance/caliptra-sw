@@ -18,7 +18,7 @@ use caliptra_common::{
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{
     CodeRange, DeviceLifecycle, HwModel, ImageInfo, InitParams, ModelError, SecurityState,
-    StackInfo, StackRange,
+    StackInfo, StackRange, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
@@ -51,7 +51,7 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -135,9 +135,6 @@ fn test_dbg_unlock_prod_success() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -262,7 +259,7 @@ fn test_dbg_unlock_prod_success() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -346,9 +343,6 @@ fn test_dbg_unlock_prod_invalid_length() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -383,7 +377,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -467,9 +461,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -645,9 +636,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -750,7 +738,11 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -780,6 +772,10 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         prod_dbg_unlock_keypairs,
         debug_intent: true,
         subsystem_mode: true,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };
@@ -807,9 +803,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     };
 
     let mut model = run_rt_test(runtime_args);
-    model
-        .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-        .unwrap();
 
     // Set the request bit
     model
@@ -843,7 +836,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -928,9 +921,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         };
 
         let mut model = run_rt_test(runtime_args);
-        model
-            .step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-            .unwrap();
 
         // Set the request bit
         model

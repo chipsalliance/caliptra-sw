@@ -53,6 +53,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.marker = AUTH_MANIFEST_MARKER;
         auth_manifest.preamble.size = size_of::<AuthManifestPreamble>() as u32;
         auth_manifest.preamble.version = config.version;
+        auth_manifest.preamble.svn = config.svn;
         auth_manifest.preamble.flags = config.flags.bits();
 
         // Sign the vendor manifest public keys.

@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use elf::{endian::LittleEndian, ElfBytes};
 
@@ -9,7 +8,7 @@ use elf::{endian::LittleEndian, ElfBytes};
 fn test_cpu_fault() {
     const GLOBAL_EXCEPTION: u32 = 0x01050002;
 
-    let rom_fwid = firmware::rom_from_env();
+    let rom_fwid = crate::helpers::rom_from_env();
 
     let elf_bytes = caliptra_builder::build_firmware_elf(rom_fwid).unwrap();
     let mut rom = caliptra_builder::elf2rom(&elf_bytes).unwrap();

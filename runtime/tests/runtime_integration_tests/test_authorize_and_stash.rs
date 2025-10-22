@@ -1,8 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
+use crate::test_set_auth_manifest::{
+    create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
+};
 use crate::test_update_reset::update_fw;
+use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
@@ -39,6 +42,24 @@ pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
 
+#[cfg(feature = "fpga_subsystem")]
+pub const TEST_SRAM_SIZE: usize = 0x1000;
+#[cfg(feature = "fpga_subsystem")]
+const MCI_BASE: u32 = 0xA8000000;
+#[cfg(feature = "fpga_subsystem")]
+const MCU_MBOX_SRAM_BASE: u32 = MCI_BASE + 0x400000;
+#[cfg(feature = "fpga_subsystem")]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: MCU_MBOX_SRAM_BASE,
+    hi: 0x0000_0000,
+};
+
+#[cfg(not(feature = "fpga_subsystem"))]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: 0x0050_0000,
+    hi: 0x0000_0000,
+};
+
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -57,10 +78,11 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(
-            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            FwVerificationPqcKeyType::LMS,
-        )
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            svn: 1,
+        })
     };
 
     let buf = auth_manifest.as_bytes();
@@ -88,6 +110,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
 pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
+    mcu_image: &[u8],
 ) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -95,6 +118,13 @@ pub fn set_auth_manifest_with_test_sram(
             ..Default::default()
         }),
         test_sram: Some(test_sram),
+        soc_manifest: Some(
+            auth_manifest
+                .as_ref()
+                .map(|m| m.as_bytes())
+                .unwrap_or_default(),
+        ),
+        mcu_fw_image: Some(mcu_image),
         ..Default::default()
     };
 
@@ -107,10 +137,11 @@ pub fn set_auth_manifest_with_test_sram(
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(
-            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            FwVerificationPqcKeyType::LMS,
-        )
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            svn: 1,
+        })
     };
 
     let buf = auth_manifest.as_bytes();
@@ -991,6 +1022,78 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     );
 }
 
+fn get_mcu_image_metadata(mcu_image: &[u8]) -> AuthManifestImageMetadata {
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_exec_bit(2);
+    let mut hasher = Sha384::new();
+    hasher.update(mcu_image);
+    let fw_digest = hasher.finalize();
+
+    AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(FW_ID_2),
+        flags: flags.0,
+        digest: fw_digest.into(),
+        image_staging_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        image_load_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        ..Default::default()
+    }
+}
+
+#[cfg(feature = "fpga_subsystem")]
+pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
+    println!("locking  MCU mailbox SRAMs");
+    unsafe {
+        // Make sure the SRAMs are unlocked.
+        // In case SRAM is locked from a previous test, we need to unlock it first
+        // by writing 0 to the exec register.
+        // If it's already unlocked, this is a no-op
+        let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+        mcu_mbox_exec_ptr.write_volatile(0x0);
+
+        // Read from the lock register to the lock the SRAM
+        let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+        let _ = mcu_mbox_lock_ptr.read_volatile();
+    };
+
+    println!("Writing MCU mailbox SRAMs");
+    unsafe {
+        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+
+        for (count, chunk) in data.chunks(4).enumerate() {
+            mcu_mbox_sram_ptr
+                .offset(count as isize)
+                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+        }
+    };
+}
+
+fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) {
+    // For FPGA testing, we'll use the MCU mailbox SRAMs to simulate the test SRAM.
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        let staging_address = address.lo as usize - TEST_SRAM_BASE.lo as usize;
+        let mut test_sram_contents = vec![0u8; TEST_SRAM_SIZE];
+        let image_size = data.len();
+        test_sram_contents[staging_address..staging_address + image_size].copy_from_slice(data);
+
+        write_mcu_mbox_sram(model, &test_sram_contents);
+    }
+    #[cfg(not(feature = "fpga_subsystem"))]
+    {
+        let _ = model;
+        let _ = address;
+        let _ = data;
+    }
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1003,19 +1106,35 @@ fn test_authorize_from_load_address() {
     hasher.update(load_memory_contents);
     let fw_digest = hasher.finalize();
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: fw_digest.into(),
         image_load_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = {
+        let mut arr = [0u8; 256];
+        for (i, item) in arr.iter_mut().enumerate() {
+            *item = i as u8;
+        }
+        arr
+    };
 
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1039,6 +1158,7 @@ fn test_authorize_from_load_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1047,19 +1167,28 @@ fn test_authorize_from_load_address_incorrect_digest() {
 
     let load_memory_contents = [0x55u8; 512];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: [0; 48],
         image_load_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1086,6 +1215,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1098,19 +1228,28 @@ fn test_authorize_from_staging_address() {
     hasher.update(load_memory_contents);
     let fw_digest = hasher.finalize();
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: fw_digest.into(),
         image_staging_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_staging_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1134,6 +1273,7 @@ fn test_authorize_from_staging_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1141,19 +1281,28 @@ fn test_authorize_from_staging_address_incorrect_digest() {
     flags.set_image_source(ImageHashSource::StagingAddress as u32);
 
     let load_memory_contents = [0x55u8; 512];
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: [0; 48],
         image_staging_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_staging_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1178,4 +1327,236 @@ fn test_authorize_from_staging_address_incorrect_digest() {
         authorize_and_stash_resp.auth_req_result,
         IMAGE_HASH_MISMATCH
     );
+}
+
+#[test]
+fn test_verify_valid_manifest() {
+    // Create the model
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Create a valid auth manifest
+    let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        svn: 1,
+    });
+
+    // Verify the manifest
+    let buf = valid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut verify_auth_manifest_cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    verify_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+        verify_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => {
+            let verify_auth_manifest_resp =
+                MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                verify_auth_manifest_resp.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+        }
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(e) => panic!("Mailbox execution failed: {:?}", e),
+    }
+
+    // Verify that sending a VERIFY_MANIFEST command doesn't set the manifest
+    // Authorizing an image should fail
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Don't skip stash
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        authorize_and_stash_resp.auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
+
+    // Set the manifest
+    let buf = valid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        set_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => {
+            let set_auth_manifest_resp =
+                MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                set_auth_manifest_resp.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+        }
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(e) => panic!("Mailbox execution failed: {:?}", e),
+    }
+
+    // Now authorizing an image should succeed
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_verify_invalid_manifest() {
+    // Create the model
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Create an invalid auth manifest
+    let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    });
+
+    // Set the valid manifest first
+    let buf = valid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        set_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => {
+            let set_auth_manifest_resp =
+                MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                set_auth_manifest_resp.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+        }
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(e) => panic!("Mailbox execution failed: {:?}", e),
+    }
+
+    // Modify the manifest to make it invalid (e.g., change a byte)
+    let mut invalid_auth_manifest = valid_auth_manifest;
+    invalid_auth_manifest.as_mut_bytes()[0] ^= 0xFF;
+
+    // Verify the invalid manifest
+    let buf = invalid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut verify_auth_manifest_cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    verify_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+        verify_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => panic!(
+            "Expected an error response but got a valid response: {:?}",
+            resp
+        ),
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(_) => {
+            // Expected error due to invalid manifest
+        }
+    }
+
+    // Authorize and stash an image with the old manifest (i.e. the valid one)
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Don't skip stash
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
