@@ -7,6 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
+#[allow(clippy::needless_lifetimes)]
 pub struct LocalDevIdCertTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
@@ -18,7 +19,8 @@ pub struct LocalDevIdCertTbsEcc384Params<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
 }
-impl LocalDevIdCertTbsEcc384Params<'_> {
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LocalDevIdCertTbsEcc384Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
