@@ -715,7 +715,7 @@ impl HwModel for ModelFpgaRealtime {
 }
 
 impl ModelFpgaRealtime {
-    fn cycle_count(&self) -> u32 {
+    pub fn cycle_count(&self) -> u32 {
         unsafe {
             self.wrapper
                 .offset(FPGA_WRAPPER_CYCLE_COUNT_OFFSET)

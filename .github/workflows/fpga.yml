@@ -52,7 +52,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
       - name: Compute cache-keys
@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
@@ -206,7 +206,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
@@ -279,17 +279,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'not (package(/caliptra-emu-.*/) |
-                       package(caliptra-builder) |
-                       package(caliptra-cfi-derive) |
-                       package(caliptra-file-header-fix) |
-                       package(compliance-test) |
-                       test(test_sign_validation_failure) |
-                       test(test_rtalias::test_boot_status_reporting) |
-                       test(test_update_reset::test_update_reset_verify_image_failure) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
+              -E 'package(caliptra-hw-model) and test(test_to_boot_rom_mb_timing_with_csr_gen)'
           )
 
           cargo-nextest nextest list \

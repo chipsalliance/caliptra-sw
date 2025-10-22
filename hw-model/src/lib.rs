@@ -1962,4 +1962,88 @@ mod tests {
 
         model.step_until_output("hii").unwrap();
     }
+
+    #[test]
+    #[cfg(feature = "fpga_realtime")]
+    fn test_to_boot_rom_mb_timing_with_csr_gen() -> Result<(), Box<dyn std::error::Error>> {
+        const GENERATE_IDEVID_CSR: u32 = 0x1;
+        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM)?;
+        let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &rom,
+            ..Default::default()
+        })?;
+        let fw = caliptra_builder::build_and_sign_image(
+            &firmware::FMC,
+            &firmware::APP,
+            caliptra_builder::ImageOptions {
+                fmc_version: caliptra_builder::version::get_fmc_version(),
+                app_version: caliptra_builder::version::get_runtime_version(),
+                ..Default::default()
+            },
+        )?
+        .to_bytes()?;
+        let payload = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::CAPABILITIES),
+                &[],
+            ),
+        };
+        let boot_params = BootParams::default();
+
+        // Set up Caliptra to boot to a point it can start servicing ROM mailbox requests
+        HwModel::init_fuses(&mut hw, &caliptra_api_types::Fuses::default());
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| GENERATE_IDEVID_CSR);
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(0)
+            .write(|_| boot_params.wdt_timeout_cycles as u32);
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(1)
+            .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        hw.setup_mailbox_users(&boot_params.valid_axi_user)
+            .map_err(ModelError::from)?;
+
+        // Start the timer and release Caliptra to start running
+        let start = hw.cycle_count();
+        hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Wait for the IDev CSR to be generated, then acknowledge it
+        while !hw.soc_ifc().cptra_flow_status().read().idevid_csr_ready() {}
+        hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+
+        // Wait for it to reach the mailbox handler. Calling a quick to command to ensure the
+        // mailbox is accessible.
+        while !hw
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+        {}
+        let _ = hw
+            .mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes())?
+            .unwrap();
+        let boot_to_rom_mb_cycles = hw.cycle_count() - start;
+
+        // // Upload firmware and wait for it to reach its request handler
+        hw.upload_firmware(&fw)?;
+        while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {}
+        let _ = hw
+            .mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes())?
+            .unwrap();
+        let boot_to_runtime_cycles = hw.cycle_count() - start;
+
+        fn print_cycles_to_ms(label: &str, cycles: u32) {
+            let ms = cycles as f64 / 400_000.0;
+            println!("Boot to {label} mailbox handler: {cycles} cycles, {ms} ms at 400 Mhz");
+        }
+
+        print_cycles_to_ms("ROM", boot_to_rom_mb_cycles);
+        print_cycles_to_ms("Runtime", boot_to_runtime_cycles);
+        Ok(())
+    }
 }
