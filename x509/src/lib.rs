@@ -23,6 +23,7 @@ mod idevid_csr_ecc_384;
 mod idevid_csr_mldsa_87;
 mod ldevid_cert_ecc_384;
 mod ldevid_cert_mldsa_87;
+mod ocp_lock_hpke_certs;
 mod rt_alias_cert_ecc_384;
 mod rt_alias_cert_mldsa_87;
 mod test_util;
@@ -43,6 +44,11 @@ pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Pa
 pub use ldevid_cert_mldsa_87::{LocalDevIdCertTbsMlDsa87, LocalDevIdCertTbsMlDsa87Params};
 pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 pub use rt_alias_cert_mldsa_87::{RtAliasCertTbsMlDsa87, RtAliasCertTbsMlDsa87Params};
+
+pub use ocp_lock_hpke_certs::{
+    ml_kem_ecc_348::{OcpLockMlKemCertTbsEcc384, OcpLockMlKemCertTbsEcc384Params},
+    ml_kem_mldsa_87::{OcpLockMlKemCertTbsMlDsa87, OcpLockMlKemCertTbsMlDsa87Params},
+};
 use zeroize::Zeroize;
 
 pub const NOT_BEFORE: &str = "20230101000000Z";
