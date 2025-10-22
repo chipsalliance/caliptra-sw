@@ -6,8 +6,12 @@ mod test_attestation_warmreset;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
+<<<<<<< HEAD
 mod test_capabilities;
 mod test_cert_verify_warmreset;
+=======
+mod test_centify_warmreset;
+>>>>>>> 2778d8ed (warmreset tests for ADD_SUBJECT_ALT_NAME and CERTIFY_KEY_EXTENDED)
 mod test_certify_key_extended;
 mod test_certify_warmreset;
 mod test_certs;
