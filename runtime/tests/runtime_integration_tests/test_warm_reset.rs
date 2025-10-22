@@ -6,7 +6,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
+};
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 
@@ -49,7 +51,10 @@ fn test_rt_journey_pcr_validation() {
         InitParams {
             rom: &rom,
             security_state,
-            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -121,7 +126,10 @@ fn test_mbox_busy_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
-            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -193,7 +201,10 @@ fn test_mbox_idle_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
-            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
