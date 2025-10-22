@@ -267,6 +267,7 @@ pub fn start_rt_test_pqc_model(
         (args.soc_manifest, args.mcu_fw_image)
     };
 
+    println!("PQC TYPE GOT {:?}", pqc_key_type);
     let model = caliptra_hw_model::new(
         init_params,
         BootParams {
@@ -293,7 +294,7 @@ pub fn start_rt_test_pqc_model(
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
-    run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
+    run_rt_test_pqc(args, Default::default())
 }
 
 pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {

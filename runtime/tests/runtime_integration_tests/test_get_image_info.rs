@@ -9,12 +9,10 @@ use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
-use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -24,10 +22,7 @@ pub const FW_ID_BAD: u32 = 3;
 
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
-        test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        }),
+        test_image_options: Some(Default::default()),
         ..Default::default()
     };
 
@@ -42,7 +37,6 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     } else {
         create_auth_manifest(&AuthManifestBuilderCfg {
             manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         })
     };

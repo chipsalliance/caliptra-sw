@@ -1,12 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
-};
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::HwModel;
-use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags, Command, SignCmd, SignFlags},
     context::ContextHandle,
@@ -121,10 +117,7 @@ fn test_attestation_disabled_flag_after_update_reset() {
     );
 
     // trigger update reset to same firmware
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     let updated_fw_image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap()

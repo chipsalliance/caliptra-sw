@@ -20,7 +20,6 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader, SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
@@ -63,7 +62,6 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
         ..Default::default()
@@ -80,7 +78,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     } else {
         create_auth_manifest(&AuthManifestBuilderCfg {
             manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            pqc_key_type: Default::default(),
             svn: 1,
         })
     };
@@ -114,7 +112,6 @@ pub fn set_auth_manifest_with_test_sram(
 ) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
         test_sram: Some(test_sram),
@@ -139,7 +136,7 @@ pub fn set_auth_manifest_with_test_sram(
     } else {
         create_auth_manifest(&AuthManifestBuilderCfg {
             manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            pqc_key_type: Default::default(),
             svn: 1,
         })
     };
@@ -199,10 +196,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     );
 
     // create a new fw image with the runtime replaced by the mbox responder
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
@@ -259,10 +253,7 @@ fn test_authorize_and_stash_cmd_success() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // create a new fw image with the runtime replaced by the mbox responder
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
@@ -590,10 +581,7 @@ fn test_authorize_and_stash_after_update_reset() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
     // Re-authorize the image.
@@ -661,10 +649,7 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
     );
 
     // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
     // Attempt Authorization with a unauthorized fw id.
@@ -735,10 +720,7 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
     );
 
     // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
     // Attempt Authorization with a bad image hash.
@@ -793,10 +775,7 @@ fn test_authorize_and_stash_after_update_reset_skip_auth() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -887,10 +866,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     );
 
     // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = Default::default();
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
     //
@@ -1334,7 +1310,7 @@ fn test_verify_valid_manifest() {
     // Create the model
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            pqc_key_type: Default::default(),
             ..Default::default()
         }),
         ..Default::default()
@@ -1349,7 +1325,7 @@ fn test_verify_valid_manifest() {
     // Create a valid auth manifest
     let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        pqc_key_type: Default::default(),
         svn: 1,
     });
 
@@ -1457,7 +1433,7 @@ fn test_verify_invalid_manifest() {
     // Create the model
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            pqc_key_type: Default::default(),
             ..Default::default()
         }),
         ..Default::default()
@@ -1472,7 +1448,7 @@ fn test_verify_invalid_manifest() {
     // Create an invalid auth manifest
     let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        pqc_key_type: Default::default(),
         ..Default::default()
     });
 

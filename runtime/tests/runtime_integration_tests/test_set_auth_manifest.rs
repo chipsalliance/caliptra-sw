@@ -34,7 +34,7 @@ impl Default for AuthManifestBuilderCfg {
     fn default() -> Self {
         Self {
             manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            pqc_key_type: Default::default(),
             svn: 1,
         }
     }
@@ -146,11 +146,7 @@ pub fn create_auth_manifest(cfg: &AuthManifestBuilderCfg) -> AuthorizationManife
 pub fn create_auth_manifest_with_metadata(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
 ) -> AuthorizationManifest {
-    create_auth_manifest_with_metadata_with_svn(
-        image_metadata_list,
-        FwVerificationPqcKeyType::LMS,
-        1,
-    )
+    create_auth_manifest_with_metadata_with_svn(image_metadata_list, Default::default(), 1)
 }
 
 pub fn create_auth_manifest_with_metadata_with_svn(

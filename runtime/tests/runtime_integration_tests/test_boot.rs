@@ -9,7 +9,6 @@ use caliptra_common::{
     RomBootStatus,
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
-use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
@@ -76,7 +75,6 @@ fn test_update() {
     let image_options = ImageOptions {
         fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
     // Make image to update to. On the FPGA this needs to be done before executing the test,
@@ -114,12 +112,10 @@ fn test_stress_update() {
     let app_versions = [0xaaabbbbc, 0xaaabbbbd];
     let image_options_0 = ImageOptions {
         app_version: app_versions[0],
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
     let image_options_1 = ImageOptions {
         app_version: app_versions[1],
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
 
