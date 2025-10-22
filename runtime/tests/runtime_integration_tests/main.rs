@@ -7,6 +7,7 @@ mod test_attestation_warmreset;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
+mod test_centify_warmreset;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_certs_384_warmreset;
