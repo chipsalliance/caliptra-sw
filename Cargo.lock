@@ -214,7 +214,6 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
  "caliptra-api-types",
- "caliptra-emu-types",
  "caliptra-error",
  "caliptra-registers",
  "ureg",
