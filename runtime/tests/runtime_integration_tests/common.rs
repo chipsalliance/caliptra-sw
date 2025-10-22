@@ -24,7 +24,7 @@ use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    SecurityState, StackInfo, StackRange,
+    SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
@@ -241,7 +241,10 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
-        enable_mcu_uart_log: args.subsystem_mode,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: args.subsystem_mode,
+            ..Default::default()
+        },
         ..Default::default()
     });
 

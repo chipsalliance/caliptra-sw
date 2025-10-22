@@ -28,7 +28,7 @@ use caliptra_api::mailbox::{
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
-use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
+use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SubsystemInitParams, TrngMode};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use cbc::cipher::BlockEncryptMut;
@@ -649,8 +649,11 @@ fn test_random_stir_itrng() {
         init_params: Some(InitParams {
             rom: &rom,
             trng_mode: Some(TrngMode::Internal),
-            enable_mcu_uart_log: subsystem_mode,
             subsystem_mode,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: subsystem_mode,
+                ..Default::default()
+            },
             ..Default::default()
         }),
         ..Default::default()
