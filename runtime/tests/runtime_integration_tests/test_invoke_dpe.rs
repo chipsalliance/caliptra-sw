@@ -8,10 +8,6 @@ use caliptra_api::{
     mailbox::{CommandId, FwInfoResp},
     SocManager,
 };
-use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
-};
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -392,18 +388,12 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
         DpeResult::Success,
     );
 
-    // trigger update reset to same firmware
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    // Triggering a warm reset while a command is being processed will disable attestation.
+    for _ in 0..100 {
+        model.step();
+    }
+
+    model.warm_reset_flow().unwrap();
 
     // check attestation is not disabled via FW_INFO
     let payload = MailboxReqHeader {
@@ -439,18 +429,12 @@ fn test_export_cdi_destroyed_root_context() {
         DpeResult::Success,
     );
 
-    // trigger update reset to same firmware
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    // Triggering a warm reset while a command is being processed will disable attestation.
+    for _ in 0..100 {
+        model.step();
+    }
+
+    model.warm_reset_flow().unwrap();
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
