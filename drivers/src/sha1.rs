@@ -15,6 +15,7 @@ Abstract:
 use crate::{Array4x5, CaliptraError, CaliptraResult};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
+use zeroize::Zeroize;
 
 const SHA1_BLOCK_BYTE_SIZE: usize = 64;
 const SHA1_BLOCK_LEN_OFFSET: usize = 56;
@@ -199,11 +200,14 @@ enum Sha1DigestState {
 }
 
 /// Multi step SHA-256 digest operation
+#[derive(Zeroize)]
 pub struct Sha1DigestOp<'a> {
     /// SHA-256 Engine
+    #[zeroize(skip)]
     sha: &'a mut Sha1,
 
     /// State
+    #[zeroize(skip)]
     state: Sha1DigestState,
 
     /// Staging buffer

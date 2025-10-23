@@ -22,6 +22,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
+use zeroize::Zeroize;
+
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
@@ -339,11 +341,14 @@ enum Sha384DigestState {
 }
 
 /// Multi step SHA-384 digest operation
+#[derive(Zeroize)]
 pub struct Sha384DigestOp<'a> {
     /// SHA-384 Engine
+    #[zeroize(skip)]
     sha: &'a mut Sha384,
 
     /// State
+    #[zeroize(skip)]
     state: Sha384DigestState,
 
     /// Staging buffer
