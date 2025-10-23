@@ -1135,41 +1135,9 @@ impl ModelFpgaSubsystem {
         );
     }
 
-    fn init_otp(
-        &mut self,
-        device_lifecycle: DeviceLifecycle,
-        fuses: &Fuses,
-    ) -> Result<(), Box<dyn Error>> {
-        let mut otp_data = vec![0; OTP_SIZE];
-
-        // Users can provide data to initialize OTP a specific way. If an OTP
-        // initialization state is not provided, we proceed with initialization
-        // a default configuration.
-        if !self.otp_init.is_empty() {
-            // write the initial contents of the OTP memory
-            println!("Initializing OTP with initialized data");
-            if self.otp_init.len() > otp_data.len() {
-                Err(format!(
-                    "OTP initialization data is larger than OTP memory {} > {}",
-                    self.otp_init.len(),
-                    otp_data.len(),
-                ))?;
-            }
-            otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
-            return Ok(());
-        }
-
-        // Initialize LC state based on the security state of the device.
-        let lc_state = match device_lifecycle {
-            DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
-            DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
-            DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
-            DeviceLifecycle::Production => LifecycleControllerState::Prod,
-        };
-        println!("Provisioning lifecycle partition (State: {}).", lc_state);
-        let mem = lc_generate_memory(lc_state, 1)?;
-        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+    fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
+        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+        let mut otp_data = self.otp_slice().to_vec();
 
         // Provision default LC tokens.
         println!("Provisioning SECRET_LC_TRANSITION partition.");
@@ -1218,9 +1186,7 @@ impl ModelFpgaSubsystem {
         );
         otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = fuses.soc_manifest_max_svn;
 
-        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
-        let otp_mem = self.otp_slice();
-        otp_mem.copy_from_slice(&otp_data);
+        self.otp_slice().copy_from_slice(&otp_data);
 
         Ok(())
     }
@@ -1480,8 +1446,38 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
-        println!("Initializing subsystem OTP memory.");
-        m.init_otp(params.security_state.device_lifecycle(), &Fuses::default())?;
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Users can provide data to initialize OTP a specific way. If an OTP
+        // initialization state is not provided, we proceed with initialization
+        // a default configuration.
+        let mut otp_data = vec![0; OTP_SIZE];
+        if !m.otp_init.is_empty() {
+            // write the initial contents of the OTP memory
+            println!("Initializing OTP with initialized data");
+            if m.otp_init.len() > otp_data.len() {
+                Err(format!(
+                    "OTP initialization data is larger than OTP memory {} > {}",
+                    m.otp_init.len(),
+                    otp_data.len(),
+                ))?;
+            }
+            otp_data[..m.otp_init.len()].copy_from_slice(&m.otp_init);
+        }
+
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Initialize LC state based on the security state of the device.
+        let lc_state = match params.security_state.device_lifecycle() {
+            DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
+            DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
+            DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
+            DeviceLifecycle::Production => LifecycleControllerState::Prod,
+        };
+        println!("Provisioning lifecycle partition (State: {}).", lc_state);
+        let mem = lc_generate_memory(lc_state, 1)?;
+        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        let otp_mem = m.otp_slice();
+        otp_mem.copy_from_slice(&otp_data);
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1598,6 +1594,11 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
+        // TODO(timothytrippel): this should ideally be called in `new_unbooted()`, but we need a
+        // way to pass the fuses parameter to it from that function to allow tests to pass
+        // different (non-default) fuse values.
+        println!("Initializing subsystem OTP memory.");
+        self.init_otp(&boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
 
         // Return here if there isn't any mutable code to load
