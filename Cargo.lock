@@ -836,6 +836,7 @@ dependencies = [
  "rand",
  "sha2",
  "ufmt",
+ "ureg",
  "zerocopy",
  "zeroize",
 ]
