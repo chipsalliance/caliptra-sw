@@ -14,6 +14,7 @@ Abstract:
 
 use crate::{array::Array4x16, wait, Array4x8, CaliptraError, CaliptraResult};
 use caliptra_registers::sha256::Sha256Reg;
+use zeroize::Zeroize;
 
 const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 const SHA256_BLOCK_LEN_OFFSET: usize = 56;
@@ -393,11 +394,14 @@ enum Sha256DigestState {
 }
 
 /// Multi step SHA-256 digest operation
+#[derive(Zeroize)]
 pub struct Sha256DigestOpHw<'a> {
     /// SHA-256 Engine
+    #[zeroize(skip)]
     sha: &'a mut Sha256,
 
     /// State
+    #[zeroize(skip)]
     state: Sha256DigestState,
 
     /// Staging buffer

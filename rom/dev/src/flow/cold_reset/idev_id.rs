@@ -280,8 +280,6 @@ impl InitDevIdLayer {
             return Ok(());
         }
 
-        cprintln!("[idev] CSR Envelope upload begun");
-
         // Generate the CSR
         Self::make_csr_envelop(env, output)
     }
@@ -480,7 +478,6 @@ impl InitDevIdLayer {
                 // Release access to the mailbox
                 txn.complete()?;
 
-                cprintln!("[idev] CSR Envelope uploaded");
                 report_boot_status(IDevIdSendCsrEnvelopeComplete.into());
 
                 // exit the loop
