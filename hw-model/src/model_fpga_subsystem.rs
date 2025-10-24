@@ -1614,61 +1614,12 @@ impl HwModel for ModelFpgaSubsystem {
             }
         };
 
-        println!("Setting recovery images to BMC");
-        self.bmc
-            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
-        self.bmc.push_recovery_image(
-            boot_params
-                .soc_manifest
-                .map(|s| s.to_vec())
-                .unwrap_or_default(),
-        );
-        self.bmc.push_recovery_image(mcu_fw_image);
-
-        while !self.i3c_target_configured() {
-            self.step();
-        }
-        println!("Done starting MCU");
-
-        // TODO: support passing these into MCU ROM
-        // self.soc_ifc()
-        //     .cptra_wdt_cfg()
-        //     .at(0)
-        //     .write(|_| boot_params.wdt_timeout_cycles as u32);
-
-        // self.soc_ifc()
-        //     .cptra_wdt_cfg()
-        //     .at(1)
-        //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // TODO: do we need to support these in MCU ROM?
-        // self.soc_ifc()
-        //     .cptra_dbg_manuf_service_reg()
-        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
-
-        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_1()
-        //         .write(|_| reg);
-        // }
-
-        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_0()
-        //         .write(|_| reg);
-        // }
-
-        // TODO: support passing these into MCU ROM
-
-        // Set up the PAUSER as valid for the mailbox (using index 0)
-        // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
-        //     .map_err(ModelError::from)?;
-
-        self.i3c_controller.configure();
-        println!("Starting recovery flow (BMC)");
-        self.start_recovery_bmc();
-        self.step();
-        println!("Finished booting");
+        self.upload_firmware_rri(
+            boot_params.fw_image.unwrap(),
+            boot_params.soc_manifest,
+            Some(&mcu_fw_image),
+        )
+        .unwrap();
 
         Ok(())
     }
@@ -1721,10 +1672,63 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn upload_firmware_rri(
         &mut self,
-        _firmware: &[u8],
-        _soc_manifest: Option<&[u8]>,
-        _mcu_firmware: Option<&[u8]>,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
+        println!("Setting recovery images to BMC");
+        // First add image to BMC
+        self.bmc.push_recovery_image(firmware.to_vec());
+        self.bmc
+            .push_recovery_image(soc_manifest.unwrap_or_default().to_vec());
+        self.bmc
+            .push_recovery_image(mcu_firmware.unwrap_or_default().to_vec());
+
+        while !self.i3c_target_configured() {
+            self.step();
+        }
+        println!("Done starting MCU");
+
+        // TODO: support passing these into MCU ROM
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(0)
+        //     .write(|_| boot_params.wdt_timeout_cycles as u32);
+
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(1)
+        //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
+
+        // TODO: do we need to support these in MCU ROM?
+        // self.soc_ifc()
+        //     .cptra_dbg_manuf_service_reg()
+        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_1()
+        //         .write(|_| reg);
+        // }
+
+        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_0()
+        //         .write(|_| reg);
+        // }
+
+        // TODO: support passing these into MCU ROM
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+        //     .map_err(ModelError::from)?;
+
+        self.i3c_controller.configure();
+        println!("Starting recovery flow (BMC)");
+        self.start_recovery_bmc();
+        self.step();
+        println!("Finished booting");
+
         // Notify MCU ROM it can start loading firmware
         let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
         let current = gpio.extract().get();
