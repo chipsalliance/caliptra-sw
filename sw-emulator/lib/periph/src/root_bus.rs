@@ -218,6 +218,7 @@ pub struct CaliptraRootBusArgs<'a> {
     pub security_state: SecurityState,
     pub dbg_manuf_service_req: DbgManufServiceRegReq,
     pub subsystem_mode: bool,
+    pub ocp_lock_en: bool,
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
     pub debug_intent: bool,
 
@@ -252,6 +253,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             security_state: Default::default(),
             dbg_manuf_service_req: Default::default(),
             subsystem_mode: false,
+            ocp_lock_en: false,
             prod_dbg_unlock_keypairs: vec![],
             debug_intent: false,
             tb_services_cb: Default::default(),

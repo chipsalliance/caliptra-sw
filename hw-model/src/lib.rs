@@ -184,6 +184,8 @@ pub struct InitParams<'a> {
 
     pub subsystem_mode: bool,
 
+    pub ocp_lock_en: bool,
+
     pub uds_granularity_64: bool,
 
     // Keypairs for production debug unlock levels, from low to high
@@ -263,6 +265,7 @@ impl Default for InitParams<'_> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
+            ocp_lock_en: false,
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
