@@ -82,7 +82,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
 }
 
-fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_soc_manifest(pqc_key_type, svn);
     let manifest_bytes = manifest.as_bytes();
     let len = manifest_bytes.len();

@@ -43,7 +43,8 @@ fn test_rom_integrity_failure() {
 
     loop {
         hw.step();
-        if hw.ready_for_fw() {
+        if hw.ready_for_fw() && !hw.subsystem_mode() {
+            // Subsystem says it's always ready for firmware
             panic!("ROM should have had a failure")
         }
 
