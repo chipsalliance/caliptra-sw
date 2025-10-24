@@ -23,6 +23,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
 
+use zeroize::Zeroize;
+
 const HMAC384_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC384_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC384_MAX_DATA_SIZE: usize = 1024 * 1024;
@@ -466,14 +468,18 @@ enum Hmac384OpState {
 }
 
 /// HMAC multi step operation
+#[derive(Zeroize)]
 pub struct Hmac384Op<'a> {
     /// Hmac-384 Engine
+    #[zeroize(skip)]
     hmac_engine: &'a mut Hmac384,
 
     /// State
+    #[zeroize(skip)]
     state: Hmac384OpState,
 
     // The keyvault key used to compute the hmac
+    #[zeroize(skip)]
     key: Option<KeyReadArgs>,
 
     /// Staging buffer
@@ -486,6 +492,7 @@ pub struct Hmac384Op<'a> {
     data_size: usize,
 
     /// Tag
+    #[zeroize(skip)]
     tag: Hmac384Tag<'a>,
 }
 
