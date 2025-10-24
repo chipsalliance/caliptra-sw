@@ -178,6 +178,7 @@ impl HwModel for ModelEmulated {
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
             subsystem_mode: params.subsystem_mode,
+            ocp_lock_en: params.ocp_lock_en,
             prod_dbg_unlock_keypairs: params.prod_dbg_unlock_keypairs,
             debug_intent: params.debug_intent,
             cptra_obf_key: params.cptra_obf_key,
@@ -192,13 +193,20 @@ impl HwModel for ModelEmulated {
         let mut root_bus = CaliptraRootBus::new(bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
-        root_bus.soc_reg.set_hw_config(
-            (match trng_mode {
-                TrngMode::Internal => 1,
-                TrngMode::External => 0,
-            } | if params.subsystem_mode { 1 << 5 } else { 0 })
-            .into(),
-        );
+        let hw_config = {
+            let mut hw_config = 0;
+            if matches!(trng_mode, TrngMode::Internal) {
+                hw_config |= 1;
+            }
+            if params.subsystem_mode {
+                hw_config |= 1 << 5
+            }
+            if params.ocp_lock_en {
+                hw_config |= 1 << 6
+            }
+            hw_config
+        };
+        root_bus.soc_reg.set_hw_config(hw_config.into());
 
         let input_wires = (!params.uds_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);

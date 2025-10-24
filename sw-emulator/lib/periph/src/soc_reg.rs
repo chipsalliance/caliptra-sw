@@ -332,11 +332,12 @@ register_bitfields! [
     /// Hardware Configuration
     HwConfig [
         ITRNG_EN OFFSET(0) NUMBITS(1) [],
-        RSVD_EN OFFSET(1) NUMBITS(3) [],
+        FUSE_GRANULARITY_64BIT OFFSET(1) NUMBITS(1) [],
+        RSVD_EN OFFSET(2) NUMBITS(3) [],
         LMS_ACC_EN OFFSET(4) NUMBITS(1) [],
         ACTIVE_MODE_en OFFSET(5) NUMBITS(1) [],
-        FUSE_GRANULARITY_64BIT OFFSET(6) NUMBITS(1) [],
-        RSVD OFFSET(7) NUMBITS(25) [],
+        OCP_LOCK_en OFFSET(6) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(25) [],
     ],
 ];
 
@@ -915,6 +916,7 @@ impl SocRegistersImpl {
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
     const CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE: u32 = 1 << 5;
+    const CALIPTRA_HW_CONFIG_OCP_LOCK_MODE: u32 = 1 << 6;
 
     pub fn new(
         mailbox: MailboxInternal,
@@ -965,10 +967,15 @@ impl SocRegistersImpl {
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(0x12), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
-                Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
-            } else {
-                0
+            cptra_hw_config: ReadWriteRegister::new({
+                let mut hw_features = 0;
+                if args.subsystem_mode {
+                    hw_features |= Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE;
+                }
+                if args.ocp_lock_en {
+                    hw_features |= Self::CALIPTRA_HW_CONFIG_OCP_LOCK_MODE;
+                }
+                hw_features
             }),
             cptra_wdt_timer1_en: ReadWriteRegister::new(0),
             cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
