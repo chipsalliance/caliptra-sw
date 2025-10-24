@@ -72,12 +72,7 @@ fn test_rt_journey_pcr_validation() {
         .unwrap();
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        key_manifest_pk_hash: vendor_pk_hash,
-        owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        ..Default::default()
-    });
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -145,12 +140,7 @@ fn test_mbox_busy_during_warm_reset() {
         .mailbox_flow_done());
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        key_manifest_pk_hash: vendor_pk_hash,
-        owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        ..Default::default()
-    });
+    model.warm_reset_flow().unwrap();
 
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
@@ -208,12 +198,7 @@ fn test_mbox_idle_during_warm_reset() {
     });
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses {
-        key_manifest_pk_hash: vendor_pk_hash,
-        owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        ..Default::default()
-    });
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
