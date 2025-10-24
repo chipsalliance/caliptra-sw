@@ -48,6 +48,7 @@ pub mod pcr_log;
 pub mod pcr_reset;
 mod persistent;
 pub mod pic;
+pub mod preconditioned_aes;
 pub mod printer;
 mod sha1;
 mod sha256;

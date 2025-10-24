@@ -115,6 +115,11 @@ path = "src/bin/persistent_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "preconditioned_aes"
+path = "src/bin/preconditioned_aes_test.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha2_512_384acc"
 path = "src/bin/sha2_512_384acc_tests.rs"
 required-features = ["riscv"]

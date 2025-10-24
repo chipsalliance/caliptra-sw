@@ -190,6 +190,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const PRECONDITIONED_AES: FwId = FwId {
+        bin_name: "preconditioned_aes",
+        ..BASE_FWID
+    };
+
     pub const AES: FwId = FwId {
         bin_name: "aes",
         ..BASE_FWID
@@ -480,6 +485,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::ML_DSA87,
     &driver_tests::PCRBANK,
+    &driver_tests::PRECONDITIONED_AES,
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,

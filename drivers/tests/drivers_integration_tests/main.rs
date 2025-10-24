@@ -330,6 +330,11 @@ fn test_aes() {
 }
 
 #[test]
+fn test_preconditioned_aes() {
+    run_driver_test(&firmware::driver_tests::PRECONDITIONED_AES);
+}
+
+#[test]
 fn test_ecc384() {
     run_driver_test(&firmware::driver_tests::ECC384);
 }
