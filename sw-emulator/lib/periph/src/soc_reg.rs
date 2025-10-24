@@ -1283,6 +1283,11 @@ impl SocRegistersImpl {
             .reg
             .write(FlowStatus::READY_FOR_FUSES::SET);
 
+        self.cptra_mbox_valid_pauser = Default::default();
+        self.cptra_mbox_pauser_lock = Default::default();
+
+        // TODO: All regs on with rst_b reset signal should be reset here
+
         self.reset_common();
     }
 

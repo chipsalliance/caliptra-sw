@@ -72,12 +72,7 @@ fn test_warm_reset_success() {
     }
 
     // Perform warm reset
-    hw.warm_reset_flow(&Fuses {
-        key_manifest_pk_hash: vendor_pk_hash,
-        owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        ..Default::default()
-    });
+    hw.warm_reset_flow().unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
@@ -99,7 +94,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
     hw.step_until_boot_status(IDevIdDecryptUdsComplete.into(), true);
 
     // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -135,7 +130,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
     }
 
     // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -164,7 +159,7 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
     hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
 
     // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -210,7 +205,7 @@ fn test_warm_reset_during_update_reset() {
     hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
 
     // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -302,14 +297,13 @@ fn test_warm_reset_version() {
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
     let binding = image.to_bytes().unwrap();
-    let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_hash,
-        owner_pk_hash,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
-        ..Default::default()
-    };
     let boot_params = BootParams {
-        fuses: fuses.clone(),
+        fuses: Fuses {
+            key_manifest_pk_hash: vendor_pk_hash,
+            owner_pk_hash,
+            runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+            ..Default::default()
+        },
         fw_image: Some(&binding),
         ..Default::default()
     };
@@ -338,7 +332,7 @@ fn test_warm_reset_version() {
     );
 
     // Perform warm reset
-    hw.warm_reset_flow(&fuses);
+    hw.warm_reset_flow().unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
