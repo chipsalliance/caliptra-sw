@@ -24,6 +24,7 @@ use caliptra_drivers::{
     ExportedCdiEntry, ExportedCdiHandles, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
     KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
+use constant_time_eq::constant_time_eq;
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
 use dpe::{
     response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE,
@@ -157,7 +158,9 @@ impl<'a> DpeCrypto<'a> {
                     key,
                     handle,
                     active,
-                } if active.get() && handle == exported_cdi_handle => return Some(*key),
+                } if active.get() && constant_time_eq(handle, exported_cdi_handle) => {
+                    return Some(*key)
+                }
                 _ => (),
             }
         }
@@ -315,7 +318,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
                         key,
                         handle,
                         active,
-                    } if active.get() && handle == exported_handle => {
+                    } if active.get() && constant_time_eq(handle, exported_handle) => {
                         cdi = Some(*key);
                         break;
                     }

@@ -13,6 +13,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use constant_time_eq::constant_time_eq;
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
@@ -45,9 +46,9 @@ impl RevokeExportedCdiHandleCmd {
                     key,
                     handle,
                     active,
-                } if *handle == cmd.exported_cdi_handle && active.get() => {
+                } if constant_time_eq(handle, &cmd.exported_cdi_handle) && active.get() => {
                     #[cfg(not(feature = "no-cfi"))]
-                    cfi_assert!(*handle == cmd.exported_cdi_handle);
+                    cfi_assert!(constant_time_eq(handle, &cmd.exported_cdi_handle));
 
                     // Setting to false is redundant with zeroize but included for clarity.
                     *active = U8Bool::new(false);
