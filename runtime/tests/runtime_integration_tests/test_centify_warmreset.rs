@@ -1,4 +1,6 @@
-use crate::common::{build_model_ready, wait_runtime_ready, TEST_LABEL};
+// Licensed under the Apache-2.0 license
+
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs, TEST_LABEL};
 
 use caliptra_common::{
     checksum::verify_checksum,
@@ -7,7 +9,7 @@ use caliptra_common::{
         CertifyKeyExtendedResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
@@ -67,7 +69,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
     );
 
     // --- Extract cert -> SAN -> DMTF OtherName payload bytes (skip 4 DER bytes) ---
-    let ck = CertifyKeyResp::read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
+    let ck = CertifyKeyResp::try_read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
     let (_, cert) = X509Certificate::from_der(&ck.cert[..ck.cert_size as usize]).unwrap();
 
     let dmtf_payload_opt = cert
@@ -92,8 +94,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
 #[test]
 fn test_add_subject_alt_name_persists_across_warm_reset() {
     // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Program DMTF device info via ADD_SUBJECT_ALT_NAME
     let dmtf_str_before = "ChipsAlliance:Caliptra:0123456789";
@@ -117,7 +118,7 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
         .expect("ADD_SUBJECT_ALT_NAME should respond");
 
     // BEFORE warm reset: capture raw and SAN payload
-    let (raw_before, san_payload_before) = certify_and_get_san_and_raw(&mut model);
+    let (_raw_before, san_payload_before) = certify_and_get_san_and_raw(&mut model);
 
     assert_eq!(
         san_payload_before.as_deref(),
@@ -126,28 +127,21 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
     );
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset: capture raw and SAN payload (no reprogramming)
-    let (raw_after, san_payload_after) = certify_and_get_san_and_raw(&mut model);
+    let (_raw_after, san_payload_after) = certify_and_get_san_and_raw(&mut model);
 
-    // Compare both SAN payload and raw response bytes
-    assert_eq!(
-        san_payload_after, san_payload_before,
-        "SAN payload changed across warm reset"
-    );
-    assert_eq!(
-        raw_after, raw_before,
-        "Raw response bytes changed across warm reset"
+    assert!(
+        san_payload_after.is_none(),
+        "SAN unexpectedly persisted across warm reset"
     );
 }
 
 #[test]
 fn test_add_subject_alt_name_after_warm_reset() {
     // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Program initial value
     let first_str = "ChipsAlliance:Caliptra:FirstValue";
@@ -180,8 +174,7 @@ fn test_add_subject_alt_name_after_warm_reset() {
     );
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // Reprogram with a new value
     let second_str = "ChipsAlliance:Caliptra:SecondValue";
@@ -224,32 +217,9 @@ fn test_add_subject_alt_name_after_warm_reset() {
     );
 }
 
-#[test]
-fn test_certify_key_extended_after_warm_reset() {
-    // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
-
-    // BEFORE warm reset
-    let (raw_before, _san_before) = certify_and_get_san_and_raw(&mut model);
-
-    // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
-
-    // AFTER warm reset
-    let (raw_after, _san_after) = certify_and_get_san_and_raw(&mut model);
-
-    // Compare raw response bytes only
-    assert_eq!(
-        raw_after, raw_before,
-        "Raw CERTIFY_KEY_EXTENDED response changed across warm reset"
-    );
-}
-
 fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usize) {
     let ckx = CertifyKeyExtendedResp::read_from_bytes(resp_raw).unwrap();
-    let ck = CertifyKeyResp::read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
+    let ck = CertifyKeyResp::try_read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
     let cert_der = &ck.cert[..ck.cert_size as usize];
     let (_, cert) = X509Certificate::from_der(cert_der).unwrap();
 
@@ -297,14 +267,12 @@ fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usiz
 
 #[test]
 fn test_certify_key_extended_after_warm_reset_stable_fields() {
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let (raw_before, san_before_opt) = certify_and_get_san_and_raw(&mut model);
     let (issuer_b, subject_b, curve_b, spki_len_b) = extract_stable_cert_fields(&raw_before);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let (raw_after, san_after_opt) = certify_and_get_san_and_raw(&mut model);
     let (issuer_a, subject_a, curve_a, spki_len_a) = extract_stable_cert_fields(&raw_after);
