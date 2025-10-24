@@ -7,12 +7,14 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
+#[allow(clippy::needless_lifetimes)]
 pub struct InitDevIdCsrTbsMlDsa87Params<'a> {
     pub ueid: &'a [u8; 17usize],
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
 }
-impl InitDevIdCsrTbsMlDsa87Params<'_> {
+#[allow(clippy::needless_lifetimes)]
+impl<'a> InitDevIdCsrTbsMlDsa87Params<'a> {
     pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;

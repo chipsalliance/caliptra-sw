@@ -99,11 +99,12 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-
+            #[allow(clippy::needless_lifetimes)]
             pub struct #param_name<'a> {
                 #(pub #param_vars)*
             }
 
+            #[allow(clippy::needless_lifetimes)]
             impl<'a> #param_name<'a>{
                 #(pub #len_consts)*
             }

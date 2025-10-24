@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::tbs::{init_param, sanitize, TbsParam, TbsTemplate};
-use crate::x509::{self, AsymKey, FwidParam, KeyUsage, SigningAlgorithm};
+use crate::x509::{self, AsymKey, FwidParam, HPKEIdentifiers, KeyUsage, SigningAlgorithm};
 use caliptra_common::x509::get_tbs;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
@@ -28,18 +28,22 @@ struct CertTemplateParam {
 }
 
 /// Certificate Template Builder
-pub struct CertTemplateBuilder<Algo: SigningAlgorithm> {
-    algo: Algo,
+pub struct CertTemplateBuilder<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm> {
+    issuer: AlgoIssuer,
+    subject: AlgoSubject,
     builder: X509Builder,
     exts: Stack<X509Extension>,
     params: Vec<CertTemplateParam>,
 }
 
-impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
+impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
+    CertTemplateBuilder<AlgoIssuer, AlgoSubject>
+{
     // Create an instance of `CertificateTemplateBuilder`
     pub fn new() -> Self {
         Self {
-            algo: Algo::default(),
+            issuer: AlgoIssuer::default(),
+            subject: AlgoSubject::default(),
             builder: X509Builder::new().unwrap(),
             exts: Stack::new().unwrap(),
             params: vec![],
@@ -192,11 +196,18 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         self.params.push(param);
     }
 
+    pub fn add_hpke_identifiers_ext(mut self, identifier: &HPKEIdentifiers) -> Self {
+        self.exts
+            .push(x509::make_hpke_identifier_ext(identifier))
+            .unwrap();
+        self
+    }
+
     /// Generate To Be Signed (TBS) Template
     pub fn tbs_template(mut self, subject_cn: &str, issuer_cn: &str) -> TbsTemplate {
         // Generate key pair
-        let subject_key = self.algo.gen_key();
-        let issuer_key = self.algo.gen_key();
+        let subject_key = self.subject.gen_key();
+        let issuer_key = self.issuer.gen_key();
 
         // Set Version
         self.builder.set_version(2).unwrap();
@@ -282,7 +293,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
 
         // Sign the Certificate
         self.builder
-            .sign(subject_key.priv_key(), self.algo.digest())
+            .sign(issuer_key.priv_key(), self.issuer.digest())
             .unwrap();
 
         // Generate the Certificate

@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use asn1::{ObjectIdentifier, ParseError, Utf8String};
+use asn1::{Explicit, Implicit, ObjectIdentifier, ParseError, Utf8String};
 
 pub const DICE_TCB_INFO_OID: ObjectIdentifier = asn1::oid!(2, 23, 133, 5, 4, 1);
 pub const DICE_MULTI_TCB_INFO_OID: ObjectIdentifier = asn1::oid!(2, 23, 133, 5, 4, 5);
@@ -36,24 +36,31 @@ pub struct DiceTcbInfo {
 }
 
 impl DiceTcbInfo {
+    #[allow(clippy::result_large_err)]
     fn parse(d: &mut asn1::Parser) -> Result<Self, asn1::ParseError> {
         let result = DiceTcbInfo {
             vendor: d
-                .read_optional_implicit_element::<Utf8String>(0)?
-                .map(|s| s.as_str().into()),
+                .read_element::<Option<Implicit<Utf8String, 0>>>()?
+                .map(|s| s.as_inner().as_str().into()),
             model: d
-                .read_optional_implicit_element::<Utf8String>(1)?
-                .map(|s| s.as_str().into()),
+                .read_element::<Option<Implicit<Utf8String, 1>>>()?
+                .map(|s| s.as_inner().as_str().into()),
             version: d
-                .read_optional_implicit_element::<Utf8String>(2)?
-                .map(|s| s.as_str().into()),
-            svn: d.read_optional_implicit_element(3)?,
-            layer: d.read_optional_implicit_element(4)?,
-            index: d.read_optional_implicit_element(5)?,
+                .read_element::<Option<Implicit<Utf8String, 2>>>()?
+                .map(|s| s.as_inner().as_str().into()),
+            svn: d
+                .read_element::<Option<Implicit<u32, 3>>>()?
+                .map(|s| s.into_inner()),
+            layer: d
+                .read_element::<Option<Implicit<u32, 4>>>()?
+                .map(|s| s.into_inner()),
+            index: d
+                .read_element::<Option<Implicit<u32, 5>>>()?
+                .map(|s| s.into_inner()),
             fwids: d
-                .read_optional_implicit_element::<asn1::Sequence>(6)?
+                .read_element::<Option<Implicit<asn1::Sequence, 6>>>()?
                 .map(|s| {
-                    s.parse(|d| {
+                    s.as_inner().clone().parse(|d| {
                         let mut result = vec![];
                         while !d.is_empty() {
                             result.push(d.read_element::<asn1::Sequence>()?.parse(|d| {
@@ -69,22 +76,24 @@ impl DiceTcbInfo {
                 .transpose()?
                 .unwrap_or_default(),
             flags: d
-                .read_optional_implicit_element::<asn1::BitString>(7)?
-                .and_then(|b| b.as_bytes().try_into().ok())
+                .read_element::<Option<Implicit<asn1::BitString, 7>>>()?
+                .and_then(|b| b.as_inner().as_bytes().try_into().ok())
                 .map(u32::from_be_bytes),
             vendor_info: d
-                .read_optional_implicit_element::<&[u8]>(8)?
-                .map(|s| s.to_vec()),
+                .read_element::<Option<Implicit<&[u8], 8>>>()?
+                .map(|s| s.as_inner().to_vec()),
             ty: d
-                .read_optional_implicit_element::<&[u8]>(9)?
-                .map(|s| s.to_vec()),
+                .read_element::<Option<Implicit<&[u8], 9>>>()?
+                .map(|s| s.as_inner().to_vec()),
         };
-        d.read_optional_implicit_element::<u32>(10).unwrap();
+        d.read_element::<Option<Implicit<u32, 10>>>().unwrap();
         Ok(result)
     }
+    #[allow(clippy::result_large_err)]
     fn parse_single(d: &mut asn1::Parser) -> Result<Self, asn1::ParseError> {
         d.read_element::<asn1::Sequence>()?.parse(Self::parse)
     }
+    #[allow(clippy::result_large_err)]
     fn parse_multiple(d: &mut asn1::Parser) -> Result<Vec<Self>, asn1::ParseError> {
         d.read_element::<asn1::Sequence>()?.parse(|d| {
             let mut result = vec![];
@@ -95,12 +104,14 @@ impl DiceTcbInfo {
         })
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn find_multiple_in_cert(cert_der: &[u8]) -> Result<Vec<Self>, asn1::ParseError> {
         let Some(ext_der) = get_cert_extension(cert_der, &DICE_MULTI_TCB_INFO_OID)? else {
             return Ok(vec![]);
         };
         asn1::parse(ext_der, Self::parse_multiple)
     }
+    #[allow(clippy::result_large_err)]
     pub fn find_single_in_cert(cert_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
         let Some(ext_der) = get_cert_extension(cert_der, &DICE_TCB_INFO_OID)? else {
             return Ok(None);
@@ -182,6 +193,7 @@ fn test_tcb_info_find_multiple_in_cert_when_no_tcb_info() {
 
 /// Extracts the DER bytes of an extension from x509 certificate bytes
 /// (`cert_der`) with the provided `oid`.
+#[allow(clippy::result_large_err)]
 pub(crate) fn get_cert_extension<'a>(
     cert_der: &'a [u8],
     oid: &asn1::ObjectIdentifier,
@@ -189,38 +201,44 @@ pub(crate) fn get_cert_extension<'a>(
     asn1::parse(cert_der, |d| {
         d.read_element::<asn1::Sequence>()?.parse(|d| {
             let result = d.read_element::<asn1::Sequence>()?.parse(|d| {
-                d.read_explicit_element::<Option<u32>>(0)?; // version
+                d.read_element::<Explicit<u32, 0>>()?; // version
                 d.read_element::<asn1::BigInt>()?; // serial-number
                 d.read_element::<asn1::Sequence>()?; // signature
                 d.read_element::<asn1::Sequence>()?; // name
                 d.read_element::<asn1::Sequence>()?; // validity
                 d.read_element::<asn1::Sequence>()?; // subject
                 d.read_element::<asn1::Sequence>()?; // subjectPublicKeyInfo
-                d.read_optional_implicit_element::<asn1::BitString>(1)?; // issuerUniqueID
-                d.read_optional_implicit_element::<asn1::BitString>(2)?; // subjectUniqueId
-                let result = d.read_explicit_element::<asn1::Sequence>(3)?.parse(|d| {
-                    let mut result = None;
-                    while !d.is_empty() {
-                        let found_result = d.read_element::<asn1::Sequence>()?.parse(|d| {
-                            let item_oid = d.read_element::<asn1::ObjectIdentifier>()?;
-                            d.read_element::<Option<bool>>()?; // critical
-                            let value = d.read_element::<&[u8]>()?;
-                            if &item_oid == oid {
-                                Ok(Some(value))
-                            } else {
-                                Ok(None)
+                d.read_element::<Option<Implicit<asn1::BitString, 1>>>()?; // issuerUniqueID
+                d.read_element::<Option<Implicit<asn1::BitString, 2>>>()?; // subjectUniqueId
+                let result = d
+                    .read_element::<Explicit<asn1::Sequence, 3>>()?
+                    .as_inner()
+                    .clone()
+                    .parse(|d| {
+                        let mut result = None;
+                        while !d.is_empty() {
+                            let found_result = d.read_element::<asn1::Sequence>()?.parse(|d| {
+                                let item_oid = d.read_element::<asn1::ObjectIdentifier>()?;
+                                d.read_element::<Option<bool>>()?; // critical
+                                let value = d.read_element::<&[u8]>()?;
+                                if &item_oid == oid {
+                                    Ok(Some(value))
+                                } else {
+                                    Ok(None)
+                                }
+                            })?;
+                            if let Some(found_result) = found_result {
+                                if result.is_some() {
+                                    // The extension was found more than once
+                                    return Err(asn1::ParseError::new(
+                                        asn1::ParseErrorKind::ExtraData,
+                                    ));
+                                }
+                                result = Some(found_result);
                             }
-                        })?;
-                        if let Some(found_result) = found_result {
-                            if result.is_some() {
-                                // The extension was found more than once
-                                return Err(asn1::ParseError::new(asn1::ParseErrorKind::ExtraData));
-                            }
-                            result = Some(found_result);
                         }
-                    }
-                    Ok(result)
-                })?;
+                        Ok(result)
+                    })?;
                 Ok(result)
             })?;
             d.read_element::<asn1::Sequence>()?; // signatureAlgorithm
