@@ -67,6 +67,12 @@ impl FirmwareVerifyCmd {
         drivers.mbox.write_response(resp.as_bytes())?;
         // zero the original resp buffer so as not to leak sensitive data
         resp.as_mut_bytes().fill(0);
+        drivers
+            .persistent_data
+            .get_mut()
+            .manifest2
+            .as_mut_bytes()
+            .fill(0);
 
         Ok(MboxStatusE::DataReady)
     }
