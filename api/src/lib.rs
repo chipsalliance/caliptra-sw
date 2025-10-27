@@ -2,7 +2,7 @@
 #![cfg_attr(not(test), no_std)]
 
 mod capabilities;
-mod checksum;
+pub mod checksum;
 pub mod mailbox;
 pub mod soc_mgr;
 
