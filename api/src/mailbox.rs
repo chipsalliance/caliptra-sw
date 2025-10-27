@@ -49,6 +49,7 @@ pub enum AlgorithmType {
 impl CommandId {
     pub const ACTIVATE_FIRMWARE: Self = Self(0x41435446); // "ACTF"
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
+    pub const FIRMWARE_VERIFY: Self = Self(0x46575652); // "FWVR"
     pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_ECC384_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_ECC384_CERT: Self = Self(0x49444550); // "IDEP"
@@ -887,6 +888,31 @@ pub struct ActivateFirmwareResp {
     pub hdr: MailboxRespHeader,
 }
 impl Response for ActivateFirmwareResp {}
+
+// FIRMWARE_VERIFY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Default)]
+pub struct FirmwareVerifyReq {
+    // Caliptra Firmware Bundle
+}
+impl Request for FirmwareVerifyReq {
+    const ID: CommandId = CommandId::FIRMWARE_VERIFY;
+    type Resp = FirmwareVerifyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct FirmwareVerifyResp {
+    pub hdr: MailboxRespHeader,
+    pub verify_result: u32, // FirmwareVerifyResult
+}
+impl Response for FirmwareVerifyResp {}
+
+#[repr(u32)]
+pub enum FirmwareVerifyResult {
+    Success = 0xDEAD_C0DE,
+    Failure = 0x2152_3F21,
+}
 
 // GET_IDEV_ECC384_CERT
 #[repr(C)]

@@ -26,6 +26,7 @@ mod dpe_platform;
 mod drivers;
 mod fe_programming;
 pub mod fips;
+mod firmware_verify;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
 mod get_image_info;
@@ -200,6 +201,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
     }
 
+    if drivers.mbox.cmd() == CommandId::FIRMWARE_VERIFY {
+        return firmware_verify::FirmwareVerifyCmd::execute(drivers);
+    } else {
+        cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_VERIFY);
+    }
+
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
@@ -237,6 +244,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::FIRMWARE_VERIFY => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_ECC384_CERT => {
             IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384, resp)
         }
