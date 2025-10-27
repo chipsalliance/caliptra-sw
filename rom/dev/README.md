@@ -263,7 +263,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `kv_clear(KvSlot0)`
 
-3. Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7
+3. Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated public key in KeySlot7
 
     `IDevIDSeed = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
     `IDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
