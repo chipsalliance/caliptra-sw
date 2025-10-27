@@ -700,7 +700,7 @@ pub struct OtpSwManufPartition {
     pub anti_rollback_disable: u32,
     pub idevid_cert_attr: [u8; 96],
     pub idevid_cert: u32,
-    pub hsm_id: u64,
+    pub hsm_id: u128,
     pub stepping_id: u32,
     pub prod_debug_unlock_pks_0: [u8; 48],
     pub prod_debug_unlock_pks_1: [u8; 48],
