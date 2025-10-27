@@ -13,11 +13,12 @@ Abstract:
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
+#[cfg(not(has_subsystem))]
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
+#[cfg(not(has_subsystem))] // No fuse controller in FPGA without MCI
 fn test_uds_programming_no_active_mode() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -28,7 +29,6 @@ fn test_uds_programming_no_active_mode() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            subsystem_mode: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -45,8 +45,8 @@ fn test_uds_programming_no_active_mode() {
     );
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
+#[cfg(has_subsystem)] // No fuse controller in FPGA without MCI
 fn test_uds_programming_granularity_64bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -57,7 +57,6 @@ fn test_uds_programming_granularity_64bit() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            subsystem_mode: true,
             uds_granularity_64: true,
             ..Default::default()
         },
@@ -75,8 +74,8 @@ fn test_uds_programming_granularity_64bit() {
     assert_eq!((config_val >> 31) & 1, 0);
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
+#[cfg(has_subsystem)] // No fuse controller in FPGA without MCI
 fn test_uds_programming_granularity_32bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -87,7 +86,6 @@ fn test_uds_programming_granularity_32bit() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            subsystem_mode: true,
             uds_granularity_64: false,
             ..Default::default()
         },

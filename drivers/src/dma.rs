@@ -737,7 +737,7 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // TODO: remove this when the FPGA can do fixed burst transfers
-    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    #[cfg(is_fpga)]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         // check if this is an I3C DMA
         let i3c = match read_transaction.read_addr {
@@ -800,7 +800,7 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
-    #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+    #[cfg(not(is_fpga))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         self.dma.flush();
         self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);

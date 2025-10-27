@@ -6,12 +6,24 @@
 use crate::FwId;
 
 pub fn rom_from_env() -> &'static FwId<'static> {
-    match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
-        Ok("ROM") => &ROM,
-        Ok("ROM_WITHOUT_UART") => &ROM,
-        Ok("ROM_WITH_UART") => &ROM_WITH_UART,
-        Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
-        Err(_) => &ROM_WITH_UART,
+    let features = std::env::vars()
+        .filter_map(|(key, _)| key.strip_prefix("CARGO_FEATURE_").map(|s| s.to_lowercase()))
+        .collect::<Vec<_>>();
+
+    let fpga_subsystem = features.contains(&"fpga_subsystem".to_string());
+    let fpga_realtime = features.contains(&"fpga_realtime".to_string());
+
+    // FPGA needs a different ROM to be able to use DMA
+    if fpga_realtime || fpga_subsystem {
+        &ROM_FPGA_WITH_UART
+    } else {
+        match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
+            Ok("ROM") => &ROM,
+            Ok("ROM_WITHOUT_UART") => &ROM,
+            Ok("ROM_WITH_UART") => &ROM_WITH_UART,
+            Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+            Err(_) => &ROM_WITH_UART,
+        }
     }
 }
 

@@ -1,26 +1,36 @@
 // Licensed under the Apache-2.0 license
 
+#[cfg(has_subsystem)]
 use std::mem::size_of;
 
+use caliptra_api::mailbox::{CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq};
+#[cfg(has_subsystem)]
 use caliptra_api::mailbox::{
-    CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
-    ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
+    ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
+    ProductionAuthDebugUnlockToken,
 };
+#[cfg(has_subsystem)]
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState,
 };
+#[cfg(has_subsystem)]
 use fips204::traits::{SerDes, Signer};
+#[cfg(has_subsystem)]
 use p384::ecdsa::VerifyingKey;
+#[cfg(has_subsystem)]
 use rand::{rngs::StdRng, SeedableRng};
+#[cfg(has_subsystem)]
 use sha2::Digest;
-use zerocopy::{FromBytes, IntoBytes};
+#[cfg(has_subsystem)]
+use zerocopy::FromBytes;
+use zerocopy::IntoBytes;
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(has_subsystem))]
 fn test_dbg_unlock_manuf_req_in_passive_mode() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -36,7 +46,6 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            subsystem_mode: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -71,7 +80,7 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_manuf_success() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -87,7 +96,6 @@ fn test_dbg_unlock_manuf_success() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -131,7 +139,7 @@ fn test_dbg_unlock_manuf_success() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_manuf_wrong_cmd() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -147,7 +155,6 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -184,7 +191,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_manuf_invalid_token() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -200,7 +207,6 @@ fn test_dbg_unlock_manuf_invalid_token() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -238,6 +244,7 @@ fn test_dbg_unlock_manuf_invalid_token() {
         .manuf_dbg_unlock_fail());
 }
 
+#[cfg(has_subsystem)]
 fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
     input
         .chunks(4)
@@ -249,6 +256,7 @@ fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
+#[cfg(has_subsystem)]
 fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
     input
         .chunks(4)
@@ -262,7 +270,7 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -308,7 +316,6 @@ fn test_dbg_unlock_prod_success() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs,
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -435,7 +442,7 @@ fn test_dbg_unlock_prod_success() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -475,7 +482,6 @@ fn test_dbg_unlock_prod_invalid_length() {
                 &mldsa_pub_key_bytes.try_into().unwrap(),
             )],
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -516,7 +522,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -553,7 +559,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
                 ecc_pub_key_bytes.try_into().unwrap(),
                 mldsa_pub_key_bytes.try_into().unwrap(),
             )],
-            subsystem_mode: true,
             debug_intent: true,
             ..Default::default()
         },
@@ -635,7 +640,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_invalid_signature() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -675,7 +680,6 @@ fn test_dbg_unlock_prod_invalid_signature() {
                 mldsa_pub_key_bytes.try_into().unwrap(),
             )],
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -772,7 +776,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -827,7 +831,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
                 mldsa_pub_key_bytes.try_into().unwrap(),
             )],
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -906,7 +909,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_wrong_cmd() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -945,7 +948,6 @@ fn test_dbg_unlock_prod_wrong_cmd() {
                 mldsa_pub_key_bytes.try_into().unwrap(),
             )],
             debug_intent: true,
-            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -979,7 +981,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -1024,7 +1026,6 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
                 dbg_manuf_service,
                 prod_dbg_unlock_keypairs,
                 debug_intent: true,
-                subsystem_mode: true,
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),
@@ -1139,7 +1140,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(has_subsystem)]
 fn test_dbg_unlock_prod_unlock_levels_failure() {
     for unlock_level in [0, 9, 16] {
         let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -1177,7 +1178,6 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
                     mldsa_pub_key_bytes.try_into().unwrap(),
                 )],
                 debug_intent: true,
-                subsystem_mode: true,
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),

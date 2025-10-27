@@ -79,6 +79,7 @@ fn test_boot_status_reporting() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO] Add soc manifest and mcu image
 fn test_fht_info() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let fuses = Fuses {
@@ -120,6 +121,7 @@ fn test_fht_info() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO] Add soc manifest and mcu image
 fn test_pcr_log() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let fuses = Fuses {

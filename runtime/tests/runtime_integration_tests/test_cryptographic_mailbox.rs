@@ -2,7 +2,9 @@
 
 use std::collections::VecDeque;
 
-use crate::common::{assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs};
+use crate::common::{
+    assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs, DEFAULT_UPLOAD_FIRMWARE,
+};
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
@@ -2716,7 +2718,10 @@ fn test_derive_stable_key() {
     let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
 
     // now step until runtime
-    model.upload_firmware(&fw_image).unwrap();
+    DEFAULT_UPLOAD_FIRMWARE
+        .upload_firmware(&mut model, &fw_image)
+        .unwrap();
+
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });

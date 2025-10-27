@@ -85,13 +85,25 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
 
     let field_idents: Vec<_> = peripheral_fields
         .iter()
-        .filter(|f| !f.refcell)
+        .filter(|f| !f.refcell && !f.optional)
         .map(|f| Ident::new(&f.name, Span::call_site()))
         .collect();
 
     let field_idents_refcell: Vec<_> = peripheral_fields
         .iter()
-        .filter(|f| f.refcell)
+        .filter(|f| f.refcell && !f.optional)
+        .map(|f| Ident::new(&f.name, Span::call_site()))
+        .collect();
+
+    let field_idents_optional: Vec<_> = peripheral_fields
+        .iter()
+        .filter(|f| f.optional && !f.refcell)
+        .map(|f| Ident::new(&f.name, Span::call_site()))
+        .collect();
+
+    let field_idents_refcell_optional: Vec<_> = peripheral_fields
+        .iter()
+        .filter(|f| f.optional && f.refcell)
         .map(|f| Ident::new(&f.name, Span::call_site()))
         .collect();
 
@@ -110,24 +122,34 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn poll(&mut self) {
                 #(self.#field_idents.poll();)*
                 #(self.#field_idents_refcell.borrow_mut().poll();)*
+                #(if let Some(ref mut peripheral) = self.#field_idents_optional { peripheral.poll(); })*
+                #(if let Some(ref mut peripheral) = self.#field_idents_refcell_optional { peripheral.borrow_mut().poll(); })*
                 #self_poll_tokens
             }
             fn warm_reset(&mut self) {
                 #(self.#field_idents.warm_reset();)*
                 #(self.#field_idents_refcell.borrow_mut().warm_reset();)*
+                #(if let Some(ref mut peripheral) = self.#field_idents_optional { peripheral.warm_reset(); })*
+                #(if let Some(ref mut peripheral) = self.#field_idents_refcell_optional { peripheral.borrow_mut().warm_reset(); })*
                 #self_warm_reset_tokens
             }
             fn update_reset(&mut self) {
                 #(self.#field_idents.update_reset();)*
                 #(self.#field_idents_refcell.borrow_mut().update_reset();)*
+                #(if let Some(ref mut peripheral) = self.#field_idents_optional { peripheral.update_reset(); })*
+                #(if let Some(ref mut peripheral) = self.#field_idents_refcell_optional { peripheral.borrow_mut().update_reset(); })*
                 #self_update_reset_tokens
             }
             fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
                 #(self.#field_idents.incoming_event(event.clone());)*
+                #(if let Some(ref mut peripheral) = self.#field_idents_optional { peripheral.incoming_event(event.clone()); })*
+                #(if let Some(ref mut peripheral) = self.#field_idents_refcell_optional { peripheral.borrow_mut().incoming_event(event.clone()); })*
                 #self_incoming_event_tokens
             }
             fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
                 #(self.#field_idents.register_outgoing_events(sender.clone());)*
+                #(if let Some(ref mut peripheral) = self.#field_idents_optional { peripheral.register_outgoing_events(sender.clone()); })*
+                #(if let Some(ref mut peripheral) = self.#field_idents_refcell_optional { peripheral.borrow_mut().register_outgoing_events(sender.clone()); })*
                 #self_register_outgoing_events_tokens
             }
         }
@@ -215,6 +237,7 @@ struct PeripheralField {
     offset: u32,
     len: u32,
     refcell: bool,
+    optional: bool,
 }
 
 fn contains_refcell(stream: TokenStream) -> bool {
@@ -223,6 +246,17 @@ fn contains_refcell(stream: TokenStream) -> bool {
         TokenTree::Ident(ident) => ident == "RefCell",
         _ => false,
     })
+}
+
+fn contains_option(stream: TokenStream) -> bool {
+    for t in stream.into_iter() {
+        if let TokenTree::Ident(ident) = t {
+            if ident == "Option" {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
@@ -246,7 +280,8 @@ fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
                 name: field.field_name.unwrap().to_string(),
                 offset: literal::parse_hex_u32(offset),
                 len: literal::parse_hex_u32(len),
-                refcell: contains_refcell(field.field_type),
+                refcell: contains_refcell(field.field_type.clone()),
+                optional: contains_option(field.field_type),
             })
         } else {
             panic!("peripheral attribute must have offset and len parameters and be placed before a field offset={:?} len={:?}", attr.args.get("offset"), attr.args.get("len"));
@@ -269,6 +304,9 @@ struct MatchArm {
 
     /// Whether the type is a RefCell.
     refcell: bool,
+
+    /// Whether the type is an Option.
+    optional: bool,
 
     /// The expression right of "=>" in the match arm.
     body: String,
@@ -294,6 +332,7 @@ fn build_match_tree_from_fields(fields: &[PeripheralField]) -> Option<LengthMatc
             len: field.len,
             body: field.name.clone(),
             refcell: field.refcell,
+            optional: field.optional,
         });
     }
     Some(matches)
@@ -319,7 +358,29 @@ fn gen_bus_match_tokens(offset_matches: &LengthMatchBlock, access_type: AccessTy
         match access_type {
             AccessType::Read => {
                 let field_name = Ident::new(&m.body, Span::call_site());
-                if m.refcell {
+                if m.optional {
+                    if m.refcell {
+                        quote! {
+                            #offset..=#offset_len => {
+                                if let Some(ref mut peripheral) = self.#field_name {
+                                    return peripheral.borrow_mut().read(size, addr - #offset);
+                                } else {
+                                    return Err(caliptra_emu_bus::BusError::LoadAccessFault);
+                                }
+                            },
+                        }
+                    } else {
+                        quote! {
+                            #offset..=#offset_len => {
+                                if let Some(ref mut peripheral) = self.#field_name {
+                                    return caliptra_emu_bus::Bus::read(peripheral, size, addr - #offset);
+                                } else {
+                                    return Err(caliptra_emu_bus::BusError::LoadAccessFault);
+                                }
+                            },
+                        }
+                    }
+                } else if m.refcell {
                     quote! {
                         #offset..=#offset_len => return self.#field_name.borrow_mut().read(size, addr - #offset),
                     }
@@ -331,7 +392,29 @@ fn gen_bus_match_tokens(offset_matches: &LengthMatchBlock, access_type: AccessTy
             },
             AccessType::Write => {
                 let field_name = Ident::new(&m.body, Span::call_site());
-                if m.refcell {
+                if m.optional {
+                    if m.refcell {
+                        quote! {
+                            #offset..=#offset_len => {
+                                if let Some(ref mut peripheral) = self.#field_name {
+                                    return peripheral.borrow_mut().write(size, addr - #offset, val);
+                                } else {
+                                    return Err(caliptra_emu_bus::BusError::StoreAccessFault);
+                                }
+                            },
+                        }
+                    } else {
+                        quote! {
+                            #offset..=#offset_len => {
+                                if let Some(ref mut peripheral) = self.#field_name {
+                                    return caliptra_emu_bus::Bus::write(peripheral, size, addr - #offset, val);
+                                } else {
+                                    return Err(caliptra_emu_bus::BusError::StoreAccessFault);
+                                }
+                            },
+                        }
+                    }
+                } else if m.refcell {
                     quote! {
                         #offset..=#offset_len => return self.#field_name.borrow_mut().write(size, addr - #offset, val),
                     }
@@ -505,12 +588,14 @@ mod tests {
                     offset: 0x3000_0000,
                     len: 0xffff,
                     refcell: false,
+                    optional: false,
                 },
                 PeripheralField {
                     name: "uart".into(),
                     offset: 0x6000_0000,
                     len: 0x34,
                     refcell: false,
+                    optional: false,
                 },
             ]
         );
@@ -531,26 +616,26 @@ mod tests {
     #[rustfmt::skip]
     fn test_organize_fields_by_mask() {
         let foo = build_match_tree_from_fields(&[
-            PeripheralField { name: "rom".into(), offset: 0x0000_0000, len: 0xffff, refcell: false },
-            PeripheralField { name: "sram".into(), offset: 0x1000_0000, len: 0xffff, refcell: false },
-            PeripheralField { name: "dram".into(), offset: 0x2000_0000, len: 0xffff, refcell: false },
-            PeripheralField { name: "uart0".into(), offset: 0xaa00_0000, len: 0x34, refcell: false },
-            PeripheralField { name: "uart1".into(), offset: 0xaa01_0000, len: 0x34, refcell: false },
-            PeripheralField { name: "i2c0".into(), offset: 0xaa02_0000, len: 0x80, refcell: false },
-            PeripheralField { name: "i2c1".into(), offset: 0xaa02_0040, len: 0x80, refcell: false },
-            PeripheralField { name: "i2c2".into(), offset: 0xaa02_0080, len: 0x80, refcell: false },
-            PeripheralField { name: "spi0".into(), offset: 0xbb42_0000, len: 0x10000, refcell: false },
+            PeripheralField { name: "rom".into(), offset: 0x0000_0000, len: 0xffff, refcell: false, optional: false },
+            PeripheralField { name: "sram".into(), offset: 0x1000_0000, len: 0xffff, refcell: false, optional: false },
+            PeripheralField { name: "dram".into(), offset: 0x2000_0000, len: 0xffff, refcell: false, optional: false },
+            PeripheralField { name: "uart0".into(), offset: 0xaa00_0000, len: 0x34, refcell: false, optional: false },
+            PeripheralField { name: "uart1".into(), offset: 0xaa01_0000, len: 0x34, refcell: false, optional: false },
+            PeripheralField { name: "i2c0".into(), offset: 0xaa02_0000, len: 0x80, refcell: false, optional: false },
+            PeripheralField { name: "i2c1".into(), offset: 0xaa02_0040, len: 0x80, refcell: false, optional: false },
+            PeripheralField { name: "i2c2".into(), offset: 0xaa02_0080, len: 0x80, refcell: false, optional: false },
+            PeripheralField { name: "spi0".into(), offset: 0xbb42_0000, len: 0x10000, refcell: false, optional: false },
             ]);
         assert_eq!(foo, Some(vec![
-            MatchArm { offset: 0x0000_0000, len: 0xffff, body: "rom".into(), refcell: false },
-            MatchArm { offset: 0x1000_0000, len: 0xffff, body: "sram".into(), refcell: false },
-            MatchArm { offset: 0x2000_0000, len: 0xffff, body: "dram".into(), refcell: false },
-            MatchArm { offset: 0xaa00_0000, len: 0x34, body: "uart0".into(), refcell: false },
-            MatchArm { offset: 0xaa01_0000, len: 0x34, body: "uart1".into(), refcell: false },
-            MatchArm { offset: 0xaa02_0000, len: 0x80, body: "i2c0".into(), refcell: false },
-            MatchArm { offset: 0xaa02_0040, len: 0x80, body: "i2c1".into(), refcell: false },
-            MatchArm { offset: 0xaa02_0080, len: 0x80, body: "i2c2".into(), refcell: false },
-            MatchArm { offset: 0xbb42_0000, len: 0x10000, body: "spi0".into(), refcell: false },
+            MatchArm { offset: 0x0000_0000, len: 0xffff, body: "rom".into(), refcell: false, optional: false },
+            MatchArm { offset: 0x1000_0000, len: 0xffff, body: "sram".into(), refcell: false, optional: false },
+            MatchArm { offset: 0x2000_0000, len: 0xffff, body: "dram".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xaa00_0000, len: 0x34, body: "uart0".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xaa01_0000, len: 0x34, body: "uart1".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xaa02_0000, len: 0x80, body: "i2c0".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xaa02_0040, len: 0x80, body: "i2c1".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xaa02_0080, len: 0x80, body: "i2c2".into(), refcell: false, optional: false },
+            MatchArm { offset: 0xbb42_0000, len: 0x10000, body: "spi0".into(), refcell: false, optional: false },
         ]));
     }
 

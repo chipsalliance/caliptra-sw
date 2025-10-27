@@ -142,8 +142,10 @@ pub fn create_auth_manifest(cfg: &AuthManifestBuilderCfg) -> AuthorizationManife
     gen.generate(&gen_config).unwrap()
 }
 
-pub fn create_auth_manifest_with_metadata(
+pub fn create_auth_manifest_with_metadata_with_svn(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
 ) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeysConfig {
@@ -207,12 +209,19 @@ pub fn create_auth_manifest_with_metadata(
         image_metadata_list,
         version: 1,
         flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        svn: 1,
+        pqc_key_type,
+        svn,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
     gen.generate(&gen_config).unwrap()
+}
+
+pub fn create_auth_manifest_with_metadata(
+    image_metadata_list: Vec<AuthManifestImageMetadata>,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> AuthorizationManifest {
+    create_auth_manifest_with_metadata_with_svn(image_metadata_list, pqc_key_type, 1)
 }
 
 fn create_auth_manifest_of_metadata_size(
@@ -996,6 +1005,7 @@ fn test_set_auth_manifest_svn_lt_fuse() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // The fuse will block error at loading the manifest from the RRI
 fn test_set_auth_manifest_svn_eq_128() {
     let rt_args = RuntimeTestArgs {
         security_state: Some(
@@ -1020,6 +1030,7 @@ fn test_set_auth_manifest_svn_eq_128() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // The fuse will block error at loading the manifest from the RRI
 fn test_set_auth_manifest_svn_gt_128() {
     let rt_args = RuntimeTestArgs {
         security_state: Some(

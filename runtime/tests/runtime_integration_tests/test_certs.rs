@@ -6,6 +6,7 @@ use crate::common::{
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
     RuntimeTestArgs, TEST_LABEL,
 };
+use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
@@ -558,6 +559,8 @@ fn cold_reset(
     mut hw: DefaultHwModel,
     rom: &[u8],
     fw_image: &[u8],
+    soc_manifest: Option<&[u8]>,
+    mcu_fw_image: Option<&[u8]>,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
     if cfg!(any(
@@ -580,6 +583,8 @@ fn cold_reset(
     };
     hw.boot(BootParams {
         fw_image: Some(fw_image),
+        soc_manifest,
+        mcu_fw_image,
         fuses,
         ..Default::default()
     })
@@ -653,7 +658,21 @@ pub fn test_all_measurement_apis() {
             .unwrap();
 
         // Get to runtime
-        hw.upload_firmware(&fw_image).unwrap();
+        let (soc_manifest, mcu_firmware) = if hw.subsystem_mode() {
+            let (soc_manifest, mcu_firmware) =
+                crate::common::default_manifest_and_mcu_image(*pqc_key_type);
+            hw.upload_firmware_rri(
+                &fw_image,
+                Some(soc_manifest.as_slice()),
+                Some(mcu_firmware.as_slice()),
+            )
+            .unwrap();
+            (Some(soc_manifest), Some(mcu_firmware))
+        } else {
+            hw.upload_firmware(&fw_image).unwrap();
+            (None, None)
+        };
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
@@ -664,7 +683,15 @@ pub fn test_all_measurement_apis() {
         //      Boot to runtime, stash a measurement, then get the DPE cert
         //      Start with a fresh cold boot for each method
         //
-        hw = cold_reset(hw, &rom, &fw_image, *pqc_key_type);
+        hw = cold_reset(
+            hw,
+            &rom,
+            &fw_image,
+            soc_manifest.as_deref(),
+            mcu_firmware.as_deref(),
+            *pqc_key_type,
+        );
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
         // Send the stash measurement command
         let _resp = hw
@@ -684,7 +711,15 @@ pub fn test_all_measurement_apis() {
         //      Boot to runtime, perform DPE derive context, then get the DPE cert
         //      Start with a fresh cold boot for each method
         //
-        hw = cold_reset(hw, &rom, &fw_image, *pqc_key_type);
+        hw = cold_reset(
+            hw,
+            &rom,
+            &fw_image,
+            soc_manifest.as_deref(),
+            mcu_firmware.as_deref(),
+            *pqc_key_type,
+        );
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
         // Send derive context call
         let derive_context_cmd = DeriveContextCmd {

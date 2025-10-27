@@ -35,6 +35,7 @@ fn generate_csr_envelop(
             .read()
             .ready_for_mb_processing()
     });
+    // [CAP2][TODO] make a version for subsystem: need an image manifest and mcu image
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -53,6 +54,7 @@ fn generate_csr_envelop(
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO]
 fn test_generate_csr_envelop() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -69,6 +71,7 @@ fn test_generate_csr_envelop() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO]
 fn test_ecc_idev_subj_key_id_algo() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -93,6 +96,7 @@ fn test_ecc_idev_subj_key_id_algo() {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO]
 fn test_mldsa_idev_subj_key_id_algo() {
     for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
         let mut fuses = Fuses::default();
@@ -127,6 +131,7 @@ fn fuses_with_random_uds() -> Fuses {
 }
 
 #[test]
+#[cfg(not(has_subsystem))] // [CAP2][TODO]
 fn test_generate_csr_envelop_stress() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {

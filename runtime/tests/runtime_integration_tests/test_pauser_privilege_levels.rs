@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::PQC_KEY_TYPE;
+use crate::common::{UploadFirmware, DEFAULT_UPLOAD_FIRMWARE, PQC_KEY_TYPE};
 use caliptra_api::{
     mailbox::{RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq},
     SocManager,
@@ -45,10 +45,6 @@ const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
 
     // First rotate the default context so that we don't run into an error
     // when trying to retain the default context in derive child.
@@ -775,8 +771,8 @@ fn test_pl0_unset_in_header() {
         .unwrap();
     image_bundle.manifest.preamble = preamble;
 
-    model
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
+    DEFAULT_UPLOAD_FIRMWARE
+        .upload_firmware(&mut model, &image_bundle.to_bytes().unwrap())
         .unwrap();
 
     model.step_until(|m| {
@@ -827,8 +823,8 @@ fn test_user_not_pl0() {
         let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
+        UploadFirmware::new(*pqc_key_type, 1)
+            .upload_firmware(&mut model, &image_bundle.to_bytes().unwrap())
             .unwrap();
 
         model.step_until(|m| {

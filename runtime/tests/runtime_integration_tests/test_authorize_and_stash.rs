@@ -7,8 +7,10 @@ use crate::test_set_auth_manifest::{
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_api::SocManager;
+#[cfg(has_subsystem)]
+use caliptra_auth_man_types::Addr64;
 use caliptra_auth_man_types::{
-    Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{
@@ -21,6 +23,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_types::FwVerificationPqcKeyType::LMS;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
@@ -89,6 +92,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     model
 }
 
+#[cfg(has_subsystem)]
 pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
@@ -392,7 +396,7 @@ fn test_authorize_and_stash_fwid_0() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -431,7 +435,7 @@ fn test_authorize_and_stash_fwid_127() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -495,7 +499,7 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             digest: IMAGE_DIGEST_BAD,
             ..Default::default()
         }];
-        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
         let mut model = set_auth_manifest(Some(auth_manifest));
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -539,7 +543,7 @@ fn test_authorize_and_stash_after_update_reset() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -607,7 +611,7 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -681,7 +685,7 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -810,7 +814,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest(Some(auth_manifest));
 
     // Valid authorization.
@@ -927,7 +931,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         digest: IMAGE_DIGEST1,
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
 
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
@@ -997,6 +1001,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1018,7 +1023,7 @@ fn test_authorize_from_load_address() {
         },
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -1045,6 +1050,7 @@ fn test_authorize_from_load_address() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1062,7 +1068,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
         },
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -1092,6 +1098,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1113,7 +1120,7 @@ fn test_authorize_from_staging_address() {
         },
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -1140,6 +1147,7 @@ fn test_authorize_from_staging_address() {
 }
 
 #[test]
+#[cfg(has_subsystem)]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
@@ -1156,7 +1164,7 @@ fn test_authorize_from_staging_address_incorrect_digest() {
         },
         ..Default::default()
     }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata, LMS);
     let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
