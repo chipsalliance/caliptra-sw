@@ -700,7 +700,7 @@ pub struct OtpSwManufPartition {
     pub anti_rollback_disable: u32,
     pub idevid_cert_attr: [u8; 96],
     pub idevid_cert: u32,
-    pub hsm_id: u64,
+    pub hsm_id: u128,
     pub stepping_id: u32,
     pub prod_debug_unlock_pks_0: [u8; 48],
     pub prod_debug_unlock_pks_1: [u8; 48],
@@ -726,7 +726,7 @@ impl Default for OtpSwManufPartition {
         let mut hasher = Sha384::new();
         sha2::Digest::update(&mut hasher, ecdsa_pubkey);
         sha2::Digest::update(&mut hasher, mldsa_pubkey);
-        let prod_debug_unlock_pks_0: [u8; 48] = hasher.finalize().into();
+        let default_prod_debug_unlock_pks: [u8; 48] = hasher.finalize().into();
 
         Self {
             anti_rollback_disable: 0x1,
@@ -734,14 +734,14 @@ impl Default for OtpSwManufPartition {
             idevid_cert: 0,
             hsm_id: 0,
             stepping_id: 0,
-            prod_debug_unlock_pks_0,
-            prod_debug_unlock_pks_1: [0; 48],
-            prod_debug_unlock_pks_2: [0; 48],
-            prod_debug_unlock_pks_3: [0; 48],
-            prod_debug_unlock_pks_4: [0; 48],
-            prod_debug_unlock_pks_5: [0; 48],
-            prod_debug_unlock_pks_6: [0; 48],
-            prod_debug_unlock_pks_7: [0; 48],
+            prod_debug_unlock_pks_0: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_1: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_2: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_3: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_4: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_5: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_6: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_7: default_prod_debug_unlock_pks,
         }
     }
 }
