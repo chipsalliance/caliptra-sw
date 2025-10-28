@@ -251,4 +251,32 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
         "Caliptra 2.0 MlDsa87 Rt Alias",
     );
     CodeGen::gen_code("OcpLockMlKemCertTbsMlDsa87", template, out_dir);
+
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ECDH P-384",
+        "Caliptra 2.0 Ecc384 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockEcdh384CertTbsEcc384", template, out_dir);
+
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ECDH P-384",
+        "Caliptra 2.0 MlDsa87 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockEcdh384CertTbsMlDsa87", template, out_dir);
 }

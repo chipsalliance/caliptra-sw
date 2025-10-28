@@ -521,9 +521,7 @@ impl HPKEIdentifiers {
     // TODO(clundin): This will be used in a follow up PR.
     #[allow(dead_code)]
     pub const ML_KEM_EC_P384_IANA_CODE_POINT: KemId = KemId(0x0052);
-    // TODO(clundin): This will be used in a follow up PR.
-    #[allow(dead_code)]
-    pub const EC_P384_IANA_CODE_POINT: KemId = KemId(0x0011);
+    pub const ECDH_P384_IANA_CODE_POINT: KemId = KemId(0x0011);
 
     /// KDF id's
     pub const HKDF_SHA384_IANA_CODE_POINT: KdfId = KdfId(0x0002);
