@@ -69,7 +69,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest) and [`AUTHORIZE_AND_STASH`](#authorize-and-stash). For image format of the manifest, please refer [this file](../auth-manifest/README.md).
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest) and [`AUTHORIZE_AND_STASH`](#authorize_and_stash). For image format of the manifest, please refer [here](manifest.md).
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
