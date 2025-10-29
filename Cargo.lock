@@ -596,6 +596,7 @@ dependencies = [
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
+ "caliptra-image-fake-keys",
  "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test-harness-types",
