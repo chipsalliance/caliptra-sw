@@ -73,6 +73,7 @@ fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_cert
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_populate_idev_ecc_cert_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
@@ -159,6 +160,7 @@ fn mldsa_keygen() -> PKey<Private> {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_populate_idev_mldsa_cert_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 

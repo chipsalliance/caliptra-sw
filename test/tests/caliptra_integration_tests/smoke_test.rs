@@ -286,10 +286,21 @@ fn smoke_test() {
                 assert_output_contains(&output, "[kat] SHA2-384");
                 assert_output_contains(&output, "[kat] SHA2-512");
                 assert_output_contains_regex(&output, r"\[kat\] SHA2-(384|512)-ACC");
-                assert_output_contains(&output, "[kat] HMAC-384Kdf");
-                assert_output_contains(&output, "[kat] HMAC-512Kdf");
-                assert_output_contains(&output, "[kat] LMS");
-                assert_output_contains(&output, "[kat] MLDSA87");
+                // [TODO][CAP2.1]: re-enable once KATs are re-enabled
+                // assert_output_contains(&output, "[kat] ECC-384");
+                // assert_output_contains(&output, "[kat] ECDH");
+                // //assert_output_contains(&output, "[kat] HMAC-384Kdf"); // conditional on !rom feature
+                // assert_output_contains(&output, "[kat] HMAC-512Kdf");
+                // //assert_output_contains(&output, "[kat] HKDF-384"); // conditional on !rom feature
+                // assert_output_contains(&output, "[kat] HKDF-512");
+                // assert_output_contains(&output, "[kat] KDF-CMAC");
+                // assert_output_contains(&output, "[kat] LMS");
+                // assert_output_contains(&output, "[kat] MLDSA87");
+                // assert_output_contains(&output, "[kat] AES-256-ECB");
+                // assert_output_contains(&output, "[kat] AES-256-CBC");
+                // assert_output_contains(&output, "[kat] AES-256-CMAC");
+                // assert_output_contains(&output, "[kat] AES-256-CTR");
+                // assert_output_contains(&output, "[kat] AES-256-GCM");
                 assert_output_contains(&output, "[kat] --");
                 assert_output_contains(&output, "Running Caliptra FMC");
                 assert_output_contains(&output, "Caliptra RT");

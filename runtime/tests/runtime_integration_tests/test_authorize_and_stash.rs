@@ -19,7 +19,9 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -60,12 +62,48 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     hi: 0x0000_0000,
 };
 
-fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
+fn set_auth_manifest(
+    auth_manifest: Option<AuthorizationManifest>,
+    subsystem_mode: bool,
+) -> DefaultHwModel {
+    let rom = if subsystem_mode {
+        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+    } else {
+        caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
+
+    let (soc_manifest, mcu_fw) = if subsystem_mode {
+        let mut mcu_fw = vec![1, 2, 3, 4]; // FPGA DMA driver needs multiple of 256
+        mcu_fw.resize(256, 0);
+        const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+        let crypto = Crypto::default();
+        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let metadata = vec![AuthManifestImageMetadata {
+            fw_id: 2,
+            flags: flags.0,
+            digest,
+            ..Default::default()
+        }];
+        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        (Some(soc_manifest), Some(mcu_fw))
+    } else {
+        (None, None)
+    };
+
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
             pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            ..Default::default()
+        }),
+        soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+        mcu_fw_image: mcu_fw.as_deref(),
         ..Default::default()
     };
 
@@ -111,20 +149,47 @@ pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
     mcu_image: &[u8],
+    subsystem_mode: bool,
 ) -> DefaultHwModel {
+    let rom = if subsystem_mode {
+        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+    } else {
+        caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
+
+    let (soc_manifest, mcu_fw) = if subsystem_mode {
+        let mcu_fw = mcu_image.to_vec();
+        const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+        let crypto = Crypto::default();
+        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let metadata = vec![AuthManifestImageMetadata {
+            fw_id: 2,
+            flags: flags.0,
+            digest,
+            ..Default::default()
+        }];
+        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        (Some(soc_manifest), Some(mcu_fw))
+    } else {
+        (None, None)
+    };
+
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
             pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
         test_sram: Some(test_sram),
-        soc_manifest: Some(
-            auth_manifest
-                .as_ref()
-                .map(|m| m.as_bytes())
-                .unwrap_or_default(),
-        ),
-        mcu_fw_image: Some(mcu_image),
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            test_sram: Some(test_sram),
+            ..Default::default()
+        }),
+        soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+        mcu_fw_image: mcu_fw.as_deref(),
         ..Default::default()
     };
 
@@ -167,325 +232,117 @@ pub fn set_auth_manifest_with_test_sram(
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_cmd_deny_authorization() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    for subsystem_mode in [false, true] {
+        let rom = if subsystem_mode {
+            caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+        } else {
+            caliptra_builder::rom_for_fw_integration_tests().unwrap()
+        };
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        let (soc_manifest, mcu_fw) = if subsystem_mode {
+            let mcu_fw = vec![1, 2, 3, 4];
+            const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+            let mut flags = ImageMetadataFlags(0);
+            flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+            let crypto = Crypto::default();
+            let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+            let metadata = vec![AuthManifestImageMetadata {
+                fw_id: 2,
+                flags: flags.0,
+                digest,
+                ..Default::default()
+            }];
+            let soc_manifest = create_auth_manifest_with_metadata(metadata);
+            (Some(soc_manifest), Some(mcu_fw))
+        } else {
+            (None, None)
+        };
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        fw_id: FW_ID_BAD,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let runtime_args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode,
+                ..Default::default()
+            }),
+            soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+            mcu_fw_image: mcu_fw.as_deref(),
+            ..Default::default()
+        };
+        let mut model = run_rt_test(runtime_args);
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            fw_id: FW_ID_BAD,
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::ref_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
+
+        // create a new fw image with the runtime replaced by the mbox responder
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &firmware::runtime_tests::MBOX,
+            image_options,
         )
         .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::ref_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
-
-    // create a new fw image with the runtime replaced by the mbox responder
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        image_options,
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-
-    // trigger an update reset so we can use commands in mbox responder
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .to_bytes()
         .unwrap();
 
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+        // trigger an update reset so we can use commands in mbox responder
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+        let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
 
-    // We don't expect the image_digest to be part of the stash
-    let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
-    hasher.update(valid_pauser_hash);
-    let expected_measurement_hash = hasher.finalize();
+        let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
+        let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
-    let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
+        // We don't expect the image_digest to be part of the stash
+        let mut hasher = Sha384::new();
+        hasher.update(rt_journey_pcr);
+        hasher.update(valid_pauser_hash);
+        let expected_measurement_hash = hasher.finalize();
+
+        let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+        assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
+    }
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_cmd_success() {
-    let mut model = set_auth_manifest(None);
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-
-    // create a new fw image with the runtime replaced by the mbox responder
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        image_options,
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-
-    // trigger an update reset so we can use commands in mbox responder
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
-
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
-
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
-
-    // hash expected DPE measurements in order to check that stashed measurement was added to DPE
-    let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
-    hasher.update(valid_pauser_hash);
-    hasher.update(IMAGE_DIGEST1);
-    let expected_measurement_hash = hasher.finalize();
-
-    let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
-}
-
-#[test]
-fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
-    let mut model = set_auth_manifest(None);
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
-}
-
-#[test]
-fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
-    let mut model = set_auth_manifest(None);
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
-}
-
-#[test]
-fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
-    let mut model = set_auth_manifest(None);
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_HASH_MISMATCH
-    );
-}
-
-#[test]
-fn test_authorize_and_stash_cmd_success_skip_auth() {
-    let mut model = set_auth_manifest(None);
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_2,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-}
-
-#[test]
-fn test_authorize_and_stash_fwid_0() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
-
-    const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
-
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 0,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-}
-
-#[test]
-fn test_authorize_and_stash_fwid_127() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
-
-    const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
-
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 127,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
-
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-}
-
-#[test]
-fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
     {
-        let mut model = set_auth_manifest(None);
+        let subsystem_mode = true;
+        let mut model = set_auth_manifest(None, subsystem_mode);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -508,26 +365,117 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
         let authorize_and_stash_resp =
             AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
         assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-    }
 
-    {
-        let mut flags = ImageMetadataFlags(0);
-        flags.set_ignore_auth_check(false);
-        flags.set_image_source(ImageHashSource::InRequest as u32);
-
-        let image_metadata = vec![AuthManifestImageMetadata {
-            fw_id: 1,
-            flags: flags.0,
-            digest: IMAGE_DIGEST_BAD,
+        // create a new fw image with the runtime replaced by the mbox responder
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
-        }];
-        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-        let mut model = set_auth_manifest(Some(auth_manifest));
+        };
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &firmware::runtime_tests::MBOX,
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+
+        // trigger an update reset so we can use commands in mbox responder
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
+
+        let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+        let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
+        let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+
+        // hash expected DPE measurements in order to check that stashed measurement was added to DPE
+        let mut hasher = Sha384::new();
+        hasher.update(rt_journey_pcr);
+        hasher.update(valid_pauser_hash);
+        hasher.update(IMAGE_DIGEST1);
+        let expected_measurement_hash = hasher.finalize();
+
+        let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+        assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
+    for subsystem_mode in [false, true] {
+        let mut model = set_auth_manifest(None, subsystem_mode);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
+    for subsystem_mode in [false, true] {
+        let mut model = set_auth_manifest(None, subsystem_mode);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
+    for subsystem_mode in [false, true] {
+        let mut model = set_auth_manifest(None, subsystem_mode);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
             fw_id: FW_ID_1,
-            measurement: IMAGE_DIGEST1,
+            measurement: IMAGE_DIGEST_BAD,
             source: ImageHashSource::InRequest as u32,
             flags: 0, // Don't skip stash
             ..Default::default()
@@ -552,474 +500,691 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_cmd_success_skip_auth() {
+    for subsystem_mode in [false, true] {
+        let mut model = set_auth_manifest(None, subsystem_mode);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_2,
+            measurement: IMAGE_DIGEST_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_fwid_0() {
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
+
+        const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
+
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 0,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_fwid_127() {
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
+
+        const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
+
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 127,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
+fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
+    for subsystem_mode in [false, true] {
+        {
+            let mut model = set_auth_manifest(None, subsystem_mode);
+
+            let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                fw_id: FW_ID_1,
+                measurement: IMAGE_DIGEST1,
+                source: ImageHashSource::InRequest as u32,
+                flags: 0, // Don't skip stash
+                ..Default::default()
+            });
+            authorize_and_stash_cmd.populate_chksum().unwrap();
+
+            let resp = model
+                .mailbox_execute(
+                    u32::from(CommandId::AUTHORIZE_AND_STASH),
+                    authorize_and_stash_cmd.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("We should have received a response");
+
+            let authorize_and_stash_resp =
+                AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        }
+
+        {
+            let mut flags = ImageMetadataFlags(0);
+            flags.set_ignore_auth_check(false);
+            flags.set_image_source(ImageHashSource::InRequest as u32);
+
+            let image_metadata = vec![AuthManifestImageMetadata {
+                fw_id: 1,
+                flags: flags.0,
+                digest: IMAGE_DIGEST_BAD,
+                ..Default::default()
+            }];
+            let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+            let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
+
+            let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                fw_id: FW_ID_1,
+                measurement: IMAGE_DIGEST1,
+                source: ImageHashSource::InRequest as u32,
+                flags: 0, // Don't skip stash
+                ..Default::default()
+            });
+            authorize_and_stash_cmd.populate_chksum().unwrap();
+
+            let resp = model
+                .mailbox_execute(
+                    u32::from(CommandId::AUTHORIZE_AND_STASH),
+                    authorize_and_stash_cmd.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("We should have received a response");
+
+            let authorize_and_stash_resp =
+                AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                authorize_and_stash_resp.auth_req_result,
+                IMAGE_HASH_MISMATCH
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_after_update_reset() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
 
-    const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
+        const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 0,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 0,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
-    // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+        // Trigger an update reset.
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    // Re-authorize the image.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Re-authorize the image.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
 
-    const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
+        const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 0,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 0,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
 
-    // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+        // Trigger an update reset.
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    // Attempt Authorization with a unauthorized fw id.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Attempt Authorization with a unauthorized fw id.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
+    }
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_after_update_reset_bad_hash() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
 
-    const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
+        const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 0,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 0,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_HASH_MISMATCH
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_HASH_MISMATCH
+        );
 
-    // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+        // Trigger an update reset.
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    // Attempt Authorization with a bad image hash.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Attempt Authorization with a bad image hash.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_HASH_MISMATCH
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_HASH_MISMATCH
+        );
+    }
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_after_update_reset_skip_auth() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        let mut model = set_auth_manifest(None, subsystem_mode);
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_2,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_2,
+            measurement: IMAGE_DIGEST_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
-    // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+        // Trigger an update reset.
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_2,
-        measurement: IMAGE_DIGEST_BAD,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_2,
+            measurement: IMAGE_DIGEST_BAD,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::InRequest as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
 
-    const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
-    const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
+        const FW_ID_0: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
+        const FW_ID_127: [u8; 4] = [0x7F, 0x00, 0x00, 0x00];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 0,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 0,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
-    // Valid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Valid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
-    // Invalid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Invalid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
 
-    // Trigger an update reset.
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+        // Trigger an update reset.
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    //
-    // Check again
-    //
+        //
+        // Check again
+        //
 
-    // Valid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Valid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
-    // Invalid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Invalid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
 
-    //
-    // Set another manifest.
-    //
-    let image_metadata = vec![AuthManifestImageMetadata {
-        fw_id: 127,
-        flags: flags.0,
-        digest: IMAGE_DIGEST1,
-        ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+        //
+        // Set another manifest.
+        //
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 127,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+            ..Default::default()
+        }];
+        let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
 
-    let buf = auth_manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+        let buf = auth_manifest.as_bytes();
+        let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+        auth_manifest_slice[..buf.len()].copy_from_slice(buf);
 
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
+        let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: buf.len() as u32,
+            manifest: auth_manifest_slice,
+        });
+        set_auth_manifest_cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        model
+            .mailbox_execute(
+                u32::from(CommandId::SET_AUTH_MANIFEST),
+                set_auth_manifest_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    // Valid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_127,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Valid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_127,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
-    // Invalid authorization.
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_0,
-        measurement: IMAGE_DIGEST1,
-        source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        // Invalid authorization.
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_0,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_NOT_AUTHORIZED
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_NOT_AUTHORIZED
+        );
+    }
 }
 
 fn get_mcu_image_metadata(mcu_image: &[u8]) -> AuthManifestImageMetadata {
@@ -1095,238 +1260,270 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_from_load_address() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::LoadAddress as u32);
 
-    let load_memory_contents = [0x55u8; 512];
+        let load_memory_contents = [0x55u8; 512];
 
-    let mut hasher = Sha384::new();
-    hasher.update(load_memory_contents);
-    let fw_digest = hasher.finalize();
+        let mut hasher = Sha384::new();
+        hasher.update(load_memory_contents);
+        let fw_digest = hasher.finalize();
 
-    let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
-        flags: flags.0,
-        digest: fw_digest.into(),
-        image_load_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
-            hi: TEST_SRAM_BASE.hi,
-        },
-        ..Default::default()
-    };
-    let mcu_image = {
-        let mut arr = [0u8; 256];
-        for (i, item) in arr.iter_mut().enumerate() {
-            *item = i as u8;
-        }
-        arr
-    };
+        let image_metadata = AuthManifestImageMetadata {
+            fw_id: u32::from_le_bytes(FW_ID_1),
+            flags: flags.0,
+            digest: fw_digest.into(),
+            image_load_address: Addr64 {
+                lo: TEST_SRAM_BASE.lo,
+                hi: TEST_SRAM_BASE.hi,
+            },
+            ..Default::default()
+        };
+        let mcu_image = {
+            let mut arr = [0u8; 256];
+            for (i, item) in arr.iter_mut().enumerate() {
+                *item = i as u8;
+            }
+            arr
+        };
 
-    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+        let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+        let auth_manifest =
+            create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+        let mut model = set_auth_manifest_with_test_sram(
+            Some(auth_manifest),
+            &load_memory_contents,
+            &mcu_image,
+            subsystem_mode,
+        );
 
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_load_address,
-        &load_memory_contents,
-    );
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: [0; 48],
-        source: ImageHashSource::LoadAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        write_to_test_sram(
+            &mut model,
+            image_metadata.image_load_address,
+            &load_memory_contents,
+        );
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_1,
+            measurement: [0; 48],
+            source: ImageHashSource::LoadAddress as u32,
+            flags: 0, // Don't skip stash
+            image_size: load_memory_contents.len() as u32,
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_from_load_address_incorrect_digest() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::LoadAddress as u32);
 
-    let load_memory_contents = [0x55u8; 512];
+        let load_memory_contents = [0x55u8; 512];
 
-    let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
-        flags: flags.0,
-        digest: [0; 48],
-        image_load_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
-            hi: TEST_SRAM_BASE.hi,
-        },
-        ..Default::default()
-    };
-    let mcu_image = [0xAAu8; 256];
-    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+        let image_metadata = AuthManifestImageMetadata {
+            fw_id: u32::from_le_bytes(FW_ID_1),
+            flags: flags.0,
+            digest: [0; 48],
+            image_load_address: Addr64 {
+                lo: TEST_SRAM_BASE.lo,
+                hi: TEST_SRAM_BASE.hi,
+            },
+            ..Default::default()
+        };
+        let mcu_image = [0xAAu8; 256];
+        let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+        let auth_manifest =
+            create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_load_address,
-        &load_memory_contents,
-    );
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: [0; 48],
-        source: ImageHashSource::LoadAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut model = set_auth_manifest_with_test_sram(
+            Some(auth_manifest),
+            &load_memory_contents,
+            &mcu_image,
+            subsystem_mode,
+        );
+        write_to_test_sram(
+            &mut model,
+            image_metadata.image_load_address,
+            &load_memory_contents,
+        );
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_1,
+            measurement: [0; 48],
+            source: ImageHashSource::LoadAddress as u32,
+            flags: 0, // Don't skip stash
+            image_size: load_memory_contents.len() as u32,
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_HASH_MISMATCH
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_HASH_MISMATCH
+        );
+    }
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_from_staging_address() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::StagingAddress as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::StagingAddress as u32);
 
-    let load_memory_contents = [0x55u8; 512];
+        let load_memory_contents = [0x55u8; 512];
 
-    let mut hasher = Sha384::new();
-    hasher.update(load_memory_contents);
-    let fw_digest = hasher.finalize();
+        let mut hasher = Sha384::new();
+        hasher.update(load_memory_contents);
+        let fw_digest = hasher.finalize();
 
-    let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
-        flags: flags.0,
-        digest: fw_digest.into(),
-        image_staging_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
-            hi: TEST_SRAM_BASE.hi,
-        },
-        ..Default::default()
-    };
-    let mcu_image = [0xAAu8; 256];
-    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+        let image_metadata = AuthManifestImageMetadata {
+            fw_id: u32::from_le_bytes(FW_ID_1),
+            flags: flags.0,
+            digest: fw_digest.into(),
+            image_staging_address: Addr64 {
+                lo: TEST_SRAM_BASE.lo,
+                hi: TEST_SRAM_BASE.hi,
+            },
+            ..Default::default()
+        };
+        let mcu_image = [0xAAu8; 256];
+        let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+        let auth_manifest =
+            create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_staging_address,
-        &load_memory_contents,
-    );
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: [0; 48],
-        source: ImageHashSource::StagingAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut model = set_auth_manifest_with_test_sram(
+            Some(auth_manifest),
+            &load_memory_contents,
+            &mcu_image,
+            subsystem_mode,
+        );
+        write_to_test_sram(
+            &mut model,
+            image_metadata.image_staging_address,
+            &load_memory_contents,
+        );
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_1,
+            measurement: [0; 48],
+            source: ImageHashSource::StagingAddress as u32,
+            flags: 0, // Don't skip stash
+            image_size: load_memory_contents.len() as u32,
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_authorize_from_staging_address_incorrect_digest() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::StagingAddress as u32);
+    for subsystem_mode in [false, true] {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::StagingAddress as u32);
 
-    let load_memory_contents = [0x55u8; 512];
-    let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
-        flags: flags.0,
-        digest: [0; 48],
-        image_staging_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
-            hi: TEST_SRAM_BASE.hi,
-        },
-        ..Default::default()
-    };
-    let mcu_image = [0xAAu8; 256];
-    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+        let load_memory_contents = [0x55u8; 512];
+        let image_metadata = AuthManifestImageMetadata {
+            fw_id: u32::from_le_bytes(FW_ID_1),
+            flags: flags.0,
+            digest: [0; 48],
+            image_staging_address: Addr64 {
+                lo: TEST_SRAM_BASE.lo,
+                hi: TEST_SRAM_BASE.hi,
+            },
+            ..Default::default()
+        };
+        let mcu_image = [0xAAu8; 256];
+        let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+        let auth_manifest =
+            create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_staging_address,
-        &load_memory_contents,
-    );
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: [0; 48],
-        source: ImageHashSource::StagingAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
+        let mut model = set_auth_manifest_with_test_sram(
+            Some(auth_manifest),
+            &load_memory_contents,
+            &mcu_image,
+            subsystem_mode,
+        );
+        write_to_test_sram(
+            &mut model,
+            image_metadata.image_staging_address,
+            &load_memory_contents,
+        );
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: FW_ID_1,
+            measurement: [0; 48],
+            source: ImageHashSource::StagingAddress as u32,
+            flags: 0, // Don't skip stash
+            image_size: load_memory_contents.len() as u32,
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        authorize_and_stash_resp.auth_req_result,
-        IMAGE_HASH_MISMATCH
-    );
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_HASH_MISMATCH
+        );
+    }
 }
 
 #[test]

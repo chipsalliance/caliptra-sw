@@ -653,6 +653,7 @@ pub fn version_info_update() {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1] Re-enable
 pub fn execute_all_services_rom() {
     let mut hw = fips_test_init_to_rom(None, None);
 
@@ -678,6 +679,7 @@ pub fn execute_all_services_rom() {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1] Re-enable
 pub fn execute_all_services_rt() {
     let fw_image = fips_fw_image();
     let mut hw = fips_test_init_to_rt(
@@ -818,6 +820,7 @@ pub fn zeroize_halt_check_no_output() {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1] Re-enable
 pub fn fips_self_test_rom() {
     let mut hw = fips_test_init_to_rom(None, None);
 

@@ -422,6 +422,12 @@ impl SocRegistersInternal {
             regs: self.regs.clone(),
         }
     }
+
+    pub fn has_ss_staging_area(&self) -> bool {
+        // TODO: The hardware register should actually be set to 2.1, but the FPGA hasn't done it yet.
+        // Track 'has_ss_staging_area' based on the new() input
+        self.regs.borrow().has_ss_staging_area
+    }
 }
 
 impl Bus for SocRegistersInternal {
@@ -896,6 +902,7 @@ struct SocRegistersImpl {
     etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
     pending_etrng_response: Option<EtrngResponse>,
     op_pending_etrng_response_action: Option<ActionHandle>,
+    has_ss_staging_area: bool,
 }
 
 impl SocRegistersImpl {
@@ -1066,6 +1073,7 @@ impl SocRegistersImpl {
             ),
             ss_soc_dbg_unlock_level: [0; 2],
             ss_generic_fw_exec_ctrl: [0; 4],
+            has_ss_staging_area: args.subsystem_mode && args.hw_rev.0 == 2 && args.hw_rev.1 > 0,
         };
         regs
     }
@@ -1617,7 +1625,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1687,7 +1695,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1755,7 +1763,7 @@ mod tests {
         let output = Rc::new(RefCell::new(vec![]));
         let output2 = output.clone();
 
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let args = CaliptraRootBusArgs {
             clock: clock.clone(),
@@ -1781,7 +1789,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1802,7 +1810,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1829,7 +1837,7 @@ mod tests {
     #[test]
     fn test_wdt() {
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
 
         let args = CaliptraRootBusArgs {

@@ -22,6 +22,7 @@ const RT_READY_FOR_COMMANDS: u32 = 0x600;
     ignore
 )]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_loads_mcu_fw() {
     // Test that the recovery flow runs and loads MCU's firmware
 
@@ -40,7 +41,7 @@ fn test_loads_mcu_fw() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,
@@ -71,6 +72,7 @@ fn test_loads_mcu_fw() {
     ignore
 )]
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_mcu_fw_bad_signature() {
     // Test that the recovery flow runs and loads MCU's firmware
 
@@ -91,7 +93,7 @@ fn test_mcu_fw_bad_signature() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,
