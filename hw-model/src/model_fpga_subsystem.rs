@@ -1532,11 +1532,29 @@ impl HwModel for ModelFpgaSubsystem {
         let current = gpio.extract().get();
         gpio.set(current | 1 << 30);
 
+        let start_count = m.cycle_count();
+        const MCU_MAX_BOOT_CYCLES: u64 = 20_000_000;
+
         while !m
             .mci_boot_milestones()
             .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+            && m.cycle_count() - start_count < MCU_MAX_BOOT_CYCLES
         {
             m.step();
+        }
+
+        if !m
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+        {
+            // print MCU logs if we failed to boot
+            m.enable_mcu_uart_log = true;
+            m.handle_log();
+            Err(format!(
+                "MCU ROM did not assert cptra_boot_go after {} cycles; MCU boot ROM status: 0x{:x}",
+                m.cycle_count() - start_count,
+                m.mci_flow_status()
+            ))?;
         }
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
