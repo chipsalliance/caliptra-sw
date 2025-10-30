@@ -43,6 +43,7 @@ fn get_capabilities(model: &mut DefaultHwModel) -> (CapabilitiesResp, Vec<u8>) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_capabilities_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
