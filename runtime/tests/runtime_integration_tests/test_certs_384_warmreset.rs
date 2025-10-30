@@ -196,6 +196,7 @@ fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_cert_after_warm_reset() {
     // Build runtime using your helper
     let args = BuildArgs {
@@ -288,6 +289,7 @@ fn get_idev_384_info(
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_info_after_warm_reset() {
     // Boot with build_ready_runtime_model
     let args = BuildArgs {
@@ -331,6 +333,7 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_populate_idev_ecc_cert_after_warm_reset() {
     // Boot runtime using the ready-model helper
     let args = BuildArgs {
@@ -474,6 +477,7 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let args = BuildArgs {
@@ -509,6 +513,7 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let args = BuildArgs {
