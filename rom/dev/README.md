@@ -372,7 +372,7 @@ ROM performs the following POST tests to ensure that needed cryptographic module
  - SHA2-512-ACC
  - SHAKE-256
  - ECC-384
- - ECDH
+ - ECDH (conditionally, if not ROM feature)
  - HMAC-384Kdf (conditionally, if not ROM feature)
  - HMAC-512Kdf
  - HKDF-384 (conditionally, if not ROM feature)
