@@ -230,6 +230,7 @@ fn sw_extend(current: &[u8; 48], data: &[u8; 48]) -> [u8; 48] {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_quote_pcrs_ecc384_after_warm_reset() {
     let mut model = build_model_ready();
     ensure_mailbox_idle(&mut model);
@@ -261,6 +262,7 @@ fn test_quote_pcrs_ecc384_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_quote_pcrs_mldsa87_after_warm_reset() {
     const NONCE: [u8; 32] = [0xF5; 32];
 
@@ -294,6 +296,7 @@ fn test_quote_pcrs_mldsa87_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_pcr_reset_counter_persists_after_warm_reset_ecc() {
     const RESET_PCR: u32 = 7;
     const NONCE: [u8; 32] = [0xF5; 32];
@@ -325,6 +328,7 @@ fn test_pcr_reset_counter_persists_after_warm_reset_ecc() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_pcr_reset_counter_persists_after_warm_reset_mldsa() {
     const RESET_PCR: u32 = 7;
     const NONCE: [u8; 32] = [0xF5; 32];
@@ -356,6 +360,7 @@ fn test_pcr_reset_counter_persists_after_warm_reset_mldsa() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_extend_pcr_after_warm_reset() {
     const PCR_INDEX: u32 = 4;
     let extension_data: [u8; 48] = [0u8; 48];

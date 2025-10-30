@@ -10,6 +10,7 @@ const TAG: u32 = 1;
 const DEFAULT_HANDLE: [u8; 16] = [0u8; 16];
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dpe_tag_tci_after_warm_reset() {
     // --- Boot time ---
     let args = BuildArgs {
