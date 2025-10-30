@@ -110,6 +110,7 @@ fn assert_results_not_started<T: HwModel>(hw: &mut T) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn self_test_get_results_resets_after_warm_reset() {
     // Boot to ready runtime
     let mut model = build_model_ready();
