@@ -305,7 +305,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder
         .set_serial_number(&Asn1Integer::from_bn(&BigNum::from_u32(1).unwrap()).unwrap())
         .unwrap();
-    let mut subj_name_builder = X509Name::builder().unwrap();
+    let mut subj_name_builder: X509NameBuilder = X509Name::builder().unwrap();
     subj_name_builder
         .append_entry_by_text("CN", "example.com")
         .unwrap();

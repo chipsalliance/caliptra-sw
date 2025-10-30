@@ -67,6 +67,7 @@ impl CaliptraError {
             0x00010002,
             "Bad datastore register type"
         ),
+        (CALIPTRA_INTERNAL, 0x00010003, "Internal error"),
         (
             DRIVER_SHA256_INVALID_STATE,
             0x00020001,
@@ -1173,9 +1174,9 @@ impl CaliptraError {
             "Runtime Error: DPE command deserialization failed"
         ),
         (
-            RUNTIME_GET_LDEVID_CERT_FAILED,
+            GET_LDEVID_CERT_FAILED,
             0x000E0028,
-            "Runtime Error: Get LDevID cert failed"
+            "Caliptra Error: Get LDevID cert failed"
         ),
         (
             RUNTIME_GET_FMC_ALIAS_CERT_FAILED,
