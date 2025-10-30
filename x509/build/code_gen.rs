@@ -104,7 +104,7 @@ Abstract:
                 #(pub #param_vars)*
             }
 
-            impl<'a> #param_name<'a>{
+            impl #param_name<'_>{
                 #(pub #len_consts)*
             }
 
