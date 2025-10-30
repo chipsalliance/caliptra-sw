@@ -104,6 +104,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
         Some(auth_manifest),
         &test_sram_contents,
         &images[0].contents,
+        cfg!(feature = "fpga_subsystem"),
     );
 
     #[cfg(feature = "fpga_subsystem")]

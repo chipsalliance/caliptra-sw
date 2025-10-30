@@ -366,16 +366,20 @@ impl Dma {
         }
 
         let block = self.read_axi_block(xfer);
-        self.write_mailbox(&block);
+        self.write_mailbox(&block, self.write_xfer().dest as usize);
         true
     }
 
-    fn write_mailbox(&mut self, block: &[u32]) {
+    fn write_mailbox(&mut self, block: &[u32], offset: usize) {
         let mbox_ram = self.mailbox.borrow_mut();
         for i in (0..block.len() * 4).step_by(Self::AXI_DATA_WIDTH) {
             let data = block[i / 4];
             mbox_ram
-                .write(Self::AXI_DATA_WIDTH.into(), i as RvAddr, data as RvData)
+                .write(
+                    Self::AXI_DATA_WIDTH.into(),
+                    (offset + i) as RvAddr,
+                    data as RvData,
+                )
                 .unwrap();
         }
     }
@@ -573,7 +577,7 @@ impl Dma {
                 self.set_status_complete();
                 self.pending_axi_to_fifo = false;
             } else if self.pending_axi_to_mailbox {
-                self.write_mailbox(&dma_data);
+                self.write_mailbox(&dma_data, self.write_xfer().dest as usize);
                 self.set_status_complete();
                 self.pending_axi_to_mailbox = false;
             }

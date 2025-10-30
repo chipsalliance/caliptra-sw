@@ -25,7 +25,9 @@ const RT_READY_FOR_COMMANDS: u32 = 0x600;
 fn test_loads_mcu_fw() {
     // Test that the recovery flow runs and loads MCU's firmware
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    let mut mcu_fw = vec![1, 2, 3, 4];
+    // FPGA ROM requires firmware be a multiple of 256 bytes
+    mcu_fw.resize(256, 0);
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
@@ -40,7 +42,7 @@ fn test_loads_mcu_fw() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,
@@ -74,8 +76,11 @@ fn test_loads_mcu_fw() {
 fn test_mcu_fw_bad_signature() {
     // Test that the recovery flow runs and loads MCU's firmware
 
-    let mcu_fw = vec![1, 2, 3, 4];
-    let bad_mcu_fw = vec![5, 6, 7, 8];
+    let mut mcu_fw = vec![1, 2, 3, 4];
+    // FPGA ROM requires firmware be a multiple of 256 bytes
+    mcu_fw.resize(256, 0);
+    let mut bad_mcu_fw = vec![5, 6, 7, 8];
+    bad_mcu_fw.resize(256, 0);
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
@@ -91,7 +96,7 @@ fn test_mcu_fw_bad_signature() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
     let mut args = RuntimeTestArgs::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
         subsystem_mode: true,

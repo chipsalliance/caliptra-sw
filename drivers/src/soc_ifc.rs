@@ -547,11 +547,15 @@ impl SocIfc {
     }
 
     pub fn subsystem_mode(&self) -> bool {
-        self.soc_ifc
-            .regs()
-            .cptra_hw_config()
-            .read()
-            .subsystem_mode_en()
+        // Only for ROM it makes sense to hardcode this
+        // For Runtime we want runtime images to work on both caliptra-code and subsystem
+        cfg!(feature = "subsystem")
+            || self
+                .soc_ifc
+                .regs()
+                .cptra_hw_config()
+                .read()
+                .subsystem_mode_en()
     }
 
     pub fn ocp_lock_enabled(&self) -> bool {
