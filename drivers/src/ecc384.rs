@@ -14,8 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
-    KeyWriteArgs, Trng,
+    array_concat3, cprintln, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult,
+    KeyReadArgs, KeyWriteArgs, Trng,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -516,10 +516,16 @@ impl Ecc384 {
 
         // Verify the signature just created
         let _r = self.verify_r(pub_key, data, sig)?;
+
+        cprintln!("{:?}", _r.0);
+        cprintln!("{:?}", sig.r.0);
+
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
         #[cfg(not(feature = "no-cfi"))]
         caliptra_cfi_lib::cfi_assert_eq_12_words(&_r.0, &sig.r.0);
+
+        cprintln!("fips check");
 
         #[cfg(feature = "fips-test-hooks")]
         let sig_result = Ok(unsafe {
