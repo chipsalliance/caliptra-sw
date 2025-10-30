@@ -19,6 +19,7 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
@@ -30,6 +31,7 @@ use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
 use caliptra_common::{
     capabilities::Capabilities,
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
+    dice::GetLdevCertCmd,
     fips::FipsVersionCmd,
     hmac_cm::hmac,
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
@@ -615,6 +617,27 @@ impl FirmwareProcessor {
                         };
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
+
+                        let algorithm_type =
+                            if CommandId::from(txn.cmd()) == CommandId::GET_LDEV_ECC384_CERT {
+                                AlgorithmType::Ecc384
+                            } else {
+                                AlgorithmType::Mldsa87
+                            };
+
+                        let mut resp = GetLdevCertResp::default();
+                        GetLdevCertCmd::execute(
+                            persistent_data,
+                            algorithm_type,
+                            resp.as_mut_bytes(),
+                        )?;
+
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes_partial()?)?;
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
