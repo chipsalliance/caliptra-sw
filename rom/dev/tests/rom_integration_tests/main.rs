@@ -15,6 +15,7 @@ mod test_fips_hooks;
 mod test_fmcalias_derivation;
 mod test_idevid_derivation;
 mod test_image_validation;
+mod test_ldev_cert_cmd;
 mod test_mailbox_errors;
 mod test_mldsa_verify;
 mod test_ocp_lock;

@@ -1031,7 +1031,6 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
- "caliptra_common",
  "convert_case",
  "der 0.7.10",
  "hex",
@@ -1073,6 +1072,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-registers",
+ "caliptra-x509",
  "memoffset 0.8.0",
  "riscv",
  "ufmt",
