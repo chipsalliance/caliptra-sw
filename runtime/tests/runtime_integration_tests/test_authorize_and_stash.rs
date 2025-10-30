@@ -19,7 +19,9 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -60,12 +62,48 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     hi: 0x0000_0000,
 };
 
-fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
+fn set_auth_manifest(
+    auth_manifest: Option<AuthorizationManifest>,
+    subsystem_mode: bool,
+) -> DefaultHwModel {
+    let rom = if subsystem_mode {
+        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+    } else {
+        caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
+
+    let (soc_manifest, mcu_fw) = if subsystem_mode {
+        let mut mcu_fw = vec![1, 2, 3, 4]; // FPGA DMA driver needs multiple of 256
+        mcu_fw.resize(256, 0);
+        const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+        let crypto = Crypto::default();
+        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let metadata = vec![AuthManifestImageMetadata {
+            fw_id: 2,
+            flags: flags.0,
+            digest,
+            ..Default::default()
+        }];
+        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        (Some(soc_manifest), Some(mcu_fw))
+    } else {
+        (None, None)
+    };
+
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
             pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            ..Default::default()
+        }),
+        soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+        mcu_fw_image: mcu_fw.as_deref(),
         ..Default::default()
     };
 
@@ -111,20 +149,47 @@ pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
     mcu_image: &[u8],
+    subsystem_mode: bool,
 ) -> DefaultHwModel {
+    let rom = if subsystem_mode {
+        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+    } else {
+        caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
+
+    let (soc_manifest, mcu_fw) = if subsystem_mode {
+        let mcu_fw = mcu_image.to_vec();
+        const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+        let crypto = Crypto::default();
+        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let metadata = vec![AuthManifestImageMetadata {
+            fw_id: 2,
+            flags: flags.0,
+            digest,
+            ..Default::default()
+        }];
+        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        (Some(soc_manifest), Some(mcu_fw))
+    } else {
+        (None, None)
+    };
+
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
             pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
         test_sram: Some(test_sram),
-        soc_manifest: Some(
-            auth_manifest
-                .as_ref()
-                .map(|m| m.as_bytes())
-                .unwrap_or_default(),
-        ),
-        mcu_fw_image: Some(mcu_image),
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            test_sram: Some(test_sram),
+            ..Default::default()
+        }),
+        soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+        mcu_fw_image: mcu_fw.as_deref(),
         ..Default::default()
     };
 
@@ -168,7 +233,48 @@ pub fn set_auth_manifest_with_test_sram(
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_deny_authorization_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_deny_authorization_mode(subsystem_mode: bool) {
+    let rom = if subsystem_mode {
+        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
+    } else {
+        caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
+
+    let (soc_manifest, mcu_fw) = if subsystem_mode {
+        let mcu_fw = vec![1, 2, 3, 4];
+        const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+        let crypto = Crypto::default();
+        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let metadata = vec![AuthManifestImageMetadata {
+            fw_id: 2,
+            flags: flags.0,
+            digest,
+            ..Default::default()
+        }];
+        let soc_manifest = create_auth_manifest_with_metadata(metadata);
+        (Some(soc_manifest), Some(mcu_fw))
+    } else {
+        (None, None)
+    };
+
+    let runtime_args = RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            ..Default::default()
+        }),
+        soc_manifest: soc_manifest.as_ref().map(|m| m.as_bytes()),
+        mcu_fw_image: mcu_fw.as_deref(),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -235,7 +341,13 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
 
 #[test]
 fn test_authorize_and_stash_cmd_success() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_success_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_success_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -296,7 +408,13 @@ fn test_authorize_and_stash_cmd_success() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -323,7 +441,13 @@ fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -351,7 +475,13 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_deny_authorization_wrong_hash_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -380,7 +510,13 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
 
 #[test]
 fn test_authorize_and_stash_cmd_success_skip_auth() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_success_skip_auth_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_success_skip_auth_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -406,6 +542,12 @@ fn test_authorize_and_stash_cmd_success_skip_auth() {
 
 #[test]
 fn test_authorize_and_stash_fwid_0() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_fwid_0_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_fwid_0_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -419,7 +561,7 @@ fn test_authorize_and_stash_fwid_0() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -445,6 +587,12 @@ fn test_authorize_and_stash_fwid_0() {
 
 #[test]
 fn test_authorize_and_stash_fwid_127() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_fwid_127_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_fwid_127_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -458,7 +606,7 @@ fn test_authorize_and_stash_fwid_127() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -484,8 +632,14 @@ fn test_authorize_and_stash_fwid_127() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_cmd_deny_second_bad_hash_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_cmd_deny_second_bad_hash_mode(subsystem_mode: bool) {
     {
-        let mut model = set_auth_manifest(None);
+        let mut model = set_auth_manifest(None, subsystem_mode);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -522,7 +676,7 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             ..Default::default()
         }];
         let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-        let mut model = set_auth_manifest(Some(auth_manifest));
+        let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -553,6 +707,12 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_after_update_reset_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_after_update_reset_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -566,7 +726,7 @@ fn test_authorize_and_stash_after_update_reset() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -621,6 +781,12 @@ fn test_authorize_and_stash_after_update_reset() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_after_update_reset_unauthorized_fw_id_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -634,7 +800,7 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -695,6 +861,12 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset_bad_hash() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_after_update_reset_bad_hash_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_after_update_reset_bad_hash_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -708,7 +880,7 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -769,7 +941,13 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset_skip_auth() {
-    let mut model = set_auth_manifest(None);
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_after_update_reset_skip_auth_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_after_update_reset_skip_auth_mode(subsystem_mode: bool) {
+    let mut model = set_auth_manifest(None, subsystem_mode);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -823,6 +1001,12 @@ fn test_authorize_and_stash_after_update_reset_skip_auth() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
+    for subsystem_mode in [false, true] {
+        test_authorize_and_stash_after_update_reset_multiple_set_manifest_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_and_stash_after_update_reset_multiple_set_manifest_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -837,7 +1021,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = set_auth_manifest(Some(auth_manifest), subsystem_mode);
 
     // Valid authorization.
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
@@ -1096,6 +1280,12 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address() {
+    for subsystem_mode in [false, true] {
+        test_authorize_from_load_address_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_from_load_address_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
@@ -1127,8 +1317,12 @@ fn test_authorize_from_load_address() {
     let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let mut model = set_auth_manifest_with_test_sram(
+        Some(auth_manifest),
+        &load_memory_contents,
+        &mcu_image,
+        subsystem_mode,
+    );
 
     write_to_test_sram(
         &mut model,
@@ -1161,6 +1355,12 @@ fn test_authorize_from_load_address() {
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
+    for subsystem_mode in [false, true] {
+        test_authorize_from_load_address_incorrect_digest_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_from_load_address_incorrect_digest_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
@@ -1182,8 +1382,12 @@ fn test_authorize_from_load_address_incorrect_digest() {
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let mut model = set_auth_manifest_with_test_sram(
+        Some(auth_manifest),
+        &load_memory_contents,
+        &mcu_image,
+        subsystem_mode,
+    );
     write_to_test_sram(
         &mut model,
         image_metadata.image_load_address,
@@ -1218,6 +1422,12 @@ fn test_authorize_from_load_address_incorrect_digest() {
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address() {
+    for subsystem_mode in [false, true] {
+        test_authorize_from_staging_address_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_from_staging_address_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::StagingAddress as u32);
@@ -1243,8 +1453,12 @@ fn test_authorize_from_staging_address() {
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let mut model = set_auth_manifest_with_test_sram(
+        Some(auth_manifest),
+        &load_memory_contents,
+        &mcu_image,
+        subsystem_mode,
+    );
     write_to_test_sram(
         &mut model,
         image_metadata.image_staging_address,
@@ -1276,6 +1490,12 @@ fn test_authorize_from_staging_address() {
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
+    for subsystem_mode in [false, true] {
+        test_authorize_from_staging_address_incorrect_digest_mode(subsystem_mode);
+    }
+}
+
+fn test_authorize_from_staging_address_incorrect_digest_mode(subsystem_mode: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::StagingAddress as u32);
@@ -1296,8 +1516,12 @@ fn test_authorize_from_staging_address_incorrect_digest() {
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let mut model = set_auth_manifest_with_test_sram(
+        Some(auth_manifest),
+        &load_memory_contents,
+        &mcu_image,
+        subsystem_mode,
+    );
     write_to_test_sram(
         &mut model,
         image_metadata.image_staging_address,

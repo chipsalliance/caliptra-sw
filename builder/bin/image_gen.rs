@@ -7,7 +7,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_image_types::ImageHeader;
 use caliptra_image_types::ImageManifest;
 use caliptra_image_types::ImageSignatures;
-use clap::{arg, value_parser, Command};
+use clap::{arg, value_parser, ArgAction, Command};
 use memoffset::{offset_of, span_of};
 use serde_json::{json, to_string_pretty};
 use sha2::{Digest, Sha384};
@@ -48,26 +48,45 @@ fn main() {
             arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
                 .value_parser(value_parser!(i32)),
         )
-        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)));
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"subsystem" "Build ROM with subsystem support").action(ArgAction::SetTrue))
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)));
     let args = cmd.get_matches_mut();
 
     // Print help if the provided args did not create anything.
     let mut valid_cmd = false;
 
+    let use_subsystem = args.get_flag("subsystem");
+
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM).unwrap();
         valid_cmd = true;
+        let rom_variant = if use_subsystem {
+            &firmware::ROM_SS
+        } else {
+            &firmware::ROM
+        };
+        let rom = caliptra_builder::build_firmware_rom(rom_variant).unwrap();
         std::fs::write(path, rom).unwrap();
     }
 
     if let Some(path) = args.get_one::<PathBuf>("rom-with-log") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
         valid_cmd = true;
+        let rom_variant = if use_subsystem {
+            &firmware::ROM_WITH_UART_SS
+        } else {
+            &firmware::ROM_WITH_UART
+        };
+        let rom = caliptra_builder::build_firmware_rom(rom_variant).unwrap();
         std::fs::write(path, rom).unwrap();
     }
     if let Some(path) = args.get_one::<PathBuf>("fake-rom") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_FAKE_WITH_UART).unwrap();
         valid_cmd = true;
+        let rom_variant = if use_subsystem {
+            &firmware::ROM_FAKE_WITH_UART_SS
+        } else {
+            &firmware::ROM_FAKE_WITH_UART
+        };
+        let rom = caliptra_builder::build_firmware_rom(rom_variant).unwrap();
         std::fs::write(path, rom).unwrap();
     }
 

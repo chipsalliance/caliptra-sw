@@ -1978,6 +1978,11 @@ impl CaliptraError {
             "ROM Global Error: Measurement log exhausted"
         ),
         (
+            ROM_GLOBAL_SUBSYSTEM_MISMATCH,
+            0x0105000E,
+            "ROM Global Error: Subsystem configuration mismatch"
+        ),
+        (
             ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT,
             0x0105000F,
             "ROM Global Error: FIPS hooks ROM exit"
