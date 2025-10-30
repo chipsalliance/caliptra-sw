@@ -73,8 +73,6 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_success() {
-    use caliptra_builder::firmware::ROM_WITH_UART_SS;
-
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -135,8 +133,6 @@ fn test_dbg_unlock_manuf_success() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_wrong_cmd() {
-    use caliptra_builder::firmware::ROM_WITH_UART_SS;
-
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -190,8 +186,6 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_invalid_token() {
-    use caliptra_builder::firmware::ROM_WITH_UART_SS;
-
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -270,8 +264,6 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_success() {
-    use caliptra_builder::firmware::ROM_WITH_UART_SS;
-
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
     let ecc_pub_key_bytes = {
