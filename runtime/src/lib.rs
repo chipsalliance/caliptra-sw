@@ -95,7 +95,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason, ShaAccLockState};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
@@ -577,4 +577,54 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         }
     }
     //    Ok(())
+}
+
+pub enum Kats {
+    Initial,
+    All,
+}
+
+pub fn execute_kats(env: &mut Drivers, kats: Kats) -> CaliptraResult<()> {
+    let mut kats_env = caliptra_kat::KatsEnv {
+        // SHA1 Engine
+        sha1: &mut env.sha1,
+
+        // sha256
+        sha256: &mut env.sha256,
+
+        // SHA2-512/384 Engine
+        sha2_512_384: &mut env.sha2_512_384,
+
+        // SHA2-512/384 Accelerator
+        sha2_512_384_acc: &mut env.sha2_512_384_acc,
+
+        // SHA3/SHAKE
+        sha3: &mut env.sha3,
+
+        // Hmac-512/384 Engine
+        hmac: &mut env.hmac,
+
+        // Cryptographically Secure Random Number Generator
+        trng: &mut env.trng,
+
+        // LMS Engine
+        lms: &mut env.lms,
+
+        // MLDSA87 Engine
+        mldsa87: &mut env.mldsa87,
+
+        // Ecc384 Engine
+        ecc384: &mut env.ecc384,
+
+        // AES Engine,
+        aes: &mut env.aes,
+
+        // SHA Acc Lock State
+        sha_acc_lock_state: ShaAccLockState::NotAcquired,
+    };
+
+    match kats {
+        Kats::Initial => caliptra_kat::execute_initial_kats(&mut kats_env),
+        Kats::All => caliptra_kat::execute_all_kats(&mut kats_env),
+    }
 }

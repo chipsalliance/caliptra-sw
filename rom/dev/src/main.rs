@@ -247,7 +247,7 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
 
-    caliptra_kat::execute_kat(env)?;
+    caliptra_kat::execute_initial_kats(env)?;
 
     report_boot_status(KatComplete.into());
 
