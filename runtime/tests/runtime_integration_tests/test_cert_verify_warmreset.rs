@@ -84,6 +84,7 @@ fn send_ecdsa_verify_and_get_hdr(model: &mut DefaultHwModel, req_bytes: &[u8]) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_ecdsa384_signature_verify_after_warm_reset() {
     // Spin up runtime on the model/FPGA wrapper you use in other tests.
     let args = BuildArgs {
@@ -319,6 +320,7 @@ fn send_lms_verify_and_check<T: HwModel>(hw: &mut T, req_bytes: &[u8]) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_lms_verify_after_warm_reset() {
     // use your existing builder (with whatever return signature you have)
     // Spin up runtime on the model/FPGA wrapper you use in other tests.
