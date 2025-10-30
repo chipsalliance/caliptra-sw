@@ -40,7 +40,8 @@ pub fn build_hw_model_and_image_bundle(
 }
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
