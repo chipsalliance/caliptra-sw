@@ -49,8 +49,7 @@ fn main() {
                 .value_parser(value_parser!(i32)),
         )
         .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)))
-        .arg(arg!(--"subsystem" "Build ROM with subsystem support").action(ArgAction::SetTrue))
-        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)));
+        .arg(arg!(--"subsystem" "Build ROM with subsystem support").action(ArgAction::SetTrue));
     let args = cmd.get_matches_mut();
 
     // Print help if the provided args did not create anything.
