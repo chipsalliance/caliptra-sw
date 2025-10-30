@@ -8,6 +8,7 @@ use zerocopy::{FromBytes, IntoBytes};
 use caliptra_hw_model::DefaultHwModel;
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_disable_attestation_persists_after_warm_reset() {
     // --- Boot
     let args = BuildArgs {
