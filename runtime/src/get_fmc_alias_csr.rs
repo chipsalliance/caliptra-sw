@@ -40,7 +40,7 @@ impl GetFmcAliasCsrCmd {
                 // csr is guranteed to be the same size as `len`, and therefore
                 // `resp.data_size` by the `FmcAliasCsr::get` API.
                 //
-                // A valid `FmcAliasCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
+                // A valid `FmcAliasCsr` cannot be larger than `MAX_FMC_ALIAS_CSR_SIZE`, which is the max
                 // size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 

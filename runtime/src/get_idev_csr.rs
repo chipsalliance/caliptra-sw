@@ -41,7 +41,7 @@ impl GetIdevCsrCmd {
                 // csr is guranteed to be the same size as `len`, and therefore
                 // `resp.data_size` by the `IDevIDCsr::get` API.
                 //
-                // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
+                // A valid `IDevIDCsr` cannot be larger than `MAX_IDEVID_CSR_SIZE`, which is the max
                 // size of the buffer in `GetIdevIdCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 

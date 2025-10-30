@@ -92,8 +92,8 @@ pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCd
 
 pub use persistent::{
     FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
-    StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_CSR_SIZE, MEASUREMENT_MAX_COUNT,
-    PCR_LOG_MAX_COUNT,
+    StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_FMC_ALIAS_CSR_SIZE, MAX_IDEVID_CSR_SIZE,
+    MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

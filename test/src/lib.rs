@@ -13,7 +13,7 @@ mod redact;
 mod unwrap_single;
 pub mod x509;
 
-pub use redact::{redact_cert, RedactOpts};
+pub use redact::{redact_cert, redact_csr, RedactOpts};
 pub use unwrap_single::UnwrapSingle;
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
