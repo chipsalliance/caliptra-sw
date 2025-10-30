@@ -90,6 +90,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_add_subject_alt_name_persists_across_warm_reset() {
     // Boot to RT ready
     let mut model = build_model_ready();
@@ -144,6 +145,7 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_add_subject_alt_name_after_warm_reset() {
     // Boot to RT ready
     let mut model = build_model_ready();
@@ -225,6 +227,7 @@ fn test_add_subject_alt_name_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_certify_key_extended_after_warm_reset() {
     // Boot to RT ready
     let mut model = build_model_ready();
@@ -296,6 +299,7 @@ fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usiz
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_certify_key_extended_after_warm_reset_stable_fields() {
     let mut model = build_model_ready();
     wait_runtime_ready(&mut model);
