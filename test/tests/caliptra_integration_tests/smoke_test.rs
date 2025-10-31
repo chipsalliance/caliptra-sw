@@ -320,42 +320,43 @@ fn smoke_test() {
     hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
-    let fmc_expected_tcb_info = [
-        DiceTcbInfo {
-            vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-            model: get_rom_test_params()
-                .tcb_device_info_model
-                .map(String::from),
-            // This is from the SVN in the fuses (7 bits set)
-            svn: Some(0x107),
-            fwids: vec![DiceFwid {
-                hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                digest: device_info_hash.to_vec(),
-            }],
-
-            flags: get_rom_test_params().tcb_info_flags,
-            ty: Some(b"DEVICE_INFO".to_vec()),
-            ..Default::default()
-        },
-        DiceTcbInfo {
-            vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-            model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
-            // This is from the SVN in the image (9)
-            svn: Some(0x109),
-            fwids: vec![DiceFwid {
-                // FMC
-                hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                digest: swap_word_bytes(&image.manifest.fmc.digest)
-                    .as_bytes()
-                    .to_vec(),
-            }],
-            ty: Some(b"FMC_INFO".to_vec()),
-            ..Default::default()
-        },
-    ];
-
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
-    assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
+    assert_eq!(
+        dice_tcb_info,
+        [
+            DiceTcbInfo {
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params()
+                    .tcb_device_info_model
+                    .map(String::from),
+                // This is from the SVN in the fuses (7 bits set)
+                svn: Some(0x107),
+                fwids: vec![DiceFwid {
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: device_info_hash.to_vec(),
+                }],
+
+                flags: get_rom_test_params().tcb_info_flags,
+                ty: Some(b"DEVICE_INFO".to_vec()),
+                ..Default::default()
+            },
+            DiceTcbInfo {
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
+                // This is from the SVN in the image (9)
+                svn: Some(0x109),
+                fwids: vec![DiceFwid {
+                    // FMC
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: swap_word_bytes(&image.manifest.fmc.digest)
+                        .as_bytes()
+                        .to_vec(),
+                }],
+                ty: Some(b"FMC_INFO".to_vec()),
+                ..Default::default()
+            },
+        ]
+    );
 
     let expected_fmc_alias_key = FmcAliasKey::derive(
         &Pcr0::derive(&Pcr0Input {
@@ -481,8 +482,44 @@ fn smoke_test() {
 
     // Validate TCB info
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_csr(fmc_alias_csr_der).unwrap();
-    // Use the same expected TCB info from FMC Alias cert
-    assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
+    // Use similar TCB info from FMC Alias cert
+    // (Some fields may differ from older ROMs. Use latest version of these changed params.)
+    assert_eq!(
+        dice_tcb_info,
+        [
+            DiceTcbInfo {
+                vendor: ROM_LATEST_TEST_PARAMS.tcb_info_vendor.map(String::from),
+                model: ROM_LATEST_TEST_PARAMS
+                    .tcb_device_info_model
+                    .map(String::from),
+                // This is from the SVN in the fuses (7 bits set)
+                svn: Some(0x107),
+                fwids: vec![DiceFwid {
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: device_info_hash.to_vec(),
+                }],
+
+                flags: ROM_LATEST_TEST_PARAMS.tcb_info_flags,
+                ty: Some(b"DEVICE_INFO".to_vec()),
+                ..Default::default()
+            },
+            DiceTcbInfo {
+                vendor: ROM_LATEST_TEST_PARAMS.tcb_info_vendor.map(String::from),
+                model: ROM_LATEST_TEST_PARAMS.tcb_fmc_info_model.map(String::from),
+                // This is from the SVN in the image (9)
+                svn: Some(0x109),
+                fwids: vec![DiceFwid {
+                    // FMC
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: swap_word_bytes(&image.manifest.fmc.digest)
+                        .as_bytes()
+                        .to_vec(),
+                }],
+                ty: Some(b"FMC_INFO".to_vec()),
+                ..Default::default()
+            },
+        ]
+    );
 
     // Use the same expected public key from FMC Alias cert
     assert!(expected_fmc_alias_key
