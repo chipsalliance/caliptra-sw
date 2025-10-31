@@ -468,7 +468,7 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     rt_resp
 }
 
-pub fn model_supports_subsystem_mode(subsystem_mode: bool) -> bool {
+pub fn model_supports_subsystem_config(subsystem_mode: bool) -> bool {
     let fpga_subsystem = cfg!(feature = "fpga_subsystem");
     let fpga_realtime = cfg!(feature = "fpga_realtime");
     let fpga = fpga_subsystem || fpga_realtime;

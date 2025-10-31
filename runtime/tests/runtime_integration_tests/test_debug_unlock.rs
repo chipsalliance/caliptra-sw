@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{model_supports_subsystem_mode, run_rt_test, RuntimeTestArgs};
+use crate::common::{model_supports_subsystem_config, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use caliptra_api::{
@@ -726,7 +726,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 #[test]
 fn test_dbg_unlock_prod_wrong_cmd() {
     for subsystem_mode in [false, true] {
-        if !model_supports_subsystem_mode(subsystem_mode) {
+        if !model_supports_subsystem_config(subsystem_mode) {
             continue;
         }
         test_dbg_unlock_prod_wrong_cmd_mode(subsystem_mode);
