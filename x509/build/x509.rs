@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use caliptra_common::dice;
-
 use openssl::asn1::{Asn1Object, Asn1OctetString};
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
@@ -33,10 +31,13 @@ use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
 use rand::Rng;
 
-const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
-    | dice::FLAG_BIT_NOT_SECURE
-    | dice::FLAG_BIT_DEBUG
-    | dice::FLAG_BIT_FIXED_WIDTH;
+const FLAG_BIT_NOT_CONFIGURED: u32 = 1 << 0;
+const FLAG_BIT_NOT_SECURE: u32 = 1 << 1;
+const FLAG_BIT_DEBUG: u32 = 1 << 3;
+const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
+
+const FLAG_MASK: u32 =
+    FLAG_BIT_NOT_CONFIGURED | FLAG_BIT_NOT_SECURE | FLAG_BIT_DEBUG | FLAG_BIT_FIXED_WIDTH;
 
 const AUTH_KEY_ID_OID: &str = "2.5.29.35";
 const TCG_UEID_OID: &str = "2.23.133.5.4.4";
