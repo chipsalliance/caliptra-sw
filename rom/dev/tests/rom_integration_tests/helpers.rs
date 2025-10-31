@@ -40,7 +40,8 @@ pub fn build_hw_model_and_image_bundle(
 }
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -113,6 +114,14 @@ pub fn change_dword_endianess(data: &mut [u8]) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
     }
+}
+
+pub fn model_supports_subsystem_config(subsystem_mode: bool) -> bool {
+    let fpga_subsystem = cfg!(feature = "fpga_subsystem");
+    let fpga_realtime = cfg!(feature = "fpga_realtime");
+    let fpga = fpga_subsystem || fpga_realtime;
+    let emulator = !fpga;
+    emulator || (subsystem_mode && fpga_subsystem) || ((!subsystem_mode) && fpga_realtime)
 }
 
 #[cfg(test)]

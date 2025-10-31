@@ -248,6 +248,10 @@ impl RecoveryRegisterInterface {
             self.indirect_fifo_status_0
                 .reg
                 .modify(IndirectStatus::FIFO_EMPTY::SET);
+        } else {
+            self.indirect_fifo_status_0
+                .reg
+                .modify(IndirectStatus::FIFO_FULL::SET);
         }
 
         let address: usize = address.try_into().unwrap();
@@ -319,7 +323,7 @@ impl RecoveryRegisterInterface {
                 self.indirect_fifo_status_2.reg.set(0);
                 self.indirect_fifo_status_0
                     .reg
-                    .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
+                    .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::SET);
             } else {
                 println!(
                     "No Image in RRI ({} >= {})",

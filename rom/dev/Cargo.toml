@@ -74,6 +74,7 @@ std = [
   "ufmt/std",
 ]
 fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
+fpga_subsystem = ["caliptra-drivers/fpga_subsystem", "caliptra-hw-model/fpga_subsystem"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
@@ -84,6 +85,7 @@ fips-test-hooks = [
   "caliptra-drivers/fips-test-hooks",
   "caliptra-image-verify/fips-test-hooks",
 ]
+subsystem = ["caliptra-drivers/subsystem"]
 
 [[bin]]
 name = "asm_tests"

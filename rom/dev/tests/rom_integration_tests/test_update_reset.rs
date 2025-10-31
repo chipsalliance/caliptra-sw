@@ -1,10 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::helpers;
+use crate::helpers::{self, model_supports_subsystem_config};
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
-        self,
         rom_tests::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
@@ -28,6 +27,9 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 #[test]
 fn test_update_reset_success() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -37,7 +39,7 @@ fn test_update_reset_success() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -89,6 +91,9 @@ fn test_update_reset_success() {
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -98,7 +103,7 @@ fn test_update_reset_no_mailbox_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -153,6 +158,9 @@ fn test_update_reset_no_mailbox_cmd() {
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -162,7 +170,7 @@ fn test_update_reset_non_fw_load_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -224,7 +232,7 @@ fn test_update_reset_verify_image_failure() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -282,6 +290,9 @@ fn test_update_reset_verify_image_failure() {
 #[test]
 fn test_update_reset_boot_status() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -291,7 +302,7 @@ fn test_update_reset_boot_status() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -352,8 +363,11 @@ fn test_update_reset_boot_status() {
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let vendor_config_cold_boot = ImageGeneratorVendorConfig {
                 ecc_key_idx: 3,
                 ..VENDOR_CONFIG_KEY_0
@@ -441,7 +455,10 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     for subsystem_mode in [false, true] {
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
+        let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
             pqc_key_idx: 3,
             ..VENDOR_CONFIG_KEY_0
@@ -516,6 +533,9 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 #[test]
 fn test_check_rom_update_reset_status_reg() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -525,7 +545,7 @@ fn test_check_rom_update_reset_status_reg() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -628,6 +648,9 @@ fn test_fmc_is_16k() {
 #[test]
 fn test_update_reset_max_fw_image() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_config(subsystem_mode) {
+            continue;
+        }
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -637,7 +660,7 @@ fn test_update_reset_max_fw_image() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,

@@ -467,3 +467,11 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }
+
+pub fn model_supports_subsystem_config(subsystem_mode: bool) -> bool {
+    let fpga_subsystem = cfg!(feature = "fpga_subsystem");
+    let fpga_realtime = cfg!(feature = "fpga_realtime");
+    let fpga = fpga_subsystem || fpga_realtime;
+    let emulator = !fpga;
+    emulator || (subsystem_mode && fpga_subsystem) || ((!subsystem_mode) && fpga_realtime)
+}

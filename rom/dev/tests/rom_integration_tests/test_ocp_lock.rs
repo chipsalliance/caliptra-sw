@@ -3,7 +3,7 @@
 use caliptra_api::mailbox::{
     MailboxReq, ReportHekMetadataReq, ReportHekMetadataResp, ReportHekMetadataRespFlags,
 };
-use caliptra_builder::firmware::ROM_FPGA_WITH_UART;
+use caliptra_builder::firmware::ROM_FPGA_WITH_UART_SS;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_drivers::{CaliptraError, HekSeedState};
 use caliptra_hw_model::{DeviceLifecycle, HwModel, ModelError, SecurityState};
@@ -52,7 +52,7 @@ fn test_hek_seed_states() {
 
 #[test]
 fn test_invalid_hek_seed_state() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART_SS).unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
@@ -94,11 +94,12 @@ fn hek_seed_state_helper(
     seed_states: &[HekSeedState],
     expects_hek_available: bool,
 ) {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART_SS).unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
             security_state: *SecurityState::default().set_device_lifecycle(lifecycle),
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
