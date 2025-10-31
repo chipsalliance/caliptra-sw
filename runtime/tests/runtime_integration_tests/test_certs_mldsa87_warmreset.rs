@@ -104,7 +104,6 @@ fn get_idev_mldsa87_cert(
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_mldsa87_cert_across_warm_reset() {
     // Boot runtime
 
@@ -193,7 +192,6 @@ fn get_ldev_mldsa_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_mldsa87_cert_after_warm_reset() {
     // Boot runtime
 
@@ -231,7 +229,6 @@ fn test_get_ldev_mldsa87_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
     // Boot runtime
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
@@ -296,7 +293,6 @@ fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_mldsa87_cert_after_warm_reset() {
     // Boot runtime
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
@@ -372,7 +368,6 @@ fn fetch_idev_mldsa87_info(model: &mut DefaultHwModel) -> GetIdevMldsa87InfoResp
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_mldsa87_info_after_warm_reset() {
     // Boot time
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
