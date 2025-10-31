@@ -1,13 +1,15 @@
 use crate::common::{build_model_ready, wait_runtime_ready};
 
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
-use zerocopy::{FromBytes, IntoBytes};
+use caliptra_common::{
+    checksum::calc_checksum,
+    mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader},
+};
 
-use caliptra_hw_model::HwModel;
-
-use caliptra_common::checksum::calc_checksum;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::ModelError;
+
+use caliptra_hw_model::{HwModel, ModelError};
+
+use zerocopy::{FromBytes, IntoBytes};
 
 pub fn mbx_execute_helper<T: HwModel, U: FromBytes + IntoBytes>(
     hw: &mut T,
@@ -62,7 +64,7 @@ fn send_self_test_get_results_once<T: HwModel>(
     )
 }
 
-/// Spin the model for `cycles` (tiny backoff between polls).
+/// Spin the model for `cycles`
 fn spin_cycles<T: HwModel>(hw: &mut T, mut cycles: usize) {
     hw.step_until(|_| {
         cycles -= 1;
@@ -72,11 +74,7 @@ fn spin_cycles<T: HwModel>(hw: &mut T, mut cycles: usize) {
 
 /// Start the self-test and poll GET_RESULTS until it returns Ok (pass).
 /// Panics on unexpected error or timeout.
-fn wait_for_self_test_pass<T: HwModel>(
-    hw: &mut T,
-    max_polls: usize,      // e.g. 1_000
-    cycles_between: usize, // e.g. 10_000
-) {
+fn wait_for_self_test_pass<T: HwModel>(hw: &mut T, max_polls: usize, cycles_between: usize) {
     send_self_test_start_once(hw).expect("SELF_TEST_START should succeed");
 
     for i in 0..max_polls {
@@ -100,7 +98,6 @@ fn wait_for_self_test_pass<T: HwModel>(
     panic!("Timed out waiting for SELF_TEST_GET_RESULTS to succeed after {max_polls} polls");
 }
 
-/// Assert that querying GET_RESULTS *without* a prior START yields NOT_STARTED.
 fn assert_results_not_started<T: HwModel>(hw: &mut T) {
     match send_self_test_get_results_once(hw) {
         Err(ModelError::MailboxCmdFailed(code))
@@ -112,7 +109,7 @@ fn assert_results_not_started<T: HwModel>(hw: &mut T) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn self_test_get_results_resets_after_warm_reset() {
-    // Boot to ready runtime
+    // Boot time
     let mut model = build_model_ready();
     wait_runtime_ready(&mut model);
 
