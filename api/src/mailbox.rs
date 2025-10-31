@@ -16,6 +16,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
 /// Maximum output size for AES GCM encrypt or decrypt operations.
 pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
+/// Maximum mailbox size when subsystem staging area is available.
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
@@ -130,6 +132,9 @@ impl CommandId {
 
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
+
+    // External mailbox command
+    pub const EXTERNAL_MAILBOX_CMD: Self = Self(0x4558_544D); // "EXTM"
 
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
@@ -544,6 +549,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    ExternalMailboxCmd(ExternalMailboxCmdReq),
     FeProg(FeProgReq),
 }
 
@@ -621,6 +627,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
@@ -696,6 +703,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
@@ -776,6 +784,7 @@ impl MailboxReq {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
             MailboxReq::ReportHekMetadata(_) => CommandId::REPORT_HEK_METADATA,
+            MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
         }
     }
 
@@ -2073,6 +2082,22 @@ impl Default for ProductionAuthDebugUnlockToken {
 impl Request for ProductionAuthDebugUnlockToken {
     const ID: CommandId = CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN; // TODO
     type Resp = MailboxRespHeader; // TODO Check
+}
+
+// EXTERNAL_MAILBOX_CMD
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Default)]
+pub struct ExternalMailboxCmdReq {
+    pub hdr: MailboxReqHeader,
+    pub command_id: u32,
+    pub command_size: u32,
+    pub axi_address_start_low: u32,
+    pub axi_address_start_high: u32,
+}
+
+impl Request for ExternalMailboxCmdReq {
+    const ID: CommandId = CommandId::EXTERNAL_MAILBOX_CMD;
+    type Resp = MailboxRespHeader;
 }
 
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
