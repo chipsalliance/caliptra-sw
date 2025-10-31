@@ -23,6 +23,7 @@ mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 mod test_get_image_info;
+
 mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
@@ -35,6 +36,7 @@ mod test_pcr_warmreset;
 mod test_populate_idev;
 mod test_recovery_flow;
 mod test_revoke_exported_cdi_handle;
+mod test_selftests_warmreset;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
 mod test_stash_measurement;
