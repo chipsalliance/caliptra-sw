@@ -1,73 +1,81 @@
 # Nix configuration for a caliptra fpga runner host
 
-{ pkgs, identifier, user, lib, rtool, fpga-boss, ... }:
-let 
-    download-image-script = pkgs.writeShellScriptBin "download-fpga-image" ''
-      export GCP_ZONE="us-central1"
-      export GITHUB_ORG="chipsalliance"
-      export GCP_PROJECT="caliptra-github-ci"
-      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml "$@"
-    '';
-    update-bitstream-petalinux = pkgs.writeShellScriptBin "update-bitstream-petalinux" ''
-      set -eux
-      BITSTREAM=$1
-      IMAGE=$2
-      LOSETUP=$(losetup --show -Pf $IMAGE)
-      WORK_DIR=$(mktemp -d)
+{
+  pkgs,
+  identifier,
+  user,
+  lib,
+  rtool,
+  fpga-boss,
+  ...
+}:
+let
+  download-image-script = pkgs.writeShellScriptBin "download-fpga-image" ''
+    export GCP_ZONE="us-central1"
+    export GITHUB_ORG="chipsalliance"
+    export GCP_PROJECT="caliptra-github-ci"
+    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml "$@"
+  '';
+  update-bitstream-petalinux = pkgs.writeShellScriptBin "update-bitstream-petalinux" ''
+    set -eux
+    BITSTREAM=$1
+    IMAGE=$2
+    LOSETUP=$(losetup --show -Pf $IMAGE)
+    WORK_DIR=$(mktemp -d)
 
-      pushd $WORK_DIR
-      mkdir mnt
-      mount "''${LOSETUP}p1" $PWD/mnt
-      cp $BITSTREAM $PWD/mnt/BOOT.BIN
-      umount  $PWD/mnt
-      losetup -d $LOSETUP
-      popd
-    '';
-    update-bitstream-ubuntu = pkgs.writeShellScriptBin "update-bitstream-ubuntu" ''
-      set -eux
-      BITSTREAM=$1
-      IMAGE=$2
-      LOSETUP=$(losetup --show -Pf $IMAGE)
-      WORK_DIR=$(mktemp -d)
+    pushd $WORK_DIR
+    mkdir mnt
+    mount "''${LOSETUP}p1" $PWD/mnt
+    cp $BITSTREAM $PWD/mnt/BOOT.BIN
+    umount  $PWD/mnt
+    losetup -d $LOSETUP
+    popd
+  '';
+  update-bitstream-ubuntu = pkgs.writeShellScriptBin "update-bitstream-ubuntu" ''
+    set -eux
+    BITSTREAM=$1
+    IMAGE=$2
+    LOSETUP=$(losetup --show -Pf $IMAGE)
+    WORK_DIR=$(mktemp -d)
 
-      pushd $WORK_DIR
-      mkdir mnt
-      mount "''${LOSETUP}p1" $PWD/mnt
-      cp $BITSTREAM $PWD/mnt/boot1900.bin
-      umount  $PWD/mnt
-      losetup -d $LOSETUP
-      popd
-    '';
-    update-fpga-script = pkgs.writeShellScriptBin "update-fpga-image" ''
-      export GCP_ZONE="us-central1"
-      export GITHUB_ORG="chipsalliance"
-      export GCP_PROJECT="caliptra-github-ci"
+    pushd $WORK_DIR
+    mkdir mnt
+    mount "''${LOSETUP}p1" $PWD/mnt
+    cp $BITSTREAM $PWD/mnt/boot1900.bin
+    umount  $PWD/mnt
+    losetup -d $LOSETUP
+    popd
+  '';
+  update-fpga-script = pkgs.writeShellScriptBin "update-fpga-image" ''
+    export GCP_ZONE="us-central1"
+    export GITHUB_ORG="chipsalliance"
+    export GCP_PROJECT="caliptra-github-ci"
 
-      cd /home/${user}
-      set -eux
-      mkdir -p ci-images
-      pushd ci-images
+    cd /home/${user}
+    set -eux
+    mkdir -p ci-images
+    pushd ci-images
 
-      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
-      ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
-      DATE_SUFFIX=$(date +%Y%m%d)
-      (mv zcu104.img zcu104.img.old."$DATE_SUFFIX" || true)
-      mv image.img zcu104.img
-      rm caliptra-fpga-image.zip
+    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
+    ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
+    DATE_SUFFIX=$(date +%Y%m%d)
+    (mv zcu104.img zcu104.img.old."$DATE_SUFFIX" || true)
+    mv image.img zcu104.img
+    rm caliptra-fpga-image.zip
 
-      for VARIANT in "caliptra-fpga-image-core" "caliptra-fpga-image-subsystem-2.0" "caliptra-fpga-image-subsystem-2.1"; do
-          ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-2.x.yml $VARIANT main > $VARIANT.zip
-          ${pkgs.unzip}/bin/unzip $VARIANT.zip
-          (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
-          mv image.img $VARIANT.img
-          rm $VARIANT.zip
-       done
-    '';
-    cleanup-old-images-script = pkgs.writeShellScriptBin "cleanup-old-images" ''
-      set -eux
-      cd /home/${user}/ci-images
-      ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
-    '';
+    for VARIANT in "caliptra-fpga-image-core" "caliptra-fpga-image-subsystem-2.0" "caliptra-fpga-image-subsystem-2.1"; do
+        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-2.x.yml $VARIANT main > $VARIANT.zip
+        ${pkgs.unzip}/bin/unzip $VARIANT.zip
+        (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
+        mv image.img $VARIANT.img
+        rm $VARIANT.zip
+     done
+  '';
+  cleanup-old-images-script = pkgs.writeShellScriptBin "cleanup-old-images" ''
+    set -eux
+    cd /home/${user}/ci-images
+    ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
+  '';
 in
 {
   imports = [
@@ -113,27 +121,30 @@ in
   users.users."${user}" = {
     isNormalUser = true;
     hashedPassword = lib.strings.trim (builtins.readFile ./secrets/${user}-pass);
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+    ];
 
     # The fpga ci runner services are defined as systemd user services.
     # These services are first started when the user is logged in.
     # To start them on boot, enable lingering (loginctl enable-linger).
     linger = true;
-    
+
     # Add your SSH public key here to gain SSH access to the host runner.
     # Remove keys you do not trust
     openssh.authorizedKeys.keys = [
-        # clundin 
-        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey"
-        # zhalvorsen
-        "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com"
-        # ttrippel
-        "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com"
-        # jhand
-        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNAmcxogmvhKGQy/kd5R+uB382XiSb1p/hlqx/lJv3IcxT3JDVk2cRuVxipirplizT6g5+a5FWH6fGrOizQ/Rd0= publickey"
-        # leongross
-        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEjT61pnWcD2+LDTEQLoSJgdAJ0cTuLEFY0FC6smSJx0LD2Liep3aEM/+kKOg7Hbnl02UbT+OQspGBqlzxjZdXk="
-      ];
+      # clundin
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey"
+      # zhalvorsen
+      "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com"
+      # ttrippel
+      "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com"
+      # jhand
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNAmcxogmvhKGQy/kd5R+uB382XiSb1p/hlqx/lJv3IcxT3JDVk2cRuVxipirplizT6g5+a5FWH6fGrOizQ/Rd0= publickey"
+      # leongross
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEjT61pnWcD2+LDTEQLoSJgdAJ0cTuLEFY0FC6smSJx0LD2Liep3aEM/+kKOg7Hbnl02UbT+OQspGBqlzxjZdXk="
+    ];
   };
 
   environment.systemPackages = with pkgs; [
@@ -168,13 +179,13 @@ in
     # usbsdmux
     SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="4041", OWNER="${user}", GROUP="users"
     SUBSYSTEMS=="usb", ATTRS{idVendor}=="0424", ATTRS{idProduct}=="2640", OWNER="${user}", GROUP="users"
-    '';
+  '';
   services.udev.packages = [ pkgs.usbsdmux ];
 
   # Host runner secrets
   environment.etc = {
     # Github Key for fpga boss
-     github-key = {
+    github-key = {
       text = builtins.readFile ./secrets/google/prod;
       mode = "0400";
       user = "${user}";

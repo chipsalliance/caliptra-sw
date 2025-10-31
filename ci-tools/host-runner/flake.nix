@@ -7,7 +7,14 @@
     fpga-boss.url = "github:chipsalliance/caliptra-sw?dir=ci-tools/fpga-boss";
   };
 
-  outputs = { self, nixpkgs, rtool, fpga-boss, ... }@inputs:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      rtool,
+      fpga-boss,
+      ...
+    }@inputs:
     let
       pkgs = nixpkgs.legacyPackages.aarch64-linux;
       rtool-bin = rtool.packages.aarch64-linux.default;
@@ -90,5 +97,5 @@
           ./hostrunners/bo-0.nix
         ];
       };
-  };
+    };
 }
