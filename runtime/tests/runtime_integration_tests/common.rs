@@ -641,3 +641,11 @@ fn assert_same_time(a: &Asn1TimeRef, b: &Asn1TimeRef, label: &str) {
         d.secs
     );
 }
+
+pub fn model_supports_subsystem_mode(subsystem_mode: bool) -> bool {
+    let fpga_subsystem = cfg!(feature = "fpga_subsystem");
+    let fpga_realtime = cfg!(feature = "fpga_realtime");
+    let fpga = fpga_subsystem || fpga_realtime;
+    let emulator = !fpga;
+    emulator || (subsystem_mode && fpga_subsystem) || ((!subsystem_mode) && fpga_realtime)
+}

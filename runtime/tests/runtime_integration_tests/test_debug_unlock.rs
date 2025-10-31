@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{model_supports_subsystem_mode, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use caliptra_api::{
@@ -725,6 +725,15 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
 #[test]
 fn test_dbg_unlock_prod_wrong_cmd() {
+    for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
+        test_dbg_unlock_prod_wrong_cmd_mode(subsystem_mode);
+    }
+}
+
+fn test_dbg_unlock_prod_wrong_cmd_mode(subsystem_mode: bool) {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
     let ecc_pub_key_bytes = {
@@ -750,7 +759,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -779,7 +788,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         security_state,
         prod_dbg_unlock_keypairs,
         debug_intent: true,
-        subsystem_mode: true,
+        subsystem_mode,
         stack_info: Some(StackInfo::new(image_info)),
         ..Default::default()
     };

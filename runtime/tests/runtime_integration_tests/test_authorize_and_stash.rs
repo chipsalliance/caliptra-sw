@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{model_supports_subsystem_mode, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
@@ -66,11 +66,7 @@ fn set_auth_manifest(
     auth_manifest: Option<AuthorizationManifest>,
     subsystem_mode: bool,
 ) -> DefaultHwModel {
-    let rom = if subsystem_mode {
-        caliptra_builder::ss_rom_for_fw_integration_tests().unwrap()
-    } else {
-        caliptra_builder::rom_for_fw_integration_tests().unwrap()
-    };
+    let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
 
     let (soc_manifest, mcu_fw) = if subsystem_mode {
         let mut mcu_fw = vec![1, 2, 3, 4]; // FPGA DMA driver needs multiple of 256
@@ -234,6 +230,9 @@ pub fn set_auth_manifest_with_test_sram(
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_deny_authorization_mode(subsystem_mode);
     }
 }
@@ -342,6 +341,9 @@ fn test_authorize_and_stash_cmd_deny_authorization_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_cmd_success() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_success_mode(subsystem_mode);
     }
 }
@@ -409,6 +411,9 @@ fn test_authorize_and_stash_cmd_success_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id_mode(subsystem_mode);
     }
 }
@@ -442,6 +447,9 @@ fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id_mode(subsystem_
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash_mode(subsystem_mode);
     }
 }
@@ -476,6 +484,9 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash_mode(subsyst
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_deny_authorization_wrong_hash_mode(subsystem_mode);
     }
 }
@@ -511,6 +522,9 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash_mode(subsystem_mod
 #[test]
 fn test_authorize_and_stash_cmd_success_skip_auth() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_success_skip_auth_mode(subsystem_mode);
     }
 }
@@ -543,6 +557,9 @@ fn test_authorize_and_stash_cmd_success_skip_auth_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_fwid_0() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_fwid_0_mode(subsystem_mode);
     }
 }
@@ -588,6 +605,9 @@ fn test_authorize_and_stash_fwid_0_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_fwid_127() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_fwid_127_mode(subsystem_mode);
     }
 }
@@ -633,6 +653,9 @@ fn test_authorize_and_stash_fwid_127_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_cmd_deny_second_bad_hash_mode(subsystem_mode);
     }
 }
@@ -708,6 +731,9 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash_mode(subsystem_mode: bool) 
 #[test]
 fn test_authorize_and_stash_after_update_reset() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_after_update_reset_mode(subsystem_mode);
     }
 }
@@ -782,6 +808,9 @@ fn test_authorize_and_stash_after_update_reset_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_after_update_reset_unauthorized_fw_id_mode(subsystem_mode);
     }
 }
@@ -862,6 +891,9 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id_mode(subsystem
 #[test]
 fn test_authorize_and_stash_after_update_reset_bad_hash() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_after_update_reset_bad_hash_mode(subsystem_mode);
     }
 }
@@ -942,6 +974,9 @@ fn test_authorize_and_stash_after_update_reset_bad_hash_mode(subsystem_mode: boo
 #[test]
 fn test_authorize_and_stash_after_update_reset_skip_auth() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_after_update_reset_skip_auth_mode(subsystem_mode);
     }
 }
@@ -1002,6 +1037,9 @@ fn test_authorize_and_stash_after_update_reset_skip_auth_mode(subsystem_mode: bo
 #[test]
 fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_and_stash_after_update_reset_multiple_set_manifest_mode(subsystem_mode);
     }
 }
@@ -1281,6 +1319,9 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
 #[test]
 fn test_authorize_from_load_address() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_from_load_address_mode(subsystem_mode);
     }
 }
@@ -1356,6 +1397,9 @@ fn test_authorize_from_load_address_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_from_load_address_incorrect_digest_mode(subsystem_mode);
     }
 }
@@ -1423,6 +1467,9 @@ fn test_authorize_from_load_address_incorrect_digest_mode(subsystem_mode: bool) 
 #[test]
 fn test_authorize_from_staging_address() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_from_staging_address_mode(subsystem_mode);
     }
 }
@@ -1491,6 +1538,9 @@ fn test_authorize_from_staging_address_mode(subsystem_mode: bool) {
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
     for subsystem_mode in [false, true] {
+        if !model_supports_subsystem_mode(subsystem_mode) {
+            continue;
+        }
         test_authorize_from_staging_address_incorrect_digest_mode(subsystem_mode);
     }
 }
