@@ -12,7 +12,6 @@ use caliptra_hw_model::{DefaultHwModel, HwModel};
 use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_disable_attestation_persists_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
