@@ -173,7 +173,6 @@ fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -256,7 +255,6 @@ fn get_idev_384_info(
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_info_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -290,7 +288,6 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_populate_idev_ecc_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -424,7 +421,6 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -450,7 +446,6 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
