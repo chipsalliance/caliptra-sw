@@ -2,7 +2,7 @@
 
 use caliptra_error::CaliptraError;
 
-use crate::Lifecycle;
+use crate::{Array4x8, Lifecycle};
 
 #[derive(Debug)]
 pub enum HekSeedState {
@@ -57,12 +57,16 @@ impl HekSeedState {
     /// Checks if HEK is available based on the HEK seed state and the Caliptra lifecycle state.
     ///
     /// Section 4.6.4.1 of the OCP LOCK v1.0 spec.
-    pub fn hek_is_available(&self, lifecycle_state: Lifecycle) -> bool {
-        matches!(
-            (lifecycle_state, self),
-            (Lifecycle::Unprovisioned | Lifecycle::Manufacturing, _)
-                | (Lifecycle::Production, Self::Unerasable)
-                | (Lifecycle::Production, Self::Programmed)
-        )
+    pub fn hek_is_available(&self, lifecycle_state: Lifecycle, hek_seed_value: &Array4x8) -> bool {
+        let seed_is_empty = *hek_seed_value == Array4x8::default();
+        match (self, lifecycle_state, seed_is_empty) {
+            // HEK is always available in these life cycle states.
+            (_, Lifecycle::Unprovisioned | Lifecycle::Manufacturing, _) => true,
+            // Actual seed must not be zeroized when drive declares seed state is programmed.
+            (Self::Programmed, Lifecycle::Production, false) => true,
+            // HEK is Unerasable so it's okay if the actual seed is zeroized.
+            (Self::Unerasable, Lifecycle::Production, _) => true,
+            _ => false,
+        }
     }
 }

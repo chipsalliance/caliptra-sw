@@ -130,6 +130,11 @@ pub mod hw_model_tests {
         ..BASE_FWID
     };
 
+    pub const MCU_HITLESS_UPDATE_FLOW: FwId = FwId {
+        bin_name: "mcu_hitless_update_flow",
+        ..BASE_FWID
+    };
+
     pub const TEST_ICCM_BYTE_WRITE: FwId = FwId {
         bin_name: "test_iccm_byte_write",
         ..BASE_FWID
@@ -384,6 +389,12 @@ pub mod driver_tests {
         features: &["emu", "fpga_subsystem"],
         ..BASE_FWID
     };
+
+    pub const AXI_BYPASS: FwId = FwId {
+        bin_name: "axi_bypass",
+        features: &["emu", "fpga_subsystem"],
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -491,6 +502,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
     &hw_model_tests::MAILBOX_SENDER,
+    &hw_model_tests::MCU_HITLESS_UPDATE_FLOW,
     &hw_model_tests::TEST_ICCM_BYTE_WRITE,
     &hw_model_tests::TEST_ICCM_UNALIGNED_WRITE,
     &hw_model_tests::TEST_ICCM_WRITE_LOCKED,
@@ -539,6 +551,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::DMA_SHA384_FPGA,
     &driver_tests::OCP_LOCK,
     &driver_tests::DMA_AES,
+    &driver_tests::AXI_BYPASS,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
