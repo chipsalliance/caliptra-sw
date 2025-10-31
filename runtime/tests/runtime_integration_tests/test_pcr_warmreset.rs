@@ -8,12 +8,14 @@ use caliptra_common::{
         QuotePcrsMldsa87Resp,
     },
 };
-use zerocopy::{FromBytes, IntoBytes};
 
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use caliptra_api::SocManager;
+
 use openssl::hash::{Hasher, MessageDigest};
+
+use zerocopy::{FromBytes, IntoBytes};
 
 fn ensure_mailbox_idle(model: &mut DefaultHwModel) {
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
