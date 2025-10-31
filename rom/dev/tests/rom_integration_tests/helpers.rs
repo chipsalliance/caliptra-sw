@@ -3,7 +3,7 @@
 use std::mem;
 
 use caliptra_api::SocManager;
-use caliptra_builder::{firmware, FwId, ImageOptions};
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -41,7 +41,7 @@ pub fn build_hw_model_and_image_bundle(
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     let subsystem_mode = cfg!(feature = "fpga_subsystem");
-    let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_mode(subsystem_mode).unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -116,12 +116,12 @@ pub fn change_dword_endianess(data: &mut [u8]) {
     }
 }
 
-pub fn rom_fw_id(subsystem: bool) -> &'static FwId<'static> {
-    if subsystem {
-        firmware::ss_rom_from_env()
-    } else {
-        firmware::rom_from_env()
-    }
+pub fn model_supports_subsystem_mode(subsystem_mode: bool) -> bool {
+    let fpga_subsystem = cfg!(feature = "fpga_subsystem");
+    let fpga_realtime = cfg!(feature = "fpga_realtime");
+    let fpga = fpga_subsystem || fpga_realtime;
+    let emulator = !fpga;
+    emulator || (subsystem_mode && fpga_subsystem) || ((!subsystem_mode) && fpga_realtime)
 }
 
 #[cfg(test)]

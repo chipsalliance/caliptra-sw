@@ -388,6 +388,17 @@ pub fn ss_rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     }
 }
 
+/// Returns the most appropriate ROM for use when testing non-ROM code against
+/// a particular hardware version and depending on if subsystem mode is enabled.
+/// DO NOT USE this for ROM-only tests.
+pub fn rom_for_fw_integration_tests_mode(subsystem_mode: bool) -> io::Result<Cow<'static, [u8]>> {
+    if subsystem_mode {
+        ss_rom_for_fw_integration_tests()
+    } else {
+        rom_for_fw_integration_tests()
+    }
+}
+
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
     let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)
