@@ -19,6 +19,7 @@
       pkgs = nixpkgs.legacyPackages.aarch64-linux;
       rtool-bin = rtool.packages.aarch64-linux.default;
       fpga-boss-bin = fpga-boss.packages.aarch64-linux.default;
+      keys = import ./ssh_keys.nix;
       fpga-boss-script = pkgs.writeShellScriptBin "fpga.sh" ''
         #!${pkgs.bash}/bin/bash
         export GCP_ZONE="us-central1"
@@ -49,6 +50,7 @@
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
           fpga-boss = fpga-boss-bin;
+          ssh_keys = keys.googler_keys;
         };
         modules = [
           ./configuration.nix
@@ -63,6 +65,7 @@
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
           fpga-boss = fpga-boss-bin;
+          ssh_keys = keys.googler_keys;
         };
         modules = [
           ./configuration.nix
@@ -77,6 +80,7 @@
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
           fpga-boss = fpga-boss-bin;
+          ssh_keys = keys.googler_keys;
         };
         modules = [
           ./configuration.nix
@@ -91,6 +95,7 @@
           fpga-boss-script = fpga-boss-script;
           rtool = rtool-bin;
           fpga-boss = fpga-boss-bin;
+          ssh_keys = keys.nine_elements_keys;
         };
         modules = [
           ./configuration.nix
