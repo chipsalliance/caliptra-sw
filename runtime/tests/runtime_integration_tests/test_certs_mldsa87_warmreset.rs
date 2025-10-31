@@ -4,6 +4,7 @@ use crate::common::{
     assert_x509_semantic_eq, build_ready_runtime_model, generate_test_x509_cert,
     get_mldsa_fmc_alias_cert, get_rt_alias_mldsa87_cert, wait_runtime_ready, BuildArgs,
 };
+
 use caliptra_common::{
     checksum::{calc_checksum, verify_checksum},
     mailbox_api::{
@@ -12,8 +13,8 @@ use caliptra_common::{
     },
     x509::get_tbs,
 };
+
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
-use zerocopy::{FromBytes, IntoBytes};
 
 use openssl::{
     pkey::{PKey, Private, Public},
@@ -21,18 +22,20 @@ use openssl::{
     x509::X509,
 };
 
-/// Single-shot helper: build request, call GET_IDEV_MLDSA87_CERT, verify + parse.
+use zerocopy::{FromBytes, IntoBytes};
+
+/// Sbuild request, call GET_IDEV_MLDSA87_CERT, verify + parse.
 /// Returns (DER, parsed X509).
 fn get_idev_mldsa87_cert(
     model: &mut DefaultHwModel,
     priv_key: &PKey<Private>,
     pub_key: &PKey<Public>,
 ) -> (Vec<u8>, X509) {
-    // Local X.509 using MLDSA private key (assumes fixed notBefore/notAfter in your helper)
+    // Local X.509 using MLDSA private key
     let cert = generate_test_x509_cert(priv_key);
     assert!(cert.verify(pub_key).unwrap(), "self-check verify failed");
 
-    // Extract TBS and signature (the ML-DSA signature is a raw byte string in `cert.signature()`)
+    // Extract TBS and signature
     let sig_bytes = cert.signature().as_slice();
     let mut signature = [0u8; 4628];
     assert!(
@@ -73,7 +76,6 @@ fn get_idev_mldsa87_cert(
     let mut cert_resp = GetIdevCertResp::default();
     cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
-    // Checksum over everything after chksum
     assert!(
         verify_checksum(
             cert_resp.hdr.chksum,
@@ -239,7 +241,6 @@ fn test_get_ldev_mldsa87_cert_after_warm_reset() {
     let idev_pk_after = get_idev_mldsa87_pubkey(&mut model);
     assert!(ldev_cert_after.verify(&idev_pk_after).unwrap());
 
-    // If you rounded validity seconds to 00 in the builder, this should pass bit-for-bit:
     assert_eq!(
         ldev_der_before, ldev_der_after,
         "LDev MLDSA cert DER changed across warm reset"
@@ -314,7 +315,6 @@ fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
         core::cmp::Ordering::Equal
     );
 
-    // DER should be stable across warm reset (with validity seconds fixed to 00 in builder)
     assert_eq!(
         fmc_der_before, fmc_der_after,
         "FMC-alias MLDSA cert DER changed across warm reset"
@@ -386,7 +386,6 @@ fn test_get_rt_alias_mldsa87_cert_after_warm_reset() {
         core::cmp::Ordering::Equal
     );
 
-    // DER should be stable across warm reset (with validity seconds fixed to 00 in builder)
     assert_eq!(
         rt_der_before, rt_der_after,
         "RT-alias MLDSA cert DER changed across warm reset"
@@ -410,7 +409,7 @@ fn fetch_idev_mldsa87_info(model: &mut DefaultHwModel) -> GetIdevMldsa87InfoResp
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_mldsa87_info_after_warm_reset() {
-    // Boot with build_ready_runtime_model
+    // Boot time
     let args = BuildArgs {
         security_state: *SecurityState::default()
             .set_debug_locked(true)
