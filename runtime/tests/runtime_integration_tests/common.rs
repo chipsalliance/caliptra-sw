@@ -515,7 +515,7 @@ pub fn build_ready_runtime_model(
     let rom_info = find_rom_info(&rom).unwrap();
     let owner_pub_key_hash: [u32; 12] = ImageGenerator::new(Crypto::default())
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap(); // digest -> [u8; 48]
+        .unwrap();
 
     // Fuses / boot params
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
@@ -617,7 +617,6 @@ pub fn assert_x509_semantic_eq(a: &X509, b: &X509) {
     let b_sig_oid = b.signature_algorithm().object().nid();
     assert_eq!(a_sig_oid, b_sig_oid, "signature algorithm differs");
 
-    println!("not_before {}, {}", a.not_before(), b.not_before());
     //check validity
     assert_same_time(a.not_before(), b.not_before(), "notBefore");
     assert_same_time(a.not_after(), b.not_after(), "notAfter");
