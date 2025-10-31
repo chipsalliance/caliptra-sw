@@ -7,9 +7,10 @@ use caliptra_common::{
         CertifyKeyExtendedResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
-use zerocopy::{FromBytes, IntoBytes};
 
 use caliptra_hw_model::{DefaultHwModel, HwModel};
+
+use caliptra_runtime::AddSubjectAltNameCmd;
 
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags},
@@ -22,7 +23,7 @@ use x509_parser::{
     oid_registry::OID_X509_COMMON_NAME, x509::AlgorithmIdentifier,
 };
 
-use caliptra_runtime::AddSubjectAltNameCmd;
+use zerocopy::{FromBytes, IntoBytes};
 
 /// Send CERTIFY_KEY_EXTENDED (X.509 + DMTF_OTHER_NAME), verify checksum & FIPS
 pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Option<Vec<u8>>) {
@@ -66,7 +67,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
         "CAPABILITIES FIPS not APPROVED"
     );
 
-    // --- Extract cert -> SAN -> DMTF OtherName payload bytes (skip 4 DER bytes) ---
+    // --- Extract cert -> SAN -> DMTF OtherName payload bytes ---
     let ck = CertifyKeyResp::read_from_bytes(&ckx.certify_key_resp[..]).unwrap();
     let (_, cert) = X509Certificate::from_der(&ck.cert[..ck.cert_size as usize]).unwrap();
 
@@ -92,7 +93,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_add_subject_alt_name_persists_across_warm_reset() {
-    // Boot to RT ready
+    // Boot time
     let mut model = build_model_ready();
     wait_runtime_ready(&mut model);
 
@@ -130,7 +131,7 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
     model.warm_reset();
     wait_runtime_ready(&mut model);
 
-    // AFTER warm reset: capture raw and SAN payload (no reprogramming)
+    // AFTER warm reset: capture raw and SAN payload
     let (raw_after, san_payload_after) = certify_and_get_san_and_raw(&mut model);
 
     // Compare both SAN payload and raw response bytes
@@ -176,8 +177,8 @@ fn test_add_subject_alt_name_after_warm_reset() {
     let (raw_before, san_payload_before) = certify_and_get_san_and_raw(&mut model);
 
     assert_eq!(
-        san_payload_before.as_deref(), // Option<&[u8]>
-        Some(first_bytes),             // Option<&[u8]>
+        san_payload_before.as_deref(),
+        Some(first_bytes),
         "Initial SAN payload mismatch"
     );
 
@@ -216,8 +217,8 @@ fn test_add_subject_alt_name_after_warm_reset() {
     );
 
     assert_eq!(
-        san_payload_after.as_deref(), // Option<&[u8]>
-        Some(second_bytes),           // Option<&[u8]>
+        san_payload_after.as_deref(),
+        Some(second_bytes),
         "SAN payload mismatch after reprogramming"
     );
     assert_ne!(
@@ -266,7 +267,7 @@ fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usiz
         .unwrap_or_default()
         .to_string();
 
-    // Subject CN (ignore subject serialNumber)
+    // Subject CN (
     let subject_cn = cert
         .tbs_certificate
         .subject
@@ -287,7 +288,7 @@ fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usiz
         .as_bytes()
         .to_vec();
 
-    // Only the SPKI bitstring length is compared (key bytes change per boot)
+    // Only the SPKI bitstring length is compared
     let spki_len = cert
         .tbs_certificate
         .subject_pki
