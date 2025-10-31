@@ -7,12 +7,11 @@ use caliptra_common::{
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_lms_types::{LmsPublicKey, LmsSignature};
-use zerocopy::{FromBytes, IntoBytes};
 
 use openssl::sha::sha384;
+use zerocopy::{FromBytes, IntoBytes};
 
-/// Build the ECDSA-verify request once and return the exact bytes you can reuse
-/// across warm resets without recomputing anything.
+/// Build the ECDSA-verify request
 fn build_ecdsa_verify_payload_bytes() -> Vec<u8> {
     // Test message and SHA-384
     let msg: &[u8] = &[
@@ -86,7 +85,7 @@ fn send_ecdsa_verify_and_get_hdr(model: &mut DefaultHwModel, req_bytes: &[u8]) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_ecdsa384_signature_verify_after_warm_reset() {
-    // Spin up runtime on the model/FPGA wrapper you use in other tests.
+    // Spin up runtime on the model/FPGA wrapper
     let args = BuildArgs {
         security_state: *SecurityState::default()
             .set_debug_locked(true)
@@ -322,8 +321,7 @@ fn send_lms_verify_and_check<T: HwModel>(hw: &mut T, req_bytes: &[u8]) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_lms_verify_after_warm_reset() {
-    // use your existing builder (with whatever return signature you have)
-    // Spin up runtime on the model/FPGA wrapper you use in other tests.
+    // Boot time
     let args = BuildArgs {
         security_state: *SecurityState::default()
             .set_debug_locked(true)
