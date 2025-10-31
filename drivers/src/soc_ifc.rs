@@ -548,7 +548,7 @@ impl SocIfc {
 
     pub fn subsystem_mode(&self) -> bool {
         // Only for ROM it makes sense to hardcode this
-        // For Runtime we want runtime images to work on both caliptra-code and subsystem
+        // For Runtime we want runtime images to work on both caliptra-core and subsystem
         cfg!(feature = "subsystem")
             || self
                 .soc_ifc
