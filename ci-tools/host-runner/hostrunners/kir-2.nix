@@ -1,4 +1,10 @@
-{ config, pkgs, user, fpga-boss-script, ... }:
+{
+  config,
+  pkgs,
+  user,
+  fpga-boss-script,
+  ...
+}:
 {
   # systemd.user.services.vck-6 = {
   #   enable = true;
@@ -78,33 +84,41 @@
     };
   };
   environment.systemPackages = with pkgs; [
-      ((pkgs.writeShellScriptBin "vck-2-debug" ''
+    (
+      (pkgs.writeShellScriptBin "vck-2-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.4"
         export ZCU_SDWIRE="1-1.3"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
-      ((pkgs.writeShellScriptBin "vck-3-debug" ''
+      '')
+    )
+    (
+      (pkgs.writeShellScriptBin "vck-3-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.2.3"
         export ZCU_SDWIRE="1-1.2.4"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
-      ((pkgs.writeShellScriptBin "vck-5-debug" ''
+      '')
+    )
+    (
+      (pkgs.writeShellScriptBin "vck-5-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.2.1.1"
         export ZCU_SDWIRE="1-1.2.1.2"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
-      ((pkgs.writeShellScriptBin "vck-6-debug" ''
+      '')
+    )
+    (
+      (pkgs.writeShellScriptBin "vck-6-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.2.1.4"
         export ZCU_SDWIRE="1-1.2.1.3"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
+      '')
+    )
   ];
 }
