@@ -5,7 +5,8 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    build_and_sign_image, build_firmware_rom,
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -16,13 +17,18 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+
+use caliptra_image_gen::ImageGenerator;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, RomInfo};
+
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    SecurityState, StackInfo, StackRange,
+    BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
+    ModelError, SecurityState, StackInfo, StackRange,
 };
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_crypto::OsslCrypto as Crypto;
+
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
@@ -32,7 +38,7 @@ use dpe::{
     },
 };
 use openssl::{
-    asn1::{Asn1Integer, Asn1Time},
+    asn1::{Asn1Integer, Asn1Time, Asn1TimeRef},
     bn::BigNum,
     hash::MessageDigest,
     pkey::{PKey, Private},
@@ -466,4 +472,172 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
+}
+pub struct BuildArgs {
+    pub security_state: SecurityState,
+    pub fmc_version: u16,
+    pub app_version: u32,
+    pub fw_svn: u32,
+}
+
+impl Default for BuildArgs {
+    fn default() -> Self {
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production);
+        Self {
+            security_state,
+            fmc_version: 3,
+            app_version: 5,
+            fw_svn: 9,
+        }
+    }
+}
+
+pub fn build_ready_runtime_model(
+    args: BuildArgs,
+) -> (DefaultHwModel, ImageBundle, RomInfo, [u32; 12]) {
+    // ROM & image bundle
+    let rom = build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle: ImageBundle = build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions {
+            fmc_version: args.fmc_version,
+            app_version: args.app_version,
+            fw_svn: args.fw_svn,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    // rom_info + owner_pub_key_hash
+    let rom_info = find_rom_info(&rom).unwrap();
+    let owner_pub_key_hash: [u32; 12] = ImageGenerator::new(Crypto::default())
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    // Fuses / boot params
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
+    let image_bytes = image_bundle.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0],
+            ..Default::default()
+        },
+        fw_image: Some(&image_bytes),
+        ..Default::default()
+    };
+
+    // Model
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state: args.security_state,
+            ..Default::default()
+        },
+        boot_params,
+    )
+    .unwrap();
+
+    wait_runtime_ready(&mut model);
+    (model, image_bundle, rom_info, owner_pub_key_hash)
+}
+
+pub fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
+    // RomInfo is 64-byte aligned and the last data in the ROM bin
+    // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
+    for i in (0..rom.len() - 63).rev().step_by(64) {
+        let chunk = &rom[i..i + 64];
+
+        // Check if the chunk contains non-zero data
+        if chunk.iter().any(|&byte| byte != 0) {
+            // Found non-zero data, return RomInfo constructed from the data
+            if let Ok(rom_info) = RomInfo::read_from_bytes(&rom[i..i + size_of::<RomInfo>()]) {
+                return Some(rom_info);
+            }
+        }
+    }
+
+    // No non-zero data found
+    None
+}
+
+pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
+    while !model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime()
+    {
+        model.step();
+    }
+}
+
+#[allow(dead_code)]
+/// Compare two X509 certs by semantic fields rather than raw bytes.
+pub fn assert_x509_semantic_eq(a: &X509, b: &X509) {
+    // Issuer / Subject
+    assert_eq!(
+        a.issuer_name().entries().count(),
+        b.issuer_name().entries().count(),
+        "issuer entry count mismatch"
+    );
+    assert_eq!(
+        a.issuer_name().to_der().unwrap(),
+        b.issuer_name().to_der().unwrap(),
+        "issuer differs"
+    );
+
+    assert_eq!(
+        a.subject_name().entries().count(),
+        b.subject_name().entries().count(),
+        "subject entry count mismatch"
+    );
+    assert_eq!(
+        a.subject_name().to_der().unwrap(),
+        b.subject_name().to_der().unwrap(),
+        "subject differs"
+    );
+
+    // Serial number
+    let a_sn = a.serial_number().to_bn().unwrap().to_vec();
+    let b_sn = b.serial_number().to_bn().unwrap().to_vec();
+    assert_eq!(a_sn, b_sn, "serial number differs");
+
+    // Public key
+    let a_pk = a.public_key().unwrap().public_key_to_der().unwrap();
+    let b_pk = b.public_key().unwrap().public_key_to_der().unwrap();
+    assert_eq!(a_pk, b_pk, "public key differs");
+
+    // Signature algorithm OID (not the signature value)
+    let a_sig_oid = a.signature_algorithm().object().nid();
+    let b_sig_oid = b.signature_algorithm().object().nid();
+    assert_eq!(a_sig_oid, b_sig_oid, "signature algorithm differs");
+
+    //check validity
+    assert_same_time(a.not_before(), b.not_before(), "notBefore");
+    assert_same_time(a.not_after(), b.not_after(), "notAfter");
+}
+
+#[allow(dead_code)]
+fn assert_same_time(a: &Asn1TimeRef, b: &Asn1TimeRef, label: &str) {
+    let d = a.diff(b).expect("ASN.1 time diff failed");
+    // Equal iff  day delta is 0 and second deltas is less than 10
+
+    // Must be the same day
+    assert_eq!(
+        d.days, 0,
+        "{label} differs by {} days, {} secs",
+        d.days, d.secs
+    );
+
+    // Seconds delta allowed up to 10
+    assert!(
+        d.secs.abs() <= 10,
+        "{label} differs by {} secs (allowed ≤ 10)",
+        d.secs
+    );
 }
