@@ -161,6 +161,14 @@ build-rom:
 		--rom-with-log $(TARGET_DIR)/caliptra-rom.bin \
 		--fw /dev/null
 
+build-subsystem-rom:
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run -p caliptra-builder -- \
+		--rom-with-log $(TARGET_DIR)/caliptra-rom-subsystem.bin \
+		--subsystem \
+		--fw /dev/null
+
 run: build-emu build-fw-test-image build-rom
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
@@ -177,7 +185,7 @@ run: build-emu build-fw-test-image build-rom
 			$$(dd if=$(TARGET_DIR)/caliptra-rom-test-fw bs=1 skip=12 count=1736 status=none | sha384sum | cut -d' ' -f1),)
 # See image/types/src/lib.rs ImageManifest for offsets and lenghts of vendor_pub_key_info
 
-run-active: build-emu build-fw-image build-rom
+run-active: build-emu build-fw-image build-subsystem-rom
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -185,7 +193,7 @@ run-active: build-emu build-fw-image build-rom
 		-- \
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
-		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--rom $(TARGET_DIR)/caliptra-rom-subsystem.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle $(DEVICE_LIFECYCLE) \
 		--subsystem-mode \

@@ -7,7 +7,7 @@ use caliptra_api::mailbox::{
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::ROM_WITH_UART;
+use caliptra_builder::firmware::{ROM_WITH_UART, ROM_WITH_UART_SS};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState,
@@ -73,13 +73,15 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_success() {
+    use caliptra_builder::firmware::ROM_WITH_UART_SS;
+
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -133,13 +135,15 @@ fn test_dbg_unlock_manuf_success() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_wrong_cmd() {
+    use caliptra_builder::firmware::ROM_WITH_UART_SS;
+
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -186,13 +190,15 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_invalid_token() {
+    use caliptra_builder::firmware::ROM_WITH_UART_SS;
+
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Manufacturing);
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -264,6 +270,8 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_success() {
+    use caliptra_builder::firmware::ROM_WITH_UART_SS;
+
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
     let ecc_pub_key_bytes = {
@@ -291,7 +299,7 @@ fn test_dbg_unlock_prod_success() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let unlock_level = 5u8;
     let mut prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])> =
@@ -463,7 +471,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -542,7 +550,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -663,7 +671,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -815,7 +823,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -933,7 +941,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -1007,7 +1015,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 
         let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
         let mut prod_dbg_unlock_keypairs = Vec::new();
         for _ in 0..8 {
@@ -1165,7 +1173,7 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
 
         let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_SS).unwrap();
 
         let mut hw = caliptra_hw_model::new(
             caliptra_hw_model::InitParams {

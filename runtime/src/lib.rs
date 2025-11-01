@@ -52,6 +52,7 @@ pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
+use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
@@ -95,7 +96,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
@@ -202,7 +203,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
-    let cmd_bytes = req_packet.as_bytes()?;
+    let mut cmd_bytes = req_packet.as_bytes()?;
+    let mut cmd_id = req_packet.cmd;
 
     // Create human-readable name of command.
     let bytes = req_packet.cmd.to_be_bytes();
@@ -222,6 +224,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             req_packet.payload().len()
         );
     } else {
+        // Create human-readable name of command.
         cprintln!(
             "[rt] Received command=0x{:x}, len={}",
             req_packet.cmd,
@@ -229,10 +232,66 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
+    let mut external_cmd_buffer =
+        [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
+    if drivers.soc_ifc.has_ss_staging_area()
+        && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
+    {
+        let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        cmd_id = external_cmd.command_id;
+
+        if cmd_id == CommandId::FIRMWARE_LOAD.into() {
+            cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
+            update::handle_impactless_update(drivers)?;
+
+            // If the handler succeeds but does not invoke reset that is
+            // unexpected. Denote that the update failed.
+            return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+        } else {
+            cfi_assert_ne(cmd_id, CommandId::FIRMWARE_LOAD.into());
+        }
+
+        let axi_addr = AxiAddr {
+            lo: external_cmd.axi_address_start_low,
+            hi: external_cmd.axi_address_start_high,
+        };
+        let buffer = external_cmd_buffer
+            .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        drivers.dma.read_buffer(axi_addr, buffer);
+        cmd_bytes = buffer.as_bytes();
+
+        // Verify incoming checksum
+        // Make sure enough data was sent to even have a checksum
+        if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
+        // Assumes chksum is always offset 0
+        let req_hdr: &MailboxReqHeader = MailboxReqHeader::ref_from_bytes(
+            &cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()],
+        )
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        if !caliptra_common::checksum::verify_checksum(
+            req_hdr.chksum,
+            cmd_id,
+            &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
+        ) {
+            return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
+        }
+        cprintln!(
+            "[rt] Executing external command {:x}, len={}",
+            cmd_id,
+            cmd_bytes.len(),
+        );
+    }
+
     // stage the response once on the stack
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
-    let len = match CommandId::from(req_packet.cmd) {
+    let len = match CommandId::from(cmd_id) {
         CommandId::ACTIVATE_FIRMWARE => {
             activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
         }
@@ -456,6 +515,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // should be impossible
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     }
+
     let mbox = &mut drivers.mbox;
     let resp = &mut resp[..len];
     // Generate response checksum

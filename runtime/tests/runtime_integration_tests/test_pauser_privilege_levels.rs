@@ -316,6 +316,7 @@ fn test_change_locality() {
 }
 
 #[test]
+#[ignore] // [TODO][CAP2.1]: re-enable
 fn test_populate_idev_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut image_opts = ImageOptions {

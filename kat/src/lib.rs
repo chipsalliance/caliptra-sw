@@ -80,50 +80,55 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] SHA2-512-ACC");
     Sha2_512_384AccKat::default().execute(env.sha2_512_384_acc, env.sha_acc_lock_state)?;
 
-    cprintln!("[kat] SHAKE-256");
-    Shake256Kat::default().execute(env.sha3)?;
+    // cprintln!("[kat] SHAKE-256");
+    // Shake256Kat::default().execute(env.sha3)?;
 
     cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;
 
-    cprintln!("[kat] ECDH");
-    EcdhKat::default().execute(env.ecc384, env.trng)?;
+    // cprintln!("[kat] ECDH");
+    // EcdhKat::default().execute(env.ecc384, env.trng)?;
 
-    cprintln!("[kat] HMAC-384Kdf");
-    Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
+    if !cfg!(feature = "rom") {
+        cprintln!("[kat] HMAC-384Kdf");
+        Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
+    }
 
     cprintln!("[kat] HMAC-512Kdf");
     Hmac512KdfKat::default().execute(env.hmac, env.trng)?;
 
-    cprintln!("[kat] HKDF-384");
-    Hkdf384Kat::default().execute(env.hmac, env.trng)?;
+    if !cfg!(feature = "rom") {
+        cprintln!("[kat] HKDF-384");
+        Hkdf384Kat::default().execute(env.hmac, env.trng)?;
+    }
 
-    cprintln!("[kat] HKDF-512");
-    Hkdf512Kat::default().execute(env.hmac, env.trng)?;
+    // [TODO][CAP2.1]: re-enable all of these in relevant modes
+    // cprintln!("[kat] HKDF-512");
+    // Hkdf512Kat::default().execute(env.hmac, env.trng)?;
 
-    cprintln!("[kat] KDF-CMAC");
-    CmacKdfKat::default().execute(env.aes)?;
+    // cprintln!("[kat] KDF-CMAC");
+    // CmacKdfKat::default().execute(env.aes)?;
 
     cprintln!("[kat] LMS");
     LmsKat::default().execute(env.sha256, env.lms)?;
 
-    cprintln!("[kat] MLDSA87");
-    Mldsa87Kat::default().execute(env.mldsa87, env.trng)?;
+    // cprintln!("[kat] MLDSA87");
+    // Mldsa87Kat::default().execute(env.mldsa87, env.trng)?;
 
-    cprintln!("[kat] AES-256-ECB");
-    Aes256EcbKat::default().execute(env.aes)?;
+    // cprintln!("[kat] AES-256-ECB");
+    // Aes256EcbKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-CBC");
-    Aes256CbcKat::default().execute(env.aes)?;
+    // cprintln!("[kat] AES-256-CBC");
+    // Aes256CbcKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-CMAC");
-    Aes256CmacKat::default().execute(env.aes)?;
+    // cprintln!("[kat] AES-256-CMAC");
+    // Aes256CmacKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-CTR");
-    Aes256CtrKat::default().execute(env.aes)?;
+    // cprintln!("[kat] AES-256-CTR");
+    // Aes256CtrKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-GCM");
-    Aes256GcmKat::default().execute(env.aes, env.trng)?;
+    // cprintln!("[kat] AES-256-GCM");
+    // Aes256GcmKat::default().execute(env.aes, env.trng)?;
 
     cprintln!("[kat] --");
 

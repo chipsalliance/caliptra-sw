@@ -18,6 +18,7 @@ use caliptra_emu_bus::{Bus, BusMmio};
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, CpuArgs, InstrTracer, Pic};
+use caliptra_emu_periph::dma::axi_root_bus::AxiRootBus;
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
@@ -164,6 +165,7 @@ impl HwModel for ModelEmulated {
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
+            hw_rev: params.hw_rev,
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());
@@ -412,5 +414,30 @@ impl HwModel for ModelEmulated {
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         self.events_to_caliptra.clone()
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        if !self.has_ss_staging_area() {
+            return Err(ModelError::SubsystemSramError);
+        }
+
+        let payload_len = payload.len();
+        self.cpu
+            .bus
+            .bus
+            .dma
+            .axi
+            .mcu_sram
+            .data_mut()
+            .get_mut(..payload_len)
+            .ok_or(ModelError::SubsystemSramError)?
+            .copy_from_slice(payload);
+        Ok(AxiRootBus::mcu_sram_offset())
+    }
+
+    fn has_ss_staging_area(&self) -> bool {
+        let soc_ifc = &self.cpu.bus.bus.soc_reg;
+
+        soc_ifc.has_ss_staging_area()
     }
 }
