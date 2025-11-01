@@ -22,7 +22,7 @@ use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use caliptra_runtime::Drivers;
+use caliptra_runtime::{execute_kats, Drivers, Kats};
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -71,6 +71,11 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[state] CFI Disabled");
     }
 
+    execute_kats(&mut drivers, Kats::Initial).unwrap_or_else(|e| {
+        cprintln!("[rt] RT failed KATs");
+        handle_fatal_error(e.into());
+    });
+
     drivers.run_reset_flow().unwrap_or_else(|e| {
         cprintln!("[rt] RT failed reset flow");
         handle_fatal_error(e.into());
@@ -80,6 +85,7 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[rt] RT can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
+
     cprintln!("[rt] RT listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());

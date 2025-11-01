@@ -62,10 +62,13 @@ impl FipsModule {
 #[cfg(feature = "fips_self_test")]
 pub mod fips_self_test_cmd {
     use super::*;
-    use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
+    use crate::{
+        execute_kats, Kats,
+        RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted},
+    };
     use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
     use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
-    use caliptra_drivers::{ResetReason, ShaAccLockState};
+    use caliptra_drivers::ResetReason;
     use caliptra_image_types::{ImageTocEntry, RomInfo};
     use caliptra_image_verify::ImageVerifier;
     use zerocopy::IntoBytes;
@@ -138,54 +141,11 @@ pub mod fips_self_test_cmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
-        execute_kats(env)?;
+        // Execute KAT for cryptographic algorithms implemented in H/W.
+        execute_kats(env, Kats::All)?;
         rom_integrity_test(env)?;
         copy_and_verify_image(env)?;
         caliptra_drivers::report_boot_status(RtFipSelfTestComplete.into());
-        Ok(())
-    }
-
-    /// Execute KAT for cryptographic algorithms implemented in H/W.
-    fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
-            // sha256
-            sha256: &mut env.sha256,
-
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
-
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-
-            // SHA3/SHAKE
-            sha3: &mut env.sha3,
-
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
-
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
-
-            // LMS Engine
-            lms: &mut env.lms,
-
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
-
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
-
-            // AES Engine,
-            aes: &mut env.aes,
-
-            // SHA Acc Lock State
-            sha_acc_lock_state: ShaAccLockState::NotAcquired,
-        };
-
-        caliptra_kat::execute_kat(&mut kats_env)?;
         Ok(())
     }
 
