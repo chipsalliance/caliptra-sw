@@ -22,6 +22,8 @@ bitflags::bitflags! {
         const ROM_OCP_LOCK = 0b1 << 1;
         // Represents base capabilities present in Caliptra Runtime v1.0
         const RT_BASE = 0b1 << 64;
+        // RT firmware and hardware supports OCP LOCK
+        const RT_OCP_LOCK = 0b1 << 65;
     }
 }
 

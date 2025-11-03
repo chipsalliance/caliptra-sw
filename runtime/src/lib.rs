@@ -36,6 +36,7 @@ pub mod info;
 mod invoke_dpe;
 pub mod key_ladder;
 pub mod manifest;
+mod ocp_lock;
 mod pcr;
 mod populate_idev;
 mod reallocate_dpe_context_limits;
@@ -320,7 +321,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::CAPABILITIES => CapabilitiesCmd::execute(resp),
+        CommandId::CAPABILITIES => CapabilitiesCmd::execute(drivers, resp),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes, resp),

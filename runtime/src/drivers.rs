@@ -18,6 +18,7 @@ use crate::cryptographic_mailbox::CmStorage;
 use crate::debug_unlock::ProductionDebugUnlock;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
     dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
@@ -157,6 +158,7 @@ pub struct Drivers {
     pub aes: Aes,
 
     pub debug_unlock: ProductionDebugUnlock,
+    pub ocp_lock_context: OcpLockContext,
 }
 
 impl Drivers {
@@ -174,12 +176,14 @@ impl Drivers {
         )?;
 
         let aes = Aes::new(AesReg::new(), AesClpReg::new());
+        let soc_ifc = SocIfc::new(SocIfcReg::new());
+        let ocp_lock_context = OcpLockContext::new(&soc_ifc);
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             key_vault: KeyVault::new(KvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            soc_ifc,
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
@@ -202,6 +206,7 @@ impl Drivers {
             dma: Dma::default(),
             cryptographic_mailbox: CmStorage::new(),
             debug_unlock: ProductionDebugUnlock::new(),
+            ocp_lock_context,
             aes,
         })
     }

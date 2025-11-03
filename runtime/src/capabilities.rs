@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::mutrefbytes;
+use crate::{mutrefbytes, Drivers};
 use caliptra_common::{
     capabilities::Capabilities,
     mailbox_api::{CapabilitiesResp, MailboxRespHeader},
@@ -22,9 +22,13 @@ use caliptra_drivers::CaliptraResult;
 pub struct CapabilitiesCmd;
 impl CapabilitiesCmd {
     #[inline(never)]
-    pub(crate) fn execute(resp: &mut [u8]) -> CaliptraResult<usize> {
+    pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::RT_BASE;
+
+        if drivers.ocp_lock_context.available() {
+            capabilities |= Capabilities::RT_OCP_LOCK;
+        }
 
         let resp = mutrefbytes::<CapabilitiesResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
