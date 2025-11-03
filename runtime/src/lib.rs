@@ -179,10 +179,11 @@ fn enter_idle(drivers: &mut Drivers) {
 }
 
 fn human_readable_command(bytes: &[u8]) -> Option<&str> {
-    if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
-        None
+    if bytes.len() == 4 || bytes.iter().all(|c| c.is_ascii_alphanumeric()) {
+        // Safety: we just checked that all bytes are ASCII.
+        Some(unsafe { core::str::from_utf8_unchecked(bytes) })
     } else {
-        core::str::from_utf8(bytes).ok()
+        None
     }
 }
 
@@ -231,92 +232,15 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     let mut external_cmd_buffer =
         [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
-    // [TODO][CAP2.1]: only enable in subsystem mode once https://github.com/chipsalliance/caliptra-sw/pull/2686 is merged.
-    // if drivers.soc_ifc.has_ss_staging_area()
-    //     && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
-    if CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD {
-        let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        cmd_id = external_cmd.command_id;
 
-        if cmd_id == CommandId::FIRMWARE_LOAD.into() {
-            // [TODO][CAP2.1]: Add this in upcoming PR.
-            // cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
-            // update::handle_impactless_update(drivers)?;
-
-            // If the handler succeeds but does not invoke reset that is
-            // unexpected. Denote that the update failed.
-            // return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
-            return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
-        } else {
-            cfi_assert_ne(cmd_id, CommandId::FIRMWARE_LOAD.into());
-        }
-
-        let axi_addr = AxiAddr {
-            lo: external_cmd.axi_address_start_low,
-            hi: external_cmd.axi_address_start_high,
-        };
-
-        if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
-            cprintln!(
-                "[rt] Loading external command=0x{:x} ({}), len={} from AXI address: 0x{:x}",
-                external_cmd.command_id,
-                ascii,
-                external_cmd.command_size,
-                u64::from(axi_addr),
-            );
-        } else {
-            cprintln!(
-                "[rt] Loading external command=0x{:x}, len={} from AXI address: 0x{:x}",
-                external_cmd.command_id,
-                external_cmd.command_size,
-                u64::from(axi_addr),
-            );
-        }
-        // check that the command is not too large
-        if external_cmd.command_size as usize > caliptra_common::mailbox_api::MAX_REQ_SIZE {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-        }
-        let buffer = external_cmd_buffer
-            .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
+    if let Some(ext) =
+        handle_external_mailbox_cmd(cmd_id, cmd_bytes, drivers, &mut external_cmd_buffer)?
+    {
+        cmd_id = ext.cmd_id;
+        cmd_bytes = external_cmd_buffer
+            .as_bytes()
+            .get(..ext.cmd_size)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        drivers.dma.read_buffer(axi_addr, buffer);
-        cmd_bytes = buffer.as_bytes();
-
-        // Verify incoming checksum
-        // Make sure enough data was sent to even have a checksum
-        if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-        }
-
-        // Assumes chksum is always offset 0
-        let req_hdr: &MailboxReqHeader = MailboxReqHeader::ref_from_bytes(
-            &cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()],
-        )
-        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
-        if !caliptra_common::checksum::verify_checksum(
-            req_hdr.chksum,
-            cmd_id,
-            &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
-        ) {
-            return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
-        }
-
-        if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
-            cprintln!(
-                "[rt] Received external command=0x{:x} ({}), len={}",
-                cmd_id,
-                ascii,
-                cmd_bytes.len()
-            );
-        } else {
-            cprintln!(
-                "[rt] Received external command=0x{:x}, len={}",
-                cmd_id,
-                cmd_bytes.len()
-            );
-        }
     }
 
     // stage the response once on the stack
@@ -556,6 +480,115 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // zero the original resp buffer so as not to leak sensitive data
     resp.fill(0);
     Ok(MboxStatusE::DataReady)
+}
+
+struct ExternalCommand {
+    cmd_id: u32,
+    cmd_size: usize,
+}
+
+/// Handles an external mailbox command. If a valid external command was parsed,
+/// then Some is returned and the external mailbox command will be copied into
+/// the external_cmd_buffer argument.
+fn handle_external_mailbox_cmd(
+    cmd_id: u32,
+    cmd_bytes: &[u8],
+    drivers: &mut Drivers,
+    external_cmd_buffer: &mut [u32],
+) -> CaliptraResult<Option<ExternalCommand>> {
+    // [TODO][CAP2.1]: only enable in subsystem mode once https://github.com/chipsalliance/caliptra-sw/pull/2686 is merged.
+    // if drivers.soc_ifc.has_ss_staging_area()
+    //     && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
+    if CommandId::from(cmd_id) != CommandId::EXTERNAL_MAILBOX_CMD {
+        return Ok(None);
+    }
+    let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
+        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+    let cmd_id = external_cmd.command_id;
+
+    if cmd_id == CommandId::FIRMWARE_LOAD.into() {
+        // [TODO][CAP2.1]: Add this in upcoming PR.
+        // cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
+        // update::handle_impactless_update(drivers)?;
+
+        // If the handler succeeds but does not invoke reset that is
+        // unexpected. Denote that the update failed.
+        // return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+        return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
+    } else {
+        cfi_assert_ne(cmd_id, CommandId::FIRMWARE_LOAD.into());
+    }
+
+    let axi_addr = AxiAddr {
+        lo: external_cmd.axi_address_start_low,
+        hi: external_cmd.axi_address_start_high,
+    };
+
+    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
+        cprintln!(
+            "[rt] Loading external command=0x{:x} ({}), len={} from AXI address: 0x{:x}",
+            external_cmd.command_id,
+            ascii,
+            external_cmd.command_size,
+            u64::from(axi_addr),
+        );
+    } else {
+        cprintln!(
+            "[rt] Loading external command=0x{:x}, len={} from AXI address: 0x{:x}",
+            external_cmd.command_id,
+            external_cmd.command_size,
+            u64::from(axi_addr),
+        );
+    }
+    // check that the command is not too large
+    if external_cmd.command_size as usize > caliptra_common::mailbox_api::MAX_REQ_SIZE {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+    let buffer = external_cmd_buffer
+        .get_mut(..external_cmd.command_size as usize / size_of::<u32>())
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    drivers.dma.read_buffer(axi_addr, buffer);
+    let cmd_bytes = buffer.as_bytes();
+
+    // Verify incoming checksum
+    // Make sure enough data was sent to even have a checksum
+    if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+
+    // Assumes chksum is always offset 0
+    let req_hdr: &MailboxReqHeader =
+        MailboxReqHeader::ref_from_bytes(&cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+    if !caliptra_common::checksum::verify_checksum(
+        req_hdr.chksum,
+        cmd_id,
+        &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
+    ) {
+        return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
+    }
+
+    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
+        cprintln!(
+            "[rt] Received external command=0x{:x} ({}), len={}",
+            cmd_id,
+            ascii,
+            cmd_bytes.len()
+        );
+    } else {
+        cprintln!(
+            "[rt] Received external command=0x{:x}, len={}",
+            cmd_id,
+            cmd_bytes.len()
+        );
+    }
+
+    Ok(Some(ExternalCommand {
+        cmd_id,
+        cmd_size: cmd_bytes.len(),
+    }))
 }
 
 #[cfg(feature = "riscv")]
