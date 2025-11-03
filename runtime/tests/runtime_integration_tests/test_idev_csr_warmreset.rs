@@ -1,26 +1,27 @@
 use crate::common::wait_runtime_ready;
-use caliptra_common::mailbox_api::{
-    CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader,
-};
-
-use caliptra_builder::{get_ci_rom_version, CiRomVersion};
-use caliptra_drivers::{Ecc384IdevIdCsr, MfgFlags, Mldsa87IdevIdCsr};
-
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
-use openssl::x509::X509Req;
-use zerocopy::IntoBytes;
 
 use caliptra_builder::{
     build_and_sign_image, build_firmware_rom,
     firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
-    ImageOptions,
+    get_ci_rom_version, CiRomVersion, ImageOptions,
 };
 
-use caliptra_hw_model::{BootParams, Fuses, InitParams};
+use caliptra_common::mailbox_api::{
+    CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader,
+};
 
-use caliptra_test::image_pk_desc_hash;
+use caliptra_drivers::{Ecc384IdevIdCsr, MfgFlags, Mldsa87IdevIdCsr};
+
+use caliptra_hw_model::{
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
+};
 
 use caliptra_image_types::ImageBundle;
+use caliptra_test::image_pk_desc_hash;
+
+use openssl::x509::X509Req;
+
+use zerocopy::IntoBytes;
 
 pub struct BuildArgSCSR {
     pub security_state: SecurityState,
@@ -285,7 +286,7 @@ pub fn get_fmc_alias_ecc384_csr_once(model: &mut DefaultHwModel) -> Vec<u8> {
 }
 
 /// Fetch the FMC alias ML-DSA87 CSR once from the running model.
-/// Returns the CSR bytes as a Vec<u8>.
+/// Returns the CSR bytes .
 pub fn get_fmc_alias_mldsa87_csr_once(model: &mut DefaultHwModel) -> Vec<u8> {
     // Build mailbox request header with checksum
     let payload = MailboxReqHeader {
@@ -341,13 +342,11 @@ pub fn get_fmc_alias_mldsa87_csr_once(model: &mut DefaultHwModel) -> Vec<u8> {
     let _csr =
         X509Req::from_der(csr_bytes).expect("FMC alias MLDSA87 CSR is not valid DER / not a CSR");
 
-    // Return owned Vec so caller can diff across warm reset
     csr_bytes.to_vec()
 }
 
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
-
 fn test_get_idev_ecc384_csr_after_warm_reset() {
     // Boot runtime
     let mut model = build_model_ready_with_csrbit();
@@ -376,9 +375,8 @@ fn test_get_idev_ecc384_csr_after_warm_reset() {
 
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
-
 fn test_get_idev_mldsa87_csr_after_warm_reset() {
-    // Boot runtime in production-like state
+    // Boot runtime
     let mut model = build_model_ready_with_csrbit();
     wait_runtime_ready(&mut model);
 
@@ -404,12 +402,9 @@ fn test_get_idev_mldsa87_csr_after_warm_reset() {
 }
 
 /// Warm reset test for GET_FMC_ALIAS_ECC384_CSR.
-/// We expect *valid* CSR both before and after warm reset.
-/// We DO NOT require the CSR to be identical, since FMC alias keys
-/// can be regenerated per boot.
+
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
-
 fn test_get_fmc_alias_ecc384_csr_after_warm_reset() {
     // Boot model in production-like state
     let mut model = build_model_ready_with_csrbit();
@@ -441,11 +436,8 @@ fn test_get_fmc_alias_ecc384_csr_after_warm_reset() {
 }
 
 /// Warm reset test for GET_FMC_ALIAS_MLDSA87_CSR.
-/// Same logic as ECC384: validate both boots independently.
-/// Don't require stability across warm reset.
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
-
 fn test_get_fmc_alias_mldsa87_csr_after_warm_reset() {
     // Boot model in production-like state
     let mut model = build_model_ready_with_csrbit();
