@@ -42,6 +42,24 @@ pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
 
+#[cfg(feature = "fpga_subsystem")]
+pub const TEST_SRAM_SIZE: usize = 0x1000;
+#[cfg(feature = "fpga_subsystem")]
+const MCI_BASE: u32 = 0xA8000000;
+#[cfg(feature = "fpga_subsystem")]
+const MCU_MBOX_SRAM_BASE: u32 = MCI_BASE + 0x400000;
+#[cfg(feature = "fpga_subsystem")]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: MCU_MBOX_SRAM_BASE,
+    hi: 0x0000_0000,
+};
+
+#[cfg(not(feature = "fpga_subsystem"))]
+pub const TEST_SRAM_BASE: Addr64 = Addr64 {
+    lo: 0x0050_0000,
+    hi: 0x0000_0000,
+};
+
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -92,6 +110,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
 pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
+    mcu_image: &[u8],
 ) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -99,6 +118,13 @@ pub fn set_auth_manifest_with_test_sram(
             ..Default::default()
         }),
         test_sram: Some(test_sram),
+        soc_manifest: Some(
+            auth_manifest
+                .as_ref()
+                .map(|m| m.as_bytes())
+                .unwrap_or_default(),
+        ),
+        mcu_fw_image: Some(mcu_image),
         ..Default::default()
     };
 
@@ -996,6 +1022,78 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     );
 }
 
+fn get_mcu_image_metadata(mcu_image: &[u8]) -> AuthManifestImageMetadata {
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_exec_bit(2);
+    let mut hasher = Sha384::new();
+    hasher.update(mcu_image);
+    let fw_digest = hasher.finalize();
+
+    AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(FW_ID_2),
+        flags: flags.0,
+        digest: fw_digest.into(),
+        image_staging_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        image_load_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        ..Default::default()
+    }
+}
+
+#[cfg(feature = "fpga_subsystem")]
+pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
+    println!("locking  MCU mailbox SRAMs");
+    unsafe {
+        // Make sure the SRAMs are unlocked.
+        // In case SRAM is locked from a previous test, we need to unlock it first
+        // by writing 0 to the exec register.
+        // If it's already unlocked, this is a no-op
+        let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+        mcu_mbox_exec_ptr.write_volatile(0x0);
+
+        // Read from the lock register to the lock the SRAM
+        let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+        let _ = mcu_mbox_lock_ptr.read_volatile();
+    };
+
+    println!("Writing MCU mailbox SRAMs");
+    unsafe {
+        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+
+        for (count, chunk) in data.chunks(4).enumerate() {
+            mcu_mbox_sram_ptr
+                .offset(count as isize)
+                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+        }
+    };
+}
+
+fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) {
+    // For FPGA testing, we'll use the MCU mailbox SRAMs to simulate the test SRAM.
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        let staging_address = address.lo as usize - TEST_SRAM_BASE.lo as usize;
+        let mut test_sram_contents = vec![0u8; TEST_SRAM_SIZE];
+        let image_size = data.len();
+        test_sram_contents[staging_address..staging_address + image_size].copy_from_slice(data);
+
+        write_mcu_mbox_sram(model, &test_sram_contents);
+    }
+    #[cfg(not(feature = "fpga_subsystem"))]
+    {
+        let _ = model;
+        let _ = address;
+        let _ = data;
+    }
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1008,19 +1106,35 @@ fn test_authorize_from_load_address() {
     hasher.update(load_memory_contents);
     let fw_digest = hasher.finalize();
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: fw_digest.into(),
         image_load_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = {
+        let mut arr = [0u8; 256];
+        for (i, item) in arr.iter_mut().enumerate() {
+            *item = i as u8;
+        }
+        arr
+    };
 
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1044,6 +1158,7 @@ fn test_authorize_from_load_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1052,19 +1167,28 @@ fn test_authorize_from_load_address_incorrect_digest() {
 
     let load_memory_contents = [0x55u8; 512];
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: [0; 48],
         image_load_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1091,6 +1215,7 @@ fn test_authorize_from_load_address_incorrect_digest() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address() {
     let mut flags = ImageMetadataFlags(0);
@@ -1103,19 +1228,28 @@ fn test_authorize_from_staging_address() {
     hasher.update(load_memory_contents);
     let fw_digest = hasher.finalize();
 
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: fw_digest.into(),
         image_staging_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_staging_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,
@@ -1139,6 +1273,7 @@ fn test_authorize_from_staging_address() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address_incorrect_digest() {
     let mut flags = ImageMetadataFlags(0);
@@ -1146,19 +1281,28 @@ fn test_authorize_from_staging_address_incorrect_digest() {
     flags.set_image_source(ImageHashSource::StagingAddress as u32);
 
     let load_memory_contents = [0x55u8; 512];
-    let image_metadata = vec![AuthManifestImageMetadata {
+    let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
         digest: [0; 48],
         image_staging_address: Addr64 {
-            lo: 0x0050_0000,
-            hi: 0x0000_0000,
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
-    }];
-    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents);
+    };
+    let mcu_image = [0xAAu8; 256];
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
 
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_staging_address,
+        &load_memory_contents,
+    );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1,

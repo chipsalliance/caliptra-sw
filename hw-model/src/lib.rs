@@ -33,12 +33,14 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+pub mod jtag;
+pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
 pub mod openocd;
-mod otp_digest;
-mod otp_provision;
+pub mod otp_digest;
+pub mod otp_provision;
 mod recovery;
 pub mod xi3c;
 
@@ -75,6 +77,8 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::OpenOcdError;
 
+#[cfg(feature = "fpga_subsystem")]
+pub use keys::{DEFAULT_LIFECYCLE_RAW_TOKEN, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
 #[cfg(feature = "fpga_subsystem")]
@@ -186,7 +190,11 @@ pub struct InitParams<'a> {
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
+
+    // Whether or not to set the BootFSM break signal.
+    pub bootfsm_break: bool,
 
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
@@ -258,6 +266,7 @@ impl Default for InitParams<'_> {
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
+            bootfsm_break: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
@@ -316,6 +325,7 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
     std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
+#[derive(Clone)]
 pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
@@ -710,11 +720,38 @@ pub trait HwModel: SocManager {
     fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
-    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+    fn warm_reset_flow(&mut self, boot_params: &BootParams) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
         self.warm_reset();
 
-        HwModel::init_fuses(self, fuses);
+        HwModel::init_fuses(self, &boot_params.fuses);
+
+        // Set the registers that were cleared by the warm reset.
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_1()
+                .write(|_| reg);
+        }
+
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_0()
+                .write(|_| reg);
+        }
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+            .map_err(ModelError::from)?;
+
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        Ok(())
     }
 
     /// The APB bus from the SoC to Caliptra

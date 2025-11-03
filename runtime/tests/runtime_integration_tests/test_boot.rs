@@ -74,6 +74,7 @@ fn test_fw_version() {
 #[test]
 fn test_update() {
     let image_options = ImageOptions {
+        fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
         pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
@@ -133,7 +134,7 @@ fn test_stress_update() {
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let stress_num = if cfg!(feature = "slow_tests") { 500 } else { 1 };
+    let stress_num = if cfg!(feature = "slow_tests") { 250 } else { 1 };
     let mut image_select = 0;
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());

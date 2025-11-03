@@ -2,6 +2,8 @@
 
 use bitflags::bitflags;
 
+use crate::jtag::JtagAccessibleReg;
+
 #[derive(Clone, Copy, Debug)]
 #[repr(u32)]
 pub enum LcCtrlReg {
@@ -42,16 +44,9 @@ pub enum LcCtrlReg {
     ManufState7 = 0x88,
 }
 
-impl LcCtrlReg {
-    pub fn byte_offset(&self) -> u32 {
+impl JtagAccessibleReg for LcCtrlReg {
+    fn byte_offset(&self) -> u32 {
         *self as u32
-    }
-
-    /// Converts the register's byte offset into a word offset for use with DMI.
-    pub fn word_offset(&self) -> u32 {
-        const BYTES_PER_WORD: u32 = std::mem::size_of::<u32>() as u32;
-        assert_eq!(self.byte_offset() % BYTES_PER_WORD, 0);
-        self.byte_offset() / BYTES_PER_WORD
     }
 }
 
@@ -81,5 +76,13 @@ bitflags! {
             Self::STATE_ERROR.bits() |
             Self::BUS_INTEG_ERROR.bits() |
             Self::OTP_PARTITION_ERROR.bits();
+    }
+}
+
+bitflags! {
+    /// Bits of the lc_ctrl.TRANSITION_CMD register, aka [LcCtrlReg::TransitionCmd].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct LcCtrlTransitionCmd: u32 {
+        const START = 0b1;
     }
 }

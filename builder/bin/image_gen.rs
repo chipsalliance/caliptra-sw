@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use zerocopy::FromBytes;
 
 fn main() {
-    let args = Command::new("image-gen")
+    let mut cmd = Command::new("image-gen")
         .about("Caliptra firmware image builder")
         .arg(
             arg!(--"rom-no-log" [FILE] "ROM binary image (prod)")
@@ -48,20 +48,26 @@ fn main() {
             arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
                 .value_parser(value_parser!(i32)),
         )
-        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)))
-        .get_matches();
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)));
+    let args = cmd.get_matches_mut();
+
+    // Print help if the provided args did not create anything.
+    let mut valid_cmd = false;
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
         let rom = caliptra_builder::build_firmware_rom(&firmware::ROM).unwrap();
+        valid_cmd = true;
         std::fs::write(path, rom).unwrap();
     }
 
     if let Some(path) = args.get_one::<PathBuf>("rom-with-log") {
         let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+        valid_cmd = true;
         std::fs::write(path, rom).unwrap();
     }
     if let Some(path) = args.get_one::<PathBuf>("fake-rom") {
         let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_FAKE_WITH_UART).unwrap();
+        valid_cmd = true;
         std::fs::write(path, rom).unwrap();
     }
 
@@ -117,6 +123,7 @@ fn main() {
         }
 
         let contents = image.to_bytes().unwrap();
+        valid_cmd = true;
         std::fs::write(path, contents.clone()).unwrap();
 
         if let Some(path) = args.get_one::<PathBuf>("hashes") {
@@ -134,6 +141,7 @@ fn main() {
                 "vendor": format!("{vendor_digest:02x}"),
                 "owner": format!("{owner_digest:02x}"),
             });
+            valid_cmd = true;
             std::fs::write(path, to_string_pretty(&json).unwrap()).unwrap();
         }
     }
@@ -151,6 +159,7 @@ fn main() {
             },
         )
         .unwrap();
+        valid_cmd = true;
         std::fs::write(path, image.to_bytes().unwrap()).unwrap();
     }
 
@@ -163,8 +172,13 @@ fn main() {
             if !used_filenames.insert(elf_filename.clone()) {
                 panic!("Multiple fwids with filename {elf_filename}")
             }
+            valid_cmd = true;
             std::fs::write(all_dir.join(elf_filename), elf_bytes).unwrap();
         }
+    }
+
+    if !valid_cmd {
+        let _ = cmd.print_long_help();
     }
 }
 
