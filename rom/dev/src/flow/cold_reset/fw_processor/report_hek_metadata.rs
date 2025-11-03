@@ -8,18 +8,18 @@ File Name:
 
 Abstract:
 
-    File contains REPORT_HEK_METADATA mailbox command.
+    File contains OCP_LOCK_REPORT_HEK_METADATA mailbox command.
 
 --*/
 
-use caliptra_api::mailbox::ReportHekMetadataReq;
+use caliptra_api::mailbox::OcpLockReportHekMetadataReq;
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::flow::cold_reset::ocp_lock;
 
-pub struct ReportHekMetadataCmd;
-impl ReportHekMetadataCmd {
+pub struct OcpLockReportHekMetadataCmd;
+impl OcpLockReportHekMetadataCmd {
     #[inline(always)]
     pub(crate) fn execute(
         cmd_bytes: &[u8],
@@ -27,20 +27,21 @@ impl ReportHekMetadataCmd {
         persistent_data: &mut PersistentData,
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let request = ReportHekMetadataReq::ref_from_bytes(cmd_bytes)
+        let request = OcpLockReportHekMetadataReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         if !soc_ifc.ocp_lock_enabled() {
             Err(CaliptraError::FW_PROC_OCP_LOCK_UNSUPPORTED)?;
         }
 
-        // Use the response buffer directly as ReportHekMetadataResp.
+        // Use the response buffer directly as OcpLockReportHekMetadataResp.
         // The buffer is zeroized at the start of the loop
-        let resp_buffer_size = core::mem::size_of::<caliptra_api::mailbox::ReportHekMetadataResp>();
+        let resp_buffer_size =
+            core::mem::size_of::<caliptra_api::mailbox::OcpLockReportHekMetadataResp>();
         let resp = resp
             .get_mut(..resp_buffer_size)
             .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-        let hek_resp = caliptra_api::mailbox::ReportHekMetadataResp::mut_from_bytes(resp)
+        let hek_resp = caliptra_api::mailbox::OcpLockReportHekMetadataResp::mut_from_bytes(resp)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         let hek_resp_data = ocp_lock::handle_report_hek_metadata(

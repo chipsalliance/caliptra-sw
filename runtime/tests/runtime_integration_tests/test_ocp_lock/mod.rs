@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    CommandId, MailboxReq, MailboxReqHeader, ReportHekMetadataReq, ReportHekMetadataResp,
-    ReportHekMetadataRespFlags,
+    CommandId, MailboxReq, MailboxReqHeader, OcpLockReportHekMetadataReq,
+    OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
 };
 use caliptra_builder::firmware::runtime_tests;
 use caliptra_drivers::HekSeedState;
@@ -12,6 +12,8 @@ use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
+
+mod test_get_algorithms;
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
@@ -33,7 +35,7 @@ fn test_hek_metadata_never_reported() {
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_hek_available() {
-    let mut cmd = MailboxReq::ReportHekMetadata(ReportHekMetadataReq {
+    let mut cmd = MailboxReq::OcpLockReportHekMetadata(OcpLockReportHekMetadataReq {
         hdr: MailboxReqHeader { chksum: 0 },
         seed_state: HekSeedState::Programmed.into(),
         ..Default::default()
@@ -44,16 +46,16 @@ fn test_hek_available() {
     let rom_callback = move |model: &mut DefaultHwModel| {
         let response = model
             .mailbox_execute(
-                CommandId::REPORT_HEK_METADATA.into(),
+                CommandId::OCP_LOCK_REPORT_HEK_METADATA.into(),
                 cmd.as_bytes().unwrap(),
             )
             .unwrap()
             .unwrap();
 
-        let response = ReportHekMetadataResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let response = OcpLockReportHekMetadataResp::ref_from_bytes(response.as_bytes()).unwrap();
         assert!(response
             .flags
-            .contains(ReportHekMetadataRespFlags::HEK_AVAILABLE));
+            .contains(OcpLockReportHekMetadataRespFlags::HEK_AVAILABLE));
     };
 
     let mut model = run_rt_test(RuntimeTestArgs {

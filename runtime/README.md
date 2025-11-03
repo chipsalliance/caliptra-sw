@@ -1321,6 +1321,12 @@ Command Code: `0x4143_5446` ("ACTF")
 | chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
 
+## Mailbox commands: OCP LOCK v1.0
+
+These commands are defined in the OCP LOCK v1.0 [specification](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf).
+
+### GET_ALGORITHMS
+
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
 These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
