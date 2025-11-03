@@ -1,4 +1,10 @@
-{ config, pkgs, user, fpga-boss-script, ... }:
+{
+  config,
+  pkgs,
+  user,
+  fpga-boss-script,
+  ...
+}:
 {
   systemd.user.services.vck-7 = {
     enable = true;
@@ -80,19 +86,23 @@
     };
   };
   environment.systemPackages = with pkgs; [
-      ((pkgs.writeShellScriptBin "vck-4-debug" ''
+    (
+      (pkgs.writeShellScriptBin "vck-4-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.2"
         export ZCU_SDWIRE="1-1.1"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
-      ((pkgs.writeShellScriptBin "vck-0-debug" ''
+      '')
+    )
+    (
+      (pkgs.writeShellScriptBin "vck-0-debug" ''
         #!${pkgs.bash}/bin/bash
         export ZCU_FTDI="1-1.3.2"
         export ZCU_SDWIRE="1-1.3.1"
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-     ''))
+      '')
+    )
   ];
 }
