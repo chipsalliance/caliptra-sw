@@ -27,7 +27,7 @@ pub trait Ecdsa384SignatureAdapter {
 }
 
 impl Ecdsa384SignatureAdapter for Ecc384Signature {
-    /// Convert to ECDSA Signatuure
+    /// Convert to ECDSA Signature
     fn to_ecdsa(&self) -> Ecdsa384Signature {
         Ecdsa384Signature {
             r: (&self.r).into(),
