@@ -179,7 +179,7 @@ fn enter_idle(drivers: &mut Drivers) {
 }
 
 fn human_readable_command(bytes: &[u8]) -> Option<&str> {
-    if bytes.len() == 4 || bytes.iter().all(|c| c.is_ascii_alphanumeric()) {
+    if bytes.len() == 4 && bytes.iter().all(|c| c.is_ascii_alphanumeric()) {
         // Safety: we just checked that all bytes are ASCII.
         Some(unsafe { core::str::from_utf8_unchecked(bytes) })
     } else {
