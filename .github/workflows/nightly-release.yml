@@ -404,13 +404,20 @@ jobs:
           git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
           git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
 
-      - name: Upload release
+      - name: Create draft release and upload assets
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          draft: true
           files: |
             ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
             ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v1
+        with:
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          draft: false
           prerelease: true
 
       - name: Write artifact to workflow with release info
