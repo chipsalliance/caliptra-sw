@@ -405,7 +405,7 @@ jobs:
           git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
 
       - name: Create draft release and upload assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
           draft: true
@@ -414,7 +414,7 @@ jobs:
             ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
       - name: Publish release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
           draft: false
