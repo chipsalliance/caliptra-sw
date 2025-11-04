@@ -9,8 +9,8 @@ use caliptra_builder::{firmware, FwId};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::{DoeTestResults, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS};
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
-    TrngMode,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -42,7 +42,13 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
             subsystem_mode: true,
             ..default_init_params()
         },
-        BootParams::default(),
+        BootParams {
+            fuses: Fuses {
+                hek_seed: [0xABDEu32; 8],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
     )
 }
 
