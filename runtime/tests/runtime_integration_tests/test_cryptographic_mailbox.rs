@@ -336,6 +336,98 @@ fn test_sha384_simple() {
 }
 
 #[test]
+fn test_sha_partial_update() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check sha384 and sha512
+    for sha in [1, 2] {
+        let input_str = "a".repeat(2048);
+        let input_copy = input_str.clone();
+        let original_input_data = input_copy.as_bytes();
+        let mut input_data = input_str.as_bytes().to_vec();
+        let mut input_data = input_data.as_mut_slice();
+
+        let split = 4;
+        let initial = 1024;
+
+        let mut req: CmShaInitReq = CmShaInitReq {
+            hash_algorithm: sha,
+            input_size: initial as u32,
+            ..Default::default()
+        };
+        req.input[..initial].copy_from_slice(&input_data[..initial]);
+        input_data = &mut input_data[initial..];
+
+        let mut init = MailboxReq::CmShaInit(req);
+        init.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(u32::from(CommandId::CM_SHA_INIT), init.as_bytes().unwrap())
+            .unwrap()
+            .expect("Should have gotten a context");
+        let mut resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        let mut resp_bytes: Vec<u8>;
+
+        while input_data.len() > split {
+            let mut req = CmShaUpdateReq {
+                input_size: split as u32,
+                context: resp.context,
+                ..Default::default()
+            };
+            req.input[..split].copy_from_slice(&input_data[..split]);
+
+            let mut update = MailboxReq::CmShaUpdate(req);
+            update.populate_chksum().unwrap();
+            resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_SHA_UPDATE),
+                    update.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("Should have gotten a context");
+
+            resp = CmShaInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+            input_data = &mut input_data[split..];
+        }
+
+        let mut req = CmShaFinalReq {
+            input_size: input_data.len() as u32,
+            context: resp.context,
+            ..Default::default()
+        };
+        req.input[..input_data.len()].copy_from_slice(input_data);
+
+        let mut fin = MailboxReq::CmShaFinal(req);
+        fin.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(u32::from(CommandId::CM_SHA_FINAL), fin.as_bytes().unwrap())
+            .unwrap()
+            .expect("Should have gotten a context");
+
+        let mut expected_resp = CmShaFinalResp::default();
+        if sha == 1 {
+            let mut hasher = Sha384::new();
+            hasher.update(original_input_data);
+            let expected_hash = hasher.finalize();
+            expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
+            expected_resp.hdr.data_len = 48;
+        } else {
+            let mut hasher = Sha512::new();
+            hasher.update(original_input_data);
+            let expected_hash = hasher.finalize();
+            expected_resp.hash.copy_from_slice(expected_hash.as_bytes());
+            expected_resp.hdr.data_len = 64;
+        };
+        populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+        let expected_bytes = expected_resp.as_bytes_partial().unwrap();
+        assert_eq!(expected_bytes, resp_bytes);
+    }
+}
+
+#[test]
 fn test_sha_many() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
@@ -623,7 +715,14 @@ fn test_random_stir_itrng() {
     }
 }
 
-#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)] // FPGA always has an itrng
+#[cfg_attr(
+    any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem",
+        feature = "itrng"
+    ),
+    ignore
+)] // FPGA always has an itrng
 #[test]
 fn test_random_stir_etrng_not_supported() {
     let mut model = run_rt_test(RuntimeTestArgs::default());

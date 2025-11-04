@@ -10,30 +10,24 @@ use caliptra_common::{
         CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetLdevCertResp,
         MailboxReq, MailboxReqHeader, MailboxRespHeader, PopulateIdevEcc384CertReq,
     },
+    x509::get_tbs,
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
-use zerocopy::{FromBytes, IntoBytes};
-
-use caliptra_common::x509::get_tbs;
-
-use openssl::ecdsa::EcdsaSig;
-
-use openssl::x509::X509;
-
-use std::cmp::Ordering;
-
-use openssl::{
-    bn::{BigNum, BigNumContext},
-    ec::{EcGroup, EcKey, EcPoint},
-    nid::Nid,
-    pkey::{PKey, Private},
-    sha::sha384,
-};
-
 use dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
 };
+
+use openssl::{
+    bn::{BigNum, BigNumContext},
+    ec::{EcGroup, EcKey, EcPoint},
+    ecdsa::EcdsaSig,
+    nid::Nid,
+    pkey::{PKey, Private},
+    x509::X509,
+};
+
+use zerocopy::{FromBytes, IntoBytes};
 
 fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usize {
     // first half
@@ -86,7 +80,7 @@ fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_cert
 
 /// Deterministically derive a P-384 EC key from `seed`.
 /// Same seed => same key.
-pub fn deterministic_p384_key_from_seed(seed: &[u8]) -> PKey<Private> {
+pub fn deterministic_p384_key_from_seed() -> PKey<Private> {
     // Curve group and order n
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
     let mut n = BigNum::new().unwrap();
@@ -94,26 +88,10 @@ pub fn deterministic_p384_key_from_seed(seed: &[u8]) -> PKey<Private> {
         .order(&mut n, &mut BigNumContext::new().unwrap())
         .unwrap();
 
-    // Helper: portable zero check
-    fn is_zero_bn(bn: &BigNum) -> bool {
-        bn.num_bits() == 0
-    }
-
-    // Find d in [1, n-1] by hashing (seed || counter) until d < n and d != 0
-    let mut ctr: u32 = 0;
-    let d = loop {
-        let mut buf = Vec::with_capacity(seed.len() + 4);
-        buf.extend_from_slice(seed);
-        buf.extend_from_slice(&ctr.to_be_bytes());
-        let h = sha384(&buf);
-
-        let cand = BigNum::from_slice(&h).unwrap();
-        if !is_zero_bn(&cand) && cand.ucmp(&n) == Ordering::Less {
-            break cand;
-        }
-        ctr = ctr.wrapping_add(1);
-    };
-
+    let d = BigNum::from_hex_str(
+        "3A1F4C9B2D7E11A0C4B85566778899AABBCCDDEEFF00112233445566778899AABBCCDDEE",
+    )
+    .unwrap();
     // Q = d·G
     let ctx = BigNumContext::new().unwrap();
     let mut q = EcPoint::new(&group).unwrap();
@@ -128,8 +106,7 @@ pub fn deterministic_p384_key_from_seed(seed: &[u8]) -> PKey<Private> {
 fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
     // Build deterministic ec_Key so pub key will be the same
 
-    const TEST_SEED: &[u8] = b"idev-cert-seed-v1";
-    let ec_key = deterministic_p384_key_from_seed(TEST_SEED);
+    let ec_key = deterministic_p384_key_from_seed();
 
     let cert = generate_test_x509_cert(&ec_key);
     assert!(
@@ -196,8 +173,9 @@ fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_cert_after_warm_reset() {
-    // Build runtime using your helper
+    // Boot time
     let args = BuildArgs {
         security_state: *SecurityState::default()
             .set_debug_locked(true)
@@ -219,7 +197,7 @@ fn test_get_idev_ecc384_cert_after_warm_reset() {
     let (_raw_after, cert_after) = get_idev_384_cert(&mut model);
 
     /*assert_eq!(
-        raw_before, raw_after,
+        _raw_before, _raw_after,
         "IDev certificate changed across warm reset"
     );
     assert_eq!(
@@ -288,6 +266,7 @@ fn get_idev_384_info(
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_info_after_warm_reset() {
     // Boot with build_ready_runtime_model
     let args = BuildArgs {
@@ -331,6 +310,7 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_populate_idev_ecc_cert_after_warm_reset() {
     // Boot runtime using the ready-model helper
     let args = BuildArgs {
@@ -474,6 +454,7 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let args = BuildArgs {
@@ -509,6 +490,7 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let args = BuildArgs {

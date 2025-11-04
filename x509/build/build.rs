@@ -43,6 +43,7 @@ fn main() {
         gen_local_devid_cert(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
+        gen_ocp_lock_endorsement_cert(out_dir);
     }
 }
 
@@ -91,14 +92,14 @@ fn gen_fmc_alias_csr(out_dir: &str) {
 fn gen_local_devid_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
-    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 2.0 Ecc384 LDevID", "Caliptra 2.0 Ecc384 IDevID");
     CodeGen::gen_code("LocalDevIdCertTbsEcc384", template, out_dir);
 
-    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
@@ -111,7 +112,7 @@ fn gen_local_devid_cert(out_dir: &str) {
 fn gen_fmc_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
-    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
         .add_basic_constraints_ext(true, 3)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
@@ -139,7 +140,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
     );
     CodeGen::gen_code("FmcAliasCertTbsEcc384", template, out_dir);
 
-    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 3)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
@@ -176,7 +177,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
     usage.set_key_cert_sign(true);
     // Add DigitalSignature to allow signing of firmware
     usage.set_digital_signature(true);
-    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
         // Basic Constraints : CA = true, PathLen = 2
         .add_basic_constraints_ext(true, 2)
         .add_key_usage_ext(usage)
@@ -194,7 +195,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
     );
     CodeGen::gen_code("RtAliasCertTbsEcc384", template, out_dir);
 
-    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo>::new()
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
         // Basic Constraints : CA = true, PathLen = 2
         .add_basic_constraints_ext(true, 2)
         .add_key_usage_ext(usage)
@@ -211,4 +212,71 @@ fn gen_rt_alias_cert(out_dir: &str) {
         "Caliptra 2.0 MlDsa87 FMC Alias",
     );
     CodeGen::gen_code("RtAliasCertTbsMlDsa87", template, out_dir);
+}
+
+/// Generate OCP LOCK HPKE Endorsement Certificate Templates
+#[cfg(feature = "generate_templates")]
+fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
+    use x509::{HPKEIdentifiers, MlKem1024Algo};
+    let mut usage = KeyUsage::default();
+    // 4.2.2.1.3
+    // In addition, the X.509 extended attributes SHALL:
+    // * Indicate the key usage as keyEncipherment
+    usage.set_key_encipherment(true);
+
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, MlKem1024Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ML_KEM_1024_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ML-KEM 1024",
+        "Caliptra 2.0 Ecc384 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockMlKemCertTbsEcc384", template, out_dir);
+
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlKem1024Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ML_KEM_1024_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ML-KEM 1024",
+        "Caliptra 2.0 MlDsa87 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockMlKemCertTbsMlDsa87", template, out_dir);
+
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ECDH P-384",
+        "Caliptra 2.0 Ecc384 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockEcdh384CertTbsEcc384", template, out_dir);
+
+    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ECDH P-384",
+        "Caliptra 2.0 MlDsa87 Rt Alias",
+    );
+    CodeGen::gen_code("OcpLockEcdh384CertTbsMlDsa87", template, out_dir);
 }
