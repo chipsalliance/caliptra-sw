@@ -23,6 +23,8 @@ use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
+use zerocopy::IntoBytes;
+
 /// Initialization vector size
 const DOE_IV_SIZE: usize = 16;
 
@@ -44,6 +46,12 @@ register_bitfields! [
             CLEAR_SECRETS = 0b11,
         ],
         DEST OFFSET(2) NUMBITS(5) [],
+        CMD_EXT OFFSET(7) NUMBITS(2) [
+            DOE_STD = 0b00,
+            DOE_HEK = 0b01,
+            DOE_RSVD0 = 0b10,
+            DOE_RSVD1 = 0b11,
+        ],
     ],
 
     /// Status Register Fields
@@ -129,7 +137,9 @@ impl Doe {
         // Set the control register
         self.control.reg.set(val);
 
-        if self.control.reg.read(Control::CMD) != Control::CMD::IDLE.value {
+        if self.control.reg.read(Control::CMD) != Control::CMD::IDLE.value
+            || self.control.reg.is_set(Control::CMD_EXT)
+        {
             self.status
                 .reg
                 .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
@@ -149,6 +159,11 @@ impl Doe {
                 Some(Control::CMD::Value::CLEAR_SECRETS) => self.clear_secrets(),
                 _ => {}
             }
+            if let Some(Control::CMD_EXT::Value::DOE_HEK) =
+                self.control.reg.read_as_enum(Control::CMD_EXT)
+            {
+                self.unscramble_hek_seed(key_id)
+            };
             self.status
                 .reg
                 .modify(Status::READY::SET + Status::VALID::SET);
@@ -200,6 +215,29 @@ impl Doe {
         );
         self.key_vault
             .write_key(key_id, &bytes_swap_word_endian(&plain_fe), DOE_KEY_USAGE)
+            .unwrap();
+    }
+
+    /// Unscramble hek seed and store it in key vault
+    ///
+    /// # Argument
+    ///
+    /// * `key_id` - Key index to store the hek seed
+    fn unscramble_hek_seed(&mut self, key_id: u32) {
+        let mut plain_hek_seed = [0_u8; 32];
+        let cipher_hek_seed = self.soc_reg.doe_hek_seed();
+        Aes256Cbc::decrypt(
+            &self.soc_reg.doe_key(),
+            self.iv.data(),
+            cipher_hek_seed.as_bytes(),
+            &mut plain_hek_seed[..cipher_hek_seed.len()],
+        );
+        self.key_vault
+            .write_key(
+                key_id,
+                &bytes_swap_word_endian(&plain_hek_seed),
+                DOE_KEY_USAGE,
+            )
             .unwrap();
     }
 
@@ -381,14 +419,17 @@ mod tests {
     }
 
     #[test]
-    fn test_clear_secrets() {
-        let expected_uds = [0u8; 64];
-        let expected_doe_key = [0u8; 32];
-        let expected_fe = [0u8; 32];
+    fn test_deobfuscate_hek_seed() {
+        const PLAIN_TEXT_HEK_SEED: [u8; 48] = [
+            0x4D, 0x65, 0x10, 0xC6, 0x53, 0xA8, 0xED, 0xB4, 0xEF, 0x6D, 0x54, 0xCF, 0x5F, 0xC1,
+            0x4E, 0x52, 0xB2, 0x9A, 0xEF, 0x39, 0xAC, 0x57, 0x12, 0x4B, 0x10, 0x92, 0xAB, 0x30,
+            0xA0, 0x3E, 0xB1, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
         let mci = Mci::new(vec![]);
-        let soc_reg = SocRegistersInternal::new(
+        let mut soc_reg = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci.clone(),
@@ -398,10 +439,83 @@ mod tests {
                 ..CaliptraRootBusArgs::default()
             },
         );
+        soc_reg.set_hek_seed(&[0xFFFF_FFFF; 8]);
+        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
+
+        let mut iv = [0u8; DOE_IV_SIZE];
+        iv.to_big_endian();
+
+        for i in (0..iv.len()).step_by(4) {
+            assert_eq!(
+                doe.write(RvSize::Word, OFFSET_IV + i as RvAddr, make_word(i, &iv))
+                    .ok(),
+                Some(())
+            );
+        }
+
+        assert_eq!(
+            doe.write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                (Control::CMD_EXT::DOE_HEK + Control::DEST.val(3)).value
+            )
+            .ok(),
+            Some(())
+        );
+
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::VALID) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut doe);
+        }
+
+        let mut ku_hmac_data = KeyUsage::default();
+        ku_hmac_data.set_hmac_data(true);
+
+        let mut ku_hmac_key = KeyUsage::default();
+        ku_hmac_key.set_hmac_key(true);
+
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_data).unwrap()[..48],
+            PLAIN_TEXT_HEK_SEED
+        );
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_key).unwrap()[..48],
+            PLAIN_TEXT_HEK_SEED
+        );
+    }
+
+    #[test]
+    fn test_clear_secrets() {
+        let expected_uds = [0u8; 64];
+        let expected_doe_key = [0u8; 32];
+        let expected_fe = [0u8; 32];
+        let expected_hek_seed = [0u8; 32];
+        let clock = Rc::new(Clock::new());
+        let key_vault = KeyVault::new();
+        let mci = Mci::new(vec![]);
+        let mut soc_reg = SocRegistersInternal::new(
+            MailboxInternal::new(&clock, MailboxRam::default()),
+            Iccm::new(&clock),
+            mci.clone(),
+            CaliptraRootBusArgs {
+                clock: clock.clone(),
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        soc_reg.set_hek_seed(&[0xABAB_ABAB; 8]);
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
         assert_ne!(soc_reg.doe_key(), expected_doe_key);
         assert_ne!(soc_reg.field_entropy(), expected_fe);
+        assert_ne!(soc_reg.doe_hek_seed(), expected_hek_seed);
 
         assert_eq!(
             doe.write(
@@ -428,5 +542,6 @@ mod tests {
         assert_eq!(soc_reg.uds(), expected_uds);
         assert_eq!(soc_reg.doe_key(), expected_doe_key);
         assert_eq!(soc_reg.field_entropy(), expected_fe);
+        assert_eq!(soc_reg.doe_hek_seed(), expected_hek_seed);
     }
 }
