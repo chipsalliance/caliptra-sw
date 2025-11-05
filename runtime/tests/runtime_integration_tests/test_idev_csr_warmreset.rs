@@ -402,11 +402,10 @@ fn test_get_idev_mldsa87_csr_after_warm_reset() {
 }
 
 /// Warm reset test for GET_FMC_ALIAS_ECC384_CSR.
-
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_fmc_alias_ecc384_csr_after_warm_reset() {
-    // Boot model in production-like state
+    // Boot model
     let mut model = build_model_ready_with_csrbit();
     wait_runtime_ready(&mut model);
 
@@ -439,7 +438,7 @@ fn test_get_fmc_alias_ecc384_csr_after_warm_reset() {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_fmc_alias_mldsa87_csr_after_warm_reset() {
-    // Boot model in production-like state
+    // Boot model
     let mut model = build_model_ready_with_csrbit();
     wait_runtime_ready(&mut model);
     // Issue CSR request before warm reset

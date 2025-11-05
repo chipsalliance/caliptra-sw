@@ -137,14 +137,12 @@ fn test_missing_csr() {
 
 #[test]
 fn test_get_fmc_alias_ecc384_csr() {
-    // Bring up a production-like runtime model
+    // Bring up runtime model
     let args = RuntimeTestArgs {
         test_mfg_flags: Some(MfgFlags::GENERATE_IDEVID_CSR),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
-
-    // Build mailbox request header with correct checksum
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -153,52 +151,63 @@ fn test_get_fmc_alias_ecc384_csr() {
         ),
     };
 
-    // Execute GET_FMC_ALIAS_ECC384_CSR
-    let result = model.mailbox_execute(
-        u32::from(CommandId::GET_FMC_ALIAS_ECC384_CSR),
-        payload.as_bytes(),
-    );
-
-    // We expect runtime to respond with a CSR blob
-    let response = result
+    let response = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CSR),
+            payload.as_bytes(),
+        )
         .expect("mailbox_execute failed")
         .expect("no response from GET_FMC_ALIAS_ECC384_CSR");
 
     let mut csr_resp = GetIdevCsrResp::default();
     csr_resp.as_mut_bytes()[..response.len()].copy_from_slice(&response);
 
-    // Sanity: runtime actually provisioned an FMC alias ECC384 CSR
-    assert_ne!(
-        0, csr_resp.data_size,
-        "FMC alias ECC384 CSR data_size was 0 (unprovisioned?)"
+    assert!(
+        csr_resp.data_size > 0,
+        "CSR data_size was 0 (unprovisioned?)"
+    );
+    assert!(
+        (csr_resp.data_size as usize) <= csr_resp.data.len(),
+        "CSR data_size out of bounds"
     );
 
-    // Slice out just the valid CSR bytes
     let csr_bytes = &csr_resp.data[..csr_resp.data_size as usize];
 
-    // CSR shouldn't be all zeros
     assert!(
         csr_bytes.iter().any(|&b| b != 0),
         "FMC alias ECC384 CSR buffer is unexpectedly all zeros"
     );
 
-    // CSR should be a valid DER-encoded PKCS#10 CSR
+    let req = X509Req::from_der(csr_bytes).expect("CSR is not valid DER");
+
+    // subject should not not be empty
     assert!(
-        X509Req::from_der(csr_bytes).is_ok(),
-        "FMC alias ECC384 CSR is not a valid DER-encoded CSR"
+        req.subject_name().entries().count() > 0,
+        "CSR subject is empty"
+    );
+
+    // ECC384: ensure P-384 curve and verify CSR signature with its own public key
+    let pkey = req.public_key().expect("CSR missing public key");
+    let ec = pkey.ec_key().expect("CSR public key not EC");
+    use openssl::nid::Nid;
+    assert_eq!(
+        ec.group().curve_name(),
+        Some(Nid::SECP384R1),
+        "Expected P-384 curve in FMC alias ECC CSR"
+    );
+    assert!(
+        req.verify(&pkey).unwrap_or(false),
+        "CSR signature failed to verify with its public key"
     );
 }
 
 #[test]
 fn test_get_fmc_alias_mldsa87_csr() {
-    // Bring up a production-like runtime model
     let args = RuntimeTestArgs {
         test_mfg_flags: Some(MfgFlags::GENERATE_IDEVID_CSR),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
-
-    // Build mailbox request header with correct checksum
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -207,38 +216,42 @@ fn test_get_fmc_alias_mldsa87_csr() {
         ),
     };
 
-    // Execute GET_FMC_ALIAS_MLDSA87_CSR
-    let result = model.mailbox_execute(
-        u32::from(CommandId::GET_FMC_ALIAS_MLDSA87_CSR),
-        payload.as_bytes(),
-    );
-
-    // We expect runtime to respond with a CSR blob
-    let response = result
+    let response = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_FMC_ALIAS_MLDSA87_CSR),
+            payload.as_bytes(),
+        )
         .expect("mailbox_execute failed")
         .expect("no response from GET_FMC_ALIAS_MLDSA87_CSR");
 
     let mut csr_resp = GetIdevCsrResp::default();
     csr_resp.as_mut_bytes()[..response.len()].copy_from_slice(&response);
 
-    // Sanity: runtime actually provisioned an FMC alias ML-DSA-87 CSR
-    assert_ne!(
-        0, csr_resp.data_size,
-        "FMC alias MLDSA87 CSR data_size was 0 (unprovisioned?)"
+    assert!(
+        csr_resp.data_size > 0,
+        "CSR data_size was 0 (unprovisioned?)"
+    );
+    assert!(
+        (csr_resp.data_size as usize) <= csr_resp.data.len(),
+        "CSR data_size out of bounds"
     );
 
-    // Slice out just the valid CSR bytes
     let csr_bytes = &csr_resp.data[..csr_resp.data_size as usize];
 
-    // CSR shouldn't be all zeros
     assert!(
         csr_bytes.iter().any(|&b| b != 0),
         "FMC alias MLDSA87 CSR buffer is unexpectedly all zeros"
     );
-
-    // CSR should be a valid DER-encoded PKCS#10 CSR
     assert!(
-        X509Req::from_der(csr_bytes).is_ok(),
-        "FMC alias MLDSA87 CSR is not a valid DER-encoded CSR"
+        csr_bytes.len() > 64,
+        "CSR unusually small; expected a minimally sized DER structure"
+    );
+
+    let req = X509Req::from_der(csr_bytes).expect("CSR is not valid DER");
+
+    // subject should not be empty
+    assert!(
+        req.subject_name().entries().count() > 0,
+        "CSR subject is empty"
     );
 }
