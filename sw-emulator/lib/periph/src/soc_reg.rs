@@ -809,6 +809,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x548)]
     ss_key_release_size: u32,
 
+    #[register(offset = 0x54c, write_fn = on_write_ss_ocp_lock_ctrl)]
+    ss_ocp_lock_ctrl: u32,
+
     #[register_array(offset = 0x5a0, write_fn = on_write_ss_strap_generic)]
     ss_strap_generic: [u32; 4],
 
@@ -1057,6 +1060,7 @@ impl SocRegistersImpl {
             ss_key_release_base_addr_l: 0,
             ss_key_release_base_addr_h: 0,
             ss_key_release_size: 0,
+            ss_ocp_lock_ctrl: 0,
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -1425,6 +1429,20 @@ impl SocRegistersImpl {
         val: RvData,
     ) -> Result<(), BusError> {
         self.ss_strap_generic[index] = val;
+        Ok(())
+    }
+
+    fn on_write_ss_ocp_lock_ctrl(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        // From: https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.SS_OCP_LOCK_CTRL
+        // > Programmed by Caliptra firmware to enable OCP LOCK operations. Writable only when
+        //   CPTRA_HW_CONFIG.OCP_LOCK_MODE_en is set to 1. Read-only otherwise.
+        //   These bits are only writable for Caliptra firmware.
+        if self.cptra_hw_config.reg.is_set(HwConfig::OCP_LOCK_EN) {
+            self.ss_ocp_lock_ctrl = val;
+        } else {
+            panic!("Caliptra attempted to set OCP LOCK for hardware that does not support OCP LOCK. This could be a firmware bug");
+        }
+
         Ok(())
     }
 
