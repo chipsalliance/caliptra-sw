@@ -3,10 +3,10 @@
 
 set -euo pipefail
 
-# Check arg count
-if [ $# -ne 1 ]
+# Check arg count; TODO(benjamindoron): RTL and FPGA too, using hw_version?
+if [ $# -ne 1 -a $# -ne 3 ]
   then
-    echo "Usage: $(basename $0) <release_name>"
+    echo "Usage: $(basename $0) <release_name> [<rom_ref> <firmware_version>]"
 	exit -1
 fi
 
@@ -16,36 +16,71 @@ release_scripts_path=$(dirname "$0")
 rm -rf release
 mkdir -p $WORKSPACE_DIR
 
-# Generate ROM and Image Bundle Binary
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle.bin
+# Regardless of arguments, determine commits
+if [ $# -eq 3 ]; then
+  rom_ref=$2
+  firmware_version=$3
+else
+  rom_ref=$(git rev-parse --short HEAD)
+  firmware_version=$(git rev-parse --short HEAD)
+fi
+
+if [ $rom_ref != $firmware_version ]; then
+  # Save state
+  git stash
+  previous_head=$(git rev-parse --short HEAD)
+
+  git restore Cargo.lock
+  git checkout $rom_ref
+fi
+
+# Generate ROM Binary
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin
 # Copy ROM ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom.elf
+
+# Generate rom-with-log
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log.bin
+# Copy ROM-with-log ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
+
+# Generate fake ROM Binary
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin
+# Copy fake ROM ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
+
+if [ $rom_ref != $firmware_version ]; then
+  git restore Cargo.lock
+  git checkout $firmware_version
+fi
+
+# Generate Image Bundle Binary
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --fw $WORKSPACE_DIR/image-bundle.bin
 # Copy FMC ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/caliptra-fmc.elf
 # Copy Runtime FW ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/caliptra-runtime.elf
 
-# Generate rom-with-log
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log.bin
-
-# Copy ROM-with-log ELF
-cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
-
-# Generate fake ROM and Image Bundle Binary
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fake-fw $WORKSPACE_DIR/fake-image-bundle.bin
-# Copy fake ROM ELF
-cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
+# Generate fake Image Bundle Binary
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-fw $WORKSPACE_DIR/fake-image-bundle.bin
 # Copy fake FMC ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/fake-caliptra-fmc.elf
 # Copy fake Runtime FW ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/fake-caliptra-runtime.elf
 
-# Copy RTL
-cp -rf hw/latest/rtl $WORKSPACE_DIR/caliptra-rtl
+# Copy RTL and FPGA Model
+if [ -d hw ]; then
+  cp -rf hw/latest/rtl $WORKSPACE_DIR/caliptra-rtl
+  cp -rf hw/fpga $WORKSPACE_DIR/fpga
+elif [ -d hw-latest ]; then
+  cp -rf hw-latest/caliptra-rtl $WORKSPACE_DIR/caliptra-rtl
+  cp -rf hw-latest/fpga $WORKSPACE_DIR/fpga
+else
+  echo "Unable to find HW source code!"
+  exit -1
+fi
 # Copy libcaliptra
 cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
-# Copy FPGA Model
-cp -rf hw/fpga $WORKSPACE_DIR/fpga
 
 # Calculate RTL hash
 # Generate file list (excluding files integrators will modify)
@@ -83,6 +118,14 @@ echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFPGA Model: fpga/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTL hash tool: rtl_hash.sh" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTL hash file list: rtl_hash_file_list.txt" >> $WORKSPACE_DIR/release_notes.txt
+
+# Restore state
+if [ $rom_ref != $firmware_version ]; then
+  git restore Cargo.lock
+  git checkout $previous_head
+
+  git stash pop
+fi
 
 # Generate Zip
 cd ./release/workspace
