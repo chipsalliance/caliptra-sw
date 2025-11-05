@@ -17,7 +17,7 @@ impl FipsVersionCmd {
         Ok(FipsVersionResp {
             hdr: MailboxRespHeader::default(),
             mode: Self::MODE,
-            fips_rev: soc_ifc.get_version(),
+            fips_rev: soc_ifc.get_fips_version(),
             name: Self::NAME,
         })
     }
