@@ -14,6 +14,7 @@ Abstract:
 
 use crate::{
     abr::Abr,
+    aes_clp::AesKeyReleaseOp,
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
@@ -370,7 +371,8 @@ impl CaliptraRootBus {
         let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
 
         let aes_key = Rc::new(RefCell::new(None));
-        let aes = Aes::new(aes_key.clone());
+        let aes_destination = Rc::new(RefCell::new(AesKeyReleaseOp::default()));
+        let aes = Aes::new(aes_key.clone(), aes_destination.clone());
         let dma = Dma::new(
             clock,
             mailbox_ram.clone(),
@@ -389,7 +391,7 @@ impl CaliptraRootBus {
         Self {
             rom,
             aes,
-            aes_clp: AesClp::new(clock, key_vault.clone(), aes_key),
+            aes_clp: AesClp::new(clock, key_vault.clone(), aes_key, aes_destination),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
             hmac: HmacSha::new(clock, key_vault.clone()),
