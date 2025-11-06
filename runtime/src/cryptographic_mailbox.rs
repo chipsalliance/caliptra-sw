@@ -1144,16 +1144,20 @@ impl Commands {
     }
 
     fn xor_iv(iv: &LEArray4x3, counter: u64, big_endian_counter_xor: bool) -> LEArray4x3 {
-        let counter = if big_endian_counter_xor {
-            counter.swap_bytes()
+        if big_endian_counter_xor {
+            let counter = counter.swap_bytes();
+            LEArray4x3::new([
+                iv.0[0],
+                iv.0[1] ^ (counter & 0xffff_ffff) as u32,
+                iv.0[2] ^ (counter >> 32) as u32,
+            ])
         } else {
-            counter
-        };
-        LEArray4x3::new([
-            iv.0[0] ^ (counter & 0xffff_ffff) as u32,
-            iv.0[1] ^ (counter >> 32) as u32,
-            iv.0[2],
-        ])
+            LEArray4x3::new([
+                iv.0[0] ^ (counter & 0xffff_ffff) as u32,
+                iv.0[1] ^ (counter >> 32) as u32,
+                iv.0[2],
+            ])
+        }
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
