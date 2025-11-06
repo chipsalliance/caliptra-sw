@@ -21,7 +21,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
 use hmac::{Hmac, Mac};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sha2::Sha512;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{transmute, FromBytes, IntoBytes};
 
 const DOT_KEY_TYPES: [CmStableKeyType; 2] = [CmStableKeyType::IDevId, CmStableKeyType::LDevId];
 
@@ -30,7 +30,12 @@ fn decrypt_cmk(key: &[u8], cmk: &EncryptedCmk) -> Option<UnencryptedCmk> {
     let key: &Key<aes_gcm::Aes256Gcm> = key.into();
     let mut cipher = aes_gcm::Aes256Gcm::new(key);
     let mut buffer = cmk.ciphertext.to_vec();
-    match cipher.decrypt_in_place_detached(&cmk.iv.into(), &[], &mut buffer, &cmk.gcm_tag.into()) {
+    match cipher.decrypt_in_place_detached(
+        cmk.iv.as_bytes().into(),
+        &[],
+        &mut buffer,
+        cmk.gcm_tag.as_bytes().into(),
+    ) {
         Ok(_) => UnencryptedCmk::ref_from_bytes(&buffer).ok().cloned(),
         Err(_) => None,
     }
@@ -51,21 +56,21 @@ fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
 
     let domain = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
     let domain_metadata = bytes[4..20].try_into().unwrap();
-    let iv = bytes[20..32].try_into().unwrap();
+    let iv: [u8; 12] = bytes[20..32].try_into().unwrap();
     let ciphertext = bytes[32..(32 + UNENCRYPTED_CMK_SIZE_BYTES)]
         .try_into()
         .unwrap();
     let gcm_tag_start = 32 + UNENCRYPTED_CMK_SIZE_BYTES;
-    let gcm_tag = bytes[gcm_tag_start..(gcm_tag_start + 16)]
+    let gcm_tag: [u8; 16] = bytes[gcm_tag_start..(gcm_tag_start + 16)]
         .try_into()
         .unwrap();
 
     EncryptedCmk {
         domain,
         domain_metadata,
-        iv,
+        iv: transmute!(iv),
         ciphertext,
-        gcm_tag,
+        gcm_tag: transmute!(gcm_tag),
     }
 }
 

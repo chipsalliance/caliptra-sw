@@ -43,7 +43,7 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{transmute, FromBytes, IntoBytes};
 
 #[test]
 fn test_status() {
@@ -877,10 +877,10 @@ fn test_aes_gcm_simple() {
     let iv = &resp.iv;
     let aad = &[];
     let plaintext = &[1, 1, 1, 1];
-    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key, iv, aad, plaintext);
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key, iv.as_bytes(), aad, plaintext);
 
     assert_eq!(ciphertext, &rciphertext);
-    assert_eq!(final_resp.hdr.tag, rtag);
+    assert_eq!(final_resp.hdr.tag.as_bytes(), rtag);
 }
 
 // Random encrypt and decrypt GCM stress test.
@@ -1385,7 +1385,11 @@ fn mailbox_gcm_encrypt(
         .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
     ciphertext.extend_from_slice(&final_resp.ciphertext[..final_resp.hdr.ciphertext_size as usize]);
 
-    (resp.iv, final_resp.hdr.tag, ciphertext)
+    (
+        transmute!(resp.iv),
+        transmute!(final_resp.hdr.tag),
+        ciphertext,
+    )
 }
 
 fn mailbox_spdm_gcm_encrypt(
@@ -1400,7 +1404,7 @@ fn mailbox_spdm_gcm_encrypt(
     let split = MAX_CMB_DATA_SIZE;
     let mut cm_aes_encrypt_init = CmAesGcmSpdmEncryptInitReq {
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
-        spdm_counter: counter.to_le_bytes(),
+        spdm_counter: counter.into(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
         ..Default::default()
@@ -1495,7 +1499,10 @@ fn mailbox_spdm_gcm_encrypt(
         .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
     ciphertext.extend_from_slice(&final_resp.ciphertext[..final_resp.hdr.ciphertext_size as usize]);
 
-    (final_resp.hdr.tag, ciphertext)
+    (
+        final_resp.hdr.tag.as_bytes().try_into().unwrap(),
+        ciphertext,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1510,7 +1517,7 @@ fn mailbox_gcm_decrypt(
 ) -> (bool, Vec<u8>) {
     let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
         cmk: cmk.clone(),
-        iv: *iv,
+        iv: transmute!(*iv),
         aad_size: aad.len() as u32,
         ..Default::default()
     };
@@ -1623,7 +1630,7 @@ fn mailbox_spdm_gcm_decrypt(
     let mut cm_aes_decrypt_init = CmAesGcmSpdmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
-        spdm_counter: counter.to_le_bytes(),
+        spdm_counter: counter.into(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
         aad: [0; MAX_CMB_DATA_SIZE],

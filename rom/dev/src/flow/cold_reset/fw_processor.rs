@@ -1219,12 +1219,12 @@ impl FirmwareProcessor {
         };
 
         let random = trng.generate()?;
-        let kek_iv: [u8; 12] = random.0.as_bytes()[..12].try_into().unwrap();
+        let kek_iv: [u32; 3] = random.0[..3].try_into().unwrap();
         let encrypted_cmk = Crypto::encrypt_cmk(
             aes,
             trng,
             &unencrypted_cmk,
-            kek_iv,
+            kek_iv.into(),
             Crypto::get_cmb_aes_key(persistent_data),
         )?;
 
