@@ -484,6 +484,22 @@ impl SocIfc {
         ]
     }
 
+    pub fn has_ss_staging_area(&self) -> bool {
+        let hw_rev_id = self
+            .soc_ifc
+            .regs()
+            .cptra_hw_rev_id()
+            .read()
+            .cptra_generation();
+        let _major = hw_rev_id & 0xF; // [3:0] Major version
+        let _minor = (hw_rev_id >> 4) & 0xF; // [7:4] Minor version
+
+        // Check if revision is 2.1 or larger AND subsystem mode is enabled
+        // (major > 2 || (major == 2 && minor >= 1)) && self.subsystem_mode()
+        // [TODO][CAP2.1] do once version is updated
+        self.subsystem_mode()
+    }
+
     pub fn set_fw_extended_error(&mut self, err: u32) {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
