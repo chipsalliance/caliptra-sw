@@ -1143,15 +1143,16 @@ impl Commands {
         Ok(core::mem::size_of::<CmAesGcmEncryptInitResp>())
     }
 
-    fn xor_iv(iv: &LEArray4x3, counter: u64, big_endian_counter_xor: bool) -> LEArray4x3 {
+    fn xor_iv(iv: &LEArray4x3, counter: &[u8; 8], big_endian_counter_xor: bool) -> LEArray4x3 {
         if big_endian_counter_xor {
-            let counter = counter.swap_bytes();
+            let counter = u64::from_be_bytes(*counter);
             LEArray4x3::new([
                 iv.0[0],
                 iv.0[1] ^ (counter & 0xffff_ffff) as u32,
                 iv.0[2] ^ (counter >> 32) as u32,
             ])
         } else {
+            let counter = u64::from_le_bytes(*counter);
             LEArray4x3::new([
                 iv.0[0] ^ (counter & 0xffff_ffff) as u32,
                 iv.0[1] ^ (counter >> 32) as u32,
@@ -1202,11 +1203,7 @@ impl Commands {
             &cmk.key_material[..cmk.length as usize],
             spdm_version,
         )?;
-        let iv = Self::xor_iv(
-            &iv,
-            cmd.spdm_counter.get(),
-            spdm_flags.counter_big_endian() == 1,
-        );
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, spdm_flags.counter_big_endian() == 1);
         let iv = AesGcmIv::Array(&iv);
 
         let unencrypted_context = drivers
@@ -1422,7 +1419,7 @@ impl Commands {
             &cmk.key_material[..cmk.length as usize],
             spdm_version,
         )?;
-        let iv = Self::xor_iv(&iv, cmd.spdm_counter.get(), (cmd.spdm_flags >> 8) & 1 == 1);
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
         let iv = AesGcmIv::Array(&iv);
 
         let unencrypted_context = drivers

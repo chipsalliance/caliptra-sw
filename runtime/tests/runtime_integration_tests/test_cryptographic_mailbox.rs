@@ -1404,7 +1404,7 @@ fn mailbox_spdm_gcm_encrypt(
     let split = MAX_CMB_DATA_SIZE;
     let mut cm_aes_encrypt_init = CmAesGcmSpdmEncryptInitReq {
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
-        spdm_counter: counter.into(),
+        spdm_counter: counter.to_le_bytes(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
         ..Default::default()
@@ -1630,7 +1630,7 @@ fn mailbox_spdm_gcm_decrypt(
     let mut cm_aes_decrypt_init = CmAesGcmSpdmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
-        spdm_counter: counter.into(),
+        spdm_counter: counter.to_le_bytes(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
         aad: [0; MAX_CMB_DATA_SIZE],

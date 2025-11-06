@@ -10,7 +10,7 @@ use caliptra_image_types::{
 use caliptra_registers::mbox;
 use core::mem::size_of;
 use ureg::MmioMut;
-use zerocopy::{little_endian::U64, FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
@@ -2905,7 +2905,7 @@ impl Response for CmAesGcmEncryptInitResp {}
 pub struct CmAesGcmSpdmEncryptInitReq {
     pub hdr: MailboxReqHeader,
     pub spdm_flags: u32,
-    pub spdm_counter: U64,
+    pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
@@ -2916,7 +2916,7 @@ impl Default for CmAesGcmSpdmEncryptInitReq {
         Self {
             hdr: MailboxReqHeader::default(),
             spdm_flags: 0,
-            spdm_counter: U64::ZERO,
+            spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
@@ -3221,7 +3221,7 @@ impl Response for CmAesGcmDecryptInitResp {}
 pub struct CmAesGcmSpdmDecryptInitReq {
     pub hdr: MailboxReqHeader,
     pub spdm_flags: u32,
-    pub spdm_counter: U64,
+    pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
@@ -3232,7 +3232,7 @@ impl Default for CmAesGcmSpdmDecryptInitReq {
         Self {
             hdr: MailboxReqHeader::default(),
             spdm_flags: 0,
-            spdm_counter: U64::ZERO,
+            spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
