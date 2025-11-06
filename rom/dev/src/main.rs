@@ -431,6 +431,12 @@ fn validate_trng_config(env: &mut RomEnv) {
 /// Check if the hardware version is supported
 /// Supports 2.0.2+ and 2.1.0+
 fn is_supported_hw_version(cptra_gen: &CptraGeneration) -> bool {
-    !(cptra_gen.major_version() != 2
-        || (cptra_gen.minor_version() == 0 && cptra_gen.patch_version() < 2))
+    !matches!(
+        (
+            cptra_gen.major_version(),
+            cptra_gen.minor_version(),
+            cptra_gen.patch_version()
+        ),
+        (2, 0, 0..=1)
+    )
 }
