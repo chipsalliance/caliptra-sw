@@ -160,6 +160,7 @@ pub trait SocManager {
         self.soc_ifc()
             .fuse_soc_manifest_max_svn()
             .write(|w| w.svn(fuses.soc_manifest_max_svn as u32));
+        self.soc_ifc().fuse_hek_seed().write(&fuses.hek_seed);
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
 

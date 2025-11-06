@@ -104,6 +104,7 @@ mod constants {
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE_BYTES: usize = 64;
     pub const SOC_MANIFEST_SVN_SIZE: usize = 16;
     pub const INTERNAL_OBF_KEY_SIZE: usize = 32;
+    pub const INTERNAL_HEK_SEED_SIZE: usize = 32;
     pub const INTERNAL_ICCM_LOCK_START: u32 = 0x620;
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
     pub const INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START: u32 = 0x628;
@@ -335,8 +336,8 @@ register_bitfields! [
         FUSE_GRANULARITY_64BIT OFFSET(1) NUMBITS(1) [],
         RSVD_EN OFFSET(2) NUMBITS(3) [],
         LMS_ACC_EN OFFSET(4) NUMBITS(1) [],
-        ACTIVE_MODE_en OFFSET(5) NUMBITS(1) [],
-        OCP_LOCK_en OFFSET(6) NUMBITS(1) [],
+        ACTIVE_MODE_EN OFFSET(5) NUMBITS(1) [],
+        OCP_LOCK_EN OFFSET(6) NUMBITS(1) [],
         RSVD OFFSET(8) NUMBITS(25) [],
     ],
 ];
@@ -399,6 +400,15 @@ impl SocRegistersInternal {
         }
     }
 
+    /// Get HEK seed
+    pub fn doe_hek_seed(&self) -> [u8; INTERNAL_HEK_SEED_SIZE] {
+        if self.is_debug_locked() {
+            bytes_from_words_be(&self.regs.borrow().fuse_hek_seed)
+        } else {
+            [0xff_u8; INTERNAL_HEK_SEED_SIZE]
+        }
+    }
+
     /// Clear secrets
     pub fn clear_secrets(&mut self) {
         self.regs.borrow_mut().clear_secrets();
@@ -416,6 +426,10 @@ impl SocRegistersInternal {
 
     pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {
         self.regs.borrow_mut().fuse_uds_seed = *seed;
+    }
+
+    pub fn set_hek_seed(&mut self, seed: &[u32; FUSE_HEK_SEED_SIZE / 4]) {
+        self.regs.borrow_mut().fuse_hek_seed = *seed;
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -1082,6 +1096,7 @@ impl SocRegistersImpl {
         self.fuse_uds_seed = [0u32; 16];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key = [0u32; 8];
+        self.fuse_hek_seed = [0u32; 8];
     }
 
     fn write_disabled(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
@@ -1533,6 +1548,7 @@ mod tests {
         path::{Path, PathBuf},
     };
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
+    use zerocopy::IntoBytes;
 
     fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
         let regs = mailbox.regs();
@@ -1801,6 +1817,7 @@ mod tests {
         assert_eq!(soc.uds(), [0xff_u8; 64]);
         assert_eq!(soc.field_entropy(), [0xff_u8; 32]);
         assert_eq!(soc.doe_key(), [0xff_u8; 32]);
+        assert_eq!(soc.doe_hek_seed(), [0xff_u8; 32]);
     }
 
     #[test]
@@ -1819,9 +1836,11 @@ mod tests {
             },
         );
         soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
+        soc.external_regs().regs.borrow_mut().fuse_hek_seed = [0xABAB_ABABu32; 8];
         assert_eq!(soc.uds(), SocRegistersImpl::UDS);
         assert_eq!(soc.field_entropy(), [0x33_u8; 32]);
         assert_eq!(soc.doe_key(), crate::root_bus::DEFAULT_DOE_KEY);
+        assert_eq!(soc.doe_hek_seed(), [0xABu8; 32].as_bytes());
     }
 
     fn next_action(clock: &Clock) -> Option<TimerAction> {
