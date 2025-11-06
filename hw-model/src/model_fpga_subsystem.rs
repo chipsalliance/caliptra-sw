@@ -418,6 +418,17 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_ss_ocp_lock(&mut self, val: bool) {
+        if val {
+            self.wrapper.regs().control.modify(Control::OcpLockEn::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::OcpLockEn::CLEAR);
+        }
+    }
+
     fn set_ss_debug_intent(&mut self, val: bool) {
         if val {
             self.wrapper
@@ -1513,6 +1524,7 @@ impl HwModel for ModelFpgaSubsystem {
         m.set_ss_debug_intent(params.debug_intent);
         // Set BootFSM break if requested.
         m.set_bootfsm_break(params.bootfsm_break);
+        m.set_ss_ocp_lock(params.ocp_lock_en);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
