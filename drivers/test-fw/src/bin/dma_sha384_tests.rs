@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     AesDmaMode, Array4x16, AxiAddr, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc,
-    ShaAccLockState, SocIfc,
+    ShaAccLockState, SocIfc, StreamEndianness,
 };
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
@@ -41,7 +41,8 @@ fn test_dma_sha384_mcu_sram() {
             .try_start_operation(ShaAccLockState::AssumedLocked)
             .unwrap()
             .unwrap();
-        op.digest_512(0, 0, false, &mut digest).unwrap();
+        op.digest_512(0, 0, StreamEndianness::Reorder, &mut digest)
+            .unwrap();
     }
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
     let mut sha2_512_384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };

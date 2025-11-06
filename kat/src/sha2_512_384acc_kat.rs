@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use caliptra_drivers::{
-    Array4x16, CaliptraError, CaliptraResult, Sha2_512_384Acc, ShaAccLockState,
+    Array4x16, CaliptraError, CaliptraResult, Sha2_512_384Acc, ShaAccLockState, StreamEndianness,
 };
 
 const SHA512_EXPECTED_DIGEST: Array4x16 = Array4x16::new([
@@ -58,7 +58,7 @@ impl Sha2_512_384AccKat {
             let result = || -> CaliptraResult<()> {
                 // SHA 512
                 sha_acc_op
-                    .digest_512(0, 0, false, &mut digest)
+                    .digest_512(0, 0, StreamEndianness::Reorder, &mut digest)
                     .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
                 if digest != SHA512_EXPECTED_DIGEST {
                     Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;

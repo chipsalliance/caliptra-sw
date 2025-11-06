@@ -22,7 +22,8 @@ use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_launder};
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Dma, Ecc384, Ecc384PubKey,
     Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
+    Mldsa87Result, Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc,
+    StreamEndianness, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use memoffset::{offset_of, span_of};
@@ -147,7 +148,7 @@ pub fn validate_debug_unlock_token(
         acc_op.digest_384(
             combined_len as u32,
             ecc_public_key_offset as u32,
-            false,
+            StreamEndianness::Reorder,
             &mut request_digest,
         )?;
         request_digest

@@ -1036,7 +1036,7 @@ impl CaliptraError {
         ),
         (
             DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED,
-            0x0000f004,
+            0x0000f005,
             "DMA driver Error: SHA accelerator not locked by DMA"
         ),
         (

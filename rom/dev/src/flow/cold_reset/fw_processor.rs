@@ -731,7 +731,6 @@ impl FirmwareProcessor {
         let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
 
         // Read manifest from MCU SRAM using DMA directly into manifest buffer
-        let manifest_size_words = manifest_buf.len().div_ceil(4);
         let (manifest_words, _) = <[u32]>::mut_from_prefix(manifest_buf).unwrap();
 
         let dma_recovery = DmaRecovery::new(
