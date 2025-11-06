@@ -1135,7 +1135,7 @@ impl ModelFpgaSubsystem {
         );
     }
 
-    fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
+    pub fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
         // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
         let mut otp_data = self.otp_slice().to_vec();
 

@@ -2,13 +2,13 @@
 
 #![allow(dead_code)]
 
-use crate::keys::{DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY, DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY};
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
+use caliptra_image_fake_keys::{VENDOR_ECC_KEY_0_PUBLIC, VENDOR_MLDSA_KEY_0_PUBLIC};
 
 use anyhow::{bail, Result};
 use sha2::{Digest, Sha384, Sha512};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
-use zerocopy::{FromBytes, KnownLayout};
+use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 /// Unhashed token, suitable for doing lifecycle transitions.
 #[derive(Clone, Copy)]
@@ -700,7 +700,7 @@ pub struct OtpSwManufPartition {
     pub anti_rollback_disable: u32,
     pub idevid_cert_attr: [u8; 96],
     pub idevid_cert: u32,
-    pub hsm_id: u64,
+    pub hsm_id: u128,
     pub stepping_id: u32,
     pub prod_debug_unlock_pks_0: [u8; 48],
     pub prod_debug_unlock_pks_1: [u8; 48],
@@ -715,33 +715,31 @@ pub struct OtpSwManufPartition {
 impl Default for OtpSwManufPartition {
     fn default() -> Self {
         // Compute the SHA2-384 hash of the default ECDSA and ML-DSA public keys.
-        let mut ecdsa_pubkey = [0u8; 96];
-        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_ECDSA_PUBKEY.iter().enumerate() {
-            ecdsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
-        }
-        let mut mldsa_pubkey = [0u8; 2592];
-        for (i, word) in DEFAULT_PROD_DEBUG_UNLOCK_MLDSA_PUBKEY.iter().enumerate() {
-            mldsa_pubkey[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
-        }
+        let mut ecdsa_pubkey = [0u32; 24];
+        ecdsa_pubkey[..12].copy_from_slice(&VENDOR_ECC_KEY_0_PUBLIC.x);
+        ecdsa_pubkey[12..].copy_from_slice(&VENDOR_ECC_KEY_0_PUBLIC.y);
         let mut hasher = Sha384::new();
-        sha2::Digest::update(&mut hasher, ecdsa_pubkey);
-        sha2::Digest::update(&mut hasher, mldsa_pubkey);
-        let prod_debug_unlock_pks_0: [u8; 48] = hasher.finalize().into();
-
+        sha2::Digest::update(&mut hasher, ecdsa_pubkey.as_bytes());
+        sha2::Digest::update(&mut hasher, VENDOR_MLDSA_KEY_0_PUBLIC.0.as_bytes());
+        // Reverse bytes in each words so it matches the hash the ROM computes.
+        let mut default_prod_debug_unlock_pks: [u8; 48] = hasher.finalize().into();
+        for chunk in default_prod_debug_unlock_pks.chunks_mut(4) {
+            chunk.reverse();
+        }
         Self {
             anti_rollback_disable: 0x1,
             idevid_cert_attr: [0; 96],
             idevid_cert: 0,
             hsm_id: 0,
             stepping_id: 0,
-            prod_debug_unlock_pks_0,
-            prod_debug_unlock_pks_1: [0; 48],
-            prod_debug_unlock_pks_2: [0; 48],
-            prod_debug_unlock_pks_3: [0; 48],
-            prod_debug_unlock_pks_4: [0; 48],
-            prod_debug_unlock_pks_5: [0; 48],
-            prod_debug_unlock_pks_6: [0; 48],
-            prod_debug_unlock_pks_7: [0; 48],
+            prod_debug_unlock_pks_0: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_1: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_2: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_3: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_4: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_5: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_6: default_prod_debug_unlock_pks,
+            prod_debug_unlock_pks_7: default_prod_debug_unlock_pks,
         }
     }
 }
