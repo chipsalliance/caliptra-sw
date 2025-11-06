@@ -732,12 +732,7 @@ impl FirmwareProcessor {
 
         // Read manifest from MCU SRAM using DMA directly into manifest buffer
         let manifest_size_words = manifest_buf.len().div_ceil(4);
-        let manifest_words = unsafe {
-            core::slice::from_raw_parts_mut(
-                manifest_buf.as_mut_ptr() as *mut u32,
-                manifest_size_words,
-            )
-        };
+        let (manifest_words, _) = <[u32]>::mut_from_prefix(manifest_buf).unwrap();
 
         let dma_recovery = DmaRecovery::new(
             recovery_interface_base_addr,
@@ -1047,13 +1042,9 @@ impl FirmwareProcessor {
         );
 
         // Load FMC from MCU SRAM
-        let fmc_dest = unsafe {
-            let addr = (manifest.fmc.load_addr) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
-        };
-        let fmc_size_words = fmc_dest.len().div_ceil(4);
+        let fmc_size_words = manifest.fmc.size.div_ceil(4) as usize;
         let fmc_words = unsafe {
-            core::slice::from_raw_parts_mut(fmc_dest.as_mut_ptr() as *mut u32, fmc_size_words)
+            core::slice::from_raw_parts_mut(manifest.fmc.load_addr as *mut u32, fmc_size_words)
         };
         let fmc_offset = size_of::<ImageManifest>();
         dma_recovery.load_from_mcu_to_buffer(fmc_offset as u64, fmc_words)?;
@@ -1065,14 +1056,10 @@ impl FirmwareProcessor {
         );
 
         // Load Runtime from MCU SRAM
-        let runtime_dest = unsafe {
-            let addr = (manifest.runtime.load_addr) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
-        };
-        let runtime_size_words = runtime_dest.len().div_ceil(4);
+        let runtime_size_words = manifest.runtime.size.div_ceil(4) as usize;
         let runtime_words = unsafe {
             core::slice::from_raw_parts_mut(
-                runtime_dest.as_mut_ptr() as *mut u32,
+                manifest.runtime.load_addr as *mut u32,
                 runtime_size_words,
             )
         };

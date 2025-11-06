@@ -990,7 +990,7 @@ impl<'a> DmaRecovery<'a> {
                 cprintln!(
                     "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
                 );
-                return Err(CaliptraError::RUNTIME_INTERNAL);
+                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
             }
 
             // we only use the raw SHA accelerator driver to get the digest at the end and unlock when dropped.

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{printer::HexBytes, *};
+use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
@@ -56,10 +56,6 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
             let result =
                 dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len, dma::AesDmaMode::None)?;
-            cprintln!(
-                "[rt] SHA384 digest calculated: {}",
-                HexBytes(result.as_bytes())
-            );
             Ok(result.into())
         } else {
             let data = self
@@ -112,7 +108,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                     .digest_384(len, offset, false, &mut digest)
                     .map_err(|_| digest_failure)?;
             } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
             };
             Ok(digest.0)
         }
@@ -138,7 +134,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                     .digest_512(len, offset, false, &mut digest)
                     .map_err(|_| digest_failure)?;
             } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
             };
 
             Ok(digest.0)
