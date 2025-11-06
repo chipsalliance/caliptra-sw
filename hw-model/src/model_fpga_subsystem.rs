@@ -1614,6 +1614,40 @@ impl HwModel for ModelFpgaSubsystem {
             }
         };
 
+        // TODO: support passing these into MCU ROM
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(0)
+        //     .write(|_| boot_params.wdt_timeout_cycles as u32);
+
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(1)
+        //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
+
+        // TODO: do we need to support these in MCU ROM?
+        // self.soc_ifc()
+        //     .cptra_dbg_manuf_service_reg()
+        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_1()
+        //         .write(|_| reg);
+        // }
+
+        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_0()
+        //         .write(|_| reg);
+        // }
+
+        // TODO: support passing these into MCU ROM
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+        //     .map_err(ModelError::from)?;
+
         self.upload_firmware_rri(
             boot_params.fw_image.unwrap(),
             boot_params.soc_manifest,
@@ -1688,40 +1722,6 @@ impl HwModel for ModelFpgaSubsystem {
             self.step();
         }
         println!("Done starting MCU");
-
-        // TODO: support passing these into MCU ROM
-        // self.soc_ifc()
-        //     .cptra_wdt_cfg()
-        //     .at(0)
-        //     .write(|_| boot_params.wdt_timeout_cycles as u32);
-
-        // self.soc_ifc()
-        //     .cptra_wdt_cfg()
-        //     .at(1)
-        //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // TODO: do we need to support these in MCU ROM?
-        // self.soc_ifc()
-        //     .cptra_dbg_manuf_service_reg()
-        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
-
-        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_1()
-        //         .write(|_| reg);
-        // }
-
-        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_0()
-        //         .write(|_| reg);
-        // }
-
-        // TODO: support passing these into MCU ROM
-
-        // Set up the PAUSER as valid for the mailbox (using index 0)
-        // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
-        //     .map_err(ModelError::from)?;
 
         self.i3c_controller.configure();
         println!("Starting recovery flow (BMC)");
