@@ -22,9 +22,9 @@ use dpe::{
     commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
     context::ContextState,
     response::{Response, ResponseHdr},
-    DpeInstance, U8Bool, MAX_HANDLES,
+    DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
-use zerocopy::{IntoBytes, TryFromBytes};
+use zerocopy::IntoBytes;
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -49,8 +49,9 @@ impl InvokeDpeCmd {
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
-                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+            let command =
+                Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
 
             // Determine the target privilege level of a new context then check if we exceed thresholds
             let new_context_privilege_level = match command {
@@ -165,11 +166,9 @@ impl InvokeDpeCmd {
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    let r = ResponseHdr::try_mut_from_bytes(
-                        &mut invoke_resp.data[..core::mem::size_of::<ResponseHdr>()],
-                    )
-                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
-                    *r = ResponseHdr::new(*e);
+                    let r = dpe.response_hdr(*e);
+                    invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
+                        .copy_from_slice(r.as_bytes());
                     let data_size = r.as_bytes().len();
                     invoke_resp.data_size = data_size as u32;
                 }

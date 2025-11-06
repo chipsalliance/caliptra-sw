@@ -331,9 +331,8 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         dpe.contexts[idx].context_type = ContextType::Simulation;
         dpe.contexts[idx].locality = pl0_pauser;
         dpe.contexts[idx].tci.locality = pl0_pauser;
-        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
-        dpe.contexts[idx].tci.tci_cumulative =
-            TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
+        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; DPE_PROFILE.tci_size()]);
+        dpe.contexts[idx].tci.tci_cumulative = TciMeasurement([idx as u8; DPE_PROFILE.tci_size()]);
         dpe.contexts[idx].handle = ContextHandle([idx as u8; ContextHandle::SIZE]);
     }
     let _ = model
