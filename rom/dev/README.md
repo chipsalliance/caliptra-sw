@@ -651,6 +651,9 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
 11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)
 12. **CM_RANDOM_GENERATE**: This command returns random numbers from Caliptra's RNG for Device Ownership Transfer or other flows. [CM_RANDOM_GENERATE](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_random_generate)
+13. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 LDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_ecc384_cert)
+14. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 LDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
+15. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
 
 #### Downloading firmware image from mailbox
 
