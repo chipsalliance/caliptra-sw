@@ -18,8 +18,8 @@ use caliptra_drivers::{
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
-    key_ladder::KeyLadder, mailbox::Mailbox, ContextState, DpeInstance, Drivers, Hmac,
-    RtBootStatus, TciMeasurement, U8Bool, MAX_HANDLES,
+    key_ladder::KeyLadder, mailbox::Mailbox, ContextState, Drivers, Hmac, RtBootStatus,
+    TciMeasurement, U8Bool, MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
@@ -183,7 +183,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             CommandId(OPCODE_HASH_DPE_TCI_DATA) => {
                 let mut hasher = drivers.sha2_512_384.sha384_digest_init().unwrap();
-                for context in drivers.persistent_data.get().fw.dpe.dpe.contexts {
+                for context in drivers.persistent_data.get().fw.dpe.state.contexts {
                     if context.state != ContextState::Inactive {
                         hasher.update(context.tci.tci_current.as_bytes()).unwrap();
                     }
@@ -199,9 +199,10 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             CommandId(OPCODE_READ_DPE_ROOT_CONTEXT_MEASUREMENT) => {
                 let root_idx =
-                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.dpe)
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.state)
                         .unwrap();
-                let root_measurement = drivers.persistent_data.get().fw.dpe.dpe.contexts[root_idx]
+                let root_measurement = drivers.persistent_data.get().fw.dpe.state.contexts
+                    [root_idx]
                     .tci
                     .tci_current
                     .as_bytes();
@@ -243,14 +244,14 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_READ_DPE_INSTANCE) => {
                 write_response(
                     &mut drivers.mbox,
-                    drivers.persistent_data.get().fw.dpe.dpe.as_bytes(),
+                    drivers.persistent_data.get().fw.dpe.state.as_bytes(),
                 );
             }
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_dpe = DpeInstance::try_read_from_bytes(input_bytes).unwrap();
-                drivers.persistent_data.get_mut().fw.dpe.dpe = corrupted_dpe;
+                let corrupted_dpe = dpe::State::try_read_from_bytes(input_bytes).unwrap();
+                drivers.persistent_data.get_mut().fw.dpe.state = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_READ_PCR_RESET_COUNTER) => {
@@ -263,9 +264,9 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 let input_bytes = read_request(&drivers.mbox);
 
                 let root_idx =
-                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.dpe)
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.state)
                         .unwrap();
-                drivers.persistent_data.get_mut().fw.dpe.dpe.contexts[root_idx]
+                drivers.persistent_data.get_mut().fw.dpe.state.contexts[root_idx]
                     .tci
                     .tci_current = TciMeasurement(input_bytes.try_into().unwrap());
                 write_response(&mut drivers.mbox, &[]);

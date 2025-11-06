@@ -29,7 +29,7 @@ impl TagTciCmd {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let pdata_mut = drivers.persistent_data.get_mut();
-        let dpe = &mut pdata_mut.fw.dpe.dpe;
+        let dpe = &mut pdata_mut.fw.dpe.state;
         let context_has_tag = &mut pdata_mut.fw.dpe.context_has_tag;
         let context_tags = &mut pdata_mut.fw.dpe.context_tags;
 
@@ -82,10 +82,10 @@ impl GetTaggedTciCmd {
                     && context_tags[*i] == cmd.tag
             })
             .ok_or(CaliptraError::RUNTIME_TAGGING_FAILURE)?;
-        if idx >= persistent_data.fw.dpe.dpe.contexts.len() {
+        if idx >= persistent_data.fw.dpe.state.contexts.len() {
             return Err(CaliptraError::RUNTIME_TAGGING_FAILURE);
         }
-        let context = persistent_data.fw.dpe.dpe.contexts[idx];
+        let context = persistent_data.fw.dpe.state.contexts[idx];
 
         let resp = mutrefbytes::<GetTaggedTciResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
