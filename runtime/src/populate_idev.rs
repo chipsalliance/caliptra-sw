@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_common::mailbox_api::{PopulateIdevEcc384CertReq, PopulateIdevMldsa87CertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zerocopy::FromBytes;
+use zerocopy::IntoBytes;
 
 use crate::{Drivers, PL0_PAUSER_FLAG};
 
@@ -22,19 +22,15 @@ pub struct PopulateIDevIdEcc384CertCmd;
 impl PopulateIDevIdEcc384CertCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
-        // To avoid placing Req on the stack do a rw zerocopy on the mailbox content
-        // This is ok as we check the size of the input and cert_size
-        let mbox_raw = &drivers
-            .mbox
-            .raw_mailbox_contents()
-            .get(..core::mem::size_of::<PopulateIdevEcc384CertReq>())
-            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
-        let cmd = PopulateIdevEcc384CertReq::read_from_bytes(mbox_raw)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
-
         if cmd_args.len() > core::mem::size_of::<PopulateIdevEcc384CertReq>() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
+
+        let mut cmd = PopulateIdevEcc384CertReq::default();
+        if cmd_args.len() > cmd.as_bytes().len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
         let cert_size = cmd.cert_size as usize;
         if cert_size > cmd.cert.len() {
@@ -106,18 +102,15 @@ pub struct PopulateIDevIdMldsa87CertCmd;
 impl PopulateIDevIdMldsa87CertCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
-        // To avoid placing Req on the stack do a rw zerocopy on the mailbox content
-        let mbox_raw = &drivers
-            .mbox
-            .raw_mailbox_contents()
-            .get(..core::mem::size_of::<PopulateIdevMldsa87CertReq>())
-            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
-        let cmd = PopulateIdevMldsa87CertReq::read_from_bytes(mbox_raw)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
-
         if cmd_args.len() > core::mem::size_of::<PopulateIdevMldsa87CertReq>() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
+
+        let mut cmd = PopulateIdevMldsa87CertReq::default();
+        if cmd_args.len() > cmd.as_bytes().len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
         let cert_size = cmd.cert_size as usize;
         if cert_size > cmd.cert.len() {
