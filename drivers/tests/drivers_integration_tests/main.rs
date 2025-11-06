@@ -1206,7 +1206,28 @@ fn test_dma_sha384() {
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_ocp_lock() {
-    run_driver_test(&firmware::driver_tests::OCP_LOCK);
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::OCP_LOCK).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            // This test should always enable ocp-lock.
+            ocp_lock_en: true,
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    if !model.supports_ocp_lock() {
+        // We add this assert to make sure this test doesn't fail open.
+        assert_eq!(cfg!(feature = "ocp-lock"), model.supports_ocp_lock(), 
+            "The OCP LOCK feature is enabled but the HW does not support it. Is there a misconfiguration?");
+        return;
+    }
+    model.step_until_exit_success().unwrap();
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -1220,11 +1241,21 @@ fn test_ocp_lock_warm_reset() {
             subsystem_mode: true,
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Production),
+            // This test should always enable ocp-lock.
+            ocp_lock_en: true,
             ..default_init_params()
         },
         BootParams::default(),
     )
     .unwrap();
+
+    if !model.supports_ocp_lock() {
+        // We add this assert to make sure this test doesn't fail open.
+        assert_eq!(cfg!(feature = "ocp-lock"), model.supports_ocp_lock(),
+            "The OCP LOCK feature is enabled but the HW does not support it. Is there a misconfiguration?");
+        return;
+    }
+
     // When test signals ready for reset, perform warm reset.
     model.step_until_boot_status(OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS, true);
     model.warm_reset();

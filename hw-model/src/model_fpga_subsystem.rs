@@ -418,6 +418,17 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_ss_ocp_lock(&mut self, val: bool) {
+        if val {
+            self.wrapper.regs().control.modify(Control::OcpLockEn::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::OcpLockEn::CLEAR);
+        }
+    }
+
     fn set_ss_debug_intent(&mut self, val: bool) {
         if val {
             self.wrapper
@@ -1520,6 +1531,7 @@ impl HwModel for ModelFpgaSubsystem {
             .regs()
             .num_of_prod_debug_unlock_auth_pk_hashes
             .set(params.ss_init_params.num_prod_dbg_unlock_pk_hashes);
+        m.set_ss_ocp_lock(params.ocp_lock_en);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
