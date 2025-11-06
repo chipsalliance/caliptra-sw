@@ -185,7 +185,7 @@ fn dma_aes(dma: &mut Dma, aes: &mut Aes, trng: &mut Trng, src: u64, dst: u64, ma
     let key = KEY;
     aes.initialize_aes_gcm(
         trng,
-        AesGcmIv::Array(&IV),
+        AesGcmIv::Array(&IV.into()),
         AesKey::Array(&key),
         &[],
         AesOperation::Encrypt,
