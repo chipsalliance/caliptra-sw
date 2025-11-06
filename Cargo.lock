@@ -1308,6 +1308,7 @@ dependencies = [
  "arrayvec",
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib-git",
+ "zerocopy",
  "zeroize",
 ]
 
