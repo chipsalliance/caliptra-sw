@@ -76,6 +76,7 @@ impl UpdateResetFlow {
                 image: recv_txn.raw_mailbox_contents(),
                 dma: &env.dma,
                 persistent_data: env.persistent_data.get(),
+                image_in_mcu: false, // [TODO][CAP2.1]: change this in 2.1 update reset PR
             };
 
             let info = {

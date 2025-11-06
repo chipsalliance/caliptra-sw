@@ -104,7 +104,7 @@ pub use lms::{
     get_lmots_parameters, get_lms_parameters, HashValue, Lms, LmsResult, Sha192Digest,
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
-pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn, MAX_MAILBOX_LEN};
 pub use ml_kem::{
     MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey, MlKem1024Message,
     MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,

@@ -108,6 +108,7 @@ pub mod fips_self_test_cmd {
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
+        let image_in_mcu = env.soc_ifc.subsystem_mode();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -120,6 +121,7 @@ pub mod fips_self_test_cmd {
             image: env.mbox.raw_mailbox_contents(),
             dma: &env.dma,
             persistent_data: &env.persistent_data.get(),
+            image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);

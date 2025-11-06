@@ -77,6 +77,7 @@ impl RecoveryFlow {
             cprintln!("[rt] Calculating MCU digest");
             dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
+                0,
                 mcu_size_bytes,
                 AesDmaMode::None,
             )?
