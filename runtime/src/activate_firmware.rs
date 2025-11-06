@@ -90,8 +90,15 @@ impl ActivateFirmwareCmd {
             if fw_id == ActivateFirmwareReq::MCU_IMAGE_ID && mcu_image_size == 0 {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let exec_bit = Self::get_exec_bit(drivers, fw_id)
-                .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            let image_metadata = find_metadata_entry(
+                &drivers
+                    .persistent_data
+                    .get()
+                    .auth_manifest_image_metadata_col,
+                fw_id,
+            )
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            let exec_bit = ImageMetadataFlags(image_metadata.flags).exec_bit() as u8;
             // Check if exec_bit is valid
             // Note that bits 0 and 1 are reserved. Refer to
             // https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.SS_GENERIC_FW_EXEC_CTRL%5B0%5D
@@ -178,8 +185,14 @@ impl ActivateFirmwareCmd {
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
-            let (_, image_staging_address) =
-                Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
+            let image_metadata = find_metadata_entry(
+                &drivers
+                    .persistent_data
+                    .get()
+                    .auth_manifest_image_metadata_col,
+                ActivateFirmwareReq::MCU_IMAGE_ID,
+            )
+            .ok_or(())?;
             let dma_image = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),
@@ -191,8 +204,8 @@ impl ActivateFirmwareCmd {
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
-                        hi: image_staging_address.hi,
-                        lo: image_staging_address.lo,
+                        hi: image_metadata.image_staging_address.hi,
+                        lo: image_metadata.image_staging_address.lo,
                     },
                     mcu_image_size,
                     AxiAddr {
@@ -227,46 +240,6 @@ impl ActivateFirmwareCmd {
         // Caliptra sets FW_EXEC_CTRL
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
         Ok(())
-    }
-
-    #[inline(never)]
-    pub(crate) fn get_exec_bit(drivers: &Drivers, image_id: u32) -> Result<u8, ()> {
-        // Get the exec bit for the given image ID
-        let persistent_data = drivers.persistent_data.get();
-        let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
-        if let Some(metadata_entry) =
-            find_metadata_entry(auth_manifest_image_metadata_col, image_id)
-        {
-            Ok(ImageMetadataFlags(metadata_entry.flags).exec_bit() as u8)
-        } else {
-            Err(())
-        }
-    }
-
-    #[inline(never)]
-    pub(crate) fn get_loading_staging_address(
-        drivers: &Drivers,
-        image_id: u32,
-    ) -> Result<(AxiAddr, AxiAddr), ()> {
-        // Get the staging address for the given image ID
-        let persistent_data = drivers.persistent_data.get();
-        let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
-        if let Some(metadata_entry) =
-            find_metadata_entry(auth_manifest_image_metadata_col, image_id)
-        {
-            Ok((
-                AxiAddr {
-                    hi: metadata_entry.image_load_address.hi,
-                    lo: metadata_entry.image_load_address.lo,
-                },
-                AxiAddr {
-                    hi: metadata_entry.image_staging_address.hi,
-                    lo: metadata_entry.image_staging_address.lo,
-                },
-            ))
-        } else {
-            Err(())
-        }
     }
 
     fn set_bit(bitmap: &mut [u32; 4], bit: usize) {
