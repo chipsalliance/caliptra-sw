@@ -14,20 +14,21 @@ Abstract:
 
 use core::mem::offset_of;
 
+use crate::authorize_and_stash::AuthorizeAndStashCmd;
 use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
+use caliptra_api::mailbox::{AuthAndStashFlags, AuthorizeAndStashReq, ImageHashSource};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
-use ureg::Mmio;
+use ureg::{Mmio, MmioMut};
 
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
+const NOTIF0_INTR_TRIG_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x34;
 const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
-const SOC_MCI_TOP_MCI_REG_RESET_STATUS_OFFSET: u32 = 0x3c;
-const MCU_RESET_REQ_STS_MASK: u32 = 0x2;
 const MAX_EXEC_GO_BIT_INDEX: u8 = 127;
 
 pub struct ActivateFirmwareCmd;
@@ -148,9 +149,13 @@ impl ActivateFirmwareCmd {
             let dma = &drivers.dma;
             let mmio = &DmaMmio::new(mci_base_addr, dma);
 
-            // Clear FW_EXEC_CTRL[2]. This should start the process of resetting MCU.
-            Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
-            drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
+            // Trigger MCU reset request
+            unsafe {
+                mmio.write_volatile(
+                    NOTIF0_INTR_TRIG_R_OFFSET as *mut u32,
+                    NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK,
+                );
+            }
 
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
@@ -160,13 +165,16 @@ impl ActivateFirmwareCmd {
                         & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
             }
 
-            // Wait until RESET_STATUS.MCU_RESET_STS is set
-            let mut reset_status: u32 = 0;
-            while reset_status == 0 {
-                reset_status = unsafe {
-                    mmio.read_volatile(SOC_MCI_TOP_MCI_REG_RESET_STATUS_OFFSET as *const u32)
-                        & MCU_RESET_REQ_STS_MASK
-                };
+            // Clear FW_EXEC_CTRL[2]
+            Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
+            drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
+
+            // Wait for MCU to clear interrupt
+            let mut intr_status: u32 = 1;
+            while intr_status != 0 {
+                intr_status =
+                    unsafe { mmio.read_volatile(NOTIF0_INTERNAL_INTR_R_OFFSET as *const u32) }
+                        & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
@@ -195,6 +203,20 @@ impl ActivateFirmwareCmd {
                     false,
                 )
                 .map_err(|_| ())?;
+
+            // Verify MCU after loading
+            let auth_and_stash_req = AuthorizeAndStashReq {
+                fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
+                measurement: [0; 48],
+                source: ImageHashSource::LoadAddress.into(),
+                flags: AuthAndStashFlags::SKIP_STASH.bits(),
+                ..Default::default()
+            };
+
+            AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)
+                .map(|_| ())
+                .map_err(|_| ())?;
+
             drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
 
