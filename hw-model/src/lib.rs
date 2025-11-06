@@ -280,7 +280,7 @@ impl Default for InitParams<'_> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
-            ocp_lock_en: false,
+            ocp_lock_en: cfg!(feature = "ocp-lock"),
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
