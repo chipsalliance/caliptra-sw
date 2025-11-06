@@ -19,7 +19,6 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-//use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
