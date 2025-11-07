@@ -1624,7 +1624,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1694,7 +1694,7 @@ mod tests {
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1762,7 +1762,7 @@ mod tests {
         let output = Rc::new(RefCell::new(vec![]));
         let output2 = output.clone();
 
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let args = CaliptraRootBusArgs {
             clock: clock.clone(),
@@ -1788,7 +1788,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1809,7 +1809,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci,
             CaliptraRootBusArgs {
@@ -1836,7 +1836,7 @@ mod tests {
     #[test]
     fn test_wdt() {
         let clock = Rc::new(Clock::new());
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::default();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
 
         let args = CaliptraRootBusArgs {
