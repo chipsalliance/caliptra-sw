@@ -669,7 +669,7 @@ mod tests {
 
     fn test_sha_accelerator(data: &[u8], expected: &[u8], start_address: usize, sha_mode: u32) {
         // Write to the mailbox.
-        let mut mb_ram = MailboxRam::new();
+        let mut mb_ram = MailboxRam::default();
         if !data.is_empty() {
             assert!((start_address % 4) == 0);
             let mut data_word_multiples = vec![0u8; ((start_address + data.len() + 3) / 4) * 4];
@@ -1073,7 +1073,7 @@ mod tests {
     #[test]
     fn test_sm_lock() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::default());
         assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 1);
         // Unlock the initial state
         sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
@@ -1105,7 +1105,7 @@ mod tests {
     #[test]
     fn test_sha_acc_check_state() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::default());
 
         // Check init state.
         assert_eq!(
@@ -1218,7 +1218,7 @@ mod tests {
             0x08, 0xc0, 0x02, 0x88, 0x23, 0xe6, 0xcf, 0xd9,
         ];
 
-        let mb_ram = MailboxRam::new();
+        let mb_ram = MailboxRam::default();
         let clock = Clock::new();
         let mut sha_accl = Sha512Accelerator::new(&clock, mb_ram);
         // Unlock the initial state

@@ -352,7 +352,7 @@ impl CaliptraRootBus {
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::new(args.subsystem_mode);
         let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let prod_dbg_unlock_keypairs = std::mem::take(&mut args.prod_dbg_unlock_keypairs);
