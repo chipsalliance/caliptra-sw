@@ -3,8 +3,9 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
+        fake_rom,
         rom_tests::{FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART},
-        APP_WITH_UART, ROM_FAKE_WITH_UART,
+        APP_WITH_UART,
     },
     ImageOptions,
 };
@@ -28,7 +29,8 @@ const PUB_KEY_Y: [u8; 48] = [
 
 #[test]
 fn test_skip_kats() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -51,7 +53,8 @@ fn test_fake_rom_production_error() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -78,7 +81,8 @@ fn test_fake_rom_production_enabled() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -112,7 +116,8 @@ fn test_fake_rom_fw_load() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
 
         // Build the image we are going to send to ROM to load
         let image_bundle = caliptra_builder::build_and_sign_image(
@@ -161,7 +166,8 @@ fn test_fake_rom_update_reset() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -227,7 +233,8 @@ fn test_image_verify() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -281,7 +288,8 @@ fn test_image_verify() {
 fn test_fake_rom_version() {
     const FAKE_ROM_VERSION: u16 = 0xFFFF;
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
