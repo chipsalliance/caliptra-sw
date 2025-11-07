@@ -741,36 +741,63 @@ pub trait HwModel: SocManager {
     fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
-    fn warm_reset_flow(&mut self, boot_params: &BootParams) -> Result<(), Box<dyn Error>>
+    fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
     where
         Self: Sized,
     {
+        // Store non-persistent config regs set at boot
+        let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let i_trng_entropy_config_1: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
+        let i_trng_entropy_config_0: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
+        // Store mbox pausers
+        let mut valid_pausers: Vec<u32> = Vec::new();
+        for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
+            // Only store if locked
+            if self
+                .soc_ifc()
+                .cptra_mbox_axi_user_lock()
+                .at(i)
+                .read()
+                .lock()
+            {
+                valid_pausers.push(
+                    self.soc_ifc()
+                        .cptra_mbox_axi_user_lock()
+                        .at(i)
+                        .read()
+                        .into(),
+                );
+            }
+        }
+
+        // Perform the warm reset
         self.warm_reset();
 
-        HwModel::init_fuses(self, &boot_params.fuses);
+        // Write back stored values and let boot progress
+        // Fuse values will remain, just re-set fuse done
+        self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
 
-        // Set the registers that were cleared by the warm reset.
         self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
-            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+            .write(|_| dbg_manuf_service_reg);
+        self.soc_ifc()
+            .cptra_i_trng_entropy_config_1()
+            .write(|_| i_trng_entropy_config_1.into());
+        self.soc_ifc()
+            .cptra_i_trng_entropy_config_0()
+            .write(|_| i_trng_entropy_config_0.into());
 
-        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-            self.soc_ifc()
-                .cptra_i_trng_entropy_config_1()
-                .write(|_| reg);
-        }
-
-        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-            self.soc_ifc()
-                .cptra_i_trng_entropy_config_0()
-                .write(|_| reg);
-        }
-
-        // Set up the PAUSER as valid for the mailbox (using index 0)
-        self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+        // Re-set the valid pausers
+        self.setup_mailbox_users(valid_pausers.as_slice())
             .map_err(ModelError::from)?;
 
+        // Continue boot
+        writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        self.step();
 
         Ok(())
     }
