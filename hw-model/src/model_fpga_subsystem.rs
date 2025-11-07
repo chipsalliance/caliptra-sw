@@ -1679,6 +1679,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
         self.step();
+
         println!("Finished booting");
 
         Ok(())
@@ -1754,6 +1755,31 @@ impl HwModel for ModelFpgaSubsystem {
             hw.mci_boot_milestones()
                 .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
         });
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) };
+
+        // Write complete u32 chunks
+        for (i, chunk) in payload.chunks(4).enumerate() {
+            let u32_value = u32::from_le_bytes(chunk.try_into().unwrap());
+            unsafe {
+                staging_ptr.add(i).write_volatile(u32_value);
+                let read_back = staging_ptr.add(i).read_volatile();
+                assert_eq!(
+                    read_back, u32_value,
+                    "Write verification failed at offset {}",
+                    i
+                );
+            }
+        }
+
+        let mci_base_addr: u64 = u64::from(self.soc_ifc().ss_mci_base_addr_l().read())
+            | (u64::from(self.soc_ifc().ss_mci_base_addr_h().read()) << 32);
+
+        // Return the physical address of the staging area
+        Ok(mci_base_addr + 0xc00000)
     }
 }
 

@@ -2,6 +2,7 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::mailbox::MailboxReq;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
 use caliptra_emu_bus::{Bus, Event};
@@ -397,6 +398,7 @@ pub enum ModelError {
     FuseDoneNotSet,
     FusesAlreadyInitialized,
     StashMeasurementFailed,
+    SubsystemSramError,
 }
 
 impl From<CaliptraApiError> for ModelError {
@@ -527,6 +529,9 @@ impl Display for ModelError {
             }
             ModelError::UnableToSetPauser => {
                 write!(f, "Valid PAUSER locked")
+            }
+            ModelError::SubsystemSramError => {
+                write!(f, "Writing to MCU SRAM failed")
             }
         }
     }
@@ -1016,8 +1021,30 @@ pub trait HwModel: SocManager {
         )
         .unwrap();
 
-        self.soc_mbox().cmd().write(|_| cmd);
-        mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+        // Check if we need to use subsystem staging area for large payloads
+        if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
+            // Write payload to staging area
+            let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
+
+            // Create external mailbox command
+            let external_cmd = api::mailbox::ExternalMailboxCmdReq {
+                hdr: api::mailbox::MailboxReqHeader::default(),
+                command_id: cmd,
+                command_size: buf.len() as u32,
+                axi_address_start_low: staging_addr as u32,
+                axi_address_start_high: (staging_addr >> 32) as u32,
+            };
+            let mut cmd = MailboxReq::ExternalMailboxCmd(external_cmd);
+            cmd.populate_chksum().unwrap();
+
+            self.soc_mbox()
+                .cmd()
+                .write(|_| api::mailbox::CommandId::EXTERNAL_MAILBOX_CMD.0);
+            mbox_write_fifo(&self.soc_mbox(), cmd.as_bytes().unwrap()).map_err(ModelError::from)?;
+        } else {
+            self.soc_mbox().cmd().write(|_| cmd);
+            mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+        }
 
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
@@ -1083,6 +1110,9 @@ pub trait HwModel: SocManager {
         }
         Ok(Some(result))
     }
+
+    /// Upload payload to external MCU SRAM
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError>;
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {

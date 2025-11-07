@@ -313,7 +313,7 @@ fn create_auth_manifest_of_metadata_size(
 fn test_set_auth_manifest_cmd_external() {
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     });
     let buf = auth_manifest.as_bytes();
@@ -344,7 +344,7 @@ fn test_set_auth_manifest_cmd_external() {
             test_sram: Some(&test_sram),
             ..Default::default()
         },
-        FwVerificationPqcKeyType::MLDSA,
+        FwVerificationPqcKeyType::LMS,
     );
 
     model.step_until(|m| {
