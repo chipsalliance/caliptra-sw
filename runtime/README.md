@@ -320,6 +320,26 @@ Command Code: `0x4657_4C44` ("FWLD")
 
 `FIRMWARE_LOAD` returns no output arguments.
 
+### FIRMWARE\_VERIFY
+
+The `FIRMWARE_VERIFY` command is used to verify a Caliptra Firmware Bundle.
+
+Command Code: `0x4657_5652` ("FWVR")
+
+*Table: `FIRMWARE_VERIFY` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| data      | u8[...]       | Firmware image bundle to verify.
+
+*Table: `FIRMWARE_VERIFY` output arguments*
+
+| **Name** | **Type** | **Description**                                                      |
+| -------------- | -------------- | -------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
+| verify_result  | u32            | VERIFY_SUCCESS (0xDEADC0DE), VERIFY_FAILED (0x21523F21)                    |
+
 ### CAPABILITIES
 
 Exposes a command to retrieve firmware capabilities

@@ -39,9 +39,9 @@ jobs:
             image_variant: subsystem-2.0
           - bitstream_name: xsa_ss2p0_141b54c5.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: 04612d7cc65cb8274c68d6fb39807f0da8ce4477cc8d38b6bba77b62cb1a4f09
+          - bitstream_hash: b2bf2ebd7a4ed829b8a08e249b0eee2716410995bbb8bfafb88053d25612c977
             image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_f84723cd.xsa
+          - bitstream_name: xsa_ss2p1_4686dd0d.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
