@@ -30,6 +30,14 @@ pub fn rom_from_env_fpga(fpga: bool) -> &'static FwId<'static> {
     }
 }
 
+pub fn fake_rom(fpga: bool) -> &'static FwId<'static> {
+    if fpga {
+        &ROM_FAKE_WITH_UART_FPGA
+    } else {
+        &ROM_FAKE_WITH_UART
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -46,6 +54,12 @@ pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu", "fake-rom"],
+};
+
+pub const ROM_FAKE_WITH_UART_FPGA: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fake-rom", "fpga_realtime"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
@@ -521,6 +535,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
+    &ROM_FAKE_WITH_UART_FPGA,
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_FPGA_WITH_UART,
     &FMC_WITH_UART,

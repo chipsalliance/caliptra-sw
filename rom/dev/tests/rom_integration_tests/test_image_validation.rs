@@ -7,7 +7,7 @@ use caliptra_api::{
 use caliptra_builder::{
     firmware::{
         rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
-        APP_WITH_UART, FMC_WITH_UART,
+        APP_WITH_UART,
     },
     ImageOptions,
 };
@@ -699,12 +699,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
                 )
                 .unwrap();
 
-                let image_bundle = caliptra_builder::build_and_sign_image(
-                    &FMC_WITH_UART,
-                    &APP_WITH_UART,
-                    image_options.clone(),
-                )
-                .unwrap();
+                let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
                 if key_idx == LAST_KEY_IDX {
                     // Last key is never revoked.
@@ -770,9 +765,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         )
         .unwrap();
 
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
         if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
@@ -829,9 +822,7 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
         )
         .unwrap();
 
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
         if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
@@ -1295,9 +1286,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
         let fuses = Fuses {
             fuse_pqc_key_type: *pqc_key_type as u32,
@@ -1335,10 +1324,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
-        // Set ecc_pub_key.x to zero.
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone()); // Set ecc_pub_key.x to zero.
         image_bundle
             .manifest
             .preamble
@@ -1393,9 +1379,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone());
         // Set ecc_pub_key.y to zero.
         image_bundle
             .manifest
@@ -1451,9 +1435,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone());
         let gen = ImageGenerator::new(Crypto::default());
         let digest = gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1503,9 +1485,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone());
         let gen = ImageGenerator::new(Crypto::default());
         let digest = gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1555,9 +1535,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone());
         let gen = ImageGenerator::new(Crypto::default());
         let digest = gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1607,9 +1585,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let mut image_bundle = crate::helpers::build_image_bundle(image_options.clone());
         let gen = ImageGenerator::new(Crypto::default());
         let digest = gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)

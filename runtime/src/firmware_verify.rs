@@ -32,6 +32,7 @@ impl FirmwareVerifyCmd {
         let raw_data = drivers.mbox.raw_mailbox_contents();
 
         Self::load_manifest(drivers.persistent_data.get_mut(), raw_data)?;
+        let image_in_mcu = drivers.soc_ifc.subsystem_mode();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut drivers.sha256,
             sha2_512_384: &mut drivers.sha2_512_384,
@@ -44,6 +45,7 @@ impl FirmwareVerifyCmd {
             image: raw_data,
             dma: &drivers.dma,
             persistent_data: drivers.persistent_data.get(),
+            image_in_mcu,
         };
         let mut verifier = ImageVerifier::new(&mut venv);
 

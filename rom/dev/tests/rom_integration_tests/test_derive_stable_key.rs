@@ -170,6 +170,9 @@ fn test_derive_stable_key() {
                 image_bundle.as_bytes(),
                 FwVerificationPqcKeyType::MLDSA,
             );
+            hw.step_until_output_contains("Running Caliptra FMC ...")
+                .unwrap();
+
             hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
             let result = hw.mailbox_execute(0x1000_0012, &[]);
