@@ -11,10 +11,7 @@ use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::firmware::APP_WITH_UART;
-use caliptra_builder::{
-    firmware::{self, FMC_WITH_UART},
-    ImageOptions,
-};
+use caliptra_builder::{firmware::FMC_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq,
@@ -205,7 +202,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     };
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         image_options,
     )
     .unwrap()
@@ -265,7 +262,7 @@ fn test_authorize_and_stash_cmd_success() {
     };
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         image_options,
     )
     .unwrap()
