@@ -1449,6 +1449,34 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_SET_AUTH_MANIFEST, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_AUTHORIZE_AND_STASH, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
 {
     if (!caliptra_idevid_csr) {
