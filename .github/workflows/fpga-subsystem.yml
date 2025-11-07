@@ -75,7 +75,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: 6418831e18966a05cfa0a8b7e66cbad3e4e76e5f
+      CALIPTRA_MCU_COMMIT: 98bc10c349967b651b3072087482922a40df96b7
 
     steps:
       - name: Checkout repo
@@ -291,6 +291,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
+              -E 'package(caliptra-runtime) - test(test_activate_firmware::test_activate_fw_id_not_in_manifest) - test(test_activate_firmware::test_activate_invalid_fw_id) - test(test_activate_firmware::test_activate_mcu_fw_success) - test(test_activate_firmware::test_activate_mcu_soc_fw_success) - test(test_activate_firmware::test_activate_soc_fw_success) - test(test_activate_firmware::test_invalid_exec_bit_in_manifest) - test(test_authorize_and_stash::test_authorize_from_load_address) - test(test_authorize_and_stash::test_authorize_from_staging_address)  - test(test_boot::test_measurement_in_measurement_log_added_to_dpe) - test(test_pcr31_extended_upon_stash_measurement) - test(test_stash_measurement::test_pcr31_extended_upon_stash_measurement) - test(test_warm_reset::)  - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd) - test(test_fe_programming::test_fe_programming_invalid_partition) - test(test_pauser_privilege_levels::test_pl0_unset_in_header) - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds) - test(test_pauser_privilege_levels::test_user_not_pl0) - test(test_fips::test_fips_version) - test(test_get_idev_csr::test_get_ecc_csr) - test(test_get_idev_csr::test_get_mldsa_csr) - test(test_set_auth_manifest::test_set_auth_manifest_svn_lt_fuse) - test(test_set_auth_manifest::test_set_auth_manifest_svn_gt_128) - test(test_mailbox::test_reserved_pauser) - test(test_pauser_privilege_levels::test_change_locality) - test(test_certs::test_all_measurement_apis) - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_info::test_fw_info) - test(test_update_reset::test_key_ladder_changes_with_lifecycle) - test(test_update_reset::test_key_ladder_stable_across_fw_updates) - test(test_lms::test_lms_verify_invalid_lmots_type) - test(test_lms::test_lms_verify_cmd) - test(test_lms::test_lms_verify_failure)'
               -E 'package(caliptra-rom) & (test(test_capabilities) | test(test_cfi) | test(test_cpu_fault))'
               -E 'package(caliptra-api)'
               -E 'package(caliptra-api-types)'
