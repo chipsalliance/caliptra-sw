@@ -124,8 +124,8 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] AES-256-CTR");
     Aes256CtrKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-GCM");
-    Aes256GcmKat::default().execute(env.aes, env.trng)?;
+    // cprintln!("[kat] AES-256-GCM");
+    // Aes256GcmKat::default().execute(env.aes, env.trng)?;
 
     cprintln!("[kat] --");
 

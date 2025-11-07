@@ -496,10 +496,9 @@ fn handle_external_mailbox_cmd(
     drivers: &mut Drivers,
     external_cmd_buffer: &mut [u32],
 ) -> CaliptraResult<Option<ExternalCommand>> {
-    // [TODO][CAP2.1]: only enable in subsystem mode once https://github.com/chipsalliance/caliptra-sw/pull/2686 is merged.
-    // if drivers.soc_ifc.has_ss_staging_area()
-    //     && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
-    if CommandId::from(cmd_id) != CommandId::EXTERNAL_MAILBOX_CMD {
+    if !drivers.soc_ifc.subsystem_mode()
+        || CommandId::from(cmd_id) != CommandId::EXTERNAL_MAILBOX_CMD
+    {
         return Ok(None);
     }
     let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
@@ -508,14 +507,12 @@ fn handle_external_mailbox_cmd(
     let cmd_id = external_cmd.command_id;
 
     if cmd_id == CommandId::FIRMWARE_LOAD.into() {
-        // [TODO][CAP2.1]: Add this in upcoming PR.
-        // cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
-        // update::handle_impactless_update(drivers)?;
+        cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
+        update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
         // unexpected. Denote that the update failed.
-        // return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
-        return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
+        return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
     } else {
         cfi_assert_ne(cmd_id, CommandId::FIRMWARE_LOAD.into());
     }

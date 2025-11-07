@@ -1,9 +1,12 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
+use caliptra_auth_man_types::AuthManifestImageMetadata;
+use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_builder::{
     build_and_sign_image, build_firmware_rom,
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
@@ -17,6 +20,8 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
+use std::sync::LazyLock;
 
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, RomInfo};
@@ -64,6 +69,33 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
+pub const DEFAULT_MCU_FW: [u8; 256] = [
+    1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+pub static DEFAULT_SOC_MANIFEST: LazyLock<Vec<u8>> = LazyLock::new(|| {
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = soc_manifest.as_bytes();
+    soc_manifest.to_vec()
+});
 #[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
@@ -153,6 +185,14 @@ pub fn start_rt_test_pqc_model(
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
+
+    // default to subsystem mode if we have test SRAM, MCU FW, or are running on the subsystem FPGA,
+    // unless the test overrides it in the init_params.
+    let subsystem_mode =
+        cfg!(feature = "fpga_subsystem") || args.test_sram.is_some() || args.mcu_fw_image.is_some();
+
+    let soc_manifest = Some(args.soc_manifest.unwrap_or(&*DEFAULT_SOC_MANIFEST));
+    let mcu_fw_image = Some(args.mcu_fw_image.unwrap_or(&DEFAULT_MCU_FW));
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = match args.init_params {
         Some(init_params) => init_params,
@@ -161,6 +201,7 @@ pub fn start_rt_test_pqc_model(
             stack_info: Some(StackInfo::new(image_info)),
             test_sram: args.test_sram,
             security_state: args.security_state.unwrap_or_default(),
+            subsystem_mode,
             ..Default::default()
         },
     };
@@ -191,8 +232,8 @@ pub fn start_rt_test_pqc_model(
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
-            soc_manifest: args.soc_manifest,
-            mcu_fw_image: args.mcu_fw_image,
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
