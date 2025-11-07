@@ -1,6 +1,3 @@
-// Licensed under the Apache-2.0 license
-
-use crate::mailbox::MAX_MAILBOX_LEN;
 /*++
 
 Licensed under the Apache-2.0 license.
@@ -16,6 +13,7 @@ Abstract:
 --*/
 use crate::wait;
 use crate::CaliptraResult;
+use crate::MAX_MAILBOX_LEN;
 use crate::{Array4x12, Array4x16};
 
 use caliptra_error::CaliptraError;
@@ -31,6 +29,28 @@ pub type Sha512Digest<'a> = &'a mut Array4x16;
 pub enum ShaAccLockState {
     AssumedLocked = 0xAAAA_AAA5,
     NotAcquired = 0x5555_555A,
+}
+
+/// Endianness mode for SHA accelerator streaming operations.
+/// Note: data is reversed inside the hardware SHA engine state,
+/// so this may have the opposite effect of what is expected and
+/// always be tested against hardware.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamEndianness {
+    /// Maintain native byte order of the data
+    Native,
+    /// Reorder byte endianness
+    Reorder,
+}
+
+impl StreamEndianness {
+    /// Returns true if endian_toggle should be set to true in the hardware (Native mode = maintain = true)
+    fn should_toggle(self) -> bool {
+        match self {
+            StreamEndianness::Native => true,
+            StreamEndianness::Reorder => false,
+        }
+    }
 }
 
 pub struct Sha2_512_384Acc {
@@ -167,11 +187,11 @@ impl Sha2_512_384AccOp<'_> {
     /// # Arguments
     ///
     /// * `dlen` - length of data that will be hashed
-    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `endianness` - byte endianness mode (Native or Reorder)
     pub fn stream_start_384(
         &mut self,
         dlen: u32,
-        maintain_data_endianess: bool,
+        endianness: StreamEndianness,
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
@@ -179,7 +199,7 @@ impl Sha2_512_384AccOp<'_> {
         // endianess of the data in the mailbox provided to the SHA384 engine.
         sha_acc.mode().write(|w| {
             w.mode(|_| ShaCmdE::ShaStream384)
-                .endian_toggle(maintain_data_endianess)
+                .endian_toggle(endianness.should_toggle())
         });
 
         // Set the data length to hash.
@@ -214,19 +234,71 @@ impl Sha2_512_384AccOp<'_> {
         Ok(())
     }
 
+    /// Prepare the SHA accelerator for streaming.
+    ///
+    /// # Arguments
+    ///
+    /// * `dlen` - length of data that will be hashed
+    /// * `endianness` - byte endianness mode (Native or Reorder)
+    pub fn stream_start_512(
+        &mut self,
+        dlen: u32,
+        endianness: StreamEndianness,
+    ) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // Set the SHA accelerator mode and set the option to maintain the DWORD
+        // endianess of the data in the mailbox provided to the SHA512 engine.
+        sha_acc.mode().write(|w| {
+            w.mode(|_| ShaCmdE::ShaStream512)
+                .endian_toggle(endianness.should_toggle())
+        });
+
+        // Set the data length to hash.
+        sha_acc.dlen().write(|_| dlen);
+        Ok(())
+    }
+
+    /// Execute and finish SHA accelerator streaming operation.
+    pub fn stream_finish_512(&mut self, digest: Sha512Digest) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // signal that we are done streaming
+        sha_acc.execute().write(|w| w.execute(true));
+
+        self.stream_wait_for_done_512(digest)
+    }
+
+    /// Wait for the SHA accelerator streaming operation to finish.
+    pub fn stream_wait_for_done_512(&mut self, digest: Sha512Digest) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // Wait for the digest operation to finish
+        wait::until(|| sha_acc.status().read().valid());
+
+        *digest = Array4x16::read_from_reg(sha_acc.digest());
+
+        // Zeroize the hardware registers.
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
+        Ok(())
+    }
+
     /// Perform SHA digest with a configurable mode
     ///
     /// # Arguments
     ///
     /// * `dlen` - length of data to read from the mailbox
     /// * `start_address` - start offset for the data in the mailbox
-    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `endianness` - byte endianness mode (Native or Reorder)
     /// * `cmd` - SHA mode/command to use from ShaCmdE
     fn digest_generic(
         &mut self,
         dlen: u32,
         start_address: u32,
-        maintain_data_endianess: bool,
+        endianness: StreamEndianness,
         cmd: ShaCmdE,
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
@@ -245,7 +317,7 @@ impl Sha2_512_384AccOp<'_> {
         // endianess of the data in the mailbox provided to the SHA384 engine.
         sha_acc
             .mode()
-            .write(|w| w.mode(|_| cmd).endian_toggle(maintain_data_endianess));
+            .write(|w| w.mode(|_| cmd).endian_toggle(endianness.should_toggle()));
 
         // Trigger the SHA operation.
         sha_acc.execute().write(|_| ExecuteWriteVal::from(1));
@@ -262,13 +334,13 @@ impl Sha2_512_384AccOp<'_> {
     ///
     /// * `dlen` - length of data to read from the mailbox
     /// * `start_address` - start offset for the data in the mailbox
-    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `endianness` - byte endianness mode (Native or Reorder)
     /// * `digest` - buffer to populate with resulting digest
     pub fn digest_384(
         &mut self,
         dlen: u32,
         start_address: u32,
-        maintain_data_endianess: bool,
+        endianness: StreamEndianness,
         digest: Sha384Digest,
     ) -> CaliptraResult<()> {
         #[cfg(feature = "fips-test-hooks")]
@@ -276,12 +348,7 @@ impl Sha2_512_384AccOp<'_> {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
         }
 
-        self.digest_generic(
-            dlen,
-            start_address,
-            maintain_data_endianess,
-            ShaCmdE::ShaMbox384,
-        )?;
+        self.digest_generic(dlen, start_address, endianness, ShaCmdE::ShaMbox384)?;
 
         // Copy digest to buffer
         let sha_acc = self.sha512_acc.regs();
@@ -302,13 +369,13 @@ impl Sha2_512_384AccOp<'_> {
     ///
     /// * `dlen` - length of data to read from the mailbox
     /// * `start_address` - start offset for the data in the mailbox
-    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `endianness` - byte endianness mode (Native or Reorder)
     /// * `digest` - buffer to populate with resulting digest
     pub fn digest_512(
         &mut self,
         dlen: u32,
         start_address: u32,
-        maintain_data_endianess: bool,
+        endianness: StreamEndianness,
         digest: Sha512Digest,
     ) -> CaliptraResult<()> {
         #[cfg(feature = "fips-test-hooks")]
@@ -318,12 +385,7 @@ impl Sha2_512_384AccOp<'_> {
             )?
         }
 
-        self.digest_generic(
-            dlen,
-            start_address,
-            maintain_data_endianess,
-            ShaCmdE::ShaMbox512,
-        )?;
+        self.digest_generic(dlen, start_address, endianness, ShaCmdE::ShaMbox512)?;
 
         // Copy digest to buffer
         let sha_acc = self.sha512_acc.regs();

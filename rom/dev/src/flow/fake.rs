@@ -239,7 +239,7 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
             .try_start_operation(ShaAccLockState::NotAcquired)?
         {
             sha_acc_op
-                .digest_384(len, offset, false, &mut digest)
+                .digest_384(len, offset, StreamEndianness::Reorder, &mut digest)
                 .map_err(|_| digest_failure)?;
         } else {
             Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
@@ -261,7 +261,7 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
             .try_start_operation(ShaAccLockState::NotAcquired)?
         {
             sha_acc_op
-                .digest_512(len, offset, false, &mut digest)
+                .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
                 .map_err(|_| digest_failure)?;
         } else {
             Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;

@@ -17,6 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     memory_layout, Array4x12, Array4x16, Mailbox, Sha2_512_384Acc, ShaAccLockState,
+    StreamEndianness,
 };
 use caliptra_kat::Sha2_512_384AccKat;
 use caliptra_registers::mbox::MboxCsr;
@@ -59,7 +60,12 @@ fn test_digest0() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -72,8 +78,12 @@ fn test_digest0() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -115,7 +125,12 @@ fn test_digest1() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -128,8 +143,12 @@ fn test_digest1() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -171,7 +190,12 @@ fn test_digest2() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -184,8 +208,12 @@ fn test_digest2() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -227,7 +255,8 @@ fn test_digest_offset() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(8, 4, false, (&mut digest).into());
+            let result =
+                sha_acc_op.digest_384(8, 4, StreamEndianness::Reorder, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -240,7 +269,8 @@ fn test_digest_offset() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_512(8, 4, false, (&mut digest_512).into());
+            let result =
+                sha_acc_op.digest_512(8, 4, StreamEndianness::Reorder, (&mut digest_512).into());
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -276,7 +306,7 @@ fn test_digest_zero_size_buffer() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_384(0, 0, true, (&mut digest).into());
+        let result = sha_acc_op.digest_384(0, 0, StreamEndianness::Native, (&mut digest).into());
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
 
@@ -289,7 +319,8 @@ fn test_digest_zero_size_buffer() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_512(0, 0, true, (&mut digest_512).into());
+        let result =
+            sha_acc_op.digest_512(0, 0, StreamEndianness::Native, (&mut digest_512).into());
         assert!(result.is_ok());
         assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -341,7 +372,7 @@ fn test_digest_max_mailbox_size() {
         let result = sha_acc_op.digest_384(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
             0,
-            true,
+            StreamEndianness::Native,
             (&mut digest).into(),
         );
         assert!(result.is_ok());
@@ -359,7 +390,7 @@ fn test_digest_max_mailbox_size() {
         let result = sha_acc_op.digest_512(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
             0,
-            true,
+            StreamEndianness::Native,
             (&mut digest_512).into(),
         );
         assert!(result.is_ok());

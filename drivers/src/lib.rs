@@ -104,7 +104,7 @@ pub use lms::{
     get_lmots_parameters, get_lms_parameters, HashValue, Lms, LmsResult, Sha192Digest,
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
-pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn, MAX_MAILBOX_LEN};
 pub use ml_kem::{
     MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey, MlKem1024Message,
     MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
@@ -131,7 +131,7 @@ pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
-pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
+pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState, StreamEndianness};
 pub use sha3::{Sha3, Sha3DigestOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;

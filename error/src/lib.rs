@@ -128,6 +128,11 @@ impl CaliptraError {
             "Driver Error: SHA2_512_384 index out of bounds"
         ),
         (
+            DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
+            0x0003000C,
+            "Driver Error: SHA2_512_384 SHA2_512_384_ACC digest start op failure"
+        ),
+        (
             DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE,
             0x00038000,
             "Driver Error: SHA2_512_384ACC unexpected acquired lock state"
@@ -1028,6 +1033,11 @@ impl CaliptraError {
             DRIVER_DMA_FIFO_INVALID_SIZE,
             0x0000f004,
             "DMA driver Error: FIFO invalid size"
+        ),
+        (
+            DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED,
+            0x0000f005,
+            "DMA driver Error: SHA accelerator not locked by DMA"
         ),
         (
             DRIVER_SHA3_INVALID_STATE_ERR,
