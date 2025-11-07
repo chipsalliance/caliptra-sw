@@ -383,7 +383,7 @@ pub fn contains_some_data<T: std::cmp::PartialEq>(data: &[T]) -> bool {
 }
 
 pub fn verify_mbox_cmds_fail<T: HwModel>(hw: &mut T, exp_error_code: u32) {
-    // Send an arbitrary message
+    // Send an arbitrary, valid message
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
     };
