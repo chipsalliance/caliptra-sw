@@ -21,6 +21,12 @@ if [[ -f "/etc/no_overlayfs" ]]; then
 elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
+    # Update time. This requires a R/W file system, so it failed earlier.
+    systemctl start systemd-timesyncd
+
+    # Give the NTP service some time
+    sleep 5
+
     # TODO(clundin): Get this at job runtime instead.
     insmod /home/runner/io-module.ko
 
