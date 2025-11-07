@@ -19,7 +19,9 @@ Abstract:
 --*/
 
 use crate::{
-    kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
+    kv_access::{KvAccess, KvAccessErr},
+    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x3,
+    LEArray4x4, LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -30,12 +32,13 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
 type AesKeyBlock = LEArray4x8;
 type AesBlock = LEArray4x4;
+type AesGcmIvBlock = LEArray4x3;
+type AesGcmTag = LEArray4x4;
 
 pub const AES_BLOCK_SIZE_BYTES: usize = 16;
 const _: () = assert!(AES_BLOCK_SIZE_BYTES == core::mem::size_of::<AesBlock>());
 const _: () = assert!(32 == core::mem::size_of::<AesKeyBlock>());
 
-const AES_IV_SIZE_BYTES: usize = 12;
 pub const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
 const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
@@ -47,12 +50,12 @@ const ZERO_BLOCK: AesBlock = AesBlock::new([0; AES_BLOCK_SIZE_WORDS]);
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
 pub enum AesGcmIv<'a> {
-    Array(&'a [u8; 12]),
+    Array(&'a AesGcmIvBlock),
     Random,
 }
 
-impl<'a> From<&'a [u8; 12]> for AesGcmIv<'a> {
-    fn from(value: &'a [u8; 12]) -> Self {
+impl<'a> From<&'a LEArray4x3> for AesGcmIv<'a> {
+    fn from(value: &'a LEArray4x3) -> Self {
         Self::Array(value)
     }
 }
@@ -122,12 +125,12 @@ pub enum GcmPhase {
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesGcmContext {
     pub key: AesKeyBlock,
-    pub iv: [u8; 12],
+    pub iv: LEArray4x3,
     pub aad_len: u32,
     pub ghash_state: AesBlock,
     pub buffer_len: u32,
     pub buffer: [u8; 16],
-    pub resreved: [u8; 16],
+    pub reserved: [u32; 4],
 }
 
 const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_SIZE_BYTES);
@@ -236,7 +239,7 @@ impl Aes {
             ghash_state,
             buffer_len: 0,
             buffer: [0; 16],
-            resreved: [0; 16],
+            reserved: [0; 4],
         })
     }
 
@@ -295,7 +298,7 @@ impl Aes {
                     ghash_state: context.ghash_state,
                     buffer_len: len as u32,
                     buffer,
-                    resreved: [0; 16],
+                    reserved: [0; 4],
                 },
             ));
         }
@@ -360,7 +363,7 @@ impl Aes {
                 ghash_state,
                 buffer_len: len as u32,
                 buffer,
-                resreved: [0; 16],
+                reserved: [0; 4],
             },
         ))
     }
@@ -372,27 +375,28 @@ impl Aes {
         context: &AesGcmContext,
         plaintext: &[u8],
         ciphertext: &mut [u8],
-    ) -> CaliptraResult<(usize, [u8; AES_BLOCK_SIZE_BYTES])> {
+    ) -> CaliptraResult<(usize, AesGcmTag)> {
         self.aes_256_gcm_final(context, plaintext, ciphertext, AesOperation::Encrypt)
     }
 
     /// Computes the final plaintext, and returns the number of plaintext bytes
-    /// written and the final 16-byte tag, and whether the tags matched.
+    /// written and whether the tags matched.
     pub fn aes_256_gcm_decrypt_final(
         &mut self,
         context: &AesGcmContext,
         ciphertext: &[u8],
         plaintext: &mut [u8],
         tag: &[u8],
-    ) -> CaliptraResult<(usize, [u8; AES_BLOCK_SIZE_BYTES], bool)> {
+    ) -> CaliptraResult<(usize, bool)> {
         if tag.len() > AES_BLOCK_SIZE_BYTES {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
         let (written, computed_tag) =
             self.aes_256_gcm_final(context, ciphertext, plaintext, AesOperation::Decrypt)?;
 
-        let tag_matches = constant_time_eq(tag, &computed_tag);
-        Ok((written, computed_tag, tag_matches))
+        let computed_tag = computed_tag.as_bytes();
+        let tag_matches = constant_time_eq(tag, computed_tag);
+        Ok((written, tag_matches))
     }
 
     /// Restores the AES context, updates with new input,
@@ -403,7 +407,7 @@ impl Aes {
         mut input: &[u8],
         mut output: &mut [u8],
         op: AesOperation,
-    ) -> CaliptraResult<(usize, [u8; AES_BLOCK_SIZE_BYTES])> {
+    ) -> CaliptraResult<(usize, AesGcmTag)> {
         let left = context.buffer_len as usize % AES_BLOCK_SIZE_BYTES;
 
         if output.len() < input.len() + left {
@@ -492,7 +496,7 @@ impl Aes {
     fn restore(
         &mut self,
         key: AesKey,
-        iv: &[u8; AES_IV_SIZE_BYTES],
+        iv: &LEArray4x3,
         aad_len: u32,
         len: u32,
         ghash_state: AesBlock,
@@ -501,9 +505,9 @@ impl Aes {
         // No zerocopy since we can't guarantee that the
         // byte array is aligned to 4-byte boundaries.
         let iv = [
-            u32::from_le_bytes(iv[0..4].try_into().unwrap()),
-            u32::from_le_bytes(iv[4..8].try_into().unwrap()),
-            u32::from_le_bytes(iv[8..12].try_into().unwrap()),
+            iv.0[0],
+            iv.0[1],
+            iv.0[2],
             // hardware quirk: the hardware seems to expect IV[3] to be
             // presented as a big-endian int instead of little-endian, like elsewhere.
             // The specs expect us to store the whole IV when saving and restoring,
@@ -591,7 +595,7 @@ impl Aes {
         plaintext: &[u8],
         ciphertext: &mut [u8],
         tag_size: usize,
-    ) -> CaliptraResult<([u8; AES_IV_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
         if tag_size > AES_BLOCK_SIZE_BYTES {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
@@ -615,18 +619,15 @@ impl Aes {
     pub fn aes_256_gcm_decrypt(
         &mut self,
         trng: &mut Trng,
-        iv: &[u8; AES_IV_SIZE_BYTES],
+        iv: &LEArray4x3,
         key: AesKey,
         aad: &[u8],
         ciphertext: &[u8],
         plaintext: &mut [u8],
-        tag: &[u8],
+        tag: &LEArray4x4,
     ) -> CaliptraResult<()> {
         if plaintext.len() < ciphertext.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
-        if tag.len() > AES_BLOCK_SIZE_BYTES {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
         let (_, computed_tag) = self.aes_256_gcm_op(
             trng,
@@ -638,7 +639,7 @@ impl Aes {
             AesOperation::Decrypt,
         )?;
 
-        if !constant_time_eq(tag, &computed_tag) {
+        if !constant_time_eq(tag.as_bytes(), computed_tag.as_bytes()) {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG)?;
         }
         Ok(())
@@ -653,7 +654,7 @@ impl Aes {
         key: AesKey,
         aad: &[u8],
         op: AesOperation,
-    ) -> CaliptraResult<[u8; AES_IV_SIZE_BYTES]> {
+    ) -> CaliptraResult<AesGcmIvBlock> {
         if matches!(op, AesOperation::Decrypt) && matches!(iv, AesGcmIv::Random) {
             // should be impossible
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_STATE)?;
@@ -661,13 +662,9 @@ impl Aes {
 
         // No zerocopy since we can't guarantee that the
         // byte array is aligned to 4-byte boundaries.
-        let iv = match iv {
-            AesGcmIv::Array(iv) => [
-                u32::from_le_bytes(iv[0..4].try_into().unwrap()),
-                u32::from_le_bytes(iv[4..8].try_into().unwrap()),
-                u32::from_le_bytes(iv[8..12].try_into().unwrap()),
-            ],
-            AesGcmIv::Random => trng.generate()?.0[0..3].try_into().unwrap(),
+        let iv: LEArray4x3 = match iv {
+            AesGcmIv::Array(iv) => *iv,
+            AesGcmIv::Random => LEArray4x3::new(trng.generate()?.0[..3].try_into().unwrap()),
         };
 
         // sideload the KV key before we program the control register
@@ -704,7 +701,7 @@ impl Aes {
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
             // Program the IV (last 4 bytes must be 0).
-            for (i, ivi) in iv.into_iter().enumerate() {
+            for (i, ivi) in iv.0.into_iter().enumerate() {
                 aes.iv().at(i).write(|_| ivi);
             }
             aes.iv().at(3).write(|_| 0);
@@ -718,7 +715,7 @@ impl Aes {
         if !aad.is_empty() {
             self.read_write_data_gcm(aad, GcmPhase::Aad, None)?;
         }
-        Ok(transmute!(iv))
+        Ok(iv)
     }
 
     fn load_key(&mut self, key: AesKey<'_>) -> CaliptraResult<()> {
@@ -801,7 +798,7 @@ impl Aes {
         input: &[u8],
         output: &mut [u8],
         op: AesOperation,
-    ) -> CaliptraResult<([u8; AES_IV_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
         if input.len() > AES_MAX_DATA_SIZE || output.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
@@ -818,11 +815,7 @@ impl Aes {
         Ok((iv, tag))
     }
 
-    pub fn compute_tag(
-        &mut self,
-        aad_len: usize,
-        text_len: usize,
-    ) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
+    pub fn compute_tag(&mut self, aad_len: usize, text_len: usize) -> CaliptraResult<AesGcmTag> {
         // Compute the tag
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
@@ -842,8 +835,7 @@ impl Aes {
         self.load_data_block(&tag_input, 0)?;
 
         // Read out the tag.
-        let mut tag_return = [0u8; AES_BLOCK_SIZE_BYTES];
-        self.read_data_block(&mut tag_return, 0)?;
+        let tag_return = self.read_data_block_u32();
 
         self.zeroize_internal();
         Ok(tag_return)
@@ -943,6 +935,75 @@ impl Aes {
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    /// AES ECB Decrypt to KV. Used by OCP LOCK for MEK release.
+    pub fn aes_256_ecb_decrypt_kv(&mut self, input: &[u8; 64]) -> CaliptraResult<()> {
+        // Only KV 16 is allowed to be key KV.
+        let mdk_slot = KeyReadArgs::new(KeyId::KeyId16);
+        // Only KV 23 is allowed to be destination KV.
+        let mek_slot = KeyWriteArgs::new(KeyId::KeyId23, KeyUsage::default().set_dma_data_en());
+
+        self.aes_256_ecb_decrypt_kv_internal(AesKey::KV(mdk_slot), mek_slot, input)
+    }
+
+    /// AES ECB Decrypt to KV.
+    ///
+    /// NOTE: Use `aes_256_ecb_decrypt_kv` so API invariants are enforced.
+    pub fn aes_256_ecb_decrypt_kv_internal(
+        &mut self,
+        key: AesKey,
+        output_kv: KeyWriteArgs,
+        input: &[u8; 64],
+    ) -> CaliptraResult<()> {
+        // Key is always in KV, always load before starting OP.
+        self.load_key(key)?;
+
+        // Set Dest KV in AES Ctrl register
+        self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
+            wait_for_idle(&aes);
+            KvAccess::begin_copy_to_kv(
+                aes_clp.aes_kv_wr_status(),
+                aes_clp.aes_kv_wr_ctrl(),
+                output_kv,
+            )?;
+            Ok(())
+        })?;
+
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(AesOperation::Decrypt as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        // Load 64 bytes of data
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+        }
+
+        // Wait for HW to release result to KV
+        self.with_aes::<CaliptraResult<()>>(|_, aes_clp| {
+            match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), output_kv) {
+                Ok(_) => Ok(()),
+                Err(KvAccessErr::KeyRead) => {
+                    Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)
+                }
+                Err(KvAccessErr::KeyWrite) => Err(CaliptraError::RUNTIME_DRIVER_AES_WRITE_KV),
+                _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
+            }
+        })?;
+
+        self.zeroize_internal();
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_ecb(
         &mut self,
         key: AesKey,
@@ -987,6 +1048,7 @@ impl Aes {
             self.read_data_block(output, block_num)?;
         }
 
+        self.zeroize_internal();
         Ok(())
     }
 
@@ -1299,6 +1361,29 @@ impl Aes {
         Ok(c)
     }
 
+    /// Zeroize the GCM hardware state.
+    fn zeroize_gcm(&mut self) {
+        self.with_aes(|aes, _| {
+            // recommended way to clear GCM state in 2.0: Reset GCM to init with valid bytes set to 16
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Gcm as u32)
+                        .operation(AesOperation::Encrypt as u32)
+                        .manual_operation(false)
+                        .sideload(false)
+                });
+            }
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Init as u32).num_valid_bytes(16));
+            }
+            wait_for_idle(&aes);
+        });
+    }
+
     /// Zeroize the non-GHASH hardware registers.
     fn zeroize_iv_data(&mut self) {
         self.with_aes(|aes, _| {
@@ -1314,6 +1399,7 @@ impl Aes {
 
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
+        self.zeroize_gcm();
         self.zeroize_iv_data();
     }
 
