@@ -764,11 +764,11 @@ int rt_test_all_commands(const test_info *info)
     status = caliptra_get_fmc_alias_ecc384_csr(&fmc_alias_ecc384_csr_resp, false);
 
     if (status) {
-        printf("Get FMC Alias CSR failed: 0x%x\n", status);
+        printf("Get FMC Alias ECC384 CSR failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     } else {
-        printf("Get FMC Alias CSR: OK\n");
+        printf("Get FMC Alias ECC384 CSR: OK\n");
     }
 
     // GET_FMC_ALIAS_MLDSA87_CSR
@@ -777,11 +777,11 @@ int rt_test_all_commands(const test_info *info)
     status = caliptra_get_fmc_alias_mldsa87_csr(&fmc_alias_mldsa87_csr_resp, false);
 
     if (status) {
-        printf("Get FMC Alias CSR failed: 0x%x\n", status);
+        printf("Get FMC Alias MLDSA87 CSR failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     } else {
-        printf("Get FMC Alias CSR: OK\n");
+        printf("Get FMC Alias MLDSA87 CSR: OK\n");
     }
 
     // GET_RT_ALIAS_ECC384_CERT
