@@ -30,6 +30,7 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::cfi_check;
+use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::{
     cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
@@ -595,10 +596,8 @@ impl Drivers {
         }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_ecc384_cert(
-            persistent_data.get(),
-            drivers.ecc_cert_chain.as_mut_slice(),
-        )?;
+        let ldevid_cert_size =
+            copy_ldevid_ecc384_cert(persistent_data.get(), drivers.ecc_cert_chain.as_mut_slice())?;
         if ldevid_cert_size > drivers.ecc_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
@@ -642,7 +641,7 @@ impl Drivers {
         }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_mldsa87_cert(
+        let ldevid_cert_size = copy_ldevid_mldsa87_cert(
             persistent_data.get(),
             drivers.mldsa_cert_chain.as_mut_slice(),
         )?;
