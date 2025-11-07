@@ -262,6 +262,12 @@ int caliptra_shutdown(bool async);
 // Capabilities
 int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
 
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async);
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async);
+
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();
 
