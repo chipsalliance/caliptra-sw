@@ -2884,7 +2884,7 @@ impl Request for CmAesGcmEncryptInitReq {
 pub struct CmAesGcmEncryptInitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
 }
 
 impl Default for CmAesGcmEncryptInitResp {
@@ -2892,7 +2892,7 @@ impl Default for CmAesGcmEncryptInitResp {
         Self {
             hdr: MailboxRespHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-            iv: [0u8; 12],
+            iv: [0u32; 3],
         }
     }
 }
@@ -3116,7 +3116,7 @@ pub struct CmAesGcmEncryptFinalResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmAesGcmEncryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
-    pub tag: [u8; 16],
+    pub tag: [u32; 4],
     pub ciphertext_size: u32,
 }
 
@@ -3154,7 +3154,7 @@ pub struct CmAesGcmDecryptInitReq {
     pub hdr: MailboxReqHeader,
     pub flags: u32,
     pub cmk: Cmk,
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
 }
@@ -3165,7 +3165,7 @@ impl Default for CmAesGcmDecryptInitReq {
             hdr: MailboxReqHeader::default(),
             flags: 0,
             cmk: Cmk::default(),
-            iv: [0u8; 12],
+            iv: [0u32; 3],
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
         }
@@ -3200,7 +3200,7 @@ impl Request for CmAesGcmDecryptInitReq {
 pub struct CmAesGcmDecryptInitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
 }
 
 impl Default for CmAesGcmDecryptInitResp {
@@ -3208,7 +3208,7 @@ impl Default for CmAesGcmDecryptInitResp {
         Self {
             hdr: MailboxRespHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-            iv: [0u8; 12],
+            iv: [0u32; 3],
         }
     }
 }
