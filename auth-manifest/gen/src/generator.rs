@@ -57,51 +57,23 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.flags = config.flags.bits();
 
         // Sign the vendor manifest public keys.
-        auth_manifest.preamble.vendor_pub_keys.ecc_pub_key =
-            config.vendor_man_key_info.pub_keys.ecc_pub_key;
-        let pqc_pub_key = match config.pqc_key_type {
-            FwVerificationPqcKeyType::LMS => {
-                config.vendor_man_key_info.pub_keys.lms_pub_key.as_bytes()
-            }
-            FwVerificationPqcKeyType::MLDSA => config
-                .vendor_man_key_info
-                .pub_keys
-                .mldsa_pub_key
-                .0
-                .as_bytes(),
-        };
-        auth_manifest.preamble.vendor_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
-            .copy_from_slice(pqc_pub_key);
+        if let Some(vendor_man_config) = &config.vendor_man_key_info {
+            auth_manifest.preamble.vendor_pub_keys.ecc_pub_key =
+                vendor_man_config.pub_keys.ecc_pub_key;
+            let pqc_pub_key = match config.pqc_key_type {
+                FwVerificationPqcKeyType::LMS => vendor_man_config.pub_keys.lms_pub_key.as_bytes(),
+                FwVerificationPqcKeyType::MLDSA => {
+                    vendor_man_config.pub_keys.mldsa_pub_key.0.as_bytes()
+                }
+            };
+            auth_manifest.preamble.vendor_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+                .copy_from_slice(pqc_pub_key);
+        }
 
-        let range = AuthManifestPreamble::vendor_signed_data_range();
+        if let Some(vendor_fw_config) = &config.vendor_fw_key_info {
+            let range = AuthManifestPreamble::vendor_signed_data_range();
 
-        if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
-            let data = auth_manifest
-                .preamble
-                .as_bytes()
-                .get(range.start as usize..)
-                .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
-                .get(..range.len())
-                .ok_or(anyhow::anyhow!(
-                    "Failed to get vendor signed data range length"
-                ))?;
-
-            let digest_sha384 = self.crypto.sha384_digest(data)?;
-            let sig = self.crypto.ecdsa384_sign(
-                &digest_sha384,
-                &priv_keys.ecc_priv_key,
-                &config.vendor_fw_key_info.pub_keys.ecc_pub_key,
-            )?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
-
-            if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest_sha384, &priv_keys.lms_priv_key)?;
-                let sig = lms_sig.as_bytes();
-                auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
-                    .copy_from_slice(sig);
-            } else {
+            if let Some(priv_keys) = vendor_fw_config.priv_keys {
                 let data = auth_manifest
                     .preamble
                     .as_bytes()
@@ -111,15 +83,44 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     .ok_or(anyhow::anyhow!(
                         "Failed to get vendor signed data range length"
                     ))?;
-                let mldsa_sig = self.crypto.mldsa_sign(
-                    data,
-                    &priv_keys.mldsa_priv_key,
-                    &config.vendor_fw_key_info.pub_keys.mldsa_pub_key,
-                )?;
 
-                let sig = mldsa_sig.as_bytes();
-                auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
-                    .copy_from_slice(sig);
+                let digest_sha384 = self.crypto.sha384_digest(data)?;
+                let sig = self.crypto.ecdsa384_sign(
+                    &digest_sha384,
+                    &priv_keys.ecc_priv_key,
+                    &vendor_fw_config.pub_keys.ecc_pub_key,
+                )?;
+                auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
+
+                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                    let lms_sig = self
+                        .crypto
+                        .lms_sign(&digest_sha384, &priv_keys.lms_priv_key)?;
+                    let sig = lms_sig.as_bytes();
+                    auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                        .copy_from_slice(sig);
+                } else {
+                    let data = auth_manifest
+                        .preamble
+                        .as_bytes()
+                        .get(range.start as usize..)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Failed to get vendor signed data range start")
+                        })?
+                        .get(..range.len())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get vendor signed data range length"
+                        ))?;
+                    let mldsa_sig = self.crypto.mldsa_sign(
+                        data,
+                        &priv_keys.mldsa_priv_key,
+                        &vendor_fw_config.pub_keys.mldsa_pub_key,
+                    )?;
+
+                    let sig = mldsa_sig.as_bytes();
+                    auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                        .copy_from_slice(sig);
+                }
             }
         }
 
@@ -180,41 +181,43 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             .flags
             .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
         {
-            if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &vendor_man_priv_keys.ecc_priv_key,
-                    &config.vendor_man_key_info.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .ecc_sig = sig;
-
-                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
-                    let lms_sig = self
-                        .crypto
-                        .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-                    let sig = lms_sig.as_bytes();
-                    auth_manifest
-                        .preamble
-                        .vendor_image_metdata_signatures
-                        .pqc_sig
-                        .0[..sig.len()]
-                        .copy_from_slice(sig);
-                } else {
-                    let mldsa_sig = self.crypto.mldsa_sign(
-                        auth_manifest.image_metadata_col.as_bytes(),
-                        &vendor_man_priv_keys.mldsa_priv_key,
-                        &config.vendor_man_key_info.pub_keys.mldsa_pub_key,
+            if let Some(vendor_man_config) = &config.vendor_man_key_info {
+                if let Some(vendor_man_priv_keys) = vendor_man_config.priv_keys {
+                    let sig = self.crypto.ecdsa384_sign(
+                        &digest,
+                        &vendor_man_priv_keys.ecc_priv_key,
+                        &vendor_man_config.pub_keys.ecc_pub_key,
                     )?;
-                    let sig = mldsa_sig.as_bytes();
                     auth_manifest
                         .preamble
                         .vendor_image_metdata_signatures
-                        .pqc_sig
-                        .0[..sig.len()]
-                        .copy_from_slice(sig);
+                        .ecc_sig = sig;
+
+                    if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                        let lms_sig = self
+                            .crypto
+                            .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
+                        let sig = lms_sig.as_bytes();
+                        auth_manifest
+                            .preamble
+                            .vendor_image_metdata_signatures
+                            .pqc_sig
+                            .0[..sig.len()]
+                            .copy_from_slice(sig);
+                    } else {
+                        let mldsa_sig = self.crypto.mldsa_sign(
+                            auth_manifest.image_metadata_col.as_bytes(),
+                            &vendor_man_priv_keys.mldsa_priv_key,
+                            &vendor_man_config.pub_keys.mldsa_pub_key,
+                        )?;
+                        let sig = mldsa_sig.as_bytes();
+                        auth_manifest
+                            .preamble
+                            .vendor_image_metdata_signatures
+                            .pqc_sig
+                            .0[..sig.len()]
+                            .copy_from_slice(sig);
+                    }
                 }
             }
         }

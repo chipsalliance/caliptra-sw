@@ -614,6 +614,16 @@ impl SocIfc {
         gen.major_version() == 2 && gen.minor_version() == 0
     }
 
+    pub fn caliptra_generation(&self) -> CptraGeneration {
+        CptraGeneration(
+            self.soc_ifc
+                .regs()
+                .cptra_hw_rev_id()
+                .read()
+                .cptra_generation(),
+        )
+    }
+
     /// Returns true if the stable keys are zeroizable according to FIPS.
     /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
     /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
