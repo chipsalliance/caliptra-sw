@@ -401,6 +401,7 @@ pub struct ModelFpgaSubsystem {
     pub bmc_step_counter: usize,
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
+    device_lifecycle: DeviceLifecycle,
 }
 
 impl ModelFpgaSubsystem {
@@ -1436,6 +1437,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.enable_mcu_uart_log,
+            device_lifecycle: params.security_state.device_lifecycle(),
         };
 
         println!("AXI reset");
@@ -1477,9 +1479,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
-
-        println!("Initializing subsystem OTP memory.");
-        m.init_otp(params.security_state.device_lifecycle(), &Fuses::default())?;
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1587,6 +1586,11 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
+        // TODO(timothytrippel): this should ideally be called in `new_unbooted()`, but we need a
+        // way to pass the fuses parameter to it from that function to allow tests to pass
+        // different (non-default) fuse values.
+        println!("Initializing subsystem OTP memory.");
+        self.init_otp(self.device_lifecycle, &boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
 
         // Return here if there isn't any mutable code to load

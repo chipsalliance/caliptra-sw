@@ -9,7 +9,9 @@ use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_builder::{
     build_and_sign_image, build_firmware_rom,
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_FPGA_WITH_UART, ROM_WITH_UART,
+    },
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -154,7 +156,8 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+    let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
+    let default_rt_fwid = if fpga {
         &APP_WITH_UART_FPGA
     } else {
         &APP_WITH_UART
@@ -193,11 +196,15 @@ pub fn start_rt_test_pqc_model(
 
     let soc_manifest = Some(args.soc_manifest.unwrap_or(&*DEFAULT_SOC_MANIFEST));
     let mcu_fw_image = Some(args.mcu_fw_image.unwrap_or(&DEFAULT_MCU_FW));
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom: &[u8] = if fpga {
+        &caliptra_builder::build_firmware_rom(&ROM_FPGA_WITH_UART).unwrap()
+    } else {
+        &caliptra_builder::rom_for_fw_integration_tests().unwrap()
+    };
     let init_params = match args.init_params {
         Some(init_params) => init_params,
         None => InitParams {
-            rom: &rom,
+            rom,
             stack_info: Some(StackInfo::new(image_info)),
             test_sram: args.test_sram,
             security_state: args.security_state.unwrap_or_default(),
