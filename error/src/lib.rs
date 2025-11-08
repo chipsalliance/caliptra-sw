@@ -1041,6 +1041,11 @@ impl CaliptraError {
             "DMA driver Error: SHA accelerator not locked by DMA"
         ),
         (
+            DRIVER_DMA_INVALID_DMA_TARGET,
+            0x0000f006,
+            "DMA driver Error: Invalid target"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
