@@ -37,6 +37,7 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: false,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -88,6 +89,7 @@ fn test_dbg_unlock_manuf_success() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -148,6 +150,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -201,6 +204,7 @@ fn test_dbg_unlock_manuf_invalid_token() {
             dbg_manuf_service,
             debug_intent: true,
             subsystem_mode: true,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -309,6 +313,7 @@ fn test_dbg_unlock_prod_success() {
             prod_dbg_unlock_keypairs,
             debug_intent: true,
             subsystem_mode: true,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -555,6 +560,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
             )],
             subsystem_mode: true,
             debug_intent: true,
+            enable_mcu_uart_log: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -1025,6 +1031,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
                 prod_dbg_unlock_keypairs,
                 debug_intent: true,
                 subsystem_mode: true,
+                enable_mcu_uart_log: true,
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),
@@ -1178,6 +1185,7 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
                 )],
                 debug_intent: true,
                 subsystem_mode: true,
+                enable_mcu_uart_log: true,
                 ..Default::default()
             },
             caliptra_hw_model::BootParams::default(),

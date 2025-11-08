@@ -814,6 +814,8 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "caliptra-api",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
