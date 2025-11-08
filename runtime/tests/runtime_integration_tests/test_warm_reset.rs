@@ -74,7 +74,7 @@ fn test_rt_journey_pcr_validation() {
         .unwrap();
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -153,7 +153,7 @@ fn test_mbox_busy_during_warm_reset() {
         .mailbox_flow_done());
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
@@ -216,10 +216,13 @@ fn test_mbox_idle_during_warm_reset() {
     .unwrap();
 
     // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    model.step_until(|m| {
+        let status = m.soc_ifc().cptra_flow_status().read();
+        status.ready_for_runtime() && status.mailbox_flow_done()
+    });
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 

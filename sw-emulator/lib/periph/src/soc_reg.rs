@@ -1470,6 +1470,8 @@ impl SocRegistersImpl {
             .reg
             .write(FlowStatus::READY_FOR_FUSES::SET);
 
+        // TODO: All regs on with rst_b reset signal should be reset here
+
         // Unlock the mailbox axi user lock.
         for reg in self.cptra_mbox_axi_user_lock.iter_mut() {
             *reg = 0;
