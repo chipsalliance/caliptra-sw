@@ -76,7 +76,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&DEFAULT_MCU_FW).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
