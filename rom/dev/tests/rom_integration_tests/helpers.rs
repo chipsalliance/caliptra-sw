@@ -67,31 +67,33 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     }];
 
     // Build a signed authorization manifest using the test fake keys
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeysConfig {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-            mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeysConfig {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-            mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeysConfig {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+                mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeysConfig {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+                mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeysConfig {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-            mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeysConfig {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-            mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeysConfig {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+                mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeysConfig {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+                mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
