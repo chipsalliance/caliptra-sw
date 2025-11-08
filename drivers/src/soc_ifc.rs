@@ -634,6 +634,26 @@ impl SocIfc {
             .at(idx)
             .read()
     }
+
+    pub fn caliptra_generation(&self) -> CptraGeneration {
+        CptraGeneration(
+            self.soc_ifc
+                .regs()
+                .cptra_hw_rev_id()
+                .read()
+                .cptra_generation(),
+        )
+    }
+}
+
+bitfield::bitfield! {
+    // [15:8] Patch version
+    // [ 7:4] Minor version
+    // [ 3:0] Major version
+    pub struct CptraGeneration(u32);
+    pub patch_version, _: 15, 8;
+    pub minor_version, _: 7, 4;
+    pub major_version, _: 3, 0;
 }
 
 bitflags::bitflags! {

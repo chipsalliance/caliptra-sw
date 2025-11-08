@@ -1999,6 +1999,11 @@ impl CaliptraError {
             "ROM Global Error: FIPS hooks ROM exit"
         ),
         (
+            ROM_GLOBAL_UNSUPPORTED_HW_VERSION,
+            0x01050010,
+            "ROM Global Error: Unsupported HW version"
+        ),
+        (
             KAT_SHA256_DIGEST_FAILURE,
             0x90010001,
             "ROM KAT Error: SHA256 digest failure"
