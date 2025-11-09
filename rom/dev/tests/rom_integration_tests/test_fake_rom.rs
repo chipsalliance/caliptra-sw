@@ -3,16 +3,15 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
+        fake_rom,
         rom_tests::{FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART},
-        APP_WITH_UART, ROM_FAKE_WITH_UART,
+        APP_WITH_UART,
     },
     ImageOptions,
 };
 use caliptra_common::{mailbox_api::CommandId, RomBootStatus::*};
 use caliptra_drivers::{Array4x12, CaliptraError};
-use caliptra_hw_model::{
-    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
-};
+use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
 
 use crate::helpers;
 
@@ -30,7 +29,8 @@ const PUB_KEY_Y: [u8; 48] = [
 
 #[test]
 fn test_skip_kats() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -53,7 +53,8 @@ fn test_fake_rom_production_error() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -80,7 +81,8 @@ fn test_fake_rom_production_enabled() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -114,7 +116,8 @@ fn test_fake_rom_fw_load() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
 
         // Build the image we are going to send to ROM to load
         let image_bundle = caliptra_builder::build_and_sign_image(
@@ -144,8 +147,7 @@ fn test_fake_rom_fw_load() {
                 .read()
                 .ready_for_mb_processing()
         });
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
 
         // Make sure we actually get into FMC
         hw.step_until_output_contains("Running Caliptra FMC")
@@ -164,7 +166,8 @@ fn test_fake_rom_update_reset() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -192,8 +195,7 @@ fn test_fake_rom_update_reset() {
                 .read()
                 .ready_for_mb_processing()
         });
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
 
         hw.step_until_boot_status(ColdResetComplete.into(), true);
 
@@ -231,7 +233,8 @@ fn test_image_verify() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
+            .unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -267,12 +270,11 @@ fn test_image_verify() {
             .y
             .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
+        crate::helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID,
         );
 
         assert_eq!(
@@ -286,7 +288,8 @@ fn test_image_verify() {
 fn test_fake_rom_version() {
     const FAKE_ROM_VERSION: u16 = 0xFFFF;
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,

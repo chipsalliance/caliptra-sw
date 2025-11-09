@@ -238,8 +238,11 @@ int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req,
 // FIPS version
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 
-// Get IDev CSR
+// Get ECC384 IDev CSR
 int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp, bool async);
+
+// Get MLDSA87 IDev CSR
+int caliptra_get_idev_mldsa87_csr(struct caliptra_get_idev_mldsa87_csr_resp *resp, bool async);
 
 // Sign with Exported Ecdsa
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
@@ -258,6 +261,12 @@ int caliptra_shutdown(bool async);
 
 // Capabilities
 int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
+
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async);
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async);
 
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();

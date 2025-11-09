@@ -13,6 +13,7 @@ use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
 };
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -65,7 +66,7 @@ fn test_warm_reset_success() {
     }
 
     // Perform warm reset
-    hw.warm_reset_flow(&boot_params).unwrap();
+    hw.warm_reset_flow().unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
@@ -87,7 +88,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
     hw.step_until_boot_status(IDevIdDecryptUdsComplete.into(), true);
 
     // Perform a warm reset
-    hw.warm_reset_flow(&BootParams::default()).unwrap();
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -100,6 +101,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_warm_reset_during_cold_boot_during_image_validation() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -114,11 +116,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        hw.start_mailbox_execute(
-            CommandId::FIRMWARE_LOAD.into(),
-            &image_bundle.to_bytes().unwrap(),
-        )
-        .unwrap();
+        helpers::test_start_firmware_load(&mut hw, &image_bundle.to_bytes().unwrap());
 
         hw.step_until_boot_status(FwProcessorManifestLoadComplete.into(), true);
 
@@ -128,7 +126,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
         }
 
         // Perform a warm reset
-        hw.warm_reset_flow(&BootParams::default()).unwrap();
+        hw.warm_reset_flow().unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -142,6 +140,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_warm_reset_during_cold_boot_after_image_validation() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -156,14 +155,13 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
 
         // Step till after last step in cold boot is complete
         hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
 
         // Perform a warm reset
-        hw.warm_reset_flow(&BootParams::default()).unwrap();
+        hw.warm_reset_flow().unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -191,17 +189,11 @@ fn test_warm_reset_during_update_reset() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
-
-        hw.step_until_boot_status(ColdResetComplete.into(), true);
+        helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
+        helpers::wait_until_runtime(&mut hw);
 
         // Trigger an update reset with "new" firmware
-        hw.start_mailbox_execute(
-            CommandId::FIRMWARE_LOAD.into(),
-            &image_bundle.to_bytes().unwrap(),
-        )
-        .unwrap();
+        helpers::test_start_firmware_load(&mut hw, &image_bundle.to_bytes().unwrap());
 
         if cfg!(not(feature = "fpga_realtime")) {
             hw.step_until_boot_status(KatStarted.into(), true);
@@ -215,7 +207,7 @@ fn test_warm_reset_during_update_reset() {
         hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
 
         // Perform a warm reset
-        hw.warm_reset_flow(&BootParams::default()).unwrap();
+        hw.warm_reset_flow().unwrap();
 
         // Wait for error
         while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
@@ -304,6 +296,18 @@ fn test_warm_reset_version() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let (soc_manifest, mcu_fw_image) = if cfg!(feature = "fpga_subsystem") {
+        (
+            Some(crate::helpers::default_soc_manifest_bytes(
+                FwVerificationPqcKeyType::MLDSA,
+                1,
+            )),
+            Some(&crate::helpers::DEFAULT_MCU_FW),
+        )
+    } else {
+        (None, None)
+    };
+
     let binding = image.to_bytes().unwrap();
     let boot_params = BootParams {
         fuses: Fuses {
@@ -313,6 +317,8 @@ fn test_warm_reset_version() {
             ..Default::default()
         },
         fw_image: Some(&binding),
+        soc_manifest: soc_manifest.as_deref(),
+        mcu_fw_image: mcu_fw_image.map(|v| &***v),
         ..Default::default()
     };
 
@@ -340,7 +346,7 @@ fn test_warm_reset_version() {
     );
 
     // Perform warm reset
-    hw.warm_reset_flow(&boot_params).unwrap();
+    hw.warm_reset_flow().unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {

@@ -135,7 +135,7 @@ pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState, StreamEndianness};
 pub use sha3::{Sha3, Sha3DigestOp};
-pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
+pub use soc_ifc::{report_boot_status, CptraGeneration, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
 #[allow(unused_imports)]

@@ -2,11 +2,13 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
+};
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 
@@ -16,7 +18,12 @@ fn test_rt_journey_pcr_validation() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
@@ -44,6 +51,10 @@ fn test_rt_journey_pcr_validation() {
         InitParams {
             rom: &rom,
             security_state,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -59,7 +70,7 @@ fn test_rt_journey_pcr_validation() {
         .unwrap();
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -82,7 +93,12 @@ fn test_mbox_busy_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MBOX,
@@ -110,6 +126,10 @@ fn test_mbox_busy_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -129,7 +149,7 @@ fn test_mbox_busy_during_warm_reset() {
         .mailbox_flow_done());
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
@@ -147,7 +167,12 @@ fn test_mbox_idle_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -176,6 +201,10 @@ fn test_mbox_idle_during_warm_reset() {
         InitParams {
             rom: &rom,
             security_state,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -183,10 +212,13 @@ fn test_mbox_idle_during_warm_reset() {
     .unwrap();
 
     // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    model.step_until(|m| {
+        let status = m.soc_ifc().cptra_flow_status().read();
+        status.ready_for_runtime() && status.mailbox_flow_done()
+    });
 
     // Perform warm reset
-    model.warm_reset_flow(&boot_params).unwrap();
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 

@@ -67,6 +67,7 @@ impl CaliptraError {
             0x00010002,
             "Bad datastore register type"
         ),
+        (CALIPTRA_INTERNAL, 0x00010003, "Internal error"),
         (
             DRIVER_SHA256_INVALID_STATE,
             0x00020001,
@@ -1040,6 +1041,11 @@ impl CaliptraError {
             "DMA driver Error: SHA accelerator not locked by DMA"
         ),
         (
+            DRIVER_DMA_INVALID_DMA_TARGET,
+            0x0000f006,
+            "DMA driver Error: Invalid target"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
@@ -1233,9 +1239,9 @@ impl CaliptraError {
             "Runtime Error: DPE command deserialization failed"
         ),
         (
-            RUNTIME_GET_LDEVID_CERT_FAILED,
+            GET_LDEVID_CERT_FAILED,
             0x000E0028,
-            "Runtime Error: Get LDevID cert failed"
+            "Caliptra Error: Get LDevID cert failed"
         ),
         (
             RUNTIME_GET_FMC_ALIAS_CERT_FAILED,
@@ -1996,6 +2002,11 @@ impl CaliptraError {
             ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT,
             0x0105000F,
             "ROM Global Error: FIPS hooks ROM exit"
+        ),
+        (
+            ROM_GLOBAL_UNSUPPORTED_HW_VERSION,
+            0x01050010,
+            "ROM Global Error: Unsupported HW version"
         ),
         (
             KAT_SHA256_DIGEST_FAILURE,

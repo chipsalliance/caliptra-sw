@@ -871,7 +871,7 @@ impl<'a> DmaRecovery<'a> {
                         self.dma.setup_dma_read(rd_tx, 0);
                         self.dma.wait_for_dma_complete();
                     }
-                    _ => panic!("DMA read target must be AxiWr"),
+                    _ => Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED)?, // should be unreachable
                 };
             }
         }

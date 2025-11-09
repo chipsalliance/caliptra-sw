@@ -37,9 +37,9 @@ pub struct AuthManifestGeneratorConfig {
 
     pub pqc_key_type: FwVerificationPqcKeyType,
 
-    pub vendor_fw_key_info: AuthManifestGeneratorKeyConfig,
+    pub vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig>,
 
-    pub vendor_man_key_info: AuthManifestGeneratorKeyConfig,
+    pub vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig>,
 
     pub owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig>,
 

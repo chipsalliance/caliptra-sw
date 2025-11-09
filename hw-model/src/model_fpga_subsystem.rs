@@ -1135,41 +1135,9 @@ impl ModelFpgaSubsystem {
         );
     }
 
-    fn init_otp(
-        &mut self,
-        device_lifecycle: DeviceLifecycle,
-        fuses: &Fuses,
-    ) -> Result<(), Box<dyn Error>> {
-        let mut otp_data = vec![0; OTP_SIZE];
-
-        // Users can provide data to initialize OTP a specific way. If an OTP
-        // initialization state is not provided, we proceed with initialization
-        // a default configuration.
-        if !self.otp_init.is_empty() {
-            // write the initial contents of the OTP memory
-            println!("Initializing OTP with initialized data");
-            if self.otp_init.len() > otp_data.len() {
-                Err(format!(
-                    "OTP initialization data is larger than OTP memory {} > {}",
-                    self.otp_init.len(),
-                    otp_data.len(),
-                ))?;
-            }
-            otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
-            return Ok(());
-        }
-
-        // Initialize LC state based on the security state of the device.
-        let lc_state = match device_lifecycle {
-            DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
-            DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
-            DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
-            DeviceLifecycle::Production => LifecycleControllerState::Prod,
-        };
-        println!("Provisioning lifecycle partition (State: {}).", lc_state);
-        let mem = lc_generate_memory(lc_state, 1)?;
-        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+    pub fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
+        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+        let mut otp_data = self.otp_slice().to_vec();
 
         // Provision default LC tokens.
         println!("Provisioning SECRET_LC_TRANSITION partition.");
@@ -1185,6 +1153,8 @@ impl ModelFpgaSubsystem {
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         // Provision default SW_MANUF partition.
+        // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
+        // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
         let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition::default())?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
@@ -1216,9 +1186,7 @@ impl ModelFpgaSubsystem {
         );
         otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = fuses.soc_manifest_max_svn;
 
-        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
-        let otp_mem = self.otp_slice();
-        otp_mem.copy_from_slice(&otp_data);
+        self.otp_slice().copy_from_slice(&otp_data);
 
         Ok(())
     }
@@ -1311,7 +1279,7 @@ impl HwModel for ModelFpgaSubsystem {
             return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
         }
         let mcu_rom =
-            match params.mcu_rom {
+            match params.ss_init_params.mcu_rom {
                 Some(mcu_rom) => mcu_rom,
                 None => &std::fs::read(std::env::var("CPTRA_MCU_ROM").expect(
                     "set the ENV VAR CPTRA_MCU_ROM to the absolute path of caliptra-mcu rom",
@@ -1435,7 +1403,7 @@ impl HwModel for ModelFpgaSubsystem {
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
-            enable_mcu_uart_log: params.enable_mcu_uart_log,
+            enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
         };
 
         println!("AXI reset");
@@ -1478,8 +1446,38 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
-        println!("Initializing subsystem OTP memory.");
-        m.init_otp(params.security_state.device_lifecycle(), &Fuses::default())?;
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Users can provide data to initialize OTP a specific way. If an OTP
+        // initialization state is not provided, we proceed with initialization
+        // a default configuration.
+        let mut otp_data = vec![0; OTP_SIZE];
+        if !m.otp_init.is_empty() {
+            // write the initial contents of the OTP memory
+            println!("Initializing OTP with initialized data");
+            if m.otp_init.len() > otp_data.len() {
+                Err(format!(
+                    "OTP initialization data is larger than OTP memory {} > {}",
+                    m.otp_init.len(),
+                    otp_data.len(),
+                ))?;
+            }
+            otp_data[..m.otp_init.len()].copy_from_slice(&m.otp_init);
+        }
+
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Initialize LC state based on the security state of the device.
+        let lc_state = match params.security_state.device_lifecycle() {
+            DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
+            DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
+            DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
+            DeviceLifecycle::Production => LifecycleControllerState::Prod,
+        };
+        println!("Provisioning lifecycle partition (State: {}).", lc_state);
+        let mem = lc_generate_memory(lc_state, 1)?;
+        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        let otp_mem = m.otp_slice();
+        otp_mem.copy_from_slice(&otp_data);
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1513,6 +1511,15 @@ impl HwModel for ModelFpgaSubsystem {
         m.set_ss_debug_intent(params.debug_intent);
         // Set BootFSM break if requested.
         m.set_bootfsm_break(params.bootfsm_break);
+        // Set prod debug unlock authentication settings.
+        m.wrapper
+            .regs()
+            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
+            .set(params.ss_init_params.prod_dbg_unlock_pk_hashes_offset);
+        m.wrapper
+            .regs()
+            .num_of_prod_debug_unlock_auth_pk_hashes
+            .set(params.ss_init_params.num_prod_dbg_unlock_pk_hashes);
 
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
@@ -1587,6 +1594,11 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
+        // TODO(timothytrippel): this should ideally be called in `new_unbooted()`, but we need a
+        // way to pass the fuses parameter to it from that function to allow tests to pass
+        // different (non-default) fuse values.
+        println!("Initializing subsystem OTP memory.");
+        self.init_otp(&boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
 
         // Return here if there isn't any mutable code to load
@@ -1670,11 +1682,6 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
-        // Notify MCU ROM it can start loading firmware
-        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
-        let current = gpio.extract().get();
-        gpio.set(current | 1 << 31);
-
         self.i3c_controller.configure();
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
@@ -1737,6 +1744,11 @@ impl HwModel for ModelFpgaSubsystem {
         _soc_manifest: Option<&[u8]>,
         _mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
+        // Notify MCU ROM it can start loading firmware
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
         // ironically, we don't need to support this
         Ok(())
     }

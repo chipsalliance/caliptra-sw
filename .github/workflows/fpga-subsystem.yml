@@ -52,7 +52,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
       - name: Compute cache-keys
@@ -80,7 +80,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
@@ -136,7 +136,7 @@ jobs:
         id: restore_mcu_rom_cache
         with:
           path: /tmp/caliptra-mcu-binaries.tar.gz
-          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
 
       - name: Extract MCU ROM from cache
         if: "steps.restore_mcu_rom_cache.outputs.cache-hit"
@@ -165,7 +165,7 @@ jobs:
         uses: actions/cache/save@v3
         with:
           path: /tmp/caliptra-mcu-binaries.tar.gz
-          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
 
       - name: Build test binaries
         run: |
@@ -232,7 +232,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
