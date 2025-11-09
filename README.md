@@ -216,7 +216,7 @@ You can open the vcd file with a tool like
 ## Testing against FPGA
 
 FPGA provides a fast environment for development with Caliptra RTL.
-FPGA build directions and further details are available in
+
 [this README](/hw/fpga/README.md)
 
 Download caliptra-fpga-bitstream from the
