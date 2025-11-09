@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::mem;
+use std::sync::LazyLock;
 
 use caliptra_api::SocManager;
 use caliptra_auth_man_gen::{
@@ -44,7 +45,11 @@ pub const LIFECYCLES_ALL: [DeviceLifecycle; 3] = [
 ];
 
 // Default test MCU firmware used for subsystem mode uploads
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+pub static DEFAULT_MCU_FW: LazyLock<Vec<u8>> = LazyLock::new(|| {
+    let mut mcu_fw_image = vec![0x00, 0x00, 0x00, 0x6f];
+    mcu_fw_image.resize(256, 0);
+    mcu_fw_image
+});
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
@@ -53,7 +58,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
 
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(&DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -62,31 +67,33 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     }];
 
     // Build a signed authorization manifest using the test fake keys
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeysConfig {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-            mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeysConfig {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-            mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeysConfig {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+                mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeysConfig {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+                mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeysConfig {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-            mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeysConfig {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-            mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeysConfig {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+                mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeysConfig {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+                mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -154,7 +161,7 @@ pub fn test_upload_firmware(
             .upload_firmware_rri(
                 fw_image,
                 Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
-                Some(DEFAULT_MCU_FW),
+                Some(&DEFAULT_MCU_FW),
             )
             .unwrap();
     } else {
@@ -207,7 +214,10 @@ pub fn build_hw_model_and_image_bundle(
 }
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -246,7 +256,11 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
 pub fn build_image_bundle(image_options: ImageOptions) -> ImageBundle {
     caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
-        &firmware::APP_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &firmware::APP_WITH_UART_FPGA
+        } else {
+            &firmware::APP_WITH_UART
+        },
         image_options,
     )
     .unwrap()

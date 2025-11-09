@@ -5,7 +5,7 @@ use crate::common;
 
 use caliptra_builder::firmware::ROM_WITH_FIPS_TEST_HOOKS;
 use caliptra_common::mailbox_api::*;
-use caliptra_drivers::FipsTestHook;
+use caliptra_drivers::{CaliptraError, FipsTestHook};
 use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
@@ -235,6 +235,19 @@ pub fn attempt_ssp_access_rt() {
         }),
     );
 
+    // Perform all the SSP access attempts
+    attempt_ssp_access(&mut hw);
+}
+
+#[test]
+pub fn zeroize_check_inaccessible() {
+    let mut hw = fips_test_init_to_rt(None, None);
+
+    // SHUTDOWN/Zeroize
+    crate::services::exec_cmd_shutdown(&mut hw);
+
+    // Verify we cannot access the module
+    verify_mbox_cmds_fail(&mut hw, CaliptraError::RUNTIME_SHUTDOWN.into());
     // Perform all the SSP access attempts
     attempt_ssp_access(&mut hw);
 }

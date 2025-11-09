@@ -498,7 +498,7 @@ Command Code: `0x4944_4D49` ("IDMI")
 
 ### GET\_LDEV\_ECC384\_CERT
 
-Exposes a command to get a LDevID ECC384 certificate signed by ECC384 IDevID private key.
+Exposes a command to get an LDevID ECC384 certificate signed by ECC384 IDevID private key.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -519,7 +519,7 @@ Command Code: `0x4C44_4556` ("LDEV")
 
 ### GET\_LDEV\_MLDSA87\_CERT
 
-Exposes a command to get a LDevID MLDSA87 certificate signed by MLDSA87 IDevID private key.
+Exposes a command to get an LDevID MLDSA87 certificate signed by MLDSA87 IDevID private key.
 
 Command Code: `0x4C44_4D43` ("LDMC")
 
