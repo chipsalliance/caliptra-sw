@@ -20,9 +20,10 @@ use crate::debug_unlock::ProductionDebugUnlock;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
-    MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD,
-    PL0_PAUSER_FLAG, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
+    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
+    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
 use arrayvec::ArrayVec;
@@ -66,7 +67,7 @@ use zerocopy::IntoBytes;
 
 pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum PauserPrivileges {
     PL0,
     PL1,
@@ -311,7 +312,8 @@ impl Drivers {
         } else {
             let _pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             // check that DPE used context limits are not exceeded
-            let dpe_context_threshold_exceeded = drivers.is_dpe_context_threshold_exceeded();
+            let dpe_context_threshold_exceeded =
+                drivers.is_dpe_context_threshold_exceeded(drivers.caller_privilege_level());
             cfi_check!(dpe_context_threshold_exceeded);
             if let Err(e) = dpe_context_threshold_exceeded {
                 let result = DisableAttestationCmd::execute(drivers);
@@ -446,10 +448,17 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
+
+        // Set context limits in persistent data as we init DPE
+        drivers.persistent_data.get_mut().dpe_pl0_context_limit =
+            PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
+        drivers.persistent_data.get_mut().dpe_pl1_context_limit =
+            PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
+        let pl0_context_limit = drivers.persistent_data.get().dpe_pl0_context_limit;
+        let pl1_context_limit = drivers.persistent_data.get().dpe_pl1_context_limit;
 
         // create a hash of all the mailbox valid pausers
         const PAUSER_COUNT: usize = 5;
@@ -483,7 +492,7 @@ impl Drivers {
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
-                caliptra_locality,
+                CALIPTRA_LOCALITY,
                 &hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
                 &nb,
@@ -520,7 +529,7 @@ impl Drivers {
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
-        .execute(&mut dpe, &mut env, caliptra_locality);
+        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
         if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
@@ -539,8 +548,10 @@ impl Drivers {
             // Use the helper method here because the DPE instance holds a mutable reference to driver
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                privilege_level.clone(),
+                privilege_level,
                 &dpe,
+                pl0_context_limit as usize,
+                pl1_context_limit as usize,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
@@ -671,25 +682,22 @@ impl Drivers {
         Ok(())
     }
 
-    /// Counts the number of non-inactive DPE contexts and returns an error
-    /// if this number is greater than or equal to the active context threshold
-    /// corresponding to the privilege level of the caller.
-    pub fn is_dpe_context_threshold_exceeded(&self) -> CaliptraResult<()> {
-        Self::is_dpe_context_threshold_exceeded_helper(
+    /// Counts the number of non-inactive DPE contexts
+    pub fn dpe_get_used_context_counts(&self) -> CaliptraResult<(usize, usize)> {
+        Self::dpe_get_used_context_counts_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
-            self.caller_privilege_level(),
             &self.persistent_data.get().dpe,
         )
     }
 
-    fn is_dpe_context_threshold_exceeded_helper(
+    fn dpe_get_used_context_counts_helper(
         pl0_pauser: u32,
-        caller_privilege_level: PauserPrivileges,
         dpe: &DpeInstance,
-    ) -> CaliptraResult<()> {
+    ) -> CaliptraResult<(usize, usize)> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
-                c.state != ContextState::Inactive && c.locality == pl0_pauser
+                c.state != ContextState::Inactive
+                    && (c.locality == pl0_pauser || c.locality == CALIPTRA_LOCALITY)
             })
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
         // the number of used pl1 dpe contexts is the total number of used contexts
@@ -700,10 +708,39 @@ impl Drivers {
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             - used_pl0_dpe_context_count;
 
+        Ok((used_pl0_dpe_context_count, used_pl1_dpe_context_count))
+    }
+
+    /// Counts the number of non-inactive DPE contexts and returns an error
+    /// if this number is greater than or equal to the active context threshold
+    /// corresponding to the privilege level provided.
+    pub fn is_dpe_context_threshold_exceeded(
+        &self,
+        context_privilege_level: PauserPrivileges,
+    ) -> CaliptraResult<()> {
+        Self::is_dpe_context_threshold_exceeded_helper(
+            self.persistent_data.get().manifest1.header.pl0_pauser,
+            context_privilege_level,
+            &self.persistent_data.get().dpe,
+            self.persistent_data.get().dpe_pl0_context_limit as usize,
+            self.persistent_data.get().dpe_pl1_context_limit as usize,
+        )
+    }
+
+    fn is_dpe_context_threshold_exceeded_helper(
+        pl0_pauser: u32,
+        caller_privilege_level: PauserPrivileges,
+        dpe: &DpeInstance,
+        pl0_context_limit: usize,
+        pl1_context_limit: usize,
+    ) -> CaliptraResult<()> {
+        let (used_pl0_dpe_context_count, used_pl1_dpe_context_count) =
+            Self::dpe_get_used_context_counts_helper(pl0_pauser, dpe)?;
+
         match (
             caller_privilege_level,
-            used_pl1_dpe_context_count.cmp(&PL1_DPE_ACTIVE_CONTEXT_THRESHOLD),
-            used_pl0_dpe_context_count.cmp(&PL0_DPE_ACTIVE_CONTEXT_THRESHOLD),
+            used_pl1_dpe_context_count.cmp(&pl1_context_limit),
+            used_pl0_dpe_context_count.cmp(&pl0_context_limit),
         ) {
             (PauserPrivileges::PL1, Equal, _) => {
                 Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED)
@@ -723,10 +760,14 @@ impl Drivers {
 
     /// Retrieves the caller permission level
     pub fn caller_privilege_level(&self) -> PauserPrivileges {
-        let manifest_header = self.persistent_data.get().manifest1.header;
-        let pl0_pauser = manifest_header.pl0_pauser;
-        let flags = manifest_header.flags;
         let locality = self.mbox.id();
+        self.privilege_level_from_locality(locality)
+    }
+
+    pub fn privilege_level_from_locality(&self, locality: u32) -> PauserPrivileges {
+        let manifest_header = self.persistent_data.get().manifest1.header;
+        let flags = manifest_header.flags;
+        let pl0_pauser = manifest_header.pl0_pauser;
 
         // When the PL0_PAUSER_FLAG bit is not set there can be no PL0 PAUSER.
         if flags & PL0_PAUSER_FLAG == 0 {
