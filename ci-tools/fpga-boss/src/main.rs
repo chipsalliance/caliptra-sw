@@ -26,6 +26,8 @@ pub(crate) use ftdi::FtdiCtx;
 use sd_mux::{SDWire, SdMux, SdMuxTarget, UsbsdMux};
 pub(crate) use usb_port_path::UsbPortPath;
 
+const JOB_TIMEOUT: Duration = Duration::from_secs(3600);
+
 fn cli() -> clap::Command<'static> {
     clap::Command::new("fpga-boss")
         .about("FPGA boss tool")
@@ -485,11 +487,10 @@ fn main_impl() -> anyhow::Result<()> {
 
                 // Now the job is started, so we want to enforce a timeout with enough time for the
                 // job to complete.
-                let job_timeout = Duration::from_secs(7_200);
                 match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
-                    job_timeout,
+                    JOB_TIMEOUT,
                 ) {
                     Err(e) if e.kind() == ErrorKind::TimedOut => {
                         eprintln!("Timed out waiting for FPGA to complete job!");
