@@ -780,7 +780,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .load_addr
             .checked_add(verify_info.size)
             .and_then(|addr| addr.checked_sub(1))
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW)?;
+            .ok_or(
+                CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW,
+            )?;
 
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self.env.iccm_range().contains(&fmc_end_addr)
