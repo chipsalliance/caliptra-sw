@@ -1075,6 +1075,22 @@ int rt_test_all_commands(const test_info *info)
         printf("Authorize and Stash: OK\n");
     }
 
+    // Reallocate DPE Context Limits
+    struct caliptra_reallocate_dpe_context_limits_req reallocate_context_limits_req = {};
+    struct caliptra_reallocate_dpe_context_limits_resp reallocate_context_limits_resp;
+
+    reallocate_context_limits_req.pl0_context_limit = 20;
+
+    status = caliptra_reallocate_dpe_context_limits(&reallocate_context_limits_req, &reallocate_context_limits_resp, false);
+
+    if (status) {
+        printf("Reallocate DPE Context Limits failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Reallocate DPE Context Limits: OK\n");
+    }
+
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
 
