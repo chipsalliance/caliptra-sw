@@ -132,7 +132,6 @@ pub fn ecc_cert_sn(sha256: &mut Sha256, pub_key: &Ecc384PubKey) -> CaliptraResul
 ///
 /// `[u8; 20]` - X509 Serial Number
 pub fn mldsa_cert_sn(sha256: &mut Sha256, pub_key: &Mldsa87PubKey) -> CaliptraResult<[u8; 20]> {
-    // [TODO][CAP2] Can we just take the pub_key here?
     let digest = sha256.digest(pub_key.as_bytes());
     let mut digest: [u8; 32] = okref(&digest)?.into();
 
