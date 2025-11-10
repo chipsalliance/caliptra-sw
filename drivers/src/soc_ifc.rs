@@ -534,14 +534,14 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .ss_dbg_manuf_service_reg_rsp()
-            .write(|w| w.uds_program_in_progress(in_progress));
+            .modify(|w| w.uds_program_in_progress(in_progress));
     }
 
     pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
         self.soc_ifc
             .regs_mut()
             .ss_dbg_manuf_service_reg_rsp()
-            .write(|w| {
+            .modify(|w| {
                 if flow_succeeded {
                     w.uds_program_success(true).uds_program_fail(false)
                 } else {
