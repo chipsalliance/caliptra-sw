@@ -572,15 +572,6 @@ impl ModelFpgaSubsystem {
                 }
             }
         }
-        if self.output().exit_requested() {
-            println!("Exiting firmware request");
-            let code = match self.output().exit_status() {
-                Some(ExitStatus::Passed) => 0,
-                Some(ExitStatus::Failed) => 1,
-                None => 0,
-            };
-            exit(code);
-        }
     }
 
     // UIO crate doesn't provide a way to unmap memory.
