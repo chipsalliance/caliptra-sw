@@ -508,7 +508,10 @@ impl FirmwareProcessor {
 
         let fmc_dest = unsafe {
             let addr = (manifest.fmc.load_addr) as *mut u32;
-            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
+            let word_count = (manifest.fmc.size as usize)
+                .checked_div(4)
+                .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+            core::slice::from_raw_parts_mut(addr, word_count)
         };
 
         txn.copy_request(fmc_dest.as_mut_bytes())?;
@@ -521,7 +524,10 @@ impl FirmwareProcessor {
 
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u32;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
+            let word_count = (manifest.runtime.size as usize)
+                .checked_div(4)
+                .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+            core::slice::from_raw_parts_mut(addr, word_count)
         };
 
         txn.copy_request(runtime_dest.as_mut_bytes())?;
