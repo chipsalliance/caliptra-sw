@@ -577,7 +577,7 @@ mod tests {
 
         // Case 15: Test actual overlap near u32::MAX
         image1.load_addr = u32::MAX - 100;
-        image1.size = 52;  // Now reaches u32::MAX-49
+        image1.size = 52; // Now reaches u32::MAX-49
         image2.load_addr = u32::MAX - 49;
         image2.size = 50;
         // image1: [u32::MAX-100, u32::MAX-49)
