@@ -1506,6 +1506,18 @@ int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, s
 
     return pack_and_execute_command(&p, async);
 }
+// Authorize and Stash
+int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_context_limits_req *req, struct caliptra_reallocate_dpe_context_limits_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_REALLOCATE_DPE_CONTEXT_LIMITS, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
 
 int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
 {

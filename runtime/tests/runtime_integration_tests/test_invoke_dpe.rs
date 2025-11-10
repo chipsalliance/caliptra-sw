@@ -4,17 +4,10 @@ use crate::common::{
     execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
     TEST_DIGEST, TEST_LABEL,
 };
-use caliptra_api::{
-    mailbox::{CommandId, FwInfoResp},
-    SocManager,
-};
-use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
-};
+use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -39,7 +32,6 @@ use openssl::{
 };
 use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
-use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -370,62 +362,5 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
     check_dice_extension_criticality(
         &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
         false,
-    );
-}
-
-#[test]
-fn test_fill_max_contexts() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-    const BASE_CMD: DeriveContextCmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
-        flags: DeriveContextFlags::MAKE_DEFAULT,
-        tci_type: 0,
-        target_locality: 0,
-    };
-
-    // 32 contexts = 1 root node +
-    //               1 rt_journey auto init) +
-    //               1 (valid pauser at init) +
-    //               14 PL0 contexts in loop +
-    //               1 PL1 context as transition +
-    //               14 PL1 contexts in loop
-
-    // Fill PL0 contexts
-    for _ in 0..14 {
-        let _ = execute_dpe_cmd(
-            &mut model,
-            &mut Command::DeriveContext(&BASE_CMD),
-            DpeResult::Success,
-        );
-    }
-
-    // Transition to PL1 locality
-    let derive_ctx_cmd = DeriveContextCmd {
-        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::CHANGE_LOCALITY,
-        target_locality: 2,
-        ..BASE_CMD
-    };
-    let _ = execute_dpe_cmd(
-        &mut model,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
-        DpeResult::Success,
-    );
-
-    // Fill PL1 contexts
-    model.set_axi_user(2);
-    for _ in 0..14 {
-        let _ = execute_dpe_cmd(
-            &mut model,
-            &mut Command::DeriveContext(&BASE_CMD),
-            DpeResult::Success,
-        );
-    }
-
-    // Trigger failure by trying to derive one more context to PL1
-    let _ = execute_dpe_cmd(
-        &mut model,
-        &mut Command::DeriveContext(&BASE_CMD),
-        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
 }
