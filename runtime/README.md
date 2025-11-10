@@ -2448,6 +2448,32 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
+
+### REALLOCATE\_DPE\_CONTEXT\_LIMITS
+
+Command Code: '5243_5458` ("RCTX")
+
+**Note**: This command is only available in the locality of the PL0 PAUSER.
+
+*Table: `REALLOCATE_DPE_CONTEXT_LIMITS` input arguments*
+
+| **Name**           | **Type** | **Description**
+| --------           | -------- | ---------------
+| chksum             | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| pl0_context_limit  | u32      | Number of contexts to allocate to PL0. PL1 will receive remaining contexts. |
+
+*Table: `REALLOCATE_DPE_CONTEXT_LIMITS` output arguments*
+| **Name**              | **Type** | **Description**
+| --------              | -------- | ---------------
+| chksum                | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status           | u32      | Indicates if the command is FIPS approved or an error.                     |
+| new_pl0_context_limit | u32      | Number of contexts assigned to PL0 after the reallocation                  |
+| new_pl1_context_limit | u32      | Number of contexts assigned to PL1 after the reallocation                  |
+
+This allows the user to reallocate the 32 DPE contexts between PL0 and PL1. By default, each gets 16 contexts.
+
+**Note**: 2 PL0 contexts are used by Caliptra itself during initialization.
+
 ### EXTERNAL_MAILBOX_CMD
 
 Command Code: `0x4558_544D` ("EXTM")
