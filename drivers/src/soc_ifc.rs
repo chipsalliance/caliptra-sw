@@ -529,17 +529,20 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .ss_dbg_service_reg_rsp()
-            .write(|w| w.uds_program_in_progress(in_progress));
+            .modify(|w| w.uds_program_in_progress(in_progress));
     }
 
     pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
-        self.soc_ifc.regs_mut().ss_dbg_service_reg_rsp().write(|w| {
-            if flow_succeeded {
-                w.uds_program_success(true).uds_program_fail(false)
-            } else {
-                w.uds_program_success(false).uds_program_fail(true)
-            }
-        });
+        self.soc_ifc
+            .regs_mut()
+            .ss_dbg_service_reg_rsp()
+            .modify(|w| {
+                if flow_succeeded {
+                    w.uds_program_success(true).uds_program_fail(false)
+                } else {
+                    w.uds_program_success(false).uds_program_fail(true)
+                }
+            });
     }
 
     pub fn uds_seed_dest_base_addr_low(&self) -> u32 {
