@@ -498,7 +498,7 @@ Command Code: `0x4944_4D49` ("IDMI")
 
 ### GET\_LDEV\_ECC384\_CERT
 
-Exposes a command to get a LDevID ECC384 certificate signed by ECC384 IDevID private key.
+Exposes a command to get an LDevID ECC384 certificate signed by ECC384 IDevID private key.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -519,7 +519,7 @@ Command Code: `0x4C44_4556` ("LDEV")
 
 ### GET\_LDEV\_MLDSA87\_CERT
 
-Exposes a command to get a LDevID MLDSA87 certificate signed by MLDSA87 IDevID private key.
+Exposes a command to get an LDevID MLDSA87 certificate signed by MLDSA87 IDevID private key.
 
 Command Code: `0x4C44_4D43` ("LDMC")
 
@@ -716,6 +716,28 @@ Command Code: `0x4D4C_5632` ("MLV2")
 | ----------- | -------- | -------------------------- |
 | chksum      | u32      |                            |
 | fips_status | u32      | FIPS approved or an error  |
+
+
+### INSTALL\_OWNER\_PK\_HASH
+
+Exposes a command to save the owner public key hash in persistent data.
+
+Command Code: `0x4F57_4E50` ("OWNP")
+
+*Table: `INSTALL_OWNER_PK_HASH` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| digest    | u32[12]       | Owner public key hash.
+
+*Table: `INSTALL_OWNER_PK_HASH` output arguments*
+
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| dpe\_result   | u32        | Result code, 0 on success.
 
 
 ### STASH\_MEASUREMENT

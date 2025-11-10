@@ -758,6 +758,32 @@ int rt_test_all_commands(const test_info *info)
         printf("Get FMC Alias Cert: OK\n");
     }
 
+    // GET_FMC_ALIAS_ECC384_CSR
+    struct caliptra_get_fmc_alias_ecc384_csr_resp fmc_alias_ecc384_csr_resp;
+
+    status = caliptra_get_fmc_alias_ecc384_csr(&fmc_alias_ecc384_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias ECC384 CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias ECC384 CSR: OK\n");
+    }
+
+    // GET_FMC_ALIAS_MLDSA87_CSR
+    struct caliptra_get_fmc_alias_mldsa87_csr_resp fmc_alias_mldsa87_csr_resp;
+
+    status = caliptra_get_fmc_alias_mldsa87_csr(&fmc_alias_mldsa87_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias MLDSA87 CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias MLDSA87 CSR: OK\n");
+    }
+
     // GET_RT_ALIAS_ECC384_CERT
     struct caliptra_get_rt_alias_ecc384_cert_resp rt_alias_cert_resp;
 
@@ -1009,6 +1035,44 @@ int rt_test_all_commands(const test_info *info)
     else
     {
         printf("Certify Key Extended: OK\n");
+    }
+
+    // Set Auth Manifest
+    struct caliptra_set_auth_manifest_req set_auth_man_req = {};
+    set_auth_man_req.manifest_size = 34*1024;
+
+    status = caliptra_set_auth_manifest(&set_auth_man_req, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_INVALID_AUTH_MANIFEST_MARKER = 0xE0045;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_INVALID_AUTH_MANIFEST_MARKER) {
+        printf("Set Auth Manifest unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Set Auth Manifest: OK\n");
+    }
+
+    // Authorize and Stash
+    struct caliptra_authorize_and_stash_req auth_and_stash_req = {};
+    struct caliptra_authorize_and_stash_resp auth_and_stash_resp;
+
+    status = caliptra_authorize_and_stash(&auth_and_stash_req, &auth_and_stash_resp, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE = 0xE004E;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE) {
+        printf("Authorize and Stash unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Authorize and Stash: OK\n");
     }
 
     // FIPS_VERSION

@@ -1,7 +1,7 @@
 
 # Caliptra - ROM Specification v2.0
 
-*Spec Version: 0.9*
+*Spec Version: 1.0*
 
 ## Scope
 
@@ -240,7 +240,7 @@ The initialization step involves a traditional startup script for microcontrolle
 - Zeros ICCM & DCCM memories (to initialize ECC)
 - Jumps to Rust entry point
 
-The following flows are conducted exclusively when the ROM is operating in ACTIVE mode.
+The following flows are conducted exclusively when the ROM is operating in SUBSYSTEM mode.
 
 ### Manufacturing Flows:
 The following flows are conducted when the ROM is operating in the manufacturing mode, indicated by a value of `DEVICE_MANUFACTURING` (0x1) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
@@ -368,10 +368,22 @@ ROM performs the following POST tests to ensure that needed cryptographic module
  - SHA1
  - SHA2-256
  - SHA2-384
- - SHA2-384-ACC
+ - SHA2-512
+ - SHA2-512-ACC
  - ECC-384
+ - ECDH
  - HMAC-384Kdf
+ - HMAC-512Kdf
+ - HKDF-384
+ - HKDF-512
+ - KDF-CMAC
  - LMS
+ - MLDSA-87
+ - AES-256-ECB
+ - AES-256-CBC
+ - AES-256-CMAC
+ - AES-256-CTR
+ - AES-256-GCM
 
 ### DICE Flow
 
@@ -633,11 +645,11 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
  | 🔒LDevID MLDSA Pub Key        |
 
 ### Firmware Processor Stage
-During this phase, the ROM executes specific mailbox commands. Based on the operational mode (ACTIVE versus PASSIVE), the ROM also initiates the download of the firmware image. This download is conducted either through a mailbox command or via the Recovery Register Interface.
+During this phase, the ROM executes specific mailbox commands. Based on the operational mode (SUBSYSTEM versus PASSIVE), the ROM also initiates the download of the firmware image. This download is conducted either through a mailbox command or via the Recovery Register Interface.
 
 #### Handling commands from mailbox
 
-ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in ACTIVE mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
+ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in SUBSYSTEM mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#stash_measurement).
 2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#version).
@@ -651,10 +663,13 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
 11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)
 12. **CM_RANDOM_GENERATE**: This command returns random numbers from Caliptra's RNG for Device Ownership Transfer or other flows. [CM_RANDOM_GENERATE](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_random_generate)
+13. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 IDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_ecc384_cert)
+14. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
+15. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
 
 #### Downloading firmware image from mailbox
 
-There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download parts of firmware image from mailbox in PASSIVE mode.
+There are two modes in which the ROM executes: PASSIVE mode or SUBSYSTEM mode. Following is the sequence of the steps that are performed to download the firmware image from mailbox in PASSIVE mode.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
@@ -667,7 +682,7 @@ There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Foll
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
 
-Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
+Following is the sequence of steps that are performed to download the firmware image into the mailbox in SUBSYSTEM mode.
 
 1. On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register version to 1.1 and the `Agent Capability` field bits:
     - `Device ID`
