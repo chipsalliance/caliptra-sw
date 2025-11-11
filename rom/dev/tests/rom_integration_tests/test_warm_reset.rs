@@ -332,7 +332,7 @@ fn test_warm_reset_version() {
         },
         fw_image: Some(&binding),
         soc_manifest: soc_manifest.as_deref(),
-        mcu_fw_image: mcu_fw_image.map(|v| &***v),
+        mcu_fw_image: mcu_fw_image.map(|v| v.as_ref()),
         ..Default::default()
     };
 
