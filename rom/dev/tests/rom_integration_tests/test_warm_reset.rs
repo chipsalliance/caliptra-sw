@@ -4,8 +4,9 @@ use caliptra_api::{
     mailbox::{FipsVersionResp, MailboxReqHeader, MailboxRespHeader},
     SocManager,
 };
+#[allow(unused_imports)]
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{self, APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     version, ImageOptions,
 };
 use caliptra_common::{fips::FipsVersionCmd, mailbox_api::CommandId, RomBootStatus::*};
@@ -300,7 +301,11 @@ fn test_warm_reset_version() {
     .unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &firmware::APP_WITH_UART_FPGA
+        } else {
+            &firmware::APP_WITH_UART
+        },
         ImageOptions {
             fmc_version,
             app_version,
