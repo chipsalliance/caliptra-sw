@@ -822,6 +822,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra-test-harness",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",

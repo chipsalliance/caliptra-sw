@@ -23,6 +23,7 @@ caliptra-image-verify = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
+caliptra-test-harness.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 ufmt.workspace = true
 zerocopy.workspace = true
@@ -41,7 +42,6 @@ aes-gcm.workspace = true
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-emu-cpu.workspace = true
-
 caliptra-hw-model.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-image-elf.workspace = true
@@ -95,3 +95,7 @@ path = "test-fw/asm_tests.rs"
 [[bin]]
 name = "pmp_tests"
 path = "test-fw/pmp_tests.rs"
+
+[[bin]]
+name = "warm_reset_kv_tests"
+path = "test-fw/warm_reset_kv_tests.rs"

@@ -504,6 +504,7 @@ impl Sha512AcceleratorRegs {
 
     /// Called by Bus::warm_reset() to indicate a warm reset
     fn warm_reset(&mut self) {
+        self.state_machine.process_event(Events::Reset).unwrap();
         self.state_machine
             .process_event(Events::RdLock(Owner(0)))
             .unwrap();
@@ -596,7 +597,9 @@ statemachine! {
     transitions: {
         // CurrentState Event [guard] / action = NextState
         *Idle + RdLock(Owner) [is_not_locked] / lock = RdyForExc,
-        RdyForExc + WrLock(Owner) [is_locked] / unlock = Idle
+        RdyForExc + WrLock(Owner) [is_locked] / unlock = Idle,
+        Idle + Reset / reset = Idle,
+        RdyForExc + Reset / reset = Idle
     }
 }
 
@@ -631,6 +634,11 @@ impl StateMachineContext for Context {
             // no transition
             Err(())
         }
+    }
+
+    fn reset(&mut self) -> Result<(), ()> {
+        self.locked = 0;
+        Ok(())
     }
 
     fn lock(&mut self, user: Owner) -> Result<(), ()> {
