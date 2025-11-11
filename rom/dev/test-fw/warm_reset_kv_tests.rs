@@ -100,6 +100,7 @@ pub extern "C" fn rom_entry() -> ! {
     match reset_reason {
         ResetReason::ColdReset => {
             // first run, we put a key in the KV
+
             cprintln!("Writing key to KV");
             hmac384
                 .hmac(
@@ -122,6 +123,14 @@ pub extern "C" fn rom_entry() -> ! {
             .unwrap();
 
             cprintln!("Cold reset AES ciphertext: {}", HexBytes(&ciphertext));
+
+            // unsafe {
+            //     caliptra_registers::kv::KvReg::new()
+            //         .regs_mut()
+            //         .key_ctrl()
+            //         .at(7)
+            //         .write(|w| w.lock_wr(true))
+            // };
 
             // indicate to test that we can be reset now
             let mut soc_ifc = unsafe { SocIfcReg::new() };

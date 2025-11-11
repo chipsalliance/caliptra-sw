@@ -21,11 +21,15 @@ use crate::helpers;
 
 #[test]
 fn test_warm_reset_kv() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
     let rom =
         caliptra_builder::build_firmware_rom(&firmware::rom_tests::TEST_WARM_RESET_KV).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
+            security_state,
             ..Default::default()
         },
         BootParams::default(),
