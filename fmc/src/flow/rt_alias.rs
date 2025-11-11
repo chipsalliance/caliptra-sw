@@ -208,7 +208,6 @@ impl RtAliasLayer {
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
-                cprintln!("[alias rt : skip pcr extension");
                 Ok(())
             }
             ResetReason::Unknown => {
@@ -404,10 +403,11 @@ impl RtAliasLayer {
             tbs.tbs(),
         );
         let sig = okref(&sig)?;
-        // Clear the authority private key
+        // Lock the authority private key and FMC CDI
         cprintln!(
-            "[alias rt] Erasing ECC AUTHORITY.KEYID = {}",
-            auth_priv_key as u8
+            "[alias rt] Locking ECC AUTHORITY.KEYID = {} & FMC CDI = {}",
+            auth_priv_key as u8,
+            input.cdi as u8
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
         env.key_vault.set_key_use_lock(auth_priv_key);
@@ -497,10 +497,11 @@ impl RtAliasLayer {
             tbs.tbs(),
         );
         let sig = okref(&sig)?;
-        // Clear the authority private key
+        // Lock the authority private key and FMC CDI
         cprintln!(
-            "[alias rt] Erasing MLDSA AUTHORITY.KEYID = {}",
-            key_pair_seed as u8
+            "[alias rt] Locking MLDSA AUTHORITY.KEYID = {} & FMC CDI = {}",
+            key_pair_seed as u8,
+            input.cdi as u8
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
         env.key_vault.set_key_use_lock(key_pair_seed);
