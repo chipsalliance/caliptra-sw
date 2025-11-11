@@ -441,6 +441,11 @@ pub mod rom_tests {
         bin_name: "pmp_tests",
         ..BASE_FWID
     };
+
+    pub const TEST_WARM_RESET_KV: FwId = FwId {
+        bin_name: "warm_reset_kv_tests",
+        ..BASE_FWID
+    };
 }
 
 pub mod runtime_tests {
@@ -562,6 +567,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
     &rom_tests::TEST_RT_WITH_UART,
     &rom_tests::TEST_PMP_TESTS,
+    &rom_tests::TEST_WARM_RESET_KV,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
     &runtime_tests::MBOX_FPGA,

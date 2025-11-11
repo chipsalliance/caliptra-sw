@@ -5,7 +5,7 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
     version, ImageOptions,
 };
 use caliptra_common::{fips::FipsVersionCmd, mailbox_api::CommandId, RomBootStatus::*};
@@ -18,6 +18,31 @@ use caliptra_test::image_pk_desc_hash;
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
+
+#[test]
+fn test_warm_reset_kv() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::rom_tests::TEST_WARM_RESET_KV).unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    while hw.soc_ifc().cptra_boot_status().read() == 0 {
+        hw.step();
+    }
+
+    println!("Resetting");
+
+    // Perform warm reset
+    hw.warm_reset_flow().unwrap();
+
+    hw.step_until_exit_success().unwrap();
+}
 
 #[test]
 fn test_warm_reset_success() {
