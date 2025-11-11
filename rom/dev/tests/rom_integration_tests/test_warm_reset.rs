@@ -218,7 +218,9 @@ fn test_warm_reset_during_update_reset() {
         assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
         // Step till after last step in update reset is complete
-        hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
+        hw.step_until(|model| {
+            model.soc_ifc().cptra_boot_status().read() >= UpdateResetLoadImageComplete.into()
+        });
 
         // Perform a warm reset
         hw.warm_reset_flow().unwrap();
