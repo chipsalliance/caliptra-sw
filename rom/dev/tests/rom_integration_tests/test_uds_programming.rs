@@ -12,7 +12,7 @@ Abstract:
 --*/
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::ROM_WITH_UART;
+use caliptra_builder::firmware::{self};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
 
@@ -22,7 +22,10 @@ fn test_uds_programming_no_active_mode() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
@@ -51,7 +54,10 @@ fn test_uds_programming_granularity_64bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
@@ -81,7 +87,10 @@ fn test_uds_programming_granularity_32bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
