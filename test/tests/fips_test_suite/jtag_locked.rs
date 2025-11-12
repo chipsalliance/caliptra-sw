@@ -32,9 +32,7 @@ fn check_jtag_accessible(
     );
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn jtag_locked() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 
