@@ -14,7 +14,6 @@ use crate::otp_provision::{
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
     LifecycleControllerState, OtpSwManufPartition,
 };
-use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use anyhow::Result;
@@ -24,7 +23,6 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
-use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
@@ -154,6 +152,7 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
+const I3C_WRITE_FIFO_SIZE: u16 = 128;
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -368,6 +367,10 @@ impl XI3CWrapper {
     /// Number of read data words are available in RD_FIFO to read
     pub fn read_fifo_level(&self) -> u16 {
         self.controller.lock().unwrap().read_fifo_level()
+    }
+
+    pub fn write_fifo_empty(&self) -> bool {
+        self.write_fifo_level() == I3C_WRITE_FIFO_SIZE
     }
 }
 
@@ -654,7 +657,7 @@ impl ModelFpgaSubsystem {
         self.bmc_step_counter += 1;
 
         // check if we need to fill the recovey FIFO
-        if self.bmc_step_counter % 128 == 0 && !self.recovery_fifo_blocks.is_empty() {
+        if !self.recovery_fifo_blocks.is_empty() {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
@@ -665,6 +668,11 @@ impl ModelFpgaSubsystem {
 
                 if status != 3 && self.bmc_step_counter % 65536 == 0 {
                     println!("Waiting for device status to be 3, currently: {}", status);
+                    return;
+                }
+
+                // wait for any other packets to be sent
+                if !self.i3c_controller().write_fifo_empty() {
                     return;
                 }
 
@@ -698,15 +706,17 @@ impl ModelFpgaSubsystem {
                 self.recovery_ctrl_written = true;
             }
             let fifo_status = self
-                .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
-                .expect("Device should response to indirect fifo status read request");
-            let empty = fifo_status[0] & 1 == 1;
-            // while empty send
-            if empty {
-                // fifo is empty, send a block
+                .i3c_core()
+                .sec_fw_recovery_if()
+                .indirect_fifo_status_0()
+                .read();
+
+            // fifo is empty, send a block
+            if fifo_status.empty() {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
+                return;
             }
         }
 
@@ -1040,6 +1050,13 @@ impl ModelFpgaSubsystem {
 
         let recovery_command_code = Self::command_code_to_u8(command);
 
+        let start = self.cycle_count();
+        while !self.i3c_controller.write_fifo_empty() {
+            if self.cycle_count() - start > 1_000_000 {
+                panic!("Timeout waiting for I3C write FIFO to be empty");
+            }
+        }
+
         if self
             .i3c_controller
             .controller
@@ -1114,6 +1131,13 @@ impl ModelFpgaSubsystem {
         let mut data = vec![recovery_command_code];
         data.extend_from_slice(&(payload.len() as u16).to_le_bytes());
         data.extend_from_slice(payload);
+
+        let start = self.cycle_count();
+        while !self.i3c_controller.write_fifo_empty() {
+            if self.cycle_count() - start > 1_000_000 {
+                panic!("Timeout waiting for I3C write FIFO to be empty");
+            }
+        }
 
         assert!(
             self.i3c_controller
