@@ -7,6 +7,8 @@ use caliptra_common::mailbox_api::{
     SignWithExportedEcdsaResp,
 };
 
+use caliptra_drivers::CaliptraError;
+
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use dpe::{
@@ -25,8 +27,6 @@ use openssl::{
 };
 
 use zerocopy::{FromBytes, IntoBytes};
-
-use caliptra_drivers::CaliptraError;
 
 fn check_certificate_signature(
     sign_resp: &SignWithExportedEcdsaResp,
@@ -66,7 +66,10 @@ fn derive_exported_cdi(model: &mut DefaultHwModel) -> DeriveContextExportedCdiRe
     let derive_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: [0; DPE_PROFILE.get_tci_size()],
-        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+
         tci_type: 0,
         target_locality: 0,
     };
