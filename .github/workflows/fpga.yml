@@ -52,7 +52,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
       - name: Compute cache-keys
@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
@@ -206,7 +206,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with: 
+        with:
           ref: ${{ inputs.branch }}
           submodules: recursive
 
@@ -284,7 +284,6 @@ jobs:
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
-                       test(test_sign_validation_failure) |
                        test(test_rtalias::test_boot_status_reporting) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
