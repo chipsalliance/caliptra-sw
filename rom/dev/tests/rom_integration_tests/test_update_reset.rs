@@ -497,7 +497,10 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
             .unwrap();
 
         assert_eq!(
-            hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
+            hw.mailbox_execute(
+                u32::from(CommandId::FIRMWARE_LOAD),
+                &image_bundle2.to_bytes().unwrap()
+            ),
             Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
                 CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH
                     .into()
