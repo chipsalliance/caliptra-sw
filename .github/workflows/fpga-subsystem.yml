@@ -318,7 +318,7 @@ jobs:
               -E 'package(caliptra-auth-man-types)'
               -E 'package(caliptra-cfi-lib)'
               -E 'package(caliptra-coverage)'
-              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)'
+              -E 'package(caliptra-drivers) - test(test_doe_when_debug_locked)'
               -E 'package(caliptra-error)'
               -E 'package(caliptra-hw-model) - test(test_iccm_byte_write_nmi_failure) - test(test_iccm_unaligned_write_nmi_failure) - test(test_iccm_write_locked_nmi_failure) - test(test_invalid_instruction_exception_failure) - test(test_write_to_rom)'
               -E 'package(caliptra-hw-model-types)'
