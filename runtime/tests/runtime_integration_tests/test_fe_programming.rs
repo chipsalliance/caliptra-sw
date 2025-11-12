@@ -19,7 +19,9 @@ fn test_fe_programming_cmd() {
         .unwrap();
     let init_params = InitParams {
         rom: &rom,
-        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        security_state: *SecurityState::default()
+            .set_device_lifecycle(DeviceLifecycle::Production)
+            .set_debug_locked(true),
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: true,
             ..Default::default()
@@ -62,7 +64,9 @@ fn test_fe_programming_invalid_partition() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
-        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        security_state: *SecurityState::default()
+            .set_device_lifecycle(DeviceLifecycle::Production)
+            .set_debug_locked(true),
         ..Default::default()
     };
 
