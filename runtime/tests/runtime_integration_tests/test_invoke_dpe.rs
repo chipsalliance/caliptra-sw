@@ -10,7 +10,7 @@ use caliptra_api::{
 };
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::{HwModel, ModelError, SecurityState};
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -370,7 +370,14 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
 
 #[test]
 fn test_export_cdi_attestation_not_disabled_after_update_reset() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
+    });
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
@@ -409,7 +416,14 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
 
 #[test]
 fn test_export_cdi_destroyed_root_context() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
+    });
     // You probably want to retain the parent context, otherwise the whole DPE chain _may be
     // destroyed.
     //
