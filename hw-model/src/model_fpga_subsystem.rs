@@ -14,7 +14,6 @@ use crate::otp_provision::{
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
     LifecycleControllerState, OtpSwManufPartition,
 };
-use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use anyhow::Result;
@@ -24,7 +23,6 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
-use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
