@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
@@ -24,11 +24,12 @@ fn test_rt_journey_pcr_validation() {
     )))
     .unwrap();
 
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             ..Default::default()
         },
     )
@@ -37,6 +38,7 @@ fn test_rt_journey_pcr_validation() {
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let binding = image.to_bytes().unwrap();
+    let soc_manifest = crate::common::default_soc_manifest_bytes(Default::default(), fw_svn);
     let boot_params = BootParams {
         fuses: Fuses {
             vendor_pk_hash: vendor_pk_desc_hash,
@@ -44,6 +46,8 @@ fn test_rt_journey_pcr_validation() {
             ..Default::default()
         },
         fw_image: Some(&binding),
+        soc_manifest: Some(&soc_manifest),
+        mcu_fw_image: Some(crate::common::DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -101,7 +105,7 @@ fn test_mbox_busy_during_warm_reset() {
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MBOX,
+        crate::test_update_reset::mbox_test_image(),
         ImageOptions {
             fw_svn: 9,
             ..Default::default()

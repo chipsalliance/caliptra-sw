@@ -8,7 +8,9 @@ use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
     RomBootStatus,
 };
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
@@ -164,13 +166,8 @@ fn test_stress_update() {
 
 #[test]
 fn test_boot_tci_data() {
-    let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-        &firmware::runtime_tests::MBOX_FPGA
-    } else {
-        &firmware::runtime_tests::MBOX
-    };
     let args = RuntimeTestArgs {
-        test_fwid: Some(fw_id),
+        test_fwid: Some(crate::test_update_reset::mbox_test_image()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -210,6 +207,10 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             InitParams {
                 rom: &rom,
                 security_state: SecurityState::from(fuses.life_cycle as u32),
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             BootParams {
@@ -219,13 +220,12 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         )
         .unwrap();
 
-        let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-            &firmware::runtime_tests::MBOX_FPGA
-        } else {
-            &firmware::runtime_tests::MBOX
-        };
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, fw_id, image_options).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            crate::test_update_reset::mbox_test_image(),
+            image_options,
+        )
+        .unwrap();
 
         // Upload measurement to measurement log
         let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
