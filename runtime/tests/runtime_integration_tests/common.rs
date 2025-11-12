@@ -68,7 +68,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 4];
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
@@ -88,13 +88,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_soc_manifest(pqc_key_type, svn);
-    let manifest_bytes = manifest.as_bytes();
-    let len = manifest_bytes.len();
-    // Pad to a multiple of 256 bytes
-    let padded_len = ((len + 255) / 256) * 256;
-    let mut padded = vec![0u8; padded_len];
-    padded[..len].copy_from_slice(manifest_bytes);
-    padded
+    manifest.as_bytes().to_vec()
 }
 
 pub fn test_upload_firmware<T: HwModel>(
