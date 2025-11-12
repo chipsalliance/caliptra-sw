@@ -41,8 +41,8 @@ pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: 
         .unwrap();
 }
 
-fn mbox_test_image() -> &'static FwId<'static> {
-    if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+pub fn mbox_test_image() -> &'static FwId<'static> {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &MBOX_FPGA
     } else {
         &MBOX
