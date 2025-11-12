@@ -225,7 +225,7 @@ jobs:
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
-  test_artifacts:
+  test_artifacts_subsystem:
     runs-on: vck190-subsystem-2.1
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
