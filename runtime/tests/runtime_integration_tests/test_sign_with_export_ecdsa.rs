@@ -8,7 +8,7 @@ use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::{HwModel, ModelError, SecurityState};
 use caliptra_runtime::RtBootStatus;
 use crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
 use dpe::{
@@ -534,9 +534,13 @@ fn test_sign_with_exported_cdi_warm_reset() {
     // 3. Performs a warm reset
     // 4. Checks that we can still create a valid signature.
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
     });
 
     let derive_ctx_cmd = DeriveContextCmd {
@@ -614,9 +618,13 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     // 4. Checks that we can still create a valid signature. This implicitly checks that the root
     //    context was not destroyed, since we can still find it in the runtime.
 
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
     });
 
     // Rotate out the default handle so we can make multiple descendants.
