@@ -829,23 +829,23 @@ impl<'a> DmaRecovery<'a> {
         };
 
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
-            // TODO: this will fail if the transaction is not a multiple of the block size
-            // wait for the FIFO to be full
-            if i3c {
-                self.with_regs(|r| {
-                    while !r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .full()
-                    {}
-                })?;
-            }
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
 
                 if i >= read_transaction.length {
                     break;
+                }
+
+                // if this is an I3C transfer, wait for the FIFO to be not empty
+                if i3c {
+                    self.with_regs(|r| {
+                        while r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .empty()
+                        {}
+                    })?;
                 }
 
                 // translate to single dword transfer
