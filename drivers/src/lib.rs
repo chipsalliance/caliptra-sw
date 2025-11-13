@@ -126,8 +126,9 @@ pub use persistent::fmc_alias_csr::FmcAliasCsrs;
 pub use persistent::AuthManifestImageMetadataList;
 pub use persistent::{
     Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
-    PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_CSR_SIZE,
-    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE, PCR_LOG_MAX_COUNT,
+    PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_FMC_ALIAS_CSR_SIZE,
+    ECC384_MAX_IDEVID_CSR_SIZE, FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE,
+    PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
