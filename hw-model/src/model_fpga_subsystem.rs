@@ -14,7 +14,6 @@ use crate::otp_provision::{
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
     LifecycleControllerState, OtpSwManufPartition,
 };
-use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use anyhow::Result;
@@ -24,7 +23,6 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
-use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
@@ -560,15 +558,6 @@ impl ModelFpgaSubsystem {
                         .push_uart_char(data.read(FifoData::NextChar) as u8);
                 }
             }
-        }
-        if self.output().exit_requested() {
-            println!("Exiting firmware request");
-            let code = match self.output().exit_status() {
-                Some(ExitStatus::Passed) => 0,
-                Some(ExitStatus::Failed) => 1,
-                None => 0,
-            };
-            exit(code);
         }
     }
 
