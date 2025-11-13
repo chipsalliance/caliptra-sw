@@ -60,8 +60,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-etrng-log-2_1:
     name: sw-emulator Suite (etrng, log) 2_1
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-etrng-log
@@ -72,8 +72,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-etrng-nolog-2_1:
     name: sw-emulator Suite (etrng, nolog) 2_1
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
@@ -84,8 +84,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-itrng-log-2_1:
     name: sw-emulator Suite (itrng, log) 2_1
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-itrng-log
@@ -96,8 +96,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-itrng-nolog-2_1:
     name: sw-emulator Suite (itrng, nolog) 2_1
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
@@ -108,8 +108,8 @@ jobs:
 
   fpga-latest-full-suite-itrng-nolog:
     name: FPGA Suite (hw-latest, itrng, nolog)
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-2.1-dev
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-nolog
@@ -134,8 +134,8 @@ jobs:
 
   fpga-subsystem-latest-full-suite-itrng-nolog:
     name: FPGA Subsystem Suite (hw-latest, itrng, nolog)
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@caliptra-2.1-dev
     with:
       artifact-suffix: -fpga-subsystem-realtime-latest-itrng-nolog
@@ -147,8 +147,8 @@ jobs:
 
   fpga-subsystem-latest-full-suite-itrng-log:
     name: FPGA Subsystem Suite (hw-latest, itrng, log)
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@caliptra-2.1-dev
     with:
       artifact-suffix: -fpga-subsystem-realtime-latest-itrng-log
