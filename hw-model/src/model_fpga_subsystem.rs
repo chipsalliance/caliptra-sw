@@ -746,7 +746,7 @@ impl ModelFpgaSubsystem {
         }
 
         // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 10_000 != 0 {
+        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 100 != 0 {
             return;
         }
         self.bmc.step();
