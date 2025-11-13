@@ -3,7 +3,7 @@
 use crate::common::get_certs;
 use caliptra_api::mailbox::{GetFmcAliasEccCsrReq, GetFmcAliasMldsaCsrReq};
 use caliptra_common::mailbox_api::{GetRtAliasEcc384CertReq, GetRtAliasMlDsa87CertReq};
-use caliptra_drivers::{FmcAliasCsrs, ECC384_MAX_CSR_SIZE, MLDSA87_MAX_CSR_SIZE};
+use caliptra_drivers::{FmcAliasCsrs, ECC384_MAX_FMC_ALIAS_CSR_SIZE, MLDSA87_MAX_CSR_SIZE};
 use caliptra_hw_model::DefaultHwModel;
 use openssl::{
     pkey::{PKey, Public},
@@ -50,7 +50,7 @@ fn test_get_fmc_alias_csr() {
         let csr_der = &get_fmc_alias_csr_resp.data[..get_fmc_alias_csr_resp.data_size as usize];
         let csr = X509Req::from_der(csr_der).unwrap();
 
-        assert_ne!([0; ECC384_MAX_CSR_SIZE], csr_der);
+        assert_ne!([0; ECC384_MAX_FMC_ALIAS_CSR_SIZE], csr_der);
 
         csr
     }
