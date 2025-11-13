@@ -696,26 +696,26 @@ impl Controller {
         cmd.byte_count = byte_count;
         cmd.rw = 0;
 
-        if self.write_fifo_level() * 4 >= msg_ptr.len() as u16 {
-            // write the whole message at once for reliability
-            while !msg_ptr.is_empty() {
+        // if self.write_fifo_level() * 4 >= msg_ptr.len() as u16 {
+        //     // write the whole message at once for reliability
+        //     while !msg_ptr.is_empty() {
+        //         let written = self.write_tx_fifo(msg_ptr);
+        //         msg_ptr = &msg_ptr[written..];
+        //     }
+        //     self.fill_cmd_fifo(&cmd);
+        // } else {
+        // not enough room, stream it in
+        self.fill_cmd_fifo(&cmd);
+        while !msg_ptr.is_empty() {
+            let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
+            let mut space_index: u16 = 0;
+            while space_index < wr_fifo_space && !msg_ptr.is_empty() {
                 let written = self.write_tx_fifo(msg_ptr);
                 msg_ptr = &msg_ptr[written..];
-            }
-            self.fill_cmd_fifo(&cmd);
-        } else {
-            // not enough room, stream it in
-            self.fill_cmd_fifo(&cmd);
-            while !msg_ptr.is_empty() {
-                let wr_fifo_space = (self.regs().fifo_lvl_status.get() & 0xffff) as u16;
-                let mut space_index: u16 = 0;
-                while space_index < wr_fifo_space && !msg_ptr.is_empty() {
-                    let written = self.write_tx_fifo(msg_ptr);
-                    msg_ptr = &msg_ptr[written..];
-                    space_index += 1;
-                }
+                space_index += 1;
             }
         }
+        // }
         // send cmd fifo last to ensure that data is in fifo before command starts
         self.get_response()
     }
