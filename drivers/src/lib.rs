@@ -112,7 +112,7 @@ pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsrs;
 #[cfg(feature = "runtime")]
-pub use persistent::AuthManifestImageMetadataList;
+pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 pub use persistent::{
     Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
     PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_FMC_ALIAS_CSR_SIZE,
