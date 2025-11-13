@@ -406,6 +406,7 @@ pub struct ModelFpgaSubsystem {
     pub bmc_step_counter: usize,
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
+    pub bootfsm_break: bool,
 }
 
 impl ModelFpgaSubsystem {
@@ -683,9 +684,9 @@ impl ModelFpgaSubsystem {
                 }
 
                 // wait for any other packets to be sent
-                if !self.i3c_controller().write_fifo_empty() {
-                    return;
-                }
+                // if !self.i3c_controller().write_fifo_empty() {
+                //     return;
+                // }
 
                 let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
                 let mut ctrl = vec![0, 1];
@@ -1430,6 +1431,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
+            bootfsm_break: params.bootfsm_break,
         };
 
         println!("AXI reset");
@@ -1556,32 +1558,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
-
-        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
-        // It looks like the words are backwards in the FPGA wrapper. Update
-        // this when the wrapper is updated.
-        // Notify MCU ROM it can start loading the fuse registers
-        let gpio = &m.wrapper.regs().mci_generic_input_wires[0];
-        let current = gpio.extract().get();
-        gpio.set(current | 1 << 30);
-
-        while !m
-            .mci_boot_milestones()
-            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
-        {
-            m.step();
-        }
-
-        // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
-        // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
-        // the BOOT_WAIT state according to the cptra_flow_status register.
-        //
-        // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
-        // entering debug unlock modes.
-        if !params.bootfsm_break {
-            println!("writing to cptra_bootfsm_go");
-            m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
-        }
         Ok(m)
     }
 
@@ -1608,6 +1584,32 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Initializing subsystem OTP memory.");
         self.init_otp(&boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
+
+        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
+        // It looks like the words are backwards in the FPGA wrapper. Update
+        // this when the wrapper is updated.
+        // Notify MCU ROM it can start loading the fuse registers
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 30);
+
+        while !self
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+        {
+            self.step();
+        }
+
+        // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
+        // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
+        // the BOOT_WAIT state according to the cptra_flow_status register.
+        //
+        // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
+        // entering debug unlock modes.
+        if !self.bootfsm_break {
+            println!("writing to cptra_bootfsm_go");
+            self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        }
 
         // Return here if there isn't any mutable code to load
         if boot_params.fw_image.is_none()
