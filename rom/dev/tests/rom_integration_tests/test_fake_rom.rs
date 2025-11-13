@@ -29,23 +29,39 @@ const PUB_KEY_Y: [u8; 48] = [
 
 #[test]
 fn test_skip_kats() {
-    let rom =
-        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
+    let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
+    let fuses = Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(fake_rom(fpga)).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             ..Default::default()
         },
-        BootParams::default(),
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
     )
     .unwrap();
 
-    hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
-    // If KatStarted boot status is posted before ColResetStarted, the statement below will trigger panic.
-    hw.step_until_boot_status(
-        caliptra_common::RomBootStatus::ColdResetStarted.into(),
-        false,
-    );
+    if fpga {
+        // If KatStarted boot status is posted before ColdResetStarted, the statement below will trigger panic.
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read()
+                >= u32::from(caliptra_common::RomBootStatus::ColdResetStarted)
+        });
+    } else {
+        hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
+
+        // If KatStarted boot status is posted before ColdResetStarted, the statement below will trigger panic.
+        hw.step_until_boot_status(
+            caliptra_common::RomBootStatus::ColdResetStarted.into(),
+            false,
+        );
+    }
 }
 
 #[test]
