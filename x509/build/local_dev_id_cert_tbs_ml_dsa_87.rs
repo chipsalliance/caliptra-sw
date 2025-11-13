@@ -19,8 +19,7 @@ pub struct LocalDevIdCertTbsMlDsa87Params<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
 }
-#[allow(clippy::needless_lifetimes)]
-impl<'a> LocalDevIdCertTbsMlDsa87Params<'a> {
+impl LocalDevIdCertTbsMlDsa87Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

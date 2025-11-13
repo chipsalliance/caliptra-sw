@@ -118,6 +118,19 @@ impl DiceTcbInfo {
         };
         asn1::parse(ext_der, Self::parse_single).map(Some)
     }
+
+    pub fn find_multiple_in_csr(csr_der: &[u8]) -> Result<Vec<Self>, asn1::ParseError> {
+        let Some(ext_der) = get_csr_extension(csr_der, &DICE_MULTI_TCB_INFO_OID)? else {
+            return Ok(vec![]);
+        };
+        asn1::parse(ext_der, Self::parse_multiple)
+    }
+    pub fn find_single_in_csr(csr_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
+        let Some(ext_der) = get_csr_extension(csr_der, &DICE_TCB_INFO_OID)? else {
+            return Ok(None);
+        };
+        asn1::parse(ext_der, Self::parse_single).map(Some)
+    }
 }
 
 #[test]
@@ -239,6 +252,64 @@ pub(crate) fn get_cert_extension<'a>(
                         }
                         Ok(result)
                     })?;
+                Ok(result)
+            })?;
+            d.read_element::<asn1::Sequence>()?; // signatureAlgorithm
+            d.read_element::<asn1::BitString>()?; // signatureValue
+            Ok(result)
+        })
+    })
+}
+
+/// Extracts the DER bytes of an extension from x509 CSR bytes
+/// (`csr_der`) with the provided `oid`.
+pub(crate) fn get_csr_extension<'a>(
+    csr_der: &'a [u8],
+    oid: &asn1::ObjectIdentifier,
+) -> Result<Option<&'a [u8]>, asn1::ParseError> {
+    asn1::parse(csr_der, |d| {
+        d.read_element::<asn1::Sequence>()?.parse(|d| {
+            let result = d.read_element::<asn1::Sequence>()?.parse(|d| {
+                d.read_element::<asn1::BigInt>()?; // version
+                d.read_element::<asn1::Sequence>()?; // subject
+                d.read_element::<asn1::Sequence>()?; // subject PK info
+
+                let ext_reqs = d.read_explicit_element::<asn1::Sequence>(0)?.parse(|d| {
+                    let attr_oid = d.read_element::<asn1::ObjectIdentifier>()?;
+                    // Confirm this the OID for extensionRequest
+                    assert_eq!(attr_oid, asn1::oid!(1, 2, 840, 113549, 1, 9, 14));
+
+                    d.read_element::<asn1::SetOf<asn1::Sequence>>()
+                })?;
+
+                let mut result = None;
+                for ext_req in ext_reqs {
+                    result = ext_req.parse(|d| {
+                        let mut result = None;
+                        while !d.is_empty() {
+                            let found_result = d.read_element::<asn1::Sequence>()?.parse(|d| {
+                                let item_oid = d.read_element::<asn1::ObjectIdentifier>()?;
+                                d.read_element::<Option<bool>>()?; // critical
+                                let value = d.read_element::<&[u8]>()?;
+                                if &item_oid == oid {
+                                    Ok(Some(value))
+                                } else {
+                                    Ok(None)
+                                }
+                            })?;
+                            if let Some(found_result) = found_result {
+                                if result.is_some() {
+                                    // The extension was found more than once
+                                    return Err(asn1::ParseError::new(
+                                        asn1::ParseErrorKind::ExtraData,
+                                    ));
+                                }
+                                result = Some(found_result);
+                            }
+                        }
+                        Ok(result)
+                    })?
+                }
                 Ok(result)
             })?;
             d.read_element::<asn1::Sequence>()?; // signatureAlgorithm

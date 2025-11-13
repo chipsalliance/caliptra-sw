@@ -195,7 +195,7 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
         self.params.push(param);
     }
 
-    pub fn add_hpke_identifiers_ext(mut self, identifier: &HPKEIdentifiers) -> Self {
+    pub fn add_hpke_identifiers_ext(mut self, identifier: &crate::x509::HPKEIdentifiers) -> Self {
         self.exts
             .push(x509::make_hpke_identifier_ext(identifier))
             .unwrap();
@@ -307,6 +307,10 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
         // Match long params first to ensure a subset is not sanitized by a short param.
         self.params
             .sort_by(|a, b| a.needle.len().cmp(&b.needle.len()).reverse());
+
+        // Sort the params largest to smallest to decrease the risk of duplicate "needles" in larger fields before being sanitized
+        self.params
+            .sort_by_key(|p| std::cmp::Reverse(p.tbs_param.len));
 
         // Calculate the offset of parameters and sanitize the TBS section
         let params = self

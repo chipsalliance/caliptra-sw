@@ -104,8 +104,7 @@ Abstract:
                 #(pub #param_vars)*
             }
 
-            #[allow(clippy::needless_lifetimes)]
-            impl<'a> #param_name<'a>{
+            impl #param_name<'_>{
                 #(pub #len_consts)*
             }
 
