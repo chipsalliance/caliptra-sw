@@ -21,8 +21,7 @@ pub struct RtAliasCertTbsEcc384Params<'a> {
     pub not_after: &'a [u8; 15usize],
     pub tcb_info_fw_svn: &'a [u8; 1usize],
 }
-#[allow(clippy::needless_lifetimes)]
-impl<'a> RtAliasCertTbsEcc384Params<'a> {
+impl RtAliasCertTbsEcc384Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

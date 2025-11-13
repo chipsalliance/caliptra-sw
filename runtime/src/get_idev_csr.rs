@@ -33,8 +33,8 @@ impl GetIdevCsrCmd {
                 // csr is guranteed to be the same size as `len`, and therefore
                 // `resp.data_size` by the `IDevIDCsr::get` API.
                 //
-                // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
-                // size of the buffer in `GetIdevCsrResp`
+                // A valid `IDevIDCsr` cannot be larger than `ECC384_MAX_IDEVID_CSR_SIZE`, which is less
+                // than the the max size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                 Ok(resp.partial_len()?)
@@ -68,8 +68,8 @@ impl GetIdevMldsaCsrCmd {
                 // csr is guranteed to be the same size as `len`, and therefore
                 // `resp.data_size` by the `IDevIDCsr::get` API.
                 //
-                // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
-                // size of the buffer in `GetIdevCsrResp`
+                // A valid `IDevIDCsr` cannot be larger than `MLDSA87_MAX_CSR_SIZE`, which is less
+                // than the the max size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                 Ok(resp.partial_len()?)

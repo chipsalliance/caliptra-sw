@@ -16,7 +16,7 @@ pub mod x509;
 
 use caliptra_image_types::ImageManifest;
 use openssl::sha::sha384;
-pub use redact::{redact_cert, RedactOpts};
+pub use redact::{redact_cert, redact_csr, RedactOpts};
 pub use unwrap_single::UnwrapSingle;
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;

@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, Ecc384Signature, Mldsa87Signature, PersistentData,
+    CaliptraError, CaliptraResult, Ecc384Signature, Lifecycle, Mldsa87Signature, PersistentData,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder};
 
@@ -185,4 +185,26 @@ pub fn copy_ldevid_mldsa87_cert(
     let sig = ldevid_dice_mldsa87_sign(persistent_data);
     mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
+}
+
+/// Generate flags for DICE evidence
+///
+/// # Arguments
+///
+/// * `device_lifecycle` - Device lifecycle
+/// * `debug_locked`     - Debug locked
+pub fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
+    let mut flags: u32 = FLAG_BIT_FIXED_WIDTH;
+
+    flags |= match device_lifecycle {
+        Lifecycle::Unprovisioned => FLAG_BIT_NOT_CONFIGURED,
+        Lifecycle::Manufacturing => FLAG_BIT_NOT_SECURE,
+        _ => 0,
+    };
+
+    if !debug_locked {
+        flags |= FLAG_BIT_DEBUG;
+    }
+
+    flags.reverse_bits().to_be_bytes()
 }

@@ -26,7 +26,8 @@ use crate::{
 #[cfg(feature = "runtime")]
 use crate::pcr_reset::PcrResetCounter;
 
-pub const ECC384_MAX_CSR_SIZE: usize = 512;
+pub const ECC384_MAX_IDEVID_CSR_SIZE: usize = 512;
+pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
 pub const MAN1_SIZE: u32 = 17 * 1024;
 pub const MAN2_SIZE: u32 = 17 * 1024;
 pub const DATAVAULT_MAX_SIZE: u32 = 15 * 1024;
@@ -76,7 +77,7 @@ pub type AuthManifestImageMetadataList =
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
     pub csr_len: u32,
-    pub csr: [u8; ECC384_MAX_CSR_SIZE],
+    pub csr: [u8; ECC384_MAX_IDEVID_CSR_SIZE],
 }
 
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
@@ -90,7 +91,7 @@ impl Default for Ecc384IdevIdCsr {
     fn default() -> Self {
         Self {
             csr_len: Self::UNPROVISIONED_CSR,
-            csr: [0; ECC384_MAX_CSR_SIZE],
+            csr: [0; ECC384_MAX_IDEVID_CSR_SIZE],
         }
     }
 }
@@ -149,7 +150,7 @@ macro_rules! impl_idevid_csr {
     };
 }
 
-impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_CSR_SIZE);
+impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_IDEVID_CSR_SIZE);
 impl_idevid_csr!(Mldsa87IdevIdCsr, MLDSA87_MAX_CSR_SIZE);
 
 pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
@@ -195,7 +196,7 @@ pub mod fmc_alias_csr {
     #[repr(C)]
     pub struct FmcAliasCsrs {
         pub ecc_csr_len: u32,
-        pub ecc_csr: [u8; ECC384_MAX_CSR_SIZE],
+        pub ecc_csr: [u8; ECC384_MAX_FMC_ALIAS_CSR_SIZE],
         pub mldsa_csr_len: u32,
         pub mldsa_csr: [u8; MLDSA87_MAX_CSR_SIZE],
     }
@@ -204,7 +205,7 @@ pub mod fmc_alias_csr {
         fn default() -> Self {
             Self {
                 ecc_csr_len: Self::UNPROVISIONED_CSR,
-                ecc_csr: [0; ECC384_MAX_CSR_SIZE],
+                ecc_csr: [0; ECC384_MAX_FMC_ALIAS_CSR_SIZE],
                 mldsa_csr_len: Self::UNPROVISIONED_CSR,
                 mldsa_csr: [0; MLDSA87_MAX_CSR_SIZE],
             }
