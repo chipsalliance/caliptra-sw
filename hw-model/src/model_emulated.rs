@@ -22,6 +22,7 @@ use caliptra_emu_periph::dma::axi_root_bus::AxiRootBus;
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
+use caliptra_emu_periph::Mci;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, MailboxRequester, SocToCaliptraBus, TbServicesCb,
@@ -82,6 +83,8 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
+
+    pub mci: Mci,
 }
 
 #[cfg(feature = "coverage")]
@@ -237,6 +240,7 @@ impl HwModel for ModelEmulated {
         let mut hasher = DefaultHasher::new();
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
         let image_tag = hasher.finish();
+        let mci_regs = cpu.bus.bus.mci_external_regs();
 
         let mut m = ModelEmulated {
             output,
@@ -252,6 +256,7 @@ impl HwModel for ModelEmulated {
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
+            mci: mci_regs,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);

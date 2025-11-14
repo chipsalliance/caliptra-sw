@@ -190,7 +190,7 @@ pub struct MciRegs {
     pub intr_block_rf_error0_intr_trig_r: u32,
     #[register(offset = 0x1030)]
     pub intr_block_rf_error1_intr_trig_r: u32,
-    #[register(offset = 0x1034)]
+    #[register(offset = 0x1034, write_fn = on_write_intr_block_rf_notif0_intr_trig_r)]
     pub intr_block_rf_notif0_intr_trig_r: u32,
     #[register(offset = 0x1038)]
     pub intr_block_rf_notif1_intr_trig_r: u32,
@@ -425,6 +425,28 @@ impl MciRegs {
         println!("[MCI] Registering outgoing events");
         self.event_sender = Some(sender);
     }
+    fn cptra_request_mcu_reset(&mut self) {
+        self.intr_block_rf_notif0_internal_intr_r |= NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
+        if let Some(sender) = &self.event_sender {
+            sender
+                .send(Event::new(
+                    Device::CaliptraCore,
+                    Device::MCU,
+                    EventData::MciInterrupt { asserted: true },
+                ))
+                .unwrap();
+        }
+    }
+    fn on_write_intr_block_rf_notif0_intr_trig_r(
+        &mut self,
+        _size: RvSize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        if val & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK != 0 {
+            self.cptra_request_mcu_reset();
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -440,19 +462,7 @@ impl Mci {
         }
     }
     pub fn cptra_request_mcu_reset(&self) {
-        println!("[MCI] Requesting MCU reset");
-        self.regs.borrow_mut().intr_block_rf_notif0_intr_trig_r |=
-            NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
-        if let Some(sender) = &self.regs.borrow().event_sender {
-            println!("[MCI] Sending MCI interrupt for MCU reset");
-            sender
-                .send(Event::new(
-                    Device::CaliptraCore,
-                    Device::MCU,
-                    EventData::MciInterrupt { asserted: true },
-                ))
-                .unwrap();
-        }
+        self.regs.borrow_mut().cptra_request_mcu_reset();
     }
 }
 
