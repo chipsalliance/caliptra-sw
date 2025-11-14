@@ -626,6 +626,34 @@ impl SocIfc {
             .at(MCU_FW_READY_WORD)
             .modify(|w| w | MCU_FW_READY_BIT);
     }
+
+    pub fn fw_ctrl(&mut self, idx: usize) -> u32 {
+        self.soc_ifc
+            .regs_mut()
+            .ss_generic_fw_exec_ctrl()
+            .at(idx)
+            .read()
+    }
+
+    pub fn caliptra_generation(&self) -> CptraGeneration {
+        CptraGeneration(
+            self.soc_ifc
+                .regs()
+                .cptra_hw_rev_id()
+                .read()
+                .cptra_generation(),
+        )
+    }
+}
+
+bitfield::bitfield! {
+    // [15:8] Patch version
+    // [ 7:4] Minor version
+    // [ 3:0] Major version
+    pub struct CptraGeneration(u32);
+    pub patch_version, _: 15, 8;
+    pub minor_version, _: 7, 4;
+    pub major_version, _: 3, 0;
 }
 
 bitflags::bitflags! {

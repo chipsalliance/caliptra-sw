@@ -28,6 +28,7 @@ caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-api.workspace = true
 caliptra-registers.workspace = true
+caliptra-image-fake-keys.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 once_cell.workspace = true
 rand.workspace = true

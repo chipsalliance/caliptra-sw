@@ -3,9 +3,10 @@
 use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
+    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
     ImageOptions,
 };
+use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
@@ -22,7 +23,7 @@ fn find_rom_info_offset(rom: &[u8]) -> usize {
 
 #[test]
 fn test_rom_integrity_failure() {
-    let mut rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
 
     let rom_info_offset = find_rom_info_offset(&rom);
     println!("rom_info_offset is {}", rom_info_offset);
@@ -42,7 +43,8 @@ fn test_rom_integrity_failure() {
 
     loop {
         hw.step();
-        if hw.ready_for_fw() {
+        if hw.ready_for_fw() && !hw.subsystem_mode() {
+            // Subsystem says it's always ready for firmware
             panic!("ROM should have had a failure")
         }
 
@@ -64,7 +66,7 @@ fn test_read_rom_info_from_fmc() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let (rom_info_from_image, _) =
             RomInfo::ref_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
@@ -88,6 +90,7 @@ fn test_read_rom_info_from_fmc() {
             },
         )
         .unwrap();
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         // 0x1000_0008 is test-fmc/read_rom_info()
         let rom_info_from_hw = hw.mailbox_execute(0x1000_0008, &[]).unwrap().unwrap();

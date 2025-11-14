@@ -47,8 +47,8 @@ use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x4, LEArray4x8, Mldsa87Result,
-    Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES,
+    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x3, LEArray4x4, LEArray4x8,
+    Mldsa87Result, Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES,
     AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
@@ -181,10 +181,11 @@ impl CmStorage {
         trng: &mut Trng,
         unencrypted_cmk: &UnencryptedCmk,
     ) -> CaliptraResult<EncryptedCmk> {
-        let kek_iv: [u8; 12] = self.kek_next_iv.to_le_bytes()[..12].try_into().unwrap();
+        let kek_iv: [u32; 4] = transmute!(self.kek_next_iv);
+        let kek_iv: [u32; 3] = kek_iv[..3].try_into().unwrap();
         self.kek_next_iv += 1;
 
-        Crypto::encrypt_cmk(aes, trng, unencrypted_cmk, kek_iv, self.kek)
+        Crypto::encrypt_cmk(aes, trng, unencrypted_cmk, kek_iv.into(), self.kek)
     }
 
     fn decrypt_cmk(
@@ -202,7 +203,9 @@ impl CmStorage {
         trng: &mut Trng,
         unencrypted_context: &AesContext,
     ) -> CaliptraResult<EncryptedAesContext> {
-        let context_iv: [u8; 12] = self.context_next_iv.to_le_bytes()[..12].try_into().unwrap();
+        let context_iv: [u32; 4] = transmute!(self.context_next_iv);
+        let context_iv: [u32; 3] = context_iv[..3].try_into().unwrap();
+        let context_iv: LEArray4x3 = context_iv.into();
         self.context_next_iv += 1;
 
         let mut ciphertext = [0u8; AES_CONTEXT_SIZE_BYTES];
@@ -249,7 +252,9 @@ impl CmStorage {
         trng: &mut Trng,
         unencrypted_context: &AesGcmContext,
     ) -> CaliptraResult<EncryptedAesGcmContext> {
-        let context_iv: [u8; 12] = self.context_next_iv.to_le_bytes()[..12].try_into().unwrap();
+        let context_iv: [u32; 4] = transmute!(self.context_next_iv);
+        let context_iv: [u32; 3] = context_iv[..3].try_into().unwrap();
+        let context_iv: LEArray4x3 = context_iv.into();
         self.context_next_iv += 1;
 
         let mut ciphertext = [0u8; AES_GCM_CONTEXT_SIZE_BYTES];
@@ -296,7 +301,9 @@ impl CmStorage {
         trng: &mut Trng,
         unencrypted_context: &[u8; CMB_ECDH_CONTEXT_SIZE],
     ) -> CaliptraResult<EncryptedEcdhContext> {
-        let context_iv: [u8; 12] = self.context_next_iv.to_le_bytes()[..12].try_into().unwrap();
+        let context_iv: [u32; 4] = transmute!(self.context_next_iv);
+        let context_iv: [u32; 3] = context_iv[..3].try_into().unwrap();
+        let context_iv: LEArray4x3 = context_iv.into();
         self.context_next_iv += 1;
 
         let mut ciphertext = [0u8; CMB_ECDH_CONTEXT_SIZE];
@@ -375,24 +382,24 @@ impl Default for ShaContext {
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
 pub struct EncryptedAesContext {
-    pub iv: [u8; 12],
-    pub tag: [u8; 16],
+    pub iv: LEArray4x3,
+    pub tag: LEArray4x4,
     pub ciphertext: [u8; AES_CONTEXT_SIZE_BYTES],
 }
 
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
 pub struct EncryptedAesGcmContext {
-    pub iv: [u8; 12],
-    pub tag: [u8; 16],
+    pub iv: LEArray4x3,
+    pub tag: LEArray4x4,
     pub ciphertext: [u8; AES_GCM_CONTEXT_SIZE_BYTES],
 }
 
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
 struct EncryptedEcdhContext {
-    pub iv: [u8; 12],
-    pub tag: [u8; 16],
+    pub iv: LEArray4x3,
+    pub tag: LEArray4x4,
     pub ciphertext: [u8; CMB_ECDH_CONTEXT_SIZE],
 }
 
@@ -649,8 +656,8 @@ impl Commands {
 
         context.length = data_len as u32;
 
-        // copy the intermediate hash if we had enough data to generate one
-        if data_len >= SHA512_BLOCK_BYTE_SIZE {
+        // copy the intermediate hash if we had enough data to generate new one
+        if context_buffer_len + data.len() >= SHA512_BLOCK_BYTE_SIZE {
             let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
             intermediate_digest.0.iter_mut().for_each(|x| {
                 *x = x.swap_bytes();
@@ -1131,23 +1138,27 @@ impl Commands {
 
         let resp = mutrefbytes::<CmAesGcmEncryptInitResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        resp.iv = unencrypted_context.iv;
+        resp.iv = unencrypted_context.iv.0;
         resp.context = transmute!(encrypted_context);
         Ok(core::mem::size_of::<CmAesGcmEncryptInitResp>())
     }
 
-    fn xor_iv(iv: &[u8; 12], counter: &[u8; 8], big_endian_counter_xor: bool) -> [u8; 12] {
-        let mut result = *iv;
+    fn xor_iv(iv: &LEArray4x3, counter: &[u8; 8], big_endian_counter_xor: bool) -> LEArray4x3 {
         if big_endian_counter_xor {
-            for (i, byte) in counter.iter().enumerate() {
-                result[11 - i] ^= byte;
-            }
+            let counter = u64::from_be_bytes(*counter);
+            LEArray4x3::new([
+                iv.0[0],
+                iv.0[1] ^ (counter & 0xffff_ffff) as u32,
+                iv.0[2] ^ (counter >> 32) as u32,
+            ])
         } else {
-            for (i, byte) in counter.iter().enumerate() {
-                result[i] ^= byte;
-            }
+            let counter = u64::from_le_bytes(*counter);
+            LEArray4x3::new([
+                iv.0[0] ^ (counter & 0xffff_ffff) as u32,
+                iv.0[1] ^ (counter >> 32) as u32,
+                iv.0[2],
+            ])
         }
-        result
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -1288,7 +1299,7 @@ impl Commands {
                 .aes_256_gcm_encrypt_final(context, plaintext, &mut resp.ciphertext)?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
-        resp.hdr.tag = tag;
+        resp.hdr.tag = tag.0;
         resp.hdr.ciphertext_size = written as u32;
 
         resp.partial_len()
@@ -1326,6 +1337,7 @@ impl Commands {
 
         let iv_arr;
         let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+        let cmd_iv: LEArray4x3 = cmd.iv.into();
 
         let (key, iv) = if cmd.flags != 0 {
             if !matches!(key_usage, CmKeyUsage::Hmac) {
@@ -1345,7 +1357,7 @@ impl Commands {
                 Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
             }
             let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (transmute!(key), AesGcmIv::Array(&cmd.iv))
+            (transmute!(key), (&cmd_iv).into())
         };
 
         let unencrypted_context = drivers
@@ -1360,7 +1372,7 @@ impl Commands {
 
         let resp = mutrefbytes::<CmAesGcmDecryptInitResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        resp.iv = unencrypted_context.iv;
+        resp.iv = unencrypted_context.iv.0;
         resp.context = transmute!(encrypted_context);
 
         Ok(core::mem::size_of::<CmAesGcmDecryptInitResp>())
@@ -1504,7 +1516,7 @@ impl Commands {
             encrypted_context,
         )?;
         let resp = mutrefbytes::<CmAesGcmDecryptFinalResp>(resp)?;
-        let (written, _computed_tag, tag_verified) =
+        let (written, tag_verified) =
             drivers
                 .aes
                 .aes_256_gcm_decrypt_final(context, ciphertext, &mut resp.plaintext, tag)?;
@@ -1783,7 +1795,7 @@ impl Commands {
     ) -> CaliptraResult<()> {
         match (cm_hash_algorithm, key_usage, key_size) {
             (_, CmKeyUsage::Aes, 32) => {}
-            (_, CmKeyUsage::Ecdsa, 32) => {}
+            (_, CmKeyUsage::Ecdsa, 48) => {}
             (_, CmKeyUsage::Mldsa, 32) => {}
             (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
             (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
@@ -1921,12 +1933,14 @@ impl Commands {
         match cm_hash_algorithm {
             CmHashAlgorithm::Sha384 => {
                 let tag = Self::hkdf_expand384(drivers, &cmk.key_material[..48], info)?;
+                let tag = tag.as_bytes();
                 // truncate the key
                 let len = tag.len().min(key_size);
                 unencrypted_cmk.key_material[..len].copy_from_slice(&tag[..len])
             }
             CmHashAlgorithm::Sha512 => {
                 let tag = Self::hkdf_expand512(drivers, &cmk.key_material[..64], info)?;
+                let tag = tag.as_bytes();
                 // truncate the key
                 let len = tag.len().min(key_size);
                 unencrypted_cmk.key_material[..len].copy_from_slice(&tag[..len])
@@ -2269,7 +2283,7 @@ impl Commands {
         drivers: &mut Drivers,
         major_secret: &[u8],
         version: SpdmVersion,
-    ) -> CaliptraResult<(LEArray4x8, [u8; 12])> {
+    ) -> CaliptraResult<(LEArray4x8, LEArray4x3)> {
         // EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
         // IV = HKDF-Expand(major-secret, bin_str6, iv_length);
         // bin_str5 = BinConcat(key_length, Version, "key", null);
@@ -2279,25 +2293,26 @@ impl Commands {
         spdm_bin_concat(32, version, "key", &[], &mut bin_str5)?;
         spdm_bin_concat(12, version, "iv", &[], &mut bin_str6)?;
 
-        let mut key = [0u8; 32];
-        let mut iv = [0u8; 12];
+        let mut key = [0u32; 8];
+        let mut iv = [0u32; 3];
 
         match major_secret.len() {
             48 => {
                 let hkdf_key = Self::hkdf_expand384(drivers, major_secret, &bin_str5)?;
                 let hkdf_iv = Self::hkdf_expand384(drivers, major_secret, &bin_str6)?;
-                key.copy_from_slice(&hkdf_key[..32]);
-                iv.copy_from_slice(&hkdf_iv[..12]);
+                key.copy_from_slice(&hkdf_key[..8]);
+                iv.copy_from_slice(&hkdf_iv[..3]);
             }
             64 => {
                 let hkdf_key = Self::hkdf_expand512(drivers, major_secret, &bin_str5)?;
                 let hkdf_iv = Self::hkdf_expand512(drivers, major_secret, &bin_str6)?;
-                key.copy_from_slice(&hkdf_key[..32]);
-                iv.copy_from_slice(&hkdf_iv[..12]);
+                key.copy_from_slice(&hkdf_key[..8]);
+                iv.copy_from_slice(&hkdf_iv[..3]);
             }
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         }
         let key = transmute!(key);
+        let iv = transmute!(iv);
         Ok((key, iv))
     }
 
@@ -2305,7 +2320,7 @@ impl Commands {
         drivers: &mut Drivers,
         major_secret: &[u8],
         info: &[u8],
-    ) -> CaliptraResult<[u8; 48]> {
+    ) -> CaliptraResult<[u32; 12]> {
         let arr: [u8; 48] = major_secret[..48]
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -2324,7 +2339,7 @@ impl Commands {
             *x = x.swap_bytes();
         });
         // truncate the key
-        tag.as_bytes()
+        tag.0[..12]
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)
     }
@@ -2333,7 +2348,7 @@ impl Commands {
         drivers: &mut Drivers,
         major_secret: &[u8],
         info: &[u8],
-    ) -> CaliptraResult<[u8; 64]> {
+    ) -> CaliptraResult<[u32; 16]> {
         let arr: [u8; 64] = major_secret[..64]
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
@@ -2352,10 +2367,7 @@ impl Commands {
         tag.0.iter_mut().for_each(|x| {
             *x = x.swap_bytes();
         });
-        // truncate the key
-        tag.as_bytes()
-            .try_into()
-            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)
+        Ok(tag.0)
     }
 }
 

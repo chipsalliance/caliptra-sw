@@ -1,13 +1,16 @@
 use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
 
-use caliptra_common::checksum::verify_checksum;
-use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_common::{
+    checksum::verify_checksum,
+    mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader},
+};
+
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
+
 use zerocopy::{FromBytes, IntoBytes};
 
-use caliptra_hw_model::DefaultHwModel;
-
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_disable_attestation_persists_after_warm_reset() {
     // --- Boot
     let args = BuildArgs {

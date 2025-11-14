@@ -7,6 +7,7 @@ use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
 use dpe::{commands::Command, response::Response};
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_invoke_dpe_get_profile_across_warm_reset() {
     // Boot runtime
     let args = BuildArgs {

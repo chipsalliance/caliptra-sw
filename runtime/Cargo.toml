@@ -96,6 +96,7 @@ fpga_realtime = [
     "caliptra-hw-model/fpga_realtime",
 ]
 fpga_subsystem = [
+    "caliptra-drivers/fpga_subsystem",
     "caliptra-hw-model/fpga_subsystem",
 ]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]

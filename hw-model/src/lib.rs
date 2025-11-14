@@ -2,6 +2,7 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::mailbox::MailboxReq;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
 use caliptra_emu_bus::{Bus, Event};
@@ -33,12 +34,14 @@ use sha2::Digest;
 
 mod bmc;
 mod fpga_regs;
+pub mod jtag;
+pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
 pub mod openocd;
-mod otp_digest;
-mod otp_provision;
+pub mod otp_digest;
+pub mod otp_provision;
 mod recovery;
 pub mod xi3c;
 
@@ -75,6 +78,8 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::OpenOcdError;
 
+#[cfg(feature = "fpga_subsystem")]
+pub use keys::{DEFAULT_LIFECYCLE_RAW_TOKEN, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 #[cfg(feature = "fpga_subsystem")]
 pub use model_fpga_subsystem::ModelFpgaSubsystem;
 #[cfg(feature = "fpga_subsystem")]
@@ -180,13 +185,19 @@ pub struct InitParams<'a> {
 
     pub subsystem_mode: bool,
 
+    pub ocp_lock_en: bool,
+
     pub uds_granularity_64: bool,
 
     // Keypairs for production debug unlock levels, from low to high
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
+    // Whether or not to set the debug_intent signal.
     pub debug_intent: bool,
+
+    // Whether or not to set the BootFSM break signal.
+    pub bootfsm_break: bool,
 
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
@@ -223,11 +234,25 @@ pub struct InitParams<'a> {
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
 
+    // Subsystem initialization parameters.
+    pub ss_init_params: SubsystemInitParams<'a>,
+}
+
+#[derive(Default)]
+pub struct SubsystemInitParams<'a> {
     // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
     pub mcu_rom: Option<&'a [u8]>,
 
     // Consume MCU UART log with Caliptra UART log
     pub enable_mcu_uart_log: bool,
+
+    // Number of public key hashes for production debug unlock levels.
+    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
+    // OTP settings are used.
+    pub num_prod_dbg_unlock_pk_hashes: u32,
+
+    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
+    pub prod_dbg_unlock_pk_hashes_offset: u32,
 }
 
 impl Default for InitParams<'_> {
@@ -255,9 +280,11 @@ impl Default for InitParams<'_> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
+            ocp_lock_en: false,
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
+            bootfsm_break: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
@@ -272,8 +299,7 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
-            mcu_rom: None,
-            enable_mcu_uart_log: false,
+            ss_init_params: Default::default(),
         }
     }
 }
@@ -316,6 +342,7 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
     std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
+#[derive(Clone)]
 pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
@@ -384,6 +411,7 @@ pub enum ModelError {
     FuseDoneNotSet,
     FusesAlreadyInitialized,
     StashMeasurementFailed,
+    SubsystemSramError,
 }
 
 impl From<CaliptraApiError> for ModelError {
@@ -514,6 +542,9 @@ impl Display for ModelError {
             }
             ModelError::UnableToSetPauser => {
                 write!(f, "Valid PAUSER locked")
+            }
+            ModelError::SubsystemSramError => {
+                write!(f, "Writing to MCU SRAM failed")
             }
         }
     }
@@ -710,11 +741,65 @@ pub trait HwModel: SocManager {
     fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
-    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+    fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        // Store non-persistent config regs set at boot
+        let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let i_trng_entropy_config_1: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
+        let i_trng_entropy_config_0: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
+        // Store mbox pausers
+        let mut valid_pausers: Vec<u32> = Vec::new();
+        for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
+            // Only store if locked
+            if self
+                .soc_ifc()
+                .cptra_mbox_axi_user_lock()
+                .at(i)
+                .read()
+                .lock()
+            {
+                valid_pausers.push(
+                    self.soc_ifc()
+                        .cptra_mbox_axi_user_lock()
+                        .at(i)
+                        .read()
+                        .into(),
+                );
+            }
+        }
+
+        // Perform the warm reset
         self.warm_reset();
 
-        HwModel::init_fuses(self, fuses);
+        // Write back stored values and let boot progress
+        // Fuse values will remain, just re-set fuse done
+        self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| dbg_manuf_service_reg);
+        self.soc_ifc()
+            .cptra_i_trng_entropy_config_1()
+            .write(|_| i_trng_entropy_config_1.into());
+        self.soc_ifc()
+            .cptra_i_trng_entropy_config_0()
+            .write(|_| i_trng_entropy_config_0.into());
+
+        // Re-set the valid pausers
+        self.setup_mailbox_users(valid_pausers.as_slice())
+            .map_err(ModelError::from)?;
+
+        // Continue boot
+        writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        self.step();
+
+        Ok(())
     }
 
     /// The APB bus from the SoC to Caliptra
@@ -976,8 +1061,30 @@ pub trait HwModel: SocManager {
         )
         .unwrap();
 
-        self.soc_mbox().cmd().write(|_| cmd);
-        mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+        // Check if we need to use subsystem staging area for large payloads
+        if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
+            // Write payload to staging area
+            let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
+
+            // Create external mailbox command
+            let external_cmd = api::mailbox::ExternalMailboxCmdReq {
+                hdr: api::mailbox::MailboxReqHeader::default(),
+                command_id: cmd,
+                command_size: buf.len() as u32,
+                axi_address_start_low: staging_addr as u32,
+                axi_address_start_high: (staging_addr >> 32) as u32,
+            };
+            let mut cmd = MailboxReq::ExternalMailboxCmd(external_cmd);
+            cmd.populate_chksum().unwrap();
+
+            self.soc_mbox()
+                .cmd()
+                .write(|_| api::mailbox::CommandId::EXTERNAL_MAILBOX_CMD.0);
+            mbox_write_fifo(&self.soc_mbox(), cmd.as_bytes().unwrap()).map_err(ModelError::from)?;
+        } else {
+            self.soc_mbox().cmd().write(|_| cmd);
+            mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+        }
 
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
@@ -1043,6 +1150,9 @@ pub trait HwModel: SocManager {
         }
         Ok(Some(result))
     }
+
+    /// Upload payload to external MCU SRAM
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError>;
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {

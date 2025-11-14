@@ -7,20 +7,30 @@ use caliptra_api::{
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState};
+use caliptra_hw_model::{
+    DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
+};
 use caliptra_runtime::RtBootStatus;
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
 #[test]
 fn test_fe_programming_cmd() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
+        subsystem_mode: true,
         ..Default::default()
     };
 
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
+        subsystem_mode: true,
         ..Default::default()
     });
 

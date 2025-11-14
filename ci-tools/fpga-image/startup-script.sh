@@ -8,8 +8,17 @@
 # Stop spewing kernel noise to the UART
 echo 3 > /proc/sys/kernel/printk
 
+# TODO(clundin): There are a lot of hacks that get cleaned up if using initrd.
+
 # Overlay exists so we can proceed.
-if grep -q "overlay" /proc/mounts; then
+if [[ -f "/etc/no_overlayfs" ]]; then
+    echo "Skipping overlayfs setup for development image."
+    mount -o rw,remount /
+    systemctl start resize-rootfs
+    ip link set dev end0 up
+    insmod /home/runner/io-module.ko
+    login -f root
+elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
     # TODO(clundin): Get this at job runtime instead.

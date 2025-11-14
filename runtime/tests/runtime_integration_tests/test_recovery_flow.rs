@@ -99,6 +99,7 @@ fn test_mcu_fw_bad_signature() {
     });
     args.soc_manifest = Some(soc_manifest);
     args.mcu_fw_image = Some(&mcu_fw);
+    args.successful_reach_rt = false;
     let mut model = run_rt_test(args);
     model.step_until_fatal_error(
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into(),

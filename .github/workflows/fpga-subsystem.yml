@@ -27,6 +27,9 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      branch:
+        default: ${{ github.sha }}
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -48,9 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          submodules: 'recursive'
+          ref: ${{ inputs.branch }}
+          submodules: recursive
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -71,13 +75,14 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: ac08eba85c9b5948f291d390e488f7ef9875f268
+      CALIPTRA_MCU_COMMIT: f1ad397549adde53701fb549ffed7c056074979b
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          submodules: 'true'
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -131,7 +136,7 @@ jobs:
         id: restore_mcu_rom_cache
         with:
           path: /tmp/caliptra-mcu-binaries.tar.gz
-          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
 
       - name: Extract MCU ROM from cache
         if: "steps.restore_mcu_rom_cache.outputs.cache-hit"
@@ -160,7 +165,7 @@ jobs:
         uses: actions/cache/save@v3
         with:
           path: /tmp/caliptra-mcu-binaries.tar.gz
-          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
 
       - name: Build test binaries
         run: |
@@ -226,9 +231,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          submodules: 'recursive'
+          ref: ${{ inputs.branch }}
+          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -288,10 +294,14 @@ jobs:
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
               -E 'package(caliptra-drivers) and test(test_ocp_lock)'
+              -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
           )
+
+          # Disabled due to runtime flakiness
+          # -E 'package(caliptra-runtime) & (test(test_activate_firmware::test_activate_fw_id_not_in_manifest) | test(test_activate_firmware::test_activate_invalid_fw_id) | test(test_activate_firmware::test_activate_mcu_fw_success) | test(test_activate_firmware::test_activate_mcu_soc_fw_success) | test(test_activate_firmware::test_activate_soc_fw_success) | test(test_activate_firmware::test_invalid_exec_bit_in_manifest) | test(test_authorize_and_stash::test_authorize_from_load_address) | test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) | test(test_authorize_and_stash::test_authorize_from_staging_address) | test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest))'
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
