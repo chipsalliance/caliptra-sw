@@ -872,6 +872,16 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn print_fifo_levels(&self) {
+        println!(
+            "XI3C FIFO levels - CMD: {}, WR: {}, RESP: {}, RD: {}",
+            self.i3c_controller().cmd_fifo_level(),
+            self.i3c_controller().write_fifo_level(),
+            self.i3c_controller().resp_fifo_level(),
+            self.i3c_controller().read_fifo_level()
+        );
+    }
+
     fn print_i3c_registers(&mut self) {
         println!("Dumping registers");
         println!(
@@ -1092,6 +1102,7 @@ impl ModelFpgaSubsystem {
             .unwrap()
             .master_send_polled(&cmd, &[recovery_command_code], 1)
         {
+            self.print_fifo_levels();
             println!(
                 "Failed to ack recovery block read request sent to target: {:?}",
                 err
@@ -1110,6 +1121,7 @@ impl ModelFpgaSubsystem {
             .unwrap()
             .master_recv(&cmd, len_range.0 + 2)
         {
+            self.print_fifo_levels();
             panic!("Failed to receive ack from target: {:?}", err);
         }
 
@@ -1125,6 +1137,7 @@ impl ModelFpgaSubsystem {
                 len_range.0 + 2,
             )
             .unwrap_or_else(|err| {
+                self.print_fifo_levels();
                 panic!(
                     "Expected to read {}+ bytes, error: {:?}",
                     len_range.0 + 2,
@@ -1138,6 +1151,7 @@ impl ModelFpgaSubsystem {
         let len = u16::from_le_bytes([resp[0], resp[1]]);
         if len < len_range.0 || len > len_range.1 {
             self.print_i3c_registers();
+            self.print_fifo_levels();
             panic!(
                 "Reading block {:?} expected to read between {} and {} bytes from target, got {}",
                 command, len_range.0, len_range.1, len
@@ -1175,6 +1189,7 @@ impl ModelFpgaSubsystem {
         let start = self.cycle_count();
         while !self.i3c_controller.write_fifo_empty() {
             if self.cycle_count() - start > 1_000_000 {
+                self.print_fifo_levels();
                 panic!("Timeout waiting for I3C write FIFO to be empty");
             }
         }
@@ -1186,6 +1201,7 @@ impl ModelFpgaSubsystem {
             .unwrap()
             .master_send_polled(&cmd, &data, data.len() as u16)
         {
+            self.print_fifo_levels();
             panic!("Failed to ack write message sent to target: {:?}", err);
         }
     }
