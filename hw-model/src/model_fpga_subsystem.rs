@@ -719,9 +719,16 @@ impl ModelFpgaSubsystem {
             }
 
             // make sure there is room in the write FIFO to do a block read
-            if self.i3c_controller().write_fifo_level() < 10 {
-                return;
+
+            let start = self.cycle_count();
+            while self.i3c_controller().write_fifo_level() < 10 {
+                if self.cycle_count() - start > 1_000_000 {
+                    panic!(
+                        "Timeout waiting for write FIFO space when checking indirect fifo status"
+                    );
+                }
             }
+
             let fifo_status = self
                 .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
                 .expect("Device should response to indirect fifo status read request");
@@ -732,6 +739,11 @@ impl ModelFpgaSubsystem {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
+                if self.recovery_fifo_blocks.is_empty() {
+                    println!(
+                        "Sent last block of recovery image; waiting for Caliptra to process it"
+                    );
+                }
                 return;
             }
         }
@@ -1073,14 +1085,17 @@ impl ModelFpgaSubsystem {
             }
         }
 
-        if self
+        if let Err(err) = self
             .i3c_controller
             .controller
             .lock()
             .unwrap()
             .master_send_polled(&cmd, &[recovery_command_code], 1)
-            .is_err()
         {
+            println!(
+                "Failed to ack recovery block read request sent to target: {:?}",
+                err
+            );
             return None;
         }
 
