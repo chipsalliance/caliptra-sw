@@ -13,14 +13,16 @@ Abstract:
 --*/
 
 use caliptra_api_types::{DeviceLifecycle, SecurityState};
-use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::{Clock, Device, Event, EventData};
 use caliptra_emu_cpu::{Cpu, CpuArgs, Pic, RvInstr, StepAction};
+use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, MailboxRequester,
     ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
+use caliptra_registers::i3ccsr::regs::DeviceStatus0ReadVal;
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -28,6 +30,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
+use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::InMemoryRegister;
 mod gdb;
@@ -48,7 +51,13 @@ const FW_WRITE_TICKS: u64 = 1000;
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 20_000_000; // 20 million cycles
 
 // CPU Main Loop (free_run no GDB)
-fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
+fn free_run(
+    mut cpu: Cpu<CaliptraRootBus>,
+    trace_path: Option<PathBuf>,
+    events_to_caliptra: mpsc::Sender<Event>,
+    events_from_caliptra: mpsc::Receiver<Event>,
+) {
+    let mut collected_events_from_caliptra = Vec::new();
     if let Some(path) = trace_path {
         let mut f = File::create(path).unwrap();
         let trace_fn: &mut dyn FnMut(u32, RvInstr) = &mut |pc, instr| {
@@ -64,10 +73,77 @@ fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
         };
 
         // Need to have the loop in the same scope as trace_fn to prevent borrowing rules violation
-        while let StepAction::Continue = cpu.step(Some(trace_fn)) {}
+        while let StepAction::Continue = cpu.step(Some(trace_fn)) {
+            // Handle recovery flow like model_emulated
+            step_recovery_flow(&mut cpu);
+            // Handle events like model_emulated
+            handle_events(
+                &mut cpu,
+                &events_from_caliptra,
+                &events_to_caliptra,
+                &mut collected_events_from_caliptra,
+            );
+        }
     } else {
-        while let StepAction::Continue = cpu.step(None) {}
+        while let StepAction::Continue = cpu.step(None) {
+            // Handle recovery flow like model_emulated
+            step_recovery_flow(&mut cpu);
+            // Handle events like model_emulated
+            handle_events(
+                &mut cpu,
+                &events_from_caliptra,
+                &events_to_caliptra,
+                &mut collected_events_from_caliptra,
+            );
+        }
     };
+}
+
+fn step_recovery_flow(cpu: &mut Cpu<CaliptraRootBus>) {
+    // do the bare minimum for the recovery flow: activating the recovery image
+    const DEVICE_STATUS_PENDING: u32 = 0x4;
+    const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
+    if DeviceStatus0ReadVal::from(cpu.bus.dma.axi.recovery.device_status_0.reg.get()).dev_status()
+        == DEVICE_STATUS_PENDING
+    {
+        cpu.bus
+            .dma
+            .axi
+            .recovery
+            .recovery_ctrl
+            .reg
+            .modify(RecoveryControl::ACTIVATE_RECOVERY_IMAGE.val(ACTIVATE_RECOVERY_IMAGE_CMD));
+    }
+}
+
+fn handle_events(
+    cpu: &mut Cpu<CaliptraRootBus>,
+    events_from_caliptra: &mpsc::Receiver<Event>,
+    events_to_caliptra: &mpsc::Sender<Event>,
+    collected_events_from_caliptra: &mut Vec<Event>,
+) {
+    for event in events_from_caliptra.try_iter() {
+        collected_events_from_caliptra.push(event.clone());
+        // brute force respond to AXI DMA MCU SRAM read
+        if let (Device::MCU, EventData::MemoryRead { start_addr, len }) = (event.dest, event.event)
+        {
+            let addr = start_addr as usize;
+            let mcu_sram_data = cpu.bus.dma.axi.mcu_sram.data_mut();
+            let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
+                continue;
+            };
+            events_to_caliptra
+                .send(Event {
+                    src: Device::MCU,
+                    dest: Device::CaliptraCore,
+                    event: EventData::MemoryReadResponse {
+                        start_addr,
+                        data: dest.to_vec(),
+                    },
+                })
+                .unwrap();
+        }
+    }
 }
 
 fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
@@ -430,7 +506,8 @@ fn main() -> io::Result<()> {
 
     let cpu_args = CpuArgs::default();
 
-    let cpu = Cpu::new(root_bus, clock.clone(), pic, cpu_args);
+    let mut cpu = Cpu::new(root_bus, clock.clone(), pic, cpu_args);
+    let (events_to_caliptra, events_from_caliptra) = cpu.register_events();
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {
@@ -451,7 +528,7 @@ fn main() -> io::Result<()> {
             };
 
             // If no GDB Port is passed, Free Run
-            free_run(cpu, instr_trace);
+            free_run(cpu, instr_trace, events_to_caliptra, events_from_caliptra);
         }
     }
 

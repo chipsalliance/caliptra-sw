@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::dma::recovery::RecoveryRegisterInterface;
-use crate::helpers::words_from_bytes_be_vec;
+use crate::helpers::words_from_bytes_le_vec;
 use crate::SocRegistersInternal;
 use crate::{dma::otp_fc::FuseController, mci::Mci, Sha512Accelerator};
 use caliptra_emu_bus::{
@@ -29,7 +29,7 @@ use std::{rc::Rc, sync::mpsc};
 
 pub type AxiAddr = u64;
 
-const TEST_SRAM_SIZE: usize = 4 * 1024;
+const TEST_SRAM_SIZE: usize = 64 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
 const MCU_SRAM_SIZE: usize = 384 * 1024;
 
@@ -414,7 +414,7 @@ impl AxiRootBus {
                     || event.src == Device::ExternalTestSram
                     || Device::RecoveryIntf == event.src
                 {
-                    self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
+                    self.dma_result = Some(words_from_bytes_le_vec(&data.clone()));
                 }
             }
             EventData::RecoveryFifoStatusResponse { status } => {

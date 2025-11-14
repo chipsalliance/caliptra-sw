@@ -301,9 +301,9 @@ impl Dma {
         }
 
         let status0 = ReadWriteRegister::new(self.status0.reg.get());
-        status0
-            .reg
-            .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32 * 4));
+        status0.reg.modify(
+            Status0::FIFO_DEPTH.val((self.fifo.len() as u32 * 4).min(Status0::FIFO_DEPTH.mask)), // don't overflow bitfield
+        );
 
         if self.use_mcu_recovery_interface {
             self.axi.send_get_recovery_indirect_fifo_status();
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn test_dma_fifo_read_write() {
         let clock = Rc::new(Clock::new());
-        let mbox_ram = MailboxRam::new();
+        let mbox_ram = MailboxRam::default();
         let iccm = Iccm::new(&clock);
         let args = CaliptraRootBusArgs {
             clock: clock.clone(),

@@ -31,6 +31,7 @@ static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
 
 #define CSR_REQ_RESP_LEN 9000 // This needs to be large enough to hold InitDevIdCsrEnvelope
 #define ECC_CSR_ENVELOPE_OFFSET 12 // See InitDevIdCsrEnvelope
+#define MLDSA_CSR_ENVELOPE_OFFSET 528 // See InitDevIdCsrEnvelope
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
@@ -1010,6 +1011,44 @@ int rt_test_all_commands(const test_info *info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // Set Auth Manifest
+    struct caliptra_set_auth_manifest_req set_auth_man_req = {};
+    set_auth_man_req.manifest_size = 34*1024;
+
+    status = caliptra_set_auth_manifest(&set_auth_man_req, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_INVALID_AUTH_MANIFEST_MARKER = 0xE0045;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_INVALID_AUTH_MANIFEST_MARKER) {
+        printf("Set Auth Manifest unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Set Auth Manifest: OK\n");
+    }
+
+    // Authorize and Stash
+    struct caliptra_authorize_and_stash_req auth_and_stash_req = {};
+    struct caliptra_authorize_and_stash_resp auth_and_stash_resp;
+
+    status = caliptra_authorize_and_stash(&auth_and_stash_req, &auth_and_stash_resp, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE = 0xE004E;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE) {
+        printf("Authorize and Stash unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Authorize and Stash: OK\n");
+    }
+
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
 
@@ -1092,7 +1131,7 @@ int rt_test_all_commands(const test_info *info)
     return failure;
 }
 
-int rom_test_devid_csr(const test_info *info)
+int rom_test_idevid_csr(const test_info *info)
 {
     int failure = 0;
 
@@ -1136,7 +1175,7 @@ int rom_test_devid_csr(const test_info *info)
     // The ECC IDEV CSR inside InitDevIdCsrEnvelope starts at offset 12
     if (memcmp(&caliptra_idevid_csr_buf.data[ECC_CSR_ENVELOPE_OFFSET], ecc_idev_csr_bytes, ECC_IDEV_CSR_LEN) != 0)
     {
-        printf("IDEV CSR does not match\n");
+        printf("ECC384 IDEV CSR does not match\n");
 #ifdef ENABLE_DEBUG
         dump_array_to_file(&caliptra_idevid_csr_buf, "retrieved.bin");
 #endif
@@ -1144,17 +1183,33 @@ int rom_test_devid_csr(const test_info *info)
     }
     else
     {
-        printf("IDEV CSR matches\n");
+        printf("ECC384 IDEV CSR matches\n");
     }
+
+    // Compare the retrieved MLDSA IDEV CSR with the expected MLDSA IDEV CSR.
+    // The MLDSA IDEV CSR inside InitDevIdCsrEnvelope starts at offset 528
+    if (memcmp(&caliptra_idevid_csr_buf.data[MLDSA_CSR_ENVELOPE_OFFSET], mldsa_idev_csr_bytes, MLDSA_IDEV_CSR_LEN) != 0)
+    {
+        printf("MLDSA87 IDEV CSR does not match\n");
+#ifdef ENABLE_DEBUG
+        dump_array_to_file(&caliptra_idevid_csr_buf, "retrieved.bin");
+#endif
+        failure = 1;
+    }
+    else
+    {
+        printf("MLDSA87 IDEV CSR matches\n");
+    }
+
 
     caliptra_req_idev_csr_complete();
     caliptra_ready_for_firmware();
 
     // Test Get Idev CSR now that a CSR is provisioned.
     // GET IDEV CSR
-    struct caliptra_get_idev_ecc384_csr_resp csr_resp = {0};
+    struct caliptra_get_idev_ecc384_csr_resp ecc_csr_resp = {0};
 
-    status = caliptra_get_idev_ecc384_csr(&csr_resp, false);
+    status = caliptra_get_idev_ecc384_csr(&ecc_csr_resp, false);
 
     if (status)
     {
@@ -1164,7 +1219,7 @@ int rom_test_devid_csr(const test_info *info)
     }
     else
     {
-        if (memcmp(csr_resp.data, ecc_idev_csr_bytes, csr_resp.data_size) != 0)
+        if (memcmp(ecc_csr_resp.data, ecc_idev_csr_bytes, ecc_csr_resp.data_size) != 0)
         {
             printf("IDEV CSR does not match\n");
             failure = 1;
@@ -1172,6 +1227,31 @@ int rom_test_devid_csr(const test_info *info)
         else
         {
             printf("Get IDev CSR: OK\n");
+        }
+    }
+
+    // Test Get Idev CSR now that a CSR is provisioned.
+    // GET MLDSA87 IDEV CSR
+    struct caliptra_get_idev_mldsa87_csr_resp mldsa_csr_resp = {0};
+
+    status = caliptra_get_idev_mldsa87_csr(&mldsa_csr_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 IDev CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        if (memcmp(mldsa_csr_resp.data, mldsa_idev_csr_bytes, mldsa_csr_resp.data_size) != 0)
+        {
+            printf("MLDSA87 IDEV CSR does not match\n");
+            failure = 1;
+        }
+        else
+        {
+            printf("Get MLDSA87 IDev CSR: OK\n");
         }
     }
 
@@ -1428,7 +1508,7 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
-    run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
+    run_test(rom_test_idevid_csr, info, "Test ECC384 & MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");

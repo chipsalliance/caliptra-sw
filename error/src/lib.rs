@@ -67,6 +67,7 @@ impl CaliptraError {
             0x00010002,
             "Bad datastore register type"
         ),
+        (CALIPTRA_INTERNAL, 0x00010003, "Internal error"),
         (
             DRIVER_SHA256_INVALID_STATE,
             0x00020001,
@@ -126,6 +127,11 @@ impl CaliptraError {
             DRIVER_SHA2_512_384_INDEX_OUT_OF_BOUNDS,
             0x0003000B,
             "Driver Error: SHA2_512_384 index out of bounds"
+        ),
+        (
+            DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
+            0x0003000C,
+            "Driver Error: SHA2_512_384 SHA2_512_384_ACC digest start op failure"
         ),
         (
             DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE,
@@ -1030,6 +1036,16 @@ impl CaliptraError {
             "DMA driver Error: FIFO invalid size"
         ),
         (
+            DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED,
+            0x0000f005,
+            "DMA driver Error: SHA accelerator not locked by DMA"
+        ),
+        (
+            DRIVER_DMA_INVALID_DMA_TARGET,
+            0x0000f006,
+            "DMA driver Error: Invalid target"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
@@ -1223,9 +1239,9 @@ impl CaliptraError {
             "Runtime Error: DPE command deserialization failed"
         ),
         (
-            RUNTIME_GET_LDEVID_CERT_FAILED,
+            GET_LDEVID_CERT_FAILED,
             0x000E0028,
-            "Runtime Error: Get LDevID cert failed"
+            "Caliptra Error: Get LDevID cert failed"
         ),
         (
             RUNTIME_GET_FMC_ALIAS_CERT_FAILED,
@@ -1826,6 +1842,11 @@ impl CaliptraError {
             "Update Reset Error: Read FHT failure"
         ),
         (
+            ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM,
+            0x01040006,
+            "Update Reset Error: Image not in MCU SRAM"
+        ),
+        (
             ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET,
             0x01040010,
             "Warm Reset Error: Unsuccessful previous cold reset"
@@ -1981,6 +2002,11 @@ impl CaliptraError {
             ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT,
             0x0105000F,
             "ROM Global Error: FIPS hooks ROM exit"
+        ),
+        (
+            ROM_GLOBAL_UNSUPPORTED_HW_VERSION,
+            0x01050010,
+            "ROM Global Error: Unsupported HW version"
         ),
         (
             KAT_SHA256_DIGEST_FAILURE,

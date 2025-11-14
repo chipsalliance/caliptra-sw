@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     AesDmaMode, Array4x16, AxiAddr, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc,
-    ShaAccLockState, SocIfc,
+    ShaAccLockState, SocIfc, StreamEndianness,
 };
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
@@ -41,7 +41,8 @@ fn test_dma_sha384_mcu_sram() {
             .try_start_operation(ShaAccLockState::AssumedLocked)
             .unwrap()
             .unwrap();
-        op.digest_512(0, 0, false, &mut digest).unwrap();
+        op.digest_512(0, 0, StreamEndianness::Reorder, &mut digest)
+            .unwrap();
     }
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
     let mut sha2_512_384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
@@ -75,7 +76,7 @@ fn test_dma_sha384_mcu_sram() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, TEST_DATA_SIZE as u32, AesDmaMode::None)
+        .sha384_mcu_sram(&mut sha_acc, 0, TEST_DATA_SIZE as u32, AesDmaMode::None)
         .expect("DMA SHA384 failed");
 
     let test_data_bytes =
@@ -112,7 +113,7 @@ fn test_dma_sha384_empty_data() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function with 0 length
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, 0, AesDmaMode::None)
+        .sha384_mcu_sram(&mut sha_acc, 0, 0, AesDmaMode::None)
         .expect("DMA SHA384 with empty data failed");
 
     // Compute SHA384 using regular SHA384 driver on empty data
@@ -161,7 +162,7 @@ fn test_dma_sha384_small_data() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, SMALL_DATA_SIZE as u32, AesDmaMode::None)
+        .sha384_mcu_sram(&mut sha_acc, 0, SMALL_DATA_SIZE as u32, AesDmaMode::None)
         .expect("DMA SHA384 failed");
 
     // Compute SHA384 using regular SHA384 driver on the same data

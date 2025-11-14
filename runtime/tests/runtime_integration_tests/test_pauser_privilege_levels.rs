@@ -775,9 +775,11 @@ fn test_pl0_unset_in_header() {
         .unwrap();
     image_bundle.manifest.preamble = preamble;
 
-    model
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
+    crate::common::test_upload_firmware(
+        &mut model,
+        &image_bundle.to_bytes().unwrap(),
+        FwVerificationPqcKeyType::LMS,
+    );
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -827,9 +829,11 @@ fn test_user_not_pl0() {
         let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::common::test_upload_firmware(
+            &mut model,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

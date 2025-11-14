@@ -13,16 +13,21 @@ Abstract:
 --*/
 
 use crate::{
-    authorize_and_stash::AuthorizeAndStashCmd, set_auth_manifest::AuthManifestSource, Drivers,
-    SetAuthManifestCmd, IMAGE_AUTHORIZED,
+    activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET, authorize_and_stash::AuthorizeAndStashCmd,
+    set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
+use caliptra_auth_man_types::AuthorizationManifest;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, AesDmaMode, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, AesDmaMode, DmaMmio, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
+use ureg::MmioMut;
+use zerocopy::IntoBytes;
+
+const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;
 
 pub enum RecoveryFlow {}
 
@@ -38,7 +43,8 @@ impl RecoveryFlow {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         // use different scopes since we need to borrow drivers mutably and immutably
-        let result = {
+        let mut buffer = [0; size_of::<AuthorizationManifest>() / 4];
+        let source = {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -52,11 +58,16 @@ impl RecoveryFlow {
             )?;
 
             // download SoC manifest
-            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)
+            if drivers.soc_ifc.subsystem_mode() {
+                dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
+                AuthManifestSource::Slice(buffer.as_bytes())
+            } else {
+                dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
+                AuthManifestSource::Mailbox
+            }
         };
-        result?;
 
-        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)?;
+        SetAuthManifestCmd::set_auth_manifest(drivers, source, false)?;
         drivers.mbox.unlock();
 
         let digest = {
@@ -77,6 +88,7 @@ impl RecoveryFlow {
             cprintln!("[rt] Calculating MCU digest");
             dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
+                0,
                 mcu_size_bytes,
                 AesDmaMode::None,
             )?
@@ -95,11 +107,12 @@ impl RecoveryFlow {
         let auth_result = AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)?;
 
         {
+            let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),
-                drivers.soc_ifc.mci_base_addr().into(),
+                mci_base_addr,
                 dma,
             );
 
@@ -111,8 +124,25 @@ impl RecoveryFlow {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
             }
 
+            // Caliptra sets RESET_REASON.FW_BOOT_UPD_RESET
+            let mmio = &DmaMmio::new(mci_base_addr, dma);
+            unsafe {
+                mmio.write_volatile(
+                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
+                    FW_BOOT_UPD_RESET,
+                )
+            };
+
+            cprintln!("[rt] Setting MCU firmware ready");
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();
+            cprintln!(
+                "[rt] Setting MCU firmware ready: {:08x}{:08x}{:08x}{:08x}",
+                drivers.soc_ifc.fw_ctrl(0),
+                drivers.soc_ifc.fw_ctrl(1),
+                drivers.soc_ifc.fw_ctrl(2),
+                drivers.soc_ifc.fw_ctrl(3)
+            );
 
             // we're done with recovery
             dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;

@@ -15,9 +15,9 @@ use crate::keyids::KEY_ID_TMP;
 use caliptra_drivers::{
     okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
     Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId,
-    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x8, Mldsa87, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentData, Sha2_512_384,
-    Trng,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Mldsa87,
+    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentData,
+    Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -77,9 +77,9 @@ impl UnencryptedCmk {
 pub struct EncryptedCmk {
     pub domain: u32,
     pub domain_metadata: [u8; 16],
-    pub iv: [u8; 12],
+    pub iv: LEArray4x3,
     pub ciphertext: [u8; UNENCRYPTED_CMK_SIZE_BYTES],
-    pub gcm_tag: [u8; 16],
+    pub gcm_tag: LEArray4x4,
 }
 
 pub struct Crypto {}
@@ -451,7 +451,7 @@ impl Crypto {
         aes: &mut Aes,
         trng: &mut Trng,
         unencrypted_cmk: &UnencryptedCmk,
-        kek_iv: [u8; 12],
+        kek_iv: LEArray4x3,
         kek: (LEArray4x8, LEArray4x8),
     ) -> CaliptraResult<EncryptedCmk> {
         let plaintext = unencrypted_cmk.as_bytes();

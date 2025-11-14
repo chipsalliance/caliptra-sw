@@ -1,15 +1,15 @@
 // Licensed under the Apache-2.0 license
 
 use crate::helpers;
+use crate::test_derive_stable_key::HW_MODEL_MODES_SUBSYSTEM;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
-        self,
         rom_tests::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
         },
-        APP_WITH_UART,
+        APP_WITH_UART_FPGA,
     },
     FwId, ImageOptions,
 };
@@ -27,7 +27,7 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 
 #[test]
 fn test_update_reset_success() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -37,10 +37,10 @@ fn test_update_reset_success() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -88,7 +88,7 @@ fn test_update_reset_success() {
 
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -98,10 +98,10 @@ fn test_update_reset_no_mailbox_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -152,7 +152,7 @@ fn test_update_reset_no_mailbox_cmd() {
 
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -162,10 +162,10 @@ fn test_update_reset_non_fw_load_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -214,7 +214,7 @@ fn test_update_reset_non_fw_load_cmd() {
 
 #[test]
 fn test_update_reset_verify_image_failure() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -224,10 +224,10 @@ fn test_update_reset_verify_image_failure() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -257,12 +257,23 @@ fn test_update_reset_verify_image_failure() {
             }
             hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
-            assert_eq!(
-                hw.finish_mailbox_execute(),
-                Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
-                    CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
-                ))
-            );
+            if subsystem_mode {
+                assert_eq!(
+                    hw.finish_mailbox_execute(),
+                    Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                        CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM.into()
+                    ))
+                );
+                // With subsystem mode this fails fatally as MBOX is used and not MCU SRAM
+                continue;
+            } else {
+                assert_eq!(
+                    hw.finish_mailbox_execute(),
+                    Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                        CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+                    ))
+                );
+            }
 
             hw.step_until_exit_success().unwrap();
 
@@ -281,7 +292,7 @@ fn test_update_reset_verify_image_failure() {
 
 #[test]
 fn test_update_reset_boot_status() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -291,10 +302,10 @@ fn test_update_reset_boot_status() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -321,7 +332,10 @@ fn test_update_reset_boot_status() {
             )
             .unwrap();
 
-            if cfg!(not(feature = "fpga_realtime")) {
+            if cfg!(not(any(
+                feature = "fpga_realtime",
+                feature = "fpga_subsystem"
+            ))) {
                 hw.step_until_boot_status(CfiInitialized.into(), false);
                 hw.step_until_boot_status(KatStarted.into(), false);
                 hw.step_until_boot_status(KatComplete.into(), false);
@@ -351,9 +365,9 @@ fn test_update_reset_boot_status() {
 
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let vendor_config_cold_boot = ImageGeneratorVendorConfig {
                 ecc_key_idx: 3,
                 ..VENDOR_CONFIG_KEY_0
@@ -369,7 +383,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
             };
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -402,7 +416,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -440,8 +454,8 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
-    for subsystem_mode in [false, true] {
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
             pqc_key_idx: 3,
             ..VENDOR_CONFIG_KEY_0
@@ -452,7 +466,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         };
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
-            &APP_WITH_UART,
+            &APP_WITH_UART_FPGA,
             image_options,
         )
         .unwrap();
@@ -468,7 +482,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         };
         let image_bundle2 = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
-            &APP_WITH_UART,
+            &APP_WITH_UART_FPGA,
             image_options,
         )
         .unwrap();
@@ -490,6 +504,8 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         .unwrap();
 
         hw.step_until_boot_status(ColdResetComplete.into(), true);
+        hw.step_until_output_contains("Running Caliptra FMC ...")
+            .unwrap();
 
         assert_eq!(
             hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
@@ -515,7 +531,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_check_rom_update_reset_status_reg() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -525,10 +541,10 @@ fn test_check_rom_update_reset_status_reg() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options,
             )
             .unwrap();
@@ -627,7 +643,7 @@ fn test_fmc_is_16k() {
 
 #[test]
 fn test_update_reset_max_fw_image() {
-    for subsystem_mode in [false, true] {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -637,10 +653,10 @@ fn test_update_reset_max_fw_image() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
-                &APP_WITH_UART,
+                &APP_WITH_UART_FPGA,
                 image_options.clone(),
             )
             .unwrap();
@@ -690,6 +706,11 @@ fn test_update_reset_max_fw_image() {
             assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
             hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+            // [TODO][CAP2.1] The following command is to validate fmc/rt load into ICCM. The logic isn't there in the test-fmc
+            if subsystem_mode {
+                continue;
+            }
 
             let mut buf = vec![];
             buf.append(
