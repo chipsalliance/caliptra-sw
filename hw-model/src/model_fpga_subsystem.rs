@@ -1103,12 +1103,15 @@ impl ModelFpgaSubsystem {
         let len_range = Self::command_code_to_len(command);
         cmd.pec = 0;
 
-        self.i3c_controller
+        if let Err(err) = self
+            .i3c_controller
             .controller
             .lock()
             .unwrap()
             .master_recv(&cmd, len_range.0 + 2)
-            .expect("Failed to receive ack from target");
+        {
+            panic!("Failed to receive ack from target: {:?}", err);
+        }
 
         // read in the length, lsb then msb
         let resp = self
@@ -1121,7 +1124,13 @@ impl ModelFpgaSubsystem {
                 &cmd,
                 len_range.0 + 2,
             )
-            .unwrap_or_else(|_| panic!("Expected to read {}+ bytes", len_range.0 + 2));
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Expected to read {}+ bytes, error: {:?}",
+                    len_range.0 + 2,
+                    err
+                )
+            });
 
         if resp.len() < 2 {
             panic!("Expected to read at least 2 bytes from target for recovery block length");
@@ -1170,15 +1179,15 @@ impl ModelFpgaSubsystem {
             }
         }
 
-        assert!(
-            self.i3c_controller
-                .controller
-                .lock()
-                .unwrap()
-                .master_send_polled(&cmd, &data, data.len() as u16)
-                .is_ok(),
-            "Failed to ack write message sent to target"
-        );
+        if let Err(err) = self
+            .i3c_controller
+            .controller
+            .lock()
+            .unwrap()
+            .master_send_polled(&cmd, &data, data.len() as u16)
+        {
+            panic!("Failed to ack write message sent to target: {:?}", err);
+        }
     }
 
     pub fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {

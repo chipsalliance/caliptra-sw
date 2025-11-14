@@ -613,9 +613,9 @@ impl Controller {
             return Err(XI3cError::Timeout);
         }
         let response_data = self.regs().resp_status_fifo.get();
-        let error_code = ((response_data & 0x1e0) >> 5) as i32;
+        let error_code = ((response_data & 0x1e0) >> 5) as u8;
         if error_code != 0 {
-            Err(XI3cError::SendError)
+            Err(XI3cError::SendError(error_code))
         } else {
             Ok(())
         }
@@ -651,7 +651,7 @@ impl Controller {
             return Err(XI3cError::NoData);
         }
         if byte_count > 4095 {
-            return Err(XI3cError::SendError);
+            return Err(XI3cError::TooMuchData);
         }
         msg_ptr = &msg_ptr[..byte_count as usize];
         let mut cmd = cmd.clone();
@@ -689,7 +689,7 @@ impl Controller {
             return Err(XI3cError::NoData);
         }
         if byte_count > 4095 {
-            return Err(XI3cError::SendError);
+            return Err(XI3cError::TooMuchData);
         }
         msg_ptr = &msg_ptr[..byte_count as usize];
         let mut cmd = cmd.clone();

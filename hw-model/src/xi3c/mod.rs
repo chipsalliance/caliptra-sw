@@ -19,7 +19,8 @@ pub enum XI3cError {
     /// Generic receive error
     RecvError,
     /// Generic transmit error
-    SendError,
+    SendError(u8),
+    TooMuchData,
     /// Timeout error
     Timeout,
 }
