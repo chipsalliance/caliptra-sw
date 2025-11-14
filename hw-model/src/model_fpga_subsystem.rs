@@ -717,14 +717,18 @@ impl ModelFpgaSubsystem {
                 }
                 self.recovery_ctrl_written = true;
             }
+
+            // make sure there is room in the write FIFO to do a block read
+            if self.i3c_controller().write_fifo_level() < 10 {
+                return;
+            }
             let fifo_status = self
-                .i3c_core()
-                .sec_fw_recovery_if()
-                .indirect_fifo_status_0()
-                .read();
+                .recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus)
+                .expect("Device should response to indirect fifo status read request");
+            let empty = fifo_status[0] & 1 == 1;
 
             // fifo is empty, send a block
-            if fifo_status.empty() {
+            if empty {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
