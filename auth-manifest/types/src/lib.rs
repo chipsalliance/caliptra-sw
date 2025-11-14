@@ -22,7 +22,7 @@ use memoffset::span_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
-pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
+pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 127;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
 
