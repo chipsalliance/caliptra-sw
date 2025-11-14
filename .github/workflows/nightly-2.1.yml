@@ -121,8 +121,8 @@ jobs:
 
   fpga-latest-full-suite-itrng-log:
     name: FPGA Suite (hw-latest, itrng, log)
-    needs: find-latest-release-2_1
-    if: needs.find-latest-release-2_1.outputs.create_release
+    # needs: find-latest-release-2_1
+    # if: needs.find-latest-release-2_1.outputs.create_release
     uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-2.1-dev
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-log
