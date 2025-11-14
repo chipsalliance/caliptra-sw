@@ -6,11 +6,13 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
-use crate::mcu_boot_status::McuRomBootStatus;
+use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
+use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
-    lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
-    LifecycleRawTokens, LifecycleToken,
+    lc_generate_memory, otp_generate_lifecycle_tokens_mem,
+    otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
+    LifecycleControllerState, OtpSwManufPartition,
 };
 use crate::output::ExitStatus;
 use crate::xi3c::XI3cError;
@@ -43,11 +45,23 @@ const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
-// Offsets in the OTP for fuses.
-const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
-const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
-const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
-const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
+// TODO(timothytrippel): autogenerate these from the OTP memory map definition
+// Offsets in the OTP for all partitions.
+// SW_TEST_UNLOCK_PARTITION
+const OTP_SW_TEST_UNLOCK_PARTITION_OFFSET: usize = 0x0;
+// SW_MANUF_PARTITION
+const OTP_SW_MANUF_PARTITION_OFFSET: usize = 0x0F8;
+// SECRET_LC_TRANSITION_PARTITION
+const OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET: usize = 0x300;
+// SVN_PARTITION
+const OTP_SVN_PARTITION_OFFSET: usize = 0x3B8;
+const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36;
+// VENDOR_HASHES_MANUF_PARTITION
+const OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET: usize = 0x420;
+const FUSE_VENDOR_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET;
+const FUSE_PQC_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET + 48;
+// LIFECYCLE_PARTITION
+const OTP_LIFECYCLE_PARTITION_OFFSET: usize = 0xE30;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
@@ -140,18 +154,6 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
-
-// This is a random number, but should be kept in sync with what is the default value in the FPGA ROM.
-const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
-    LifecycleToken(0x05edb8c608fcc830de181732cfd65e57u128.to_le_bytes());
-
-const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
-    test_unlock: [DEFAULT_LIFECYCLE_RAW_TOKEN; 7],
-    manuf: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    manuf_to_prod: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    prod_to_prod_end: DEFAULT_LIFECYCLE_RAW_TOKEN,
-    rma: DEFAULT_LIFECYCLE_RAW_TOKEN,
-};
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -416,6 +418,20 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_ss_debug_intent(&mut self, val: bool) {
+        if val {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::SsDebugIntent::CLEAR);
+        }
+    }
+
     fn axi_reset(&mut self) {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
@@ -426,6 +442,13 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
         );
+    }
+
+    pub fn set_cptra_ss_rst_b(&mut self, value: bool) {
+        self.wrapper
+            .regs()
+            .control
+            .modify(Control::CptraSsRstB.val(value as u32));
     }
 
     fn set_secrets_valid(&mut self, value: bool) {
@@ -1112,6 +1135,62 @@ impl ModelFpgaSubsystem {
         );
     }
 
+    pub fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
+        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+        let mut otp_data = self.otp_slice().to_vec();
+
+        // Provision default LC tokens.
+        println!("Provisioning SECRET_LC_TRANSITION partition.");
+        let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
+        let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
+        let offset = OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
+        println!("Provisioning SW_TEST_UNLOCK partition.");
+        let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
+        let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Provision default SW_MANUF partition.
+        // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
+        // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
+        println!("Provisioning SW_MANUF partition.");
+        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition::default())?;
+        let offset = OTP_SW_MANUF_PARTITION_OFFSET;
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
+        println!(
+            "Setting vendor public key hash to {:x?}",
+            HexSlice(vendor_pk_hash)
+        );
+        otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
+            .copy_from_slice(vendor_pk_hash);
+
+        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
+            .unwrap_or(FwVerificationPqcKeyType::LMS);
+        println!(
+            "Setting vendor public key pqc type to {:x?}",
+            vendor_pqc_type
+        );
+        let val = match vendor_pqc_type {
+            FwVerificationPqcKeyType::MLDSA => 0,
+            FwVerificationPqcKeyType::LMS => 1,
+        };
+        otp_data[FUSE_PQC_OFFSET] = val;
+
+        println!(
+            "Burning fuse for SOC MAX SVN {}",
+            fuses.soc_manifest_max_svn
+        );
+        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = fuses.soc_manifest_max_svn;
+
+        self.otp_slice().copy_from_slice(&otp_data);
+
+        Ok(())
+    }
+
     pub fn otp_slice(&self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
@@ -1127,6 +1206,14 @@ impl ModelFpgaSubsystem {
 
     pub fn mci_flow_status(&mut self) -> u32 {
         self.mci.regs().fw_flow_status().read()
+    }
+
+    pub fn mci_boot_checkpoint(&mut self) -> u16 {
+        (self.mci_flow_status() & 0x0000_ffff) as u16
+    }
+
+    pub fn mci_boot_milestones(&mut self) -> McuBootMilestones {
+        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
     }
 
     fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
@@ -1192,7 +1279,7 @@ impl HwModel for ModelFpgaSubsystem {
             return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
         }
         let mcu_rom =
-            match params.mcu_rom {
+            match params.ss_init_params.mcu_rom {
                 Some(mcu_rom) => mcu_rom,
                 None => &std::fs::read(std::env::var("CPTRA_MCU_ROM").expect(
                     "set the ENV VAR CPTRA_MCU_ROM to the absolute path of caliptra-mcu rom",
@@ -1316,7 +1403,7 @@ impl HwModel for ModelFpgaSubsystem {
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
-            enable_mcu_uart_log: params.enable_mcu_uart_log,
+            enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
         };
 
         println!("AXI reset");
@@ -1359,8 +1446,11 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Users can provide data to initialize OTP a specific way. If an OTP
+        // initialization state is not provided, we proceed with initialization
+        // a default configuration.
         let mut otp_data = vec![0; OTP_SIZE];
-
         if !m.otp_init.is_empty() {
             // write the initial contents of the OTP memory
             println!("Initializing OTP with initialized data");
@@ -1374,22 +1464,18 @@ impl HwModel for ModelFpgaSubsystem {
             otp_data[..m.otp_init.len()].copy_from_slice(&m.otp_init);
         }
 
+        // TODO(timothytrippel): move to `init_otp()` eventually.
+        // Initialize LC state based on the security state of the device.
         let lc_state = match params.security_state.device_lifecycle() {
             DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
             DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
             DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
             DeviceLifecycle::Production => LifecycleControllerState::Prod,
         };
-        println!("Setting lifecycle controller state to {}", lc_state);
+        println!("Provisioning lifecycle partition (State: {}).", lc_state);
         let mem = lc_generate_memory(lc_state, 1)?;
-        let offset = FUSE_LIFECYCLE_STATE_OFFSET;
+        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
-
-        let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
-        let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
-        let offset = FUSE_LIFECYCLE_TOKENS_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
-
         let otp_mem = m.otp_slice();
         otp_mem.copy_from_slice(&otp_data);
 
@@ -1421,6 +1507,20 @@ impl HwModel for ModelFpgaSubsystem {
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
+        // Setup debug intent signal if requested.
+        m.set_ss_debug_intent(params.debug_intent);
+        // Set BootFSM break if requested.
+        m.set_bootfsm_break(params.bootfsm_break);
+        // Set prod debug unlock authentication settings.
+        m.wrapper
+            .regs()
+            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
+            .set(params.ss_init_params.prod_dbg_unlock_pk_hashes_offset);
+        m.wrapper
+            .regs()
+            .num_of_prod_debug_unlock_auth_pk_hashes
+            .set(params.ss_init_params.num_prod_dbg_unlock_pk_hashes);
+
         // set the reset vector to point to the ROM backdoor
         println!("Writing MCU reset vector");
         m.wrapper
@@ -1431,13 +1531,49 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        while m.mci_flow_status() != u32::from(McuRomBootStatus::CaliptraBootGoAsserted) {}
+        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
+        // It looks like the words are backwards in the FPGA wrapper. Update
+        // this when the wrapper is updated.
+        // Notify MCU ROM it can start loading the fuse registers
+        let gpio = &m.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 30);
+
+        let start_count = m.cycle_count();
+        const MCU_MAX_BOOT_CYCLES: u64 = 20_000_000;
+
+        while !m
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+            && m.cycle_count() - start_count < MCU_MAX_BOOT_CYCLES
+        {
+            m.step();
+        }
+
+        if !m
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
+        {
+            // print MCU logs if we failed to boot
+            m.enable_mcu_uart_log = true;
+            m.handle_log();
+            Err(format!(
+                "MCU ROM did not assert cptra_boot_go after {} cycles; MCU boot ROM status: 0x{:x}",
+                m.cycle_count() - start_count,
+                m.mci_flow_status()
+            ))?;
+        }
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
-        println!("writing to cptra_bootfsm_go");
-        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        //
+        // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
+        // entering debug unlock modes.
+        if !params.bootfsm_break {
+            println!("writing to cptra_bootfsm_go");
+            m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        }
         Ok(m)
     }
 
@@ -1446,47 +1582,23 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     // Fuses are actually written by MCU ROM, but we need to initialize the OTP
-    // with the values so that they are forwarded to Caliptra.
-    fn init_fuses(&mut self, fuses: &Fuses) {
-        let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
-        println!(
-            "Setting vendor public key hash to {:x?}",
-            HexSlice(vendor_pk_hash)
-        );
-
-        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
-        let mut otp_mem = self.otp_slice().to_vec();
-        otp_mem[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
-            .copy_from_slice(vendor_pk_hash);
-
-        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
-            .unwrap_or(FwVerificationPqcKeyType::LMS);
-        println!(
-            "Setting vendor public key pqc type to {:x?}",
-            vendor_pqc_type
-        );
-        let val = match vendor_pqc_type {
-            FwVerificationPqcKeyType::MLDSA => 0,
-            FwVerificationPqcKeyType::LMS => 1,
-        };
-        otp_mem[FUSE_PQC_OFFSET] = val;
-
-        self.otp_slice().copy_from_slice(&otp_mem);
-
-        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
-        // It looks like the words are backwards in the FPGA wrapper. Update
-        // this when the wrapper is updated.
-
-        // Notify MCU ROM it can start loading the fuse registers
-        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
-        let current = gpio.extract().get();
-        gpio.set(current | 1 << 30);
+    // with the values so that they are forwarded to Caliptra. All OTP
+    // initialization code should go in `init_otp()`. This function is required
+    // for the HwModel trait, but is only relevant for Caliptra Core specific
+    // HwModels.
+    fn init_fuses(&mut self, _fuses: &Fuses) {
+        println!("Skip init_fuses(). Caliptra Core fuses are initialized by MCU ROM.");
     }
 
     fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
     where
         Self: Sized,
     {
+        // TODO(timothytrippel): this should ideally be called in `new_unbooted()`, but we need a
+        // way to pass the fuses parameter to it from that function to allow tests to pass
+        // different (non-default) fuse values.
+        println!("Initializing subsystem OTP memory.");
+        self.init_otp(&boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
 
         // Return here if there isn't any mutable code to load
@@ -1496,7 +1608,8 @@ impl HwModel for ModelFpgaSubsystem {
         {
             // Give the FPGA some time to start. If this returns too quickly some of the tests fail
             // with a kernel panic.
-            for _ in 0..5_000 {
+            let start = self.cycle_count();
+            while self.cycle_count().wrapping_sub(start) < 10_000_000 {
                 self.step();
                 let flow_status = self.soc_ifc().cptra_flow_status().read();
                 if flow_status.ready_for_mb_processing() {
@@ -1518,22 +1631,6 @@ impl HwModel for ModelFpgaSubsystem {
                 mcu_fw_image
             }
         };
-
-        println!("Setting recovery images to BMC");
-        self.bmc
-            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
-        self.bmc.push_recovery_image(
-            boot_params
-                .soc_manifest
-                .map(|s| s.to_vec())
-                .unwrap_or_default(),
-        );
-        self.bmc.push_recovery_image(mcu_fw_image);
-
-        while !self.i3c_target_configured() {
-            self.step();
-        }
-        println!("Done starting MCU");
 
         // TODO: support passing these into MCU ROM
         // self.soc_ifc()
@@ -1569,11 +1666,12 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
-        self.i3c_controller.configure();
-        println!("Starting recovery flow (BMC)");
-        self.start_recovery_bmc();
-        self.step();
-        println!("Finished booting");
+        self.upload_firmware_rri(
+            boot_params.fw_image.unwrap(),
+            boot_params.soc_manifest,
+            Some(&mcu_fw_image),
+        )
+        .unwrap();
 
         Ok(())
     }
@@ -1617,6 +1715,86 @@ impl HwModel for ModelFpgaSubsystem {
     ) -> Result<(), ModelError> {
         // ironically, we don't need to support this
         Ok(())
+    }
+
+    fn subsystem_mode(&mut self) -> bool {
+        // we only support subsystem mode
+        true
+    }
+
+    fn upload_firmware_rri(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        println!("Setting recovery images to BMC");
+        // First add image to BMC
+        self.bmc.push_recovery_image(firmware.to_vec());
+        self.bmc
+            .push_recovery_image(soc_manifest.unwrap_or_default().to_vec());
+        self.bmc
+            .push_recovery_image(mcu_firmware.unwrap_or_default().to_vec());
+
+        while !self.i3c_target_configured() {
+            self.step();
+        }
+        println!("Done starting MCU");
+
+        self.i3c_controller.configure();
+        println!("Starting recovery flow (BMC)");
+        self.start_recovery_bmc();
+        self.step();
+        println!("Finished booting");
+
+        // Notify MCU ROM it can start loading firmware
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
+        // ironically, we don't need to support this
+        Ok(())
+    }
+
+    fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
+        Ok(())
+    }
+
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.set_cptra_ss_rst_b(false);
+        std::thread::sleep(std::time::Duration::from_micros(1));
+        self.set_cptra_ss_rst_b(true);
+
+        self.step_until(|hw| {
+            hw.mci_boot_milestones()
+                .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
+        });
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) };
+
+        // Write complete u32 chunks
+        for (i, chunk) in payload.chunks(4).enumerate() {
+            let u32_value = u32::from_le_bytes(chunk.try_into().unwrap());
+            unsafe {
+                staging_ptr.add(i).write_volatile(u32_value);
+                let read_back = staging_ptr.add(i).read_volatile();
+                assert_eq!(
+                    read_back, u32_value,
+                    "Write verification failed at offset {}",
+                    i
+                );
+            }
+        }
+
+        let mci_base_addr: u64 = u64::from(self.soc_ifc().ss_mci_base_addr_l().read())
+            | (u64::from(self.soc_ifc().ss_mci_base_addr_h().read()) << 32);
+
+        // Return the physical address of the staging area
+        Ok(mci_base_addr + 0xc00000)
     }
 }
 

@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use caliptra_common::dice;
-
 use openssl::asn1::{Asn1Object, Asn1OctetString};
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
@@ -23,7 +21,8 @@ use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::PKey;
 use openssl::pkey::{Private, Public};
-use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant};
+use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant as MlDsaVariant};
+use openssl::pkey_ml_kem::{PKeyMlKemBuilder, PKeyMlKemParams, Variant as MlKemVariant};
 use openssl::sha::Sha1;
 use openssl::sha::Sha256;
 use openssl::x509::extension::BasicConstraints;
@@ -33,10 +32,13 @@ use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
 use rand::Rng;
 
-const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
-    | dice::FLAG_BIT_NOT_SECURE
-    | dice::FLAG_BIT_DEBUG
-    | dice::FLAG_BIT_FIXED_WIDTH;
+const FLAG_BIT_NOT_CONFIGURED: u32 = 1 << 0;
+const FLAG_BIT_NOT_SECURE: u32 = 1 << 1;
+const FLAG_BIT_DEBUG: u32 = 1 << 3;
+const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
+
+const FLAG_MASK: u32 =
+    FLAG_BIT_NOT_CONFIGURED | FLAG_BIT_NOT_SECURE | FLAG_BIT_DEBUG | FLAG_BIT_FIXED_WIDTH;
 
 const AUTH_KEY_ID_OID: &str = "2.5.29.35";
 const TCG_UEID_OID: &str = "2.23.133.5.4.4";
@@ -199,7 +201,7 @@ impl Default for MlDsa87AsymKey {
         let mut rng = rand::thread_rng();
         rng.fill(&mut random_bytes);
         let pk_builder =
-            PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &random_bytes).unwrap();
+            PKeyMlDsaBuilder::<Private>::from_seed(MlDsaVariant::MlDsa87, &random_bytes).unwrap();
         let private_key = pk_builder.build().unwrap();
         let public_params = PKeyMlDsaParams::<Public>::from_pkey(&private_key).unwrap();
         let public_key = public_params.public_key().unwrap();
@@ -229,6 +231,53 @@ impl SigningAlgorithm for MlDsa87Algo {
 
     fn gen_key(&self) -> Self::AsymKey {
         Self::AsymKey::default()
+    }
+}
+
+pub struct MlKem1024Key {
+    priv_key: PKey<Private>,
+    pub_key: Vec<u8>,
+}
+
+#[derive(Default)]
+pub struct MlKem1024Algo {}
+
+impl SigningAlgorithm for MlKem1024Algo {
+    type AsymKey = MlKem1024Key;
+    type Digest = Noop;
+
+    fn gen_key(&self) -> Self::AsymKey {
+        Self::AsymKey::default()
+    }
+}
+
+impl AsymKey for MlKem1024Key {
+    /// Retrieve Public Key
+    fn pub_key(&self) -> &[u8] {
+        &self.pub_key
+    }
+
+    /// Retrieve Private Key
+    fn priv_key(&self) -> &PKey<Private> {
+        &self.priv_key
+    }
+}
+
+impl Default for MlKem1024Key {
+    /// Returns the "default value" for a type.
+    fn default() -> Self {
+        let mut random_bytes: [u8; 64] = [0; 64];
+        let mut rng = rand::thread_rng();
+        rng.fill(&mut random_bytes);
+        let pk_builder =
+            PKeyMlKemBuilder::<Private>::from_seed(MlKemVariant::MlKem1024, &random_bytes).unwrap();
+        let private_key = pk_builder.build().unwrap();
+        let public_params = PKeyMlKemParams::<Public>::from_pkey(&private_key).unwrap();
+        let public_key = public_params.public_key().unwrap();
+        Self {
+            priv_key: private_key,
+            pub_key: public_key.to_vec(),
+        }
     }
 }
 
@@ -434,5 +483,64 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
     let der = asn1::write_single(&rt_info).unwrap();
     let der = Asn1OctetString::new_from_bytes(&der).unwrap();
     let oid = Asn1Object::from_str(TCG_TCB_INFO_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct KemId(u16);
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct KdfId(u16);
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct AeadId(u16);
+
+/// MEK MPA Spec v1
+///
+/// Section 4.2.2.1.3.1
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct HPKEIdentifiers {
+    kem_id: KemId,
+    kdf_id: KdfId,
+    aead_id: AeadId,
+}
+
+impl HPKEIdentifiers {
+    pub fn new(kem_id: KemId, kdf_id: KdfId, aead_id: AeadId) -> Self {
+        Self {
+            kem_id,
+            kdf_id,
+            aead_id,
+        }
+    }
+}
+
+impl HPKEIdentifiers {
+    // TCG_STORAGE_HPKE_
+    pub const OID: &str = "2.23.133.21.1.1";
+
+    /// KEM id's
+    pub const ML_KEM_1024_IANA_CODE_POINT: KemId = KemId(0x0042);
+    // TODO(clundin): This will be used in a follow up PR.
+    #[allow(dead_code)]
+    pub const ML_KEM_EC_P384_IANA_CODE_POINT: KemId = KemId(0x0052);
+    pub const ECDH_P384_IANA_CODE_POINT: KemId = KemId(0x0011);
+
+    /// KDF id's
+    pub const HKDF_SHA384_IANA_CODE_POINT: KdfId = KdfId(0x0002);
+
+    /// AEAD id's
+    pub const AES_256_GCM_IANA_CODE_POINT: AeadId = AeadId(0x0002);
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct HPKEIdentifierExt<'a> {
+    pub(crate) hpke_oid: asn1::ObjectIdentifier,
+    pub(crate) critical: bool,
+    pub(crate) extn_value: &'a [u8],
+}
+
+pub fn make_hpke_identifier_ext(identifiers: &HPKEIdentifiers) -> X509Extension {
+    let der = asn1::write_single(&identifiers).unwrap();
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(HPKEIdentifiers::OID).unwrap();
     X509Extension::new_from_der(&oid, false, &der).unwrap()
 }

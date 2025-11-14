@@ -2,7 +2,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -59,7 +59,7 @@ fn test_stash_measurement() {
 
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         image_options,
     )
     .unwrap()
@@ -95,7 +95,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
         ..Default::default()
     };
     let runtime_test_args = RuntimeTestArgs {
-        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        test_fwid: Some(crate::test_update_reset::mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -140,7 +140,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
     // update reset back to mbox responder
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         image_options.clone(),
     )
     .unwrap()
@@ -152,7 +152,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
 
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
+        crate::test_update_reset::mbox_test_image(),
         image_options,
     )
     .unwrap()

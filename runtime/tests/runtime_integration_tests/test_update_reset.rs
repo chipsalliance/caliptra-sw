@@ -5,7 +5,7 @@ use std::mem::size_of;
 pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
-        runtime_tests::{MBOX, MBOX_WITHOUT_UART},
+        runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
         APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
     },
     FwId, ImageOptions,
@@ -41,6 +41,14 @@ pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: 
         .unwrap();
 }
 
+pub fn mbox_test_image() -> &'static FwId<'static> {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &MBOX_FPGA
+    } else {
+        &MBOX
+    }
+}
+
 #[test]
 fn test_rt_journey_pcr_updated_in_dpe() {
     let image_options = ImageOptions {
@@ -58,7 +66,7 @@ fn test_rt_journey_pcr_updated_in_dpe() {
     });
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, image_options);
+    update_fw(&mut model, mbox_test_image(), image_options);
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -98,7 +106,7 @@ fn test_tags_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, image_options.clone());
+    update_fw(&mut model, mbox_test_image(), image_options.clone());
 
     const TAGS_INFO_SIZE: usize =
         size_of::<u32>() * MAX_HANDLES + size_of::<U8Bool>() * MAX_HANDLES;
@@ -106,7 +114,7 @@ fn test_tags_persistence() {
     let tags_1: [u8; TAGS_INFO_SIZE] = tags_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    update_fw(&mut model, &MBOX, image_options);
+    update_fw(&mut model, mbox_test_image(), image_options);
 
     let tags_resp_2 = model.mailbox_execute(0x7000_0000, &[]).unwrap().unwrap();
     let tags_2: [u8; TAGS_INFO_SIZE] = tags_resp_2.as_bytes().try_into().unwrap();
@@ -124,7 +132,7 @@ fn test_context_tags_validation() {
         ..Default::default()
     };
     let runtime_test_args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -140,7 +148,12 @@ fn test_context_tags_validation() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, image_options);
+    let fw_id = if cfg!(all(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &MBOX_WITHOUT_UART
+    } else {
+        &MBOX_WITHOUT_UART_FPGA
+    };
+    update_fw(&mut model, fw_id, image_options);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -155,7 +168,7 @@ fn test_context_has_tag_validation() {
         ..Default::default()
     };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -186,7 +199,7 @@ fn test_dpe_validation_deformed_structure() {
         ..Default::default()
     };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -241,7 +254,7 @@ fn test_dpe_validation_illegal_state() {
         ..Default::default()
     };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -294,7 +307,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         ..Default::default()
     };
     let args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
@@ -377,14 +390,14 @@ fn test_pcr_reset_counter_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, image_options.clone());
+    update_fw(&mut model, mbox_test_image(), image_options.clone());
 
     let pcr_reset_counter_resp_1 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_1: [u8; size_of::<PcrResetCounter>()] =
         pcr_reset_counter_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    update_fw(&mut model, &MBOX, image_options);
+    update_fw(&mut model, mbox_test_image(), image_options);
 
     let pcr_reset_counter_resp_2 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_2: [u8; size_of::<PcrResetCounter>()] =
@@ -407,14 +420,14 @@ fn get_image_opts(svn: u32) -> ImageOptions {
 fn cold_update_to_svn(model: DefaultHwModel, svn: u32) -> DefaultHwModel {
     drop(model);
     run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(get_image_opts(svn)),
         ..Default::default()
     })
 }
 
 fn runtime_update_to_svn(model: &mut DefaultHwModel, svn: u32) {
-    update_fw(model, &MBOX, get_image_opts(svn));
+    update_fw(model, mbox_test_image(), get_image_opts(svn));
 }
 
 fn get_ladder_digest(model: &mut DefaultHwModel, target_svn: u32) -> Vec<u8> {
@@ -441,7 +454,7 @@ const MAX_SVN: u32 = 128;
 #[test]
 fn test_key_ladder_cold_boot() {
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(get_image_opts(0)),
         ..Default::default()
     });
@@ -474,7 +487,7 @@ fn test_key_ladder_cold_boot() {
 #[test]
 fn test_key_ladder_runtime_update() {
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         test_image_options: Some(get_image_opts(5)),
         ..Default::default()
     });
@@ -542,7 +555,7 @@ fn test_key_ladder_runtime_update() {
 #[test]
 fn test_key_ladder_max_svn() {
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+        test_fwid: Some(mbox_test_image()),
         ..Default::default()
     });
 
@@ -579,7 +592,7 @@ fn test_key_ladder_changes_with_lifecycle() {
     let ladder_a = {
         let mut model = make_model_with_security_state(
             &FMC_WITH_UART,
-            &MBOX,
+            mbox_test_image(),
             false,
             DeviceLifecycle::Production,
         );
@@ -589,7 +602,7 @@ fn test_key_ladder_changes_with_lifecycle() {
     let ladder_b = {
         let mut model = make_model_with_security_state(
             &FMC_WITH_UART,
-            &MBOX,
+            mbox_test_image(),
             false,
             DeviceLifecycle::Manufacturing,
         );
@@ -599,7 +612,7 @@ fn test_key_ladder_changes_with_lifecycle() {
     let ladder_c = {
         let mut model = make_model_with_security_state(
             &FMC_WITH_UART,
-            &MBOX,
+            mbox_test_image(),
             true,
             DeviceLifecycle::Production,
         );
@@ -609,7 +622,7 @@ fn test_key_ladder_changes_with_lifecycle() {
     let ladder_d = {
         let mut model = make_model_with_security_state(
             &FMC_WITH_UART,
-            &MBOX,
+            mbox_test_image(),
             true,
             DeviceLifecycle::Manufacturing,
         );
@@ -630,7 +643,7 @@ fn test_key_ladder_changes_with_lifecycle() {
 fn test_key_ladder_stable_across_fw_updates() {
     // Update both FMC and app FW, and ensure the key ladder is still identical.
 
-    let (fmc_a, app_a) = (&FMC_WITH_UART, &MBOX);
+    let (fmc_a, app_a) = (&FMC_WITH_UART, mbox_test_image());
     let (fmc_b, app_b) = (&FMC_FAKE_WITH_UART, &MBOX_WITHOUT_UART);
 
     let ladder_a = {
