@@ -27,6 +27,7 @@ ufmt.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true
 riscv.workspace = true
+caliptra-x509 = { workspace = true, default-features = false }
 
 [features]
 default = ["std"]

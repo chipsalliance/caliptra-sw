@@ -13,7 +13,7 @@ use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
 use zerocopy::FromBytes;
 
-pub const TEST_SRAM_SIZE: usize = 0x1000;
+pub const TEST_SRAM_SIZE: usize = 64 * 1024; // 64 KB
 
 #[cfg(feature = "fpga_subsystem")]
 const MCI_BASE: u32 = 0xA8000000;

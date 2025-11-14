@@ -596,6 +596,7 @@ dependencies = [
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
+ "caliptra-image-fake-keys",
  "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test-harness-types",
@@ -814,6 +815,8 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "caliptra-api",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
@@ -1028,7 +1031,6 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
- "caliptra_common",
  "convert_case",
  "der 0.7.10",
  "hex",
@@ -1070,6 +1072,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-registers",
+ "caliptra-x509",
  "memoffset 0.8.0",
  "riscv",
  "ufmt",
@@ -2937,7 +2940,7 @@ dependencies = [
 [[package]]
 name = "tock-registers"
 version = "0.9.0"
-source = "git+https://github.com/tock/tock.git?rev=b128ae817b86706c8c4e39d27fae5c54b98659f1#b128ae817b86706c8c4e39d27fae5c54b98659f1"
+source = "git+https://github.com/tock/tock.git?rev=release-2.2#9554639b17501a9f5940cef7a1770a0823e790c3"
 
 [[package]]
 name = "toml"

@@ -17,6 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     memory_layout, Array4x12, Array4x16, Mailbox, Sha2_512_384Acc, ShaAccLockState,
+    StreamEndianness, MBOX_SIZE_SUBSYSTEM,
 };
 use caliptra_kat::Sha2_512_384AccKat;
 use caliptra_registers::mbox::MboxCsr;
@@ -24,7 +25,6 @@ use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_test_harness::test_suite;
 use core::slice;
 
-const MAX_MAILBOX_CAPACITY_BYTES: usize = 256 << 10;
 const SHA384_HASH_SIZE: usize = 48;
 const SHA512_HASH_SIZE: usize = 64;
 
@@ -59,7 +59,12 @@ fn test_digest0() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -72,8 +77,12 @@ fn test_digest0() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -115,7 +124,12 @@ fn test_digest1() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -128,8 +142,12 @@ fn test_digest1() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -171,7 +189,12 @@ fn test_digest2() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -184,8 +207,12 @@ fn test_digest2() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(
+                data.len() as u32,
+                0,
+                StreamEndianness::Reorder,
+                (&mut digest_512).into(),
+            );
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -227,7 +254,8 @@ fn test_digest_offset() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(8, 4, false, (&mut digest).into());
+            let result =
+                sha_acc_op.digest_384(8, 4, StreamEndianness::Reorder, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
@@ -240,7 +268,8 @@ fn test_digest_offset() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_512(8, 4, false, (&mut digest_512).into());
+            let result =
+                sha_acc_op.digest_512(8, 4, StreamEndianness::Reorder, (&mut digest_512).into());
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -276,7 +305,7 @@ fn test_digest_zero_size_buffer() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_384(0, 0, true, (&mut digest).into());
+        let result = sha_acc_op.digest_384(0, 0, StreamEndianness::Native, (&mut digest).into());
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
 
@@ -289,7 +318,8 @@ fn test_digest_zero_size_buffer() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_512(0, 0, true, (&mut digest_512).into());
+        let result =
+            sha_acc_op.digest_512(0, 0, StreamEndianness::Native, (&mut digest_512).into());
         assert!(result.is_ok());
         assert_eq!(digest_512, Array4x16::from(expected_512));
 
@@ -299,21 +329,22 @@ fn test_digest_zero_size_buffer() {
     };
 }
 
+// use the lowest common denominator in mailbox size
 fn test_digest_max_mailbox_size() {
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
 
     let expected: [u8; SHA384_HASH_SIZE] = [
-        0x9B, 0xF0, 0x66, 0xF5, 0x2C, 0xD8, 0x58, 0x8B, 0x21, 0x31, 0xD1, 0xD2, 0xDA, 0x24, 0xB2,
-        0xAD, 0xAC, 0xB8, 0xAD, 0x3E, 0xFC, 0x36, 0xF3, 0xCB, 0x77, 0x97, 0x72, 0xC1, 0x93, 0xA0,
-        0xB1, 0x40, 0xB1, 0x20, 0xBD, 0x13, 0xDF, 0xCB, 0x3E, 0x5E, 0x8C, 0x66, 0xB6, 0x85, 0x26,
-        0xD5, 0x31, 0x50,
+        0x65, 0xb1, 0xf4, 0x3f, 0x6d, 0x05, 0x05, 0x21, 0x05, 0x87, 0x73, 0x00, 0xa4, 0x4c, 0x7e,
+        0xc5, 0x69, 0x9b, 0xbe, 0x85, 0x10, 0xaa, 0xe4, 0xc9, 0xc6, 0x4f, 0x27, 0x87, 0x1b, 0xd5,
+        0xef, 0xfa, 0x69, 0xe8, 0x36, 0x7f, 0x57, 0x87, 0xf6, 0x6c, 0xe8, 0x15, 0xa3, 0x3e, 0x5c,
+        0xc8, 0xd2, 0x6e,
     ];
     let expected_512: [u8; SHA512_HASH_SIZE] = [
-        0x9D, 0xD0, 0xC3, 0x01, 0x67, 0xFB, 0xEA, 0xF6, 0x8D, 0xFB, 0xBA, 0xD8, 0xE1, 0xAF, 0x55,
-        0x2A, 0x7A, 0x1F, 0xCA, 0xE1, 0x20, 0xB6, 0xE0, 0x4F, 0x1B, 0x41, 0xFA, 0x76, 0xC7, 0x6D,
-        0x5A, 0x78, 0x92, 0x2F, 0xF8, 0x28, 0xF5, 0xCF, 0xFD, 0x8C, 0x02, 0x96, 0x5C, 0xDE, 0x57,
-        0xD6, 0x3D, 0xCB, 0xFB, 0x4C, 0x47, 0x9B, 0x3C, 0xB4, 0x9C, 0x9D, 0x81, 0x07, 0xA7, 0xD5,
-        0x24, 0x4E, 0x9D, 0x03,
+        0x6e, 0xb7, 0xf1, 0x6c, 0xf7, 0xaf, 0xca, 0xbe, 0x9b, 0xde, 0xa8, 0x8b, 0xda, 0xb0, 0x46,
+        0x9a, 0x79, 0x37, 0xeb, 0x71, 0x5a, 0xda, 0x9d, 0xfd, 0x8f, 0x42, 0x8d, 0x9d, 0x38, 0xd8,
+        0x61, 0x33, 0x94, 0x5f, 0x5f, 0x2f, 0x26, 0x88, 0xdd, 0xd9, 0x60, 0x62, 0x22, 0x3a, 0x39,
+        0xb5, 0xd4, 0x7f, 0x07, 0xaf, 0xc3, 0xc4, 0x8d, 0x9d, 0xb1, 0xd5, 0xee, 0x3f, 0x41, 0xc8,
+        0xd2, 0x74, 0xdc, 0xcf,
     ];
 
     {
@@ -324,7 +355,7 @@ fn test_digest_max_mailbox_size() {
         let mbox_sram = unsafe {
             slice::from_raw_parts_mut(
                 memory_layout::MBOX_ORG as *mut u8,
-                memory_layout::MBOX_SIZE as usize,
+                MBOX_SIZE_SUBSYSTEM as usize,
             )
         };
         mbox_sram.fill(0);
@@ -339,9 +370,9 @@ fn test_digest_max_mailbox_size() {
         .unwrap()
     {
         let result = sha_acc_op.digest_384(
-            MAX_MAILBOX_CAPACITY_BYTES as u32,
+            MBOX_SIZE_SUBSYSTEM as u32,
             0,
-            true,
+            StreamEndianness::Native,
             (&mut digest).into(),
         );
         assert!(result.is_ok());
@@ -357,9 +388,9 @@ fn test_digest_max_mailbox_size() {
         .unwrap()
     {
         let result = sha_acc_op.digest_512(
-            MAX_MAILBOX_CAPACITY_BYTES as u32,
+            MBOX_SIZE_SUBSYSTEM as u32,
             0,
-            true,
+            StreamEndianness::Native,
             (&mut digest_512).into(),
         );
         assert!(result.is_ok());

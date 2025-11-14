@@ -21,6 +21,10 @@ v2.0:
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 * `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY`require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra.
 
+v2.1:
+
+* [External mailbox commands](#external-mailbox-cmd)
+
 ## Spec Opens
 
 * Cryptographic Mailbox: ML-KEM support
@@ -318,6 +322,26 @@ Command Code: `0x4657_4C44` ("FWLD")
 | data      | u8[...]       | Firmware image to load.
 
 `FIRMWARE_LOAD` returns no output arguments.
+
+### FIRMWARE\_VERIFY
+
+The `FIRMWARE_VERIFY` command is used to verify a Caliptra Firmware Bundle.
+
+Command Code: `0x4657_5652` ("FWVR")
+
+*Table: `FIRMWARE_VERIFY` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| data      | u8[...]       | Firmware image bundle to verify.
+
+*Table: `FIRMWARE_VERIFY` output arguments*
+
+| **Name** | **Type** | **Description**                                                      |
+| -------------- | -------------- | -------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
+| verify_result  | u32            | VERIFY_SUCCESS (0xDEADC0DE), VERIFY_FAILED (0x21523F21)                    |
 
 ### CAPABILITIES
 
@@ -2401,6 +2425,36 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+### EXTERNAL_MAILBOX_CMD
+
+Command Code: `0x4558_544D` ("EXTM")
+
+**Note**: This command is only available in subsystem mode in 2.1+.
+
+Executes a mailbox command located at an AXI address.
+This allows for executing mailbox commands that are larger than the mailbox allows.
+
+This is currently mostly useful for FIRMWARE_LOAD (as part of an update) or SET_AUTH_MANIFEST.
+
+The response is still written to the mailbox.
+
+The checksum is over the EXTM command, *not* the command that is loaded over AXI.
+That external command will still need its own checksum, if applicable.
+
+*Table: `EXTERNAL_MAILBOX_CMD` input arguments*
+
+| **Name**             | **Type** | **Description**
+| --------             | -------- | ---------------
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
+| command_id           | u32      | Command ID for the mailbox command to be executed. Little endian.                     |
+| command_size         | u32      | Size of the mailbox command to be executed. Little endian.                               |
+| axi_address_low      | u32      | Lower 32 bits of the AXI address that contains the mailbox command. Little endian. |
+| axi_address_high     | u32      | High 32 bits of the AXI address that contains the mailbox command. Little endian. |
+
+The response will be the response of the executed external command.
+
+pub const EXTERNAL_MAILBOX_CMD: Self = Self(0x4558_544D); // "EXTM"
 
 ## Checksum
 

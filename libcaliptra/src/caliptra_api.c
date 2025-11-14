@@ -1343,7 +1343,7 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
-// Get IDev CSR
+// Get ECC384 IDev CSR
 int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp, bool async)
 {
     if (!resp)
@@ -1354,6 +1354,21 @@ int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp,
     caliptra_checksum checksum = 0;
 
     CREATE_PARCEL(p, OP_GET_IDEV_ECC384_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 IDev CSR
+int caliptra_get_idev_mldsa87_csr(struct caliptra_get_idev_mldsa87_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_IDEV_MLDSA87_CSR, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1430,6 +1445,34 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     caliptra_checksum checksum = 0;
 
     CREATE_PARCEL(p, OP_CAPABILITIES, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_SET_AUTH_MANIFEST, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_AUTHORIZE_AND_STASH, req, resp);
 
     return pack_and_execute_command(&p, async);
 }
