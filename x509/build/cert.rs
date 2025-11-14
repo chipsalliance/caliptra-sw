@@ -8,13 +8,14 @@ File Name:
 
 Abstract:
 
-    File contains generation of X509 Certificate To Be Singed (TBS) template that can be
+    File contains generation of X509 Certificate To Be Signed (TBS) template that can be
     substituted at firmware runtime.
 
 --*/
 
 use crate::tbs::{get_tbs, init_param, sanitize, TbsParam, TbsTemplate};
 use crate::x509::{self, AsymKey, FwidParam, KeyUsage, SigningAlgorithm};
+use caliptra_builder::version;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
 use openssl::stack::Stack;
@@ -245,6 +246,9 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         subject_name.append_entry_by_text("CN", subject_cn).unwrap();
         subject_name
             .append_entry_by_text("serialNumber", &subject_key.hex_str())
+            .unwrap();
+        subject_name
+            .append_entry_by_text("romVersion", version::get_rom_version())
             .unwrap();
         let subject_name = subject_name.build();
         self.builder.set_subject_name(&subject_name).unwrap();
