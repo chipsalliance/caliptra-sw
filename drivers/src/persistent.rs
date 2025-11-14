@@ -54,6 +54,9 @@ pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
+pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
+pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+pub const _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE: u32 = 4; // u8 + u8 + 2 bytes padding
 
 #[cfg(feature = "runtime")]
 // Currently only can export CDI once, but in the future we may want to support multiple exported
@@ -368,6 +371,10 @@ pub struct PersistentData {
     pub cleared_non_fatal_fw_error: u32,
 
     pub mcu_firmware_loaded: u32,
+
+    pub dpe_pl0_context_limit: u8,
+    pub dpe_pl1_context_limit: u8,
+    pub reserved12: [u8; 2], // Pad to 4 byte boundary
 }
 
 impl PersistentData {
@@ -517,6 +524,16 @@ impl PersistentData {
             persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
             assert_eq!(
                 addr_of!((*P).cleared_non_fatal_fw_error) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
+            assert_eq!(
+                addr_of!((*P).mcu_firmware_loaded) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
+            assert_eq!(
+                addr_of!((*P).dpe_pl0_context_limit) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

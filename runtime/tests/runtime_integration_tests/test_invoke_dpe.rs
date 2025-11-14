@@ -4,11 +4,10 @@ use crate::common::{
     execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
     TEST_DIGEST, TEST_LABEL,
 };
-use caliptra_api::{
-    mailbox::{CommandId, FwInfoResp},
-    SocManager,
+use caliptra_api::SocManager;
+use caliptra_common::mailbox_api::{
+    CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
-use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, SecurityState};
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
@@ -53,6 +52,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
+    assert_eq!(profile.max_tci_nodes, 32);
 }
 
 #[test]
