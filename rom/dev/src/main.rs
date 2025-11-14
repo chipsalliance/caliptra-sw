@@ -379,8 +379,7 @@ fn handle_non_fatal_error(code: u32) {
 
 #[no_mangle]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    cprintln!("[ROM] CFI Panic code=0x{:08X}", code);
-
+    cprintln!("[ROM] CFI Panic");
     handle_fatal_error(code);
 }
 

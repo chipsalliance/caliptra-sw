@@ -8,37 +8,57 @@ Abstract:
 
 --"]
 pub struct FmcAliasTbsMlDsa87Params<'a> {
-    pub ueid: &'a [u8; 17usize],
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
+    pub tcb_info_device_info_hash: &'a [u8; 48usize],
+    pub tcb_info_fmc_tci: &'a [u8; 48usize],
+    pub ueid: &'a [u8; 17usize],
+    pub tcb_info_flags: &'a [u8; 4usize],
+    pub tcb_info_fmc_svn: &'a [u8; 1usize],
+    pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
 }
 impl FmcAliasTbsMlDsa87Params<'_> {
-    pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
+    pub const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    pub const TCB_INFO_FMC_TCI_LEN: usize = 48usize;
+    pub const UEID_LEN: usize = 17usize;
+    pub const TCB_INFO_FLAGS_LEN: usize = 4usize;
+    pub const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
+    pub const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
 }
 pub struct FmcAliasTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl FmcAliasTbsMlDsa87 {
-    const UEID_OFFSET: usize = 2810usize;
     const PUBLIC_KEY_OFFSET: usize = 147usize;
     const SUBJECT_SN_OFFSET: usize = 61usize;
-    const UEID_LEN: usize = 17usize;
+    const TCB_INFO_DEVICE_INFO_HASH_OFFSET: usize = 2875usize;
+    const TCB_INFO_FMC_TCI_OFFSET: usize = 2973usize;
+    const UEID_OFFSET: usize = 2818usize;
+    const TCB_INFO_FLAGS_OFFSET: usize = 2926usize;
+    const TCB_INFO_FMC_SVN_OFFSET: usize = 2955usize;
+    const TCB_INFO_FMC_SVN_FUSES_OFFSET: usize = 2857usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
-    pub const TBS_TEMPLATE_LEN: usize = 2827usize;
+    const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    const TCB_INFO_FMC_TCI_LEN: usize = 48usize;
+    const UEID_LEN: usize = 17usize;
+    const TCB_INFO_FLAGS_LEN: usize = 4usize;
+    const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
+    const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3031usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 11u8, 7u8, 2u8, 1u8, 0u8, 48u8, 116u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8, 85u8,
-        4u8, 3u8, 12u8, 30u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8,
-        46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8, 32u8,
-        65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8,
-        64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 11u8, 211u8, 2u8, 1u8, 0u8, 48u8, 116u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8,
+        85u8, 4u8, 3u8, 12u8, 30u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
+        50u8, 46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8,
+        32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8,
+        19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8,
-        72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8,
+        134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
@@ -211,13 +231,26 @@ impl FmcAliasTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 160u8, 86u8, 48u8, 84u8, 6u8, 9u8, 42u8,
-        134u8, 72u8, 134u8, 247u8, 13u8, 1u8, 9u8, 14u8, 49u8, 71u8, 48u8, 69u8, 48u8, 18u8, 6u8,
-        3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8,
-        5u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8,
-        48u8, 31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 160u8, 130u8, 1u8, 32u8, 48u8,
+        130u8, 1u8, 28u8, 6u8, 9u8, 42u8, 134u8, 72u8, 134u8, 247u8, 13u8, 1u8, 9u8, 14u8, 49u8,
+        130u8, 1u8, 13u8, 48u8, 130u8, 1u8, 9u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8,
+        255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 3u8, 48u8, 14u8, 6u8, 3u8, 85u8,
+        29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 31u8, 6u8, 6u8, 103u8,
+        129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 129u8, 193u8,
+        6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 5u8, 4u8, 129u8, 182u8, 48u8, 129u8, 179u8, 48u8,
+        96u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8,
+        101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 135u8, 5u8, 0u8, 95u8, 95u8, 95u8,
+        95u8, 137u8, 11u8, 68u8, 69u8, 86u8, 73u8, 67u8, 69u8, 95u8, 73u8, 78u8, 70u8, 79u8, 138u8,
+        5u8, 0u8, 208u8, 0u8, 0u8, 1u8, 48u8, 79u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8,
+        6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        137u8, 8u8, 70u8, 77u8, 67u8, 95u8, 73u8, 78u8, 70u8, 79u8,
     ];
     pub fn new(params: &FmcAliasTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -238,12 +271,11 @@ impl FmcAliasTbsMlDsa87 {
     fn apply(&mut self, params: &FmcAliasTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 2827usize],
+            buf: &mut [u8; 3031usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
         }
-        apply_slice::<{ Self::UEID_OFFSET }, { Self::UEID_LEN }>(&mut self.tbs, params.ueid);
         apply_slice::<{ Self::PUBLIC_KEY_OFFSET }, { Self::PUBLIC_KEY_LEN }>(
             &mut self.tbs,
             params.public_key,
@@ -251,6 +283,27 @@ impl FmcAliasTbsMlDsa87 {
         apply_slice::<{ Self::SUBJECT_SN_OFFSET }, { Self::SUBJECT_SN_LEN }>(
             &mut self.tbs,
             params.subject_sn,
+        );
+        apply_slice::<
+            { Self::TCB_INFO_DEVICE_INFO_HASH_OFFSET },
+            { Self::TCB_INFO_DEVICE_INFO_HASH_LEN },
+        >(&mut self.tbs, params.tcb_info_device_info_hash);
+        apply_slice::<{ Self::TCB_INFO_FMC_TCI_OFFSET }, { Self::TCB_INFO_FMC_TCI_LEN }>(
+            &mut self.tbs,
+            params.tcb_info_fmc_tci,
+        );
+        apply_slice::<{ Self::UEID_OFFSET }, { Self::UEID_LEN }>(&mut self.tbs, params.ueid);
+        apply_slice::<{ Self::TCB_INFO_FLAGS_OFFSET }, { Self::TCB_INFO_FLAGS_LEN }>(
+            &mut self.tbs,
+            params.tcb_info_flags,
+        );
+        apply_slice::<{ Self::TCB_INFO_FMC_SVN_OFFSET }, { Self::TCB_INFO_FMC_SVN_LEN }>(
+            &mut self.tbs,
+            params.tcb_info_fmc_svn,
+        );
+        apply_slice::<{ Self::TCB_INFO_FMC_SVN_FUSES_OFFSET }, { Self::TCB_INFO_FMC_SVN_FUSES_LEN }>(
+            &mut self.tbs,
+            params.tcb_info_fmc_svn_fuses,
         );
     }
 }
