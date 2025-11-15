@@ -407,6 +407,7 @@ pub struct ModelFpgaSubsystem {
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
     pub bootfsm_break: bool,
+    last_recovery_block_written_at: Option<u64>,
 }
 
 impl ModelFpgaSubsystem {
@@ -739,12 +740,20 @@ impl ModelFpgaSubsystem {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
+                self.last_recovery_block_written_at = Some(self.cycle_count());
                 if self.recovery_fifo_blocks.is_empty() {
                     println!(
                         "Sent last block of recovery image; waiting for Caliptra to process it"
                     );
+                    self.last_recovery_block_written_at = None;
                 }
                 return;
+            } else {
+                if let Some(last_written_at) = self.last_recovery_block_written_at {
+                    if self.cycle_count() > last_written_at + 10_000_000 {
+                        panic!("Last recovery block written at cycle {} and it is now {}; cowardly refusing to continue", last_written_at, self.cycle_count());
+                    }
+                }
             }
         }
 
@@ -1476,6 +1485,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
             bootfsm_break: params.bootfsm_break,
+            last_recovery_block_written_at: None,
         };
 
         println!("AXI reset");
