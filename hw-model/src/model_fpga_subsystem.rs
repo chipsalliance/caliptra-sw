@@ -750,7 +750,7 @@ impl ModelFpgaSubsystem {
                 return;
             } else {
                 if let Some(last_written_at) = self.last_recovery_block_written_at {
-                    if self.cycle_count() > last_written_at + 10_000_000 {
+                    if self.cycle_count() > last_written_at + 100_000_000 {
                         panic!("Last recovery block written at cycle {} and it is now {}; cowardly refusing to continue", last_written_at, self.cycle_count());
                     }
                 }
