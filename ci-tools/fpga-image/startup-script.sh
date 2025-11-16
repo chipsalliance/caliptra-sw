@@ -21,10 +21,16 @@ if [[ -f "/etc/no_overlayfs" ]]; then
 elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
+    # Update time. This requires a R/W file system, so it failed earlier.
+    systemctl start systemd-timesyncd
+
+    # Give the NTP service some time
+    sleep 1m
+
     # TODO(clundin): Get this at job runtime instead.
     insmod /home/runner/io-module.ko
 
-    # The VCK-190 image currently always has the same MAC. Do this for now until 
+    # The VCK-190 image currently always has the same MAC. Do this for now until
     # a better option is found.
     ip link set dev end0 down
     macchanger -r end0 || true
@@ -64,7 +70,7 @@ else
    # We need to mount the squashfs in an overlayfs. To spare myself more pain
    # wrestling with petalinux I will mount the overlay here (why not). Eventually
    # I want to do this the proper way but this will do for now.
-  
+
    LOWER_DIR="/mnt/root_base"
    MERGED_DIR="/mnt/new_root"
    UPPER_MNT="/mnt/root_overlay"
