@@ -35,13 +35,13 @@ jobs:
             image_variant: core
           - bitstream_name: xsa_core2p0_5d069408.xsa
             image_variant: core
-          - bitstream_hash: 13e787836d5277d3447940d3bd1f48e2d93445040253bfec49ef56ad2e6c72ac
+          - bitstream_hash: e63c8da0f7c14560837efb9a9e6d3abd282e6389bda40674ec8d0105ffdc6331
             image_variant: subsystem-2.0
-          - bitstream_name: xsa_ss2p0_141b54c5.xsa
+          - bitstream_name: xsa_ss2p0_494fc6f2.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: b2bf2ebd7a4ed829b8a08e249b0eee2716410995bbb8bfafb88053d25612c977
+          - bitstream_hash: a38be3cb2fd4ef968064d7d91a55dfb40e5a23bd58557295733d178c876c1fae
             image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_4686dd0d.xsa
+          - bitstream_name: xsa_ss2p1_f897b919.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
@@ -82,7 +82,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251105/${BITSTREAM_NAME}" -o /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251116/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
