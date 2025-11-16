@@ -56,321 +56,65 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  fpga-1_0-full-suite-etrng-log:
-    name: FPGA Suite (1.0, etrng, log)
+  fpga-tests:
+    name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    if: needs.find-latest-release.outputs.create_release == 'true'
     uses: ./.github/workflows/fpga.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        hw_config:
+          - { name: "1.0", hw: "1.0", rom: "1.0", suffix_prefix: "hw-1.0" }
+          - { name: "1.1", hw: "latest", rom: "1.1", suffix_prefix: "rom-1.1" }
+          - { name: "latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
+        rng:
+          - { name: "etrng", fpga_itrng: false, extra: "slow_tests" }
+          - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
     with:
-      artifact-suffix: -fpga-realtime-hw-1.0-etrng-log
-      extra-features: slow_tests
-      hw-version: "1.0"
-      rom-version: "1.0"
-      rom-logging: true
-      fpga-itrng: false
+      artifact-suffix: -fpga-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
+      extra-features: ${{ matrix.rng.extra }}
+      hw-version: ${{ matrix.hw_config.hw }}
+      rom-version: ${{ matrix.hw_config.rom }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      fpga-itrng: ${{ matrix.rng.fpga_itrng }}
       fpga-runs-on: '["caliptra-fpga-nightly"]'
 
-  fpga-1_0-full-suite-etrng-nolog:
-    name: FPGA Suite (1.0, etrng, nolog)
+  sw-emulator-tests:
+    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-hw-1.0-etrng-nolog
-      extra-features: slow_tests
-      hw-version: "1.0"
-      rom-version: "1.0"
-      rom-logging: false
-      fpga-itrng: false
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_0-full-suite-itrng-log:
-    name: FPGA Suite (1.0, itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-hw-1.0-itrng-log
-      extra-features: slow_tests,itrng
-      hw-version: "1.0"
-      rom-version: "1.0"
-      rom-logging: true
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_0-full-suite-itrng-nolog:
-    name: FPGA Suite (1.0, itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-hw-1.0-itrng-nolog
-      extra-features: slow_tests,itrng
-      hw-version: "1.0"
-      rom-version: "1.0"
-      rom-logging: false
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_1-full-suite-etrng-log:
-    name: FPGA Suite (1.1, etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-rom-1.1-etrng-log
-      extra-features: slow_tests
-      hw-version: "latest"
-      rom-version: "1.1"
-      rom-logging: true
-      fpga-itrng: false
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_1-full-suite-etrng-nolog:
-    name: FPGA Suite (1.1, etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-rom-1.1-etrng-nolog
-      extra-features: slow_tests
-      hw-version: "latest"
-      rom-version: "1.1"
-      rom-logging: false
-      fpga-itrng: false
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_1-full-suite-itrng-log:
-    name: FPGA Suite (1.1, itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-rom-1.1-itrng-log
-      extra-features: slow_tests,itrng
-      hw-version: "latest"
-      rom-version: "1.1"
-      rom-logging: true
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-1_1-full-suite-itrng-nolog:
-    name: FPGA Suite (1.1, itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-rom-1.1-itrng-nolog
-      extra-features: slow_tests,itrng
-      hw-version: "latest"
-      rom-version: "1.1"
-      rom-logging: false
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-latest-full-suite-etrng-log:
-    name: FPGA Suite (hw-latest, etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-latest-etrng-log
-      extra-features: slow_tests
-      hw-version: "latest"
-      rom-logging: true
-      fpga-itrng: false
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-latest-full-suite-etrng-nolog:
-    name: FPGA Suite (hw-latest, etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-latest-etrng-nolog
-      extra-features: slow_tests
-      hw-version: "latest"
-      rom-logging: false
-      fpga-itrng: false
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-latest-full-suite-itrng-log:
-    name: FPGA Suite (hw-latest, itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-latest-itrng-log
-      extra-features: slow_tests,itrng
-      hw-version: "latest"
-      rom-logging: true
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  fpga-latest-full-suite-itrng-nolog:
-    name: FPGA Suite (hw-latest, itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fpga.yml
-    with:
-      artifact-suffix: -fpga-realtime-latest-itrng-nolog
-      extra-features: slow_tests,itrng
-      hw-version: "latest"
-      rom-logging: false
-      fpga-itrng: true
-      fpga-runs-on: '["caliptra-fpga-nightly"]'
-
-  sw-emulator-hw-latest-full-suite-etrng-log:
-    name: sw-emulator Suite (etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    if: needs.find-latest-release.outputs.create_release == 'true'
     uses: ./.github/workflows/fw-test-emu.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # The current 1.0.x ROM used in CI will overflow the stack into unused space
+          # We disable the stack overflow check (sw_emu_stack_check_disable) when testing against that ROM
+          - { name: "1.0", rom: "1.0", suffix: "hw-1.0", base_features: "hw-1.0,slow_tests,sw_emu_stack_check_disable" }
+          - { name: "1.1", rom: "1.1", suffix: "rom-1.1", base_features: "slow_tests" }
+          - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
+        rng:
+          - { name: "etrng", extra: "" }
+          - { name: "itrng", extra: ",itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
     with:
-      artifact-suffix: -sw-emulator-hw-latest-etrng-log
-      extra-features: slow_tests
-      rom-logging: true
-
-  sw-emulator-hw-latest-full-suite-etrng-nolog:
-    name: sw-emulator Suite (etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
-      extra-features: slow_tests
-      rom-logging: false
-
-  sw-emulator-hw-latest-full-suite-itrng-log:
-    name: sw-emulator Suite (itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-latest-itrng-log
-      extra-features: slow_tests,itrng
-      rom-logging: true
-
-  sw-emulator-hw-latest-full-suite-itrng-nolog:
-    name: sw-emulator Suite (itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
-      extra-features: slow_tests,itrng
-      rom-logging: false
-
-  sw-emulator-rom-1_1-full-suite-etrng-log:
-    name: sw-emulator Suite (etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.1-etrng-log
-      extra-features: slow_tests
-      rom-logging: true
-      rom-version: "1.1"
-
-  sw-emulator-rom-1_1-full-suite-etrng-nolog:
-    name: sw-emulator Suite (etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.1-etrng-nolog
-      extra-features: slow_tests
-      rom-logging: false
-      rom-version: "1.1"
-
-  sw-emulator-rom-1_1-full-suite-itrng-log:
-    name: sw-emulator Suite (itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.1-itrng-log
-      extra-features: slow_tests,itrng
-      rom-logging: true
-      rom-version: "1.1"
-
-  sw-emulator-rom-1_1-full-suite-itrng-nolog:
-    name: sw-emulator Suite (itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.1-itrng-nolog
-      extra-features: slow_tests,itrng
-      rom-logging: false
-      rom-version: "1.1"
-
-  # The current 1.0.x ROM used in CI will overflow the stack into unused space
-  # We disable the stack overflow check (sw_emu_stack_check_disable) when testing against that ROM
-  sw-emulator-hw-1_0-full-suite-etrng-log:
-    name: sw-emulator Suite (etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.0-etrng-log
-      extra-features: hw-1.0,slow_tests,sw_emu_stack_check_disable
-      rom-logging: true
-      rom-version: "1.0"
-
-  sw-emulator-hw-1_0-full-suite-etrng-nolog:
-    name: sw-emulator Suite (etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.0-etrng-nolog
-      extra-features: hw-1.0,slow_tests,sw_emu_stack_check_disable
-      rom-logging: false
-      rom-version: "1.0"
-
-  sw-emulator-hw-1_0-full-suite-itrng-log:
-    name: sw-emulator Suite (itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.0-itrng-log
-      extra-features: hw-1.0,slow_tests,itrng,sw_emu_stack_check_disable
-      rom-logging: true
-      rom-version: "1.0"
-
-  sw-emulator-hw-1_0-full-suite-itrng-nolog:
-    name: sw-emulator Suite (itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/fw-test-emu.yml
-    with:
-      artifact-suffix: -sw-emulator-hw-1.0-itrng-nolog
-      extra-features: hw-1.0,slow_tests,itrng,sw_emu_stack_check_disable
-      rom-logging: false
-      rom-version: "1.0"
+      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
+      extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      rom-version: ${{ matrix.config.rom }}
 
   create-release:
     name: Create New Release
     needs:
       - find-latest-release
-      - fpga-1_0-full-suite-etrng-log
-      - fpga-1_0-full-suite-etrng-nolog
-      - fpga-1_0-full-suite-itrng-log
-      - fpga-1_0-full-suite-itrng-nolog
-      - fpga-latest-full-suite-etrng-log
-      - fpga-latest-full-suite-etrng-nolog
-      - fpga-latest-full-suite-itrng-log
-      - fpga-latest-full-suite-itrng-nolog
-      - sw-emulator-hw-latest-full-suite-etrng-log
-      - sw-emulator-hw-latest-full-suite-etrng-nolog
-      - sw-emulator-hw-latest-full-suite-itrng-log
-      - sw-emulator-hw-latest-full-suite-itrng-nolog
-      - sw-emulator-hw-1_0-full-suite-etrng-log
-      - sw-emulator-hw-1_0-full-suite-etrng-nolog
-      - sw-emulator-hw-1_0-full-suite-itrng-log
-      - sw-emulator-hw-1_0-full-suite-itrng-nolog
-
+      - fpga-tests
+      - sw-emulator-tests
     runs-on: ubuntu-22.04
 
     permissions:
