@@ -26,7 +26,8 @@ pub(crate) use ftdi::FtdiCtx;
 use sd_mux::{SDWire, SdMux, SdMuxTarget, UsbsdMux};
 pub(crate) use usb_port_path::UsbPortPath;
 
-const JOB_TIMEOUT: Duration = Duration::from_secs(3600);
+// 3 hours
+const JOB_TIMEOUT: Duration = Duration::from_secs(10_800);
 
 fn cli() -> clap::Command<'static> {
     clap::Command::new("fpga-boss")
