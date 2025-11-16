@@ -25,7 +25,7 @@ elif grep -q "overlay" /proc/mounts; then
     systemctl start systemd-timesyncd
 
     # Give the NTP service some time
-    sleep 5
+    sleep 1m
 
     # TODO(clundin): Get this at job runtime instead.
     insmod /home/runner/io-module.ko
