@@ -746,9 +746,9 @@ impl ModelFpgaSubsystem {
                         "Sent last block of recovery image; waiting for Caliptra to process it"
                     );
                     self.last_recovery_block_written_at = None;
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    self.print_i3c_registers();
                 }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-                self.print_i3c_registers();
                 return;
             } else {
                 if let Some(last_written_at) = self.last_recovery_block_written_at {
