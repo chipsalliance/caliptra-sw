@@ -34,6 +34,7 @@ const OPCODE_READ_PCR_RESET_COUNTER: u32 = 0xC000_0000;
 const OPCODE_CORRUPT_DPE_ROOT_TCI: u32 = 0xD000_0000;
 const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_READ_KEY_LADDER_MAX_SVN: u32 = 0xF000_0000;
+const OPCODE_OCP_LOCK_HEK_STATE: u32 = 0xF100_0000;
 const OPCODE_READ_KEY_LADDER_DIGEST: u32 = 0x1000_1000;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
@@ -241,6 +242,15 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                         .fw_key_ladder_max_svn
                         .to_le_bytes(),
                 );
+            }
+            CommandId(OPCODE_OCP_LOCK_HEK_STATE) => {
+                let hek_available = drivers
+                    .persistent_data
+                    .get()
+                    .ocp_lock_metadata
+                    .hek_available;
+                let state = U8Bool::new(hek_available);
+                write_response(&mut drivers.mbox, &state.as_bytes());
             }
             // Computes a digest from the key ladder for a given target SVN.
             CommandId(OPCODE_READ_KEY_LADDER_DIGEST) => {
