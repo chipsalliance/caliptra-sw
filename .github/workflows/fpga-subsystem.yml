@@ -296,8 +296,8 @@ jobs:
               -E 'package(caliptra-drivers) and test(test_ocp_lock)'
               -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
-              -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
-              -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
+              -E 'package(caliptra-rom) and test(test_ocp_lock)'
+              -E 'package(caliptra-runtime) and test(test_ocp_lock)'
           )
 
           # Disabled due to runtime flakiness
