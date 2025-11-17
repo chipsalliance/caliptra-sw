@@ -749,7 +749,7 @@ impl<'a> DmaRecovery<'a> {
                     })?;
                 }
 
-                let last_block = k + BLOCK_SIZE >= read_transaction.length;
+                let last_block = k + 2 * BLOCK_SIZE >= read_transaction.length;
                 if i3c && last_block {
                     cprintln!(
                         "[dma] Dispatching DMA read for bytes {} / {}",
