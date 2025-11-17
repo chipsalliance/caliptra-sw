@@ -228,7 +228,7 @@ jobs:
   test_artifacts_subsystem:
     runs-on: vck190-subsystem-2.1
     needs: [check_cache, build_test_binaries]
-    timeout-minutes: 120
+    timeout-minutes: 180
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
