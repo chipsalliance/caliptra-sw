@@ -1421,7 +1421,7 @@ impl HwModel for ModelFpgaSubsystem {
         m.axi_reset();
 
         // Set generic input wires.
-        let input_wires = [0, (!params.uds_granularity_64 as u32) << 31];
+        let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
 
         m.set_mci_generic_input_wires(&[0, 0]);
@@ -1543,11 +1543,8 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
 
-        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
-        // It looks like the words are backwards in the FPGA wrapper. Update
-        // this when the wrapper is updated.
         // Notify MCU ROM it can start loading the fuse registers
-        let gpio = &m.wrapper.regs().mci_generic_input_wires[0];
+        let gpio = &m.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
         gpio.set(current | 1 << 30);
 
@@ -1760,7 +1757,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Finished booting");
 
         // Notify MCU ROM it can start loading firmware
-        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
         gpio.set(current | 1 << 31);
 
