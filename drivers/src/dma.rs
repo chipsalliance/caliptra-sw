@@ -252,8 +252,19 @@ impl Dma {
     ///
     /// This function will block until the DMA transaction is completed successfully.
     /// On a DMA error, this will loop forever.
-    fn wait_for_dma_complete(&self) {
-        self.with_dma(|dma| while dma.status0().read().busy() {});
+    fn wait_for_dma_complete(&self, progress: Option<(usize, usize)>) {
+        let mut steps = 0;
+        self.with_dma(|dma| while dma.status0().read().busy() {
+            if dma.status0().read().error() {
+                cprintln!("DMA error!");
+                loop {}
+            }
+
+            steps += 1;
+            if progress.is_some() && steps == 1_000_000 {
+                cprintln!("Waited over 1,000,000 steps for last DMA to complete: {} / {} bytes received", progress.unwrap().0, progress.unwrap().1);
+            }
+        });
     }
 
     /// Read data from the DMA FIFO
@@ -317,7 +328,7 @@ impl Dma {
         self.flush();
         self.setup_dma_read(read_transaction, 0);
         self.dma_read_fifo(buffer);
-        self.wait_for_dma_complete();
+        self.wait_for_dma_complete(None);
     }
 
     /// Write a 32-bit word to the specified address
@@ -327,7 +338,12 @@ impl Dma {
     /// * `write_addr` - Address to write to
     /// * `write_val` - Value to write
     ///
-    pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) {
+    pub fn write_dword(
+        &self,
+        write_addr: AxiAddr,
+        write_val: u32,
+        progress: Option<(usize, usize)>,
+    ) {
         let write_transaction = DmaWriteTransaction {
             write_addr,
             fixed_addr: false,
@@ -337,7 +353,7 @@ impl Dma {
         self.flush();
         self.setup_dma_write(write_transaction, 0);
         self.dma_write_fifo(write_val);
-        self.wait_for_dma_complete();
+        self.wait_for_dma_complete(progress);
     }
 
     /// Indicates if payload is available.
@@ -399,7 +415,7 @@ impl MmioMut for &DmaMmio<'_> {
         // this will always work because we only support u32
         if let Ok(src) = src.try_into() {
             let offset = dst as usize;
-            self.dma.write_dword(self.base + offset, src);
+            self.dma.write_dword(self.base + offset, src, None);
         }
     }
 }
@@ -729,7 +745,11 @@ impl<'a> DmaRecovery<'a> {
                             read_transaction.read_addr
                                 + if read_transaction.fixed_addr { 0 } else { i },
                         );
-                        self.dma.write_dword(addr + if fixed { 0 } else { i }, word);
+                        self.dma.write_dword(
+                            addr + if fixed { 0 } else { i },
+                            word,
+                            Some((i as usize, read_transaction.length as usize)),
+                        );
                     }
                     DmaReadTarget::Mbox(offset) => {
                         let rd_tx = DmaReadTransaction {
@@ -741,7 +761,10 @@ impl<'a> DmaRecovery<'a> {
                         };
                         self.dma.flush();
                         self.dma.setup_dma_read(rd_tx, 0);
-                        self.dma.wait_for_dma_complete();
+                        self.dma.wait_for_dma_complete(Some((
+                            (offset + i) as usize,
+                            read_transaction.length as usize,
+                        )));
                     }
                     _ => panic!("DMA read target must be AxiWr"),
                 };
@@ -754,7 +777,7 @@ impl<'a> DmaRecovery<'a> {
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         self.dma.flush();
         self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);
-        self.dma.wait_for_dma_complete();
+        self.dma.wait_for_dma_complete(None);
         Ok(())
     }
 
