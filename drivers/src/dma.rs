@@ -749,6 +749,15 @@ impl<'a> DmaRecovery<'a> {
                     })?;
                 }
 
+                let last_block = k + BLOCK_SIZE >= read_transaction.length;
+                if i3c && last_block {
+                    cprintln!(
+                        "[dma] Dispatching DMA read for bytes {} / {}",
+                        i,
+                        read_transaction.length
+                    );
+                }
+
                 // translate to single dword transfer
                 match read_transaction.target {
                     DmaReadTarget::AxiWr(addr, fixed) => {
@@ -780,6 +789,9 @@ impl<'a> DmaRecovery<'a> {
                     }
                     _ => panic!("DMA read target must be AxiWr"),
                 };
+                if i3c && last_block {
+                    cprintln!("[dma] DMA read complete");
+                }
             }
         }
         Ok(())
