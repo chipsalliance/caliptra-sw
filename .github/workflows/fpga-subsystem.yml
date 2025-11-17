@@ -178,7 +178,7 @@ jobs:
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_subsystem,${{ inputs.extra-features }}
           else
-            FEATURES=fpga_subsystem,itrng
+            FEATURES=fpga_subsystem,itrng,ocp-lock
           fi
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
