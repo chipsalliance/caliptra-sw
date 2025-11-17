@@ -18,7 +18,8 @@ use caliptra_common::{
 use caliptra_drivers::{Array4x12, IdevidCertAttr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, U4,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
+    SubsystemInitParams, U4,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
@@ -690,6 +691,10 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
                 let mut hw = caliptra_hw_model::new(
                     InitParams {
                         rom: &rom,
+                        ss_init_params: SubsystemInitParams {
+                            enable_mcu_uart_log: true,
+                            ..Default::default()
+                        },
                         ..Default::default()
                     },
                     BootParams {
@@ -756,6 +761,10 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             BootParams {
@@ -772,7 +781,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
             crate::helpers::test_upload_firmware(
                 &mut hw,
                 &image_bundle.to_bytes().unwrap(),
-                FwVerificationPqcKeyType::MLDSA,
+                FwVerificationPqcKeyType::LMS,
             );
             hw.step_until_boot_status(u32::from(ColdResetComplete), true);
         } else {

@@ -53,13 +53,26 @@ const OTP_SW_MANUF_PARTITION_OFFSET: usize = 0x0F8;
 const OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET: usize = 0x300;
 // SVN_PARTITION
 const OTP_SVN_PARTITION_OFFSET: usize = 0x3B8;
-const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36;
-// VENDOR_HASHES_MANUF_PARTITION
+const OTP_SVN_PARTITION_FMC_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 0; // 4 bytes
+const OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 4; // 16 bytes
+const OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 20; // 16 bytes
+const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36; // 1 byte used
+                                                                                         // VENDOR_HASHES_MANUF_PARTITION
 const OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET: usize = 0x420;
 const FUSE_VENDOR_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET;
 const FUSE_PQC_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET + 48;
+
 // LIFECYCLE_PARTITION
 const OTP_LIFECYCLE_PARTITION_OFFSET: usize = 0xE30;
+
+// VENDOR_HASHES_PROD_PARTITION
+const OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET: usize = 0x460;
+const FUSE_OWNER_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET; // 48 bytes
+                                                                                 // VENDOR_REVOCATIONS_PROD_PARTITION
+const OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET: usize = 0x7c0;
+const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 12; // 4 bytes
+const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
+const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 20; // 4 bytes
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
@@ -1183,7 +1196,10 @@ impl ModelFpgaSubsystem {
         // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
         // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
-        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition::default())?;
+        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
+            anti_rollback_disable: u32::from(fuses.anti_rollback_disable),
+            ..Default::default()
+        })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
@@ -1207,6 +1223,49 @@ impl ModelFpgaSubsystem {
         };
         otp_data[FUSE_PQC_OFFSET] = val;
 
+        // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
+        let owner_pk_hash = fuses.owner_pk_hash.as_bytes();
+        println!(
+            "Setting owner public key hash to {:x?}",
+            HexSlice(owner_pk_hash)
+        );
+        otp_data[FUSE_OWNER_PKHASH_OFFSET..FUSE_OWNER_PKHASH_OFFSET + owner_pk_hash.len()]
+            .copy_from_slice(owner_pk_hash);
+
+        // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
+        // Note: ECC revocation in API is a 4-bit value; store in low bits of u32 here.
+        let vendor_ecc_revocation: u32 = (u32::from(fuses.fuse_ecc_revocation)) & 0xF;
+        let vendor_lms_revocation: u32 = fuses.fuse_lms_revocation;
+        let vendor_mldsa_revocation: u32 = fuses.fuse_mldsa_revocation;
+        println!(
+            "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
+            vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
+        );
+        otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
+            .copy_from_slice(&vendor_ecc_revocation.to_le_bytes());
+        otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
+            .copy_from_slice(&vendor_lms_revocation.to_le_bytes());
+        otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
+            .copy_from_slice(&vendor_mldsa_revocation.to_le_bytes());
+
+        // Firmware/runtime SVN (16 bytes -> 4 words)
+        let fw_svn = fuses.fw_svn.as_bytes();
+        println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
+        otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
+            ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
+            .copy_from_slice(fw_svn);
+
+        // SoC manifest SVN (16 bytes -> 4 words)
+        let soc_manifest_svn = fuses.soc_manifest_svn.as_bytes();
+        println!(
+            "Setting SoC manifest SVN to {:x?}",
+            HexSlice(soc_manifest_svn)
+        );
+        otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
+            ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
+            .copy_from_slice(soc_manifest_svn);
+
+        // Max SOC Manifest SVN (1 byte used)
         println!(
             "Burning fuse for SOC MAX SVN {}",
             fuses.soc_manifest_max_svn
