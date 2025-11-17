@@ -185,9 +185,11 @@ jobs:
           fi
           cargo nextest archive \
             --features=${FEATURES} \
+            --package caliptra-runtime
             --release \
             --target=aarch64-unknown-linux-gnu \
             --archive-file=/tmp/caliptra-test-binaries.tar.zst
+            --filter-expr 'test(/^test_reallocate_dpe_context_limits::test_pl0_pl1_reallocation_call_outside_pl0$/)'
 
           mkdir /tmp/caliptra-test-binaries/
           tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/

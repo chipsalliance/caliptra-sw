@@ -13,20 +13,6 @@ on:
         default: "main"
         type: string
 
-  pull_request:
-    inputs:
-      todo-remove-before-merging:
-        default: ""
-        type: string
-      hw-version:
-        default: "latest"
-        type: string
-      rom-ref:
-        default: "main"
-        type: string
-      firmware-version:
-        default: "main"
-        type: string
 
 jobs:
   fpga-full-suite-etrng-log:

@@ -1744,12 +1744,20 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn set_axi_user(&mut self, pauser: u32) {
+        println!("Setting AXI user to {:x}", pauser);
+        println!("Arm user");
         self.wrapper.regs().arm_user.set(pauser);
+        println!("LSU user");
         self.wrapper.regs().lsu_user.set(pauser);
+        println!("IFU user");
         self.wrapper.regs().ifu_user.set(pauser);
+        println!("DMA AXI user");
         self.wrapper.regs().dma_axi_user.set(pauser);
+        println!("SOC Config user");
         self.wrapper.regs().soc_config_user.set(pauser);
+        println!("SRAM Config user");
         self.wrapper.regs().sram_config_user.set(pauser);
+        println!("Setting AXI user done");
     }
 
     fn events_from_caliptra(&mut self) -> Vec<Event> {
