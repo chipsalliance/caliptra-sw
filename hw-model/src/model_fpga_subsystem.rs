@@ -1638,11 +1638,8 @@ impl HwModel for ModelFpgaSubsystem {
         self.init_otp(&boot_params.fuses)?;
         HwModel::init_fuses(self, &boot_params.fuses);
 
-        // TODO(zhalvorsen): this should be referencing the other MCI GPIO word.
-        // It looks like the words are backwards in the FPGA wrapper. Update
-        // this when the wrapper is updated.
         // Notify MCU ROM it can start loading the fuse registers
-        let gpio = &self.wrapper.regs().mci_generic_input_wires[0];
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
         gpio.set(current | 1 << 30);
 
