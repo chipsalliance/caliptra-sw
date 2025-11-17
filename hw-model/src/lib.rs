@@ -109,6 +109,8 @@ pub type DefaultHwModel = ModelFpgaSubsystem;
 
 pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
+pub type ModelCallback = Box<dyn FnOnce(&mut DefaultHwModel)>;
+
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
 /// function over HwModel::new_unbooted().
@@ -278,6 +280,10 @@ pub struct InitParams<'a> {
 
     // Subsystem initialization parameters.
     pub ss_init_params: SubsystemInitParams<'a>,
+
+    /// ROM Mailbox Handler callback
+    /// Some tests need to access the ROM mailbox, and then continue booting to RT
+    pub rom_callback: Option<ModelCallback>,
 }
 
 impl Default for InitParams<'_> {
@@ -328,6 +334,7 @@ impl Default for InitParams<'_> {
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
             ss_init_params: Default::default(),
+            rom_callback: None,
         }
     }
 }
