@@ -303,9 +303,9 @@ impl Dma {
     /// # Returns
     ///
     /// * `u32` - Read value
-    pub fn read_dword(&self, read_addr: AxiAddr) -> u32 {
+    pub fn read_dword(&self, read_addr: AxiAddr, progress: Option<(usize, usize)>) -> u32 {
         let mut read_val = [0u32; 1];
-        self.read_buffer(read_addr, &mut read_val);
+        self.read_buffer(read_addr, &mut read_val, progress);
         read_val[0]
     }
 
@@ -316,7 +316,12 @@ impl Dma {
     /// * `read_addr` - Address to read from
     /// * `buffer`  - Target location to read to
     ///
-    pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u32]) {
+    pub fn read_buffer(
+        &self,
+        read_addr: AxiAddr,
+        buffer: &mut [u32],
+        progress: Option<(usize, usize)>,
+    ) {
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr: false,
@@ -328,7 +333,7 @@ impl Dma {
         self.flush();
         self.setup_dma_read(read_transaction, 0);
         self.dma_read_fifo(buffer);
-        self.wait_for_dma_complete(None);
+        self.wait_for_dma_complete(progress);
     }
 
     /// Write a 32-bit word to the specified address
@@ -399,7 +404,7 @@ impl Mmio for &DmaMmio<'_> {
             unreachable!();
         }
         let offset = src as usize;
-        let a = self.dma.read_dword(self.base + offset);
+        let a = self.dma.read_dword(self.base + offset, None);
         // try_into() will always succeed since we only support u32
         a.try_into().unwrap_or_default()
     }
@@ -744,6 +749,7 @@ impl<'a> DmaRecovery<'a> {
                         let word = self.dma.read_dword(
                             read_transaction.read_addr
                                 + if read_transaction.fixed_addr { 0 } else { i },
+                            Some((i as usize, read_transaction.length as usize)),
                         );
                         self.dma.write_dword(
                             addr + if fixed { 0 } else { i },

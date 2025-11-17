@@ -159,7 +159,7 @@ pub fn validate_debug_unlock_token(
     let debug_auth_pk_hash_base = mci_base + debug_auth_pk_offset;
 
     let mut fuse_digest: [u32; 12] = [0; 12];
-    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
+    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest, None);
 
     // Verify the fuse digest matches with the ECC and MLDSA public key digest.
     let fuse_digest = Array4x12::from(fuse_digest);
