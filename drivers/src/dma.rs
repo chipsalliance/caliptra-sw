@@ -771,6 +771,9 @@ impl<'a> DmaRecovery<'a> {
                             word,
                             Some((i as usize, read_transaction.length as usize)),
                         );
+                        if i3c && last_block {
+                            cprintln!("[dma] DMA read complete: {:08x}", word);
+                        }
                     }
                     DmaReadTarget::Mbox(offset) => {
                         let rd_tx = DmaReadTransaction {
@@ -789,9 +792,6 @@ impl<'a> DmaRecovery<'a> {
                     }
                     _ => panic!("DMA read target must be AxiWr"),
                 };
-                if i3c && last_block {
-                    cprintln!("[dma] DMA read complete");
-                }
             }
         }
         Ok(())

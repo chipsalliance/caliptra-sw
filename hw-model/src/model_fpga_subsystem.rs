@@ -743,7 +743,8 @@ impl ModelFpgaSubsystem {
                 self.last_recovery_block_written_at = Some(self.cycle_count());
                 if self.recovery_fifo_blocks.is_empty() {
                     println!(
-                        "Sent last block of recovery image; waiting for Caliptra to process it"
+                        "Sent last block of recovery image; waiting for Caliptra to process it; last bytes: {:02x?}",
+                        &chunk,
                     );
                     self.last_recovery_block_written_at = None;
                     std::thread::sleep(std::time::Duration::from_millis(10));
@@ -897,12 +898,22 @@ impl ModelFpgaSubsystem {
     fn print_i3c_registers(&mut self) {
         println!("Dumping registers");
         println!(
+            "stby_cr_intr_status: {:08x}",
+            u32::from(
+                self.i3c_core()
+                    .stdby_ctrl_mode()
+                    .stby_cr_intr_status()
+                    .read()
+            )
+            .swap_bytes()
+        );
+        println!(
+            "tti interrupt_status: {:08x}",
+            u32::from(self.i3c_core().tti().interrupt_status().read()).swap_bytes()
+        );
+        println!(
             "sec_fw_recovery_if_prot_cap_0: {:08x}",
-            self.i3c_core()
-                .sec_fw_recovery_if()
-                .prot_cap_0()
-                .read()
-                .swap_bytes()
+            u32::from(self.i3c_core().sec_fw_recovery_if().prot_cap_0().read()).swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_prot_cap_1: {:08x}",
