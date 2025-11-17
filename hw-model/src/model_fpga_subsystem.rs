@@ -747,6 +747,7 @@ impl ModelFpgaSubsystem {
                     );
                     self.last_recovery_block_written_at = None;
                     std::thread::sleep(std::time::Duration::from_millis(10));
+                    self.handle_log();
                     self.print_i3c_registers();
                 }
                 return;
