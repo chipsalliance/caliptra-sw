@@ -102,3 +102,4 @@ fpga_subsystem = [
     "caliptra-hw-model/fpga_subsystem",
 ]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+ocp-lock = ["caliptra-hw-model/ocp-lock"]
