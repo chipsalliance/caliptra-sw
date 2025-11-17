@@ -254,15 +254,21 @@ impl Dma {
     /// On a DMA error, this will loop forever.
     fn wait_for_dma_complete(&self, progress: Option<(usize, usize)>) {
         let mut steps = 0;
-        self.with_dma(|dma| while dma.status0().read().busy() {
-            if dma.status0().read().error() {
-                cprintln!("DMA error!");
-                loop {}
-            }
+        self.with_dma(|dma| {
+            while dma.status0().read().busy() {
+                if dma.status0().read().error() {
+                    cprintln!("DMA error!");
+                    loop {}
+                }
 
-            steps += 1;
-            if progress.is_some() && steps == 1_000_000 {
-                cprintln!("Waited over 1,000,000 steps for last DMA to complete: {} / {} bytes received", progress.unwrap().0, progress.unwrap().1);
+                steps += 1;
+                if progress.is_some() && steps == 10_000 {
+                    cprintln!(
+                        "Waited over 10,000 steps for last DMA to complete: {} / {} bytes received",
+                        progress.unwrap().0,
+                        progress.unwrap().1
+                    );
+                }
             }
         });
     }
