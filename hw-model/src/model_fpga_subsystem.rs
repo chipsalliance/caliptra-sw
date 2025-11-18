@@ -74,6 +74,16 @@ const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PAR
 const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
 const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 20; // 4 bytes
                                                                                                 // LIFECYCLE_PARTITION
+// CPTRA_SS_LOCK_HEK_PROD partitions
+const OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET: usize = 0xCB0;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_7_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET + 48;
+// LIFECYCLE_PARTITION
 const OTP_LIFECYCLE_PARTITION_OFFSET: usize = 0xE30;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
@@ -1370,6 +1380,11 @@ impl ModelFpgaSubsystem {
         otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
             ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
             .copy_from_slice(soc_manifest_svn);
+
+        println!("Provisioning CPTRA_SS_LOCK_HEK_PROD_0 partition.");
+        let hek_seed_bytes = self.fuses.hek_seed.as_bytes();
+        let offset = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET;
+        otp_data[offset..offset + hek_seed_bytes.len()].copy_from_slice(hek_seed_bytes);
 
         // Max SOC Manifest SVN (1 byte used)
         println!(

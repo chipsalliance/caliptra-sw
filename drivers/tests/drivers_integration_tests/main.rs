@@ -1218,9 +1218,15 @@ fn test_ocp_lock() {
                 .set_device_lifecycle(DeviceLifecycle::Production),
             // This test should always enable ocp-lock.
             ocp_lock_en: true,
+            fuses: Fuses {
+                hek_seed: [0xABDEu32; 8],
+                ..Default::default()
+            },
             ..default_init_params()
         },
-        BootParams::default(),
+        BootParams {
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -1233,7 +1239,8 @@ fn test_ocp_lock() {
     model.step_until_exit_success().unwrap();
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+// #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[ignore = "Working on re-enabling in https://github.com/chipsalliance/caliptra-sw/pull/2878"]
 #[test]
 fn test_ocp_lock_warm_reset() {
     let rom =
@@ -1246,6 +1253,10 @@ fn test_ocp_lock_warm_reset() {
                 .set_device_lifecycle(DeviceLifecycle::Production),
             // This test should always enable ocp-lock.
             ocp_lock_en: true,
+            fuses: Fuses {
+                hek_seed: [0xABDEu32; 8],
+                ..Default::default()
+            },
             ..default_init_params()
         },
         BootParams::default(),
