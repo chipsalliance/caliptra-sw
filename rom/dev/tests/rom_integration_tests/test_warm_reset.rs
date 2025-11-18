@@ -13,6 +13,7 @@ use caliptra_common::{fips::FipsVersionCmd, mailbox_api::CommandId, RomBootStatu
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
+    SubsystemInitParams,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::image_pk_desc_hash;
@@ -66,6 +67,10 @@ fn test_warm_reset_success() {
         InitParams {
             rom: &rom,
             security_state,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
@@ -349,6 +354,10 @@ fn test_warm_reset_version() {
         InitParams {
             rom: &rom,
             security_state,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params.clone(),
