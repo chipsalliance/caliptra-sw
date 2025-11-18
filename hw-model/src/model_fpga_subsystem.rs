@@ -739,6 +739,11 @@ impl ModelFpgaSubsystem {
             if empty {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
+                println!(
+                    "Sending recovery block {} (len {})",
+                    self.blocks_sent,
+                    chunk.len()
+                );
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
                 self.last_recovery_block_written_at = Some(self.cycle_count());
                 if self.recovery_fifo_blocks.is_empty() {
@@ -840,8 +845,14 @@ impl ModelFpgaSubsystem {
                 // while image.len() % 256 != 0 {
                 //     image.push(0);
                 // }
-                self.recovery_fifo_blocks = image.chunks(8).map(|chunk| chunk.to_vec()).collect();
+                self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
                 self.recovery_fifo_blocks.reverse(); // reverse so we can pop from the end
+                println!(
+                    "Chunks = {}, first chunk len = {}, last chunk len = {}",
+                    self.recovery_fifo_blocks.len(),
+                    self.recovery_fifo_blocks[0].len(),
+                    self.recovery_fifo_blocks.last().unwrap().len()
+                );
             }
             _ => todo!(),
         }
