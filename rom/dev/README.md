@@ -248,9 +248,16 @@ The following flows are conducted when the ROM is operating in the manufacturing
 #### UDS Provisioning
 1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register is set. If the bit is set, ROM initiates the UDS seed programming flow by setting the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register. If the flow fails at some point past reading the REQ bits, the flow will be aborted and an error returned.
 
-2. ROM then retrieves a 512-bit value from the iTRNG, the UDS Seed programming base address from the `SS_UDS_SEED_BASE_ADDR_L` and `SS_UDS_SEED_BASE_ADDR_H` registers and the Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
+2. ROM then retrieves the following values:
+    - A 512-bit value from the iTRNG.
+    - The UDS Seed programming base address from the `SS_UDS_SEED_BASE_ADDR_L` and `SS_UDS_SEED_BASE_ADDR_H` registers.
+    - The Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
 3. ROM then retrieves the UDS granularity from the `CPTRA_GENERIC_INPUT_WIRES` register0 Bit31 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.  If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
+
+4. ROM computes the following values:
+    - DA_IDLE bit offset: (`CPTRA_GENERIC_INPUT_WIRES` register0 >> 16) & 0xFFFF
+    - `DIRECT_ACCESS_CMD` address: (`CPTRA_GENERIC_INPUT_WIRES` register1) & 0xFFFF + Fuse Controller's base address.    
 
 4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
     1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit (Bit-21) of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
