@@ -535,7 +535,7 @@ impl<'a> DmaRecovery<'a> {
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 
@@ -567,7 +567,7 @@ impl<'a> DmaRecovery<'a> {
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 
@@ -580,12 +580,6 @@ impl<'a> DmaRecovery<'a> {
 
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-
-            // set RESET signal to indirect control to load the next image
-            recovery
-                .indirect_fifo_ctrl_0()
-                .modify(|val| val.reset(Self::RESET_VAL));
-
             // Set PROT_CAP2.AGENT_CAPS
             // - Bit0  to 1 ('Device ID support')
             // - Bit4  to 1 ('Device Status support')
