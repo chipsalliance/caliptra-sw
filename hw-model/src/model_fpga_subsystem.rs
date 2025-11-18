@@ -1826,6 +1826,12 @@ impl HwModel for ModelFpgaSubsystem {
                 .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
         });
     }
+
+    fn cold_reset(&mut self) {
+        self.set_subsystem_reset(true);
+        std::thread::sleep(std::time::Duration::from_micros(1));
+        self.set_subsystem_reset(false);
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {
