@@ -581,10 +581,10 @@ impl<'a> DmaRecovery<'a> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // set RESET signal to indirect control to load the next image
-            recovery
-                .indirect_fifo_ctrl_0()
-                .modify(|val| val.reset(Self::RESET_VAL));
+            // // set RESET signal to indirect control to load the next image
+            // recovery
+            //     .indirect_fifo_ctrl_0()
+            //     .modify(|val| val.reset(Self::RESET_VAL));
 
             // Set PROT_CAP2.AGENT_CAPS
             // - Bit0  to 1 ('Device ID support')
