@@ -128,8 +128,6 @@ pub extern "C" fn rom_entry() -> ! {
 
     if env.soc_ifc.ocp_lock_enabled() {
         cprintln!("[ROM] OCP-LOCK Supported");
-    } else {
-        cprintln!("[ROM] OCP-LOCK Unsupported");
     }
 
     // Set the ROM version

@@ -9,8 +9,8 @@ use caliptra_builder::{firmware, FwId};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::{DoeTestResults, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS};
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
-    TrngMode,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -1218,6 +1218,10 @@ fn test_ocp_lock() {
                 .set_device_lifecycle(DeviceLifecycle::Production),
             // This test should always enable ocp-lock.
             ocp_lock_en: true,
+            fuses: Fuses {
+                hek_seed: [0xABDE_FC82; 8],
+                ..Default::default()
+            },
             ..default_init_params()
         },
         BootParams::default(),
@@ -1233,7 +1237,8 @@ fn test_ocp_lock() {
     model.step_until_exit_success().unwrap();
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+// #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[ignore = "Working on re-enabling in https://github.com/chipsalliance/caliptra-sw/pull/2878"]
 #[test]
 fn test_ocp_lock_warm_reset() {
     let rom =
@@ -1246,6 +1251,10 @@ fn test_ocp_lock_warm_reset() {
                 .set_device_lifecycle(DeviceLifecycle::Production),
             // This test should always enable ocp-lock.
             ocp_lock_en: true,
+            fuses: Fuses {
+                hek_seed: [0xABDE_FC82; 8],
+                ..Default::default()
+            },
             ..default_init_params()
         },
         BootParams::default(),

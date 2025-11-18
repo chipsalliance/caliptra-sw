@@ -14,7 +14,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 /// Temporary checksum. This will be calculated from the full keyladder.
 const EXPECTED_MEK_CHECKSUM: [u8; 16] = [
-    243, 22, 202, 155, 137, 240, 133, 174, 210, 161, 117, 101, 142, 173, 20, 197,
+    73, 146, 30, 45, 219, 194, 205, 122, 216, 126, 125, 129, 216, 54, 127, 49,
 ];
 
 // TODO(clundin): Follow up with the following test cases:

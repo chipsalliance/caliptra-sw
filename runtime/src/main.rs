@@ -71,6 +71,12 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[state] CFI Disabled");
     }
 
+    if drivers.ocp_lock_context.available() {
+        cprintln!("[rt] OCP LOCK Supported");
+    } else {
+        cprintln!("[rt] OCP LOCK Unsupported");
+    }
+
     drivers.run_reset_flow().unwrap_or_else(|e| {
         cprintln!("[rt] RT failed reset flow");
         handle_fatal_error(e.into());

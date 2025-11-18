@@ -66,7 +66,7 @@ fn test_hek_seed_fuse_bank() {
     let test_regs = TestRegisters::default();
     let fuse_bank = test_regs.soc.fuse_bank().ocp_hek_seed();
     // Check hard coded hek seed from test MCU ROM.
-    assert_eq!(fuse_bank, [0xABDEu32; 8].into());
+    assert_eq!(fuse_bank, [0xABDE_FC82u32; 8].into());
 }
 
 // TODO(clundin): Verify decrypted contents
