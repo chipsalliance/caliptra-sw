@@ -414,7 +414,7 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
-                let boot_timeout = Duration::from_secs(60);
+                let boot_timeout = Duration::from_secs(180);
                 let (uart_rx, mut uart_tx) = ftdi_uart::open_blocking(
                     get_zcu104_path()?,
                     ftdi_interface::INTERFACE_B,
