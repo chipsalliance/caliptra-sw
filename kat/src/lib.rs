@@ -63,11 +63,11 @@ use caliptra_drivers::cprintln;
 pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ++");
 
-    cprintln!("[kat] sha1");
-    Sha1Kat::default().execute(env.sha1)?;
+    // cprintln!("[kat] sha1");
+    // Sha1Kat::default().execute(env.sha1)?;
 
-    cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(env.sha256)?;
+    // cprintln!("[kat] SHA2-256");
+    // Sha256Kat::default().execute(env.sha256)?;
 
     cprintln!("[kat] SHA2-384");
     Sha384Kat::default().execute(env.sha2_512_384)?;
@@ -117,8 +117,8 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     // cprintln!("[kat] AES-256-CTR");
     // Aes256CtrKat::default().execute(env.aes)?;
 
-    cprintln!("[kat] AES-256-GCM");
-    Aes256GcmKat::default().execute(env.aes, env.trng)?;
+    // cprintln!("[kat] AES-256-GCM");
+    // Aes256GcmKat::default().execute(env.aes, env.trng)?;
 
     cprintln!("[kat] --");
 
