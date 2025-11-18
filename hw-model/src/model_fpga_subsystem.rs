@@ -740,9 +740,14 @@ impl ModelFpgaSubsystem {
                 let chunk = self.recovery_fifo_blocks.pop().unwrap();
                 self.blocks_sent += 1;
                 println!(
-                    "Sending recovery block {} (len {})",
+                    "Sending recovery block {} (len {}) (last dword = {:08x})",
                     self.blocks_sent,
-                    chunk.len()
+                    chunk.len(),
+                    chunk[chunk.len() - 4..]
+                        .chunks(4)
+                        .next()
+                        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                        .unwrap_or(0)
                 );
                 self.recovery_block_write_request(RecoveryCommandCode::IndirectFifoData, &chunk);
                 self.last_recovery_block_written_at = Some(self.cycle_count());

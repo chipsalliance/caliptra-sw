@@ -737,6 +737,8 @@ impl<'a> DmaRecovery<'a> {
             )
         };
 
+        let mut word = 0u32;
+
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
             cprintln!("[dma] Reading block {}", k / BLOCK_SIZE);
             for j in (0..BLOCK_SIZE).step_by(4) {
@@ -770,7 +772,7 @@ impl<'a> DmaRecovery<'a> {
                 // translate to single dword transfer
                 match read_transaction.target {
                     DmaReadTarget::AxiWr(addr, fixed) => {
-                        let word = self.dma.read_dword(
+                        word = self.dma.read_dword(
                             read_transaction.read_addr
                                 + if read_transaction.fixed_addr { 0 } else { i },
                             Some((i as usize, read_transaction.length as usize)),
@@ -804,10 +806,16 @@ impl<'a> DmaRecovery<'a> {
                                 mbox[(offset + i) as usize / 4]
                             );
                         }
+                        word = mbox[(offset + i) as usize / 4];
                     }
                     _ => panic!("DMA read target must be AxiWr"),
                 };
             }
+            cprintln!(
+                "[dma] Reading block {} done, last dword: {:08x}",
+                k / BLOCK_SIZE,
+                word,
+            );
         }
         Ok(())
     }
