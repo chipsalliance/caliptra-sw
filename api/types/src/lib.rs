@@ -218,6 +218,7 @@ impl TryFrom<u32> for U4 {
 pub struct Fuses {
     pub uds_seed: [u32; 16],
     pub field_entropy: [u32; 8],
+    pub hek_seed: [u32; 8],
     pub vendor_pk_hash: [u32; 12],
     pub fuse_ecc_revocation: U4,
     pub owner_pk_hash: [u32; 12],
@@ -240,6 +241,7 @@ impl Default for Fuses {
         Self {
             uds_seed: DEFAULT_UDS_SEED,
             field_entropy: DEFAULT_FIELD_ENTROPY,
+            hek_seed: [0; 8],
             vendor_pk_hash: Default::default(),
             fuse_ecc_revocation: Default::default(),
             owner_pk_hash: Default::default(),

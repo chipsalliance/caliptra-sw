@@ -131,6 +131,7 @@ pub struct RuntimeTestArgs<'a> {
     pub security_state: Option<SecurityState>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub hek_seed: Option<[u32; 8]>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
 }
@@ -152,6 +153,7 @@ impl Default for RuntimeTestArgs<'_> {
             security_state: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
+            hek_seed: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
         }
@@ -279,6 +281,7 @@ pub fn start_rt_test_pqc_model(
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
             fuses: Fuses {
+                hek_seed: args.hek_seed.unwrap_or([0; 8]),
                 fuse_pqc_key_type: pqc_key_type as u32,
                 vendor_pk_hash,
                 owner_pk_hash,
