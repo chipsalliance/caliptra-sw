@@ -1408,14 +1408,6 @@ impl HwModel for ModelFpgaSubsystem {
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
         let realtime_wrapper = wrapper.clone();
 
-        let realtime_thread = Some(std::thread::spawn(move || {
-            Self::realtime_thread_itrng_fn(
-                realtime_wrapper,
-                realtime_thread_exit_flag2,
-                params.itrng_nibbles,
-            )
-        }));
-
         let xi3c_config = xi3c::Config {
             device_id: 0,
             base_address: i3c_controller_mmio,
@@ -1463,7 +1455,7 @@ impl HwModel for ModelFpgaSubsystem {
             lc_mmio,
 
             otp_init: vec![],
-            realtime_thread,
+            realtime_thread: None,
             realtime_thread_exit_flag,
 
             output,
@@ -1482,6 +1474,16 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("AXI reset");
         m.axi_reset();
+
+        // Wait until after AXI reset to start the thread so we can guarantee the wrapper is not
+        // used while reset is happening. Doing so could cause the AXI bus to hang.
+        m.realtime_thread = Some(std::thread::spawn(move || {
+            Self::realtime_thread_itrng_fn(
+                realtime_wrapper,
+                realtime_thread_exit_flag2,
+                params.itrng_nibbles,
+            )
+        }));
 
         // Set generic input wires.
         let input_wires = [0, (!params.uds_granularity_64 as u32) << 31];
@@ -1823,6 +1825,12 @@ impl HwModel for ModelFpgaSubsystem {
             hw.mci_boot_milestones()
                 .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
         });
+    }
+
+    fn cold_reset(&mut self) {
+        self.set_subsystem_reset(true);
+        std::thread::sleep(std::time::Duration::from_micros(1));
+        self.set_subsystem_reset(false);
     }
 }
 
