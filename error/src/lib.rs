@@ -1598,6 +1598,21 @@ impl CaliptraError {
             0x000E006F,
             "Runtime Error: FE programming invalid partition number"
         ),
+        (
+            RUNTIME_UDS_FE_ZEROIZATION_INTERNAL_ERROR,
+            0x000E0070,
+            "Runtime Error: FE and UDS zeroization internal error"
+        ),
+        (
+            RUNTIME_FE_ZEROIZATION_FAILED,
+            0x000E0071,
+            "Runtime Error: FE zeroization failed"
+        ),
+        (
+            RUNTIME_UDS_ZEROIZATION_FAILED,
+            0x000E0072,
+            "Runtime Error: UDS zeroization failed"
+        ),        
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,

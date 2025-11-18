@@ -28,7 +28,7 @@ pub enum UdsFeProgrammingFlow {
 
 const UDS_SEED_SIZE: usize = 64;
 const FUSE_CTRL_DIGEST: usize = 8;
-const FE_SIZE: usize = 8;
+const FE_PARTITION_SIZE: usize = 8;
 const MAX_FE_PARTITION: u32 = 3;
 
 impl UdsFeProgrammingFlow {
@@ -55,7 +55,7 @@ impl UdsFeProgrammingFlow {
     fn seed_length_words(self) -> usize {
         match self {
             UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE / size_of::<u32>(), // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe { partition: _ } => FE_SIZE / size_of::<u32>(), // 8 bytes = 2 u32 words
+            UdsFeProgrammingFlow::Fe { partition: _ } => FE_PARTITION_SIZE / size_of::<u32>(), // 8 bytes = 2 u32 words
         }
     }
 
@@ -106,8 +106,23 @@ impl UdsFeProgrammingFlow {
             Self::Uds => uds_seed_dest,
             Self::Fe { partition } => {
                 // FE partitions start at the same base address with partition spacing (16 bytes each)
-                uds_seed_dest + (partition * (FE_SIZE + FUSE_CTRL_DIGEST) as u32)
+                uds_seed_dest + (partition * (FE_PARTITION_SIZE + FUSE_CTRL_DIGEST) as u32) // + 72 BUG!!!
             }
+        }
+    }
+
+    fn get_fe_digest_address(&self, soc_ifc: &SocIfc) -> CaliptraResult<u32> {
+        let uds_seed_dest = soc_ifc.uds_seed_dest_base_addr_low();
+
+        match self {
+            Self::Fe { partition } => {
+                // FE partition digest address is offset by 8 bytes from partition base
+                let digest_addr = uds_seed_dest
+                    + (partition * (FE_PARTITION_SIZE + FUSE_CTRL_DIGEST) as u32)
+                    + FE_PARTITION_SIZE as u32;
+                Ok(digest_addr)
+            }
+            _ => Err(CaliptraError::RUNTIME_UDS_FE_ZEROIZATION_INTERNAL_ERROR),
         }
     }
 
@@ -211,6 +226,155 @@ impl UdsFeProgrammingFlow {
         );
 
         cprintln!("[{}] --", self.prefix());
+
+        result
+    }
+
+    /// Zeroize either UDS (64 bytes) or an FE partition (8 bytes) based on the enum variant
+    ///
+    /// # Arguments
+    /// * `soc_ifc` - SoC interface for accessing fuse controller and related registers
+    /// * `dma` - DMA engine for OTP control
+    pub fn zeroize_fe(&self, soc_ifc: &mut SocIfc, dma: &Dma) -> CaliptraResult<()> {
+        // Validate parameters first
+        self.validate()?;
+
+        cprintln!("[{}] ++ Zeroization", self.prefix());
+
+        let result = {
+            let uds_fuse_row_granularity_64 = soc_ifc.uds_fuse_row_granularity_64();
+            let fuse_controller_base_addr = soc_ifc.fuse_controller_base_addr();
+            let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(fuse_controller_base_addr), dma);
+
+            let partition_base_address = self.get_dest_address(soc_ifc);
+            let digest_address = self.get_fe_digest_address(soc_ifc);
+            // let zer_address = self.get_zer_address(soc_ifc); // Zeroization marker address // [TODO] What is this address?
+            let granularity_step_bytes = if uds_fuse_row_granularity_64 { 8 } else { 4 };
+
+            let _ = otp_ctrl.with_regs_mut(|regs| {
+                // Step 1: Clear the Partition Zeroization Flag (64-bit)
+                // This step is critical - it masks potential ECC or integrity errors
+                // if the process is interrupted by a power failure
+                // cprintln!(
+                //     "[{}] Step 1: Clearing partition zeroization flag at address: {:#x}",
+                //     self.prefix(),
+                //     zer_address
+                // );
+
+                // while !regs.status().read().dai_idle() {}
+
+                // regs.direct_access_address()
+                //     .write(|w| w.address(zer_address));
+                // regs.direct_access_cmd().write(|w| w.zer(true));
+
+                // while !regs.status().read().dai_idle() {}
+
+                // // Verify zeroization marker cleared (should be 0xFFFFFFFF)
+                // let zer_rdata_0 = regs.dai_rdata_rf().direct_access_rdata_0().read();
+                // let zer_rdata_1 = regs.dai_rdata_rf().direct_access_rdata_1().read();
+
+                // if zer_rdata_0 != 0xFFFFFFFF || zer_rdata_1 != 0xFFFFFFFF {
+                //     cprintln!(
+                //         "[{}] ERROR: Zeroization marker not cleared, rdata: {:#x}_{:#x}",
+                //         self.prefix(),
+                //         zer_rdata_1,
+                //         zer_rdata_0
+                //     );
+                //     return Err(CaliptraError::RUNTIME_FE_ZEROIZATION_FAILED);
+                // }
+
+                // Loop over the partition data words and zeroize them
+                for (idx: 0; idx < ) {
+
+                }
+
+                // Step 2: Zeroize all data words in the partition
+                cprintln!(
+                    "[{}] Step 2: Zeroizing data words from {:#x} to {:#x}",
+                    self.prefix(),
+                    partition_base_address,
+                    digest_address
+                );
+
+                let mut addr = partition_base_address;
+                while addr < digest_address {
+                    while !regs.status().read().dai_idle() {}
+
+                    cprintln!("[{}] Zeroizing data at address: {:#x}", self.prefix(), addr);
+                    regs.direct_access_address().write(|w| w.address(addr));
+                    regs.direct_access_cmd().write(|w| w.zer(true));
+
+                    while !regs.status().read().dai_idle() {}
+
+                    // Verify zeroization - should return 0xFFFFFFFF for all bits
+                    let rdata_0 = regs.dai_rdata_rf().direct_access_rdata_0().read();
+                    if rdata_0 != 0xFFFFFFFF {
+                        cprintln!(
+                            "[{}] ERROR: Data at {:#x} not zeroized, rdata_0: {:#x}",
+                            self.prefix(),
+                            addr,
+                            rdata_0
+                        );
+                        return Err(CaliptraError::ROM_GLOBAL_ZEROIZATION_FAILED);
+                    }
+
+                    if granularity > 32 {
+                        let rdata_1 = regs.dai_rdata_rf().direct_access_rdata_1().read();
+                        if rdata_1 != 0xFFFFFFFF {
+                            cprintln!(
+                                "[{}] ERROR: Data at {:#x} not zeroized, rdata_1: {:#x}",
+                                self.prefix(),
+                                addr,
+                                rdata_1
+                            );
+                            return Err(CaliptraError::ROM_GLOBAL_ZEROIZATION_FAILED);
+                        }
+                    }
+
+                    addr += granularity_bytes;
+                }
+
+                // Step 3: Clear the partition digest (always 64-bit)
+                cprintln!(
+                    "[{}] Step 3: Clearing partition digest at address: {:#x}",
+                    self.prefix(),
+                    digest_address
+                );
+
+                while !regs.status().read().dai_idle() {}
+
+                regs.direct_access_address()
+                    .write(|w| w.address(digest_address));
+                regs.direct_access_cmd().write(|w| w.zer(true));
+
+                while !regs.status().read().dai_idle() {}
+
+                // Verify digest cleared
+                let digest_rdata_0 = regs.dai_rdata_rf().direct_access_rdata_0().read();
+                let digest_rdata_1 = regs.dai_rdata_rf().direct_access_rdata_1().read();
+
+                if digest_rdata_0 != 0xFFFFFFFF || digest_rdata_1 != 0xFFFFFFFF {
+                    cprintln!(
+                        "[{}] ERROR: Partition digest not cleared, rdata: {:#x}_{:#x}",
+                        self.prefix(),
+                        digest_rdata_1,
+                        digest_rdata_0
+                    );
+                    return Err(CaliptraError::ROM_GLOBAL_ZEROIZATION_FAILED);
+                }
+
+                cprintln!("[{}] Partition successfully zeroized", self.prefix());
+                Ok::<(), CaliptraError>(())
+            })?;
+
+            Ok(())
+        };
+
+        cprintln!(
+            "[{}] -- Zeroization completed with status: {}",
+            self.prefix(),
+            if result.is_ok() { "SUCCESS" } else { "FAILURE" }
+        );
 
         result
     }
