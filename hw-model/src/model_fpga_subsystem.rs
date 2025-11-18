@@ -817,13 +817,7 @@ impl ModelFpgaSubsystem {
 
                 self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
-                // let fifo_status =
-                //     self.recovery_block_read_request(RecoveryCommandCode::IndirectFifoStatus);
 
-                let mut image = image.clone();
-                while image.len() % 256 != 0 {
-                    image.push(0);
-                }
                 self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
                 self.recovery_fifo_blocks.reverse(); // reverse so we can pop from the end
             }
