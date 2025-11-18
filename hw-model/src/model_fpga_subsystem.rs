@@ -840,7 +840,7 @@ impl ModelFpgaSubsystem {
                 // while image.len() % 256 != 0 {
                 //     image.push(0);
                 // }
-                self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
+                self.recovery_fifo_blocks = image.chunks(8).map(|chunk| chunk.to_vec()).collect();
                 self.recovery_fifo_blocks.reverse(); // reverse so we can pop from the end
             }
             _ => todo!(),
