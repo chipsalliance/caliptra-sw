@@ -729,6 +729,14 @@ impl<'a> DmaRecovery<'a> {
             _ => false,
         };
 
+        let mbox = unsafe {
+            use crate::memory_layout;
+            core::slice::from_raw_parts(
+                memory_layout::MBOX_ORG as *const u32,
+                memory_layout::MBOX_SIZE as usize / 4,
+            )
+        };
+
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
@@ -789,6 +797,12 @@ impl<'a> DmaRecovery<'a> {
                             (offset + i) as usize,
                             read_transaction.length as usize,
                         )));
+                        if i3c && last_block {
+                            cprintln!(
+                                "[dma] DMA read complete: {:08x}",
+                                mbox[(offset + i) as usize / 4]
+                            );
+                        }
                     }
                     _ => panic!("DMA read target must be AxiWr"),
                 };
