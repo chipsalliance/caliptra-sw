@@ -738,6 +738,7 @@ impl<'a> DmaRecovery<'a> {
         };
 
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
+            cprintln!("[dma] Reading block {}", k / BLOCK_SIZE);
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
 

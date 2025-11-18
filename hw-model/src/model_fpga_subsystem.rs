@@ -755,6 +755,7 @@ impl ModelFpgaSubsystem {
                     std::thread::sleep(std::time::Duration::from_millis(10));
                     self.handle_log();
                     self.print_i3c_registers();
+                    self.blocks_sent = 0;
                 }
                 return;
             } else {
