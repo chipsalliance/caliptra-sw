@@ -2007,7 +2007,7 @@ mod tests {
         );
         println!("{init_params_summary:#?}");
 
-        // The Caliptra ROM boots so quickly that sometimes it is done while before we finish returning from booting the MCU
+        // While in boot(), sometimes the test Caliptra ROM has written to the output before we can set the search term in step_until_output().
         // So set the search term manually before calling boot().
         model.output().set_search_term("hii");
         model.boot(BootParams::default()).unwrap();
