@@ -80,7 +80,6 @@ store-failure-output = true
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
-retries = 3 # the fpga subsystem is a bit flaky with typically 1 test randomly failing out of 100-200
 
 [[profile.nightly.overrides]]
 filter = 'test(test_generate_csr_envelop_stress)'
