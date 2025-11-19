@@ -342,7 +342,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: caliptra-test-results${{ inputs.artifact-suffix }}
-          path: /tmp/junit.xml
+          path: /tmp/junit
 
       - name: Print results
         run: |
