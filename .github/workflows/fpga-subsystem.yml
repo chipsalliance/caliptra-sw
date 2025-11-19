@@ -3,6 +3,7 @@ name: Subsystem FPGA Build
 
 on:
   pull_request:
+  merge_group:
   workflow_call:
     inputs:
       artifact-suffix:
