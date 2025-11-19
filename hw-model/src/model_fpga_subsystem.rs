@@ -457,6 +457,12 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_raw_unlock_token_hash(&mut self, token_hash: &[u32; 4]) {
+        for i in 0..token_hash.len() {
+            self.wrapper.regs().cptr_ss_raw_unlock_token_hash[i].set(token_hash[i]);
+        }
+    }
+
     fn axi_reset(&mut self) {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
@@ -1654,6 +1660,8 @@ impl HwModel for ModelFpgaSubsystem {
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
+        // Set the raw unlock token hash.
+        m.set_raw_unlock_token_hash(&params.ss_init_params.raw_unlock_token_hash);
         // Setup debug intent signal if requested.
         m.set_ss_debug_intent(params.debug_intent);
         // Set BootFSM break if requested.
