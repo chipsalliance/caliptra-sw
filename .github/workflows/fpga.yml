@@ -2,7 +2,6 @@
 name: FPGA Build
 
 on:
-  pull_request:
   workflow_call:
     inputs:
       artifact-suffix:
