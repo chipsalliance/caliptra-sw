@@ -251,11 +251,16 @@ fn test_update_reset_verify_image_failure() {
             hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &[0u8; 4])
                 .unwrap();
 
-            if cfg!(not(feature = "fpga_realtime")) {
+            if cfg!(not(any(
+                feature = "fpga_realtime",
+                feature = "fpga_subsystem"
+            ))) {
                 hw.step_until_boot_status(KatStarted.into(), true);
                 hw.step_until_boot_status(KatComplete.into(), true);
             }
-            hw.step_until_boot_status(UpdateResetStarted.into(), true);
+            hw.step_until(|model| {
+                model.soc_ifc().cptra_boot_status().read() >= u32::from(UpdateResetStarted)
+            });
 
             if subsystem_mode {
                 assert_eq!(
