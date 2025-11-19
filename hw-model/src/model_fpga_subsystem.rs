@@ -446,6 +446,20 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    fn set_ss_rma_or_scrap_ppd(&mut self, val: bool) {
+        if val {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::LcAllowRmaOrScrapOnPpd::SET);
+        } else {
+            self.wrapper
+                .regs()
+                .control
+                .modify(Control::LcAllowRmaOrScrapOnPpd::CLEAR);
+        }
+    }
+
     fn set_raw_unlock_token_hash(&mut self, token_hash: &[u32; 4]) {
         for i in 0..token_hash.len() {
             self.wrapper.regs().cptr_ss_raw_unlock_token_hash[i].set(token_hash[i]);
@@ -1645,6 +1659,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Set the raw unlock token hash.
         m.set_raw_unlock_token_hash(&params.ss_init_params.raw_unlock_token_hash);
+        // Set the RMA or scrap PPD.
+        m.set_ss_rma_or_scrap_ppd(params.ss_init_params.rma_or_scrap_ppd);
         // Setup debug intent signal if requested.
         m.set_ss_debug_intent(params.debug_intent);
         // Set BootFSM break if requested.
