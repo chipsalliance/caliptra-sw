@@ -22,6 +22,7 @@ use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, Recover
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
+use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -180,6 +181,7 @@ impl Wrapper {
 unsafe impl Send for Wrapper {}
 unsafe impl Sync for Wrapper {}
 
+#[derive(Clone)]
 pub struct Mci {
     pub ptr: *mut u32,
 }
@@ -387,23 +389,18 @@ impl XI3CWrapper {
 
 pub struct ModelFpgaSubsystem {
     pub devs: [UioDevice; 2],
-    // mmio uio pointers
     pub wrapper: Arc<Wrapper>,
-    pub caliptra_mmio: *mut u32,
     pub caliptra_rom_backdoor: *mut u8,
     pub mcu_rom_backdoor: *mut u8,
     pub otp_mem_backdoor: *mut u8,
-    pub otp_init: Vec<u8>,
-    pub mci: Mci,
-    pub i3c_mmio: *mut u32,
-    pub i3c_controller_mmio: *mut u32,
-    pub i3c_controller: XI3CWrapper,
-    pub otp_mmio: *mut u32,
-    pub lc_mmio: *mut u32,
+    // Reset sensitive MMIO UIO pointers. Accessing these while subsystem is in reset will trigger
+    // a kernel panic.
+    pub mmio: SensitiveMmio,
 
     pub realtime_thread: Option<thread::JoinHandle<()>>,
     pub realtime_thread_exit_flag: Arc<AtomicBool>,
 
+    pub otp_init: Vec<u8>,
     pub output: Output,
     pub recovery_started: bool,
     pub bmc: Bmc,
@@ -465,9 +462,15 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn set_subsystem_reset(&mut self, reset: bool) {
+        if reset {
+            self.mmio.disable();
+        }
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
         );
+        if !reset {
+            self.mmio.enable();
+        }
     }
 
     pub fn set_cptra_ss_rst_b(&mut self, value: bool) {
@@ -643,25 +646,18 @@ impl ModelFpgaSubsystem {
 
     pub fn i3c_core(
         &mut self,
-    ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
-        unsafe {
-            caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
-                EMULATOR_I3C_ADDR as *mut u32,
-                BusMmio::new(FpgaRealtimeBus {
-                    mmio: self.i3c_mmio,
-                    phantom: Default::default(),
-                }),
-            )
-        }
+    ) -> Option<caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>>> {
+        self.mmio.i3c_core()
     }
 
-    pub fn i3c_controller(&self) -> XI3CWrapper {
-        self.i3c_controller.clone()
+    pub fn i3c_controller(&self) -> Option<XI3CWrapper> {
+        self.mmio.i3c_controller().clone()
     }
 
     pub fn i3c_target_configured(&mut self) -> bool {
         u32::from(
             self.i3c_core()
+                .unwrap()
                 .stdby_ctrl_mode()
                 .stby_cr_device_addr()
                 .read(),
@@ -684,6 +680,7 @@ impl ModelFpgaSubsystem {
             if !self.recovery_ctrl_written {
                 let status = self
                     .i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .device_status_0()
                     .read()
@@ -695,7 +692,7 @@ impl ModelFpgaSubsystem {
                 }
 
                 // wait for any other packets to be sent
-                if !self.i3c_controller().write_fifo_empty() {
+                if !self.i3c_controller().unwrap().write_fifo_empty() {
                     return;
                 }
 
@@ -708,6 +705,7 @@ impl ModelFpgaSubsystem {
 
                 let reported_len = self
                     .i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .indirect_fifo_ctrl_1()
                     .read();
@@ -730,6 +728,7 @@ impl ModelFpgaSubsystem {
             }
             let fifo_status = self
                 .i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_status_0()
                 .read();
@@ -745,6 +744,7 @@ impl ModelFpgaSubsystem {
 
         let status = self
             .i3c_core()
+            .unwrap()
             .sec_fw_recovery_if()
             .recovery_status()
             .read()
@@ -866,6 +866,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_prot_cap_0: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .prot_cap_0()
                 .read()
@@ -874,6 +875,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_prot_cap_1: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .prot_cap_1()
                 .read()
@@ -881,19 +883,41 @@ impl ModelFpgaSubsystem {
         );
         println!(
             "sec_fw_recovery_if_prot_cap_2: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().prot_cap_2().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .prot_cap_2()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_prot_cap_3: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().prot_cap_3().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .prot_cap_3()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_device_id_0: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().device_id_0().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .device_id_0()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_device_id_1: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_1()
                 .read()
@@ -902,6 +926,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_device_id_2: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_2()
                 .read()
@@ -910,6 +935,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_device_id_3: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_3()
                 .read()
@@ -918,6 +944,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_device_id_4: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_4()
                 .read()
@@ -926,6 +953,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_device_id_5: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_5()
                 .read()
@@ -934,6 +962,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_device_id_reserved: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .device_id_reserved()
                 .read()
@@ -943,6 +972,7 @@ impl ModelFpgaSubsystem {
             "sec_fw_recovery_if_device_status_0: {:08x}",
             u32::from(
                 self.i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .device_status_0()
                     .read()
@@ -953,6 +983,7 @@ impl ModelFpgaSubsystem {
             "sec_fw_recovery_if_device_status_1: {:08x}",
             u32::from(
                 self.i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .device_status_1()
                     .read()
@@ -961,16 +992,31 @@ impl ModelFpgaSubsystem {
         );
         println!(
             "sec_fw_recovery_if_device_reset: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().device_reset().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .device_reset()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_recovery_ctrl: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().recovery_ctrl().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .recovery_ctrl()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_recovery_status: {:08x}",
             u32::from(
                 self.i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .recovery_status()
                     .read()
@@ -979,12 +1025,20 @@ impl ModelFpgaSubsystem {
         );
         println!(
             "sec_fw_recovery_if_hw_status: {:08x}",
-            u32::from(self.i3c_core().sec_fw_recovery_if().hw_status().read()).swap_bytes()
+            u32::from(
+                self.i3c_core()
+                    .unwrap()
+                    .sec_fw_recovery_if()
+                    .hw_status()
+                    .read()
+            )
+            .swap_bytes()
         );
         println!(
             "sec_fw_recovery_if_indirect_fifo_ctrl_0: {:08x}",
             u32::from(
                 self.i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .indirect_fifo_ctrl_0()
                     .read()
@@ -994,6 +1048,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_ctrl_1: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_ctrl_1()
                 .read()
@@ -1003,6 +1058,7 @@ impl ModelFpgaSubsystem {
             "sec_fw_recovery_if_indirect_fifo_status_0: {:08x}",
             u32::from(
                 self.i3c_core()
+                    .unwrap()
                     .sec_fw_recovery_if()
                     .indirect_fifo_status_0()
                     .read()
@@ -1012,6 +1068,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_status_1: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_status_1()
                 .read()
@@ -1020,6 +1077,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_status_2: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_status_2()
                 .read()
@@ -1028,6 +1086,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_status_3: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_status_3()
                 .read()
@@ -1036,6 +1095,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_status_4: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_status_4()
                 .read()
@@ -1044,6 +1104,7 @@ impl ModelFpgaSubsystem {
         println!(
             "sec_fw_recovery_if_indirect_fifo_reserved: {:08x}",
             self.i3c_core()
+                .unwrap()
                 .sec_fw_recovery_if()
                 .indirect_fifo_reserved()
                 .read()
@@ -1055,7 +1116,7 @@ impl ModelFpgaSubsystem {
     fn recovery_block_read_request(&mut self, command: RecoveryCommandCode) -> Option<Vec<u8>> {
         // per the recovery spec, this maps to a private write and private read
 
-        let target_addr = self.i3c_controller.get_recovery_addr();
+        let target_addr = self.i3c_controller().unwrap().get_recovery_addr();
 
         // First we write the recovery command code for the block we want
         let mut cmd = xi3c::Command {
@@ -1068,14 +1129,15 @@ impl ModelFpgaSubsystem {
         let recovery_command_code = Self::command_code_to_u8(command);
 
         let start = self.cycle_count();
-        while !self.i3c_controller.write_fifo_empty() {
+        while !self.i3c_controller().unwrap().write_fifo_empty() {
             if self.cycle_count() - start > 1_000_000 {
                 //                panic!("Timeout waiting for I3C write FIFO to be empty");
             }
         }
 
         if self
-            .i3c_controller
+            .i3c_controller()
+            .unwrap()
             .controller
             .lock()
             .unwrap()
@@ -1089,7 +1151,8 @@ impl ModelFpgaSubsystem {
         let len_range = Self::command_code_to_len(command);
         cmd.pec = 0;
 
-        self.i3c_controller
+        self.i3c_controller()
+            .unwrap()
             .controller
             .lock()
             .unwrap()
@@ -1098,7 +1161,8 @@ impl ModelFpgaSubsystem {
 
         // read in the length, lsb then msb
         let resp = self
-            .i3c_controller
+            .i3c_controller()
+            .unwrap()
             .controller
             .lock()
             .unwrap()
@@ -1135,7 +1199,7 @@ impl ModelFpgaSubsystem {
     fn recovery_block_write_request(&mut self, command: RecoveryCommandCode, payload: &[u8]) {
         // per the recovery spec, this maps to a private write
 
-        let target_addr = self.i3c_controller.get_recovery_addr();
+        let target_addr = self.i3c_controller().unwrap().get_recovery_addr();
         let cmd = xi3c::Command {
             no_repeated_start: 1,
             pec: 1,
@@ -1150,14 +1214,15 @@ impl ModelFpgaSubsystem {
         data.extend_from_slice(payload);
 
         let start = self.cycle_count();
-        while !self.i3c_controller.write_fifo_empty() {
+        while !self.i3c_controller().unwrap().write_fifo_empty() {
             if self.cycle_count() - start > 1_000_000 {
                 //                panic!("Timeout waiting for I3C write FIFO to be empty");
             }
         }
 
         assert!(
-            self.i3c_controller
+            self.i3c_controller()
+                .unwrap()
                 .controller
                 .lock()
                 .unwrap()
@@ -1283,7 +1348,7 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn mci_flow_status(&mut self) -> u32 {
-        self.mci.regs().fw_flow_status().read()
+        self.mmio.mci().unwrap().regs().fw_flow_status().read()
     }
 
     pub fn mci_boot_checkpoint(&mut self) -> u16 {
@@ -1294,11 +1359,8 @@ impl ModelFpgaSubsystem {
         McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
     }
 
-    fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
-        FpgaRealtimeBus {
-            mmio: self.caliptra_mmio,
-            phantom: Default::default(),
-        }
+    fn caliptra_axi_bus(&mut self) -> Option<FpgaRealtimeBus<'_>> {
+        self.mmio.caliptra_axi_bus()
     }
 
     fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
@@ -1339,7 +1401,7 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         FpgaRealtimeBus {
-            mmio: self.caliptra_mmio,
+            mmio: self.mmio.caliptra_mmio().unwrap(),
             phantom: Default::default(),
         }
     }
@@ -1444,20 +1506,22 @@ impl HwModel for ModelFpgaSubsystem {
         let mut m = Self {
             devs,
             wrapper,
-            caliptra_mmio,
             caliptra_rom_backdoor,
             mcu_rom_backdoor,
             otp_mem_backdoor,
-            mci: Mci { ptr: mci_ptr },
-            i3c_mmio,
-            i3c_controller_mmio,
-            i3c_controller: XI3CWrapper {
-                controller: Arc::new(Mutex::new(i3c_controller)),
+            mmio: SensitiveMmio::new(SensitiveMmioArgs {
+                caliptra_mmio,
+                mci: Mci { ptr: mci_ptr },
                 i3c_mmio,
                 i3c_controller_mmio,
-            },
-            otp_mmio,
-            lc_mmio,
+                i3c_controller: XI3CWrapper {
+                    controller: Arc::new(Mutex::new(i3c_controller)),
+                    i3c_mmio,
+                    i3c_controller_mmio,
+                },
+                lc_mmio,
+                otp_mmio,
+            }),
 
             otp_init: vec![],
             realtime_thread: None,
@@ -1799,7 +1863,7 @@ impl HwModel for ModelFpgaSubsystem {
         }
         println!("Done starting MCU");
 
-        self.i3c_controller.configure();
+        self.i3c_controller().unwrap().configure();
         println!("Starting recovery flow (BMC)");
         self.start_recovery_bmc();
         self.step();
@@ -1868,6 +1932,13 @@ pub struct FpgaRealtimeBus<'a> {
 }
 
 impl FpgaRealtimeBus<'_> {
+    pub fn new(mmio: *mut u32) -> Self {
+        Self {
+            mmio,
+            phantom: Default::default(),
+        }
+    }
+
     fn ptr_for_addr(&mut self, addr: RvAddr) -> Option<*mut u32> {
         let addr = addr as usize;
         let offset = match addr {
@@ -1914,7 +1985,7 @@ impl SocManager for ModelFpgaSubsystem {
         Self: 'a;
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
-        BusMmio::new(self.caliptra_axi_bus())
+        BusMmio::new(self.caliptra_axi_bus().unwrap())
     }
 
     fn delay(&mut self) {
@@ -1927,7 +1998,12 @@ impl Drop for ModelFpgaSubsystem {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
-        self.i3c_controller.controller.lock().unwrap().off();
+        self.i3c_controller()
+            .unwrap()
+            .controller
+            .lock()
+            .unwrap()
+            .off();
 
         self.set_subsystem_reset(true);
 
@@ -1936,14 +2012,144 @@ impl Drop for ModelFpgaSubsystem {
 
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper.ptr, FPGA_WRAPPER_MAPPING);
-        self.unmap_mapping(self.caliptra_mmio, CALIPTRA_MAPPING);
         self.unmap_mapping(self.caliptra_rom_backdoor as *mut u32, CALIPTRA_ROM_MAPPING);
         self.unmap_mapping(self.mcu_rom_backdoor as *mut u32, MCU_ROM_MAPPING);
         self.unmap_mapping(self.otp_mem_backdoor as *mut u32, OTP_RAM_MAPPING);
-        self.unmap_mapping(self.mci.ptr, MCI_MAPPING);
-        self.unmap_mapping(self.i3c_mmio, I3C_TARGET_MAPPING);
-        self.unmap_mapping(self.i3c_controller_mmio, I3C_CONTROLLER_MAPPING);
-        self.unmap_mapping(self.otp_mmio, OTP_MAPPING);
-        self.unmap_mapping(self.lc_mmio, LC_MAPPING);
+        self.mmio.unmap(self);
+    }
+}
+
+mod sensitive_mmio {
+    use super::*;
+    use caliptra_emu_bus::BusMmio;
+
+    /// These MMIOs can cause a kernel crash if accessed while the subsystem is in reset.
+    ///
+    /// This is put in a separate module to ensure access is only done within the public functions.
+    pub struct SensitiveMmio {
+        enabled: bool,
+        caliptra_mmio: *mut u32,
+        mci: Mci,
+        i3c_mmio: *mut u32,
+        i3c_controller_mmio: *mut u32,
+        i3c_controller: XI3CWrapper,
+        otp_mmio: *mut u32,
+        lc_mmio: *mut u32,
+    }
+
+    impl SensitiveMmio {
+        pub fn new(args: SensitiveMmioArgs) -> Self {
+            SensitiveMmio {
+                enabled: false,
+                caliptra_mmio: args.caliptra_mmio,
+                mci: args.mci,
+                i3c_mmio: args.i3c_mmio,
+                i3c_controller_mmio: args.i3c_controller_mmio,
+                i3c_controller: args.i3c_controller,
+                otp_mmio: args.otp_mmio,
+                lc_mmio: args.lc_mmio,
+            }
+        }
+
+        pub fn enable(&mut self) {
+            self.enabled = true;
+        }
+
+        pub fn disable(&mut self) {
+            self.enabled = false;
+        }
+
+        pub fn unmap(&self, model: &ModelFpgaSubsystem) {
+            model.unmap_mapping(self.caliptra_mmio, CALIPTRA_MAPPING);
+            model.unmap_mapping(self.mci.ptr, MCI_MAPPING);
+            model.unmap_mapping(self.i3c_mmio, I3C_TARGET_MAPPING);
+            model.unmap_mapping(self.i3c_controller_mmio, I3C_CONTROLLER_MAPPING);
+            model.unmap_mapping(self.otp_mmio, OTP_MAPPING);
+            model.unmap_mapping(self.lc_mmio, LC_MAPPING);
+        }
+
+        pub fn caliptra_mmio(&self) -> Option<*mut u32> {
+            if self.enabled {
+                Some(self.caliptra_mmio)
+            } else {
+                None
+            }
+        }
+        pub fn mci(&self) -> Option<Mci> {
+            if self.enabled {
+                Some(self.mci.clone())
+            } else {
+                None
+            }
+        }
+        pub fn i3c_mmio(&self) -> Option<*mut u32> {
+            if self.enabled {
+                Some(self.i3c_mmio)
+            } else {
+                None
+            }
+        }
+        pub fn i3c_controller_mmio(&self) -> Option<*mut u32> {
+            if self.enabled {
+                Some(self.i3c_controller_mmio)
+            } else {
+                None
+            }
+        }
+        pub fn i3c_controller(&self) -> Option<XI3CWrapper> {
+            if self.enabled {
+                Some(self.i3c_controller.clone())
+            } else {
+                None
+            }
+        }
+        pub fn otp_mmio(&self) -> Option<*mut u32> {
+            if self.enabled {
+                Some(self.otp_mmio)
+            } else {
+                None
+            }
+        }
+        pub fn lc_mmio(&self) -> Option<*mut u32> {
+            if self.enabled {
+                Some(self.lc_mmio)
+            } else {
+                None
+            }
+        }
+
+        pub fn i3c_core(
+            &mut self,
+        ) -> Option<caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>>>
+        {
+            if self.enabled {
+                unsafe {
+                    Some(caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
+                        crate::model_fpga_subsystem::EMULATOR_I3C_ADDR as *mut u32,
+                        BusMmio::new(FpgaRealtimeBus::new(self.i3c_mmio)),
+                    ))
+                }
+            } else {
+                None
+            }
+        }
+
+        pub fn caliptra_axi_bus(&mut self) -> Option<FpgaRealtimeBus<'_>> {
+            if self.enabled {
+                Some(FpgaRealtimeBus::new(self.caliptra_mmio))
+            } else {
+                None
+            }
+        }
+    }
+
+    pub struct SensitiveMmioArgs {
+        pub caliptra_mmio: *mut u32,
+        pub mci: Mci,
+        pub i3c_mmio: *mut u32,
+        pub i3c_controller_mmio: *mut u32,
+        pub i3c_controller: XI3CWrapper,
+        pub otp_mmio: *mut u32,
+        pub lc_mmio: *mut u32,
     }
 }

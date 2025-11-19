@@ -159,19 +159,29 @@ fn send_activate_firmware_cmd(
 
         // Emulate MCU reset request interrupt
         model
-            .mci
+            .mmio
+            .mci()
+            .unwrap()
             .regs()
             .intr_block_rf()
             .notif0_intr_trig_r()
             .modify(|r| r.notif_cptra_mcu_reset_req_trig(true));
 
         model
-            .mci
+            .mmio
+            .mci()
+            .unwrap()
             .regs()
             .intr_block_rf()
             .notif0_internal_intr_r()
             .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
-        model.mci.regs().reset_request().modify(|r| r.mcu_req(true));
+        model
+            .mmio
+            .mci()
+            .unwrap()
+            .regs()
+            .reset_request()
+            .modify(|r| r.mcu_req(true));
     }
     #[cfg(all(
         not(feature = "verilator"),
