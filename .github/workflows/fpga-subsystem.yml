@@ -372,4 +372,4 @@ jobs:
       - name: Print results
         run: |
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY
+          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit.xml >> $GITHUB_STEP_SUMMARY
