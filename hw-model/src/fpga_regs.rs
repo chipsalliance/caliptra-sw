@@ -99,6 +99,13 @@ register_structs! {
         (0x128 => pub num_of_prod_debug_unlock_auth_pk_hashes: ReadWrite<u32>),
         (0x12c => pub mci_generic_input_wires: [ReadWrite<u32>; 2]),
         (0x134 => pub mci_generic_output_wires: [ReadOnly<u32>; 2]),
-        (0x13c => @END),
+        (0x13c => pub ss_key_release_base_addr: ReadOnly<u32>),
+        (0x140 => pub ss_key_release_key_size: ReadOnly<u32>),
+        (0x144 => pub ss_external_staging_area_base_addr: ReadOnly<u32>),
+        (0x148 => pub cptra_ss_mcu_ext_int: ReadWrite<u32>),
+        (0x14c => pub cptr_ss_raw_unlock_token_hash: [ReadWrite<u32>; 4]),
+        (0x15c => _reserved1),
+        (0x200 => pub ocp_lock_key_release_reg: [ReadWrite<u32>; 16]),
+        (0x240 => @END),
     }
 }
