@@ -367,9 +367,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: caliptra-test-results${{ inputs.artifact-suffix }}
-          path: /tmp/junit.xml
+          path: /tmp/junit
 
       - name: Print results
         run: |
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit.xml >> $GITHUB_STEP_SUMMARY
+          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY
