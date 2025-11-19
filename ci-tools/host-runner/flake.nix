@@ -102,5 +102,20 @@
           ./hostrunners/bo-0.nix
         ];
       };
+      nixosConfigurations."caliptra-hostrunner-svl0" = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          identifier = "0";
+          user = "hostrunner";
+          fpga-boss-script = fpga-boss-script;
+          rtool = rtool-bin;
+          fpga-boss = fpga-boss-bin;
+          ssh_keys = keys.googler_keys;
+        };
+        modules = [
+          ./configuration.nix
+          ./hostrunners/svl-0.nix
+        ];
+      };
     };
 }
