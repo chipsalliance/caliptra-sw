@@ -64,7 +64,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 4];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x00, 0x00, 0x00, 0x6f];
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
