@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
+use crate::Fuses;
 use crate::ModelError;
 use crate::Output;
 use crate::{HwModel, SecurityState, SocManager, TrngMode};
@@ -131,6 +132,7 @@ pub struct ModelFpgaRealtime {
     wrapper: *mut u32,
     mmio: *mut u32,
     output: Output,
+    fuses: Fuses,
 
     realtime_thread: Option<thread::JoinHandle<()>>,
     realtime_thread_exit_flag: Arc<AtomicBool>,
@@ -517,6 +519,7 @@ impl HwModel for ModelFpgaRealtime {
             wrapper,
             mmio,
             output,
+            fuses: params.fuses,
 
             realtime_thread,
             realtime_thread_exit_flag,
@@ -711,6 +714,14 @@ impl HwModel for ModelFpgaRealtime {
     fn subsystem_mode(&self) -> bool {
         // we only support passive mode
         false
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }
 
