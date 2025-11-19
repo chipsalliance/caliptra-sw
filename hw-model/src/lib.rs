@@ -2010,14 +2010,24 @@ mod tests {
         feature = "fpga_subsystem"
     ))]
     pub fn test_cold_reset() {
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &gen_image_hi(),
-                ..Default::default()
-            },
-            BootParams::default(),
-        )
-        .unwrap();
+        let init_params = InitParams {
+            rom: &gen_image_hi(),
+            ..Default::default()
+        };
+        let init_params_summary = init_params.summary();
+        let mut model = DefaultHwModel::new_unbooted(init_params).unwrap();
+        let hw_rev_id = model.soc_ifc().cptra_hw_rev_id().read();
+        println!(
+            "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
+            model.type_name(), model.trng_mode(),  hw_rev_id.cptra_generation(), hw_rev_id.soc_stepping_id()
+        );
+        println!("{init_params_summary:#?}");
+
+        // While in boot(), sometimes the test Caliptra ROM has written to the output before we can set the search term in step_until_output().
+        // So set the search term manually before calling boot().
+        model.output().set_search_term("hii");
+        model.boot(BootParams::default()).unwrap();
+
         model.step_until_output("hii").unwrap();
 
         model.cold_reset();
