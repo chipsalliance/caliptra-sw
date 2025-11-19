@@ -44,11 +44,11 @@
       },
       "locked": {
         "dir": "ci-tools/fpga-boss",
-        "lastModified": 1762797402,
-        "narHash": "sha256-dTfeKhvYu/2UR2cysk+76ZKesPmnu1uMFahyo2RhEn4=",
+        "lastModified": 1763572428,
+        "narHash": "sha256-dnv+rJMfksnE0j64wmjZ7oRs4M6RI4DOS402/dZpo0U=",
         "owner": "chipsalliance",
         "repo": "caliptra-sw",
-        "rev": "da0ee4c3dea92cbf66569cc415ecb3d43cdb0660",
+        "rev": "85cd96a267824f51a91a394a5c17dbdc3961a763",
         "type": "github"
       },
       "original": {
@@ -92,11 +92,11 @@
     },
     "nixpkgs_3": {
       "locked": {
-        "lastModified": 1762756533,
-        "narHash": "sha256-HiRDeUOD1VLklHeOmaKDzf+8Hb7vSWPVFcWwaTrpm+U=",
+        "lastModified": 1763334038,
+        "narHash": "sha256-LBVOyaH6NFzQ3X/c6vfMZ9k4SV2ofhpxeL9YnhHNJQQ=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "c2448301fb856e351aab33e64c33a3fc8bcf637d",
+        "rev": "4c8cdd5b1a630e8f72c9dd9bf582b1afb3127d2c",
         "type": "github"
       },
       "original": {
@@ -136,11 +136,11 @@
       },
       "locked": {
         "dir": "ci-tools/github-runner",
-        "lastModified": 1762797402,
-        "narHash": "sha256-dTfeKhvYu/2UR2cysk+76ZKesPmnu1uMFahyo2RhEn4=",
+        "lastModified": 1763572428,
+        "narHash": "sha256-dnv+rJMfksnE0j64wmjZ7oRs4M6RI4DOS402/dZpo0U=",
         "owner": "chipsalliance",
         "repo": "caliptra-sw",
-        "rev": "da0ee4c3dea92cbf66569cc415ecb3d43cdb0660",
+        "rev": "85cd96a267824f51a91a394a5c17dbdc3961a763",
         "type": "github"
       },
       "original": {
