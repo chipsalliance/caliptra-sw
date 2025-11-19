@@ -20,7 +20,7 @@ use caliptra_hw_model::{
     SubsystemInitParams,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
@@ -318,12 +318,13 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
+    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
     // make dpe.contexts[1].handle non-default in order to pass dpe state validation
     dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
-    // the mbox valid pausers measurement is already in PL0 so creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD suffices
-    for i in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+    // the mbox valid pausers measurement and RT journey measurement already count as PL0
+    // so creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD suffices
+    for i in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) {
         // skip first two contexts measured by RT
         let idx = i + 2;
         // create simulation contexts in PL0

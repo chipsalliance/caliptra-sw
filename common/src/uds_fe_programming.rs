@@ -26,10 +26,10 @@ pub enum UdsFeProgrammingFlow {
     Fe { partition: u32 },
 }
 
-const UDS_SEED_SIZE: usize = 64;
-const FUSE_CTRL_DIGEST: usize = 8;
-const FE_SIZE: usize = 8;
-const MAX_FE_PARTITION: u32 = 3;
+const UDS_SEED_SIZE_BYTES: usize = 64;
+const FUSE_CTRL_DIGEST_SIZE_BYTES: usize = 8;
+const FE_PARTITION_SIZE_BYTES: usize = 8;
+const MAX_FE_PARTITIONS: u32 = 3;
 
 impl UdsFeProgrammingFlow {
     /// Validates the programming flow parameters
@@ -37,7 +37,7 @@ impl UdsFeProgrammingFlow {
         match self {
             UdsFeProgrammingFlow::Uds => Ok(()),
             UdsFeProgrammingFlow::Fe { partition } => {
-                if partition > MAX_FE_PARTITION {
+                if partition > MAX_FE_PARTITIONS {
                     Err(CaliptraError::RUNTIME_FE_PROG_INVALID_PARTITION)
                 } else {
                     Ok(())
@@ -54,8 +54,8 @@ impl UdsFeProgrammingFlow {
     /// Returns the seed length in 32-bit words for this mode
     fn seed_length_words(self) -> usize {
         match self {
-            UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE / size_of::<u32>(), // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe { partition: _ } => FE_SIZE / size_of::<u32>(), // 8 bytes = 2 u32 words
+            UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE_BYTES / size_of::<u32>(), // 64 bytes = 16 u32 words
+            UdsFeProgrammingFlow::Fe { partition: _ } => FE_PARTITION_SIZE_BYTES / size_of::<u32>(), // 8 bytes = 2 u32 words
         }
     }
 
@@ -75,29 +75,34 @@ impl UdsFeProgrammingFlow {
     // |           UDS Region                |
     // |          (64 bytes)                 |
     // +-------------------------------------+
-    //
-    // FE Partitions, separate region in fuse controller memory handled by MCU, but at same base as UDS
-    //
-    // +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    // +-------------------------------------+
+    // |        UDS Digest                   |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+
+    // +-------------------------------------+ <- FE Base = uds_seed_dest_base_addr_low() + UDS Region + UDS Digest
     // |        FE Partition 0               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16)
+    // +-------------------------------------+ <- FE Base + 8
     // |     FE Partition 0 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16) + 8
+    // +-------------------------------------+ <- FE Base + (1 * 16)
     // |        FE Partition 1               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16)
+    // +-------------------------------------+ <- FE Base + (1 * 16) + 8
     // |     FE Partition 1 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16) + 8
+    // +-------------------------------------+ <- FE Base + (2 * 16)
     // |        FE Partition 2               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16)
+    // +-------------------------------------+ <- FE Base + (2 * 16) + 8
     // |     FE Partition 2 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16) + 8
-    // |            ...                      |
+    // +-------------------------------------+ <- FE Base + (3 * 16)
+    // |        FE Partition 3               |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- FE Base + (3 * 16) + 8
+    // |     FE Partition 3 Digest           |
+    // |         (8 bytes)                   |
     // +-------------------------------------+
     fn get_dest_address(&self, soc_ifc: &SocIfc) -> u32 {
         let uds_seed_dest = soc_ifc.uds_seed_dest_base_addr_low();
@@ -105,8 +110,10 @@ impl UdsFeProgrammingFlow {
         match self {
             Self::Uds => uds_seed_dest,
             Self::Fe { partition } => {
-                // FE partitions start at the same base address with partition spacing (16 bytes each)
-                uds_seed_dest + (partition * (FE_SIZE + FUSE_CTRL_DIGEST) as u32)
+                uds_seed_dest
+                    + UDS_SEED_SIZE_BYTES as u32
+                    + FUSE_CTRL_DIGEST_SIZE_BYTES as u32
+                    + (partition * (FE_PARTITION_SIZE_BYTES + FUSE_CTRL_DIGEST_SIZE_BYTES) as u32)
             }
         }
     }
