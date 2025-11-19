@@ -168,6 +168,37 @@ impl TrngMode {
 
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
+pub struct SubsystemInitParams<'a> {
+    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
+    pub mcu_rom: Option<&'a [u8]>,
+
+    // Consume MCU UART log with Caliptra UART log
+    pub enable_mcu_uart_log: bool,
+
+    // Raw unlock token cSHAKE128 hash.
+    pub raw_unlock_token_hash: [u32; 4],
+
+    // Number of public key hashes for production debug unlock levels.
+    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
+    // OTP settings are used.
+    pub num_prod_dbg_unlock_pk_hashes: u32,
+
+    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
+    pub prod_dbg_unlock_pk_hashes_offset: u32,
+}
+
+impl Default for SubsystemInitParams<'_> {
+    fn default() -> Self {
+        Self {
+            mcu_rom: Default::default(),
+            enable_mcu_uart_log: Default::default(),
+            raw_unlock_token_hash: [0xf0930a4d, 0xde8a30e6, 0xd1c8cbba, 0x896e4a11],
+            num_prod_dbg_unlock_pk_hashes: Default::default(),
+            prod_dbg_unlock_pk_hashes_offset: Default::default(),
+        }
+    }
+}
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -235,23 +266,6 @@ pub struct InitParams<'a> {
 
     // Subsystem initialization parameters.
     pub ss_init_params: SubsystemInitParams<'a>,
-}
-
-#[derive(Default)]
-pub struct SubsystemInitParams<'a> {
-    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
-    pub mcu_rom: Option<&'a [u8]>,
-
-    // Consume MCU UART log with Caliptra UART log
-    pub enable_mcu_uart_log: bool,
-
-    // Number of public key hashes for production debug unlock levels.
-    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
-    // OTP settings are used.
-    pub num_prod_dbg_unlock_pk_hashes: u32,
-
-    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
-    pub prod_dbg_unlock_pk_hashes_offset: u32,
 }
 
 impl Default for InitParams<'_> {

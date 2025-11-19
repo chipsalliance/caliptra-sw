@@ -1051,17 +1051,17 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
         // In case SRAM is locked from a previous test, we need to unlock it first
         // by writing 0 to the exec register.
         // If it's already unlocked, this is a no-op
-        let mcu_mbox_exec_ptr = model.mci.ptr.add(0x600018 / 4) as *mut u32;
+        let mcu_mbox_exec_ptr = model.mmio.mci().unwrap().ptr.add(0x600018 / 4) as *mut u32;
         mcu_mbox_exec_ptr.write_volatile(0x0);
 
         // Read from the lock register to the lock the SRAM
-        let mcu_mbox_lock_ptr = model.mci.ptr.add(0x600000 / 4) as *mut u32;
+        let mcu_mbox_lock_ptr = model.mmio.mci().unwrap().ptr.add(0x600000 / 4) as *mut u32;
         let _ = mcu_mbox_lock_ptr.read_volatile();
     };
 
     println!("Writing MCU mailbox SRAMs");
     unsafe {
-        let mcu_mbox_sram_ptr = model.mci.ptr.add(0x400000 / 4) as *mut u32;
+        let mcu_mbox_sram_ptr = model.mmio.mci().unwrap().ptr.add(0x400000 / 4) as *mut u32;
 
         for (count, chunk) in data.chunks(4).enumerate() {
             mcu_mbox_sram_ptr
