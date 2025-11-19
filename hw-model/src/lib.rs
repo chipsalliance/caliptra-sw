@@ -220,6 +220,10 @@ pub struct InitParams<'a> {
 
     pub uds_granularity_64: bool,
 
+    pub otp_dai_idle_bit_offset: u32,
+
+    pub otp_direct_access_cmd_reg_offset: u32,
+
     // Keypairs for production debug unlock levels, from low to high
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
@@ -296,6 +300,8 @@ impl Default for InitParams<'_> {
             subsystem_mode: false,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             uds_granularity_64: true,
+            otp_dai_idle_bit_offset: 22,
+            otp_direct_access_cmd_reg_offset: 0x60,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             bootfsm_break: false,
