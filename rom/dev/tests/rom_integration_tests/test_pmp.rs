@@ -46,13 +46,13 @@ fn test_datavault_pmp_enforcement_region_start() {
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             subsystem_mode: false,
             ..Default::default()
         },
         BootParams {
             fw_image: Some(&image_bundle.to_bytes().unwrap()),
-            fuses: fuses.clone(),
             ..Default::default()
         },
     )
@@ -89,13 +89,13 @@ fn test_datavault_pmp_enforcement_region_end() {
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             subsystem_mode: false,
             ..Default::default()
         },
         BootParams {
             fw_image: Some(&image_bundle.to_bytes().unwrap()),
-            fuses: fuses.clone(),
             ..Default::default()
         },
     )

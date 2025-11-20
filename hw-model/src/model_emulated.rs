@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::mpsc;
 
 use caliptra_api::soc_mgr::SocManager;
+use caliptra_api_types::Fuses;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Device;
 use caliptra_emu_bus::Event;
@@ -73,6 +74,7 @@ pub struct ModelEmulated {
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
     trace_path: Option<PathBuf>,
+    fuses: Fuses,
 
     // Keep this even when not including the coverage feature to keep the
     // interface consistent
@@ -256,6 +258,7 @@ impl HwModel for ModelEmulated {
             ready_for_fw,
             cpu_enabled,
             trace_path: trace_path_or_env(params.trace_path),
+            fuses: params.fuses,
             _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
@@ -451,5 +454,13 @@ impl HwModel for ModelEmulated {
             .ok_or(ModelError::SubsystemSramError)?
             .copy_from_slice(payload);
         Ok(AxiRootBus::mcu_sram_offset())
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }

@@ -262,12 +262,12 @@ fn smoke_test() {
             };
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses: fuses.clone(),
                     rom: &rom,
                     security_state,
                     ..Default::default()
                 },
                 BootParams {
-                    fuses: fuses.clone(),
                     fw_image: Some(&image.to_bytes().unwrap()),
                     ..Default::default()
                 },
@@ -1202,7 +1202,12 @@ fn test_fmc_wdt_timeout() {
 
         // Boot in debug mode to capture timestamps by boot status.
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let init_params = caliptra_hw_model::InitParams {
+            fuses: fuses.clone(),
             rom: &rom,
             security_state,
             itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1214,15 +1219,9 @@ fn test_fmc_wdt_timeout() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-
         let mut hw = caliptra_hw_model::new(
             init_params,
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1242,6 +1241,7 @@ fn test_fmc_wdt_timeout() {
 
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
         let init_params = caliptra_hw_model::InitParams {
+            fuses,
             rom: &rom,
             security_state,
             itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),

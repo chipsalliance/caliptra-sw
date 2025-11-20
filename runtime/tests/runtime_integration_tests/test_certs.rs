@@ -568,19 +568,19 @@ fn cold_reset(
         // Re-creating the model does not seem to work for FPGA (and SW emulator cannot cold reset)
         hw.cold_reset();
     } else {
+        let fuses = Fuses {
+            fuse_pqc_key_type: pqc_key_type as u32,
+            ..Default::default()
+        };
         hw = caliptra_hw_model::new_unbooted(InitParams {
+            fuses,
             rom,
             ..Default::default()
         })
         .unwrap();
     }
-    let fuses = Fuses {
-        fuse_pqc_key_type: pqc_key_type as u32,
-        ..Default::default()
-    };
     hw.boot(BootParams {
         fw_image: Some(fw_image),
-        fuses,
         ..Default::default()
     })
     .unwrap();
@@ -621,11 +621,11 @@ pub fn test_all_measurement_apis() {
         };
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
