@@ -1599,6 +1599,11 @@ impl CaliptraError {
             0x0105000F,
             "ROM Global Error: FIPS Hooks ROM Exit"
         ),
+        (
+            ROM_GLOBAL_X509_DIGEST_CONVERSION_FAILURE,
+            0x01050010,
+            "ROM Global Error: X509 Digest Conversion Failure"
+        ),
         // ROM KAT Errors
         (
             KAT_SHA256_DIGEST_FAILURE,

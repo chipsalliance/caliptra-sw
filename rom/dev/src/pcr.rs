@@ -48,7 +48,9 @@ impl PcrExtender<'_> {
         self.pcr_bank
             .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
 
-        let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
+        // Compile-time assertion that PCR IDs are valid for bit shifting
+        const _: () = assert!((PCR_ID_FMC_CURRENT as u8) < 32 && (PCR_ID_FMC_JOURNEY as u8) < 32);
+        let pcr_ids: u32 = (1u32 << PCR_ID_FMC_CURRENT as u8) | (1u32 << PCR_ID_FMC_JOURNEY as u8);
         log_pcr(self.persistent_data, pcr_entry_id, pcr_ids, data)
     }
 }

@@ -109,14 +109,16 @@ pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResu
     let mut persistent_data = env.persistent_data.get_mut();
     let dst = match tbs_type {
         TbsType::LdevidTbs => {
-            persistent_data.fht.ldevid_tbs_size = tbs.len() as u16;
+            persistent_data.fht.ldevid_tbs_size = u16::try_from(tbs.len())
+                .map_err(|_| CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?;
             persistent_data
                 .ldevid_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::FmcaliasTbs => {
-            persistent_data.fht.fmcalias_tbs_size = tbs.len() as u16;
+            persistent_data.fht.fmcalias_tbs_size = u16::try_from(tbs.len())
+                .map_err(|_| CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?;
             persistent_data
                 .fmcalias_tbs
                 .get_mut(..tbs.len())
