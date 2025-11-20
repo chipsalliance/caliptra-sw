@@ -21,7 +21,8 @@ pub fn rom_from_env_fpga(fpga: bool) -> &'static FwId<'static> {
         fpga,
     ) {
         (Ok("ROM"), _) => &ROM,
-        (Ok("ROM_WITHOUT_UART"), _) => &ROM,
+        (Ok("ROM_WITHOUT_UART"), true) => &ROM_FPGA,
+        (Ok("ROM_WITHOUT_UART"), false) => &ROM,
         (Ok("ROM_WITH_UART"), true) => &ROM_FPGA_WITH_UART,
         (Ok("ROM_WITH_UART"), false) => &ROM_WITH_UART,
         (Ok(s), _) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
@@ -42,6 +43,12 @@ pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &[],
+};
+
+pub const ROM_FPGA: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["fpga_realtime"],
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
@@ -539,6 +546,7 @@ pub mod runtime_tests {
 
 pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
+    &ROM_FPGA,
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
     &ROM_FAKE_WITH_UART_FPGA,
