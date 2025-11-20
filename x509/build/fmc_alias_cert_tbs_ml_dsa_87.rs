@@ -12,7 +12,8 @@ pub struct FmcAliasCertTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
-    pub tcb_info_device_info_hash: &'a [u8; 48usize],
+    pub tcb_info_owner_device_info_hash: &'a [u8; 48usize],
+    pub tcb_info_vendor_device_info_hash: &'a [u8; 48usize],
     pub tcb_info_fmc_tci: &'a [u8; 48usize],
     pub serial_number: &'a [u8; 20usize],
     pub subject_key_id: &'a [u8; 20usize],
@@ -20,15 +21,14 @@ pub struct FmcAliasCertTbsMlDsa87Params<'a> {
     pub ueid: &'a [u8; 17usize],
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
-    pub tcb_info_flags: &'a [u8; 4usize],
     pub tcb_info_fw_svn: &'a [u8; 1usize],
-    pub tcb_info_fw_svn_fuses: &'a [u8; 1usize],
 }
 impl FmcAliasCertTbsMlDsa87Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
-    pub const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    pub const TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    pub const TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN: usize = 48usize;
     pub const TCB_INFO_FMC_TCI_LEN: usize = 48usize;
     pub const SERIAL_NUMBER_LEN: usize = 20usize;
     pub const SUBJECT_KEY_ID_LEN: usize = 20usize;
@@ -36,9 +36,7 @@ impl FmcAliasCertTbsMlDsa87Params<'_> {
     pub const UEID_LEN: usize = 17usize;
     pub const NOT_BEFORE_LEN: usize = 15usize;
     pub const NOT_AFTER_LEN: usize = 15usize;
-    pub const TCB_INFO_FLAGS_LEN: usize = 4usize;
     pub const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    pub const TCB_INFO_FW_SVN_FUSES_LEN: usize = 1usize;
 }
 pub struct FmcAliasCertTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
@@ -47,21 +45,21 @@ impl FmcAliasCertTbsMlDsa87 {
     const PUBLIC_KEY_OFFSET: usize = 335usize;
     const SUBJECT_SN_OFFSET: usize = 249usize;
     const ISSUER_SN_OFFSET: usize = 95usize;
-    const TCB_INFO_DEVICE_INFO_HASH_OFFSET: usize = 3073usize;
-    const TCB_INFO_FMC_TCI_OFFSET: usize = 3171usize;
+    const TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET: usize = 3072usize;
+    const TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET: usize = 3169usize;
+    const TCB_INFO_FMC_TCI_OFFSET: usize = 3271usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 3240usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 3273usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 3362usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3395usize;
     const UEID_OFFSET: usize = 2987usize;
     const NOT_BEFORE_OFFSET: usize = 163usize;
     const NOT_AFTER_OFFSET: usize = 180usize;
-    const TCB_INFO_FLAGS_OFFSET: usize = 3124usize;
-    const TCB_INFO_FW_SVN_OFFSET: usize = 3153usize;
-    const TCB_INFO_FW_SVN_FUSES_OFFSET: usize = 3055usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 3253usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
-    const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    const TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN: usize = 48usize;
+    const TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN: usize = 48usize;
     const TCB_INFO_FMC_TCI_LEN: usize = 48usize;
     const SERIAL_NUMBER_LEN: usize = 20usize;
     const SUBJECT_KEY_ID_LEN: usize = 20usize;
@@ -69,12 +67,10 @@ impl FmcAliasCertTbsMlDsa87 {
     const UEID_LEN: usize = 17usize;
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
-    const TCB_INFO_FLAGS_LEN: usize = 4usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    const TCB_INFO_FW_SVN_FUSES_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 3293usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3415usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 12u8, 217u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 13u8, 83u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
         113u8, 49u8, 36u8, 48u8, 34u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 27u8, 67u8, 97u8, 108u8,
@@ -269,31 +265,39 @@ impl FmcAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 163u8, 130u8, 1u8, 106u8, 48u8, 130u8, 1u8, 102u8, 48u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 163u8, 130u8, 1u8, 228u8, 48u8, 130u8, 1u8, 224u8, 48u8,
         18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8,
         2u8, 1u8, 5u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8,
         2u8, 4u8, 48u8, 31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8,
         4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 48u8, 27u8, 6u8, 3u8, 85u8, 29u8, 37u8, 4u8, 20u8, 48u8, 18u8, 6u8,
         7u8, 103u8, 129u8, 5u8, 5u8, 4u8, 100u8, 12u8, 6u8, 7u8, 103u8, 129u8, 5u8, 5u8, 4u8,
-        100u8, 9u8, 48u8, 129u8, 193u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 5u8, 4u8, 129u8,
-        182u8, 48u8, 129u8, 179u8, 48u8, 96u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8,
+        100u8, 9u8, 48u8, 130u8, 1u8, 58u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 5u8, 4u8, 130u8,
+        1u8, 46u8, 48u8, 130u8, 1u8, 42u8, 48u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8, 9u8, 96u8,
+        134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 28u8, 67u8,
+        65u8, 76u8, 73u8, 80u8, 84u8, 82u8, 65u8, 95u8, 50u8, 95u8, 88u8, 95u8, 70u8, 85u8, 83u8,
+        69u8, 95u8, 79u8, 87u8, 78u8, 69u8, 82u8, 95u8, 73u8, 78u8, 70u8, 79u8, 48u8, 96u8, 166u8,
+        63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 137u8, 29u8, 67u8, 65u8, 76u8, 73u8, 80u8, 84u8, 82u8, 65u8, 95u8, 50u8,
+        95u8, 88u8, 95u8, 70u8, 85u8, 83u8, 69u8, 95u8, 86u8, 69u8, 78u8, 68u8, 79u8, 82u8, 95u8,
+        73u8, 78u8, 70u8, 79u8, 48u8, 101u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8,
         9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 135u8,
-        5u8, 0u8, 95u8, 95u8, 95u8, 95u8, 137u8, 11u8, 68u8, 69u8, 86u8, 73u8, 67u8, 69u8, 95u8,
-        73u8, 78u8, 70u8, 79u8, 138u8, 5u8, 0u8, 208u8, 0u8, 0u8, 1u8, 48u8, 79u8, 131u8, 2u8, 1u8,
-        95u8, 166u8, 63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8,
-        4u8, 48u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 137u8,
+        30u8, 67u8, 65u8, 76u8, 73u8, 80u8, 84u8, 82u8, 65u8, 95u8, 50u8, 95u8, 88u8, 95u8, 70u8,
+        77u8, 67u8, 95u8, 70u8, 73u8, 82u8, 77u8, 87u8, 65u8, 82u8, 69u8, 95u8, 73u8, 78u8, 70u8,
+        79u8, 48u8, 29u8, 6u8, 3u8, 85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 8u8, 70u8, 77u8, 67u8, 95u8, 73u8, 78u8, 70u8, 79u8,
-        48u8, 29u8, 6u8, 3u8, 85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        48u8, 31u8, 6u8, 3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8,
     ];
     pub fn new(params: &FmcAliasCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -314,7 +318,7 @@ impl FmcAliasCertTbsMlDsa87 {
     fn apply(&mut self, params: &FmcAliasCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 3293usize],
+            buf: &mut [u8; 3415usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
@@ -332,9 +336,13 @@ impl FmcAliasCertTbsMlDsa87 {
             params.issuer_sn,
         );
         apply_slice::<
-            { Self::TCB_INFO_DEVICE_INFO_HASH_OFFSET },
-            { Self::TCB_INFO_DEVICE_INFO_HASH_LEN },
-        >(&mut self.tbs, params.tcb_info_device_info_hash);
+            { Self::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET },
+            { Self::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN },
+        >(&mut self.tbs, params.tcb_info_owner_device_info_hash);
+        apply_slice::<
+            { Self::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET },
+            { Self::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN },
+        >(&mut self.tbs, params.tcb_info_vendor_device_info_hash);
         apply_slice::<{ Self::TCB_INFO_FMC_TCI_OFFSET }, { Self::TCB_INFO_FMC_TCI_LEN }>(
             &mut self.tbs,
             params.tcb_info_fmc_tci,
@@ -360,17 +368,9 @@ impl FmcAliasCertTbsMlDsa87 {
             &mut self.tbs,
             params.not_after,
         );
-        apply_slice::<{ Self::TCB_INFO_FLAGS_OFFSET }, { Self::TCB_INFO_FLAGS_LEN }>(
-            &mut self.tbs,
-            params.tcb_info_flags,
-        );
         apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
             params.tcb_info_fw_svn,
-        );
-        apply_slice::<{ Self::TCB_INFO_FW_SVN_FUSES_OFFSET }, { Self::TCB_INFO_FW_SVN_FUSES_LEN }>(
-            &mut self.tbs,
-            params.tcb_info_fw_svn_fuses,
         );
     }
 }

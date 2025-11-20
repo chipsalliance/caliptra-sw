@@ -99,45 +99,33 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
 
     pub fn add_fmc_dice_tcb_info_ext(
         mut self,
-        device_fwids: &[FwidParam],
+        owner_device_fwids: &[FwidParam],
+        vendor_device_fwids: &[FwidParam],
         fmc_fwids: &[FwidParam],
     ) -> Self {
         // This method of finding the offsets is fragile. Especially for the 1 byte values.
         // These may need to be updated to stay unique when the cert template is updated.
-        let flags: u32 = 0xC0C1C2C3;
         let svn: u8 = 0xC4;
-        let svn_fuses: u8 = 0xC6;
 
         self.exts
             .push(x509::make_fmc_dice_tcb_info_ext(
-                flags,
                 svn,
-                svn_fuses,
-                device_fwids,
+                owner_device_fwids,
+                vendor_device_fwids,
                 fmc_fwids,
             ))
             .unwrap();
-
-        self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new("tcb_info_flags", 0, std::mem::size_of_val(&flags)),
-            needle: flags.to_be_bytes().to_vec(),
-        });
 
         self.params.push(CertTemplateParam {
             tbs_param: TbsParam::new("tcb_info_fw_svn", 0, std::mem::size_of_val(&svn)),
             needle: svn.to_be_bytes().to_vec(),
         });
 
-        self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new(
-                "tcb_info_fw_svn_fuses",
-                0,
-                std::mem::size_of_val(&svn_fuses),
-            ),
-            needle: svn_fuses.to_be_bytes().to_vec(),
-        });
-
-        for fwid in device_fwids.iter().chain(fmc_fwids.iter()) {
+        for fwid in owner_device_fwids
+            .iter()
+            .chain(vendor_device_fwids.iter())
+            .chain(fmc_fwids.iter())
+        {
             self.params.push(CertTemplateParam {
                 tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
                 needle: fwid.fwid.digest.to_vec(),

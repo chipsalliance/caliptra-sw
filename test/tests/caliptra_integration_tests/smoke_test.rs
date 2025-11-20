@@ -46,7 +46,6 @@ struct RomTestParams<'a> {
     tcb_info_vendor: Option<&'a str>,
     tcb_device_info_model: Option<&'a str>,
     tcb_fmc_info_model: Option<&'a str>,
-    tcb_info_flags: Option<u32>,
 }
 const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
     testdata_path: "tests/caliptra_integration_tests/smoke_testdata/rom-latest",
@@ -59,7 +58,6 @@ const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
     tcb_info_vendor: None,
     tcb_device_info_model: None,
     tcb_fmc_info_model: None,
-    tcb_info_flags: Some(0x00000001),
 };
 
 fn get_rom_test_params() -> RomTestParams<'static> {
@@ -194,6 +192,11 @@ fn get_ldevid_pubkey_mldsa() -> openssl::pkey::PKey<openssl::pkey::Public> {
     cert.public_key().unwrap()
 }
 
+fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
+    let fuse: u128 = u128::from_le_bytes(num_le.as_bytes().try_into().unwrap());
+    128 - fuse.leading_zeros()
+}
+
 #[test]
 fn test_golden_idevid_pubkey_matches_generated() {
     let idevid_pubkey_ecc = get_idevid_pubkey_ecc();
@@ -284,6 +287,8 @@ fn smoke_test() {
                 owner_pk_hash: owner_pk_hash_words,
                 fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 fuse_pqc_key_type: *pqc_key_type as u32,
+                soc_manifest_svn: [0xFFFF_FFFF, 0xFFFF_0000, 0x0, 0x0],
+                soc_manifest_max_svn: 96,
                 ..Default::default()
             };
             let mut hw = caliptra_hw_model::new(
@@ -451,16 +456,22 @@ fn smoke_test() {
             );
 
             let mut hasher = Sha384::new();
+            hasher.update(&owner_pk_hash);
+            hasher.update(&[fuses.anti_rollback_disable as u8]);
+            hasher.update(&[fuses.fuse_ecc_revocation as u8]);
+            hasher.update(&fuses.fuse_lms_revocation.to_le_bytes());
+            hasher.update(&[fuses.fuse_mldsa_revocation as u8]);
+            hasher.update(&[first_set_msbit(&fuses.fw_svn) as u8]);
+            hasher.update(&[first_set_msbit(&fuses.soc_manifest_svn) as u8]);
+            hasher.update(&[fuses.soc_manifest_max_svn as u8]);
+            let owner_info_hash = hasher.finish();
+
+            let mut hasher = Sha384::new();
+            hasher.update(&vendor_pk_desc_hash);
+            hasher.update(&[fuses.fuse_pqc_key_type as u8]);
             hasher.update(&[security_state.device_lifecycle() as u8]);
             hasher.update(&[security_state.debug_locked() as u8]);
-            hasher.update(&[fuses.anti_rollback_disable as u8]);
-            hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
-            hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
-            hasher.update(&[image.manifest.pqc_key_type]);
-            hasher.update(&[true as u8]);
-            hasher.update(vendor_pk_desc_hash.as_bytes());
-            hasher.update(&owner_pk_hash);
-            let device_info_hash = hasher.finish();
+            let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [
                 DiceTcbInfo {
@@ -468,15 +479,24 @@ fn smoke_test() {
                     model: get_rom_test_params()
                         .tcb_device_info_model
                         .map(String::from),
-                    // This is from the SVN in the fuses (7 bits set)
-                    svn: Some(0x107),
                     fwids: vec![DiceFwid {
                         hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        digest: device_info_hash.to_vec(),
+                        digest: owner_info_hash.to_vec(),
+                    }],
+                    ty: Some(b"CALIPTRA_2_X_FUSE_OWNER_INFO".to_vec()),
+                    ..Default::default()
+                },
+                DiceTcbInfo {
+                    vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                    model: get_rom_test_params()
+                        .tcb_device_info_model
+                        .map(String::from),
+                    fwids: vec![DiceFwid {
+                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: vendor_info_hash.to_vec(),
                     }],
 
-                    flags: get_rom_test_params().tcb_info_flags,
-                    ty: Some(b"DEVICE_INFO".to_vec()),
+                    ty: Some(b"CALIPTRA_2_X_FUSE_VENDOR_INFO".to_vec()),
                     ..Default::default()
                 },
                 DiceTcbInfo {
@@ -491,7 +511,7 @@ fn smoke_test() {
                             .as_bytes()
                             .to_vec(),
                     }],
-                    ty: Some(b"FMC_INFO".to_vec()),
+                    ty: Some(b"CALIPTRA_2_X_FMC_FIRMWARE_INFO".to_vec()),
                     ..Default::default()
                 },
             ];
@@ -501,18 +521,19 @@ fn smoke_test() {
 
             let expected_fmc_alias_key = FmcAliasKey::derive(
                 &Pcr0::derive(&Pcr0Input {
-                    security_state,
-                    fuse_anti_rollback_disable: false,
-                    vendor_pub_key_hash: vendor_pk_desc_hash_words,
-                    owner_pub_key_hash: owner_pk_hash_words,
-                    owner_pub_key_hash_from_fuses: true,
-                    ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
                     fmc_digest: image.manifest.fmc.digest,
-                    cold_boot_fw_svn: image.manifest.header.svn,
-                    // This is from the SVN in the fuses (7 bits set)
-                    fw_fuse_svn: 7,
-                    pqc_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
-                    pqc_key_type: *pqc_key_type as u32,
+                    owner_pub_key_hash: owner_pk_hash_words,
+                    anti_rollback_disable: fuses.anti_rollback_disable,
+                    vendor_ecc_pub_key_revocation: fuses.fuse_ecc_revocation as u8,
+                    vendor_lms_pub_key_revocation: fuses.fuse_lms_revocation,
+                    vendor_mldsa_pub_key_revocation: fuses.fuse_mldsa_revocation as u8,
+                    fw_fuse_svn: first_set_msbit(&fuses.fw_svn) as u8,
+                    soc_manifest_fuse_svn: first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                    max_soc_manifest_fuse_svn: fuses.soc_manifest_max_svn,
+                    vendor_pub_key_hash: vendor_pk_desc_hash_words,
+                    pqc_key_type: fuses.fuse_pqc_key_type as u8,
+                    lifecycle: security_state.device_lifecycle() as u8,
+                    debug_locked: security_state.debug_locked() as u8,
                 }),
                 &expected_ldevid_key,
             );
@@ -638,22 +659,8 @@ fn smoke_test() {
                     String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
 
                 // To update the alias-cert golden-data:
-                // std::fs::write(
-                //     format!(
-                //         "{}/fmc_alias_cert_redacted.txt",
-                //         get_rom_test_params().testdata_path
-                //     ),
-                //     &fmc_alias_cert_redacted_txt,
-                // )
-                // .unwrap();
-                // std::fs::write(
-                //     format!(
-                //         "{}/fmc_alias_cert_redacted.der",
-                //         get_rom_test_params().testdata_path
-                //     ),
-                //     &fmc_alias_cert_redacted_der,
-                // )
-                // .unwrap();
+                // std::fs::write(format!("{}/fmc_alias_cert_redacted.txt", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_txt,).unwrap();
+                // std::fs::write(format!("{}/fmc_alias_cert_redacted.der", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_der,).unwrap();
 
                 assert_eq!(
                     fmc_alias_cert_redacted_txt.as_str(),
@@ -745,16 +752,8 @@ fn smoke_test() {
                     String::from_utf8(fmc_alias_csr_redacted.to_text().unwrap()).unwrap();
 
                 // To update the CSR testdata:
-                // std::fs::write(
-                //     "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.txt",
-                //     &fmc_alias_csr_redacted_txt,
-                // )
-                // .unwrap();
-                // std::fs::write(
-                //     "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.der",
-                //     &fmc_alias_csr_redacted_der,
-                // )
-                // .unwrap();
+                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.txt", &fmc_alias_csr_redacted_txt,).unwrap();
+                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.der",&fmc_alias_csr_redacted_der,).unwrap();
 
                 assert_eq!(
                     fmc_alias_csr_redacted_txt.as_str(),
@@ -834,7 +833,7 @@ fn smoke_test() {
                             .as_bytes()
                             .to_vec(),
                     },],
-                    ty: Some(b"RT_INFO".to_vec()),
+                    ty: Some(b"CALIPTRA_2_X_RT_FIRMWARE_INFO".to_vec()),
                     ..Default::default()
                 }),
             );
@@ -932,16 +931,8 @@ fn smoke_test() {
                     String::from_utf8(rt_alias_cert_redacted.to_text().unwrap()).unwrap();
 
                 // To update the alias-cert golden-data:
-                // std::fs::write(
-                //     "tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.txt",
-                //     &rt_alias_cert_redacted_txt,
-                // )
-                // .unwrap();
-                // std::fs::write(
-                //     "tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.der",
-                //     &rt_alias_cert_redacted_der,
-                // )
-                // .unwrap();
+                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.txt", &rt_alias_cert_redacted_txt,).unwrap();
+                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.der", &rt_alias_cert_redacted_der,).unwrap();
 
                 assert_eq!(
                     rt_alias_cert_redacted_txt.as_str(),
@@ -1047,7 +1038,7 @@ fn smoke_test() {
                             .as_bytes()
                             .to_vec(),
                     },],
-                    ty: Some(b"RT_INFO".to_vec()),
+                    ty: Some(b"CALIPTRA_2_X_RT_FIRMWARE_INFO".to_vec()),
                     ..Default::default()
                 }),
             );

@@ -29,10 +29,8 @@ use caliptra_common::keyids::{
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{dice, x509};
-use caliptra_drivers::KeyUsage;
 use caliptra_drivers::{
-    okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
-    HmacMode, KeyId,
+    okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, KeyUsage,
 };
 use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
@@ -203,29 +201,14 @@ impl FmcAliasLayer {
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
         let data_vault = &env.persistent_data.get().rom.data_vault;
-        let soc_ifc = &env.soc_ifc;
-
-        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let soc_ifc: &caliptra_drivers::SocIfc = &env.soc_ifc;
+        let sha2_512_384 = &mut env.sha2_512_384;
 
         let svn = data_vault.cold_boot_fw_svn() as u8;
-        let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
-
-        let mut fuse_info_digest = Array4x12::default();
-        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
-        hasher.update(&[
-            soc_ifc.lifecycle() as u8,
-            soc_ifc.debug_locked() as u8,
-            soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-            data_vault.vendor_ecc_pk_index() as u8,
-            data_vault.vendor_pqc_pk_index() as u8,
-            fw_proc_info.pqc_key_type,
-            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
-        ])?;
-        hasher.update(&<[u8; 48]>::from(
-            soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
-        ))?;
-        hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
-        hasher.finalize(&mut fuse_info_digest)?;
+        let owner_device_info_hash =
+            dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, sha2_512_384)?;
+        let vendor_device_info_hash =
+            dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, sha2_512_384)?;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsEcc384Params {
@@ -237,10 +220,9 @@ impl FmcAliasLayer {
             serial_number: &x509::ecc_cert_sn(&mut env.sha256, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
-            tcb_info_device_info_hash: &fuse_info_digest.into(),
-            tcb_info_flags: &flags,
+            tcb_info_owner_device_info_hash: &owner_device_info_hash,
+            tcb_info_vendor_device_info_hash: &vendor_device_info_hash,
             tcb_info_fw_svn: &svn.to_be_bytes(),
-            tcb_info_fw_svn_fuses: &fuse_svn.to_be_bytes(),
             not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
             not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };
@@ -300,28 +282,13 @@ impl FmcAliasLayer {
         let pub_key = output.mldsa_subj_key_pair.pub_key;
         let data_vault = &env.persistent_data.get().rom.data_vault;
         let soc_ifc = &env.soc_ifc;
+        let sha2_512_384 = &mut env.sha2_512_384;
 
-        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
-
-        let svn = data_vault.fw_svn() as u8;
-        let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
-
-        let mut fuse_info_digest = Array4x12::default();
-        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
-        hasher.update(&[
-            soc_ifc.lifecycle() as u8,
-            soc_ifc.debug_locked() as u8,
-            soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-            data_vault.vendor_ecc_pk_index() as u8,
-            data_vault.vendor_pqc_pk_index() as u8,
-            fw_proc_info.pqc_key_type,
-            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
-        ])?;
-        hasher.update(&<[u8; 48]>::from(
-            soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
-        ))?;
-        hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
-        hasher.finalize(&mut fuse_info_digest)?;
+        let svn = data_vault.cold_boot_fw_svn() as u8;
+        let owner_device_info_hash =
+            dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, sha2_512_384)?;
+        let vendor_device_info_hash =
+            dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, sha2_512_384)?;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsMlDsa87Params {
@@ -333,10 +300,9 @@ impl FmcAliasLayer {
             serial_number: &x509::mldsa_cert_sn(&mut env.sha256, &pub_key)?,
             public_key: &pub_key.into(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
-            tcb_info_device_info_hash: &fuse_info_digest.into(),
-            tcb_info_flags: &flags,
+            tcb_info_owner_device_info_hash: &owner_device_info_hash,
+            tcb_info_vendor_device_info_hash: &vendor_device_info_hash,
             tcb_info_fw_svn: &svn.to_be_bytes(),
-            tcb_info_fw_svn_fuses: &fuse_svn.to_be_bytes(),
             not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
             not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };

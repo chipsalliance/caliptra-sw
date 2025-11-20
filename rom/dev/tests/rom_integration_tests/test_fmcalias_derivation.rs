@@ -31,6 +31,11 @@ use crate::helpers::{self, assert_fatal_fw_load};
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
 
+fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
+    let fuse: u128 = u128::from_le_bytes(num_le.as_bytes().try_into().unwrap());
+    128 - fuse.leading_zeros()
+}
+
 #[test]
 fn test_zero_firmware_size() {
     let (mut hw, _image_bundle) =
@@ -155,7 +160,7 @@ fn test_pcr_log() {
         let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
-                fuses,
+                fuses: fuses.clone(),
                 rom: &rom,
                 security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
@@ -200,15 +205,19 @@ fn test_pcr_log() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                anti_rollback_disable as u8,
+                fuses.fuse_ecc_revocation as u8,
+                fuses.fuse_lms_revocation.to_le_bytes()[0],
+                fuses.fuse_lms_revocation.to_le_bytes()[1],
+                fuses.fuse_lms_revocation.to_le_bytes()[2],
+                fuses.fuse_lms_revocation.to_le_bytes()[3],
+                fuses.fuse_mldsa_revocation as u8,
+                first_set_msbit(&fuses.fw_svn) as u8,
+                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                fuses.soc_manifest_max_svn as u8,
+                fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
-                anti_rollback_disable as u8,
-                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-                FW_SVN as u8,
-                0_u8,
-                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-                *pqc_key_type as u8,
-                true as u8,
             ],
         );
 
@@ -264,7 +273,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
-                fuses,
+                fuses: fuses.clone(),
                 rom: &rom,
                 security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
@@ -313,15 +322,19 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                anti_rollback_disable as u8,
+                fuses.fuse_ecc_revocation as u8,
+                fuses.fuse_lms_revocation.to_le_bytes()[0],
+                fuses.fuse_lms_revocation.to_le_bytes()[1],
+                fuses.fuse_lms_revocation.to_le_bytes()[2],
+                fuses.fuse_lms_revocation.to_le_bytes()[3],
+                fuses.fuse_mldsa_revocation as u8,
+                first_set_msbit(&fuses.fw_svn) as u8,
+                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                fuses.soc_manifest_max_svn as u8,
+                fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
-                anti_rollback_disable as u8,
-                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-                0_u8,
-                0_u8,
-                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-                *pqc_key_type as u8,
-                false as u8,
             ],
         );
 
@@ -354,7 +367,6 @@ fn test_pcr_log_fmc_fuse_svn() {
             .unwrap();
 
         const FW_SVN: u32 = 3;
-        const FW_FUSE_SVN: u32 = 2;
 
         let fuses = Fuses {
             anti_rollback_disable: false,
@@ -369,7 +381,7 @@ fn test_pcr_log_fmc_fuse_svn() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                fuses,
+                fuses: fuses.clone(),
                 security_state: SecurityState::from(life_cycle as u32),
                 ss_init_params: SubsystemInitParams {
                     enable_mcu_uart_log: true,
@@ -420,15 +432,19 @@ fn test_pcr_log_fmc_fuse_svn() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                anti_rollback_disable as u8,
+                fuses.fuse_ecc_revocation as u8,
+                fuses.fuse_lms_revocation.to_le_bytes()[0],
+                fuses.fuse_lms_revocation.to_le_bytes()[1],
+                fuses.fuse_lms_revocation.to_le_bytes()[2],
+                fuses.fuse_lms_revocation.to_le_bytes()[3],
+                fuses.fuse_mldsa_revocation as u8,
+                first_set_msbit(&fuses.fw_svn) as u8,
+                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                fuses.soc_manifest_max_svn as u8,
+                fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
-                anti_rollback_disable as u8,
-                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-                FW_SVN as u8,
-                FW_FUSE_SVN as u8,
-                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-                *pqc_key_type as u8,
-                true as u8,
             ],
         );
     }
@@ -809,7 +825,7 @@ fn test_fht_info() {
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
         let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
         assert_eq!(fht.ecc_ldevid_tbs_size, 595);
-        assert_eq!(fht.ecc_fmcalias_tbs_size, 796);
+        assert_eq!(fht.ecc_fmcalias_tbs_size, 918);
     }
 }
 

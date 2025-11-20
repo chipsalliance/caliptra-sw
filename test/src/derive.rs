@@ -5,7 +5,6 @@ use caliptra_api::mailbox::WrappedKey;
 /// firmware, for use in end-to-end test-cases.
 ///
 /// DO NOT REFACTOR THIS FILE TO RE-USE CODE FROM OTHER PARTS OF CALIPTRA
-use caliptra_api_types::SecurityState;
 use caliptra_image_types::ImageManifest;
 use openssl::{
     pkey::{PKey, Public},
@@ -623,17 +622,19 @@ fn test_ldevid() {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Pcr0Input {
-    pub security_state: SecurityState,
-    pub fuse_anti_rollback_disable: bool,
-    pub vendor_pub_key_hash: [u32; 12],
-    pub owner_pub_key_hash: [u32; 12],
-    pub owner_pub_key_hash_from_fuses: bool,
-    pub ecc_vendor_pub_key_index: u32,
     pub fmc_digest: [u32; 12],
-    pub cold_boot_fw_svn: u32,
-    pub fw_fuse_svn: u32,
-    pub pqc_vendor_pub_key_index: u32,
-    pub pqc_key_type: u32,
+    pub owner_pub_key_hash: [u32; 12],
+    pub anti_rollback_disable: bool,
+    pub vendor_ecc_pub_key_revocation: u8,
+    pub vendor_lms_pub_key_revocation: u32,
+    pub vendor_mldsa_pub_key_revocation: u8,
+    pub fw_fuse_svn: u8,
+    pub soc_manifest_fuse_svn: u8,
+    pub max_soc_manifest_fuse_svn: u8,
+    pub vendor_pub_key_hash: [u32; 12],
+    pub pqc_key_type: u8,
+    pub lifecycle: u8,
+    pub debug_locked: u8,
 }
 impl Pcr0Input {}
 
@@ -649,15 +650,19 @@ impl Pcr0 {
         extend(
             &mut value,
             &[
-                input.security_state.device_lifecycle() as u8,
-                input.security_state.debug_locked() as u8,
-                input.fuse_anti_rollback_disable as u8,
-                input.ecc_vendor_pub_key_index as u8,
-                input.cold_boot_fw_svn as u8,
-                input.fw_fuse_svn as u8,
-                input.pqc_vendor_pub_key_index as u8,
-                input.pqc_key_type as u8,
-                input.owner_pub_key_hash_from_fuses as u8,
+                input.anti_rollback_disable as u8,
+                input.vendor_ecc_pub_key_revocation,
+                input.vendor_lms_pub_key_revocation.to_le_bytes()[0],
+                input.vendor_lms_pub_key_revocation.to_le_bytes()[1],
+                input.vendor_lms_pub_key_revocation.to_le_bytes()[2],
+                input.vendor_lms_pub_key_revocation.to_le_bytes()[3],
+                input.vendor_mldsa_pub_key_revocation,
+                input.fw_fuse_svn,
+                input.soc_manifest_fuse_svn,
+                input.max_soc_manifest_fuse_svn,
+                input.pqc_key_type,
+                input.lifecycle,
+                input.debug_locked,
             ],
         );
         extend(
@@ -679,34 +684,34 @@ impl Pcr0 {
 #[test]
 fn test_derive_pcr0() {
     let pcr0 = Pcr0::derive(&Pcr0Input {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fuse_anti_rollback_disable: false,
-        vendor_pub_key_hash: [
-            0xed6dd78c, 0x131d69e2, 0x313b5d89, 0x0acd8e4e, 0xe2a1db67, 0x790721de, 0x01346b64,
-            0x1c5cf3c9, 0xcf284e7d, 0x0e114d50, 0xe894b381, 0xd874ba94,
+        fmc_digest: [
+            0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
+            0x1bb5034b, 0x587eea1f, 0xfcdd0e0f, 0x8e88d406, 0x3327a3fe,
         ],
         owner_pub_key_hash: [
             0xdc1a27ef, 0x0c08201a, 0x8b066094, 0x118c29fe, 0x0bc2270e, 0xbd965c43, 0xf7b9a68d,
             0x8eaf37fa, 0x968ca8d8, 0x13b2920b, 0x3b88b026, 0xf2f0ebb0,
         ],
-        owner_pub_key_hash_from_fuses: true,
-        ecc_vendor_pub_key_index: 0,
-        fmc_digest: [
-            0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
-            0x1bb5034b, 0x587eea1f, 0xfcdd0e0f, 0x8e88d406, 0x3327a3fe,
+        anti_rollback_disable: false,
+        vendor_ecc_pub_key_revocation: 1,
+        vendor_lms_pub_key_revocation: 2,
+        vendor_mldsa_pub_key_revocation: 3,
+        fw_fuse_svn: 4,
+        soc_manifest_fuse_svn: 5,
+        max_soc_manifest_fuse_svn: 128,
+        vendor_pub_key_hash: [
+            0xed6dd78c, 0x131d69e2, 0x313b5d89, 0x0acd8e4e, 0xe2a1db67, 0x790721de, 0x01346b64,
+            0x1c5cf3c9, 0xcf284e7d, 0x0e114d50, 0xe894b381, 0xd874ba94,
         ],
-        cold_boot_fw_svn: 5,
-        fw_fuse_svn: 2,
-        pqc_vendor_pub_key_index: u32::MAX,
-        pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+        pqc_key_type: FwVerificationPqcKeyType::LMS as u8,
+        lifecycle: DeviceLifecycle::Production as u8,
+        debug_locked: true as u8,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            1597321057, 3306746665, 3870835391, 3103173150, 3318383838, 3407565263, 3776158384,
-            4231654246, 1759479765, 3561253448, 1491479508, 1619944441
+            402091812, 3118249835, 1124683874, 345507244, 4041172038, 1550635311, 1207922531,
+            2806889023, 3567642184, 2063122353, 2538737771, 2451052695
         ])
     )
 }

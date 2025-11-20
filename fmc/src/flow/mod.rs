@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 pub mod dice;
-mod fmc_alias_csr_ecc_384;
+mod fmc_alias_csr;
 mod pcr;
 mod rt_alias;
 mod tci;
@@ -46,7 +46,7 @@ pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
             pdata.fw.version = FwPersistentData::VERSION;
 
             // Generate the FMC Alias Certificate Signing Request (CSR)
-            fmc_alias_csr_ecc_384::generate_csr(env)?;
+            fmc_alias_csr::generate_csr(env)?;
         } else {
             cfi_assert_ne(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
 
