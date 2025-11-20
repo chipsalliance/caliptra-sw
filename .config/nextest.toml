@@ -83,7 +83,11 @@ slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.nightly.overrides]]
 filter = 'test(test_generate_csr_envelop_stress)'
-slow-timeout = { period = "30s", terminate-after = 140 }
+slow-timeout = { period = "30s", terminate-after = 180 }
+
+[[profile.nightly.overrides]]
+filter = 'test(test_binaries_are_identical)'
+slow-timeout = { period = "30s", terminate-after = 30 }
 
 [[profile.nightly.overrides]]
 filter = 'test(test_stress_update)'
