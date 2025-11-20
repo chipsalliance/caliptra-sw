@@ -1912,7 +1912,7 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
         let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
-        let staging_ptr = unsafe { self.mci.ptr.add(staging_offset) };
+        let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
 
         // Write complete u32 chunks
         for (i, chunk) in payload.chunks(4).enumerate() {

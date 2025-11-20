@@ -1278,8 +1278,6 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
-    fn subsystem_mode(&self) -> bool;
-
     /// Get the fuse settings
     fn fuses(&self) -> &Fuses;
     /// Set the fuse settings. A cold boot will need to be done to take affect.
