@@ -12,7 +12,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel, ModelError};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use ml_dsa::signature::Verifier;
 use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::{
@@ -310,7 +310,7 @@ fn test_get_pcr_log_warm_reset() {
     assert!(log.is_ok());
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());

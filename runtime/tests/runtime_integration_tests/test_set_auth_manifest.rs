@@ -18,7 +18,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, Fuses, HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -1154,7 +1154,7 @@ fn test_set_auth_manifest_cmd_warm_reset() {
         .expect("We should have received a response");
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

@@ -2,13 +2,13 @@
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use caliptra_api::{
-    mailbox::{FeProgReq, MailboxReq, MailboxReqHeader},
+    mailbox::{FeProgReq, MailboxReq, MailboxReqHeader, MailboxRespHeader},
     SocManager,
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
+    DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
 use caliptra_runtime::RtBootStatus;
 
@@ -51,7 +51,7 @@ fn test_fe_programming_cmd() {
         .expect("We should have received a response");
 
     // Verify we got a successful response (should be at least header size)
-    assert!(resp.len() >= core::mem::size_of::<MailboxReqHeader>());
+    assert!(resp.len() >= core::mem::size_of::<MailboxRespHeader>());
 
     // Verify no fatal errors occurred
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
@@ -121,13 +121,13 @@ fn test_fe_programming_cmd_warm_reset() {
         .expect("We should have received a response");
 
     // Verify we got a successful response (should be at least header size)
-    assert!(resp.len() >= core::mem::size_of::<MailboxReqHeader>());
+    assert!(resp.len() >= core::mem::size_of::<MailboxRespHeader>());
 
     // Verify no fatal errors occurred
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -139,7 +139,7 @@ fn test_fe_programming_cmd_warm_reset() {
         .expect("We should have received a response");
 
     // Verify we got a successful response (should be at least header size)
-    assert!(resp.len() >= core::mem::size_of::<MailboxReqHeader>());
+    assert!(resp.len() >= core::mem::size_of::<MailboxRespHeader>());
 
     // Verify no fatal errors occurred
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);

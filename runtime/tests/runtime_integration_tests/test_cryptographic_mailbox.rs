@@ -28,7 +28,7 @@ use caliptra_api::mailbox::{
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
-use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel, InitParams, SubsystemInitParams, TrngMode};
+use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SubsystemInitParams, TrngMode};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use cbc::cipher::BlockEncryptMut;
@@ -3620,7 +3620,7 @@ fn test_import_warm_reset() {
     assert_eq!(cm_resp.total_usage_storage, 256);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -3681,7 +3681,7 @@ fn test_delete_warm_reset() {
     assert_eq!(status_resp.total_usage_storage, 256);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -3732,7 +3732,7 @@ fn test_clear_warm_reset() {
     assert_eq!(status_resp.total_usage_storage, 256);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -3781,7 +3781,7 @@ fn test_status_warm_reset() {
     assert_eq!(cm_resp.total_usage_storage, 256);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -3848,7 +3848,7 @@ fn test_sha384_simple_warm_reset() {
     assert_eq!(expected_bytes, resp_bytes);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -3988,7 +3988,7 @@ fn test_sha_many_warm_reset() {
     }
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4185,7 +4185,7 @@ fn test_random_generate_warm_reset() {
     }
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4378,7 +4378,7 @@ fn test_random_stir_itrng_warm_reset() {
     }
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4492,6 +4492,7 @@ fn test_aes_cbc_random_encrypt_decrypt_warm_reset() {
             &plaintext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -4502,12 +4503,13 @@ fn test_aes_cbc_random_encrypt_decrypt_warm_reset() {
             &ciphertext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         assert_eq!(dplaintext, plaintext);
     }
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4536,6 +4538,7 @@ fn test_aes_cbc_random_encrypt_decrypt_warm_reset() {
             &plaintext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -4546,6 +4549,7 @@ fn test_aes_cbc_random_encrypt_decrypt_warm_reset() {
             &ciphertext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         assert_eq!(dplaintext, plaintext);
     }
@@ -4588,6 +4592,7 @@ fn test_aes_gcm_random_encrypt_decrypt_warm_reset() {
             &aad,
             &plaintext,
             MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -4600,13 +4605,14 @@ fn test_aes_gcm_random_encrypt_decrypt_warm_reset() {
             &ciphertext,
             &tag,
             MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
     }
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4637,6 +4643,7 @@ fn test_aes_gcm_random_encrypt_decrypt_warm_reset() {
             &aad,
             &plaintext,
             MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -4649,6 +4656,7 @@ fn test_aes_gcm_random_encrypt_decrypt_warm_reset() {
             &ciphertext,
             &tag,
             MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
         );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
@@ -4717,8 +4725,14 @@ fn test_ecdh_warm_reset() {
 
     // use the CMK shared secret to AES encrypt a known plaintext.
     let plaintext = [0u8; 16];
-    let (iv, tag, ciphertext) =
-        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        cmk,
+        &[],
+        &plaintext,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
     // encrypt with RustCrypto and check if everything matches
     let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
 
@@ -4727,7 +4741,7 @@ fn test_ecdh_warm_reset() {
     assert_eq!(tag, rtag);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4787,8 +4801,14 @@ fn test_ecdh_warm_reset() {
 
     // use the CMK shared secret to AES encrypt a known plaintext.
     let plaintext = [0u8; 16];
-    let (iv, tag, ciphertext) =
-        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        cmk,
+        &[],
+        &plaintext,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
     // encrypt with RustCrypto and check if everything matches
     let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
 
@@ -4858,7 +4878,7 @@ fn test_hmac_random_warm_reset() {
         }
 
         // Perform warm reset
-        model.warm_reset_flow(&Fuses::default());
+        model.warm_reset_flow().unwrap();
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -4969,8 +4989,14 @@ fn test_hmac_kdf_counter_random_warm_reset() {
 
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
-            let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                cmk,
+                &[],
+                &plaintext,
+                MAX_CMB_DATA_SIZE,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
@@ -4980,7 +5006,7 @@ fn test_hmac_kdf_counter_random_warm_reset() {
         }
 
         // Perform warm reset
-        model.warm_reset_flow(&Fuses::default());
+        model.warm_reset_flow().unwrap();
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -5028,8 +5054,14 @@ fn test_hmac_kdf_counter_random_warm_reset() {
 
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
-            let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                cmk,
+                &[],
+                &plaintext,
+                MAX_CMB_DATA_SIZE,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
@@ -5122,8 +5154,14 @@ fn test_hkdf_random_warm_reset() {
 
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
-            let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                cmk,
+                &[],
+                &plaintext,
+                MAX_CMB_DATA_SIZE,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
@@ -5133,7 +5171,7 @@ fn test_hkdf_random_warm_reset() {
         }
 
         // Perform warm reset
-        model.warm_reset_flow(&Fuses::default());
+        model.warm_reset_flow().unwrap();
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -5205,8 +5243,14 @@ fn test_hkdf_random_warm_reset() {
 
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
-            let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                cmk,
+                &[],
+                &plaintext,
+                MAX_CMB_DATA_SIZE,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 

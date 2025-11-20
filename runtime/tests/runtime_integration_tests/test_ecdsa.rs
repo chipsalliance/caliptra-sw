@@ -5,7 +5,7 @@ use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{Fuses, HwModel};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
@@ -354,7 +354,7 @@ fn test_ecdsa_verify_cmd_warm_reset() {
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 
     // Perform warm reset
-    model.warm_reset_flow(&Fuses::default());
+    model.warm_reset_flow().unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
