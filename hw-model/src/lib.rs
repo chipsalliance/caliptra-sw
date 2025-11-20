@@ -2,9 +2,10 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
-use caliptra_api::mailbox::MailboxReq;
+use caliptra_api::mailbox::{MailboxReq, MailboxRespHeader};
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
+use caliptra_common::CptraGeneration;
 use caliptra_emu_bus::{Bus, Event};
 use core::panic;
 use std::path::PathBuf;
@@ -1277,8 +1278,6 @@ pub trait HwModel: SocManager {
 
         Ok(())
     }
-
-    fn subsystem_mode(&self) -> bool;
 
     /// Returns true if this is Caliptra 2.0 only.
     fn version_2_0(&mut self) -> bool {

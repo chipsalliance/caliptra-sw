@@ -834,6 +834,7 @@ impl Response for MailboxRespHeader {}
 
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
+    pub const FIPS_STATUS_NON_ZEROIZABLE_KEY: u32 = 0x4241_444B; // "BADK"
 }
 
 impl Default for MailboxRespHeader {

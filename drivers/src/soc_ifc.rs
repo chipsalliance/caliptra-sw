@@ -14,6 +14,7 @@ Abstract:
 
 use crate::Array4x12;
 use bitfield::size_of;
+use caliptra_api::mailbox::MailboxRespHeader;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -648,7 +649,9 @@ impl SocIfc {
     /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
     /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
     pub fn stable_key_zeroizable(&self) -> bool {
-        !(self.version_2_0() && self.subsystem_mode())
+        let generation = self.caliptra_generation();
+        !((generation.major_version() == 2 && generation.minor_version() == 0)
+            && self.subsystem_mode())
     }
 
     pub fn stable_key_zeroizable_fips_status(&self) -> u32 {
