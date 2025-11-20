@@ -14,16 +14,12 @@ Abstract:
 
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, Ecc384Signature, Lifecycle, Mldsa87Signature, PersistentData,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, Ecc384Signature,
+    Mldsa87Signature, PersistentData, Sha2_512_384, SocIfc,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder};
 
 use crate::hmac_cm::mutrefbytes;
-
-pub const FLAG_BIT_NOT_CONFIGURED: u32 = 1 << 0;
-pub const FLAG_BIT_NOT_SECURE: u32 = 1 << 1;
-pub const FLAG_BIT_DEBUG: u32 = 1 << 3;
-pub const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
 
 /// Return the LDevId ECC cert signature
 ///
@@ -189,24 +185,88 @@ pub fn copy_ldevid_mldsa87_cert(
         .map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
 }
 
-/// Generate flags for DICE evidence
+/// Hash owner device info for FMC Alias Cert and CSR
 ///
 /// # Arguments
 ///
-/// * `device_lifecycle` - Device lifecycle
-/// * `debug_locked`     - Debug locked
-pub fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
-    let mut flags: u32 = FLAG_BIT_FIXED_WIDTH;
+/// * `soc_ifc` - SocIfc Driver
+/// * `sha2_512_384` - Sha2 512/384 Driver
+///
+/// # Returns
+///
+/// * `[u8; 48]` - SHA384 hash of the owner device info
+pub fn gen_fmc_alias_owner_device_info_hash(
+    soc_ifc: &SocIfc,
+    sha2_512_384: &mut Sha2_512_384,
+) -> CaliptraResult<[u8; 48]> {
+    // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
+    //       Ordering and grouping is irrelevant but both must contain the same info
 
-    flags |= match device_lifecycle {
-        Lifecycle::Unprovisioned => FLAG_BIT_NOT_CONFIGURED,
-        Lifecycle::Manufacturing => FLAG_BIT_NOT_SECURE,
-        _ => 0,
-    };
+    // Owner public key hash (384 bits)
+    // Anti-rollback disable (u8)
+    // Vendor ECC key revocation (u8)
+    // Vendor LMS key revocation (u32)
+    // Vendor MLDSA key revocation (u8)
+    // FW min SVN - minimum SVN value (u8)
+    // SoC manifest min SVN - minimum SVN value (u8)
+    // SoC manifest min SVN - max SVN value (u8)
+    let mut fuse_owner_info_digest = Array4x12::default();
+    let mut hasher = sha2_512_384.sha384_digest_init()?;
+    hasher.update(&<[u8; 48]>::from(soc_ifc.fuse_bank().owner_pub_key_hash()))?;
+    hasher.update(&[
+        soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+        soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation().bits() as u8,
+    ])?;
+    hasher.update(
+        &soc_ifc
+            .fuse_bank()
+            .vendor_lms_pub_key_revocation()
+            .to_le_bytes(),
+    )?;
+    hasher.update(&[
+        soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation() as u8,
+        soc_ifc.fuse_bank().fw_fuse_svn() as u8,
+        soc_ifc.fuse_bank().soc_manifest_fuse_svn() as u8,
+        soc_ifc.fuse_bank().max_soc_manifest_fuse_svn() as u8,
+    ])?;
+    hasher.finalize(&mut fuse_owner_info_digest)?;
 
-    if !debug_locked {
-        flags |= FLAG_BIT_DEBUG;
-    }
+    Ok(fuse_owner_info_digest.into())
+}
 
-    flags.reverse_bits().to_be_bytes()
+/// Hash vendor device info for FMC Alias Cert and CSR
+///
+/// # Arguments
+///
+/// * `soc_ifc` - SocIfc Driver
+/// * `sha2_512_384` - Sha2 512/384 Driver
+///
+/// # Returns
+///
+/// * `[u8; 48]` - SHA384 hash of the vendor device info
+pub fn gen_fmc_alias_vendor_device_info_hash(
+    soc_ifc: &SocIfc,
+    sha2_512_384: &mut Sha2_512_384,
+) -> CaliptraResult<[u8; 48]> {
+    // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
+    //       Ordering and grouping is irrelevant but both must contain the same info
+
+    // Vendor public key hash (384 bits)
+    // PQC type (u8)
+    // Lifecycle state (u8)
+    // Debug locked (u8)
+    let mut fuse_vendor_info_digest = Array4x12::default();
+    let mut hasher = sha2_512_384.sha384_digest_init()?;
+
+    hasher.update(&<[u8; 48]>::from(
+        soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
+    ))?;
+    hasher.update(&[
+        soc_ifc.fuse_bank().pqc_key_type() as u8,
+        soc_ifc.lifecycle() as u8,
+        soc_ifc.debug_locked() as u8,
+    ])?;
+    hasher.finalize(&mut fuse_vendor_info_digest)?;
+
+    Ok(fuse_vendor_info_digest.into())
 }
