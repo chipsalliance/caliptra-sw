@@ -233,7 +233,12 @@ pub fn start_rt_test_pqc_model(
         feature = "fpga_subsystem"
     )))
     .unwrap();
-    let init_params = args.init_params.unwrap_or_else(|| InitParams {
+
+    let image =
+        caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
+    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let mut init_params = args.init_params.unwrap_or_else(|| InitParams {
         rom: &rom,
         stack_info: Some(StackInfo::new(image_info)),
         test_sram: args.test_sram,
@@ -245,11 +250,14 @@ pub fn start_rt_test_pqc_model(
         },
         ..Default::default()
     });
-
-    let image =
-        caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
-
-    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+    init_params.fuses = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        vendor_pk_hash,
+        owner_pk_hash,
+        soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
+        soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
+        ..Default::default()
+    };
 
     let boot_flags = if let Some(flags) = args.test_mfg_flags {
         flags.bits()
@@ -272,14 +280,6 @@ pub fn start_rt_test_pqc_model(
         init_params,
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
-            fuses: Fuses {
-                fuse_pqc_key_type: pqc_key_type as u32,
-                vendor_pk_hash,
-                owner_pk_hash,
-                soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
-                soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
-                ..Default::default()
-            },
             initial_dbg_manuf_service_reg: boot_flags,
             soc_manifest,
             mcu_fw_image,

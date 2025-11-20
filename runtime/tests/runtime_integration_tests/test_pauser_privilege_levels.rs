@@ -698,16 +698,15 @@ fn test_pl0_unset_in_header() {
         ..Default::default()
     };
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let life_cycle = fuses.life_cycle;
     let mut model = caliptra_hw_model::new(
         InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        BootParams {
             fuses,
+            rom: &rom,
+            security_state: SecurityState::from(life_cycle as u32),
             ..Default::default()
         },
+        BootParams::default(),
     )
     .unwrap();
 
@@ -809,16 +808,15 @@ fn test_user_not_pl0() {
             ..Default::default()
         };
         let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut model = caliptra_hw_model::new(
             InitParams {
-                rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
                 fuses,
+                rom: &rom,
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
+            BootParams::default(),
         )
         .unwrap();
 

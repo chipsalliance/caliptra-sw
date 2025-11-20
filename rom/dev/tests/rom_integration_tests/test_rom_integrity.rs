@@ -80,12 +80,12 @@ fn test_read_rom_info_from_fmc() {
 
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
                 fw_image: Some(&image_bundle),
-                fuses,
                 ..Default::default()
             },
         )

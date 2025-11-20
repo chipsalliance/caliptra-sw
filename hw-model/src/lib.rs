@@ -199,6 +199,9 @@ impl Default for SubsystemInitParams<'_> {
 }
 
 pub struct InitParams<'a> {
+    // Fuse settings
+    pub fuses: Fuses,
+
     // The contents of the boot ROM
     pub rom: &'a [u8],
 
@@ -290,6 +293,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
+            fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
@@ -364,7 +368,6 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 
 #[derive(Clone)]
 pub struct BootParams<'a> {
-    pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
@@ -380,7 +383,6 @@ pub struct BootParams<'a> {
 impl Default for BootParams<'_> {
     fn default() -> Self {
         Self {
-            fuses: Default::default(),
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
@@ -672,7 +674,7 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
-        HwModel::init_fuses(self, &boot_params.fuses);
+        HwModel::init_fuses(self);
 
         self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
@@ -866,9 +868,10 @@ pub trait HwModel: SocManager {
     ///
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
-    fn init_fuses(&mut self, fuses: &Fuses) {
+    fn init_fuses(&mut self) {
         println!("Initializing fuses");
-        if let Err(e) = caliptra_api::SocManager::init_fuses(self, fuses) {
+        let fuses = self.fuses().clone();
+        if let Err(e) = caliptra_api::SocManager::init_fuses(self, &fuses) {
             panic!(
                 "{}",
                 format!("Fuse initializaton error: {}", ModelError::from(e))
@@ -1270,6 +1273,13 @@ pub trait HwModel: SocManager {
 
         Ok(())
     }
+
+    fn subsystem_mode(&self) -> bool;
+
+    /// Get the fuse settings
+    fn fuses(&self) -> &Fuses;
+    /// Set the fuse settings. A cold boot will need to be done to take affect.
+    fn set_fuses(&mut self, fuses: Fuses);
 }
 
 #[cfg(test)]

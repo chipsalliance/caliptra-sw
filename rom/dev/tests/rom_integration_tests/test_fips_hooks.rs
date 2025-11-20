@@ -44,12 +44,12 @@ fn test_fips_hook_exit() {
         .unwrap();
 
         let init_params = InitParams {
+            fuses,
             rom: &rom,
             ..Default::default()
         };
 
         let boot_params = BootParams {
-            fuses,
             fw_image: Some(&image_bundle),
             ..Default::default()
         };

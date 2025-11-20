@@ -225,6 +225,7 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     security_state.set_debug_locked(fuses.debug_locked);
     caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             security_state,
             stack_info: Some(StackInfo::new(image_info)),
@@ -235,7 +236,6 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
             ..Default::default()
         },
         BootParams {
-            fuses,
             ..Default::default()
         },
     )

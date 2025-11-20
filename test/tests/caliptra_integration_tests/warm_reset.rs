@@ -31,18 +31,18 @@ fn warm_reset_basic() {
 
     let binding = image.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0], // Equals 7
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         ..Default::default()
     };
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ..Default::default()
@@ -85,18 +85,18 @@ fn warm_reset_during_fw_load() {
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0], // Equals 7
-            ..Default::default()
-        },
         fw_image: None,
         ..Default::default()
     };
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ..Default::default()

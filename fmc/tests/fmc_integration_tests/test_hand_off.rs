@@ -27,11 +27,11 @@ fn test_hand_off() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                fuses,
                 ..Default::default()
             },
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
-                fuses,
                 ..Default::default()
             },
         )

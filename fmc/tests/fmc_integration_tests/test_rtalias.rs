@@ -58,11 +58,11 @@ fn test_boot_status_reporting() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                fuses,
                 ..Default::default()
             },
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
-                fuses,
                 ..Default::default()
             },
         )
@@ -100,11 +100,11 @@ fn test_fht_info() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                fuses,
                 ..Default::default()
             },
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
-                fuses,
                 ..Default::default()
             },
         )
@@ -151,11 +151,11 @@ fn test_pcr_log() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
+                fuses,
                 ..Default::default()
             },
             BootParams {
                 fw_image: Some(&image1.to_bytes().unwrap()),
-                fuses,
                 ..Default::default()
             },
         )

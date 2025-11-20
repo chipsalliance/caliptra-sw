@@ -51,12 +51,6 @@ fn test_warm_reset_success() {
     let binding = image.to_bytes().unwrap();
     let soc_manifest = &crate::helpers::default_soc_manifest_bytes(Default::default(), fw_svn);
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0], // Equals 7
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         soc_manifest: Some(soc_manifest),
         mcu_fw_image: Some(&crate::helpers::DEFAULT_MCU_FW),
@@ -65,6 +59,12 @@ fn test_warm_reset_success() {
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ss_init_params: SubsystemInitParams {
@@ -338,12 +338,6 @@ fn test_warm_reset_version() {
 
     let binding = image.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0], // Equals 7
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         soc_manifest: soc_manifest.as_deref(),
         mcu_fw_image: mcu_fw_image.map(|v| v.as_ref()),
@@ -352,6 +346,12 @@ fn test_warm_reset_version() {
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ss_init_params: SubsystemInitParams {

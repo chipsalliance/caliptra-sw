@@ -690,6 +690,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 
                 let mut hw = caliptra_hw_model::new(
                     InitParams {
+                        fuses,
                         rom: &rom,
                         ss_init_params: SubsystemInitParams {
                             enable_mcu_uart_log: true,
@@ -698,7 +699,6 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
                         ..Default::default()
                     },
                     BootParams {
-                        fuses,
                         ..Default::default()
                     },
                 )
@@ -760,6 +760,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ss_init_params: SubsystemInitParams {
                     enable_mcu_uart_log: true,
@@ -768,7 +769,6 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -821,11 +821,11 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
 
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1303,14 +1303,15 @@ fn test_header_verify_owner_sig_zero_fuses() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1354,14 +1355,15 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1410,14 +1412,15 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1457,14 +1460,15 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1507,14 +1511,15 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1557,14 +1562,15 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1607,14 +1613,15 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         };
 
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -2552,14 +2559,15 @@ fn cert_test_with_custom_dates() {
             caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts)
                 .unwrap();
 
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -2632,14 +2640,15 @@ fn cert_test() {
         )
         .unwrap();
 
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -2710,14 +2719,15 @@ fn cert_test_with_ueid() {
             caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts)
                 .unwrap();
 
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -3072,11 +3082,11 @@ fn test_max_fw_image() {
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -3132,11 +3142,11 @@ fn test_mldsa_verification() {
     let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             ..Default::default()
         },
         BootParams {
-            fuses,
             ..Default::default()
         },
     )
@@ -3171,11 +3181,11 @@ fn hw_and_mldsa_image_bundle() -> (DefaultHwModel, ImageBundle) {
     let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
     let hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             ..Default::default()
         },
         BootParams {
-            fuses,
             ..Default::default()
         },
     )
