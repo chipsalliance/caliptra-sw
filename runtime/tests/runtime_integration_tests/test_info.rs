@@ -83,13 +83,6 @@ fn test_fw_info() {
         let mut image_opts10 = image_opts.clone();
         image_opts10.fw_svn = 10;
 
-        // Cannot use run_rt_test since we need the rom and image to verify info
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-        let init_params = InitParams {
-            rom: &rom,
-            ..Default::default()
-        };
-
         let image =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
                 .unwrap();
@@ -105,11 +98,18 @@ fn test_fw_info() {
             ..Default::default()
         };
 
+        // Cannot use run_rt_test since we need the rom and image to verify info
+        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let init_params = InitParams {
+            fuses,
+            rom: &rom,
+            ..Default::default()
+        };
+
         let mut model = caliptra_hw_model::new(
             init_params,
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
-                fuses,
                 ..Default::default()
             },
         )

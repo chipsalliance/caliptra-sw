@@ -203,10 +203,12 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             ..Default::default()
         };
         let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut model = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ss_init_params: SubsystemInitParams {
                     enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
                     ..Default::default()
@@ -214,7 +216,6 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )

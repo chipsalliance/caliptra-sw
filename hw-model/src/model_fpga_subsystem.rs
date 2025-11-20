@@ -15,6 +15,7 @@ use crate::otp_provision::{
     LifecycleControllerState, OtpSwManufPartition,
 };
 use crate::xi3c::XI3cError;
+use crate::SecurityState;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use anyhow::Result;
 use caliptra_api::SocManager;
@@ -400,6 +401,7 @@ pub struct ModelFpgaSubsystem {
     pub realtime_thread: Option<thread::JoinHandle<()>>,
     pub realtime_thread_exit_flag: Arc<AtomicBool>,
 
+    pub fuses: Fuses,
     pub otp_init: Vec<u8>,
     pub output: Output,
     pub recovery_started: bool,
@@ -1227,9 +1229,33 @@ impl ModelFpgaSubsystem {
         );
     }
 
-    pub fn init_otp(&mut self, fuses: &Fuses) -> Result<(), Box<dyn Error>> {
-        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+    pub fn init_otp(&self, security_state: Option<&SecurityState>) -> Result<(), Box<dyn Error>> {
         let mut otp_data = self.otp_slice().to_vec();
+        if !self.otp_init.is_empty() {
+            // write the initial contents of the OTP memory
+            println!("Initializing OTP with initialized data");
+            if self.otp_init.len() > otp_data.len() {
+                Err(format!(
+                    "OTP initialization data is larger than OTP memory {} > {}",
+                    self.otp_init.len(),
+                    otp_data.len(),
+                ))?;
+            }
+            otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
+        }
+
+        if let Some(security_state) = security_state {
+            let lc_state = match security_state.device_lifecycle() {
+                DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
+                DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
+                DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
+                DeviceLifecycle::Production => LifecycleControllerState::Prod,
+            };
+            println!("Provisioning lifecycle partition (State: {}).", lc_state);
+            let mem = lc_generate_memory(lc_state, 1)?;
+            let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        }
 
         // Provision default LC tokens.
         println!("Provisioning SECRET_LC_TRANSITION partition.");
@@ -1249,13 +1275,13 @@ impl ModelFpgaSubsystem {
         // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
         let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
-            anti_rollback_disable: u32::from(fuses.anti_rollback_disable),
+            anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
             ..Default::default()
         })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
-        let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
+        let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
         println!(
             "Setting vendor public key hash to {:x?}",
             HexSlice(vendor_pk_hash)
@@ -1263,7 +1289,7 @@ impl ModelFpgaSubsystem {
         otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
             .copy_from_slice(vendor_pk_hash);
 
-        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
+        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(self.fuses.fuse_pqc_key_type as u8)
             .unwrap_or(FwVerificationPqcKeyType::LMS);
         println!(
             "Setting vendor public key pqc type to {:x?}",
@@ -1276,7 +1302,7 @@ impl ModelFpgaSubsystem {
         otp_data[FUSE_PQC_OFFSET] = val;
 
         // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
-        let owner_pk_hash = fuses.owner_pk_hash.as_bytes();
+        let owner_pk_hash = self.fuses.owner_pk_hash.as_bytes();
         println!(
             "Setting owner public key hash to {:x?}",
             HexSlice(owner_pk_hash)
@@ -1286,9 +1312,9 @@ impl ModelFpgaSubsystem {
 
         // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
         // Note: ECC revocation in API is a 4-bit value; store in low bits of u32 here.
-        let vendor_ecc_revocation: u32 = (u32::from(fuses.fuse_ecc_revocation)) & 0xF;
-        let vendor_lms_revocation: u32 = fuses.fuse_lms_revocation;
-        let vendor_mldsa_revocation: u32 = fuses.fuse_mldsa_revocation;
+        let vendor_ecc_revocation: u32 = (u32::from(self.fuses.fuse_ecc_revocation)) & 0xF;
+        let vendor_lms_revocation: u32 = self.fuses.fuse_lms_revocation;
+        let vendor_mldsa_revocation: u32 = self.fuses.fuse_mldsa_revocation;
         println!(
             "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
             vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
@@ -1301,14 +1327,14 @@ impl ModelFpgaSubsystem {
             .copy_from_slice(&vendor_mldsa_revocation.to_le_bytes());
 
         // Firmware/runtime SVN (16 bytes -> 4 words)
-        let fw_svn = fuses.fw_svn.as_bytes();
+        let fw_svn = self.fuses.fw_svn.as_bytes();
         println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
         otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
             ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
             .copy_from_slice(fw_svn);
 
         // SoC manifest SVN (16 bytes -> 4 words)
-        let soc_manifest_svn = fuses.soc_manifest_svn.as_bytes();
+        let soc_manifest_svn = self.fuses.soc_manifest_svn.as_bytes();
         println!(
             "Setting SoC manifest SVN to {:x?}",
             HexSlice(soc_manifest_svn)
@@ -1320,9 +1346,9 @@ impl ModelFpgaSubsystem {
         // Max SOC Manifest SVN (1 byte used)
         println!(
             "Burning fuse for SOC MAX SVN {}",
-            fuses.soc_manifest_max_svn
+            self.fuses.soc_manifest_max_svn
         );
-        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = fuses.soc_manifest_max_svn;
+        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = self.fuses.soc_manifest_max_svn;
 
         self.otp_slice().copy_from_slice(&otp_data);
 
@@ -1519,6 +1545,7 @@ impl HwModel for ModelFpgaSubsystem {
             }),
 
             otp_init: vec![],
+            fuses: params.fuses,
             realtime_thread: None,
             realtime_thread_exit_flag,
 
@@ -1586,38 +1613,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
-        // TODO(timothytrippel): move to `init_otp()` eventually.
-        // Users can provide data to initialize OTP a specific way. If an OTP
-        // initialization state is not provided, we proceed with initialization
-        // a default configuration.
-        let mut otp_data = vec![0; OTP_SIZE];
-        if !m.otp_init.is_empty() {
-            // write the initial contents of the OTP memory
-            println!("Initializing OTP with initialized data");
-            if m.otp_init.len() > otp_data.len() {
-                Err(format!(
-                    "OTP initialization data is larger than OTP memory {} > {}",
-                    m.otp_init.len(),
-                    otp_data.len(),
-                ))?;
-            }
-            otp_data[..m.otp_init.len()].copy_from_slice(&m.otp_init);
-        }
-
-        // TODO(timothytrippel): move to `init_otp()` eventually.
-        // Initialize LC state based on the security state of the device.
-        let lc_state = match params.security_state.device_lifecycle() {
-            DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
-            DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
-            DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
-            DeviceLifecycle::Production => LifecycleControllerState::Prod,
-        };
-        println!("Provisioning lifecycle partition (State: {}).", lc_state);
-        let mem = lc_generate_memory(lc_state, 1)?;
-        let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
-        let otp_mem = m.otp_slice();
-        otp_mem.copy_from_slice(&otp_data);
+        m.init_otp(Some(&params.security_state))?;
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1684,7 +1680,7 @@ impl HwModel for ModelFpgaSubsystem {
     // initialization code should go in `init_otp()`. This function is required
     // for the HwModel trait, but is only relevant for Caliptra Core specific
     // HwModels.
-    fn init_fuses(&mut self, _fuses: &Fuses) {
+    fn init_fuses(&mut self) {
         println!("Skip init_fuses(). Caliptra Core fuses are initialized by MCU ROM.");
     }
 
@@ -1692,10 +1688,6 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
-        println!("Initializing subsystem OTP memory.");
-        self.init_otp(&boot_params.fuses)?;
-        HwModel::init_fuses(self, &boot_params.fuses);
-
         // Notify MCU ROM it can start loading the fuse registers
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
@@ -1893,7 +1885,17 @@ impl HwModel for ModelFpgaSubsystem {
     fn cold_reset(&mut self) {
         self.set_subsystem_reset(true);
         std::thread::sleep(std::time::Duration::from_micros(1));
+        self.init_otp(None)
+            .expect("Failed to initialize OTP after cold reset");
         self.set_subsystem_reset(false);
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }
 
