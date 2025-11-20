@@ -20,7 +20,7 @@ use caliptra_drivers::InitDevIdCsrEnvelope;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
-    StackRange, SubsystemInitParams,
+    StackRange,
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -229,10 +229,6 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
             rom: &rom,
             security_state,
             stack_info: Some(StackInfo::new(image_info)),
-            ss_init_params: SubsystemInitParams {
-                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
-                ..Default::default()
-            },
             ..Default::default()
         },
         BootParams {
