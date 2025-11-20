@@ -7,7 +7,7 @@ use caliptra_api::mailbox::{
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::ROM_WITH_UART;
+use caliptra_builder::firmware::{self};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DbgManufServiceRegReq, DeviceLifecycle, HwModel, ModelError, SecurityState, SubsystemInitParams,
@@ -28,7 +28,10 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -83,7 +86,10 @@ fn test_dbg_unlock_manuf_success() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -147,7 +153,10 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -204,7 +213,10 @@ fn test_dbg_unlock_manuf_invalid_token() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_manuf_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -307,7 +319,10 @@ fn test_dbg_unlock_prod_success() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let unlock_level = 5u8;
     let mut prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])> =
@@ -483,7 +498,10 @@ fn test_dbg_unlock_prod_invalid_length() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -562,7 +580,10 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -687,7 +708,10 @@ fn test_dbg_unlock_prod_invalid_signature() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -839,7 +863,10 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -957,7 +984,10 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
 
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
@@ -1031,7 +1061,10 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 
         let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+            feature = "fpga_subsystem"
+        )))
+        .unwrap();
 
         let mut prod_dbg_unlock_keypairs = Vec::new();
         for _ in 0..8 {
@@ -1193,7 +1226,10 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
 
         let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
 
-        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+            feature = "fpga_subsystem"
+        )))
+        .unwrap();
 
         let mut hw = caliptra_hw_model::new(
             caliptra_hw_model::InitParams {

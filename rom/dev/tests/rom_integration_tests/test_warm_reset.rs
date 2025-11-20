@@ -4,8 +4,9 @@ use caliptra_api::{
     mailbox::{FipsVersionResp, MailboxReqHeader, MailboxRespHeader},
     SocManager,
 };
+#[allow(unused_imports)]
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     version, ImageOptions,
 };
 use caliptra_common::{fips::FipsVersionCmd, mailbox_api::CommandId, RomBootStatus::*};
@@ -25,12 +26,20 @@ fn test_warm_reset_success() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &firmware::APP_WITH_UART_FPGA
+        } else {
+            &firmware::APP_WITH_UART
+        },
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             ..Default::default()
         },
     )
@@ -39,6 +48,7 @@ fn test_warm_reset_success() {
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let binding = image.to_bytes().unwrap();
+    let soc_manifest = &crate::helpers::default_soc_manifest_bytes(Default::default(), fw_svn);
     let boot_params = BootParams {
         fuses: Fuses {
             vendor_pk_hash: vendor_pk_desc_hash,
@@ -47,6 +57,8 @@ fn test_warm_reset_success() {
             ..Default::default()
         },
         fw_image: Some(&binding),
+        soc_manifest: Some(soc_manifest),
+        mcu_fw_image: Some(&crate::helpers::DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -85,7 +97,9 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Step till Cold boot starts
-    hw.step_until_boot_status(IDevIdDecryptUdsComplete.into(), true);
+    hw.step_until(|model| {
+        model.soc_ifc().cptra_boot_status().read() >= IDevIdDecryptUdsComplete.into()
+    });
 
     // Perform a warm reset
     hw.warm_reset_flow().unwrap();
@@ -204,7 +218,9 @@ fn test_warm_reset_during_update_reset() {
         assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
         // Step till after last step in update reset is complete
-        hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
+        hw.step_until(|model| {
+            model.soc_ifc().cptra_boot_status().read() >= UpdateResetLoadImageComplete.into()
+        });
 
         // Perform a warm reset
         hw.warm_reset_flow().unwrap();
@@ -281,10 +297,17 @@ fn test_warm_reset_version() {
     let fmc_version = 3;
     let app_version = 5;
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &firmware::APP_WITH_UART_FPGA
+        } else {
+            &firmware::APP_WITH_UART
+        },
         ImageOptions {
             fmc_version,
             app_version,
@@ -318,7 +341,7 @@ fn test_warm_reset_version() {
         },
         fw_image: Some(&binding),
         soc_manifest: soc_manifest.as_deref(),
-        mcu_fw_image: mcu_fw_image.map(|v| &***v),
+        mcu_fw_image: mcu_fw_image.map(|v| v.as_ref()),
         ..Default::default()
     };
 

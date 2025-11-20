@@ -61,6 +61,8 @@ enum mailbox_command {
     OP_SELF_TEST_GET_RESULTS       = 0x46504C67, // "FPGR"
     OP_SHUTDOWN                    = 0x46505344, // "FPSD"
     OP_CAPABILITIES                = 0x43415053, // "CAPS"
+    OP_GET_FMC_ALIAS_ECC384_CSR    = 0x464D4352, // "FMCR"
+    OP_GET_FMC_ALIAS_MLDSA87_CSR   = 0x464d4452, // "FMDR"
     OP_SET_AUTH_MANIFEST           = 0x41544D4E, // "ATMN"
     OP_AUTHORIZE_AND_STASH         = 0x41545348, // "ATSH"
     OP_SIGN_WITH_EXPORTED_ECDSA    = 0x53574545, // "SWEE"
