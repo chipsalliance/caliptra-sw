@@ -30,6 +30,7 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::cfi_check;
+use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::Dma;
 use caliptra_drivers::{
@@ -207,6 +208,7 @@ impl Drivers {
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
                 Self::check_dpe_rt_journey_unchanged(self)?;
+                Self::update_fw_version(self, true, true);
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -302,6 +304,20 @@ impl Drivers {
         dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(latest_pcr);
 
         Ok(())
+    }
+
+    fn update_fw_version(drivers: &mut Drivers, update_fmc_ver: bool, update_rt_ver: bool) {
+        // This is a temp workaround since cptra_fw_rev_id registers are not sticky on a warm reset.
+        if update_fmc_ver {
+            drivers
+                .soc_ifc
+                .set_fmc_fw_rev_id(drivers.persistent_data.get().manifest1.fmc.version as u16);
+        }
+        if update_rt_ver {
+            drivers
+                .soc_ifc
+                .set_rt_fw_rev_id(drivers.persistent_data.get().manifest1.runtime.version);
+        }
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
@@ -518,10 +534,8 @@ impl Drivers {
         }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_ecc384_cert(
-            persistent_data.get(),
-            drivers.ecc_cert_chain.as_mut_slice(),
-        )?;
+        let ldevid_cert_size =
+            copy_ldevid_ecc384_cert(persistent_data.get(), drivers.ecc_cert_chain.as_mut_slice())?;
         if ldevid_cert_size > drivers.ecc_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
@@ -565,7 +579,7 @@ impl Drivers {
         }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_mldsa87_cert(
+        let ldevid_cert_size = copy_ldevid_mldsa87_cert(
             persistent_data.get(),
             drivers.mldsa_cert_chain.as_mut_slice(),
         )?;

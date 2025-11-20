@@ -16,6 +16,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
 /// Maximum output size for AES GCM encrypt or decrypt operations.
 pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
+/// Maximum mailbox size when subsystem staging area is available.
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
@@ -49,6 +51,7 @@ pub enum AlgorithmType {
 impl CommandId {
     pub const ACTIVATE_FIRMWARE: Self = Self(0x41435446); // "ACTF"
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
+    pub const FIRMWARE_VERIFY: Self = Self(0x46575652); // "FWVR"
     pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_ECC384_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_ECC384_CERT: Self = Self(0x49444550); // "IDEP"
@@ -130,6 +133,9 @@ impl CommandId {
 
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
+
+    // External mailbox command
+    pub const EXTERNAL_MAILBOX_CMD: Self = Self(0x4558_544D); // "EXTM"
 
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
@@ -544,6 +550,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    ExternalMailboxCmd(ExternalMailboxCmdReq),
     FeProg(FeProgReq),
 }
 
@@ -621,6 +628,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
@@ -696,6 +704,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
@@ -776,6 +785,7 @@ impl MailboxReq {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
             MailboxReq::ReportHekMetadata(_) => CommandId::REPORT_HEK_METADATA,
+            MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
         }
     }
 
@@ -893,6 +903,31 @@ pub struct ActivateFirmwareResp {
     pub hdr: MailboxRespHeader,
 }
 impl Response for ActivateFirmwareResp {}
+
+// FIRMWARE_VERIFY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Default)]
+pub struct FirmwareVerifyReq {
+    // Caliptra Firmware Bundle
+}
+impl Request for FirmwareVerifyReq {
+    const ID: CommandId = CommandId::FIRMWARE_VERIFY;
+    type Resp = FirmwareVerifyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct FirmwareVerifyResp {
+    pub hdr: MailboxRespHeader,
+    pub verify_result: u32, // FirmwareVerifyResult
+}
+impl Response for FirmwareVerifyResp {}
+
+#[repr(u32)]
+pub enum FirmwareVerifyResult {
+    Success = 0xDEAD_C0DE,
+    Failure = 0x2152_3F21,
+}
 
 // GET_IDEV_ECC384_CERT
 #[repr(C)]
@@ -2075,6 +2110,22 @@ impl Request for ProductionAuthDebugUnlockToken {
     type Resp = MailboxRespHeader; // TODO Check
 }
 
+// EXTERNAL_MAILBOX_CMD
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Default)]
+pub struct ExternalMailboxCmdReq {
+    pub hdr: MailboxReqHeader,
+    pub command_id: u32,
+    pub command_size: u32,
+    pub axi_address_start_low: u32,
+    pub axi_address_start_high: u32,
+}
+
+impl Request for ExternalMailboxCmdReq {
+    const ID: CommandId = CommandId::EXTERNAL_MAILBOX_CMD;
+    type Resp = MailboxRespHeader;
+}
+
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
 pub const CMK_SIZE_BYTES: usize = 128;
 /// CMK is an opaque (encrypted) wrapper around a key.
@@ -2859,7 +2910,7 @@ impl Request for CmAesGcmEncryptInitReq {
 pub struct CmAesGcmEncryptInitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
 }
 
 impl Default for CmAesGcmEncryptInitResp {
@@ -2867,7 +2918,7 @@ impl Default for CmAesGcmEncryptInitResp {
         Self {
             hdr: MailboxRespHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-            iv: [0u8; 12],
+            iv: [0u32; 3],
         }
     }
 }
@@ -3091,7 +3142,7 @@ pub struct CmAesGcmEncryptFinalResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmAesGcmEncryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
-    pub tag: [u8; 16],
+    pub tag: [u32; 4],
     pub ciphertext_size: u32,
 }
 
@@ -3129,7 +3180,7 @@ pub struct CmAesGcmDecryptInitReq {
     pub hdr: MailboxReqHeader,
     pub flags: u32,
     pub cmk: Cmk,
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
 }
@@ -3140,7 +3191,7 @@ impl Default for CmAesGcmDecryptInitReq {
             hdr: MailboxReqHeader::default(),
             flags: 0,
             cmk: Cmk::default(),
-            iv: [0u8; 12],
+            iv: [0u32; 3],
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
         }
@@ -3175,7 +3226,7 @@ impl Request for CmAesGcmDecryptInitReq {
 pub struct CmAesGcmDecryptInitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub iv: [u8; 12],
+    pub iv: [u32; 3],
 }
 
 impl Default for CmAesGcmDecryptInitResp {
@@ -3183,7 +3234,7 @@ impl Default for CmAesGcmDecryptInitResp {
         Self {
             hdr: MailboxRespHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-            iv: [0u8; 12],
+            iv: [0u32; 3],
         }
     }
 }

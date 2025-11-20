@@ -13,9 +13,8 @@ Abstract:
 
 --*/
 
-use crate::tbs::{init_param, sanitize, TbsParam, TbsTemplate};
+use crate::tbs::{get_tbs, init_param, sanitize, TbsParam, TbsTemplate};
 use crate::x509::{self, AsymKey, KeyUsage, SigningAlgorithm};
-use caliptra_common::x509::get_tbs;
 use openssl::stack::Stack;
 use openssl::x509::{X509Extension, X509NameBuilder, X509ReqBuilder};
 

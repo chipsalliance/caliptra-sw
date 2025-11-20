@@ -2,11 +2,12 @@
 
 use caliptra_api::SocManager;
 use std::error::Error;
-use std::iter;
+use std::time::Duration;
+use std::{iter, thread};
 
 use caliptra_builder::{firmware, FwId};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
-use caliptra_drivers_test_bin::DoeTestResults;
+use caliptra_drivers_test_bin::{DoeTestResults, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS};
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
     TrngMode,
@@ -1205,9 +1206,66 @@ fn test_dma_sha384() {
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_ocp_lock() {
-    run_driver_test(&firmware::driver_tests::OCP_LOCK);
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::OCP_LOCK).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            // This test should always enable ocp-lock.
+            ocp_lock_en: true,
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    if !model.supports_ocp_lock() {
+        // We add this assert to make sure this test doesn't fail open.
+        assert_eq!(cfg!(feature = "ocp-lock"), model.supports_ocp_lock(), 
+            "The OCP LOCK feature is enabled but the HW does not support it. Is there a misconfiguration?");
+        return;
+    }
+    model.step_until_exit_success().unwrap();
 }
 
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_ocp_lock_warm_reset() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::OCP_LOCK_WARM_RESET).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            // This test should always enable ocp-lock.
+            ocp_lock_en: true,
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    if !model.supports_ocp_lock() {
+        // We add this assert to make sure this test doesn't fail open.
+        assert_eq!(cfg!(feature = "ocp-lock"), model.supports_ocp_lock(),
+            "The OCP LOCK feature is enabled but the HW does not support it. Is there a misconfiguration?");
+        return;
+    }
+
+    // When test signals ready for reset, perform warm reset.
+    model.step_until_boot_status(OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS, true);
+    model.warm_reset();
+    thread::sleep(Duration::from_secs(1));
+    model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    model.step_until_exit_success().unwrap();
+}
+
+// This test only works on the subsystem FPGA for now
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_dma_aes() {
     run_driver_test(&firmware::driver_tests::DMA_AES);

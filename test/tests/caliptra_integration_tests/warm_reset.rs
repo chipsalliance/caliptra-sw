@@ -29,22 +29,25 @@ fn warm_reset_basic() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0], // Equals 7
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0x7F, 0, 0, 0], // Equals 7
-                ..Default::default()
-            },
-            fw_image: Some(&image.to_bytes().unwrap()),
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -54,12 +57,7 @@ fn warm_reset_basic() {
     }
 
     // Perform warm reset
-    hw.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        fw_svn: [0x7F, 0, 0, 0], // Equals 7
-        ..Default::default()
-    });
+    hw.warm_reset_flow().unwrap();
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
@@ -86,22 +84,24 @@ fn warm_reset_during_fw_load() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0], // Equals 7
+            ..Default::default()
+        },
+        fw_image: None,
+        ..Default::default()
+    };
+
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        BootParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0x7F, 0, 0, 0], // Equals 7
-                ..Default::default()
-            },
-            fw_image: None,
-            ..Default::default()
-        },
+        boot_params.clone(),
     )
     .unwrap();
 
@@ -122,12 +122,7 @@ fn warm_reset_during_fw_load() {
     hw.soc_mbox().execute().write(|w| w.execute(true));
 
     // Perform warm reset while ROM is executing the firmware load
-    hw.warm_reset_flow(&Fuses {
-        vendor_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash,
-        fw_svn: [0x7F, 0, 0, 0], // Equals 7
-        ..Default::default()
-    });
+    hw.warm_reset_flow().unwrap();
 
     // Wait for error
     while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {

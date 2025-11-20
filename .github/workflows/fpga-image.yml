@@ -2,10 +2,12 @@
 name: Build FPGA SD image
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/fpga-image.yml"
-      - "ci-tools/fpga-image/**"
+  # Disable on 2.1 branch.
+  # Images are currently only built on main-2.x
+  # pull_request:
+  #   paths:
+  #     - ".github/workflows/fpga-image.yml"
+  #     - "ci-tools/fpga-image/**"
 
   push:
     branches: ["main-2.x"]
@@ -19,30 +21,29 @@ on:
     - cron: '13 13 * * 2,4'
 
   workflow_call:
+    inputs:
+      branch:
+        default: ${{ github.sha }}
+        type: string
   workflow_dispatch:
-
 jobs:
   build_kernel:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
         include:
-          - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
-            image_variant: core-2.0
-          - bitstream_name: xsa_core2p0_865bf243.xsa
-            image_variant: core-2.0
-          - bitstream_hash: bdc58b49e2b5c8bd45429c3d9d9a514c7dab7f6dd7b9bdc97a299272a20d10a8
-            image_variant: core-2.1
-          - bitstream_name: xsa_core2p1_a57cc52e.xsa
-            image_variant: core-2.1
-          - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
+          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
+            image_variant: core
+          - bitstream_name: xsa_core2p0_5d069408.xsa
+            image_variant: core
+          - bitstream_hash: c6a1febdece4e8036e12e5c2f753e96c3595937aeaee7983714db66c29ae63c8
             image_variant: subsystem-2.0
-          - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
+          - bitstream_name: xsa_ss2p0_d9a32582.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: 3637f0b247ea3b1091dc0554dd92f1c33c336e354bd7e7fad9ee7634cd8d0a98
+          - bitstream_hash: 04612d7cc65cb8274c68d6fb39807f0da8ce4477cc8d38b6bba77b62cb1a4f09
             image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_e1932207.xsa
+          - bitstream_name: xsa_ss2p1_f84723cd.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
@@ -51,25 +52,39 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
+
+      - name: Cache Kernel output
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
+            /tmp/io-module-${{ matrix.image_variant }}.ko
+          key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}
 
       - name: Install pre-requisites
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt install gcc libncurses-dev zlib1g:i386 zlib1g-dev net-tools xterm autoconf libtool texinfo gcc-multilib build-essential device-tree-compiler xvfb apt-transport-https ca-certificates gnupg curl -y
 
       - name: Mount FPGA tools
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           echo "Starting work"
           sudo mkdir /vck190-tools
           sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
 
       - name: Build Kernel
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
         run: |
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250820/${BITSTREAM_NAME} /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251013/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -110,16 +125,18 @@ jobs:
           retention-days: 1
 
   build_sd_image:
-    runs-on: ubuntu-22.04
+    runs-on: [e2-standard-4, big-disk]
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem-2.0, subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with: 
+          ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
         uses: actions/download-artifact@v4
@@ -136,13 +153,27 @@ jobs:
       - name: Install pre-requisites
         run: |
           sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
+          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu 
           rustup target add aarch64-unknown-linux-gnu
+          cargo +1.88 install cross --git https://github.com/cross-rs/cross --root /tmp/cross
 
-      - name: Build SD image
+      - name: Build SD images
         run: |
+          # Build Dev image
           cd ci-tools/fpga-image
-          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=true KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          # Save Dev image for upload
+          sudo mv out/image.img dev-image.img
+          sudo rm -rf out/
+          # Now build CI image
+          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=false KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+
+      - name: 'Upload dev-image as artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-fpga-image-${{ matrix.image_variant }}-dev
+          path: ci-tools/fpga-image/dev-image.img
+          retention-days: 90
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4

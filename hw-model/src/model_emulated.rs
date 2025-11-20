@@ -18,6 +18,7 @@ use caliptra_emu_bus::{Bus, BusMmio};
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, CpuArgs, InstrTracer, Pic};
+use caliptra_emu_periph::dma::axi_root_bus::AxiRootBus;
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
@@ -178,6 +179,7 @@ impl HwModel for ModelEmulated {
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
             subsystem_mode: params.subsystem_mode,
+            ocp_lock_en: params.ocp_lock_en,
             prod_dbg_unlock_keypairs: params.prod_dbg_unlock_keypairs,
             debug_intent: params.debug_intent,
             cptra_obf_key: params.cptra_obf_key,
@@ -192,13 +194,20 @@ impl HwModel for ModelEmulated {
         let mut root_bus = CaliptraRootBus::new(bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
-        root_bus.soc_reg.set_hw_config(
-            (match trng_mode {
-                TrngMode::Internal => 1,
-                TrngMode::External => 0,
-            } | if params.subsystem_mode { 1 << 5 } else { 0 })
-            .into(),
-        );
+        let hw_config = {
+            let mut hw_config = 0;
+            if matches!(trng_mode, TrngMode::Internal) {
+                hw_config |= 1;
+            }
+            if params.subsystem_mode {
+                hw_config |= 1 << 5
+            }
+            if params.ocp_lock_en {
+                hw_config |= 1 << 6
+            }
+            hw_config
+        };
+        root_bus.soc_reg.set_hw_config(hw_config.into());
 
         let input_wires = (!params.uds_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
@@ -412,5 +421,24 @@ impl HwModel for ModelEmulated {
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         self.events_to_caliptra.clone()
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        if !self.subsystem_mode() {
+            return Err(ModelError::SubsystemSramError);
+        }
+
+        let payload_len = payload.len();
+        self.cpu
+            .bus
+            .bus
+            .dma
+            .axi
+            .mcu_sram
+            .data_mut()
+            .get_mut(..payload_len)
+            .ok_or(ModelError::SubsystemSramError)?
+            .copy_from_slice(payload);
+        Ok(AxiRootBus::mcu_sram_offset())
     }
 }

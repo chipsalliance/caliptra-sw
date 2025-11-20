@@ -8,7 +8,7 @@ use caliptra_api::mailbox::{
     MailboxRespHeaderVarSize, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
+    firmware::{rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::{
@@ -18,6 +18,7 @@ use caliptra_common::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use hmac::{Hmac, Mac};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sha2::Sha512;
@@ -25,12 +26,21 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const DOT_KEY_TYPES: [CmStableKeyType; 2] = [CmStableKeyType::IDevId, CmStableKeyType::LDevId];
 
+#[cfg(feature = "fpga_subsystem")]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
+#[cfg(feature = "fpga_realtime")]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
+
 fn decrypt_cmk(key: &[u8], cmk: &EncryptedCmk) -> Option<UnencryptedCmk> {
     use aes_gcm::KeyInit;
     let key: &Key<aes_gcm::Aes256Gcm> = key.into();
     let mut cipher = aes_gcm::Aes256Gcm::new(key);
     let mut buffer = cmk.ciphertext.to_vec();
-    match cipher.decrypt_in_place_detached(&cmk.iv.into(), &[], &mut buffer, &cmk.gcm_tag.into()) {
+    let iv: &[u8; 12] = cmk.iv.as_bytes().try_into().unwrap();
+    let gcm_tag: &[u8; 16] = cmk.gcm_tag.as_bytes().try_into().unwrap();
+    match cipher.decrypt_in_place_detached(iv.into(), &[], &mut buffer, gcm_tag.into()) {
         Ok(_) => UnencryptedCmk::ref_from_bytes(&buffer).ok().cloned(),
         Err(_) => None,
     }
@@ -51,115 +61,131 @@ fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
 
     let domain = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
     let domain_metadata = bytes[4..20].try_into().unwrap();
-    let iv = bytes[20..32].try_into().unwrap();
+    let iv: [u8; 12] = bytes[20..32].try_into().unwrap();
     let ciphertext = bytes[32..(32 + UNENCRYPTED_CMK_SIZE_BYTES)]
         .try_into()
         .unwrap();
     let gcm_tag_start = 32 + UNENCRYPTED_CMK_SIZE_BYTES;
-    let gcm_tag = bytes[gcm_tag_start..(gcm_tag_start + 16)]
+    let gcm_tag: [u8; 16] = bytes[gcm_tag_start..(gcm_tag_start + 16)]
         .try_into()
         .unwrap();
 
     EncryptedCmk {
         domain,
         domain_metadata,
-        iv,
+        iv: iv.into(),
         ciphertext,
-        gcm_tag,
+        gcm_tag: gcm_tag.into(),
     }
 }
 
 #[test]
 fn test_derive_stable_key() {
-    for key_type in DOT_KEY_TYPES.iter() {
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &TEST_FMC_INTERACTIVE,
-            &APP_WITH_UART,
-            ImageOptions::default(),
-        )
-        .unwrap()
-        .to_bytes()
-        .unwrap();
-        let mut hw = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        for key_type in DOT_KEY_TYPES.iter() {
+            let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+            let image_bundle = caliptra_builder::build_and_sign_image(
+                &TEST_FMC_INTERACTIVE,
+                &APP_WITH_UART,
+                ImageOptions::default(),
+            )
+            .unwrap()
+            .to_bytes()
+            .unwrap();
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams::default(),
+            )
+            .unwrap();
+
+            if subsystem_mode != hw.subsystem_mode() {
+                // skip this combination if the FPGA doesn't support this mode
+                continue;
+            }
+
+            let mut request = CmDeriveStableKeyReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                key_type: (*key_type).into(),
+                info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+            };
+            request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+                &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+            );
+            let response = hw
+                .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes())
+                .unwrap()
+                .unwrap();
+
+            let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+            let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
+
+            assert_eq!(resp.hdr.fips_status, expected_fips_status);
+
+            // Verify response checksum
+            assert!(caliptra_common::checksum::verify_checksum(
+                resp.hdr.chksum,
+                0x0,
+                &resp.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
+            ));
+
+            // Verify FIPS status
+            assert_eq!(resp.hdr.fips_status, expected_fips_status);
+
+            let cmk = resp.cmk.0;
+            assert_ne!(cmk, [0u8; CMK_SIZE_BYTES]);
+
+            let seed_bytes = [1u8; 32];
+            let mut seeded_rng = StdRng::from_seed(seed_bytes);
+            let mut data = vec![0u8; MAX_CMB_DATA_SIZE];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac = CmHmacReq {
+                cmk: resp.cmk.clone(),
+                hash_algorithm: CmHashAlgorithm::Sha512.into(),
+                data_size: MAX_CMB_DATA_SIZE as u32,
                 ..Default::default()
-            },
-            BootParams::default(),
-        )
-        .unwrap();
+            };
+            cm_hmac.data[..MAX_CMB_DATA_SIZE].copy_from_slice(&data);
+            cm_hmac.hdr.chksum = caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::CM_HMAC),
+                &cm_hmac.as_bytes()[core::mem::size_of_val(&cm_hmac.hdr.chksum)..],
+            );
 
-        let mut request = CmDeriveStableKeyReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            key_type: (*key_type).into(),
-            info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
-        };
-        request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::CM_DERIVE_STABLE_KEY),
-            &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
-        );
-        let response = hw
-            .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes())
-            .unwrap()
-            .unwrap();
+            let response = hw
+                .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac.as_bytes())
+                .unwrap()
+                .unwrap();
 
-        let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+            let resp = CmHmacResp::ref_from_bytes(response.as_bytes()).unwrap();
+            assert_eq!(resp.hdr.hdr.fips_status, expected_fips_status);
+            let expected_mac = resp.mac;
 
-        // Verify response checksum
-        assert!(caliptra_common::checksum::verify_checksum(
-            resp.hdr.chksum,
-            0x0,
-            &resp.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-        ));
+            crate::helpers::test_upload_firmware(
+                &mut hw,
+                image_bundle.as_bytes(),
+                FwVerificationPqcKeyType::MLDSA,
+            );
+            hw.step_until_output_contains("Running Caliptra FMC ...")
+                .unwrap();
 
-        // Verify FIPS status
-        assert_eq!(
-            resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
-        );
+            hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-        let cmk = resp.cmk.0;
-        assert_ne!(cmk, [0u8; CMK_SIZE_BYTES]);
+            let result = hw.mailbox_execute(0x1000_0012, &[]);
+            assert!(result.is_ok(), "{:?}", result);
 
-        let seed_bytes = [1u8; 32];
-        let mut seeded_rng = StdRng::from_seed(seed_bytes);
-        let mut data = vec![0u8; MAX_CMB_DATA_SIZE];
-        seeded_rng.fill_bytes(&mut data);
+            let aes_key = result.unwrap().unwrap();
 
-        let mut cm_hmac = CmHmacReq {
-            cmk: resp.cmk.clone(),
-            hash_algorithm: CmHashAlgorithm::Sha512.into(),
-            data_size: MAX_CMB_DATA_SIZE as u32,
-            ..Default::default()
-        };
-        cm_hmac.data[..MAX_CMB_DATA_SIZE].copy_from_slice(&data);
-        cm_hmac.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::CM_HMAC),
-            &cm_hmac.as_bytes()[core::mem::size_of_val(&cm_hmac.hdr.chksum)..],
-        );
+            let cmk = parse_encrypted_cmk(&cmk);
+            let cmk = decrypt_cmk(&aes_key, &cmk).unwrap();
 
-        let response = hw
-            .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac.as_bytes())
-            .unwrap()
-            .unwrap();
-
-        let resp = CmHmacResp::ref_from_bytes(response.as_bytes()).unwrap();
-        let expected_mac = resp.mac;
-
-        hw.upload_firmware(image_bundle.as_bytes()).unwrap();
-        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
-
-        let result = hw.mailbox_execute(0x1000_0012, &[]);
-        assert!(result.is_ok(), "{:?}", result);
-
-        let aes_key = result.unwrap().unwrap();
-
-        let cmk = parse_encrypted_cmk(&cmk);
-        let cmk = decrypt_cmk(&aes_key, &cmk).unwrap();
-
-        let computed_mac = hmac512(&cmk.key_material, &data);
-        assert_eq!(computed_mac, expected_mac);
+            let computed_mac = hmac512(&cmk.key_material, &data);
+            assert_eq!(computed_mac, expected_mac);
+        }
     }
 }
 

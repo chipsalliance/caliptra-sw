@@ -15,7 +15,6 @@ zeroize.workspace = true
 [build-dependencies]
 asn1 = { workspace = true, optional = true }
 bitfield = { workspace = true, optional = true }
-caliptra_common = { workspace = true, optional = true, features = ["std"] }
 convert_case = { workspace = true, optional = true }
 der = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
@@ -33,4 +32,4 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 std = []
-generate_templates = ["dep:asn1", "dep:bitfield", "dep:caliptra_common", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:syn", "dep:rand"]
+generate_templates = ["dep:asn1", "dep:bitfield", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:syn", "dep:rand"]

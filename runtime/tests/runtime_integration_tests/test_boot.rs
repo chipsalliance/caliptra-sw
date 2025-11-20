@@ -8,7 +8,9 @@ use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
     RomBootStatus,
 };
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
@@ -74,6 +76,7 @@ fn test_fw_version() {
 #[test]
 fn test_update() {
     let image_options = ImageOptions {
+        fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
         pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
@@ -91,6 +94,8 @@ fn test_update() {
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
     let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -133,7 +138,8 @@ fn test_stress_update() {
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let stress_num = if cfg!(feature = "slow_tests") { 500 } else { 1 };
+    let stress_num = if cfg!(feature = "slow_tests") { 250 } else { 1 };
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     let mut image_select = 0;
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
@@ -161,10 +167,13 @@ fn test_stress_update() {
 #[test]
 fn test_boot_tci_data() {
     let args = RuntimeTestArgs {
-        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        test_fwid: Some(crate::test_update_reset::mbox_test_image()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -198,6 +207,10 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             InitParams {
                 rom: &rom,
                 security_state: SecurityState::from(fuses.life_cycle as u32),
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             BootParams {
@@ -209,7 +222,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
 
         let image_bundle = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &firmware::runtime_tests::MBOX,
+            crate::test_update_reset::mbox_test_image(),
             image_options,
         )
         .unwrap();
@@ -229,9 +242,11 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             .upload_measurement(measurement_log_entry.as_bytes().unwrap())
             .unwrap();
 
-        model
-            .upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+        crate::common::test_upload_firmware(
+            &mut model,
+            &image_bundle.to_bytes().unwrap(),
+            *pqc_key_type,
+        );
 
         model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
 

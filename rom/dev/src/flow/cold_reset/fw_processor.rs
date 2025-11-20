@@ -19,6 +19,7 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
@@ -30,6 +31,7 @@ use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
 use caliptra_common::{
     capabilities::Capabilities,
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
+    dice::GetLdevCertCmd,
     fips::FipsVersionCmd,
     hmac_cm::hmac,
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
@@ -51,6 +53,7 @@ use caliptra_image_verify::{
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
+use dma::AesDmaMode;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
@@ -139,9 +142,15 @@ impl FirmwareProcessor {
         };
 
         // Load the manifest into DCCM.
-        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
+        let manifest = Self::load_manifest(
+            &mut env.persistent_data,
+            &mut txn,
+            &mut env.soc_ifc,
+            &mut env.dma,
+        );
         let manifest = okref(&manifest)?;
 
+        let image_in_mcu = env.soc_ifc.subsystem_mode();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -154,6 +163,7 @@ impl FirmwareProcessor {
             image: txn.raw_mailbox_contents(),
             dma: &mut env.dma,
             persistent_data: env.persistent_data.get(),
+            image_in_mcu,
         };
 
         // Verify the image
@@ -176,7 +186,7 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn)?;
+        Self::load_image(manifest, &mut txn, &mut env.soc_ifc, &mut env.dma)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -545,8 +555,13 @@ impl FirmwareProcessor {
                         let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
 
                         // Download the firmware image from the recovery interface.
-                        let image_size_bytes =
-                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
+                        let image_size_bytes = if subsystem_mode {
+                            cprintln!("[fwproc] Downloading image from RRI to MCU SRAM");
+                            Self::retrieve_image_from_recovery_interface_to_mcu(dma, soc_ifc)?
+                        } else {
+                            cprintln!("[fwproc] Downloading image from RRI to MBOX SRAM");
+                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?
+                        };
                         cprintln!(
                             "[fwproc] Received image from the Recovery Interface of size {} bytes",
                             image_size_bytes
@@ -646,6 +661,27 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
+                    CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
+
+                        let algorithm_type =
+                            if CommandId::from(txn.cmd()) == CommandId::GET_LDEV_ECC384_CERT {
+                                AlgorithmType::Ecc384
+                            } else {
+                                AlgorithmType::Mldsa87
+                            };
+
+                        let mut resp = GetLdevCertResp::default();
+                        GetLdevCertCmd::execute(
+                            persistent_data,
+                            algorithm_type,
+                            resp.as_mut_bytes(),
+                        )?;
+
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes_partial()?)?;
+                    }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
                         // Don't complete the transaction here; let the fatal
@@ -667,6 +703,25 @@ impl FirmwareProcessor {
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
+        soc_ifc: &mut SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<ImageManifest> {
+        if soc_ifc.subsystem_mode() {
+            Self::load_manifest_from_mcu(persistent_data, soc_ifc, dma)
+        } else {
+            Self::load_manifest_from_mbox(persistent_data, txn)
+        }
+    }
+
+    /// Load the manifest from mailbox SRAM
+    ///
+    /// # Returns
+    ///
+    /// * `Manifest` - Caliptra Image Bundle Manifest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_manifest_from_mbox(
+        persistent_data: &mut PersistentDataAccessor,
+        txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
         let mbox_sram = txn.raw_mailbox_contents();
@@ -675,6 +730,40 @@ impl FirmwareProcessor {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
         manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
+        report_boot_status(FwProcessorManifestLoadComplete.into());
+        Ok(*manifest)
+    }
+
+    /// Load the manifest from MCU SRAM using DMA
+    ///
+    /// # Returns
+    ///
+    /// * `Manifest` - Caliptra Image Bundle Manifest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_manifest_from_mcu(
+        persistent_data: &mut PersistentDataAccessor,
+        soc_ifc: &mut SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<ImageManifest> {
+        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest_buf = manifest.as_mut_bytes();
+
+        // Get MCU SRAM address
+        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
+        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
+
+        // Read manifest from MCU SRAM using DMA directly into manifest buffer
+        let (manifest_words, _) = <[u32]>::mut_from_prefix(manifest_buf).unwrap();
+
+        let dma_recovery = DmaRecovery::new(
+            recovery_interface_base_addr,
+            caliptra_base_addr,
+            mci_base_addr,
+            dma,
+        );
+        dma_recovery.load_from_mcu_to_buffer(0, manifest_words)?;
+
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -871,11 +960,37 @@ impl FirmwareProcessor {
     ///
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
+    /// * `soc_ifc`  - SoC Interface
+    /// * `dma`      - DMA engine
     ///
     // Inlined to reduce ROM size
     #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
+    fn load_image(
+        manifest: &ImageManifest,
+        txn: &mut MailboxRecvTxn,
+        soc_ifc: &mut SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        if soc_ifc.subsystem_mode() {
+            Self::load_image_from_mcu(manifest, soc_ifc, dma)
+        } else {
+            Self::load_image_from_mbox(manifest, txn)
+        }
+    }
+
+    /// Load the image from mailbox SRAM to ICCM
+    ///
+    /// # Arguments
+    ///
+    /// * `manifest` - Manifest
+    /// * `txn`      - Mailbox Receive Transaction
+    ///
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image_from_mbox(
+        manifest: &ImageManifest,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<()> {
         cprintln!(
             "[fwproc] Load FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
@@ -911,6 +1026,67 @@ impl FirmwareProcessor {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
         runtime_dest.copy_from_slice(&mbox_sram[start..end]);
+
+        report_boot_status(FwProcessorLoadImageComplete.into());
+        Ok(())
+    }
+
+    /// Load the image from MCU SRAM to ICCM using DMA
+    ///
+    /// # Arguments
+    ///
+    /// * `manifest` - Manifest
+    /// * `soc_ifc`  - SoC Interface
+    /// * `dma`      - DMA engine
+    ///
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image_from_mcu(
+        manifest: &ImageManifest,
+        soc_ifc: &mut SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        // Get MCU SRAM address
+        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
+        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
+
+        let dma_recovery = DmaRecovery::new(
+            recovery_interface_base_addr,
+            caliptra_base_addr,
+            mci_base_addr,
+            dma,
+        );
+
+        cprintln!(
+            "[fwproc] Load FMC at address 0x{:08x} len {}",
+            manifest.fmc.load_addr,
+            manifest.fmc.size
+        );
+
+        // Load FMC from MCU SRAM
+        let fmc_size_words = manifest.fmc.size.div_ceil(4) as usize;
+        let fmc_words = unsafe {
+            core::slice::from_raw_parts_mut(manifest.fmc.load_addr as *mut u32, fmc_size_words)
+        };
+        let fmc_offset = size_of::<ImageManifest>();
+        dma_recovery.load_from_mcu_to_buffer(fmc_offset as u64, fmc_words)?;
+
+        cprintln!(
+            "[fwproc] Load Runtime at address 0x{:08x} len {}",
+            manifest.runtime.load_addr,
+            manifest.runtime.size
+        );
+
+        // Load Runtime from MCU SRAM
+        let runtime_size_words = manifest.runtime.size.div_ceil(4) as usize;
+        let runtime_words = unsafe {
+            core::slice::from_raw_parts_mut(
+                manifest.runtime.load_addr as *mut u32,
+                runtime_size_words,
+            )
+        };
+        let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        dma_recovery.load_from_mcu_to_buffer(runtime_offset as u64, runtime_words)?;
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
@@ -1170,6 +1346,34 @@ impl FirmwareProcessor {
         dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 
+    /// Retrieve the fw image from the recovery interface and download it to MCU.
+    ///
+    /// # Arguments
+    /// * `dma` - DMA driver
+    /// * `soc_ifc` - SOC Interface
+    ///
+    /// # Returns
+    /// * `CaliptraResult<u32>` - Size of the image downloaded
+    ///   Error code on failure.
+    fn retrieve_image_from_recovery_interface_to_mcu(
+        dma: &mut Dma,
+        soc_ifc: &mut SocIfc,
+    ) -> CaliptraResult<u32> {
+        const FW_IMAGE_INDEX: u32 = 0x0;
+        let recovery_interface_base_addr = soc_ifc.recovery_interface_base_addr().into();
+
+        let mci_base_addr = soc_ifc.mci_base_addr().into();
+        let caliptra_base_addr = soc_ifc.caliptra_base_axi_addr().into();
+
+        let dma_recovery = DmaRecovery::new(
+            recovery_interface_base_addr,
+            caliptra_base_addr,
+            mci_base_addr,
+            dma,
+        );
+        dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
+    }
+
     fn derive_stable_key(
         aes: &mut Aes,
         hmac: &mut Hmac,
@@ -1219,12 +1423,12 @@ impl FirmwareProcessor {
         };
 
         let random = trng.generate()?;
-        let kek_iv: [u8; 12] = random.0.as_bytes()[..12].try_into().unwrap();
+        let kek_iv: [u32; 3] = random.0[..3].try_into().unwrap();
         let encrypted_cmk = Crypto::encrypt_cmk(
             aes,
             trng,
             &unencrypted_cmk,
-            kek_iv,
+            kek_iv.into(),
             Crypto::get_cmb_aes_key(persistent_data),
         )?;
 

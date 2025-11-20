@@ -1,11 +1,15 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
+use caliptra_auth_man_types::ImageMetadataFlags;
+use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    build_and_sign_image, build_firmware_rom,
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -16,13 +20,19 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
+
+use caliptra_image_gen::ImageGenerator;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, RomInfo};
+
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    SecurityState, StackInfo, StackRange,
+    BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
+    ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_crypto::OsslCrypto as Crypto;
+
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
@@ -32,7 +42,7 @@ use dpe::{
     },
 };
 use openssl::{
-    asn1::{Asn1Integer, Asn1Time},
+    asn1::{Asn1Integer, Asn1Time, Asn1TimeRef},
     bn::BigNum,
     hash::MessageDigest,
     pkey::{PKey, Private},
@@ -58,7 +68,53 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-#[derive(Default)]
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+
+fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
+    // generate a default SoC manifest if one is not provided in subsystem mode
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+}
+
+pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    let manifest_bytes = manifest.as_bytes();
+    let len = manifest_bytes.len();
+    // Pad to a multiple of 256 bytes
+    let padded_len = ((len + 255) / 256) * 256;
+    let mut padded = vec![0u8; padded_len];
+    padded[..len].copy_from_slice(manifest_bytes);
+    padded
+}
+
+pub fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(fw_image).unwrap();
+    }
+}
+
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_fmc_fwid: Option<&'static FwId<'static>>,
@@ -75,19 +131,50 @@ pub struct RuntimeTestArgs<'a> {
     pub security_state: Option<SecurityState>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub subsystem_mode: bool,
+    pub successful_reach_rt: bool,
+}
+
+// clippy gets confused about cfg(feature = "...")
+#[allow(clippy::derivable_impls)]
+impl Default for RuntimeTestArgs<'_> {
+    fn default() -> Self {
+        Self {
+            test_fwid: None,
+            test_fmc_fwid: None,
+            test_image_options: None,
+            init_params: None,
+            test_mfg_flags: None,
+            soc_manifest: None,
+            mcu_fw_image: None,
+            test_sram: None,
+            stop_at_rom: false,
+            security_state: None,
+            soc_manifest_svn: None,
+            soc_manifest_max_svn: None,
+            subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            successful_reach_rt: true,
+        }
+    }
 }
 
 pub fn run_rt_test_pqc(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
+    let successful_reach_rt = args.successful_reach_rt;
     let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
-    model.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
-    });
+    if successful_reach_rt {
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    } else {
+        model.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+    }
+
     model
 }
 
@@ -147,17 +234,23 @@ pub fn start_rt_test_pqc_model(
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let init_params = match args.init_params {
-        Some(init_params) => init_params,
-        None => InitParams {
-            rom: &rom,
-            stack_info: Some(StackInfo::new(image_info)),
-            test_sram: args.test_sram,
-            security_state: args.security_state.unwrap_or_default(),
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let init_params = args.init_params.unwrap_or_else(|| InitParams {
+        rom: &rom,
+        stack_info: Some(StackInfo::new(image_info)),
+        test_sram: args.test_sram,
+        security_state: args.security_state.unwrap_or_default(),
+        subsystem_mode: args.subsystem_mode,
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()
         },
-    };
+        ..Default::default()
+    });
 
     let image =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
@@ -172,6 +265,15 @@ pub fn start_rt_test_pqc_model(
 
     let image = image.to_bytes().unwrap();
 
+    let default_manifest_bytes;
+    let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
+        default_manifest_bytes =
+            default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
+        (Some(&default_manifest_bytes[..]), Some(DEFAULT_MCU_FW))
+    } else {
+        (args.soc_manifest, args.mcu_fw_image)
+    };
+
     let model = caliptra_hw_model::new(
         init_params,
         BootParams {
@@ -185,8 +287,8 @@ pub fn start_rt_test_pqc_model(
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
-            soc_manifest: args.soc_manifest,
-            mcu_fw_image: args.mcu_fw_image,
+            soc_manifest,
+            mcu_fw_image,
             ..Default::default()
         },
     )
@@ -207,7 +309,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder
         .set_serial_number(&Asn1Integer::from_bn(&BigNum::from_u32(1).unwrap()).unwrap())
         .unwrap();
-    let mut subj_name_builder = X509Name::builder().unwrap();
+    let mut subj_name_builder: X509NameBuilder = X509Name::builder().unwrap();
     subj_name_builder
         .append_entry_by_text("CN", "example.com")
         .unwrap();
@@ -466,4 +568,172 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
+}
+pub struct BuildArgs {
+    pub security_state: SecurityState,
+    pub fmc_version: u16,
+    pub app_version: u32,
+    pub fw_svn: u32,
+}
+
+impl Default for BuildArgs {
+    fn default() -> Self {
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production);
+        Self {
+            security_state,
+            fmc_version: 3,
+            app_version: 5,
+            fw_svn: 9,
+        }
+    }
+}
+
+pub fn build_ready_runtime_model(
+    args: BuildArgs,
+) -> (DefaultHwModel, ImageBundle, RomInfo, [u32; 12]) {
+    // ROM & image bundle
+    let rom = build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle: ImageBundle = build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions {
+            fmc_version: args.fmc_version,
+            app_version: args.app_version,
+            fw_svn: args.fw_svn,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    // rom_info + owner_pub_key_hash
+    let rom_info = find_rom_info(&rom).unwrap();
+    let owner_pub_key_hash: [u32; 12] = ImageGenerator::new(Crypto::default())
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    // Fuses / boot params
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
+    let image_bytes = image_bundle.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0],
+            ..Default::default()
+        },
+        fw_image: Some(&image_bytes),
+        ..Default::default()
+    };
+
+    // Model
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state: args.security_state,
+            ..Default::default()
+        },
+        boot_params,
+    )
+    .unwrap();
+
+    wait_runtime_ready(&mut model);
+    (model, image_bundle, rom_info, owner_pub_key_hash)
+}
+
+pub fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
+    // RomInfo is 64-byte aligned and the last data in the ROM bin
+    // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
+    for i in (0..rom.len() - 63).rev().step_by(64) {
+        let chunk = &rom[i..i + 64];
+
+        // Check if the chunk contains non-zero data
+        if chunk.iter().any(|&byte| byte != 0) {
+            // Found non-zero data, return RomInfo constructed from the data
+            if let Ok(rom_info) = RomInfo::read_from_bytes(&rom[i..i + size_of::<RomInfo>()]) {
+                return Some(rom_info);
+            }
+        }
+    }
+
+    // No non-zero data found
+    None
+}
+
+pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
+    while !model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime()
+    {
+        model.step();
+    }
+}
+
+#[allow(dead_code)]
+/// Compare two X509 certs by semantic fields rather than raw bytes.
+pub fn assert_x509_semantic_eq(a: &X509, b: &X509) {
+    // Issuer / Subject
+    assert_eq!(
+        a.issuer_name().entries().count(),
+        b.issuer_name().entries().count(),
+        "issuer entry count mismatch"
+    );
+    assert_eq!(
+        a.issuer_name().to_der().unwrap(),
+        b.issuer_name().to_der().unwrap(),
+        "issuer differs"
+    );
+
+    assert_eq!(
+        a.subject_name().entries().count(),
+        b.subject_name().entries().count(),
+        "subject entry count mismatch"
+    );
+    assert_eq!(
+        a.subject_name().to_der().unwrap(),
+        b.subject_name().to_der().unwrap(),
+        "subject differs"
+    );
+
+    // Serial number
+    let a_sn = a.serial_number().to_bn().unwrap().to_vec();
+    let b_sn = b.serial_number().to_bn().unwrap().to_vec();
+    assert_eq!(a_sn, b_sn, "serial number differs");
+
+    // Public key
+    let a_pk = a.public_key().unwrap().public_key_to_der().unwrap();
+    let b_pk = b.public_key().unwrap().public_key_to_der().unwrap();
+    assert_eq!(a_pk, b_pk, "public key differs");
+
+    // Signature algorithm OID (not the signature value)
+    let a_sig_oid = a.signature_algorithm().object().nid();
+    let b_sig_oid = b.signature_algorithm().object().nid();
+    assert_eq!(a_sig_oid, b_sig_oid, "signature algorithm differs");
+
+    //check validity
+    assert_same_time(a.not_before(), b.not_before(), "notBefore");
+    assert_same_time(a.not_after(), b.not_after(), "notAfter");
+}
+
+#[allow(dead_code)]
+fn assert_same_time(a: &Asn1TimeRef, b: &Asn1TimeRef, label: &str) {
+    let d = a.diff(b).expect("ASN.1 time diff failed");
+    // Equal iff  day delta is 0 and second deltas is less than 10
+
+    // Must be the same day
+    assert_eq!(
+        d.days, 0,
+        "{label} differs by {} days, {} secs",
+        d.days, d.secs
+    );
+
+    // Seconds delta allowed up to 10
+    assert!(
+        d.secs.abs() <= 10,
+        "{label} differs by {} secs (allowed ≤ 10)",
+        d.secs
+    );
 }
