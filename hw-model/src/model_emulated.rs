@@ -212,6 +212,12 @@ impl HwModel for ModelEmulated {
         let input_wires = (!params.uds_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
 
+        let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
+        let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
+        root_bus
+            .soc_reg
+            .set_strap_generic(&[ss_strap_generic_reg_0, ss_strap_generic_reg_1, 0, 0]);
+
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
             let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {

@@ -77,6 +77,7 @@ mod constants {
     pub const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
     pub const FUSE_UDS_SEED_SIZE: usize = 64;
     pub const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
+    pub const SS_STRAP_GENERIC_SIZE: usize = 16;
     pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe4;
     pub const CPTRA_WDT_TIMER1_CTRL_START: u32 = 0xe8;
     pub const CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START: u32 = 0xec;
@@ -416,6 +417,10 @@ impl SocRegistersInternal {
 
     pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {
         self.regs.borrow_mut().fuse_uds_seed = *seed;
+    }
+
+    pub fn set_strap_generic(&mut self, val: &[u32; SS_STRAP_GENERIC_SIZE / 4]) {
+        self.regs.borrow_mut().ss_strap_generic = *val;
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -778,6 +783,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x548)]
     ss_key_release_size: u32,
 
+    #[register_array(offset = 0x5a0, write_fn = on_write_ss_strap_generic)]
+    ss_strap_generic: [u32; 4],
+
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
 
@@ -997,6 +1005,7 @@ impl SocRegistersImpl {
             cptra_owner_pk_hash_lock: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
+            ss_strap_generic: [0; 4],
             fuse_vendor_pk_hash: [0; 12],
             fuse_ecc_revocation: Default::default(),
             fuse_fmc_svn: Default::default(),
@@ -1379,6 +1388,16 @@ impl SocRegistersImpl {
             self.mci.cptra_request_mcu_reset();
         }
         self.ss_generic_fw_exec_ctrl[index] = val;
+        Ok(())
+    }
+
+    fn on_write_ss_strap_generic(
+        &mut self,
+        _size: RvSize,
+        index: usize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        self.ss_strap_generic[index] = val;
         Ok(())
     }
 
