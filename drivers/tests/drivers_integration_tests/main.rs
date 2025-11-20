@@ -1217,7 +1217,13 @@ fn test_ocp_lock() {
             ocp_lock_en: true,
             ..default_init_params()
         },
-        BootParams::default(),
+        BootParams {
+            fuses: Fuses {
+                hek_seed: [0xABDEu32; 8],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -1245,7 +1251,13 @@ fn test_ocp_lock_warm_reset() {
             ocp_lock_en: true,
             ..default_init_params()
         },
-        BootParams::default(),
+        BootParams {
+            fuses: Fuses {
+                hek_seed: [0xABDEu32; 8],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
     )
     .unwrap();
 
