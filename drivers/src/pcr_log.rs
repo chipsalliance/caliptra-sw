@@ -70,7 +70,7 @@ impl PcrLogEntry {
     pub fn measured_data(&self) -> &[u8] {
         let data_len = match PcrLogEntryId::from(self.id) {
             PcrLogEntryId::Invalid => 0,
-            PcrLogEntryId::DeviceStatus => 9,
+            PcrLogEntryId::DeviceStatus => 13,
             PcrLogEntryId::VendorPubKeyInfoHash => 48,
             PcrLogEntryId::OwnerPubKeyHash => 48,
             PcrLogEntryId::FmcTci => 48,
