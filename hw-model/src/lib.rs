@@ -174,6 +174,9 @@ pub struct SubsystemInitParams<'a> {
     // Consume MCU UART log with Caliptra UART log
     pub enable_mcu_uart_log: bool,
 
+    // Whether or not to set the RMA / scrap Physical Presence Detection signal.
+    pub rma_or_scrap_ppd: bool,
+
     // Raw unlock token cSHAKE128 hash.
     pub raw_unlock_token_hash: [u32; 4],
 
@@ -191,6 +194,7 @@ impl Default for SubsystemInitParams<'_> {
         Self {
             mcu_rom: Default::default(),
             enable_mcu_uart_log: Default::default(),
+            rma_or_scrap_ppd: Default::default(),
             raw_unlock_token_hash: [0xf0930a4d, 0xde8a30e6, 0xd1c8cbba, 0x896e4a11],
             num_prod_dbg_unlock_pk_hashes: Default::default(),
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
