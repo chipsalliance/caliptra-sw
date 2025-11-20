@@ -552,31 +552,7 @@ fn set_manifest_command_execute(
     expected_err: Option<CaliptraError>,
 ) {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), pqc_key_type);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let buf = manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
-
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
-
-    let result = model.mailbox_execute(
-        u32::from(CommandId::SET_AUTH_MANIFEST),
-        set_auth_manifest_cmd.as_bytes().unwrap(),
-    );
-    if let Some(expected_err) = expected_err {
-        assert_error(&mut model, expected_err, result.unwrap_err());
-    } else {
-        result.unwrap().expect("We should have received a response");
-    }
+    model_set_manifest_command_execute(&mut model, manifest, expected_err);
 }
 
 fn model_set_manifest_command_execute(
@@ -584,10 +560,6 @@ fn model_set_manifest_command_execute(
     manifest: AuthorizationManifest,
     expected_err: Option<CaliptraError>,
 ) {
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
     let buf = manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
@@ -978,10 +950,6 @@ fn test_set_auth_manifest_with_svn_unprovisioned() {
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 1,
         ..Default::default()
@@ -1002,10 +970,6 @@ fn test_set_auth_manifest_good_svn() {
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 12,
         ..Default::default()
@@ -1025,10 +989,6 @@ fn test_set_auth_manifest_svn_gt_max() {
     };
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
 
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 12,
@@ -1054,10 +1014,6 @@ fn test_set_auth_manifest_svn_lt_fuse() {
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 1,
         ..Default::default()
@@ -1082,10 +1038,6 @@ fn test_set_auth_manifest_svn_eq_128() {
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 128,
         ..Default::default()
@@ -1094,6 +1046,8 @@ fn test_set_auth_manifest_svn_eq_128() {
 }
 
 #[test]
+// Subsystem load soc_manifest via RRI and it will never be to succeed verification
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_set_auth_manifest_svn_gt_128() {
     let rt_args = RuntimeTestArgs {
         security_state: Some(
@@ -1105,10 +1059,6 @@ fn test_set_auth_manifest_svn_gt_128() {
     };
 
     let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
 
     let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         svn: 129,
