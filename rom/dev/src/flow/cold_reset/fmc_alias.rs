@@ -33,7 +33,7 @@ use caliptra_common::{dice, x509};
 use caliptra_drivers::KeyUsage;
 use caliptra_drivers::{
     okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
-    HmacMode, KeyId, Lifecycle,
+    HmacMode, KeyId,
 };
 use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
@@ -222,7 +222,7 @@ impl FmcAliasLayer {
         let data_vault = &env.persistent_data.get().data_vault;
         let soc_ifc = &env.soc_ifc;
 
-        let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = data_vault.cold_boot_fw_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
@@ -329,7 +329,7 @@ impl FmcAliasLayer {
         let data_vault = &env.persistent_data.get().data_vault;
         let soc_ifc = &env.soc_ifc;
 
-        let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = data_vault.fw_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
@@ -408,27 +408,5 @@ impl FmcAliasLayer {
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())
-    }
-
-    /// Generate flags for DICE evidence
-    ///
-    /// # Arguments
-    ///
-    /// * `device_lifecycle` - Device lifecycle
-    /// * `debug_locked`     - Debug locked
-    fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
-        let mut flags: u32 = dice::FLAG_BIT_FIXED_WIDTH;
-
-        flags |= match device_lifecycle {
-            Lifecycle::Unprovisioned => dice::FLAG_BIT_NOT_CONFIGURED,
-            Lifecycle::Manufacturing => dice::FLAG_BIT_NOT_SECURE,
-            _ => 0,
-        };
-
-        if !debug_locked {
-            flags |= dice::FLAG_BIT_DEBUG;
-        }
-
-        flags.reverse_bits().to_be_bytes()
     }
 }

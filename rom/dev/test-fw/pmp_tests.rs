@@ -60,11 +60,9 @@ extern "C" {
 pub extern "C" fn rom_entry() -> ! {
     unsafe {
         core::arch::asm!(
-            "li x28, 1",
-            "csrrw zero, mseccfg, x28", // set machine lock mode
             "li x28, 0x14000000", // 0x5000_0000 - 0x5000_0003
             "csrrw zero, pmpaddr0, x28",
-            "li x28, 0x90", // lock out region in M-mode, naturally aligned power of 2 region >= 8 bytes
+            "li x28, 0x90", // lock out all access to the region, naturally aligned power of 2 region >= 8 bytes
             "csrrw zero, pmpcfg0, x28",
             lateout("x28") _,
         );

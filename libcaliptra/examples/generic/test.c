@@ -758,6 +758,32 @@ int rt_test_all_commands(const test_info *info)
         printf("Get FMC Alias Cert: OK\n");
     }
 
+    // GET_FMC_ALIAS_ECC384_CSR
+    struct caliptra_get_fmc_alias_ecc384_csr_resp fmc_alias_ecc384_csr_resp;
+
+    status = caliptra_get_fmc_alias_ecc384_csr(&fmc_alias_ecc384_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias ECC384 CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias ECC384 CSR: OK\n");
+    }
+
+    // GET_FMC_ALIAS_MLDSA87_CSR
+    struct caliptra_get_fmc_alias_mldsa87_csr_resp fmc_alias_mldsa87_csr_resp;
+
+    status = caliptra_get_fmc_alias_mldsa87_csr(&fmc_alias_mldsa87_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias MLDSA87 CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias MLDSA87 CSR: OK\n");
+    }
+
     // GET_RT_ALIAS_ECC384_CERT
     struct caliptra_get_rt_alias_ecc384_cert_resp rt_alias_cert_resp;
 
@@ -1047,6 +1073,22 @@ int rt_test_all_commands(const test_info *info)
         failure = 1;
     } else {
         printf("Authorize and Stash: OK\n");
+    }
+
+    // Reallocate DPE Context Limits
+    struct caliptra_reallocate_dpe_context_limits_req reallocate_context_limits_req = {};
+    struct caliptra_reallocate_dpe_context_limits_resp reallocate_context_limits_resp;
+
+    reallocate_context_limits_req.pl0_context_limit = 20;
+
+    status = caliptra_reallocate_dpe_context_limits(&reallocate_context_limits_req, &reallocate_context_limits_resp, false);
+
+    if (status) {
+        printf("Reallocate DPE Context Limits failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Reallocate DPE Context Limits: OK\n");
     }
 
     // FIPS_VERSION

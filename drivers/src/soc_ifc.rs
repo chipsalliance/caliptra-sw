@@ -14,6 +14,7 @@ Abstract:
 
 use crate::Array4x12;
 use bitfield::size_of;
+use caliptra_api::mailbox::MailboxRespHeader;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -35,10 +36,6 @@ pub fn report_boot_status(val: u32) {
 
     // For testability, save the boot status in the boot status register only if debugging is enabled.
     if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
-        soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
-    }
-    // [TODO][CAP2]: remove this when debug unlock is fixed
-    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
 }
@@ -529,17 +526,20 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .ss_dbg_service_reg_rsp()
-            .write(|w| w.uds_program_in_progress(in_progress));
+            .modify(|w| w.uds_program_in_progress(in_progress));
     }
 
     pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
-        self.soc_ifc.regs_mut().ss_dbg_service_reg_rsp().write(|w| {
-            if flow_succeeded {
-                w.uds_program_success(true).uds_program_fail(false)
-            } else {
-                w.uds_program_success(false).uds_program_fail(true)
-            }
-        });
+        self.soc_ifc
+            .regs_mut()
+            .ss_dbg_service_reg_rsp()
+            .modify(|w| {
+                if flow_succeeded {
+                    w.uds_program_success(true).uds_program_fail(false)
+                } else {
+                    w.uds_program_success(false).uds_program_fail(true)
+                }
+            });
     }
 
     pub fn uds_seed_dest_base_addr_low(&self) -> u32 {
@@ -643,6 +643,31 @@ impl SocIfc {
                 .read()
                 .cptra_generation(),
         )
+    }
+
+    /// Returns true if the stable keys are zeroizable according to FIPS.
+    /// In Caliptra 2.0 subsystem mode, the fuse controller does not have the logic
+    /// to zeroize UDS and FE, so the stable keys are not valid for FIPS.
+    pub fn stable_key_zeroizable(&self) -> bool {
+        let generation = self.caliptra_generation();
+        !((generation.major_version() == 2 && generation.minor_version() == 0)
+            && self.subsystem_mode())
+    }
+
+    pub fn stable_key_zeroizable_fips_status(&self) -> u32 {
+        if self.stable_key_zeroizable() {
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        } else {
+            MailboxRespHeader::FIPS_STATUS_NON_ZEROIZABLE_KEY
+        }
+    }
+
+    pub fn otp_dai_idle_bit_num(&self) -> u32 {
+        (self.soc_ifc.regs().ss_strap_generic().at(0).read() >> 16) & 0xFFFF
+    }
+
+    pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
+        self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
     }
 }
 

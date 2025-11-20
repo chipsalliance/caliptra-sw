@@ -38,6 +38,7 @@ pub mod key_ladder;
 pub mod manifest;
 mod pcr;
 mod populate_idev;
+mod reallocate_dpe_context_limits;
 mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
@@ -86,6 +87,7 @@ pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
+pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::LmsVerifyCmd;
@@ -134,10 +136,12 @@ pub const MAX_ECC_CERT_CHAIN_SIZE: usize = 4096;
 pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 31_000;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
-pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN: usize = 2;
 
-const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+pub const CALIPTRA_LOCALITY: u32 = 0xFFFFFFFF;
+const RESERVED_PAUSER: u32 = CALIPTRA_LOCALITY;
 
 #[inline(always)]
 pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
@@ -470,6 +474,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             cmd_bytes,
         ),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
+        CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
+            ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

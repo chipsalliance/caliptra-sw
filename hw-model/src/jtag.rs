@@ -13,14 +13,16 @@ pub trait JtagAccessibleReg {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum CaliptraCoreReg {
     MboxDlen = 0x50,
     MboxDout = 0x51,
     MboxStatus = 0x52,
+    BootStatus = 0x53,
     CptraHwErrrorEnc = 0x54,
     CptraFwErrorEnc = 0x55,
+    SsUdsSeedBaseAddrL = 0x56,
     SsUdsSeedBaseAddrH = 0x57,
     HwFatalError = 0x58,
     FwFatalError = 0x59,
@@ -50,6 +52,8 @@ pub enum CaliptraCoreReg {
     MboxLock = 0x75,
     MboxCmd = 0x76,
     MboxExecute = 0x77,
+    SsExternalStagingAreaBaseAddrL = 0x78,
+    SsExternalStagingAreaBaseAddrH = 0x79,
 }
 
 impl JtagAccessibleReg for CaliptraCoreReg {

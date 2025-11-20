@@ -308,6 +308,10 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
         self.params
             .sort_by(|a, b| a.needle.len().cmp(&b.needle.len()).reverse());
 
+        // Sort the params largest to smallest to decrease the risk of duplicate "needles" in larger fields before being sanitized
+        self.params
+            .sort_by_key(|p| std::cmp::Reverse(p.tbs_param.len));
+
         // Calculate the offset of parameters and sanitize the TBS section
         let params = self
             .params

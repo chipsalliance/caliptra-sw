@@ -1373,6 +1373,36 @@ int caliptra_get_idev_mldsa87_csr(struct caliptra_get_idev_mldsa87_csr_resp *res
     return pack_and_execute_command(&p, async);
 }
 
+// Get FMC Alias ECC384 CSR
+int caliptra_get_fmc_alias_ecc384_csr(struct caliptra_get_fmc_alias_ecc384_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_ECC384_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get FMC Alias MLDSA87 CSR
+int caliptra_get_fmc_alias_mldsa87_csr(struct caliptra_get_fmc_alias_mldsa87_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_MLDSA87_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Sign with Exported
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async)
 {
@@ -1473,6 +1503,18 @@ int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, s
     }
 
     CREATE_PARCEL(p, OP_AUTHORIZE_AND_STASH, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+// Reallocate DPE context limits
+int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_context_limits_req *req, struct caliptra_reallocate_dpe_context_limits_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_REALLOCATE_DPE_CONTEXT_LIMITS, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

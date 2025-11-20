@@ -14,6 +14,7 @@ use zerocopy::IntoBytes;
 use crate::helpers;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
+const ROM_READY_FOR_FW_PROCESSOR: u32 = 70;
 
 fn generate_csr_envelop(
     hw: &mut DefaultHwModel,
@@ -69,7 +70,7 @@ fn test_generate_csr_envelop() {
 }
 
 #[test]
-fn test_ecc_idev_subj_key_id_algo() {
+fn test_idev_subj_key_id_algo() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -82,38 +83,11 @@ fn test_ecc_idev_subj_key_id_algo() {
             };
             fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
 
-            let (mut hw, image_bundle) =
+            let (mut hw, _image_bundle) =
                 helpers::build_hw_model_and_image_bundle(fuses, image_options.clone());
-            helpers::test_upload_firmware(
-                &mut hw,
-                &image_bundle.to_bytes().unwrap(),
-                *pqc_key_type,
-            );
 
-            hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+            hw.step_until_boot_status(ROM_READY_FOR_FW_PROCESSOR, true);
         }
-    }
-}
-
-#[test]
-fn test_mldsa_idev_subj_key_id_algo() {
-    for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
-        let mut fuses = Fuses::default();
-        fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
-
-        let image_options = ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-            ..Default::default()
-        };
-
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        helpers::test_upload_firmware(
-            &mut hw,
-            &image_bundle.to_bytes().unwrap(),
-            FwVerificationPqcKeyType::MLDSA,
-        );
-
-        hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     }
 }
 

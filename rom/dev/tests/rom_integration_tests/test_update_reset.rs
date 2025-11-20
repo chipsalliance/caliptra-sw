@@ -47,13 +47,13 @@ fn test_update_reset_success() {
 
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -107,13 +107,13 @@ fn test_update_reset_no_mailbox_cmd() {
             .unwrap();
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -171,13 +171,13 @@ fn test_update_reset_non_fw_load_cmd() {
             .unwrap();
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -233,13 +233,13 @@ fn test_update_reset_verify_image_failure() {
             .unwrap();
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -251,11 +251,16 @@ fn test_update_reset_verify_image_failure() {
             hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &[0u8; 4])
                 .unwrap();
 
-            if cfg!(not(feature = "fpga_realtime")) {
+            if cfg!(not(any(
+                feature = "fpga_realtime",
+                feature = "fpga_subsystem"
+            ))) {
                 hw.step_until_boot_status(KatStarted.into(), true);
                 hw.step_until_boot_status(KatComplete.into(), true);
             }
-            hw.step_until_boot_status(UpdateResetStarted.into(), true);
+            hw.step_until(|model| {
+                model.soc_ifc().cptra_boot_status().read() >= u32::from(UpdateResetStarted)
+            });
 
             if subsystem_mode {
                 assert_eq!(
@@ -311,13 +316,13 @@ fn test_update_reset_boot_status() {
             .unwrap();
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -389,13 +394,13 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
             .unwrap();
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -489,14 +494,14 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses: caliptra_hw_model::Fuses {
+                    ..Default::default()
+                },
                 rom: &rom,
                 subsystem_mode,
                 ..Default::default()
             },
             BootParams {
-                fuses: caliptra_hw_model::Fuses {
-                    ..Default::default()
-                },
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
                 ..Default::default()
             },
@@ -508,7 +513,10 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
             .unwrap();
 
         assert_eq!(
-            hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
+            hw.mailbox_execute(
+                u32::from(CommandId::FIRMWARE_LOAD),
+                &image_bundle2.to_bytes().unwrap()
+            ),
             Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
                 CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH
                     .into()
@@ -551,13 +559,13 @@ fn test_check_rom_update_reset_status_reg() {
 
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )
@@ -663,13 +671,13 @@ fn test_update_reset_max_fw_image() {
 
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses,
                     rom: &rom,
                     subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
                     fw_image: Some(&image_bundle.to_bytes().unwrap()),
-                    fuses,
                     ..Default::default()
                 },
             )

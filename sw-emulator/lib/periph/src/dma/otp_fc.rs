@@ -202,7 +202,7 @@ impl FuseController {
 
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
         // [TODO][CAP2] get actual granularity from soc_reg HWCFG
-        let granularity = Granularity::Bits32;
+        let granularity = Granularity::Bits64;
 
         Self {
             status: ReadOnlyRegister::new(Status::DAI_IDLE::Idle.value),

@@ -26,10 +26,14 @@ pub enum UdsFeProgrammingFlow {
     Fe { partition: u32 },
 }
 
-const UDS_SEED_SIZE: usize = 64;
-const FUSE_CTRL_DIGEST: usize = 8;
-const FE_SIZE: usize = 8;
-const MAX_FE_PARTITION: u32 = 3;
+const UDS_SEED_SIZE_BYTES: usize = 64;
+const FUSE_CTRL_DIGEST_SIZE_BYTES: usize = 8;
+const FE_PARTITION_SIZE_BYTES: usize = 8;
+const MAX_FE_PARTITIONS: u32 = 3;
+// OTP Direct Access Register Offsets (relative to DIRECT_ACCESS_CMD)
+const DIRECT_ACCESS_ADDRESS_OFFSET: u64 = 0x4;
+const DIRECT_ACCESS_WDATA_0_OFFSET: u64 = 0x8;
+const DIRECT_ACCESS_WDATA_1_OFFSET: u64 = 0xC;
 
 impl UdsFeProgrammingFlow {
     /// Validates the programming flow parameters
@@ -37,7 +41,7 @@ impl UdsFeProgrammingFlow {
         match self {
             UdsFeProgrammingFlow::Uds => Ok(()),
             UdsFeProgrammingFlow::Fe { partition } => {
-                if partition > MAX_FE_PARTITION {
+                if partition > MAX_FE_PARTITIONS {
                     Err(CaliptraError::RUNTIME_FE_PROG_INVALID_PARTITION)
                 } else {
                     Ok(())
@@ -54,8 +58,8 @@ impl UdsFeProgrammingFlow {
     /// Returns the seed length in 32-bit words for this mode
     fn seed_length_words(self) -> usize {
         match self {
-            UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE / size_of::<u32>(), // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe { partition: _ } => FE_SIZE / size_of::<u32>(), // 8 bytes = 2 u32 words
+            UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE_BYTES / size_of::<u32>(), // 64 bytes = 16 u32 words
+            UdsFeProgrammingFlow::Fe { partition: _ } => FE_PARTITION_SIZE_BYTES / size_of::<u32>(), // 8 bytes = 2 u32 words
         }
     }
 
@@ -75,29 +79,34 @@ impl UdsFeProgrammingFlow {
     // |           UDS Region                |
     // |          (64 bytes)                 |
     // +-------------------------------------+
-    //
-    // FE Partitions, separate region in fuse controller memory handled by MCU, but at same base as UDS
-    //
-    // +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    // +-------------------------------------+
+    // |        UDS Digest                   |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+
+    // +-------------------------------------+ <- FE Base = uds_seed_dest_base_addr_low() + UDS Region + UDS Digest
     // |        FE Partition 0               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16)
+    // +-------------------------------------+ <- FE Base + 8
     // |     FE Partition 0 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16) + 8
+    // +-------------------------------------+ <- FE Base + (1 * 16)
     // |        FE Partition 1               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16)
+    // +-------------------------------------+ <- FE Base + (1 * 16) + 8
     // |     FE Partition 1 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16) + 8
+    // +-------------------------------------+ <- FE Base + (2 * 16)
     // |        FE Partition 2               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16)
+    // +-------------------------------------+ <- FE Base + (2 * 16) + 8
     // |     FE Partition 2 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16) + 8
-    // |            ...                      |
+    // +-------------------------------------+ <- FE Base + (3 * 16)
+    // |        FE Partition 3               |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- FE Base + (3 * 16) + 8
+    // |     FE Partition 3 Digest           |
+    // |         (8 bytes)                   |
     // +-------------------------------------+
     fn get_dest_address(&self, soc_ifc: &SocIfc) -> u32 {
         let uds_seed_dest = soc_ifc.uds_seed_dest_base_addr_low();
@@ -105,8 +114,10 @@ impl UdsFeProgrammingFlow {
         match self {
             Self::Uds => uds_seed_dest,
             Self::Fe { partition } => {
-                // FE partitions start at the same base address with partition spacing (16 bytes each)
-                uds_seed_dest + (partition * (FE_SIZE + FUSE_CTRL_DIGEST) as u32)
+                uds_seed_dest
+                    + UDS_SEED_SIZE_BYTES as u32
+                    + FUSE_CTRL_DIGEST_SIZE_BYTES as u32
+                    + (partition * (FE_PARTITION_SIZE_BYTES + FUSE_CTRL_DIGEST_SIZE_BYTES) as u32)
             }
         }
     }
@@ -137,8 +148,23 @@ impl UdsFeProgrammingFlow {
             let fuse_controller_base_addr = soc_ifc.fuse_controller_base_addr();
             let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(fuse_controller_base_addr), dma);
             let seed_dest_address = self.get_dest_address(soc_ifc);
+            let dai_idle_bit_num = soc_ifc.otp_dai_idle_bit_num();
+            let direct_access_cmd_reg_addr =
+                fuse_controller_base_addr + soc_ifc.otp_direct_access_cmd_reg_offset() as u64;
+            let direct_access_address_reg_addr =
+                direct_access_cmd_reg_addr + DIRECT_ACCESS_ADDRESS_OFFSET;
+            let direct_access_wdata_0_reg_addr =
+                direct_access_cmd_reg_addr + DIRECT_ACCESS_WDATA_0_OFFSET;
+            let direct_access_wdata_1_reg_addr =
+                direct_access_cmd_reg_addr + DIRECT_ACCESS_WDATA_1_OFFSET;
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
+            // Helper function to check if DAI is idle using the configurable bit number
+            let is_dai_idle = || -> bool {
+                let status: u32 = regs.status().read().into();
+                (status & (1 << dai_idle_bit_num)) != 0
+            };
+
                 let seed = &seed[..self.seed_length_words()]; // Get random bytes of desired size
                 let chunk_size = if uds_fuse_row_granularity_64 { 2 } else { 1 };
                 let chunked_seed = seed.chunks(chunk_size);
@@ -146,13 +172,14 @@ impl UdsFeProgrammingFlow {
                     let dest = seed_dest_address + (index * chunk_size * size_of::<u32>()) as u32;
 
                     // Poll the STATUS register until the DAI state returns to idle
-                    while !regs.status().read().dai_idle() {}
+                    while !is_dai_idle() {}
 
+                    // Write seed data to WDATA registers using DMA
                     let wdata_0 = seed_part[0];
-                    regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
+                    dma.write_dword(AxiAddr::from(direct_access_wdata_0_reg_addr), wdata_0);
 
                     if let Some(&wdata_1) = seed_part.get(1) {
-                        regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
+                        dma.write_dword(AxiAddr::from(direct_access_wdata_1_reg_addr), wdata_1);
                     }
 
                     // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
@@ -161,31 +188,31 @@ impl UdsFeProgrammingFlow {
                         self.prefix(),
                         dest
                     );
-                    regs.direct_access_address().write(|w| w.address(dest));
+                    dma.write_dword(AxiAddr::from(direct_access_address_reg_addr), dest & 0xFFF);
 
                     // Trigger the seed write command
                     cprintln!("[{}] Triggering the seed write command", self.prefix());
-                    regs.direct_access_cmd().write(|w| w.wr(true));
+                    dma.write_dword(AxiAddr::from(direct_access_cmd_reg_addr), 0b10); // bit 1 = 1 for WR
                 }
 
                 // Trigger the partition digest operation
                 // Poll the STATUS register until the DAI state returns to idle
-                while !regs.status().read().dai_idle() {}
+                while !is_dai_idle() {}
 
-                // Write the Seed base address to the DIRECT_ACCESS_ADDRESS register
+                // Write the Seed base address to the DIRECT_ACCESS_ADDRESS register for digest operation.
                 cprintln!(
                     "[{}] Triggering the partition digest operation, seed_dest_address: {:#x}",
                     self.prefix(),
                     seed_dest_address
                 );
-                regs.direct_access_address().write(|w| w.address(seed_dest_address));
+                dma.write_dword(AxiAddr::from(direct_access_address_reg_addr), seed_dest_address & 0xFFF);
 
                 // Trigger the digest calculation command
                 cprintln!("[{}] Triggering the digest calculation command", self.prefix());
-                regs.direct_access_cmd().write(|w| w.digest(true));
+                dma.write_dword(AxiAddr::from(direct_access_cmd_reg_addr), 0b100); // bit 2 = 1 for DIGEST
 
                 // Poll the STATUS register until the DAI state returns to idle
-                while !regs.status().read().dai_idle() {}
+                while !is_dai_idle() {}
 
                 Ok::<(), CaliptraError>(())
             })?;

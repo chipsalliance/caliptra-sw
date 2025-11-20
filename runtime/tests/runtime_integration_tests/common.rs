@@ -68,7 +68,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 4];
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
@@ -88,13 +88,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_soc_manifest(pqc_key_type, svn);
-    let manifest_bytes = manifest.as_bytes();
-    let len = manifest_bytes.len();
-    // Pad to a multiple of 256 bytes
-    let padded_len = ((len + 255) / 256) * 256;
-    let mut padded = vec![0u8; padded_len];
-    padded[..len].copy_from_slice(manifest_bytes);
-    padded
+    manifest.as_bytes().to_vec()
 }
 
 pub fn test_upload_firmware<T: HwModel>(
@@ -239,7 +233,12 @@ pub fn start_rt_test_pqc_model(
         feature = "fpga_subsystem"
     )))
     .unwrap();
-    let init_params = args.init_params.unwrap_or_else(|| InitParams {
+
+    let image =
+        caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
+    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let mut init_params = args.init_params.unwrap_or_else(|| InitParams {
         rom: &rom,
         stack_info: Some(StackInfo::new(image_info)),
         test_sram: args.test_sram,
@@ -251,11 +250,14 @@ pub fn start_rt_test_pqc_model(
         },
         ..Default::default()
     });
-
-    let image =
-        caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
-
-    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+    init_params.fuses = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        vendor_pk_hash,
+        owner_pk_hash,
+        soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
+        soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
+        ..Default::default()
+    };
 
     let boot_flags = if let Some(flags) = args.test_mfg_flags {
         flags.bits()
@@ -278,14 +280,6 @@ pub fn start_rt_test_pqc_model(
         init_params,
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
-            fuses: Fuses {
-                fuse_pqc_key_type: pqc_key_type as u32,
-                vendor_pk_hash,
-                owner_pk_hash,
-                soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
-                soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
-                ..Default::default()
-            },
             initial_dbg_manuf_service_reg: boot_flags,
             soc_manifest,
             mcu_fw_image,
@@ -617,12 +611,6 @@ pub fn build_ready_runtime_model(
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
     let image_bytes = image_bundle.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0],
-            ..Default::default()
-        },
         fw_image: Some(&image_bytes),
         ..Default::default()
     };
@@ -632,6 +620,12 @@ pub fn build_ready_runtime_model(
         InitParams {
             rom: &rom,
             security_state: args.security_state,
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0],
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params,

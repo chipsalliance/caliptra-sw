@@ -138,7 +138,7 @@ pub struct RecoveryRegisterInterface {
     pub device_reset: ReadWriteRegister<u32>,
     #[register(offset = 0x3c)]
     pub recovery_ctrl: ReadWriteRegister<u32, RecoveryControl::Register>,
-    #[register(offset = 0x40)]
+    #[register(offset = 0x40, write_fn = recovery_status_write)]
     pub recovery_status: ReadWriteRegister<u32>,
     #[register(offset = 0x44)]
     pub hw_status: ReadWriteRegister<u32>,
@@ -299,43 +299,50 @@ impl RecoveryRegisterInterface {
         }
         let load: ReadWriteRegister<u32, IndirectCtrl0::Register> = ReadWriteRegister::new(val);
         if load.reg.is_set(IndirectCtrl0::RESET) {
-            let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
-            if let Some(image) = self.cms_data.get(image_index) {
-                let cms = load.reg.read(IndirectCtrl0::CMS);
-                if cms != 0 {
-                    self.indirect_fifo_status_0
-                        .reg
-                        .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
-                } else {
-                    let len_dwords = image.len() as u32 / 4;
-                    self.indirect_fifo_ctrl_0
-                        .reg
-                        .modify(IndirectCtrl0::CMS.val(cms));
-                    self.indirect_fifo_ctrl_0
-                        .reg
-                        .modify(IndirectCtrl0::RESET::CLEAR);
-                    self.indirect_fifo_ctrl_image_size.reg.set(len_dwords);
-                    self.indirect_fifo_status_0
-                        .reg
-                        .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
-                }
-                self.indirect_fifo_status_1.reg.set(0);
-                self.indirect_fifo_status_2.reg.set(0);
-                self.indirect_fifo_status_0
-                    .reg
-                    .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::SET);
-            } else {
-                println!(
-                    "No Image in RRI ({} >= {})",
-                    image_index,
-                    self.cms_data.len()
-                );
-                self.indirect_fifo_status_0
-                    .reg
-                    .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
-            }
+            self.load_image();
         }
         Ok(())
+    }
+
+    pub fn recovery_status_write(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+        self.recovery_status.reg.set(val);
+        self.load_image();
+        Ok(())
+    }
+
+    fn load_image(&mut self) {
+        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+        if let Some(image) = self.cms_data.get(image_index) {
+            let len_dwords = image.len() as u32 / 4;
+            self.indirect_fifo_ctrl_0
+                .reg
+                .modify(IndirectCtrl0::CMS.val(0));
+            self.indirect_fifo_ctrl_0
+                .reg
+                .modify(IndirectCtrl0::RESET::CLEAR);
+            self.indirect_fifo_ctrl_image_size.reg.set(len_dwords);
+            self.indirect_fifo_status_0
+                .reg
+                .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
+            self.indirect_fifo_status_1.reg.set(0);
+            self.indirect_fifo_status_2.reg.set(0);
+            self.indirect_fifo_status_0
+                .reg
+                .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
+        } else {
+            println!(
+                "No Image in RRI ({} >= {})",
+                image_index,
+                self.cms_data.len()
+            );
+            self.indirect_fifo_status_0
+                .reg
+                .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
+        }
     }
 
     pub fn indirect_fifo_ctrl_image_size_read(&mut self, size: RvSize) -> Result<RvData, BusError> {

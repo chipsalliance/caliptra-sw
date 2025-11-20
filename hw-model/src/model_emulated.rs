@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::mpsc;
 
 use caliptra_api::soc_mgr::SocManager;
+use caliptra_api_types::Fuses;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Device;
 use caliptra_emu_bus::Event;
@@ -22,6 +23,7 @@ use caliptra_emu_periph::dma::axi_root_bus::AxiRootBus;
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
+use caliptra_emu_periph::Mci;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, MailboxRequester, SocToCaliptraBus, TbServicesCb,
@@ -72,6 +74,7 @@ pub struct ModelEmulated {
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
     trace_path: Option<PathBuf>,
+    fuses: Fuses,
 
     // Keep this even when not including the coverage feature to keep the
     // interface consistent
@@ -82,6 +85,8 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
+
+    pub mci: Mci,
 }
 
 #[cfg(feature = "coverage")]
@@ -212,6 +217,12 @@ impl HwModel for ModelEmulated {
         let input_wires = (!params.uds_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
 
+        let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
+        let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
+        root_bus
+            .soc_reg
+            .set_strap_generic(&[ss_strap_generic_reg_0, ss_strap_generic_reg_1, 0, 0]);
+
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
             let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {
@@ -237,6 +248,7 @@ impl HwModel for ModelEmulated {
         let mut hasher = DefaultHasher::new();
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
         let image_tag = hasher.finish();
+        let mci_regs = cpu.bus.bus.mci_external_regs();
 
         let mut m = ModelEmulated {
             output,
@@ -246,12 +258,14 @@ impl HwModel for ModelEmulated {
             ready_for_fw,
             cpu_enabled,
             trace_path: trace_path_or_env(params.trace_path),
+            fuses: params.fuses,
             _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
+            mci: mci_regs,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -440,5 +454,13 @@ impl HwModel for ModelEmulated {
             .ok_or(ModelError::SubsystemSramError)?
             .copy_from_slice(payload);
         Ok(AxiRootBus::mcu_sram_offset())
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }
