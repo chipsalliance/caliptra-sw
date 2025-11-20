@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState};
+use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState, SocIfc};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
@@ -380,6 +380,22 @@ impl Dma {
     ///
     pub fn payload_available(&self) -> bool {
         self.with_dma(|dma| dma.status0().read().payload_available())
+    }
+
+    /// Used by OCP LOCK to release an MEK to the Encryption Engine key vault
+    pub fn ocp_lock_key_vault_release(&self, soc: &SocIfc) {
+        let write_addr = AxiAddr::from(soc.ocp_lock_get_key_release_addr());
+        let kv_release_size = soc.ocp_lock_get_key_size();
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: kv_release_size,
+            origin: DmaWriteOrigin::KeyVault,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.setup_dma_write(write_transaction, 0);
+        self.wait_for_dma_complete();
     }
 }
 
