@@ -540,14 +540,12 @@ impl PersistentData {
                 addr_of!((*P).cleared_non_fatal_fw_error) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            // For `cleared_non_fatal_fw_error`
-            persistent_data_offset += core::mem::size_of::<u32>() as u32;
+            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
             assert_eq!(
                 addr_of!((*P).ocp_lock_metadata) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
             persistent_data_offset += OCP_LOCK_METADATA_SIZE;
-            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
             assert_eq!(
                 addr_of!((*P).mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

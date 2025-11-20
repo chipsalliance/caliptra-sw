@@ -611,12 +611,6 @@ pub fn build_ready_runtime_model(
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
     let image_bytes = image_bundle.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0x7F, 0, 0, 0],
-            ..Default::default()
-        },
         fw_image: Some(&image_bytes),
         ..Default::default()
     };
@@ -626,6 +620,12 @@ pub fn build_ready_runtime_model(
         InitParams {
             rom: &rom,
             security_state: args.security_state,
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0],
+                ..Default::default()
+            },
             ..Default::default()
         },
         boot_params,
