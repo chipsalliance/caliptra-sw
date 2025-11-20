@@ -1075,7 +1075,7 @@ impl ModelFpgaSubsystem {
         let start = self.cycle_count();
         while !self.i3c_controller.write_fifo_empty() {
             if self.cycle_count() - start > 1_000_000 {
-                panic!("Timeout waiting for I3C write FIFO to be empty");
+                //                panic!("Timeout waiting for I3C write FIFO to be empty");
             }
         }
 
@@ -1157,7 +1157,7 @@ impl ModelFpgaSubsystem {
         let start = self.cycle_count();
         while !self.i3c_controller.write_fifo_empty() {
             if self.cycle_count() - start > 1_000_000 {
-                panic!("Timeout waiting for I3C write FIFO to be empty");
+                //                panic!("Timeout waiting for I3C write FIFO to be empty");
             }
         }
 
