@@ -15,6 +15,8 @@ mod test_certs_384_warmreset;
 mod test_cert_verify_warmreset;
 
 mod test_certs_mldsa87_warmreset;
+
+mod test_cm_command_warmreset;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
