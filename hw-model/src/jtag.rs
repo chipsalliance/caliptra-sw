@@ -13,7 +13,7 @@ pub trait JtagAccessibleReg {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum CaliptraCoreReg {
     MboxDlen = 0x50,
