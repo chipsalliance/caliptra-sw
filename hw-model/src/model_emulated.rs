@@ -85,7 +85,6 @@ pub struct ModelEmulated {
     events_to_caliptra: mpsc::Sender<Event>,
     events_from_caliptra: mpsc::Receiver<Event>,
     collected_events_from_caliptra: Vec<Event>,
-    subsystem_mode: bool,
 
     pub mci: Mci,
 }
@@ -266,7 +265,6 @@ impl HwModel for ModelEmulated {
             events_to_caliptra,
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
-            subsystem_mode: params.subsystem_mode,
             mci: mci_regs,
         };
         // Turn tracing on if the trace path was set
