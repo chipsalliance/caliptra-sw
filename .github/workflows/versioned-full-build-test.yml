@@ -27,7 +27,6 @@ on:
       firmware-version:
         default: "main"
         type: string
-
 jobs:
   fpga-full-suite-etrng-log:
     name: FPGA Suite (etrng, log)
