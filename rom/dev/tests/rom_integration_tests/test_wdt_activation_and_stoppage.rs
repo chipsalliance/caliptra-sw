@@ -7,6 +7,7 @@ use caliptra_builder::{
 };
 use caliptra_common::RomBootStatus::{self, KatStarted};
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, SecurityState};
+use caliptra_test::image_pk_desc_hash;
 
 #[test]
 fn test_wdt_activation_and_stoppage() {
@@ -17,7 +18,7 @@ fn test_wdt_activation_and_stoppage() {
         };
         let security_state = *SecurityState::default()
             .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
+            .set_device_lifecycle(DeviceLifecycle::Production);
 
         // Build the image we are going to send to ROM to load
         let image_bundle = caliptra_builder::build_and_sign_image(
@@ -26,9 +27,12 @@ fn test_wdt_activation_and_stoppage() {
             image_options,
         )
         .unwrap();
+        let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
 
         let fuses = Fuses {
             fuse_pqc_key_type: *pqc_key_type as u32,
+            vendor_pk_hash,
+            owner_pk_hash,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
@@ -45,7 +49,7 @@ fn test_wdt_activation_and_stoppage() {
         )
         .unwrap();
 
-        if cfg!(feature = "fpga_realtime") {
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
             // timer1_restart is only high for a few cycles; the realtime model
             // timing is too imprecise that sort of check.
             hw.step_until(|m| m.ready_for_fw());
