@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::PQC_KEY_TYPE;
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{default_soc_manifest_bytes, run_rt_test, RuntimeTestArgs};
+use crate::common::{DEFAULT_MCU_FW, PQC_KEY_TYPE};
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::{
@@ -14,15 +14,15 @@ use caliptra_common::{
         MailboxReqHeader, MailboxRespHeader,
     },
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError};
+use caliptra_hw_model::{
+    BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError, SubsystemInitParams,
+};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::RomInfo;
 use caliptra_runtime::RtBootStatus;
 use core::mem::size_of;
 use zerocopy::{FromBytes, IntoBytes};
-
-const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
 fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
     // RomInfo is 64-byte aligned and the last data in the ROM bin
@@ -71,7 +71,20 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
 
 #[test]
 fn test_fw_info() {
+    let fpga = cfg!(any(feature = "fpga_subsystem"));
+    let app = if fpga {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    };
+    let mcu_fw_image = if fpga { Some(DEFAULT_MCU_FW) } else { None };
+
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let soc_manifest = if fpga {
+            Some(default_soc_manifest_bytes(*pqc_key_type, 1))
+        } else {
+            None
+        };
         let mut image_opts = ImageOptions {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
@@ -84,8 +97,7 @@ fn test_fw_info() {
         image_opts10.fw_svn = 10;
 
         let image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
-                .unwrap();
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, app, image_opts10).unwrap();
 
         // Set fuses
         let owner_pub_key_hash = ImageGenerator::new(Crypto::default())
@@ -99,10 +111,15 @@ fn test_fw_info() {
         };
 
         // Cannot use run_rt_test since we need the rom and image to verify info
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(fpga).unwrap();
         let init_params = InitParams {
             fuses,
             rom: &rom,
+            subsystem_mode: fpga,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -110,10 +127,13 @@ fn test_fw_info() {
             init_params,
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
+                soc_manifest: soc_manifest.as_deref(),
+                mcu_fw_image,
                 ..Default::default()
             },
         )
         .unwrap();
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         let rom_info = find_rom_info(&rom).unwrap();
 
@@ -151,7 +171,7 @@ fn test_fw_info() {
                 .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image)
                 .unwrap();
 
-            model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+            model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
         };
 
         let info = get_fwinfo(&mut model);
@@ -172,11 +192,10 @@ fn test_fw_info() {
         let mut image_opts20 = image_opts.clone();
         image_opts20.fw_svn = 20;
 
-        let image20 =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts20)
-                .unwrap()
-                .to_bytes()
-                .unwrap();
+        let image20 = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, app, image_opts20)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
 
         // Trigger an update reset.
         update_to(&mut model, &image20);
@@ -190,11 +209,10 @@ fn test_fw_info() {
         let mut image_opts5 = image_opts;
         image_opts5.fw_svn = 5;
 
-        let image5 =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts5)
-                .unwrap()
-                .to_bytes()
-                .unwrap();
+        let image5 = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, app, image_opts5)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
 
         update_to(&mut model, &image5);
         let info = get_fwinfo(&mut model);
