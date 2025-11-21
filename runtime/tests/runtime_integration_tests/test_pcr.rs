@@ -292,3 +292,38 @@ fn test_get_pcr_log() {
     let log = PcrLogArray::read_from_bytes(&resp.data[..resp.data_size as usize]);
     assert!(log.is_ok());
 }
+
+#[test]
+fn test_get_pcr_log_warm_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let mut cmd = MailboxReq::GetPcrLog(MailboxReqHeader::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_PCR_LOG), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let resp = GetPcrLogResp::read_from_bytes(resp.as_slice()).unwrap();
+    let log = PcrLogArray::read_from_bytes(&resp.data[..resp.data_size as usize]);
+    assert!(log.is_ok());
+
+    // Perform warm reset
+    model.warm_reset_flow().unwrap();
+
+    // Wait for boot
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    let mut cmd = MailboxReq::GetPcrLog(MailboxReqHeader::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_PCR_LOG), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let resp = GetPcrLogResp::read_from_bytes(resp.as_slice()).unwrap();
+    let log = PcrLogArray::read_from_bytes(&resp.data[..resp.data_size as usize]);
+    assert!(log.is_ok());
+}
