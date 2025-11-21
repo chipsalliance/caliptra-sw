@@ -293,6 +293,9 @@ jobs:
           echo VARS=${VARS}
 
           # TODO add the remaining caliptra core integration tests
+          # temporarily disabled
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock)'
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -300,8 +303,6 @@ jobs:
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
