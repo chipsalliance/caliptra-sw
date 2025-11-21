@@ -630,22 +630,40 @@ impl<'a> DmaRecovery<'a> {
         {
             // FPGA implementation: wait for FIFO to be full and read dword by dword
             for k in (0..image_size_bytes as usize).step_by(BLOCK_SIZE as usize) {
-                // Wait for the FIFO to be full
-                self.with_regs(|r| {
-                    while !r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .full()
-                    {}
-                })?;
+                let remaining_bytes = image_size_bytes as usize - k;
+                let is_last_block = remaining_bytes < BLOCK_SIZE as usize;
 
-                for j in (0..BLOCK_SIZE as usize).step_by(4) {
+                if !is_last_block {
+                    self.with_regs(|r| {
+                        while !r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .full()
+                        {}
+                    })?;
+                }
+
+                // Read up to BLOCK_SIZE or remaining bytes, whichever is smaller
+                let bytes_to_read = core::cmp::min(BLOCK_SIZE as usize, remaining_bytes);
+                for j in (0..bytes_to_read).step_by(4) {
                     let i = k + j;
                     let word_index = i / 4;
 
                     if word_index >= buffer.len() || i >= image_size_bytes as usize {
                         break;
+                    }
+
+                    if is_last_block {
+                        // For the last block, wait for FIFO to not be empty before each read_dword
+                        self.with_regs(|r| {
+                            while r
+                                .sec_fw_recovery_if()
+                                .indirect_fifo_status_0()
+                                .read()
+                                .empty()
+                            {}
+                        })?;
                     }
 
                     buffer[word_index] = self.dma.read_dword(addr);
@@ -655,6 +673,7 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
         {
+            crate::cprintln!("Wrong Code!");
             let read_transaction = DmaReadTransaction {
                 read_addr: addr,
                 fixed_addr: true,
