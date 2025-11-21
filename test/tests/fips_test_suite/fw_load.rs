@@ -217,16 +217,17 @@ fn fw_load_error_flow_base(
         ..Default::default()
     };
     let fw_image = fw_image.unwrap_or(build_fw_image(image_options.clone()));
+    let life_cycle = fuses.life_cycle;
 
     // Attempt to load the FW
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+            fuses,
+            security_state: SecurityState::from(life_cycle as u32),
             rom: rom.unwrap_or_default(),
             ..Default::default()
         }),
         Some(BootParams {
-            fuses,
             initial_dbg_manuf_service_reg: initial_dbg_manuf_service_reg.unwrap_or_default(),
             ..Default::default()
         }),
@@ -252,18 +253,22 @@ fn fw_load_error_flow_base(
             hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
             verify_mbox_cmds_fail(&mut hw, 0);
 
+            let clean_fw_image = build_fw_image(image_options);
+            let safe_fuses = safe_fuses(&clean_fw_image);
+
             // Clear the error with an approved method - restart Caliptra
             // TODO: Reset to the default fuse state - provided fuses may be intended to cause errors
             if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+                hw.set_fuses(safe_fuses);
                 hw.cold_reset();
             } else {
-                hw = fips_test_init_model(None)
+                hw = fips_test_init_model(Some(InitParams {
+                    fuses: safe_fuses,
+                    ..Default::default()
+                }))
             }
 
-            let clean_fw_image = build_fw_image(image_options);
-
             hw.boot(BootParams {
-                fuses: safe_fuses(&clean_fw_image),
                 ..Default::default()
             })
             .unwrap();
@@ -1748,8 +1753,9 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
     let pk_hash_src_image = build_fw_image(image_options);
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&pk_hash_src_image.manifest);
 
+    let life_cycle = DeviceLifecycle::Production;
     let fuses = Fuses {
-        life_cycle: DeviceLifecycle::Production,
+        life_cycle,
         vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
         fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
@@ -1759,11 +1765,11 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
     // Load the FW
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+            fuses,
+            security_state: SecurityState::from(life_cycle as u32),
             ..Default::default()
         }),
         Some(BootParams {
-            fuses,
             ..Default::default()
         }),
     );
@@ -1938,8 +1944,9 @@ fn fw_load_blank_pub_key_hashes() {
         let fw_image = build_fw_image(image_options);
 
         // Don't populate pub key hashes
+        let life_cycle = DeviceLifecycle::Production;
         let fuses = Fuses {
-            life_cycle: DeviceLifecycle::Production,
+            life_cycle,
             fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
             ..Default::default()
         };
@@ -1947,11 +1954,11 @@ fn fw_load_blank_pub_key_hashes() {
         // Load the FW
         let mut hw = fips_test_init_to_rom(
             Some(InitParams {
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                fuses,
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             }),
             Some(BootParams {
-                fuses,
                 ..Default::default()
             }),
         );
@@ -1970,14 +1977,17 @@ fn fw_load_blank_pub_key_hashes() {
 #[test]
 pub fn corrupted_fw_load_version() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let boot_params = BootParams {
+        let init_params = InitParams {
             fuses: Fuses {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             },
             ..Default::default()
         };
-        let mut hw = fips_test_init_to_rom(None, Some(boot_params));
+        let boot_params = BootParams {
+            ..Default::default()
+        };
+        let mut hw = fips_test_init_to_rom(Some(init_params), Some(boot_params));
 
         // Generate image
         let image_options = ImageOptions {

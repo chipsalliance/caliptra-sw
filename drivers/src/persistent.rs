@@ -10,7 +10,7 @@ use caliptra_auth_man_types::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
+use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -24,9 +24,10 @@ use crate::{
 };
 
 #[cfg(feature = "runtime")]
-use crate::pcr_reset::PcrResetCounter;
+use crate::{pcr_reset::PcrResetCounter, KeyId};
 
-pub const ECC384_MAX_CSR_SIZE: usize = 512;
+pub const ECC384_MAX_IDEVID_CSR_SIZE: usize = 512;
+pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
 pub const MAN1_SIZE: u32 = 17 * 1024;
 pub const MAN2_SIZE: u32 = 17 * 1024;
 pub const DATAVAULT_MAX_SIZE: u32 = 15 * 1024;
@@ -52,14 +53,37 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
-pub const DOT_OWNER_SIZE: u32 = 52;
+pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
+pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
+pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
+pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+pub const _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE: u32 = 4; // u8 + u8 + 2 bytes padding
+
+#[cfg(feature = "runtime")]
+// Currently only can export CDI once, but in the future we may want to support multiple exported
+// CDI handles at the cost of using more KeyVault slots.
+pub const EXPORTED_HANDLES_NUM: usize = 1;
+#[cfg(feature = "runtime")]
+#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+pub struct ExportedCdiEntry {
+    pub key: KeyId,
+    pub handle: ExportedCdiHandle,
+    pub active: U8Bool,
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+pub struct ExportedCdiHandles {
+    pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
+}
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
     + size_of::<U8Bool>()
-    + size_of::<U8Bool>();
+    + size_of::<U8Bool>()
+    + size_of::<ExportedCdiHandles>();
 
 #[cfg(feature = "runtime")]
 const _: () = assert!(DPE_DCCM_STORAGE < DPE_SIZE as usize);
@@ -75,7 +99,7 @@ pub type AuthManifestImageMetadataList =
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
     pub csr_len: u32,
-    pub csr: [u8; ECC384_MAX_CSR_SIZE],
+    pub csr: [u8; ECC384_MAX_IDEVID_CSR_SIZE],
 }
 
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
@@ -89,7 +113,7 @@ impl Default for Ecc384IdevIdCsr {
     fn default() -> Self {
         Self {
             csr_len: Self::UNPROVISIONED_CSR,
-            csr: [0; ECC384_MAX_CSR_SIZE],
+            csr: [0; ECC384_MAX_IDEVID_CSR_SIZE],
         }
     }
 }
@@ -148,7 +172,7 @@ macro_rules! impl_idevid_csr {
     };
 }
 
-impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_CSR_SIZE);
+impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_IDEVID_CSR_SIZE);
 impl_idevid_csr!(Mldsa87IdevIdCsr, MLDSA87_MAX_CSR_SIZE);
 
 pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
@@ -194,7 +218,7 @@ pub mod fmc_alias_csr {
     #[repr(C)]
     pub struct FmcAliasCsrs {
         pub ecc_csr_len: u32,
-        pub ecc_csr: [u8; ECC384_MAX_CSR_SIZE],
+        pub ecc_csr: [u8; ECC384_MAX_FMC_ALIAS_CSR_SIZE],
         pub mldsa_csr_len: u32,
         pub mldsa_csr: [u8; MLDSA87_MAX_CSR_SIZE],
     }
@@ -203,7 +227,7 @@ pub mod fmc_alias_csr {
         fn default() -> Self {
             Self {
                 ecc_csr_len: Self::UNPROVISIONED_CSR,
-                ecc_csr: [0; ECC384_MAX_CSR_SIZE],
+                ecc_csr: [0; ECC384_MAX_FMC_ALIAS_CSR_SIZE],
                 mldsa_csr_len: Self::UNPROVISIONED_CSR,
                 mldsa_csr: [0; MLDSA87_MAX_CSR_SIZE],
             }
@@ -320,6 +344,8 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub runtime_cmd_active: U8Bool,
     #[cfg(feature = "runtime")]
+    pub exported_cdi_slots: ExportedCdiHandles,
+    #[cfg(feature = "runtime")]
     reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; DPE_SIZE as usize],
@@ -357,6 +383,12 @@ pub struct PersistentData {
 
     // TODO(clundin): For runtime we may want to gate this behind a feature flag.
     pub ocp_lock_metadata: OcpLockMetadata,
+
+    pub mcu_firmware_loaded: u32,
+
+    pub dpe_pl0_context_limit: u8,
+    pub dpe_pl1_context_limit: u8,
+    pub reserved12: [u8; 2], // Pad to 4 byte boundary
 }
 
 impl PersistentData {
@@ -503,15 +535,24 @@ impl PersistentData {
                 addr_of!((*P).dot_owner_pk_hash) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            persistent_data_offset += DOT_OWNER_SIZE;
+            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
             assert_eq!(
                 addr_of!((*P).cleared_non_fatal_fw_error) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            // For `cleared_non_fatal_fw_error`
-            persistent_data_offset += core::mem::size_of::<u32>() as u32;
+            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
             assert_eq!(
                 addr_of!((*P).ocp_lock_metadata) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).mcu_firmware_loaded) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
+            assert_eq!(
+                addr_of!((*P).dpe_pl0_context_limit) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

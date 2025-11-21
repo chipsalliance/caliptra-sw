@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::tbs::{get_tbs, init_param, sanitize, TbsParam, TbsTemplate};
-use crate::x509::{self, AsymKey, KeyUsage, SigningAlgorithm};
+use crate::x509::{self, AsymKey, FwidParam, KeyUsage, SigningAlgorithm};
 use openssl::stack::Stack;
 use openssl::x509::{X509Extension, X509NameBuilder, X509ReqBuilder};
 
@@ -83,6 +83,56 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         self
     }
 
+    pub fn add_fmc_dice_tcb_info_ext(
+        mut self,
+        device_fwids: &[FwidParam],
+        fmc_fwids: &[FwidParam],
+    ) -> Self {
+        // This method of finding the offsets is fragile. Especially for the 1 byte values.
+        // These may need to be updated to stay unique when the cert template is updated.
+        let flags: u32 = 0xC0C1C2C3;
+        let svn: u8 = 0xC4;
+        let svn_fuses: u8 = 0xC6;
+
+        self.exts
+            .push(x509::make_fmc_dice_tcb_info_ext(
+                flags,
+                svn,
+                svn_fuses,
+                device_fwids,
+                fmc_fwids,
+            ))
+            .unwrap();
+
+        self.params.push(CsrTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_flags", 0, std::mem::size_of_val(&flags)),
+            needle: flags.to_be_bytes().to_vec(),
+        });
+
+        self.params.push(CsrTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_fmc_svn", 0, std::mem::size_of_val(&svn)),
+            needle: svn.to_be_bytes().to_vec(),
+        });
+
+        self.params.push(CsrTemplateParam {
+            tbs_param: TbsParam::new(
+                "tcb_info_fmc_svn_fuses",
+                0,
+                std::mem::size_of_val(&svn_fuses),
+            ),
+            needle: svn_fuses.to_be_bytes().to_vec(),
+        });
+
+        for fwid in device_fwids.iter().chain(fmc_fwids.iter()) {
+            self.params.push(CsrTemplateParam {
+                tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
+                needle: fwid.fwid.digest.to_vec(),
+            });
+        }
+
+        self
+    }
+
     /// Generate To Be Signed (TBS) Template
     pub fn tbs_template(mut self, subject_cn: &str) -> TbsTemplate {
         // Generate key pair
@@ -129,6 +179,10 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
 
         // Retrieve the To be signed portion from the CSR
         let mut tbs = get_tbs(der);
+
+        // Sort the params largest to smallest to decrease the risk of duplicate "needles" in larger fields before being sanitized
+        self.params
+            .sort_by_key(|p| std::cmp::Reverse(p.tbs_param.len));
 
         // Calculate the offset of parameters and sanitize the TBS section
         let params = self

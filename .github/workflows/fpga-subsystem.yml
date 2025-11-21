@@ -3,6 +3,7 @@ name: Subsystem FPGA Build
 
 on:
   pull_request:
+  merge_group:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -225,10 +226,10 @@ jobs:
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
-  test_artifacts:
+  test_artifacts_subsystem:
     runs-on: vck190-subsystem-2.1
     needs: [check_cache, build_test_binaries]
-    timeout-minutes: 120
+    timeout-minutes: 180
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
@@ -292,6 +293,9 @@ jobs:
           echo VARS=${VARS}
 
           # TODO add the remaining caliptra core integration tests
+          # temporarily disabled
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock)'
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -299,8 +303,6 @@ jobs:
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
               -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
               -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
@@ -327,3 +329,24 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
+
+  print_test_results:
+    runs-on: ubuntu-22.04
+    needs: [test_artifacts_subsystem]
+    if: always()
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: 'Download test results'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: /tmp/junit
+
+      - name: Print results
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY

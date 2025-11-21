@@ -92,11 +92,6 @@ fn fake_boot_test() {
 
             let mut hw = caliptra_hw_model::new(
                 InitParams {
-                    rom: &rom,
-                    security_state: canned_cert_security_state,
-                    ..Default::default()
-                },
-                BootParams {
                     fuses: Fuses {
                         vendor_pk_hash: vendor_pk_desc_hash,
                         owner_pk_hash,
@@ -104,6 +99,11 @@ fn fake_boot_test() {
                         fuse_pqc_key_type: *pqc_key_type as u32,
                         ..Default::default()
                     },
+                    rom: &rom,
+                    security_state: canned_cert_security_state,
+                    ..Default::default()
+                },
+                BootParams {
                     fw_image: Some(&image.to_bytes().unwrap()),
                     initial_dbg_manuf_service_reg: (1 << 30),
                     ..Default::default()

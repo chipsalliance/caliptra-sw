@@ -18,8 +18,7 @@ pub struct OcpLockMlKemCertTbsMlDsa87Params<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
 }
-#[allow(clippy::needless_lifetimes)]
-impl<'a> OcpLockMlKemCertTbsMlDsa87Params<'a> {
+impl OcpLockMlKemCertTbsMlDsa87Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 1568usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

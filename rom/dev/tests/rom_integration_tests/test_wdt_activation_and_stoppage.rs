@@ -34,12 +34,12 @@ fn test_wdt_activation_and_stoppage() {
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             caliptra_hw_model::InitParams {
+                fuses,
                 rom: &rom,
                 security_state,
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )

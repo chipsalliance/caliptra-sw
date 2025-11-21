@@ -5,9 +5,11 @@ use crate::common::{
     TEST_DIGEST, TEST_LABEL,
 };
 use caliptra_api::SocManager;
-use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
+use caliptra_common::mailbox_api::{
+    CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
+};
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{HwModel, ModelError, SecurityState};
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -32,6 +34,7 @@ use openssl::{
 };
 use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -49,6 +52,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
+    assert_eq!(profile.max_tci_nodes, 32);
 }
 
 #[test]
@@ -361,5 +365,99 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
     check_dice_extension_criticality(
         &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
         false,
+    );
+}
+
+#[test]
+fn test_export_cdi_attestation_not_disabled_after_update_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
+    });
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // Triggering a warm reset while a command is being processed will disable attestation.
+    for _ in 0..100 {
+        model.step();
+    }
+
+    model.warm_reset_flow().unwrap();
+
+    // check attestation is not disabled via FW_INFO
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(info.attestation_disabled, 0);
+}
+
+#[test]
+fn test_export_cdi_destroyed_root_context() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
+        ..Default::default()
+    });
+    // You probably want to retain the parent context, otherwise the whole DPE chain _may be
+    // destroyed.
+    //
+    // This test case exercises that runtime cannot find the root context if the chain is
+    // destroyed.
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // Triggering a warm reset while a command is being processed will disable attestation.
+    for _ in 0..100 {
+        model.step();
+    }
+
+    model.warm_reset_flow().unwrap();
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap_err();
+    assert_eq!(
+        resp,
+        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into())
     );
 }
