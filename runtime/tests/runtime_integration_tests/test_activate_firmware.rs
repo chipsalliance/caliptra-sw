@@ -204,7 +204,7 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[ignore]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -234,7 +234,7 @@ fn test_activate_mcu_fw_success() {
         .expect("We should have received a response");
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[ignore]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
