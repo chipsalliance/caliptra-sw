@@ -10,7 +10,6 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
-use caliptra_runtime::RtBootStatus;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
 #[test]
@@ -31,11 +30,8 @@ fn test_fe_programming_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
         subsystem_mode: true,
+        successful_reach_rt: true,
         ..Default::default()
-    });
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     // Create FE programming request with test parameters.
@@ -59,7 +55,8 @@ fn test_fe_programming_cmd() {
 
 #[test]
 fn test_fe_programming_invalid_partition() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
@@ -68,11 +65,8 @@ fn test_fe_programming_invalid_partition() {
 
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
+        successful_reach_rt: true,
         ..Default::default()
-    });
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     // Create FE programming request with test parameters.
