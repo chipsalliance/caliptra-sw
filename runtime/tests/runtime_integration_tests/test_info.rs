@@ -71,7 +71,7 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
 
 #[test]
 fn test_fw_info() {
-    let fpga = cfg!(any(feature = "fpga_subsystem"));
+    let fpga = cfg!(feature = "fpga_subsystem");
     let app = if fpga {
         &APP_WITH_UART_FPGA
     } else {
