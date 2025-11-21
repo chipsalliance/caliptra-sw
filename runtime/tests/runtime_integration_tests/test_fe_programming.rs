@@ -10,7 +10,6 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
-use caliptra_runtime::RtBootStatus;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
 #[test]
