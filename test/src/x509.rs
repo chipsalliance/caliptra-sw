@@ -119,12 +119,15 @@ impl DiceTcbInfo {
         asn1::parse(ext_der, Self::parse_single).map(Some)
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn find_multiple_in_csr(csr_der: &[u8]) -> Result<Vec<Self>, asn1::ParseError> {
         let Some(ext_der) = get_csr_extension(csr_der, &DICE_MULTI_TCB_INFO_OID)? else {
             return Ok(vec![]);
         };
         asn1::parse(ext_der, Self::parse_multiple)
     }
+
+    #[allow(clippy::result_large_err)]
     pub fn find_single_in_csr(csr_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
         let Some(ext_der) = get_csr_extension(csr_der, &DICE_TCB_INFO_OID)? else {
             return Ok(None);
@@ -263,6 +266,7 @@ pub(crate) fn get_cert_extension<'a>(
 
 /// Extracts the DER bytes of an extension from x509 CSR bytes
 /// (`csr_der`) with the provided `oid`.
+#[allow(clippy::result_large_err)]
 pub(crate) fn get_csr_extension<'a>(
     csr_der: &'a [u8],
     oid: &asn1::ObjectIdentifier,
