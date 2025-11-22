@@ -9,3 +9,7 @@ rustflags = [
   "-C", "target-feature=+zbc",
   "-C", "target-feature=+zbs",
 ]
+
+# We need a bigger than default (2MiB) stack for some tests
+[env]
+RUST_MIN_STACK="16777216" # 16MB
