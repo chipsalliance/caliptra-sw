@@ -17,10 +17,6 @@ Abstract:
 include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs.rs"));
 #[cfg(not(feature = "generate_templates"))]
 include! {"../build/fmc_alias_csr_tbs.rs"}
-#[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_tbs_ml_dsa_87.rs"));
-#[cfg(not(feature = "generate_templates"))]
-include! {"../build/fmc_alias_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -37,23 +33,22 @@ mod tests {
     use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
 
     const TEST_UEID: &[u8] = &[0xAB; FmcAliasCsrTbs::UEID_LEN];
-    const TEST_DEVICE_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCsrTbsParams::TCB_INFO_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCsrTbsParams::TCB_INFO_FMC_TCI_LEN];
-    const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
-    const TEST_TCB_INFO_FMC_SVN: &[u8] = &[0xB7];
-    const TEST_TCB_INFO_FMC_SVN_FUSES: &[u8] = &[0xB8];
+    const TEST_OWNER_INFO_HASH: &[u8] =
+        &[0xCDu8; FmcAliasCsrTbsParams::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN];
+    const TEST_VENDOR_INFO_HASH: &[u8] =
+        &[0xEFu8; FmcAliasCsrTbsParams::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
+    const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasCsrTbsParams::TCB_INFO_FMC_TCI_LEN];
+    const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
 
     fn make_test_csr(subject_key: &Ecc384AsymKey) -> FmcAliasCsrTbs {
         let params = FmcAliasCsrTbsParams {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
-            tcb_info_flags: TEST_TCB_INFO_FLAGS.try_into().unwrap(),
-            tcb_info_device_info_hash: &TEST_DEVICE_INFO_HASH.try_into().unwrap(),
+            tcb_info_owner_device_info_hash: &TEST_OWNER_INFO_HASH.try_into().unwrap(),
+            tcb_info_vendor_device_info_hash: &TEST_VENDOR_INFO_HASH.try_into().unwrap(),
             tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
-            tcb_info_fmc_svn: &TEST_TCB_INFO_FMC_SVN.try_into().unwrap(),
-            tcb_info_fmc_svn_fuses: &TEST_TCB_INFO_FMC_SVN_FUSES.try_into().unwrap(),
+            tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
         };
 
         FmcAliasCsrTbs::new(&params)
@@ -90,10 +85,16 @@ mod tests {
             TEST_UEID,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_LEN],
-            TEST_DEVICE_INFO_HASH,
+            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCsrTbs::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCsrTbs::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN],
+            TEST_OWNER_INFO_HASH,
+        );
+        assert_eq!(
+            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCsrTbs::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCsrTbs::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN],
+            TEST_VENDOR_INFO_HASH,
         );
         assert_eq!(
             &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_TCI_OFFSET
@@ -101,20 +102,9 @@ mod tests {
             TEST_FMC_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FLAGS_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FLAGS_OFFSET + FmcAliasCsrTbs::TCB_INFO_FLAGS_LEN],
-            TEST_TCB_INFO_FLAGS,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_SVN_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FMC_SVN_OFFSET + FmcAliasCsrTbs::TCB_INFO_FMC_SVN_LEN],
-            TEST_TCB_INFO_FMC_SVN,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                    + FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_LEN],
-            TEST_TCB_INFO_FMC_SVN_FUSES,
+            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FW_SVN_OFFSET
+                ..FmcAliasCsrTbs::TCB_INFO_FW_SVN_OFFSET + FmcAliasCsrTbs::TCB_INFO_FW_SVN_LEN],
+            TEST_TCB_INFO_FW_SVN,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
@@ -219,10 +209,10 @@ mod tests {
     #[cfg(feature = "generate_templates")]
     fn test_fmc_alias_csr_template() {
         let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_cert_tbs.rs")).unwrap();
+            std::fs::read(std::path::Path::new("./build/fmc_alias_csr_tbs.rs")).unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/fmc_alias_cert_tbs.rs"
+            "/fmc_alias_csr_tbs.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
