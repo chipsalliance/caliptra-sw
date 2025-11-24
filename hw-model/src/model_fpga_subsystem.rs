@@ -1728,10 +1728,7 @@ impl HwModel for ModelFpgaSubsystem {
         }
 
         // Return here if there isn't any mutable code to load
-        if boot_params.fw_image.is_none()
-            && boot_params.mcu_fw_image.is_none()
-            && boot_params.soc_manifest.is_none()
-        {
+        if boot_params.fw_image.is_none() {
             // Give the FPGA some time to start. If this returns too quickly some of the tests fail
             // with a kernel panic.
             let start = self.cycle_count();
