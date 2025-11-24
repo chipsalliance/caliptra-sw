@@ -6,6 +6,7 @@ use crate::common::{
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
     RuntimeTestArgs, TEST_LABEL,
 };
+use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
@@ -661,6 +662,7 @@ pub fn test_all_measurement_apis() {
 
         // Get to runtime
         crate::common::test_upload_firmware(&mut hw, &fw_image, *pqc_key_type);
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
