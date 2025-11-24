@@ -6,7 +6,8 @@ use crate::common::{
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
     RuntimeTestArgs, TEST_LABEL,
 };
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_api::SocManager;
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
@@ -604,11 +605,18 @@ pub fn test_all_measurement_apis() {
         let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
         let tci_type: [u8; 4] = [101, 102, 103, 104];
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
-        let fw_image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap()
-                .to_bytes()
-                .unwrap();
+        let fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
 
         //
         // 1. ROM STASH MEASUREMENT
@@ -654,6 +662,7 @@ pub fn test_all_measurement_apis() {
 
         // Get to runtime
         crate::common::test_upload_firmware(&mut hw, &fw_image, *pqc_key_type);
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
