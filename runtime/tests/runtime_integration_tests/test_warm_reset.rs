@@ -18,11 +18,7 @@ fn test_rt_journey_pcr_validation() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
@@ -97,11 +93,7 @@ fn test_mbox_busy_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
@@ -171,11 +163,7 @@ fn test_mbox_idle_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,

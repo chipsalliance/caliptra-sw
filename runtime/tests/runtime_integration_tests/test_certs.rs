@@ -603,7 +603,7 @@ pub fn test_all_measurement_apis() {
         // Shared inputs for all 3 methods
         let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
         let tci_type: [u8; 4] = [101, 102, 103, 104];
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let fw_image =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap()

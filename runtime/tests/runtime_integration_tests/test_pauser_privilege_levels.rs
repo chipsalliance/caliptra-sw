@@ -697,7 +697,7 @@ fn test_pl0_unset_in_header() {
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let life_cycle = fuses.life_cycle;
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -807,7 +807,7 @@ fn test_user_not_pl0() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let life_cycle = fuses.life_cycle;
         let mut model = caliptra_hw_model::new(
             InitParams {
