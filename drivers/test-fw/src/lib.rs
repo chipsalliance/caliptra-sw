@@ -3,9 +3,9 @@
 #![no_std]
 
 use caliptra_drivers::{
-    dma::MCU_SRAM_OFFSET, Aes, Array4x16, AxiAddr, DeobfuscationEngine, Dma, DmaWriteOrigin,
-    DmaWriteTransaction, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, SocIfc, Trng,
+    dma::MCU_SRAM_OFFSET, Aes, Array4x16, AxiAddr, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac,
+    HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, SocIfc,
+    Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
@@ -209,17 +209,7 @@ pub fn kv_release(test_regs: &mut TestRegisters) {
     // We expect the MCU TEST ROM to set the OCP LOCK key release size to 0x40.
     assert_eq!(0x40, kv_release_size);
 
-    let write_addr = AxiAddr::from(fuse_addr);
-    let write_transaction = DmaWriteTransaction {
-        write_addr,
-        fixed_addr: false,
-        length: kv_release_size,
-        origin: DmaWriteOrigin::KeyVault,
-        aes_mode: false,
-        aes_gcm: false,
-    };
-    test_regs.dma.setup_dma_write(write_transaction, 0);
-    test_regs.dma.wait_for_dma_complete();
+    test_regs.dma.ocp_lock_key_vault_release(&test_regs.soc);
 
     let mut output = [0; 16];
     test_regs
