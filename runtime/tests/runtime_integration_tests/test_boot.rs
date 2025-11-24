@@ -4,10 +4,7 @@ use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::{
-    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
-    RomBootStatus,
-};
+use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq};
 use caliptra_hw_model::{
     BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
 };
@@ -202,7 +199,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let life_cycle = fuses.life_cycle;
         let mut model = caliptra_hw_model::new(
             InitParams {
@@ -249,7 +246,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             *pqc_key_type,
         );
 
-        model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
         let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();

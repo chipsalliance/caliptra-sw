@@ -47,6 +47,8 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use std::borrow::Cow;
+use std::io;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
@@ -219,6 +221,10 @@ pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
     ]
 }
 
+pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
+    caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+}
+
 pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
@@ -261,11 +267,8 @@ pub fn start_rt_test_pqc_model(
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+
+    let rom = rom_for_fw_integration_tests().unwrap();
 
     let image =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
