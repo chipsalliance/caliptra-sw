@@ -386,9 +386,10 @@ impl HwModel for ModelEmulated {
         };
     }
 
-    fn warm_reset(&mut self) {
+    fn warm_reset(&mut self) -> Result<(), Box<dyn Error>> {
         self.cpu.warm_reset();
         self.step();
+        Ok(())
     }
 
     // [TODO][CAP2] Should it be statically provisioned?

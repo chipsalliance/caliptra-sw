@@ -290,7 +290,7 @@ impl HwModel for ModelVerilated {
         &mut self.output
     }
 
-    fn warm_reset(&mut self) {
+    fn warm_reset(&mut self) -> Result<(), Box<dyn Error>> {
         // Toggle reset pin
         self.v.input.cptra_rst_b = false;
         self.v.next_cycle_high(1);
@@ -302,6 +302,7 @@ impl HwModel for ModelVerilated {
         while !self.v.output.ready_for_fuses {
             self.v.next_cycle_high(1);
         }
+        Ok(())
     }
 
     fn cold_reset(&mut self) {
