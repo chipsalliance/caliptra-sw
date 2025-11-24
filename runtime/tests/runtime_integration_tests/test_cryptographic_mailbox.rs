@@ -639,11 +639,7 @@ fn test_random_generate() {
 
 #[test]
 fn test_random_stir_itrng() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let subsystem_mode = cfg!(feature = "fpga_subsystem");
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(InitParams {
