@@ -50,6 +50,7 @@ fn check_certificate_signature(
     .unwrap();
     let ec_pub_key = x509.public_key().unwrap().ec_key().unwrap();
     if !sig.verify(&TEST_DIGEST, &ec_pub_key).unwrap() {
+        println!("derive context key failed");
         return false;
     }
 
@@ -62,6 +63,7 @@ fn check_certificate_signature(
         &y,
     )
     .unwrap();
+    println!("derive context key failed");
     sig.verify(&TEST_DIGEST, &ec_pub_key).unwrap()
 }
 
