@@ -793,7 +793,7 @@ pub trait HwModel: SocManager {
         }
 
         // Perform the warm reset
-        self.warm_reset();
+        self.warm_reset()?;
 
         // Write back stored values and let boot progress
         // Fuse values will remain, just re-set fuse done
@@ -842,7 +842,7 @@ pub trait HwModel: SocManager {
     }
 
     /// Toggle reset pins and wait for ready_for_fuses
-    fn warm_reset(&mut self) {
+    fn warm_reset(&mut self) -> Result<(), Box<dyn Error>> {
         // To be overridden by HwModel implementations that support this
         panic!("warm_reset unimplemented");
     }

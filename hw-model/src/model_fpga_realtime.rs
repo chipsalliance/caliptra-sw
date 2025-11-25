@@ -21,7 +21,7 @@ use crate::EtrngResponse;
 use crate::Fuses;
 use crate::ModelError;
 use crate::Output;
-use crate::{HwModel, SecurityState, SocManager, TrngMode};
+use crate::{Error, HwModel, SecurityState, SocManager, TrngMode};
 use caliptra_hw_model_types::{DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -652,12 +652,13 @@ impl HwModel for ModelFpgaRealtime {
         &mut self.output
     }
 
-    fn warm_reset(&mut self) {
+    fn warm_reset(&mut self) -> Result<(), Box<dyn Error>> {
         // Toggle reset pin
         self.set_cptra_rst_b(false);
         self.set_cptra_rst_b(true);
         // Wait for ready_for_fuses
         while !self.is_ready_for_fuses() {}
+        Ok(())
     }
 
     fn cold_reset(&mut self) {
