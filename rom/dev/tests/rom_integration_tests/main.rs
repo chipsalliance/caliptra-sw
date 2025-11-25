@@ -23,7 +23,7 @@ mod test_panic_missing;
 mod test_pmp;
 mod test_rom_integrity;
 mod test_symbols;
-mod test_uds_programming;
+mod test_uds_fe;
 mod test_update_reset;
 mod test_version;
 mod test_warm_reset;

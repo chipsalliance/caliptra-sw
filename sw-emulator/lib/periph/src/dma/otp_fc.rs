@@ -39,6 +39,7 @@ register_bitfields! {
 pub enum DaiCmd {
     Write = 0x2,
     Digest = 0x4,
+    Zeroize = 0x8,
 }
 
 impl TryFrom<u32> for DaiCmd {
@@ -48,6 +49,7 @@ impl TryFrom<u32> for DaiCmd {
         match val {
             0x2 => Ok(DaiCmd::Write),
             0x4 => Ok(DaiCmd::Digest),
+            0x8 => Ok(DaiCmd::Zeroize),
             _ => Err(()),
         }
     }
@@ -57,9 +59,11 @@ statemachine! {
     transitions: {
         *Idle + Write [is_valid_write] / start_write = Writing,
         Idle + Digest [is_valid_digest] / start_digest = Computing,
+        Idle + Zeroize [is_valid_zeroize] / start_zeroize = Zeroizing,
 
         Writing + Complete / finish_write = Idle,
         Computing + Complete / finish_digest = Idle,
+        Zeroizing + Complete / finish_zeroize = Idle,
     }
 }
 
@@ -70,12 +74,15 @@ pub enum Granularity {
 }
 
 // [TODO][CAP2] Used for both UDS (flow correct) and field entropy (needs implementation).
-const FUSE_BANK_SIZE_BYTES: usize = 64;
+// 80 bytes (UDS) + 96 bytes (FE partitions) = 176 bytes (0xB0)
+const FUSE_BANK_SIZE_BYTES: usize = 176;
 
 pub struct Context {
     pub address: Option<u32>,
     pub wdata0: Option<u32>,
     pub wdata1: Option<u32>,
+    pub rdata0: Option<u32>,
+    pub rdata1: Option<u32>,
     pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
     pub granularity: Granularity,
     pub dai_error: bool,
@@ -88,6 +95,8 @@ impl Context {
             address: None,
             wdata0: None,
             wdata1: None,
+            rdata0: None,
+            rdata1: None,
             fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
             granularity,
             dai_error: false,
@@ -115,6 +124,20 @@ impl StateMachineContext for Context {
         }
     }
 
+    fn is_valid_zeroize(&self) -> Result<bool, ()> {
+        // Check that we have a valid address
+        match self.address {
+            None => Err(()),
+            Some(addr) => {
+                // Check address bounds
+                if (addr as usize) >= self.fuse_bank.len() * 4 {
+                    return Err(());
+                }
+                Ok(true)
+            }
+        }
+    }
+
     // Validate digest command parameters.
     // The digest operation is only valid when the address points to the base of the UDS fuses (relative address 0).
     fn is_valid_digest(&self) -> Result<bool, ()> {
@@ -126,12 +149,14 @@ impl StateMachineContext for Context {
     }
 
     fn start_write(&mut self) -> Result<(), ()> {
-        if let (Some(addr), Some(data)) = (self.address, self.wdata0) {
+        if let (Some(addr), Some(wdata0)) = (self.address, self.wdata0) {
             let idx = (addr as usize) / 4;
-            self.fuse_bank[idx] = data;
+            self.fuse_bank[idx] = wdata0;
+            self.rdata0 = Some(wdata0);
             if self.granularity == Granularity::Bits64 && idx + 1 < self.fuse_bank.len() {
                 if let Some(wdata1) = self.wdata1 {
                     self.fuse_bank[idx + 1] = wdata1;
+                    self.rdata1 = Some(wdata1);
                 }
             }
             // Reset the options after command is handled
@@ -173,6 +198,32 @@ impl StateMachineContext for Context {
     fn finish_digest(&mut self) -> Result<(), ()> {
         Ok(())
     }
+
+    fn start_zeroize(&mut self) -> Result<(), ()> {
+        if let Some(addr) = self.address {
+            let idx = (addr as usize) / 4;
+
+            // Zeroize the word at the address (set to 0xFFFFFFFF)
+            self.fuse_bank[idx] = 0xFFFFFFFF;
+
+            // Set rdata0 to show zeroized value
+            self.rdata0 = Some(0xFFFFFFFF);
+
+            // For 64-bit granularity, also zeroize the next word
+            if self.granularity == Granularity::Bits64 && idx + 1 < self.fuse_bank.len() {
+                self.fuse_bank[idx + 1] = 0xFFFFFFFF;
+                self.rdata1 = Some(0xFFFFFFFF);
+            }
+
+            // Reset address after command is handled
+            self.address = None;
+        }
+        Ok(())
+    }
+
+    fn finish_zeroize(&mut self) -> Result<(), ()> {
+        Ok(())
+    }
 }
 
 /// Fuse controller
@@ -193,6 +244,11 @@ pub struct FuseController {
     #[register(offset = 0x6c, write_fn = write_wdata1)]
     direct_access_wdata_1: WriteOnlyRegister<u32>,
 
+    #[register(offset = 0x70, read_fn = read_rdata0)]
+    direct_access_rdata_0: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x74, read_fn = read_rdata1)]
+    direct_access_rdata_1: ReadOnlyRegister<u32>,
     state_machine: StateMachine<Context>,
 }
 
@@ -210,6 +266,8 @@ impl FuseController {
             direct_access_address: WriteOnlyRegister::new(0),
             direct_access_wdata_0: WriteOnlyRegister::new(0),
             direct_access_wdata_1: WriteOnlyRegister::new(0),
+            direct_access_rdata_0: ReadOnlyRegister::new(0),
+            direct_access_rdata_1: ReadOnlyRegister::new(0),
             state_machine: StateMachine::new(Context::new(granularity, soc_reg)),
         }
     }
@@ -234,6 +292,7 @@ impl FuseController {
             let event = match cmd {
                 DaiCmd::Write => Events::Write,
                 DaiCmd::Digest => Events::Digest,
+                DaiCmd::Zeroize => Events::Zeroize,
             };
             if self.state_machine.process_event(event).is_err() {
                 self.state_machine.context.dai_error = true;
@@ -258,11 +317,21 @@ impl FuseController {
 
     pub fn write_wdata0(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
         self.state_machine.context.wdata0 = Some(val);
+        self.state_machine.context.rdata0 = Some(val);
         Ok(())
     }
 
     pub fn write_wdata1(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
         self.state_machine.context.wdata1 = Some(val);
+        self.state_machine.context.rdata1 = Some(val);
         Ok(())
+    }
+
+    pub fn read_rdata0(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.state_machine.context.rdata0.unwrap_or(0))
+    }
+
+    pub fn read_rdata1(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.state_machine.context.rdata1.unwrap_or(0))
     }
 }
