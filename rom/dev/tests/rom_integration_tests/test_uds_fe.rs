@@ -244,7 +244,7 @@ fn test_zeroize_all_partitions_single_shot() {
 fn test_zeroize_fe_partitions_one_at_a_time() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
         feature = "fpga_subsystem"
     )))
     .unwrap();

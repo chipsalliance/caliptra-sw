@@ -80,6 +80,21 @@ impl UdsFeProgrammingFlow {
         let direct_access_rdata_1_reg_addr =
             direct_access_cmd_reg_addr + DIRECT_ACCESS_RDATA_1_OFFSET;
 
+        cprintln!("[{}]: OTP Config - uds_fuse_row_granularity_64: {}, fuse_controller_base_addr: {:#X}, seed_config: {{ address: {:#X}, length_bytes: {} }}, dai_idle_bit_num: {}, direct_access_cmd_reg_addr: {:#X}, direct_access_address_reg_addr: {:#X}, direct_access_wdata_0_reg_addr: {:#X}, direct_access_wdata_1_reg_addr: {:#X}, direct_access_rdata_0_reg_addr: {:#X}, direct_access_rdata_1_reg_addr: {:#X}",
+            self.prefix(),
+            uds_fuse_row_granularity_64,
+            fuse_controller_base_addr,
+            seed_config.address,
+            seed_config.length_bytes,
+            dai_idle_bit_num,
+            direct_access_cmd_reg_addr,
+            direct_access_address_reg_addr,
+            direct_access_wdata_0_reg_addr,
+            direct_access_wdata_1_reg_addr,
+            direct_access_rdata_0_reg_addr,
+            direct_access_rdata_1_reg_addr,
+        );
+
         OtpCtrlConfig {
             uds_fuse_row_granularity_64,
             fuse_controller_base_addr,
@@ -127,7 +142,15 @@ impl UdsFeProgrammingFlow {
     fn prefix(self) -> &'static str {
         match self {
             UdsFeProgrammingFlow::Uds => "uds",
-            UdsFeProgrammingFlow::Fe { partition: _ } => "fe",
+            UdsFeProgrammingFlow::Fe { partition } => {
+                return match partition {
+                    0 => "fe: 0",
+                    1 => "fe: 1",
+                    2 => "fe: 2",
+                    3 => "fe: 3",
+                    _ => "fe: unknown",
+                }
+            }
         }
     }
 
@@ -323,6 +346,14 @@ impl UdsFeProgrammingFlow {
             4
         };
         let granularity_step_words = granularity_step_bytes / size_of::<u32>();
+        cprintln!("[{}]: Zeroization parameters - seed address: {:#X}, digest_address: {:#X}, zeroization_marker_address: {:#X}, granularity_step_bytes: {}, granularity_step_words: {}",
+            self.prefix(),
+            config.seed_config.address,
+            digest_address,
+            zeroization_marker_address,
+            granularity_step_bytes,
+            granularity_step_words,
+        );
 
         let _ = otp_ctrl.with_regs_mut(|regs| {
             // Helper to wait for DAI idle state
@@ -359,21 +390,38 @@ impl UdsFeProgrammingFlow {
             // Step 1: Clear the Partition Zeroization Marker (64-bit)
             // This step is critical - it masks potential ECC or integrity errors
             // if the process is interrupted by a power failure
+            cprintln!(
+                "[{}] - Clearing zeroization marker at address {:#X}",
+                self.prefix(),
+                zeroization_marker_address
+            );
             execute_dai_cmd(zeroization_marker_address, DAI_CMD_ZEROIZE);
+            cprintln!("[{}] - Verifying zeroization marker cleared", self.prefix());
             verify_cleared(CaliptraError::UDS_FE_ZEROIZATION_MARKER_NOT_CLEARED)?;
+            cprintln!(
+                "[{}] - Zeroization marker cleared successfully",
+                self.prefix()
+            );
 
             // Step 2: Zeroize all data words in the partition
             let mut addr = config.seed_config.address;
             let mut words_remaining = config.seed_config.length_bytes / 4;
 
             while words_remaining > 0 {
+                cprintln!("[{}] - Zeroizing address {:#X}", self.prefix(), addr);
                 execute_dai_cmd(addr, DAI_CMD_ZEROIZE);
 
                 // Verify zeroization - should return 0xFFFFFFFF for all bits
+                cprintln!(
+                    "[{}] - Verifying zeroization at address {:#X}",
+                    self.prefix(),
+                    addr
+                );
                 let rdata_0 = dma.read_dword(AxiAddr::from(config.direct_access_rdata_0_reg_addr));
                 if rdata_0 != 0xFFFFFFFF {
                     Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED)?;
                 }
+                cprintln!("[{}] - Verified rdata_0: {:#X}", self.prefix(), rdata_0);
 
                 if config.uds_fuse_row_granularity_64 {
                     let rdata_1 =
@@ -381,6 +429,7 @@ impl UdsFeProgrammingFlow {
                     if rdata_1 != 0xFFFFFFFF {
                         Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED)?;
                     }
+                    cprintln!("[{}] - Verified rdata_1: {:#X}", self.prefix(), rdata_1);
                 }
 
                 addr += granularity_step_bytes as u32;
@@ -388,8 +437,15 @@ impl UdsFeProgrammingFlow {
             }
 
             // Step 3: Clear the partition digest (always 64-bit)
+            cprintln!(
+                "[{}] - Clearing digest at address {:#X}",
+                self.prefix(),
+                digest_address
+            );
             execute_dai_cmd(digest_address, DAI_CMD_ZEROIZE);
+            cprintln!("[{}] - Verifying digest cleared", self.prefix());
             verify_cleared(CaliptraError::UDS_FE_ZEROIZATION_DIGEST_NOT_CLEARED)?;
+            cprintln!("[{}] - Digest cleared successfully", self.prefix());
 
             Ok::<(), CaliptraError>(())
         })?;
