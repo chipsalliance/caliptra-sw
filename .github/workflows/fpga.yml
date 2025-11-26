@@ -272,6 +272,7 @@ jobs:
 
           echo VARS=${VARS}
 
+          # TODO remove version test filter once bitstream is up to date
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -306,7 +307,10 @@ jobs:
                        binary_id(caliptra-test::fips_test_suite) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
+                       test(test_version::test_version) |
+                       test(test_warm_reset::test_warm_reset_version) |
+                       test(test_fips::test_fips_version))'
           )
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
