@@ -152,36 +152,48 @@ fn send_activate_firmware_cmd(
         .unwrap();
     #[cfg(feature = "fpga_subsystem")]
     {
-        let _ = reset_expected;
-
-        // Allow some time for Caliptra to process the command and trigger the interrupt
-        std::thread::sleep(std::time::Duration::from_secs(2));
-
-        // Emulate MCU reset request interrupt
-        model
-            .mmio
-            .mci()
-            .unwrap()
-            .regs()
-            .intr_block_rf()
-            .notif0_intr_trig_r()
-            .modify(|r| r.notif_cptra_mcu_reset_req_trig(true));
-
-        model
-            .mmio
-            .mci()
-            .unwrap()
-            .regs()
-            .intr_block_rf()
-            .notif0_internal_intr_r()
-            .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
-        model
-            .mmio
-            .mci()
-            .unwrap()
-            .regs()
-            .reset_request()
-            .modify(|r| r.mcu_req(true));
+        if reset_expected {
+            let clear_interrupt = |model: &mut DefaultHwModel| {
+                let mut retry_count = 10;
+                loop {
+                    let intr_status = model
+                        .mmio
+                        .mci()
+                        .unwrap()
+                        .regs()
+                        .intr_block_rf()
+                        .notif0_internal_intr_r()
+                        .read();
+                    if intr_status.notif_cptra_mcu_reset_req_sts() {
+                        break;
+                    }
+                    retry_count -= 1;
+                    if retry_count == 0 {
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                model
+                    .mmio
+                    .mci()
+                    .unwrap()
+                    .regs()
+                    .intr_block_rf()
+                    .notif0_internal_intr_r()
+                    .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
+                model
+                    .mmio
+                    .mci()
+                    .unwrap()
+                    .regs()
+                    .reset_request()
+                    .modify(|r| r.mcu_req(true));
+            };
+            // First interrupt is Caliptra requesting MCU reset
+            clear_interrupt(model);
+            // Second interrupt is Caliptra indicating FW is available
+            clear_interrupt(model);
+        }
     }
     #[cfg(all(
         not(feature = "verilator"),
@@ -204,7 +216,7 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
-#[ignore]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_image = Image {
@@ -234,7 +246,7 @@ fn test_activate_mcu_fw_success() {
         .expect("We should have received a response");
 }
 
-#[ignore]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
