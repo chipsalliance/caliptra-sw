@@ -688,32 +688,39 @@ impl FirmwareProcessor {
                         let mut request = ZeroizeUdsFeReq::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
-                        // Zeroize UDS partition
-                        if request.flags & ZEROIZE_UDS_FLAG != 0 {
-                            let uds_flow = UdsFeProgrammingFlow::Uds;
-                            uds_flow.zeroize(soc_ifc, dma)?;
-                        }
-
-                        // Zeroize FE partitions (0-3)
-                        const FE_FLAGS: [u32; 4] = [
-                            ZEROIZE_FE0_FLAG,
-                            ZEROIZE_FE1_FLAG,
-                            ZEROIZE_FE2_FLAG,
-                            ZEROIZE_FE3_FLAG,
-                        ];
-                        for (partition, &flag) in FE_FLAGS.iter().enumerate() {
-                            if request.flags & flag != 0 {
-                                let fe_flow = UdsFeProgrammingFlow::Fe {
-                                    partition: partition as u32,
-                                };
-                                fe_flow.zeroize(soc_ifc, dma)?;
+                        let result = (|| -> CaliptraResult<()> {
+                            // Zeroize UDS partition
+                            if request.flags & ZEROIZE_UDS_FLAG != 0 {
+                                let uds_flow = UdsFeProgrammingFlow::Uds;
+                                uds_flow.zeroize(soc_ifc, dma)?;
                             }
-                        }
+
+                            // Zeroize FE partitions (0-3)
+                            const FE_FLAGS: [u32; 4] = [
+                                ZEROIZE_FE0_FLAG,
+                                ZEROIZE_FE1_FLAG,
+                                ZEROIZE_FE2_FLAG,
+                                ZEROIZE_FE3_FLAG,
+                            ];
+                            for (partition, &flag) in FE_FLAGS.iter().enumerate() {
+                                if request.flags & flag != 0 {
+                                    let fe_flow = UdsFeProgrammingFlow::Fe {
+                                        partition: partition as u32,
+                                    };
+                                    fe_flow.zeroize(soc_ifc, dma)?;
+                                }
+                            }
+
+                            Ok(())
+                        })();
 
                         // Generate and send response
                         let mut resp = ZeroizeUdsFeResp {
                             hdr: MailboxRespHeader::default(),
-                            dpe_result: 0, // DPE_STATUS_SUCCESS
+                            dpe_result: match result {
+                                Ok(()) => 0,   // NoError
+                                Err(_) => 0x1, // InternalError
+                            },
                         };
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
