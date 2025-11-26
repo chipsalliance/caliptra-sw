@@ -57,6 +57,9 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
+use crypto::ecdsa::curve_384::EcdsaPub384;
+use crypto::ecdsa::EcdsaPubKey;
+use crypto::PubKey;
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
@@ -66,6 +69,7 @@ use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
+use crate::dpe_crypto::{DpeEcCrypto, DpeMldsaCrypto};
 pub use crate::hmac::Hmac;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
@@ -76,7 +80,6 @@ pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
-use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
@@ -155,10 +158,17 @@ pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
     Ok(resp)
 }
 
-pub struct CptraDpeTypes;
+pub struct CptraDpeEcTypes;
 
-impl DpeTypes for CptraDpeTypes {
-    type Crypto<'a> = DpeCrypto<'a>;
+impl DpeTypes for CptraDpeEcTypes {
+    type Crypto<'a> = DpeEcCrypto<'a>;
+    type Platform<'a> = DpePlatform<'a>;
+}
+
+pub struct CptraDpeMldsaTypes;
+
+impl DpeTypes for CptraDpeMldsaTypes {
+    type Crypto<'a> = DpeMldsaCrypto<'a>;
     type Platform<'a> = DpePlatform<'a>;
 }
 
@@ -755,25 +765,30 @@ fn dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<DpeEnv<CptraDpeTypes>> {
+) -> CaliptraResult<DpeEnv<CptraDpeEcTypes>> {
     let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
-    let crypto = DpeCrypto::new(
+    let rt_pub_key = &mut pdata.rom.fht.rt_dice_ecc_pub_key;
+    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+        &rt_pub_key.x.into(),
+        &rt_pub_key.y.into(),
+    )));
+    let crypto = DpeEcCrypto::new(
         &mut drivers.sha2_512_384,
         &mut drivers.trng,
         &mut drivers.ecc384,
         &mut drivers.hmac,
         &mut drivers.key_vault,
-        &mut pdata.rom.fht.rt_dice_ecc_pub_key,
+        rt_pub_key,
         key_id_rt_cdi,
         key_id_rt_priv_key,
         &mut pdata.fw.dpe.exported_cdi_slots,
     );
     let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
-    Ok(DpeEnv::<CptraDpeTypes> {
+    Ok(DpeEnv::<CptraDpeEcTypes> {
         crypto,
         platform: DpePlatform::new(
             pl0_pauser,

@@ -117,8 +117,8 @@ pub use ml_kem::{
     MlKem1024SharedKeyOut, MlKemResult,
 };
 pub use mldsa87::{
-    Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
-    Mldsa87Signature,
+    Mldsa87, Mldsa87Msg, Mldsa87Mu, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
+    Mldsa87SignRnd, Mldsa87Signature,
 };
 pub use ocp_lock::HekSeedState;
 pub use pcr_bank::{PcrBank, PcrId};
