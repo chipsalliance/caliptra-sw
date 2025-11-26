@@ -68,7 +68,7 @@ fn test_uds_programming_granularity_64bit() {
             security_state,
             dbg_manuf_service,
             subsystem_mode: true,
-            uds_granularity_64: true,
+            uds_fuse_row_granularity_64: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -101,7 +101,7 @@ fn test_uds_programming_granularity_32bit() {
             security_state,
             dbg_manuf_service,
             subsystem_mode: true,
-            uds_granularity_64: false,
+            uds_fuse_row_granularity_64: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -120,7 +120,7 @@ fn test_uds_programming_granularity_32bit() {
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
-fn test_uds_zeroization() {
+fn test_uds_zeroization_64() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
@@ -132,7 +132,64 @@ fn test_uds_zeroization() {
             rom: &rom,
             security_state,
             subsystem_mode: true,
-            uds_granularity_64: true,
+            uds_fuse_row_granularity_64: true,
+            ..Default::default()
+        },
+        caliptra_hw_model::BootParams::default(),
+    )
+    .unwrap();
+
+    // Prepare ZEROIZE_UDS_FE command to zeroize UDS partition (flag 0x01)
+    let mut cmd = ZeroizeUdsFeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        flags: ZEROIZE_UDS_FLAG,
+    };
+
+    // Calculate checksum
+    let chksum_size = core::mem::size_of_val(&cmd.hdr.chksum);
+    cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE),
+        &cmd.as_mut_bytes()[chksum_size..],
+    );
+
+    // Execute mailbox command
+    let response = hw
+        .mailbox_execute(
+            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+            cmd.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+
+    // Parse response
+    let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
+
+    // Verify response checksum
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp.hdr.chksum,
+        0x0,
+        &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
+    ));
+
+    // Verify DPE result indicates success
+    assert_eq!(resp.dpe_result, 0); // DPE_STATUS_SUCCESS
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
+#[test]
+fn test_uds_zeroization_32() {
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            subsystem_mode: true,
+            uds_fuse_row_granularity_64: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -189,7 +246,7 @@ fn test_zeroize_all_partitions_single_shot() {
             rom: &rom,
             security_state,
             subsystem_mode: true,
-            uds_granularity_64: true,
+            uds_fuse_row_granularity_64: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -253,7 +310,7 @@ fn test_zeroize_fe_partitions_one_at_a_time() {
             rom: &rom,
             security_state,
             subsystem_mode: true,
-            uds_granularity_64: true,
+            uds_fuse_row_granularity_64: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),

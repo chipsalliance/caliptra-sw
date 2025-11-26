@@ -18,7 +18,6 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
-use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, CptraGeneration, RomBootStatus};
 use caliptra_kat::*;
@@ -87,16 +86,16 @@ pub extern "C" fn rom_entry() -> ! {
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
-    let uds_flow = UdsFeProgrammingFlow::Uds;
-    let _ = uds_flow.zeroize(&mut env.soc_ifc, &mut env.dma);
+    // let uds_flow = UdsFeProgrammingFlow::Uds;
+    // let _ = uds_flow.zeroize(&mut env.soc_ifc, &mut env.dma);
 
-    // Zeroize FE partitions (0-3)
-    for partition in 0..4 {
-        let fe_flow = UdsFeProgrammingFlow::Fe {
-            partition: partition as u32,
-        };
-        let _ = fe_flow.zeroize(&mut env.soc_ifc, &mut env.dma);
-    }
+    // // Zeroize FE partitions (0-3)
+    // for partition in 0..4 {
+    //     let fe_flow = UdsFeProgrammingFlow::Fe {
+    //         partition: partition as u32,
+    //     };
+    //     let _ = fe_flow.zeroize(&mut env.soc_ifc, &mut env.dma);
+    // }
 
     // Check if HW version is supported.
     let cptra_gen = env.soc_ifc.caliptra_generation();

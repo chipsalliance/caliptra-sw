@@ -67,7 +67,7 @@ statemachine! {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Granularity {
     Bits32,
     Bits64,
@@ -84,13 +84,12 @@ pub struct Context {
     pub rdata0: Option<u32>,
     pub rdata1: Option<u32>,
     pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
-    pub granularity: Granularity,
     pub dai_error: bool,
     pub soc_reg: SocRegistersInternal,
 }
 
 impl Context {
-    fn new(granularity: Granularity, soc_reg: SocRegistersInternal) -> Self {
+    fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
             address: None,
             wdata0: None,
@@ -98,9 +97,20 @@ impl Context {
             rdata0: None,
             rdata1: None,
             fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
-            granularity,
             dai_error: false,
             soc_reg,
+        }
+    }
+
+    fn granularity(&self) -> Granularity {
+        // Get granularity from generic_input_wires[0] bit 31
+        // Bit 31 = 0 → 64-bit granularity
+        // Bit 31 = 1 → 32-bit granularity
+        let input_wires = self.soc_reg.get_generic_input_wires();
+        if (input_wires[0] >> 31) & 1 == 0 {
+            Granularity::Bits64
+        } else {
+            Granularity::Bits32
         }
     }
 }
@@ -116,7 +126,7 @@ impl StateMachineContext for Context {
                     return Err(());
                 }
                 // For 64-bit writes, we need wdata1 too
-                if self.granularity == Granularity::Bits64 && self.wdata1.is_none() {
+                if self.granularity() == Granularity::Bits64 && self.wdata1.is_none() {
                     return Err(());
                 }
                 Ok(true)
@@ -153,7 +163,7 @@ impl StateMachineContext for Context {
             let idx = (addr as usize) / 4;
             self.fuse_bank[idx] = wdata0;
             self.rdata0 = Some(wdata0);
-            if self.granularity == Granularity::Bits64 && idx + 1 < self.fuse_bank.len() {
+            if self.granularity() == Granularity::Bits64 && idx + 1 < self.fuse_bank.len() {
                 if let Some(wdata1) = self.wdata1 {
                     self.fuse_bank[idx + 1] = wdata1;
                     self.rdata1 = Some(wdata1);
@@ -203,14 +213,31 @@ impl StateMachineContext for Context {
         if let Some(addr) = self.address {
             let idx = (addr as usize) / 4;
 
+            // Determine if this is a marker or digest address (which are always 64-bit)
+            // We need to check if the address aligns with marker or digest locations
+            // For UDS: digest at offset 64, marker at offset 72
+            // For FE partitions: each partition is 24 bytes (8 seed + 8 digest + 8 marker)
+            //   FE0: starts at 80, digest at 88, marker at 96
+            //   FE1: starts at 104, digest at 112, marker at 120
+            //   FE2: starts at 128, digest at 136, marker at 144
+            //   FE3: starts at 152, digest at 160, marker at 168
+
+            // Check if address is a digest or marker address (always ends at +0 or +8 from base)
+            // Digest addresses: 64, 88, 112, 136, 160
+            // Marker addresses: 72, 96, 120, 144, 168
+            let is_marker_or_digest =
+                matches!(addr, 64 | 72 | 88 | 96 | 112 | 120 | 136 | 144 | 160 | 168);
+
             // Zeroize the word at the address (set to 0xFFFFFFFF)
             self.fuse_bank[idx] = 0xFFFFFFFF;
 
             // Set rdata0 to show zeroized value
             self.rdata0 = Some(0xFFFFFFFF);
 
-            // For 64-bit granularity, also zeroize the next word
-            if self.granularity == Granularity::Bits64 && idx + 1 < self.fuse_bank.len() {
+            // For 64-bit granularity OR marker/digest addresses, also zeroize the next word
+            if (self.granularity() == Granularity::Bits64 || is_marker_or_digest)
+                && idx + 1 < self.fuse_bank.len()
+            {
                 self.fuse_bank[idx + 1] = 0xFFFFFFFF;
                 self.rdata1 = Some(0xFFFFFFFF);
             }
@@ -257,8 +284,6 @@ impl FuseController {
     pub const FUSE_BANK_OFFSET: u64 = 0x800;
 
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
-        // [TODO][CAP2] get actual granularity from soc_reg HWCFG
-        let granularity = Granularity::Bits32;
 
         Self {
             status: ReadOnlyRegister::new(Status::DAI_IDLE::Idle.value),
@@ -268,7 +293,7 @@ impl FuseController {
             direct_access_wdata_1: WriteOnlyRegister::new(0),
             direct_access_rdata_0: ReadOnlyRegister::new(0),
             direct_access_rdata_1: ReadOnlyRegister::new(0),
-            state_machine: StateMachine::new(Context::new(granularity, soc_reg)),
+            state_machine: StateMachine::new(Context::new(soc_reg)),
         }
     }
 

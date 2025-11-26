@@ -407,6 +407,12 @@ impl UdsFeProgrammingFlow {
             let mut addr = config.seed_config.address;
             let mut words_remaining = config.seed_config.length_bytes / 4;
 
+            cprintln!(
+                "words_remaining: {}, config.seed_config.length_bytes: {}",
+                words_remaining,
+                config.seed_config.length_bytes
+            );
+
             while words_remaining > 0 {
                 cprintln!("[{}] - Zeroizing address {:#X}", self.prefix(), addr);
                 execute_dai_cmd(addr, DAI_CMD_ZEROIZE);
