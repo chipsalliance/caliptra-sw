@@ -9,13 +9,14 @@ use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
+use dpe::response::{CertifyKeyP384Resp, DeriveContextExportedCdiResp, SignP384Resp};
+use dpe::DpeProfile;
 use dpe::{
     commands::*,
     response::{
         CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
-    DPE_PROFILE,
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
@@ -305,23 +306,18 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
         Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
     }
 }
-pub fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
-    match dpe_cmd {
-        Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveContext(cmd) => cmd.as_bytes(),
-        Command::GetCertificateChain(cmd) => cmd.as_bytes(),
-        Command::DestroyCtx(cmd) => cmd.as_bytes(),
-        Command::GetProfile => &[],
-        Command::InitCtx(cmd) => cmd.as_bytes(),
-        Command::RotateCtx(cmd) => cmd.as_bytes(),
-        Command::Sign(cmd) => cmd.as_bytes(),
-    }
-}
 
 pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     match dpe_cmd {
-        Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::try_read_from_bytes(resp_bytes).unwrap())
+        Command::CertifyKey(CertifyKeyCommand::P384(_)) => Response::CertifyKey(
+            CertifyKeyResp::P384(CertifyKeyP384Resp::try_read_from_bytes(resp_bytes).unwrap()),
+        ),
+        Command::DeriveContext(DeriveContextCmd { flags, .. })
+            if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
+        {
+            Response::DeriveContextExportedCdi(
+                DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap(),
+            )
         }
         Command::DeriveContext(_) => {
             Response::DeriveContext(DeriveContextResp::try_read_from_bytes(resp_bytes).unwrap())
@@ -341,17 +337,19 @@ pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response 
         Command::RotateCtx(_) => {
             Response::RotateCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
         }
-        Command::Sign(_) => Response::Sign(SignResp::try_read_from_bytes(resp_bytes).unwrap()),
+        Command::Sign(SignCommand::P384(_)) => Response::Sign(SignResp::P384(
+            SignP384Resp::try_read_from_bytes(resp_bytes).unwrap(),
+        )),
     }
 }
 
 pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Response {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new(DPE_PROFILE, dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = as_bytes(dpe_cmd);
+    let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
 
     let mut payload = MailboxReq::InvokeDpeCommand(InvokeDpeReq {

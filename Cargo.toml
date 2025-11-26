@@ -160,7 +160,7 @@ convert_case = "0.6.0"
 cms = "0.2.2"
 ctr = "0.9.2"
 der = { version = "0.7.10", features = ["derive", "alloc"] }
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+dpe = { path = "dpe/dpe", default-features = false, features = ["p384", "arbitrary_max_handles"] }
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
