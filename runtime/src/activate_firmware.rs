@@ -164,14 +164,6 @@ impl ActivateFirmwareCmd {
                 );
             }
 
-            // Trigger MCU reset request
-            unsafe {
-                mmio.write_volatile(
-                    NOTIF0_INTR_TRIG_R_OFFSET as *mut u32,
-                    NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK,
-                );
-            }
-
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
             while intr_status != 0 {
