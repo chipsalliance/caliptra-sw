@@ -20,9 +20,9 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCmd, CommandExecution},
+    commands::{CertifyKeyP384Cmd as CertifyKeyCmd, CommandExecution},
     response::Response,
-    DpeInstance,
+    DpeInstance, DpeProfile,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -89,7 +89,8 @@ impl CertifyKeyExtendedCmd {
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
         let locality = drivers.mbox.id();
-        let resp = certify_key_cmd.execute(&mut DpeInstance::initialized(), &mut env, locality);
+        let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+        let resp = certify_key_cmd.execute(dpe, &mut env, locality);
 
         let certify_key_resp = match resp {
             Ok(Response::CertifyKey(certify_key_resp)) => certify_key_resp,

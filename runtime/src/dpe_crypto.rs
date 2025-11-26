@@ -130,10 +130,10 @@ impl<'a> DpeCrypto<'a> {
                 KeyWriteArgs::new(key_id, KeyUsage::default().set_ecc_private_key_en()).into(),
             )
             .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-        let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(
-            EcdsaPub384::from_slice(&pub_key.x.into(), &pub_key.y.into())
-                .map_err(|_| CryptoError::Size)?,
-        ));
+        let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+            &pub_key.x.into(),
+            &pub_key.y.into(),
+        )));
         Ok((key_id, pub_key))
     }
 
@@ -319,10 +319,10 @@ impl Crypto for DpeCrypto<'_> {
     }
 
     fn sign_with_alias(&mut self, digest: &Digest) -> Result<Signature, CryptoError> {
-        let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(
-            EcdsaPub384::from_slice(&self.rt_pub_key.x.into(), &self.rt_pub_key.y.into())
-                .map_err(|_| CryptoError::Size)?,
-        ));
+        let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+            &self.rt_pub_key.x.into(),
+            &self.rt_pub_key.y.into(),
+        )));
         self.sign_with_derived(digest, &self.key_id_rt_priv_key.clone(), &pub_key)
     }
 
@@ -358,8 +358,7 @@ impl Crypto for DpeCrypto<'_> {
             .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
         Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
-            EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into())
-                .map_err(|_| CryptoError::Size)?,
+            EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
         )))
     }
 }

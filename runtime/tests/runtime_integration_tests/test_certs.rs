@@ -18,8 +18,10 @@ use caliptra_common::x509::get_tbs;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::TciMeasurement;
+use dpe::commands::{CertifyKeyCommand, DeriveContextCmd};
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
+    commands::{CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, DeriveContextFlags},
     context::ContextHandle,
     response::{CertifyKeyResp, Response},
 };
@@ -441,14 +443,14 @@ fn test_dpe_leaf_cert() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
     let dpe_leaf_cert: X509 =
@@ -540,11 +542,11 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -603,6 +605,7 @@ pub fn test_all_measurement_apis() {
         };
         // Shared inputs for all 3 methods
         let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
+        let measurement = TciMeasurement(measurement);
         let tci_type: [u8; 4] = [101, 102, 103, 104];
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let fw_image = caliptra_builder::build_and_sign_image(
@@ -648,7 +651,7 @@ pub fn test_all_measurement_apis() {
                 ),
             },
             metadata: tci_type.as_bytes().try_into().unwrap(),
-            measurement,
+            measurement: measurement.0,
             ..Default::default()
         });
         stash_measurement_payload.populate_chksum().unwrap();
@@ -666,7 +669,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rom_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let rom_stash_dpe_cert = dpe_cert_resp.cert().unwrap();
 
         //
         // 2. RUNTIME STASH MEASUREMENT
@@ -687,7 +690,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rt_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let rt_stash_dpe_cert = &dpe_cert_resp.cert().unwrap();
 
         //
         // 3. DPE DERIVE CONTEXT
@@ -710,7 +713,7 @@ pub fn test_all_measurement_apis() {
         };
         let resp = execute_dpe_cmd(
             &mut hw,
-            &mut Command::DeriveContext(&derive_context_cmd),
+            &mut Command::from(&derive_context_cmd),
             DpeResult::Success,
         );
         let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {
@@ -719,13 +722,13 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let derive_context_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let derive_context_dpe_cert = &dpe_cert_resp.cert().unwrap();
 
         //
         // COMPARE CERTS
         // Certs should be exactly the same regardless of method
         //
-        assert_eq!(rom_stash_dpe_cert, rt_stash_dpe_cert);
-        assert_eq!(rom_stash_dpe_cert, derive_context_dpe_cert);
+        assert_eq!(&rom_stash_dpe_cert, rt_stash_dpe_cert);
+        assert_eq!(&rom_stash_dpe_cert, derive_context_dpe_cert);
     }
 }
