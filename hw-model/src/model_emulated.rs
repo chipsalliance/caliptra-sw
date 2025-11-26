@@ -214,7 +214,7 @@ impl HwModel for ModelEmulated {
         };
         root_bus.soc_reg.set_hw_config(hw_config.into());
 
-        let input_wires = (!params.uds_granularity_64 as u32) << 31;
+        let input_wires = (!params.uds_fuse_row_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
 
         let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
