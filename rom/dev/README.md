@@ -674,6 +674,45 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 14. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
 15. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
 
+16. **ZEROIZE_UDS_FE**
+
+Zeroizes (sets to 0xFFFFFFFF) the UDS (Unique Device Secret) and/or FE (Field Entropy) partitions in the OTP fuse controller. This command is typically used during device decommissioning or ownership transfer flows.
+
+The command accepts a flags field where each bit controls a specific partition. Multiple partitions can be zeroized in a single command by setting multiple flag bits.
+
+The zeroization process follows these steps for each partition:
+1. Clears the zeroization marker first to mask potential ECC errors during power failures
+2. Zeroizes the seed data
+3. Clears the partition digest
+
+All operations are verified to return 0xFFFFFFFF before proceeding.
+
+Command Code: `0x5A45_5546` ("ZEUF")
+
+*Table: `ZEROIZE_UDS_FE` input arguments*
+
+| **Name**  | **Type** | **Description**
+| --------  | -------- | ---------------
+| chksum    | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| flags     | u32      | Partition flags. See ZEROIZE_UDS_FE_FLAGS below.
+
+*Table: `ZEROIZE_UDS_FE_FLAGS` input flags*
+
+| **Name**           | **Value** | **Description**
+| ------------------ | --------- | ---------------
+| ZEROIZE_UDS_FLAG   | 1 << 0    | Zeroize UDS partition
+| ZEROIZE_FE0_FLAG   | 1 << 1    | Zeroize FE partition 0
+| ZEROIZE_FE1_FLAG   | 1 << 2    | Zeroize FE partition 1
+| ZEROIZE_FE2_FLAG   | 1 << 3    | Zeroize FE partition 2
+| ZEROIZE_FE3_FLAG   | 1 << 4    | Zeroize FE partition 3
+
+*Table: `ZEROIZE_UDS_FE` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| dpe_result    | u32      | Result code, 0 on success.
+
 #### Downloading firmware image from mailbox
 
 There are two modes in which the ROM executes: PASSIVE mode or SUBSYSTEM mode. Following is the sequence of the steps that are performed to download the firmware image from mailbox in PASSIVE mode.

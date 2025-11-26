@@ -17,7 +17,6 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -53,22 +52,6 @@ impl FmcAliasLayer {
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!(
-            "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
-            KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
-            KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u8
-        );
-        cprintln!(
-            "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
-            KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
-            KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u8
-        );
-        cprintln!(
-            "[afmc] ECC AUTHORITY.KEYID = {}, MLDSA AUTHORITY.KEYID = {}",
-            input.ecc_auth_key_pair.priv_key as u8,
-            input.mldsa_auth_key_pair.key_pair_seed as u8
-        );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
@@ -281,20 +264,9 @@ impl FmcAliasLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        cprintln!("[afmc] ECC Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key).inspect_err(|_err| {
             sig.zeroize();
         })?;
-
-        let _pub_x: [u8; 48] = (&pub_key.x).into();
-        let _pub_y: [u8; 48] = (&pub_key.y).into();
-        cprintln!("[afmc] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[afmc] PUB.Y = {}", HexBytes(&_pub_y));
-
-        let _sig_r: [u8; 48] = (&sig.r).into();
-        let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[afmc] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 
         // Set the FMC Certificate Signature in data vault.
         let data_vault = &mut env.persistent_data.get_mut().data_vault;

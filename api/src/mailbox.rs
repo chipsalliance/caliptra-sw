@@ -81,6 +81,7 @@ impl CommandId {
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    pub const ZEROIZE_UDS_FE: Self = Self(0x5A455546); // "ZEUF"
 
     /// FIPS module commands.
     /// The status command.
@@ -4203,6 +4204,35 @@ pub struct ReallocateDpeContextLimitsResp {
     pub new_pl1_context_limit: u32,
 }
 impl Response for ReallocateDpeContextLimitsResp {}
+
+// ZeroizeUdsFe command flags
+pub const ZEROIZE_UDS_FLAG: u32 = 0x01; // Bit 0: UDS partition
+pub const ZEROIZE_FE0_FLAG: u32 = 0x02; // Bit 1: FE partition 0
+pub const ZEROIZE_FE1_FLAG: u32 = 0x04; // Bit 2: FE partition 1
+pub const ZEROIZE_FE2_FLAG: u32 = 0x08; // Bit 3: FE partition 2
+pub const ZEROIZE_FE3_FLAG: u32 = 0x10; // Bit 4: FE partition 3
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ZeroizeUdsFeReq {
+    pub hdr: MailboxReqHeader,
+    /// Zeroize flags
+    pub flags: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ZeroizeUdsFeResp {
+    pub hdr: MailboxRespHeader,
+    pub dpe_result: u32,
+}
+
+impl Request for ZeroizeUdsFeReq {
+    const ID: CommandId = CommandId::ZEROIZE_UDS_FE;
+    type Resp = ZeroizeUdsFeResp;
+}
+
+impl Response for ZeroizeUdsFeResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

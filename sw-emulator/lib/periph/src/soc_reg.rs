@@ -415,6 +415,10 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().cptra_generic_input_wires = *val;
     }
 
+    pub fn get_generic_input_wires(&self) -> [u32; CPTRA_GENERIC_INPUT_WIRES_SIZE / 4] {
+        self.regs.borrow().cptra_generic_input_wires
+    }
+
     pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {
         self.regs.borrow_mut().fuse_uds_seed = *seed;
     }

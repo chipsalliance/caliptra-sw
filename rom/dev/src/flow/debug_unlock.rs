@@ -44,11 +44,8 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     }
 
     if !env.soc_ifc.subsystem_mode() {
-        cprintln!("[state] Error: debug unlock requested in passive mode!");
         Err(CaliptraError::SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE)?;
     }
-
-    cprintln!("[state] debug unlock requested");
 
     let lifecycle = env.soc_ifc.lifecycle();
     match lifecycle {
@@ -76,7 +73,6 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     };
 
     if CommandId::from(txn.cmd()) != CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN {
-        cprintln!("[dbg_manuf] Invalid command: {:?}", txn.cmd());
         env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
         Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?;
     }
@@ -94,7 +90,6 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         let fuse_token_digest = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
 
         if cfi_launder(input_token_digest) != fuse_token_digest {
-            cprintln!("[dbg_manuf] Token mismatch!");
             Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_16_words(&input_token_digest.0, &fuse_token_digest.0);
@@ -106,11 +101,9 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     txn.send_response(resp.as_bytes())?;
     match result {
         Ok(()) => {
-            cprintln!("[dbg_manuf] Debug unlock successful");
             env.soc_ifc.set_ss_dbg_unlock_result(true);
         }
         Err(_) => {
-            cprintln!("[dbg_manuf] Debug unlock failed");
             env.soc_ifc.set_ss_dbg_unlock_result(false);
         }
     }

@@ -2355,6 +2355,26 @@ impl CaliptraError {
             0xa005_5025,
             "Crypto Mailbox Error: Unsupported hash algorithm"
         ),
+        (
+            UDS_FE_ZEROIZATION_MARKER_NOT_CLEARED,
+            0xa006_0000,
+            "UDS FE Error: Zeroization marker not cleared"
+        ),
+        (
+            UDS_FE_ZEROIZATION_SEED_NOT_CLEARED,
+            0xa006_0001,
+            "UDS FE Error: Zeroization seed not cleared"
+        ),
+        (
+            UDS_FE_ZEROIZATION_DIGEST_NOT_CLEARED,
+            0xa006_0002,
+            "UDS FE Error: Zeroization digest not cleared"
+        ),
+        (
+            UDS_FE_PROGRAMMING_SEED_LENGTH_ZERO,
+            0xa006_0003,
+            "UDS FE Error: Programming seed length zero"
+        )
     ];
 }
 
