@@ -1056,7 +1056,12 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
 
         // Read from the lock register to the lock the SRAM
         let mcu_mbox_lock_ptr = model.mmio.mci().unwrap().ptr.add(0x600000 / 4) as *mut u32;
-        let _ = mcu_mbox_lock_ptr.read_volatile();
+        loop {
+            let lock = mcu_mbox_lock_ptr.read_volatile();
+            if lock & 0x1 == 0 {
+                break;
+            }
+        }
     };
 
     println!("Writing MCU mailbox SRAMs");
