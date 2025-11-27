@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    assert_x509_semantic_eq, build_ready_runtime_model, execute_dpe_cmd, generate_test_x509_cert,
-    get_ecc_fmc_alias_cert, get_rt_alias_ecc384_cert, wait_runtime_ready, BuildArgs, DpeResult,
+    assert_x509_semantic_eq, execute_dpe_cmd, generate_test_x509_cert, get_ecc_fmc_alias_cert,
+    get_rt_alias_ecc384_cert, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
 };
 use caliptra_common::{
     checksum::verify_checksum,
@@ -12,7 +12,7 @@ use caliptra_common::{
     },
     x509::get_tbs,
 };
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 use dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
@@ -175,23 +175,13 @@ fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_cert_after_warm_reset() {
-    // Boot time
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Before warm reset
     let (_raw_before, cert_before) = get_idev_384_cert(&mut model);
 
     // Warm reset
     model.warm_reset();
-    wait_runtime_ready(&mut model);
 
     // After warm reset
     let (_raw_after, cert_after) = get_idev_384_cert(&mut model);
@@ -268,16 +258,7 @@ fn get_idev_384_info(
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_info_after_warm_reset() {
-    // Boot with build_ready_runtime_model
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // BEFORE warm reset
     let (info_before, x_before, y_before, pk_before) = get_idev_384_info(&mut model);
@@ -289,7 +270,6 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 
     // Warm reset
     model.warm_reset();
-    wait_runtime_ready(&mut model);
 
     // AFTER warm reset
     let (info_after, x_after, y_after, pk_after) = get_idev_384_info(&mut model);
@@ -312,16 +292,7 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_populate_idev_ecc_cert_after_warm_reset() {
-    // Boot runtime using the ready-model helper
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     //  Capture the chain BEFORE populate
     let mut chain_before = [0u8; 4096];
@@ -384,7 +355,6 @@ fn test_populate_idev_ecc_cert_after_warm_reset() {
 
     //  Warm reset
     model.warm_reset();
-    wait_runtime_ready(&mut model);
 
     //  Read chain AFTER warm reset
     let mut chain_post_reset = [0u8; 4096];
@@ -456,16 +426,7 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
-    // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(Default::default(), Default::default());
 
     // BEFORE warm reset: fetch LDev cert and IDev pubkey
     let (ldev_der_before, ldev_cert_before) = get_ldev_ecc384_cert(&mut model);
@@ -476,7 +437,6 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 
     // Warm reset and wait ready
     model.warm_reset();
-    wait_runtime_ready(&mut model);
 
     // AFTER warm reset: fetch again
     let (ldev_der_after, ldev_cert_after) = get_ldev_ecc384_cert(&mut model);
@@ -493,15 +453,7 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // --- BEFORE warm reset ---
     let fmc_before = {
@@ -528,8 +480,6 @@ fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
 
     // --- Warm reset ---
     model.warm_reset();
-
-    wait_runtime_ready(&mut model);
 
     // --- AFTER warm reset ---
     let fmc_after = {

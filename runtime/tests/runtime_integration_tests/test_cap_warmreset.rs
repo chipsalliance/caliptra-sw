@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use caliptra_common::{
     capabilities::Capabilities,
     checksum::{calc_checksum, verify_checksum},
@@ -45,7 +45,7 @@ fn get_capabilities(model: &mut DefaultHwModel) -> (CapabilitiesResp, Vec<u8>) {
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_capabilities_after_warm_reset() {
-    let (mut model, _, _, _) = build_ready_runtime_model(BuildArgs::default());
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // --- Before warm reset ---
 
@@ -57,8 +57,6 @@ fn test_capabilities_after_warm_reset() {
 
     // --- Warm reset ---
     model.warm_reset();
-
-    wait_runtime_ready(&mut model);
 
     // --- After warm reset ---
     let (cap_resp_after, raw_resp_after) = get_capabilities(&mut model);
