@@ -1479,15 +1479,20 @@ impl SocRegistersImpl {
 
     /// Called by Bus::warm_reset() to indicate a warm reset
     fn bus_warm_reset(&mut self) {
-        // Set the reaset reason to 'WARM_RESET'
+        // Set the reset reason to 'WARM_RESET'
         self.cptra_reset_reason
             .reg
             .write(ResetReason::WARM_RESET::SET);
 
+        // Reset all necessary registers.
         self.fuses_can_be_written = true;
-        self.cptra_flow_status
-            .reg
-            .write(FlowStatus::READY_FOR_FUSES::SET);
+        self.cptra_flow_status.reg.write(
+            FlowStatus::READY_FOR_FUSES::SET
+                + FlowStatus::MBOX_FLOW_DONE.val(0)
+                + FlowStatus::READY_FOR_RT.val(0)
+                + FlowStatus::READY_FOR_FW.val(0)
+                + FlowStatus::IDEVID_CSR_READY.val(0),
+        );
 
         // TODO: All regs on with rst_b reset signal should be reset here
 
@@ -1498,8 +1503,41 @@ impl SocRegistersImpl {
 
         // Reset the axi user.
         for reg in self.cptra_mbox_valid_axi_user.iter_mut() {
-            *reg = 0xffffffff;
+            *reg = 0xffff_ffff;
         }
+
+        self.cptra_boot_status.reg.set(0);
+        self.cptra_security_state.reg.set(0);
+        self.cptra_trng_valid_axi_user.reg.set(0xffff_ffff);
+        self.cptra_trng_axi_user_lock.reg.set(0);
+        for reg in self.cptra_trng_data.iter_mut() {
+            *reg = 0;
+        }
+        self.cptra_trng_ctrl = 0;
+        self.cptra_trng_status = 0;
+        self.cptra_bootfsm_go = 0;
+        self.cptra_dbg_manuf_service_reg.reg.set(0);
+        self.cptra_clk_gating_en.reg.set(0);
+        self.cptra_generic_input_wires = [0, 0];
+        self.cptra_generic_output_wires = [0, 0];
+        self.cptra_fw_rev_id = [0, 0];
+        self.cptra_wdt_timer1_en.reg.set(0);
+        self.cptra_wdt_timer1_ctrl.reg.set(0);
+        for reg in self.cptra_wdt_timer1_timeout_period.iter_mut() {
+            *reg = 0xffff_ffff;
+        }
+        self.cptra_wdt_timer2_en.reg.set(0);
+        self.cptra_wdt_timer2_ctrl.reg.set(0);
+        for reg in self.cptra_wdt_timer2_timeout_period.iter_mut() {
+            *reg = 0xffff_ffff;
+        }
+        self.cptra_wdt_status.reg.set(0);
+        self.cptra_i_trng_entropy_config_0 = 0;
+        self.cptra_i_trng_entropy_config_1 = 0;
+        self.cptra_rsvd_reg = [0, 0];
+        self.cptra_hw_capabilities = 0;
+        self.cptra_fw_capabilities = 0;
+        self.cptra_cap_lock.reg.set(0);
 
         self.reset_common();
     }
@@ -1509,7 +1547,7 @@ impl SocRegistersImpl {
         // Upload the update firmware in the mailbox.
         (self.upload_update_fw)(&mut self.mailbox);
 
-        // Set the reaset reason to 'FW_UPD_RESET'
+        // Set the reset reason to 'FW_UPD_RESET'
         self.cptra_reset_reason
             .reg
             .write(ResetReason::FW_UPD_RESET::SET);

@@ -393,3 +393,103 @@ fn test_warm_reset_version() {
         app_version,
     );
 }
+
+#[test]
+fn test_warm_reset_reset_registers() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions {
+            fw_svn: 9,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0], // Equals 7
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        boot_params.clone(),
+    )
+    .unwrap();
+
+    // Wait for boot
+    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+        hw.step();
+    }
+
+    // Perform warm reset
+    hw.warm_reset_flow(&boot_params).unwrap();
+
+    // Wait for boot
+    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+        hw.step();
+    }
+
+    // Verify necessary registers have been reset.
+    assert_eq!(u32::from(hw.soc_ifc().cptra_security_state().read()), 0);
+    assert_eq!(hw.soc_ifc().cptra_trng_valid_axi_user().read(), 0xffff_ffff);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_trng_axi_user_lock().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_trng_ctrl().read()), 0);
+    assert_eq!(hw.soc_ifc().cptra_dbg_manuf_service_reg().read(), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_clk_gating_en().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_hw_rev_id().read()), 0x102);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer1_en().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer1_ctrl().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer2_en().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_timer2_ctrl().read()), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_wdt_status().read()), 0);
+    assert_eq!(
+        u32::from(hw.soc_ifc().cptra_i_trng_entropy_config_0().read()),
+        0
+    );
+    assert_eq!(
+        u32::from(hw.soc_ifc().cptra_i_trng_entropy_config_1().read()),
+        0
+    );
+    assert_eq!(hw.soc_ifc().cptra_hw_capabilities().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_capabilities().read(), 0);
+    assert_eq!(u32::from(hw.soc_ifc().cptra_cap_lock().read()), 0);
+
+    for idx in 0..2 {
+        assert_eq!(hw.soc_ifc().cptra_generic_input_wires().at(idx).read(), 0);
+        assert_eq!(hw.soc_ifc().cptra_generic_output_wires().at(idx).read(), 0);
+        assert_eq!(hw.soc_ifc().cptra_rsvd_reg().at(idx).read(), 0);
+        assert_eq!(
+            hw.soc_ifc()
+                .cptra_wdt_timer1_timeout_period()
+                .at(idx)
+                .read(),
+            0xffff_ffff
+        );
+        assert_eq!(
+            hw.soc_ifc()
+                .cptra_wdt_timer2_timeout_period()
+                .at(idx)
+                .read(),
+            0xffff_ffff
+        );
+    }
+}
