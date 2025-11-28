@@ -8,8 +8,7 @@ use caliptra_api::{
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
 use caliptra_builder::{
-    build_and_sign_image, build_firmware_rom,
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -22,8 +21,7 @@ use caliptra_common::{
 };
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 
-use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, RomInfo};
+use caliptra_image_types::FwVerificationPqcKeyType;
 
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
@@ -109,6 +107,13 @@ pub fn test_upload_firmware<T: HwModel>(
     }
 }
 
+#[derive(Default)]
+pub struct RuntimeProductionArgs {
+    pub fmc_version: u16,
+    pub app_version: u32,
+    pub fw_svn: u32,
+}
+
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_fmc_fwid: Option<&'static FwId<'static>>,
@@ -123,10 +128,30 @@ pub struct RuntimeTestArgs<'a> {
     pub test_sram: Option<&'a [u8]>,
     pub stop_at_rom: bool,
     pub security_state: Option<SecurityState>,
+    pub production_state: Option<RuntimeProductionArgs>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
+}
+
+impl RuntimeTestArgs<'_> {
+    // A handy shortcut for testing production
+    pub fn test_productions_args() -> RuntimeTestArgs<'static> {
+        let mut sec_state = SecurityState::default();
+        sec_state.set_debug_locked(true);
+        sec_state.set_device_lifecycle(DeviceLifecycle::Production);
+
+        RuntimeTestArgs {
+            security_state: Some(sec_state),
+            production_state: Some(RuntimeProductionArgs {
+                fmc_version: 3,
+                app_version: 5,
+                fw_svn: 9,
+            }),
+            ..Default::default()
+        }
+    }
 }
 
 // clippy gets confused about cfg(feature = "...")
@@ -144,6 +169,7 @@ impl Default for RuntimeTestArgs<'_> {
             test_sram: None,
             stop_at_rom: false,
             security_state: None,
+            production_state: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
@@ -205,11 +231,18 @@ pub fn start_rt_test_pqc_model(
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
     let fmc_fwid = args.test_fmc_fwid.unwrap_or(&FMC_WITH_UART);
 
+    let production_state = args.production_state.unwrap_or(RuntimeProductionArgs {
+        fmc_version: DEFAULT_FMC_VERSION,
+        app_version: DEFAULT_APP_VERSION,
+        fw_svn: Default::default(),
+    });
+
     let image_options = args.test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
         opts.vendor_config.pl0_pauser = Some(0x1);
-        opts.fmc_version = DEFAULT_FMC_VERSION;
-        opts.app_version = DEFAULT_APP_VERSION;
+        opts.fmc_version = production_state.fmc_version;
+        opts.app_version = production_state.app_version;
+        opts.fw_svn = production_state.fw_svn;
         opts.pqc_key_type = pqc_key_type;
         opts
     });
@@ -256,6 +289,7 @@ pub fn start_rt_test_pqc_model(
         owner_pk_hash,
         soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
         soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
+        fw_svn: svn_to_bitmap(production_state.fw_svn),
         ..Default::default()
     };
 
@@ -562,108 +596,6 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
-}
-pub struct BuildArgs {
-    pub security_state: SecurityState,
-    pub fmc_version: u16,
-    pub app_version: u32,
-    pub fw_svn: u32,
-}
-
-impl Default for BuildArgs {
-    fn default() -> Self {
-        let security_state = *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production);
-        Self {
-            security_state,
-            fmc_version: 3,
-            app_version: 5,
-            fw_svn: 9,
-        }
-    }
-}
-
-pub fn build_ready_runtime_model(
-    args: BuildArgs,
-) -> (DefaultHwModel, ImageBundle, RomInfo, [u32; 12]) {
-    // ROM & image bundle
-    let rom = build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let image_bundle: ImageBundle = build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions {
-            fmc_version: args.fmc_version,
-            app_version: args.app_version,
-            fw_svn: args.fw_svn,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    // rom_info + owner_pub_key_hash
-    let rom_info = find_rom_info(&rom).unwrap();
-    let owner_pub_key_hash: [u32; 12] = ImageGenerator::new(Crypto::default())
-        .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    // Fuses / boot params
-    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
-    let image_bytes = image_bundle.to_bytes().unwrap();
-    let boot_params = BootParams {
-        fw_image: Some(&image_bytes),
-        ..Default::default()
-    };
-
-    // Model
-    let mut model = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: args.security_state,
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0x7F, 0, 0, 0],
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-        boot_params,
-    )
-    .unwrap();
-
-    wait_runtime_ready(&mut model);
-    (model, image_bundle, rom_info, owner_pub_key_hash)
-}
-
-pub fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
-    // RomInfo is 64-byte aligned and the last data in the ROM bin
-    // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
-    for i in (0..rom.len() - 63).rev().step_by(64) {
-        let chunk = &rom[i..i + 64];
-
-        // Check if the chunk contains non-zero data
-        if chunk.iter().any(|&byte| byte != 0) {
-            // Found non-zero data, return RomInfo constructed from the data
-            if let Ok(rom_info) = RomInfo::read_from_bytes(&rom[i..i + size_of::<RomInfo>()]) {
-                return Some(rom_info);
-            }
-        }
-    }
-
-    // No non-zero data found
-    None
-}
-
-pub fn wait_runtime_ready(model: &mut DefaultHwModel) {
-    while !model
-        .soc_ifc()
-        .cptra_flow_status()
-        .read()
-        .ready_for_runtime()
-    {
-        model.step();
-    }
 }
 
 #[allow(dead_code)]
