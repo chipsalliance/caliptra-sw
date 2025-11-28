@@ -57,7 +57,7 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     hi: 0x0000_0000,
 };
 
-fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
+pub fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
             pqc_key_type: FwVerificationPqcKeyType::LMS,
