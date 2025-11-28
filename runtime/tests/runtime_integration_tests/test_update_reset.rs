@@ -576,7 +576,7 @@ fn make_model_with_security_state(
         test_fwid: Some(app),
         test_fmc_fwid: Some(fmc),
         init_params: Some(InitParams {
-            rom: &caliptra_builder::rom_for_fw_integration_tests().unwrap(),
+            rom: &crate::common::rom_for_fw_integration_tests().unwrap(),
             security_state: *SecurityState::default()
                 .set_debug_locked(debug_locked)
                 .set_device_lifecycle(lifecycle),
@@ -587,6 +587,8 @@ fn make_model_with_security_state(
 }
 
 #[test]
+// With FPGA subsystem setting the device lifecycle automatically sets a value of debug_unlock
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_key_ladder_changes_with_lifecycle() {
     // Test with several combinations of security state.
 
@@ -645,7 +647,14 @@ fn test_key_ladder_stable_across_fw_updates() {
     // Update both FMC and app FW, and ensure the key ladder is still identical.
 
     let (fmc_a, app_a) = (&FMC_WITH_UART, mbox_test_image());
-    let (fmc_b, app_b) = (&FMC_FAKE_WITH_UART, &MBOX_WITHOUT_UART);
+    let (fmc_b, app_b) = (
+        &FMC_FAKE_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &MBOX_WITHOUT_UART_FPGA
+        } else {
+            &MBOX_WITHOUT_UART
+        },
+    );
 
     let ladder_a = {
         let mut model =

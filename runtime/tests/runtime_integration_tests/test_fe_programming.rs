@@ -15,8 +15,7 @@ use caliptra_runtime::RtBootStatus;
 #[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
 #[test]
 fn test_fe_programming_cmd() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
-        .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
@@ -59,7 +58,7 @@ fn test_fe_programming_cmd() {
 
 #[test]
 fn test_fe_programming_invalid_partition() {
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
