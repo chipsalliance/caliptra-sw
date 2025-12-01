@@ -99,7 +99,7 @@ fn test_fw_info() {
         };
 
         // Cannot use run_rt_test since we need the rom and image to verify info
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let init_params = InitParams {
             fuses,
             rom: &rom,
