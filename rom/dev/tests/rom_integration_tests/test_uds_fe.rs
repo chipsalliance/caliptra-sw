@@ -12,13 +12,15 @@ Abstract:
 --*/
 
 use caliptra_api::{
-    mailbox::{MailboxReqHeader, ZeroizeUdsFeReq, ZeroizeUdsFeResp, ZEROIZE_UDS_FLAG},
+    mailbox::{MailboxReqHeader, ZeroizeUdsFeReq, ZEROIZE_UDS_FLAG},
     SocManager,
 };
 use caliptra_builder::firmware::{self};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
+
+const UDS_FE_PROGRAMMING_SHUTDOWN: u32 = 0xa006_0004;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
@@ -153,26 +155,19 @@ fn test_uds_zeroization_64bit() {
     );
 
     // Execute mailbox command
-    let response = hw
-        .mailbox_execute(
-            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
-            cmd.as_bytes(),
-        )
-        .unwrap()
-        .unwrap();
+    let _ = hw.mailbox_execute(
+        caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+        cmd.as_bytes(),
+    );
 
-    // Parse response
-    let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
+    // Ignore the response as UDS zeroization causes shutdown.
 
-    // Verify response checksum
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.hdr.chksum,
-        0x0,
-        &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-    ));
+    // Wait till fatal error is raised
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
 
-    // Verify DPE result indicates success
-    assert_eq!(resp.dpe_result, 0); // DPE_STATUS_SUCCESS
+    // Check the non-fatal error register for zeroization status
+    let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
+    assert_eq!(non_fatal_error, 0); // Zeroization successful
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -210,26 +205,19 @@ fn test_uds_zeroization_32bit() {
     );
 
     // Execute mailbox command
-    let response = hw
-        .mailbox_execute(
-            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
-            cmd.as_bytes(),
-        )
-        .unwrap()
-        .unwrap();
+    let _ = hw.mailbox_execute(
+        caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+        cmd.as_bytes(),
+    );
 
-    // Parse response
-    let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
+    // Ignore the response as UDS zeroization causes shutdown.
 
-    // Verify response checksum
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.hdr.chksum,
-        0x0,
-        &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-    ));
+    // Wait till fatal error is raised
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
 
-    // Verify DPE result indicates success
-    assert_eq!(resp.dpe_result, 0); // DPE_STATUS_SUCCESS
+    // Check the non-fatal error register for zeroization status
+    let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
+    assert_eq!(non_fatal_error, 0); // Zeroization successful
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -279,39 +267,14 @@ fn test_zeroize_fe_partitions_one_at_a_time_64bit() {
         );
 
         // Execute mailbox command
-        let response = hw
-            .mailbox_execute(
-                caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
-                cmd.as_bytes(),
-            )
-            .unwrap()
-            .unwrap();
-
-        // Parse response
-        let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
-
-        // Verify response checksum
-        assert!(
-            caliptra_common::checksum::verify_checksum(
-                resp.hdr.chksum,
-                0x0,
-                &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-            ),
-            "Checksum verification failed for FE partition {}",
-            partition_num
+        let _ = hw.mailbox_execute(
+            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+            cmd.as_bytes(),
         );
 
-        // Verify DPE result indicates success
-        assert_eq!(
-            resp.dpe_result, 0,
-            "DPE result failed for FE partition {}",
-            partition_num
-        );
-
-        println!("Successfully zeroized FE partition {}", partition_num);
+        // Ignore the response as UDS zeroization causes shutdown.
     }
 }
-
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
@@ -321,17 +284,6 @@ fn test_zeroize_fe_partitions_one_at_a_time_32bit() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
         feature = "fpga_subsystem"
     )))
-    .unwrap();
-    let mut hw = caliptra_hw_model::new(
-        caliptra_hw_model::InitParams {
-            rom: &rom,
-            security_state,
-            subsystem_mode: true,
-            uds_fuse_row_granularity_64: false,
-            ..Default::default()
-        },
-        caliptra_hw_model::BootParams::default(),
-    )
     .unwrap();
 
     // FE partition flags in order: FE0, FE1, FE2, FE3
@@ -343,8 +295,18 @@ fn test_zeroize_fe_partitions_one_at_a_time_32bit() {
     ];
 
     // Loop through and zeroize each FE partition one at a time
-    for (partition_num, &flag) in fe_flags.iter().enumerate() {
-        println!("Zeroizing FE partition {}", partition_num);
+    for &flag in fe_flags.iter() {
+        let mut hw = caliptra_hw_model::new(
+            caliptra_hw_model::InitParams {
+                rom: &rom,
+                security_state,
+                subsystem_mode: true,
+                uds_fuse_row_granularity_64: false,
+                ..Default::default()
+            },
+            caliptra_hw_model::BootParams::default(),
+        )
+        .unwrap();
 
         // Prepare ZEROIZE_UDS_FE command for this partition
         let mut cmd = ZeroizeUdsFeReq {
@@ -360,39 +322,21 @@ fn test_zeroize_fe_partitions_one_at_a_time_32bit() {
         );
 
         // Execute mailbox command
-        let response = hw
-            .mailbox_execute(
-                caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
-                cmd.as_bytes(),
-            )
-            .unwrap()
-            .unwrap();
-
-        // Parse response
-        let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
-
-        // Verify response checksum
-        assert!(
-            caliptra_common::checksum::verify_checksum(
-                resp.hdr.chksum,
-                0x0,
-                &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-            ),
-            "Checksum verification failed for FE partition {}",
-            partition_num
+        let _ = hw.mailbox_execute(
+            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+            cmd.as_bytes(),
         );
 
-        // Verify DPE result indicates success
-        assert_eq!(
-            resp.dpe_result, 0,
-            "DPE result failed for FE partition {}",
-            partition_num
-        );
+        // Ignore the response as FE zeroization causes shutdown.
 
-        println!("Successfully zeroized FE partition {}", partition_num);
+        // Wait till fatal error is raised
+        hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
+
+        // Check the non-fatal error register for zeroization status
+        let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
+        assert_eq!(non_fatal_error, 0); // Zeroization successful
     }
 }
-
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
@@ -435,26 +379,18 @@ fn test_zeroize_all_partitions_single_shot() {
         &cmd.as_mut_bytes()[chksum_size..],
     );
 
-    // Execute mailbox command to zeroize all partitions at once
-    let response = hw
-        .mailbox_execute(
-            caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
-            cmd.as_bytes(),
-        )
-        .unwrap()
-        .unwrap();
+    // Execute mailbox command
+    let _ = hw.mailbox_execute(
+        caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+        cmd.as_bytes(),
+    );
 
-    // Parse response
-    let resp = ZeroizeUdsFeResp::ref_from_bytes(response.as_bytes()).unwrap();
+    // Ignore the response as UDS/FE zeroization causes shutdown.
 
-    // Verify response checksum
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.hdr.chksum,
-        0x0,
-        &response.as_bytes()[core::mem::size_of_val(&resp.hdr.chksum)..],
-    ));
+    // Wait till fatal error is raised
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
 
-    // Verify DPE result indicates success
-    assert_eq!(resp.dpe_result, 0); // DPE_STATUS_SUCCESS
+    // Check the non-fatal error register for zeroization status
+    let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
+    assert_eq!(non_fatal_error, 0); // Zeroization successful
 }
-

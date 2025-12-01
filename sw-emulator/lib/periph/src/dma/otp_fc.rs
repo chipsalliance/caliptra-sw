@@ -102,7 +102,7 @@ impl Context {
         }
     }
 
-     fn granularity(&self) -> Granularity {
+    fn granularity(&self) -> Granularity {
         // Get granularity from generic_input_wires[0] bit 31
         // Bit 31 = 0 → 64-bit granularity
         // Bit 31 = 1 → 32-bit granularity

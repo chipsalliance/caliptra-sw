@@ -418,4 +418,3 @@ fn validate_trng_config(env: &mut RomEnv) {
         matches!(env.trng, Trng::MfgMode()),
     );
 }
-
