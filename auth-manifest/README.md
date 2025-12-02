@@ -43,8 +43,6 @@ The Caliptra SOC manifest has two main components:
 | **Image Load Address Low**  | 4       | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Staging Address High**   | 4       | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Staging Address Low**    | 4       | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
-| **Classification**         | 4       | DMTF firmware classification of the image. See `ComponentClassification` in DSP0267. |
-| **Version Number**         | 4       | Vendor-defined value used to compare versions of the image, e.g., `MajorMinorRevisionPatch` or a timestamp. This maps to `ComponentComparisonStamp` in DSP0267. |
 | **Version String**         | 32      | Null-terminated UTF-8 string indicating the image version. Maximum 32 bytes including terminator (e.g., `"1.2.0"`). |
 
 - ### **Image Metadata Collection**
