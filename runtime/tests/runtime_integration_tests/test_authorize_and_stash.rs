@@ -818,8 +818,7 @@ fn test_authorize_and_stash_after_update_reset_skip_auth() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
-//#[test]
-#[allow(dead_code)] // Investigate why this is causing a stack overflow.
+#[test]
 fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
