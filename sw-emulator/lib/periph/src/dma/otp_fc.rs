@@ -28,7 +28,7 @@ register_bitfields! {
     pub Status [
         DAI_ERROR OFFSET(7) NUMBITS(1) [],
         /// Data Access Interface Idle Status
-        DAI_IDLE OFFSET(22) NUMBITS(1) [
+        DAI_IDLE OFFSET(30) NUMBITS(1) [
             Busy = 0,
             Idle = 1
         ]
@@ -259,22 +259,22 @@ pub struct FuseController {
     #[register(offset = 0x10, read_fn = read_status)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
-    #[register(offset = 0x60, write_fn = write_cmd)]
+    #[register(offset = 0x80, write_fn = write_cmd)]
     direct_access_cmd: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x64, write_fn = write_address)]
+    #[register(offset = 0x84, write_fn = write_address)]
     direct_access_address: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x68, write_fn = write_wdata0)]
+    #[register(offset = 0x88, write_fn = write_wdata0)]
     direct_access_wdata_0: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x6c, write_fn = write_wdata1)]
+    #[register(offset = 0x8c, write_fn = write_wdata1)]
     direct_access_wdata_1: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x70, read_fn = read_rdata0)]
+    #[register(offset = 0x90, read_fn = read_rdata0)]
     direct_access_rdata_0: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x74, read_fn = read_rdata1)]
+    #[register(offset = 0x94, read_fn = read_rdata1)]
     direct_access_rdata_1: ReadOnlyRegister<u32>,
     state_machine: StateMachine<Context>,
 }
