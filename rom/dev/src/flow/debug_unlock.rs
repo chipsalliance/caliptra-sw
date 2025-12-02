@@ -80,9 +80,16 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     let result = (|| {
+        // Get command bytes and verify checksum
+        let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
+
+        // Copy request data since it needs to persist
         let mut request = ManufDebugUnlockTokenReq::default();
         let request_bytes = request.as_mut_bytes();
-        FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes, false)?;
+        if cmd_bytes.len() != request_bytes.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+        }
+        request_bytes.copy_from_slice(cmd_bytes);
 
         // Hash the token.
         let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
@@ -141,9 +148,16 @@ fn handle_auth_debug_unlock_request(
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
-    // Process request and create challenge
+    // Get command bytes and verify checksum
+    let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
+
+    // Copy request data since it needs to persist
     let mut request = ProductionAuthDebugUnlockReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
+    let request_bytes = request.as_mut_bytes();
+    if cmd_bytes.len() != request_bytes.len() {
+        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+    }
+    request_bytes.copy_from_slice(cmd_bytes);
 
     // Use common function to create challenge
     let challenge =
@@ -188,9 +202,16 @@ fn handle_auth_debug_unlock_token(
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
-    // Copy token from mailbox
+    // Get command bytes and verify checksum
+    let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
+
+    // Copy token data
     let mut token = ProductionAuthDebugUnlockToken::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes(), false)?;
+    let token_bytes = token.as_mut_bytes();
+    if cmd_bytes.len() != token_bytes.len() {
+        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+    }
+    token_bytes.copy_from_slice(cmd_bytes);
 
     // Use common validation function
     let result = debug_unlock::validate_debug_unlock_token(

@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    fw_processor.rs
+    mod.rs
 
 Abstract:
 
@@ -18,35 +18,20 @@ use crate::fuse::log_fuse_data;
 use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
-use crate::run_fips_tests;
 use caliptra_api::mailbox::{
-    AlgorithmType, CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, GetLdevCertResp,
-    InstallOwnerPkHashReq, InstallOwnerPkHashResp, ReportHekMetadataReq, ResponseVarSize,
-    ZeroizeUdsFeReq, ZeroizeUdsFeResp, CM_STABLE_KEY_INFO_SIZE_BYTES, ZEROIZE_FE0_FLAG,
-    ZEROIZE_FE1_FLAG, ZEROIZE_FE2_FLAG, ZEROIZE_FE3_FLAG, ZEROIZE_UDS_FLAG,
+    AlgorithmType, CmDeriveStableKeyReq, CmKeyUsage, CmStableKeyType, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
-use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
 use caliptra_common::{
-    capabilities::Capabilities,
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
-    dice::GetLdevCertCmd,
-    fips::FipsVersionCmd,
-    hmac_cm::hmac,
-    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
-    mailbox_api::{
-        CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
-        StashMeasurementReq, StashMeasurementResp,
-    },
-    pcr::PCR_ID_STASH_MEASUREMENT,
+    mailbox_api::{CommandId, MailboxReqHeader, ZeroizeUdsFeResp},
     verifier::FirmwareImageVerificationEnv,
-    FuseLogEntryId, PcrLogEntry, PcrLogEntryId,
+    FuseLogEntryId,
     RomBootStatus::*,
 };
-use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
+use caliptra_drivers::*;
 
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{
@@ -56,10 +41,44 @@ use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
 use dma::AesDmaMode;
-use zerocopy::{transmute, FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
-use super::ocp_lock;
+use crate::flow::cold_reset::ocp_lock;
+
+mod capabilities;
+mod cm_derive_stable_key;
+mod cm_hmac;
+mod cm_random_generate;
+mod ecdsa_verify;
+mod get_idev_csr;
+mod get_ldev_cert;
+mod install_owner_pk_hash;
+mod mldsa_verify;
+mod report_hek_metadata;
+mod ri_download_firmware;
+mod self_test;
+mod shutdown;
+mod stash_measurement;
+mod version;
+mod zeroize_uds_fe;
+
+use capabilities::CapabilitiesCmd;
+use cm_derive_stable_key::CmDeriveStableKeyCmd;
+use cm_hmac::CmHmacCmd;
+use cm_random_generate::CmRandomGenerateCmd;
+use ecdsa_verify::EcdsaVerifyCmd;
+use get_idev_csr::{GetIdevEcc384CsrCmd, GetIdevMldsa87CsrCmd};
+use get_ldev_cert::GetLdevCertCmd;
+use install_owner_pk_hash::InstallOwnerPkHashCmd;
+use mldsa_verify::MldsaVerifyCmd;
+use report_hek_metadata::ReportHekMetadataCmd;
+use ri_download_firmware::RiDownloadFirmwareCmd;
+use self_test::{SelfTestGetResultsCmd, SelfTestStartCmd};
+use shutdown::ShutdownCmd;
+use stash_measurement::StashMeasurementCmd;
+use version::VersionCmd;
+use zeroize_uds_fe::ZeroizeUdsFeCmd;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
 
@@ -215,100 +234,6 @@ impl FirmwareProcessor {
         })
     }
 
-    fn ecdsa_verify(
-        txn: &mut ManuallyDrop<MailboxRecvTxn<'_>>,
-        ecc384: &mut Ecc384,
-    ) -> Result<(), CaliptraError> {
-        let raw_data = txn.raw_mailbox_contents();
-        let dlen = txn.dlen() as usize;
-
-        if dlen > raw_data.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        let cmd_bytes = &raw_data[..dlen];
-
-        // Extract header and verify checksum
-        if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        let req_hdr = MailboxReqHeader::ref_from_bytes(
-            &cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()],
-        )
-        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
-
-        if !caliptra_common::checksum::verify_checksum(
-            req_hdr.chksum,
-            txn.cmd(),
-            &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
-        ) {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
-        }
-
-        let result = caliptra_common::verify::EcdsaVerifyCmd::execute(ecc384, cmd_bytes);
-        let mut resp = MailboxRespHeader::default();
-        match result {
-            Ok(_) => {
-                resp.populate_chksum();
-                txn.send_response(resp.as_bytes())?;
-            }
-            Err(e) => {
-                caliptra_drivers::report_fw_error_non_fatal(e.into());
-                txn.complete(false)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn mldsa_verify(
-        txn: &mut ManuallyDrop<MailboxRecvTxn<'_>>,
-        mldsa87: &mut Mldsa87,
-    ) -> Result<(), CaliptraError> {
-        let raw_data = txn.raw_mailbox_contents();
-        let dlen = txn.dlen() as usize;
-
-        if dlen > raw_data.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        let cmd_bytes = &raw_data[..dlen];
-
-        // Extract header and verify checksum
-        if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        let req_hdr = MailboxReqHeader::ref_from_bytes(
-            &cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()],
-        )
-        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
-
-        if !caliptra_common::checksum::verify_checksum(
-            req_hdr.chksum,
-            txn.cmd(),
-            &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
-        ) {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
-        }
-
-        let result = caliptra_common::verify::MldsaVerifyCmd::execute(mldsa87, cmd_bytes);
-        let mut resp = MailboxRespHeader::default();
-        match result {
-            Ok(_) => {
-                resp.populate_chksum();
-                txn.send_response(resp.as_bytes())?;
-            }
-            Err(e) => {
-                caliptra_drivers::report_fw_error_non_fatal(e.into());
-                txn.complete(false)?;
-            }
-        }
-
-        Ok(())
-    }
-
     /// Process mailbox commands
     ///
     /// # Arguments
@@ -383,82 +308,68 @@ impl FirmwareProcessor {
                     return Ok((txn, image_size_bytes));
                 }
 
+                // Handle RI_DOWNLOAD_FIRMWARE as a separate case since it needs mutable access to mbox
+                if txn.cmd() == CommandId::RI_DOWNLOAD_FIRMWARE.into() {
+                    if !subsystem_mode {
+                        cprintln!(
+                            "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
+                        );
+                        // Start and complete the transaction with error
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+                        let mut txn = txn.start_txn();
+                        txn.complete(false)?;
+                        Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
+                    }
+                    cfi_assert_bool(subsystem_mode);
+
+                    // Complete the command indicating success first, before accessing mbox again
+                    cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
+                    // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                    let txn = mbox
+                        .peek_recv()
+                        .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+                    let mut txn = txn.start_txn();
+                    txn.complete(true)?;
+                    // Explicitly drop to release the borrow on mbox
+                    drop(txn);
+
+                    // Now we can access mbox again since the transaction is complete
+                    return RiDownloadFirmwareCmd::execute(mbox, dma, soc_ifc, subsystem_mode);
+                }
+
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
                 //       See note above about race condition
                 let mut txn = ManuallyDrop::new(txn.start_txn());
-                match CommandId::from(txn.cmd()) {
-                    CommandId::VERSION => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
-                        let mut resp = FipsVersionCmd::execute(soc_ifc);
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-                    }
+                // Get command bytes and verify checksum
+                let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
+
+                // Response buffer
+                let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_RESP_SIZE][..];
+
+                let resp_len = match CommandId::from(txn.cmd()) {
+                    CommandId::VERSION => VersionCmd::execute(cmd_bytes, soc_ifc, resp)?,
                     CommandId::SELF_TEST_START => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        if self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            run_fips_tests(env)?;
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = true;
-                        }
+                        let (in_progress, len) =
+                            SelfTestStartCmd::execute(cmd_bytes, env, self_test_in_progress, resp)?;
+                        self_test_in_progress = in_progress;
+                        len
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        if !self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = false;
-                        }
+                        let (in_progress, len) =
+                            SelfTestGetResultsCmd::execute(cmd_bytes, self_test_in_progress, resp)?;
+                        self_test_in_progress = in_progress;
+                        len
                     }
-                    CommandId::SHUTDOWN => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let mut resp = MailboxRespHeader::default();
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-
-                        // Causing a ROM Fatal Error will zeroize the module
-                        return Err(CaliptraError::RUNTIME_SHUTDOWN);
-                    }
-                    CommandId::CAPABILITIES => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let mut capabilities = Capabilities::default();
-                        capabilities |= Capabilities::ROM_BASE;
-
-                        if soc_ifc.ocp_lock_enabled() {
-                            capabilities |= Capabilities::ROM_OCP_LOCK;
-                        }
-
-                        let mut resp = CapabilitiesResp {
-                            hdr: MailboxRespHeader::default(),
-                            capabilities: capabilities.to_bytes(),
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-                        continue;
-                    }
+                    CommandId::SHUTDOWN => ShutdownCmd::execute(cmd_bytes, resp)?,
+                    CommandId::CAPABILITIES => CapabilitiesCmd::execute(cmd_bytes, soc_ifc, resp)?,
                     CommandId::ECDSA384_SIGNATURE_VERIFY => {
-                        Self::ecdsa_verify(&mut txn, env.ecc384)?
+                        EcdsaVerifyCmd::execute(cmd_bytes, env.ecc384, resp)?
                     }
                     CommandId::MLDSA87_SIGNATURE_VERIFY => {
-                        Self::mldsa_verify(&mut txn, env.mldsa87)?
+                        MldsaVerifyCmd::execute(cmd_bytes, env.mldsa87, resp)?
                     }
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
@@ -471,266 +382,59 @@ impl FirmwareProcessor {
                             return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
                         }
 
-                        Self::stash_measurement(
+                        StashMeasurementCmd::execute(
+                            cmd_bytes,
                             pcr_bank,
                             env.sha2_512_384,
                             persistent_data,
-                            &mut txn,
-                        )?;
-
-                        // Generate and send response (with FIPS approved status)
-                        let mut resp = StashMeasurementResp {
-                            hdr: MailboxRespHeader::default(),
-                            dpe_result: 0, // DPE_STATUS_SUCCESS
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                            resp,
+                        )?
                     }
                     CommandId::GET_IDEV_ECC384_CSR => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
-                        let mut resp = GetIdevCsrResp::default();
-
-                        if csr_persistent_mem.is_unprovisioned() {
-                            // CSR was never written to DCCM. This means the gen_idev_id_csr
-                            // manufacturing flag was not set before booting into ROM.
-                            return Err(
-                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
-                            );
-                        }
-
-                        let csr = csr_persistent_mem
-                            .get()
-                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
-
-                        resp.data_size = csr_persistent_mem.get_csr_len();
-                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes_partial()?)?;
+                        GetIdevEcc384CsrCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
                     CommandId::GET_IDEV_MLDSA87_CSR => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
-                        let mut resp = GetIdevCsrResp::default();
-
-                        if csr_persistent_mem.is_unprovisioned() {
-                            // CSR was never written to DCCM. This means the gen_idev_id_csr
-                            // manufacturing flag was not set before booting into ROM.
-                            return Err(
-                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
-                            );
-                        }
-
-                        let csr = csr_persistent_mem
-                            .get()
-                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
-
-                        resp.data_size = csr_persistent_mem.get_csr_len();
-                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        GetIdevMldsa87CsrCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::RI_DOWNLOAD_FIRMWARE => {
-                        if !subsystem_mode {
-                            cprintln!(
-                                "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
-                            );
-                            txn.complete(false)?;
-                            Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
-                        }
-                        cfi_assert_bool(subsystem_mode);
-                        // Complete the command indicating success.
-                        cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
-                        txn.complete(true)?;
-
-                        // Create a transaction to facilitate the download of the firmware image
-                        // from the recovery interface. This dummy transaction is necessary to
-                        // obtain and subsequently release the lock required to gain exclusive
-                        // access to the mailbox sram by the DMA engine, enabling it to write the
-                        // firmware image into the mailbox sram.
-                        let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
-
-                        // Download the firmware image from the recovery interface.
-                        let image_size_bytes = if subsystem_mode {
-                            cprintln!("[fwproc] Downloading image from RRI to MCU SRAM");
-                            Self::retrieve_image_from_recovery_interface_to_mcu(dma, soc_ifc)?
-                        } else {
-                            cprintln!("[fwproc] Downloading image from RRI to MBOX SRAM");
-                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?
-                        };
-                        cprintln!(
-                            "[fwproc] Received image from the Recovery Interface of size {} bytes",
-                            image_size_bytes
-                        );
-                        report_boot_status(FwProcessorDownloadImageComplete.into());
-                        return Ok((txn, image_size_bytes));
-                    }
-                    CommandId::CM_DERIVE_STABLE_KEY => {
-                        let mut request = CmDeriveStableKeyReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let encrypted_cmk = Self::derive_stable_key(
-                            env.aes,
-                            env.hmac,
-                            env.trng,
-                            persistent_data,
-                            &request,
-                        )?;
-
-                        let mut resp = CmDeriveStableKeyResp {
-                            cmk: transmute!(encrypted_cmk),
-                            ..Default::default()
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-                    }
+                    CommandId::CM_DERIVE_STABLE_KEY => CmDeriveStableKeyCmd::execute(
+                        cmd_bytes,
+                        env.aes,
+                        env.hmac,
+                        env.trng,
+                        persistent_data,
+                        resp,
+                    )?,
                     CommandId::CM_RANDOM_GENERATE => {
-                        let mut request = CmRandomGenerateReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-                        let size = request.size as usize;
-                        let mut resp = CmRandomGenerateResp::default();
-                        if size > resp.data.len() {
-                            txn.complete(false)?;
-                        } else {
-                            for i in (0..size).step_by(48) {
-                                let rand: [u8; 48] = env.trng.generate()?.into();
-                                let len = rand.len().min(resp.data.len() - i);
-                                // check to prevent panic even though this is impossible
-                                if i > resp.data.len() {
-                                    break;
-                                }
-                                resp.data[i..i + len].copy_from_slice(&rand[..len]);
-                            }
-                            resp.hdr.data_len = size as u32;
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes_partial()?)?;
-                        }
+                        CmRandomGenerateCmd::execute(cmd_bytes, env.trng, resp)?
                     }
-                    CommandId::CM_HMAC => {
-                        let mut request = CmHmacReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
-                        let mut resp = CmHmacResp::default();
-                        hmac(
-                            env.hmac,
-                            env.aes,
-                            env.trng,
-                            Crypto::get_cmb_aes_key(persistent_data),
-                            request.as_bytes(),
-                            resp.as_mut_bytes(),
-                        )?;
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes_partial()?)?;
-                    }
+                    CommandId::CM_HMAC => CmHmacCmd::execute(
+                        cmd_bytes,
+                        env.aes,
+                        env.hmac,
+                        env.trng,
+                        persistent_data,
+                        resp,
+                    )?,
                     CommandId::REPORT_HEK_METADATA => {
-                        let mut request = ReportHekMetadataReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
-                        if !soc_ifc.ocp_lock_enabled() {
-                            Err(CaliptraError::FW_PROC_OCP_LOCK_UNSUPPORTED)?;
-                        }
-                        let mut resp = ocp_lock::handle_report_hek_metadata(
-                            soc_ifc.lifecycle(),
-                            persistent_data,
-                            &request,
-                            &soc_ifc.fuse_bank().ocp_hek_seed(),
-                        )?;
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        ReportHekMetadataCmd::execute(cmd_bytes, soc_ifc, persistent_data, resp)?
                     }
                     CommandId::INSTALL_OWNER_PK_HASH => {
-                        let mut request = InstallOwnerPkHashReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        // Save the owner public key hash in persistent data.
-                        persistent_data
-                            .dot_owner_pk_hash
-                            .owner_pk_hash
-                            .copy_from_slice(&request.digest);
-                        persistent_data.dot_owner_pk_hash.valid = true;
-
-                        // Generate and send response (with FIPS approved status)
-                        let mut resp = InstallOwnerPkHashResp {
-                            hdr: MailboxRespHeader::default(),
-                            dpe_result: 0, // DPE_STATUS_SUCCESS
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        InstallOwnerPkHashCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
-
-                        let algorithm_type =
-                            if CommandId::from(txn.cmd()) == CommandId::GET_LDEV_ECC384_CERT {
-                                AlgorithmType::Ecc384
-                            } else {
-                                AlgorithmType::Mldsa87
-                            };
-
-                        let mut resp = GetLdevCertResp::default();
-                        GetLdevCertCmd::execute(
-                            persistent_data,
-                            algorithm_type,
-                            resp.as_mut_bytes(),
-                        )?;
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes_partial()?)?;
-                    }
+                    CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(
+                        cmd_bytes,
+                        persistent_data,
+                        AlgorithmType::Ecc384,
+                        resp,
+                    )?,
+                    CommandId::GET_LDEV_MLDSA87_CERT => GetLdevCertCmd::execute(
+                        cmd_bytes,
+                        persistent_data,
+                        AlgorithmType::Mldsa87,
+                        resp,
+                    )?,
                     CommandId::ZEROIZE_UDS_FE => {
-                        let mut request = ZeroizeUdsFeReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
-
-                        let result = (|| -> CaliptraResult<()> {
-                            // Zeroize UDS partition
-                            if request.flags & ZEROIZE_UDS_FLAG != 0 {
-                                let uds_flow = UdsFeProgrammingFlow::Uds;
-                                uds_flow.zeroize(soc_ifc, dma)?;
-                            }
-
-                            // Zeroize FE partitions (0-3)
-                            const FE_FLAGS: [u32; 4] = [
-                                ZEROIZE_FE0_FLAG,
-                                ZEROIZE_FE1_FLAG,
-                                ZEROIZE_FE2_FLAG,
-                                ZEROIZE_FE3_FLAG,
-                            ];
-                            for (partition, &flag) in FE_FLAGS.iter().enumerate() {
-                                if request.flags & flag != 0 {
-                                    let fe_flow = UdsFeProgrammingFlow::Fe {
-                                        partition: partition as u32,
-                                    };
-                                    fe_flow.zeroize(soc_ifc, dma)?;
-                                }
-                            }
-
-                            Ok(())
-                        })();
-
-                        // Generate and send response
-                        let mut resp = ZeroizeUdsFeResp {
-                            hdr: MailboxRespHeader::default(),
-                            dpe_result: match result {
-                                Ok(()) => 0,   // NoError
-                                Err(_) => 0x1, // InternalError
-                            },
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-
-                        // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
-                        if result.is_err() {
-                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED);
-                        } else {
-                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS);
-                        }
+                        ZeroizeUdsFeCmd::execute(cmd_bytes, soc_ifc, dma, resp)?
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
@@ -738,6 +442,27 @@ impl FirmwareProcessor {
                         // error handler do it to prevent a race condition
                         // setting the error code.
                         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                    }
+                };
+
+                // Send response or complete with failure
+                if resp_len > 0 {
+                    txn.send_response(&resp[..resp_len])?;
+                } else {
+                    // Response length of 0 indicates failure (e.g., self test commands)
+                    txn.complete(false)?;
+                }
+
+                // ZEROIZE_UDS_FE sends both a response as well as an error after that.
+                // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
+                if CommandId::from(txn.cmd()) == CommandId::ZEROIZE_UDS_FE {
+                    let resp = ZeroizeUdsFeResp::ref_from_bytes(&resp[..resp_len])
+                        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+                    // Use the response to figure out if we succeeded or failed
+                    if resp.dpe_result == 0 {
+                        Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS)?
+                    } else {
+                        Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED)?
                     }
                 }
             }
@@ -1232,38 +957,44 @@ impl FirmwareProcessor {
         (nb, nf)
     }
 
-    /// Read request from mailbox and verify the checksum
+    /// Get command bytes from mailbox and verify checksum
     ///
     /// # Arguments
-    /// * `txn` - Mailbox Receive Transaction
-    /// * `data` - Data buffer for the expected request
+    /// * `txn` - Mailbox transaction
+    ///
+    /// # Returns
+    /// * `&[u8]` - Command bytes slice
+    ///    Error code on failure.
+    pub fn get_and_verify_cmd_bytes<'a>(txn: &'a MailboxRecvTxn<'a>) -> CaliptraResult<&'a [u8]> {
+        // Get command bytes from mailbox
+        let raw_data = txn.raw_mailbox_contents();
+        let dlen = txn.dlen() as usize;
+
+        if dlen > raw_data.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+        }
+
+        let cmd_bytes = &raw_data[..dlen];
+
+        // Verify checksum
+        Self::verify_chksum(txn.cmd(), cmd_bytes)?;
+
+        Ok(cmd_bytes)
+    }
+
+    /// Verify the checksum of a mailbox request
+    ///
+    /// # Arguments
+    /// * `cmd` - Command ID from the mailbox transaction
+    /// * `data` - Raw data from the mailbox
     ///
     /// # Returns
     /// * `()` - Ok
     ///    Error code on failure.
-    pub fn copy_req_verify_chksum(
-        txn: &mut MailboxRecvTxn,
-        mut data: &mut [u8],
-        partial_allowed: bool,
-    ) -> CaliptraResult<()> {
-        let txn_dlen = txn.dlen() as usize;
-        if partial_allowed {
-            if txn_dlen > data.len() {
-                return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-            }
-            // handle requests that are smaller than the expected size for certain
-            // variable-sized requests
-            data = &mut data[..txn_dlen];
-        }
-        if txn_dlen != data.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
+    pub fn verify_chksum(cmd: u32, data: &[u8]) -> CaliptraResult<()> {
         if data.len() < core::mem::size_of::<MailboxReqHeader>() {
             return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
         }
-
-        // Read the data in from the mailbox HW
-        txn.copy_request(data)?;
 
         // Extract header out from the rest of the request
         let req_hdr =
@@ -1273,105 +1004,11 @@ impl FirmwareProcessor {
         // Verify checksum
         if !caliptra_common::checksum::verify_checksum(
             req_hdr.chksum,
-            txn.cmd(),
+            cmd,
             &data[core::mem::size_of_val(&req_hdr.chksum)..],
         ) {
             return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
         };
-
-        Ok(())
-    }
-
-    /// Read measurement from mailbox and extends it into PCR31
-    ///
-    /// # Arguments
-    /// * `pcr_bank` - PCR Bank
-    /// * `sha384` - SHA384
-    /// * `persistent_data` - Persistent data
-    /// * `txn` - Mailbox Receive Transaction
-    ///
-    /// # Returns
-    /// * `()` - Ok
-    ///     Err - StashMeasurementReadFailure
-    fn stash_measurement(
-        pcr_bank: &mut PcrBank,
-        sha2: &mut Sha2_512_384,
-        persistent_data: &mut PersistentData,
-        txn: &mut MailboxRecvTxn,
-    ) -> CaliptraResult<()> {
-        let mut measurement = StashMeasurementReq::default();
-        Self::copy_req_verify_chksum(txn, measurement.as_mut_bytes(), false)?;
-
-        // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;
-
-        Ok(())
-    }
-
-    /// Extends measurement into PCR31 and logs it to PCR log.
-    ///
-    /// # Arguments
-    /// * `pcr_bank` - PCR Bank
-    /// * `sha384` - SHA384
-    /// * `persistent_data` - Persistent data
-    /// * `stash_measurement` - Measurement
-    ///
-    /// # Returns
-    /// * `()` - Ok
-    ///    Error code on failure.
-    fn extend_measurement(
-        pcr_bank: &mut PcrBank,
-        sha2: &mut Sha2_512_384,
-        persistent_data: &mut PersistentData,
-        stash_measurement: &StashMeasurementReq,
-    ) -> CaliptraResult<()> {
-        // Extend measurement into PCR31.
-        pcr_bank.extend_pcr(
-            PCR_ID_STASH_MEASUREMENT,
-            sha2,
-            stash_measurement.measurement.as_bytes(),
-        )?;
-
-        // Log measurement to the measurement log.
-        Self::log_measurement(persistent_data, stash_measurement)
-    }
-
-    /// Log measurement data to the Stash Measurement log
-    ///
-    /// # Arguments
-    /// * `persistent_data` - Persistent data
-    /// * `stash_measurement` - Measurement
-    ///
-    /// # Return Value
-    /// * `Ok(())` - Success
-    /// * `Err(GlobalErr::MeasurementLogExhausted)` - Measurement log exhausted
-    ///
-    pub fn log_measurement(
-        persistent_data: &mut PersistentData,
-        stash_measurement: &StashMeasurementReq,
-    ) -> CaliptraResult<()> {
-        let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data
-            .measurement_log
-            .get_mut(fht.meas_log_index as usize)
-        else {
-            return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
-        };
-
-        *dst = MeasurementLogEntry {
-            pcr_entry: PcrLogEntry {
-                id: PcrLogEntryId::StashMeasurement as u16,
-                reserved0: [0u8; 2],
-                pcr_ids: 1 << (PCR_ID_STASH_MEASUREMENT as u8),
-                pcr_data: zerocopy::transmute!(stash_measurement.measurement),
-            },
-            metadata: stash_measurement.metadata,
-            context: zerocopy::transmute!(stash_measurement.context),
-            svn: stash_measurement.svn,
-            reserved0: [0u8; 4],
-        };
-
-        fht.meas_log_index += 1;
 
         Ok(())
     }
@@ -1385,7 +1022,7 @@ impl FirmwareProcessor {
     /// # Returns
     /// * `CaliptraResult<u32>` - Size of the image downloaded
     ///   Error code on failure.
-    fn retrieve_image_from_recovery_interface(
+    pub(crate) fn retrieve_image_from_recovery_interface(
         dma: &mut Dma,
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
@@ -1406,7 +1043,7 @@ impl FirmwareProcessor {
     /// # Returns
     /// * `CaliptraResult<u32>` - Size of the image downloaded
     ///   Error code on failure.
-    fn retrieve_image_from_recovery_interface_to_mcu(
+    pub(crate) fn retrieve_image_from_recovery_interface_to_mcu(
         dma: &mut Dma,
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
@@ -1425,7 +1062,7 @@ impl FirmwareProcessor {
         dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
     }
 
-    fn derive_stable_key(
+    pub(crate) fn derive_stable_key(
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -1435,8 +1072,12 @@ impl FirmwareProcessor {
         let key_type: CmStableKeyType = request.key_type.into();
 
         let aes_key = match key_type {
-            CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
-            CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(
+                caliptra_common::keyids::KEY_ID_STABLE_IDEV,
+            )),
+            CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(
+                caliptra_common::keyids::KEY_ID_STABLE_LDEV,
+            )),
             CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
