@@ -16,7 +16,7 @@ use caliptra_api::mailbox::{
     ZeroizeUdsFeReq, ZeroizeUdsFeResp, ZEROIZE_FE0_FLAG, ZEROIZE_FE1_FLAG, ZEROIZE_FE2_FLAG,
     ZEROIZE_FE3_FLAG, ZEROIZE_UDS_FLAG,
 };
-use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
 use caliptra_drivers::{CaliptraError, CaliptraResult, Dma, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
@@ -73,8 +73,6 @@ impl ZeroizeUdsFeCmd {
             Ok(()) => 0,   // NoError
             Err(_) => 0x1, // InternalError
         };
-        zeroize_resp.populate_chksum();
-
         let resp_bytes = zeroize_resp.as_bytes();
         Ok(resp_bytes.len())
     }

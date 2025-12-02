@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_common::dice::GetLdevCertCmd as CommonGetLdevCertCmd;
-use caliptra_common::mailbox_api::{MailboxReqHeader, Response, ResponseVarSize};
+use caliptra_common::mailbox_api::{MailboxReqHeader, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -41,7 +41,6 @@ impl GetLdevCertCmd {
 
         CommonGetLdevCertCmd::execute(persistent_data, algorithm_type, ldev_resp.as_mut_bytes())?;
 
-        ldev_resp.populate_chksum();
         let resp_bytes = ldev_resp.as_bytes_partial()?;
         Ok(resp_bytes.len())
     }

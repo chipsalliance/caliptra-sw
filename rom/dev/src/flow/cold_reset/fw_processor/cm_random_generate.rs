@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::{CmRandomGenerateReq, CmRandomGenerateResp};
-use caliptra_common::mailbox_api::{Response, ResponseVarSize};
+use caliptra_common::mailbox_api::ResponseVarSize;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Trng;
 use zerocopy::FromBytes;
@@ -56,8 +56,6 @@ impl CmRandomGenerateCmd {
         }
 
         rand_resp.hdr.data_len = size as u32;
-        rand_resp.populate_chksum();
-
         let resp_bytes = rand_resp.as_bytes_partial()?;
         Ok(resp_bytes.len())
     }

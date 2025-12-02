@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, CaliptraResult, Mldsa87};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -36,8 +36,6 @@ impl MldsaVerifyCmd {
                     .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
                 let verify_resp = MailboxRespHeader::mut_from_bytes(resp)
                     .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-
-                verify_resp.populate_chksum();
 
                 let resp_bytes = verify_resp.as_bytes();
                 Ok(resp_bytes.len())

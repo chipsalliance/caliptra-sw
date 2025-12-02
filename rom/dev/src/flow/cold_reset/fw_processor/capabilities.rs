@@ -13,9 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::capabilities::Capabilities;
-use caliptra_common::mailbox_api::{
-    CapabilitiesResp, MailboxReqHeader, MailboxRespHeader, Response,
-};
+use caliptra_common::mailbox_api::{CapabilitiesResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -48,8 +46,6 @@ impl CapabilitiesCmd {
 
         capabilities_resp.hdr = MailboxRespHeader::default();
         capabilities_resp.capabilities = capabilities.to_bytes();
-        capabilities_resp.populate_chksum();
-
         let resp_bytes = capabilities_resp.as_bytes();
         Ok(resp_bytes.len())
     }

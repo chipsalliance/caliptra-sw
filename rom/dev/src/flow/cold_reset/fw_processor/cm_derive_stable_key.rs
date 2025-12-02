@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::{CmDeriveStableKeyReq, CmDeriveStableKeyResp};
-use caliptra_common::mailbox_api::Response;
+
 use caliptra_drivers::{Aes, CaliptraResult, Hmac, PersistentData, Trng};
 use zerocopy::{transmute, FromBytes, IntoBytes};
 
@@ -46,8 +46,6 @@ impl CmDeriveStableKeyCmd {
             .map_err(|_| caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         derive_resp.cmk = transmute!(encrypted_cmk);
-        derive_resp.populate_chksum();
-
         let resp_bytes = derive_resp.as_bytes();
         Ok(resp_bytes.len())
     }

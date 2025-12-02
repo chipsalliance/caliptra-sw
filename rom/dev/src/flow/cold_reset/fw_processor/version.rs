@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{FipsVersionResp, MailboxReqHeader, Response};
+use caliptra_common::mailbox_api::{FipsVersionResp, MailboxReqHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -42,8 +42,6 @@ impl VersionCmd {
         version_resp.mode = version_data.mode;
         version_resp.fips_rev = version_data.fips_rev;
         version_resp.name = version_data.name;
-        version_resp.populate_chksum();
-
         let resp_bytes = version_resp.as_bytes();
         Ok(resp_bytes.len())
     }

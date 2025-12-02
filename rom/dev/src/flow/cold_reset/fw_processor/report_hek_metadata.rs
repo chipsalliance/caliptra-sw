@@ -13,7 +13,6 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::ReportHekMetadataReq;
-use caliptra_common::mailbox_api::Response;
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -54,8 +53,6 @@ impl ReportHekMetadataCmd {
         // Copy the data from the response
         hek_resp.flags = hek_resp_data.flags;
         hek_resp.hdr = hek_resp_data.hdr;
-        hek_resp.populate_chksum();
-
         let resp_bytes = hek_resp.as_bytes();
         Ok(resp_bytes.len())
     }

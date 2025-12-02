@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{Response, StashMeasurementReq, StashMeasurementResp};
+use caliptra_common::mailbox_api::{StashMeasurementReq, StashMeasurementResp};
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
@@ -46,8 +46,6 @@ impl StashMeasurementCmd {
 
         stash_resp.hdr = caliptra_common::mailbox_api::MailboxRespHeader::default();
         stash_resp.dpe_result = 0; // DPE_STATUS_SUCCESS
-        stash_resp.populate_chksum();
-
         let resp_bytes = stash_resp.as_bytes();
         Ok(resp_bytes.len())
     }

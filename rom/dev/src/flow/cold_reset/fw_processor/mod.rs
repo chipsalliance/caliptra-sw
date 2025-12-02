@@ -18,6 +18,8 @@ use crate::fuse::log_fuse_data;
 use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
+use caliptra_api::mailbox;
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::mailbox::{
     AlgorithmType, CmDeriveStableKeyReq, CmKeyUsage, CmStableKeyType, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
@@ -446,12 +448,13 @@ impl FirmwareProcessor {
                 };
 
                 // Send response or complete with failure
-                if resp_len > 0 {
-                    txn.send_response(
-                        &resp
-                            .get(..resp_len)
-                            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?,
-                    )?;
+                if resp_len >= core::mem::size_of::<MailboxRespHeader>() {
+                    let response = resp
+                        .get_mut(..resp_len)
+                        .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                    mailbox::populate_checksum(response);
+
+                    txn.send_response(response)?;
                 } else {
                     // Response length of 0 indicates failure (e.g., self test commands)
                     txn.complete(false)?;

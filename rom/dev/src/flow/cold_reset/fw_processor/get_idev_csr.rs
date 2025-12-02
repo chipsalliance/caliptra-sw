@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxReqHeader, Response, ResponseVarSize};
+use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxReqHeader, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData};
 use zerocopy::FromBytes;
 
@@ -51,7 +51,6 @@ impl GetIdevEcc384CsrCmd {
         csr_resp.data_size = csr_persistent_mem.get_csr_len();
         csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
 
-        csr_resp.populate_chksum();
         let resp_bytes = csr_resp.as_bytes_partial()?;
         Ok(resp_bytes.len())
     }
@@ -92,7 +91,6 @@ impl GetIdevMldsa87CsrCmd {
         csr_resp.data_size = csr_persistent_mem.get_csr_len();
         csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
 
-        csr_resp.populate_chksum();
         let resp_bytes = csr_resp.as_bytes_partial()?;
         Ok(resp_bytes.len())
     }

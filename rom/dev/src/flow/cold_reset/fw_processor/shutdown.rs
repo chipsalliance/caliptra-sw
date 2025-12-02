@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -31,8 +31,6 @@ impl ShutdownCmd {
             .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
         let shutdown_resp = MailboxRespHeader::mut_from_bytes(resp)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-
-        shutdown_resp.populate_chksum();
 
         let _resp_bytes = shutdown_resp.as_bytes();
 

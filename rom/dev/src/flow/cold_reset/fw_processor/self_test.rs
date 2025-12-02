@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_kat::KatsEnv;
 use zerocopy::{FromBytes, IntoBytes};
@@ -46,8 +46,6 @@ impl SelfTestStartCmd {
             let test_resp = MailboxRespHeader::mut_from_bytes(resp)
                 .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
-            test_resp.populate_chksum();
-
             let resp_bytes = test_resp.as_bytes();
             Ok((true, resp_bytes.len()))
         }
@@ -78,8 +76,6 @@ impl SelfTestGetResultsCmd {
                 .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
             let test_resp = MailboxRespHeader::mut_from_bytes(resp)
                 .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-
-            test_resp.populate_chksum();
 
             let resp_bytes = test_resp.as_bytes();
             Ok((false, resp_bytes.len()))

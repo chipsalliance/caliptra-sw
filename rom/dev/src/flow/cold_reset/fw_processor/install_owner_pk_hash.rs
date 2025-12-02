@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::{InstallOwnerPkHashReq, InstallOwnerPkHashResp};
-use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -46,8 +46,6 @@ impl InstallOwnerPkHashCmd {
 
         install_resp.hdr = MailboxRespHeader::default();
         install_resp.dpe_result = 0; // DPE_STATUS_SUCCESS
-        install_resp.populate_chksum();
-
         let resp_bytes = install_resp.as_bytes();
         Ok(resp_bytes.len())
     }
