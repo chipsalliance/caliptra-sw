@@ -18,7 +18,7 @@ use caliptra_api::mailbox::{
 };
 use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
 use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
-use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, CaliptraResult, Dma, SocIfc};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Dma, SocIfc};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub struct ZeroizeUdsFeCmd;

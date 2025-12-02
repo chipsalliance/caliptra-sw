@@ -13,18 +13,21 @@ Abstract:
 --*/
 
 use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::Response;
-use caliptra_drivers::{CaliptraResult, SocIfc};
-use zerocopy::IntoBytes;
+use caliptra_common::mailbox_api::{MailboxReqHeader, Response};
+use caliptra_drivers::{CaliptraError, CaliptraResult, SocIfc};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct VersionCmd;
 impl VersionCmd {
     #[inline(always)]
     pub(crate) fn execute(
-        _cmd_bytes: &[u8],
+        cmd_bytes: &[u8],
         soc_ifc: &mut SocIfc,
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let mut version_resp = FipsVersionCmd::execute(soc_ifc);
         version_resp.populate_chksum();
 

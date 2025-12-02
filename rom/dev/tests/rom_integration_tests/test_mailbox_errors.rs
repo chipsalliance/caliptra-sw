@@ -113,6 +113,14 @@ fn test_mailbox_invalid_req_size_large() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CAPABILITIES),
+        &payload.as_bytes()[4..],
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Send too much data (stash measurement is bigger than capabilities)
     assert_eq!(

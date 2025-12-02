@@ -12,17 +12,21 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{GetIdevCsrResp, Response, ResponseVarSize};
+use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxReqHeader, Response, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult, PersistentData};
+use zerocopy::FromBytes;
 
 pub struct GetIdevEcc384CsrCmd;
 impl GetIdevEcc384CsrCmd {
     #[inline(always)]
     pub(crate) fn execute(
-        _cmd_bytes: &[u8],
+        cmd_bytes: &[u8],
         persistent_data: &mut PersistentData,
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
         let mut csr_resp = GetIdevCsrResp::default();
 
@@ -50,10 +54,13 @@ pub struct GetIdevMldsa87CsrCmd;
 impl GetIdevMldsa87CsrCmd {
     #[inline(always)]
     pub(crate) fn execute(
-        _cmd_bytes: &[u8],
+        cmd_bytes: &[u8],
         persistent_data: &mut PersistentData,
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
         let mut csr_resp = GetIdevCsrResp::default();
 

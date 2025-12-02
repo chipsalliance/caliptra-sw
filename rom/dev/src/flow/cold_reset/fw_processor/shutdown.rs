@@ -12,14 +12,17 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader, Response};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct ShutdownCmd;
 impl ShutdownCmd {
     #[inline(always)]
-    pub(crate) fn execute(_cmd_bytes: &[u8], resp: &mut [u8]) -> CaliptraResult<usize> {
+    pub(crate) fn execute(cmd_bytes: &[u8], resp: &mut [u8]) -> CaliptraResult<usize> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let mut shutdown_resp = MailboxRespHeader::default();
         shutdown_resp.populate_chksum();
 

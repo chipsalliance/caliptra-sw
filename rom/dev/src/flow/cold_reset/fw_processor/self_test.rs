@@ -12,10 +12,10 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
-use caliptra_drivers::CaliptraResult;
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader, Response};
+use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_kat::KatsEnv;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::run_fips_tests;
 
@@ -23,11 +23,14 @@ pub struct SelfTestStartCmd;
 impl SelfTestStartCmd {
     #[inline(always)]
     pub(crate) fn execute(
-        _cmd_bytes: &[u8],
+        cmd_bytes: &[u8],
         env: &mut KatsEnv,
         self_test_in_progress: bool,
         resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         if self_test_in_progress {
             // TODO: set non-fatal error register?
             // Return 0 for response length, will cause txn.complete(false)
@@ -48,10 +51,13 @@ pub struct SelfTestGetResultsCmd;
 impl SelfTestGetResultsCmd {
     #[inline(always)]
     pub(crate) fn execute(
-        _cmd_bytes: &[u8],
+        cmd_bytes: &[u8],
         self_test_in_progress: bool,
         resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
+        MailboxReqHeader::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         if !self_test_in_progress {
             // TODO: set non-fatal error register?
             // Return 0 for response length, will cause txn.complete(false)
