@@ -460,18 +460,26 @@ impl FirmwareProcessor {
                     txn.complete(false)?;
                 }
 
-                // ZEROIZE_UDS_FE sends both a response as well as an error after that.
-                // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
-                if CommandId::from(txn.cmd()) == CommandId::ZEROIZE_UDS_FE {
-                    let resp = ZeroizeUdsFeResp::ref_from_bytes(&resp[..resp_len])
-                        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
-                    // Use the response to figure out if we succeeded or failed
-                    if resp.dpe_result == 0 {
-                        Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS)?
-                    } else {
-                        Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED)?
+                match CommandId::from(txn.cmd()) {
+                    // ZEROIZE_UDS_FE sends both a response as well as an error after that.
+                    // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
+                    CommandId::ZEROIZE_UDS_FE => {
+                        let resp = ZeroizeUdsFeResp::ref_from_bytes(&resp[..resp_len])
+                            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+                        // Use the response to figure out if we succeeded or failed
+                        if resp.dpe_result == 0 {
+                            Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS)?
+                        } else {
+                            Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED)?
+                        }
                     }
-                }
+                    CommandId::SHUTDOWN =>
+                    // Causing a ROM Fatal Error will zeroize the module
+                    {
+                        Err(CaliptraError::RUNTIME_SHUTDOWN)?
+                    }
+                    _ => (),
+                };
             }
         }
     }

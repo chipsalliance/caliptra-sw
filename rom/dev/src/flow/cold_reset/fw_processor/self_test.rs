@@ -15,7 +15,7 @@ Abstract:
 use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_kat::KatsEnv;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 use crate::run_fips_tests;
 
@@ -26,7 +26,7 @@ impl SelfTestStartCmd {
         cmd_bytes: &[u8],
         env: &mut KatsEnv,
         self_test_in_progress: bool,
-        resp: &mut [u8],
+        _resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
@@ -37,17 +37,8 @@ impl SelfTestStartCmd {
             Ok((false, 0))
         } else {
             run_fips_tests(env)?;
-            // Use the response buffer directly as MailboxRespHeader.
-            // The buffer is zeroized at the start of the loop
-            let resp_buffer_size = core::mem::size_of::<MailboxRespHeader>();
-            let resp = resp
-                .get_mut(..resp_buffer_size)
-                .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-            let test_resp = MailboxRespHeader::mut_from_bytes(resp)
-                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-
-            let resp_bytes = test_resp.as_bytes();
-            Ok((true, resp_bytes.len()))
+            // Zero value of response buffer is good
+            Ok((true, core::mem::size_of::<MailboxRespHeader>()))
         }
     }
 }
@@ -58,7 +49,7 @@ impl SelfTestGetResultsCmd {
     pub(crate) fn execute(
         cmd_bytes: &[u8],
         self_test_in_progress: bool,
-        resp: &mut [u8],
+        _resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
@@ -68,17 +59,8 @@ impl SelfTestGetResultsCmd {
             // Return 0 for response length, will cause txn.complete(false)
             Ok((false, 0))
         } else {
-            // Use the response buffer directly as MailboxRespHeader.
-            // The buffer is zeroized at the start of the loop
-            let resp_buffer_size = core::mem::size_of::<MailboxRespHeader>();
-            let resp = resp
-                .get_mut(..resp_buffer_size)
-                .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-            let test_resp = MailboxRespHeader::mut_from_bytes(resp)
-                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
-
-            let resp_bytes = test_resp.as_bytes();
-            Ok((false, resp_bytes.len()))
+            // Zero value of response buffer is good
+            Ok((false, core::mem::size_of::<MailboxRespHeader>()))
         }
     }
 }
