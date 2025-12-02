@@ -173,7 +173,6 @@ fn get_idev_384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -181,7 +180,7 @@ fn test_get_idev_ecc384_cert_after_warm_reset() {
     let (_raw_before, cert_before) = get_idev_384_cert(&mut model);
 
     // Warm reset
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     // After warm reset
     let (_raw_after, cert_after) = get_idev_384_cert(&mut model);
@@ -256,7 +255,6 @@ fn get_idev_384_info(
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_ecc384_info_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -269,7 +267,7 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
     // Check the LDevID is signed by IDevID (before)
 
     // Warm reset
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset
     let (info_after, x_after, y_after, pk_after) = get_idev_384_info(&mut model);
@@ -290,7 +288,6 @@ fn test_get_idev_ecc384_info_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_populate_idev_ecc_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -354,7 +351,7 @@ fn test_populate_idev_ecc_cert_after_warm_reset() {
     parse_cert_chain(&chain_after, len_after, 4); // idev + ldev + fmc + rt
 
     //  Warm reset
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     //  Read chain AFTER warm reset
     let mut chain_post_reset = [0u8; 4096];
@@ -424,7 +421,6 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
     let mut model = run_rt_test_pqc(Default::default(), Default::default());
 
@@ -436,7 +432,7 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
     assert!(ldev_cert_before.verify(&idev_pk_before).unwrap());
 
     // Warm reset and wait ready
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset: fetch again
     let (ldev_der_after, ldev_cert_after) = get_ldev_ecc384_cert(&mut model);
@@ -450,7 +446,6 @@ fn test_get_ldev_ecc384_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     // Boot runtime
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
@@ -479,7 +474,7 @@ fn test_get_rt_alias_ecc384_cert_after_warm_reset() {
     );
 
     // --- Warm reset ---
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
     let fmc_after = {
