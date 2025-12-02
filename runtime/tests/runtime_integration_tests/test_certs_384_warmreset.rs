@@ -422,7 +422,7 @@ fn get_ldev_ecc384_cert(model: &mut DefaultHwModel) -> (Vec<u8>, X509) {
 
 #[test]
 fn test_get_ldev_ecc384_cert_after_warm_reset() {
-    let mut model = run_rt_test_pqc(Default::default(), Default::default());
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // BEFORE warm reset: fetch LDev cert and IDev pubkey
     let (ldev_der_before, ldev_cert_before) = get_ldev_ecc384_cert(&mut model);
