@@ -4,7 +4,7 @@
 package dpe
 
 /*
-#cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/out -g
+#cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/include -g
 #cgo LDFLAGS: -L../../target/debug -L../../libcaliptra  -lcaliptra -lcaliptra_hw_model_c_binding -ldl -lrt
 #define HWMODEL
 #include <stdio.h>
