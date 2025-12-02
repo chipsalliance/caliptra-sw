@@ -485,6 +485,25 @@ impl Default for MailboxResp {
 
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
 #[allow(clippy::large_enum_variant)]
+pub enum RomMailboxResp {
+    Header(MailboxRespHeader),
+    FipsVersion(FipsVersionResp),
+    Capabilities(CapabilitiesResp),
+    StashMeasurement(StashMeasurementResp),
+    GetIdevCsr(GetIdevCsrResp),
+    CmDeriveStableKey(CmDeriveStableKeyResp),
+    CmRandomGenerate(CmRandomGenerateResp),
+    CmHmac(CmHmacResp),
+    ReportHekMetaData(ReportHekMetadataReq),
+    InstallOwnerPkHash(InstallOwnerPkHashResp),
+    GetLdevCert(GetLdevCertResp),
+    ZeroizeUdsFe(ZeroizeUdsFeResp),
+}
+
+pub const MAX_ROM_RESP_SIZE: usize = size_of::<RomMailboxResp>();
+
+#[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+#[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
     ActivateFirmware(ActivateFirmwareReq),
     EcdsaVerify(EcdsaVerifyReq),

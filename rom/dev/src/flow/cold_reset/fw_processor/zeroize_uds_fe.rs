@@ -59,19 +59,23 @@ impl ZeroizeUdsFeCmd {
             Ok(())
         })();
 
-        // Generate and send response
-        let mut zeroize_resp = ZeroizeUdsFeResp {
-            hdr: MailboxRespHeader::default(),
-            dpe_result: match result {
-                Ok(()) => 0,   // NoError
-                Err(_) => 0x1, // InternalError
-            },
+        // Use the response buffer directly as ZeroizeUdsFeResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<ZeroizeUdsFeResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let zeroize_resp = ZeroizeUdsFeResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+        zeroize_resp.hdr = MailboxRespHeader::default();
+        zeroize_resp.dpe_result = match result {
+            Ok(()) => 0,   // NoError
+            Err(_) => 0x1, // InternalError
         };
         zeroize_resp.populate_chksum();
 
         let resp_bytes = zeroize_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
-
         Ok(resp_bytes.len())
     }
 }

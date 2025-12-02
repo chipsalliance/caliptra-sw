@@ -35,15 +35,20 @@ impl StashMeasurementCmd {
         // Extend measurement into PCR31.
         Self::extend_measurement(pcr_bank, sha2_512_384, persistent_data, measurement)?;
 
-        // Generate and send response (with FIPS approved status)
-        let mut stash_resp = StashMeasurementResp {
-            hdr: caliptra_common::mailbox_api::MailboxRespHeader::default(),
-            dpe_result: 0, // DPE_STATUS_SUCCESS
-        };
+        // Use the response buffer directly as StashMeasurementResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<StashMeasurementResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let stash_resp = StashMeasurementResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+        stash_resp.hdr = caliptra_common::mailbox_api::MailboxRespHeader::default();
+        stash_resp.dpe_result = 0; // DPE_STATUS_SUCCESS
         stash_resp.populate_chksum();
 
         let resp_bytes = stash_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 

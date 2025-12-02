@@ -35,15 +35,20 @@ impl InstallOwnerPkHashCmd {
             .copy_from_slice(&request.digest);
         persistent_data.dot_owner_pk_hash.valid = true;
 
-        // Generate and send response (with FIPS approved status)
-        let mut install_resp = InstallOwnerPkHashResp {
-            hdr: MailboxRespHeader::default(),
-            dpe_result: 0, // DPE_STATUS_SUCCESS
-        };
+        // Use the response buffer directly as InstallOwnerPkHashResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<InstallOwnerPkHashResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let install_resp = InstallOwnerPkHashResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+        install_resp.hdr = MailboxRespHeader::default();
+        install_resp.dpe_result = 0; // DPE_STATUS_SUCCESS
         install_resp.populate_chksum();
 
         let resp_bytes = install_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

@@ -27,8 +27,16 @@ impl GetIdevEcc384CsrCmd {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
+        // Use the response buffer directly as GetIdevCsrResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<GetIdevCsrResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let csr_resp = GetIdevCsrResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
-        let mut csr_resp = GetIdevCsrResp::default();
 
         if csr_persistent_mem.is_unprovisioned() {
             // CSR was never written to DCCM. This means the gen_idev_id_csr
@@ -45,7 +53,6 @@ impl GetIdevEcc384CsrCmd {
 
         csr_resp.populate_chksum();
         let resp_bytes = csr_resp.as_bytes_partial()?;
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }
@@ -61,8 +68,16 @@ impl GetIdevMldsa87CsrCmd {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
+        // Use the response buffer directly as GetIdevCsrResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<GetIdevCsrResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let csr_resp = GetIdevCsrResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
-        let mut csr_resp = GetIdevCsrResp::default();
 
         if csr_persistent_mem.is_unprovisioned() {
             // CSR was never written to DCCM. This means the gen_idev_id_csr
@@ -79,7 +94,6 @@ impl GetIdevMldsa87CsrCmd {
 
         csr_resp.populate_chksum();
         let resp_bytes = csr_resp.as_bytes_partial()?;
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

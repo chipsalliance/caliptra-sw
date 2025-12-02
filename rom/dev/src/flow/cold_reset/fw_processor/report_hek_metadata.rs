@@ -35,16 +35,28 @@ impl ReportHekMetadataCmd {
             Err(CaliptraError::FW_PROC_OCP_LOCK_UNSUPPORTED)?;
         }
 
-        let mut hek_resp = ocp_lock::handle_report_hek_metadata(
+        // Use the response buffer directly as ReportHekMetadataResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<caliptra_api::mailbox::ReportHekMetadataResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let hek_resp = caliptra_api::mailbox::ReportHekMetadataResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+        let hek_resp_data = ocp_lock::handle_report_hek_metadata(
             soc_ifc.lifecycle(),
             persistent_data,
             request,
             &soc_ifc.fuse_bank().ocp_hek_seed(),
         )?;
 
+        // Copy the data from the response
+        hek_resp.flags = hek_resp_data.flags;
+        hek_resp.hdr = hek_resp_data.hdr;
         hek_resp.populate_chksum();
+
         let resp_bytes = hek_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

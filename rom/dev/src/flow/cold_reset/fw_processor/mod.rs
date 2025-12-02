@@ -347,7 +347,7 @@ impl FirmwareProcessor {
                 let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
 
                 // Response buffer
-                let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_RESP_SIZE][..];
+                let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_ROM_RESP_SIZE][..];
 
                 let resp_len = match CommandId::from(txn.cmd()) {
                     CommandId::VERSION => VersionCmd::execute(cmd_bytes, soc_ifc, resp)?,
@@ -447,7 +447,11 @@ impl FirmwareProcessor {
 
                 // Send response or complete with failure
                 if resp_len > 0 {
-                    txn.send_response(&resp[..resp_len])?;
+                    txn.send_response(
+                        &resp
+                            .get(..resp_len)
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?,
+                    )?;
                 } else {
                     // Response length of 0 indicates failure (e.g., self test commands)
                     txn.complete(false)?;

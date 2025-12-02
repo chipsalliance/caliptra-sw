@@ -30,6 +30,15 @@ impl CapabilitiesCmd {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
+        // Use the response buffer directly as CapabilitiesResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<CapabilitiesResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let capabilities_resp = CapabilitiesResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::ROM_BASE;
 
@@ -37,14 +46,11 @@ impl CapabilitiesCmd {
             capabilities |= Capabilities::ROM_OCP_LOCK;
         }
 
-        let mut capabilities_resp = CapabilitiesResp {
-            hdr: MailboxRespHeader::default(),
-            capabilities: capabilities.to_bytes(),
-        };
+        capabilities_resp.hdr = MailboxRespHeader::default();
+        capabilities_resp.capabilities = capabilities.to_bytes();
         capabilities_resp.populate_chksum();
 
         let resp_bytes = capabilities_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

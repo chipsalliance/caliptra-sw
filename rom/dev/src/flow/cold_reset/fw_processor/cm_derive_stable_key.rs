@@ -36,14 +36,19 @@ impl CmDeriveStableKeyCmd {
         let encrypted_cmk =
             FirmwareProcessor::derive_stable_key(aes, hmac, trng, persistent_data, request)?;
 
-        let mut derive_resp = CmDeriveStableKeyResp {
-            cmk: transmute!(encrypted_cmk),
-            ..Default::default()
-        };
+        // Use the response buffer directly as CmDeriveStableKeyResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<CmDeriveStableKeyResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let derive_resp = CmDeriveStableKeyResp::mut_from_bytes(resp)
+            .map_err(|_| caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+        derive_resp.cmk = transmute!(encrypted_cmk);
         derive_resp.populate_chksum();
 
         let resp_bytes = derive_resp.as_bytes();
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

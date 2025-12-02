@@ -30,7 +30,15 @@ impl CmRandomGenerateCmd {
             .map_err(|_| caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         let size = request.size as usize;
-        let mut rand_resp = CmRandomGenerateResp::default();
+
+        // Use the response buffer directly as CmRandomGenerateResp.
+        // The buffer is zeroized at the start of the loop
+        let resp_buffer_size = core::mem::size_of::<CmRandomGenerateResp>();
+        let resp = resp
+            .get_mut(..resp_buffer_size)
+            .ok_or(caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+        let rand_resp = CmRandomGenerateResp::mut_from_bytes(resp)
+            .map_err(|_| caliptra_drivers::CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         if size > rand_resp.data.len() {
             // Return 0 to indicate failure
@@ -51,7 +59,6 @@ impl CmRandomGenerateCmd {
         rand_resp.populate_chksum();
 
         let resp_bytes = rand_resp.as_bytes_partial()?;
-        resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
         Ok(resp_bytes.len())
     }
 }

@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{MailboxRespHeader, Response};
-use caliptra_drivers::{report_fw_error_non_fatal, CaliptraResult, Mldsa87};
-use zerocopy::IntoBytes;
+use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, CaliptraResult, Mldsa87};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct MldsaVerifyCmd;
 impl MldsaVerifyCmd {
@@ -28,11 +28,18 @@ impl MldsaVerifyCmd {
 
         match result {
             Ok(_) => {
-                let mut verify_resp = MailboxRespHeader::default();
+                // Use the response buffer directly as MailboxRespHeader.
+                // The buffer is zeroized at the start of the loop
+                let resp_buffer_size = core::mem::size_of::<MailboxRespHeader>();
+                let resp = resp
+                    .get_mut(..resp_buffer_size)
+                    .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                let verify_resp = MailboxRespHeader::mut_from_bytes(resp)
+                    .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
                 verify_resp.populate_chksum();
 
                 let resp_bytes = verify_resp.as_bytes();
-                resp[..resp_bytes.len()].copy_from_slice(resp_bytes);
                 Ok(resp_bytes.len())
             }
             Err(e) => {
