@@ -20,7 +20,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
 use zerocopy::IntoBytes;
 
-const UDS_FE_PROGRAMMING_SHUTDOWN: u32 = 0xa006_0004;
+const UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS: u32 = 0xa006_0004;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
@@ -141,7 +141,7 @@ fn test_uds_zeroization_64bit() {
     )
     .unwrap();
 
-    // Prepare ZEROIZE_UDS_FE command to zeroize UDS partition (flag 0x01)
+    // Prepare ZEROIZE_UDS_FE command to zeroize UDS partition
     let mut cmd = ZeroizeUdsFeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         flags: ZEROIZE_UDS_FLAG,
@@ -163,11 +163,9 @@ fn test_uds_zeroization_64bit() {
     // Ignore the response as UDS zeroization causes shutdown.
 
     // Wait till fatal error is raised
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
-
-    // Check the non-fatal error register for zeroization status
-    let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
-    assert_eq!(non_fatal_error, 0); // Zeroization successful
+    hw.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+    });
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -213,11 +211,9 @@ fn test_uds_zeroization_32bit() {
     // Ignore the response as UDS zeroization causes shutdown.
 
     // Wait till fatal error is raised
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN);
-
-    // Check the non-fatal error register for zeroization status
-    let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
-    assert_eq!(non_fatal_error, 0); // Zeroization successful
+    hw.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+    });
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -229,17 +225,6 @@ fn test_zeroize_fe_partitions_one_at_a_time_64bit() {
         feature = "fpga_subsystem"
     )))
     .unwrap();
-    let mut hw = caliptra_hw_model::new(
-        caliptra_hw_model::InitParams {
-            rom: &rom,
-            security_state,
-            subsystem_mode: true,
-            uds_fuse_row_granularity_64: true,
-            ..Default::default()
-        },
-        caliptra_hw_model::BootParams::default(),
-    )
-    .unwrap();
 
     // FE partition flags in order: FE0, FE1, FE2, FE3
     let fe_flags = [
@@ -250,8 +235,18 @@ fn test_zeroize_fe_partitions_one_at_a_time_64bit() {
     ];
 
     // Loop through and zeroize each FE partition one at a time
-    for (partition_num, &flag) in fe_flags.iter().enumerate() {
-        println!("Zeroizing FE partition {}", partition_num);
+    for &flag in fe_flags.iter() {
+        let mut hw = caliptra_hw_model::new(
+            caliptra_hw_model::InitParams {
+                rom: &rom,
+                security_state,
+                subsystem_mode: true,
+                uds_fuse_row_granularity_64: true,
+                ..Default::default()
+            },
+            caliptra_hw_model::BootParams::default(),
+        )
+        .unwrap();
 
         // Prepare ZEROIZE_UDS_FE command for this partition
         let mut cmd = ZeroizeUdsFeReq {
@@ -273,6 +268,11 @@ fn test_zeroize_fe_partitions_one_at_a_time_64bit() {
         );
 
         // Ignore the response as UDS zeroization causes shutdown.
+
+        // Wait till fatal error is raised
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+        });
     }
 }
 
@@ -330,12 +330,9 @@ fn test_zeroize_fe_partitions_one_at_a_time_32bit() {
         // Ignore the response as FE zeroization causes shutdown.
 
         // Wait till fatal error is raised
-        hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN);
-
-        // Check the non-fatal error register for zeroization status
-        // [CAP2][TODO] this won't work as the fatal error handler also writes the error to the non fatal register
-        // let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
-        // assert_eq!(non_fatal_error, 0); // Zeroization successful
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+        });
     }
 }
 
@@ -389,10 +386,7 @@ fn test_zeroize_all_partitions_single_shot() {
     // Ignore the response as UDS/FE zeroization causes shutdown.
 
     // Wait till fatal error is raised
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN);
-
-    // Check the non-fatal error register for zeroization status
-    // [CAP2][TODO] this won't work as the fatal error handler also writes the error to the non fatal register
-    // let non_fatal_error = hw.soc_ifc().cptra_fw_error_non_fatal().read();
-    // assert_eq!(non_fatal_error, 0); // Zeroization successful
+    hw.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+    });
 }

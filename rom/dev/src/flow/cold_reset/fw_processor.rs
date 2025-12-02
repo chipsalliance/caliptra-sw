@@ -725,11 +725,12 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
 
-                        // Set the zeroization status in non-fatal error register
-                        report_fw_error_non_fatal(u32::from(result.is_err()));
-
                         // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
-                        return Err(CaliptraError::UDS_FE_PROGRAMMING_SHUTDOWN);
+                        if result.is_err() {
+                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED);
+                        } else {
+                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS);
+                        }
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");

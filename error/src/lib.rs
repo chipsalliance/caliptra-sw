@@ -2376,9 +2376,14 @@ impl CaliptraError {
             "UDS FE Error: Programming seed length zero"
         ),
         (
-            UDS_FE_PROGRAMMING_SHUTDOWN,
+            UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS,
             0xa006_0004,
-            "UDS FE Error: Programming shutdown"
+            "UDS FE Zeroization Success"
+        ),
+        (
+            UDS_FE_PROGRAMMING_ZEROIZATION_FAILED,
+            0xa006_0005,
+            "UDS FE Zeroization Failed"
         )
     ];
 }
