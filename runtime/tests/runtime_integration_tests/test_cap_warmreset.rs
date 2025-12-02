@@ -43,7 +43,6 @@ fn get_capabilities(model: &mut DefaultHwModel) -> (CapabilitiesResp, Vec<u8>) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_capabilities_after_warm_reset() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
@@ -56,7 +55,7 @@ fn test_capabilities_after_warm_reset() {
     assert!(capabilities_before.contains(Capabilities::RT_BASE));
 
     // --- Warm reset ---
-    model.warm_reset();
+    model.warm_reset_flow().unwrap();
 
     // --- After warm reset ---
     let (cap_resp_after, raw_resp_after) = get_capabilities(&mut model);
