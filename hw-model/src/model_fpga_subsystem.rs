@@ -1606,7 +1606,7 @@ impl HwModel for ModelFpgaSubsystem {
         }));
 
         // Set generic input wires.
-        let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
+        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
 
         m.set_mci_generic_input_wires(&[0, 0]);

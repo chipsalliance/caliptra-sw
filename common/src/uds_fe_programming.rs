@@ -305,6 +305,8 @@ impl UdsFeProgrammingFlow {
     /// * `soc_ifc` - SoC interface for accessing fuse controller and related registers
     /// * `dma` - DMA engine for OTP control
     pub fn zeroize(&self, soc_ifc: &mut SocIfc, dma: &Dma) -> CaliptraResult<()> {
+        let mut result: CaliptraResult<()> = Ok(());
+
         // Validate parameters first
         self.validate()?;
 
@@ -322,7 +324,6 @@ impl UdsFeProgrammingFlow {
         } else {
             4
         };
-        let granularity_step_words = granularity_step_bytes / size_of::<u32>();
 
         let _ = otp_ctrl.with_regs_mut(|regs| {
             // Helper to wait for DAI idle state
@@ -363,35 +364,35 @@ impl UdsFeProgrammingFlow {
             verify_cleared(CaliptraError::UDS_FE_ZEROIZATION_MARKER_NOT_CLEARED)?;
 
             // Step 2: Zeroize all data words in the partition
-            let mut addr = config.seed_config.address;
-            let mut words_remaining = config.seed_config.length_bytes / 4;
+            let start_addr = config.seed_config.address;
+            let end_addr = start_addr + config.seed_config.length_bytes;
 
-            while words_remaining > 0 {
+            for addr in (start_addr..end_addr).step_by(granularity_step_bytes) {
                 execute_dai_cmd(addr, DAI_CMD_ZEROIZE);
 
                 // Verify zeroization - should return 0xFFFFFFFF for all bits
                 let rdata_0 = dma.read_dword(AxiAddr::from(config.direct_access_rdata_0_reg_addr));
                 if rdata_0 != 0xFFFFFFFF {
-                    Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED)?;
+                    result = Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED);
+                    // Continue even if error to attempt full zeroization
                 }
 
                 if config.uds_fuse_row_granularity_64 {
                     let rdata_1 =
                         dma.read_dword(AxiAddr::from(config.direct_access_rdata_1_reg_addr));
                     if rdata_1 != 0xFFFFFFFF {
-                        Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED)?;
+                        result = Err(CaliptraError::UDS_FE_ZEROIZATION_SEED_NOT_CLEARED);
+                        // Continue even if error to attempt full zeroization
                     }
                 }
-
-                addr += granularity_step_bytes as u32;
-                words_remaining -= granularity_step_words as u32;
             }
 
             // Step 3: Clear the partition digest (always 64-bit)
             execute_dai_cmd(digest_address, DAI_CMD_ZEROIZE);
             verify_cleared(CaliptraError::UDS_FE_ZEROIZATION_DIGEST_NOT_CLEARED)?;
 
-            Ok::<(), CaliptraError>(())
+            // Return the accumulated result
+            result
         })?;
 
         cprintln!("[{}] -- Zeroization completed", self.prefix());

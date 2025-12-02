@@ -551,7 +551,7 @@ impl HwModel for ModelFpgaRealtime {
         m.axi_reset();
 
         // Set generic input wires.
-        let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
+        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
 
         // Set Security State signal wires
