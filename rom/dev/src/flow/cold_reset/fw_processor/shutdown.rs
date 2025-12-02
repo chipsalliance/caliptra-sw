@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::MailboxReqHeader;
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -24,8 +24,6 @@ impl ShutdownCmd {
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         // Zero value of response buffer is good
-
-        // Causing a ROM Fatal Error will zeroize the module
-        Err(CaliptraError::RUNTIME_SHUTDOWN)
+        Ok(core::mem::size_of::<MailboxRespHeader>())
     }
 }

@@ -351,7 +351,10 @@ impl FirmwareProcessor {
                 // Response buffer
                 let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_ROM_RESP_SIZE][..];
 
-                let resp_len = match CommandId::from(txn.cmd()) {
+                // Don't read CMD again in the same loop execution is it might already have changed
+                // to the next CMD
+                let cmd = txn.cmd();
+                let resp_len = match CommandId::from(cmd) {
                     CommandId::VERSION => VersionCmd::execute(cmd_bytes, soc_ifc, resp)?,
                     CommandId::SELF_TEST_START => {
                         let (in_progress, len) =
@@ -460,7 +463,7 @@ impl FirmwareProcessor {
                     txn.complete(false)?;
                 }
 
-                match CommandId::from(txn.cmd()) {
+                match CommandId::from(cmd) {
                     // ZEROIZE_UDS_FE sends both a response as well as an error after that.
                     // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
                     CommandId::ZEROIZE_UDS_FE => {
