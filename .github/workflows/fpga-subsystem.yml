@@ -79,7 +79,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: fd4fc951af84dceff9c41716cd8e57946c5957a2
+      CALIPTRA_MCU_COMMIT: c475205e52ea003778248132c1762e0344a516b4
 
     steps:
       - name: Checkout repo
