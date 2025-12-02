@@ -1,0 +1,9 @@
+# Licensed under the Apache-2.0 license
+
+[bitstream]
+name = "subsystem-2.0"
+url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_b9f8a767.pdi"
+hash = "8769b1dd11762c96d2734b5c83b0bdaf22f228bf6593d04c35ba4f5cf63b6657"
+caliptra_variant = "subsystem"
+caliptra_rtl_commit = "98da61f1000b32826539e9410e8c3962741ad61a"
+
