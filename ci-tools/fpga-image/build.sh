@@ -112,8 +112,8 @@ pushd out
 git clone https://github.com/nextest-rs/nextest
 pushd nextest
 git fetch --tags
-git checkout cargo-nextest-0.9.64
-cross build --target aarch64-unknown-linux-gnu --features=default-no-update --no-default-features --release
+git checkout cargo-nextest-0.9.114
+cross +1.88 build --target aarch64-unknown-linux-gnu --features=default-no-update --no-default-features --release
 popd
 popd
 
