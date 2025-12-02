@@ -29,20 +29,16 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem]
         include:
           - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
             image_variant: core
           - bitstream_name: xsa_core2p0_5d069408.xsa
             image_variant: core
-          - bitstream_hash: 186dd345e5f051d6d9c2f5119ff05c0563fa4611126acf857de4bd60d6005a80
-            image_variant: subsystem-2.0
-          - bitstream_name: xsa_ss2p0_85443bba.xsa
-            image_variant: subsystem-2.0
-          - bitstream_hash: 9b1bd1df6a4842f5d0481dd817c15cd8b1dd14e03bbb0ccf984c5ba5e57fdecc
-            image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_6ccc059f.xsa
-            image_variant: subsystem-2.1
+          - bitstream_hash: 8fade301b2d2d4864a8586b5fea2cf8a80a76102afc711a940f66d7df79e30b3
+            image_variant: subsystem
+          - bitstream_name: xsa_ss2p0_b9f8a767.xsa
+            image_variant: subsystem
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
@@ -82,7 +78,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251126/${BITSTREAM_NAME}" -o /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251201/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -93,7 +89,7 @@ jobs:
 
           pushd hw/fpga
 
-          if [[ "$IMAGE_VARIANT" == "subsystem-2.0" || "$IMAGE_VARIANT" == "subsystem-2.1" ]]; then
+          if [[ "$IMAGE_VARIANT" == "subsystem" ]]; then
             export BUILD_SS=true
           fi
 
@@ -127,7 +123,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
