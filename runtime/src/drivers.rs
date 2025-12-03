@@ -177,7 +177,10 @@ impl Drivers {
 
         let aes = Aes::new(AesReg::new(), AesClpReg::new());
         let soc_ifc = SocIfc::new(SocIfcReg::new());
-        let ocp_lock_context = OcpLockContext::new(&soc_ifc);
+        let persistent_data = PersistentDataAccessor::new();
+
+        let hek_available = persistent_data.get().ocp_lock_metadata.hek_available;
+        let ocp_lock_context = OcpLockContext::new(&soc_ifc, hek_available);
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -194,7 +197,7 @@ impl Drivers {
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
-            persistent_data: PersistentDataAccessor::new(),
+            persistent_data,
             pcr_bank: PcrBank::new(PvReg::new()),
             pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]

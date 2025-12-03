@@ -188,6 +188,7 @@ impl CommandId {
     // OCP LOCK Commands
     pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
     pub const OCP_LOCK_GET_ALGORITHMS: Self = Self(0x4741_4C47); // "GALG"
+    pub const OCP_LOCK_INITIALIZE_MEK_SECRET: Self = Self(0x494D_4B53); // "IMKS"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -496,7 +497,7 @@ pub enum RomMailboxResp {
     CmDeriveStableKey(CmDeriveStableKeyResp),
     CmRandomGenerate(CmRandomGenerateResp),
     CmHmac(CmHmacResp),
-    ReportHekMetaData(OcpLockReportHekMetadataReq),
+    OcpLockReportHekMetaData(OcpLockReportHekMetadataReq),
     InstallOwnerPkHash(InstallOwnerPkHashResp),
     GetLdevCert(GetLdevCertResp),
     ZeroizeUdsFe(ZeroizeUdsFeResp),
@@ -574,6 +575,7 @@ pub enum MailboxReq {
     CmDeriveStableKey(CmDeriveStableKeyReq),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
     OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
+    OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -654,6 +656,7 @@ impl MailboxReq {
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -732,6 +735,7 @@ impl MailboxReq {
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -820,6 +824,7 @@ impl MailboxReq {
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
             MailboxReq::OcpLockReportHekMetadata(_) => CommandId::OCP_LOCK_REPORT_HEK_METADATA,
             MailboxReq::OcpLockGetAlgorithms(_) => CommandId::OCP_LOCK_GET_ALGORITHMS,
+            MailboxReq::OcpLockInitializeMekSecret(_) => CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET,
         }
     }
 
@@ -4242,6 +4247,28 @@ pub struct OcpLockGetAlgorithmsResp {
     pub access_key_sizes: AccessKeySizes,
 }
 impl Response for OcpLockGetAlgorithmsResp {}
+
+// OCP_LOCK_INITIALIZE_MEK_SECRET
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockInitializeMekSecretReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub sek: [u8; 32],
+    pub dpk: [u8; 32],
+}
+impl Request for OcpLockInitializeMekSecretReq {
+    const ID: CommandId = CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET;
+    type Resp = OcpLockInitializeMekSecretResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockInitializeMekSecretResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+}
+impl Response for OcpLockInitializeMekSecretResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

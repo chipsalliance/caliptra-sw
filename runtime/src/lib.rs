@@ -507,6 +507,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::OCP_LOCK_GET_ALGORITHMS => {
             ocp_lock::GetAlgorithmsCmd::execute(&mut drivers.ocp_lock_context, resp)
         }
+        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
+            ocp_lock::InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

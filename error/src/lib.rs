@@ -1623,6 +1623,16 @@ impl CaliptraError {
             0x000E0074,
             "OCP LOCK Error: Unsupported command"
         ),
+        (
+            RUNTIME_OCP_LOCK_HEK_UNAVAILABLE,
+            0x000E0075,
+            "OCP LOCK Error: HEK Unavailable to runtime"
+        ),
+        (
+            RUNTIME_OCP_LOCK_UNINITIALIZED_MEK_SECRET,
+            0x000E0076,
+            "OCP LOCK Error: Unintialized MEK Secret"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

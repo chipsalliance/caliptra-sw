@@ -1,19 +1,123 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::SocIfc;
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
+use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
+use caliptra_drivers::{
+    hmac_kdf, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
+    SocIfc, Trng,
+};
+use caliptra_error::{CaliptraError, CaliptraResult};
+
+use zerocopy::{Immutable, IntoBytes, KnownLayout};
+use zeroize::ZeroizeOnDrop;
 
 mod get_algorithms;
+mod initialize_mek_secret;
+
 pub use get_algorithms::GetAlgorithmsCmd;
+pub use initialize_mek_secret::InitializeMekSecretCmd;
+
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+/// Represents the SEK type from OCP LOCK.
+pub struct Sek(pub [u8; 32]);
+
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+/// Represents the DPK type from OCP LOCK.
+pub struct Dpk(pub [u8; 32]);
+
+/// Represents the MEK Secret from OCP LOCK.
+/// This is constructed from the EPK + DPK.
+///
+/// NOTE: MPKs will be mixed into `MekSecretSeed`
+pub struct MekSecretSeed;
+
+// TODO(clundin): Erase MEK_SECRETS KV on drop? That would require holding a reference to the
+// key vault for the lifetime of `MekSecretSeed`
+impl MekSecretSeed {
+    /// Consumes the EPK and DPK to produce a `MekSecretSeed`
+    fn new(hmac: &mut Hmac, trng: &mut Trng, epk: Epk, dpk: Dpk) -> CaliptraResult<Self> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            b"ocp_lock_mek_secret_seed",
+            Some(dpk.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_MEK_SECRETS,
+                // TODO(clundin): Will likely need to add AES key usage in a follow up.
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // Manually drop EPK to Erase EPK KV.
+        // This should happen automatically but otherwise the linter complains that the EPK wasn't
+        // used.
+        drop(epk);
+        Ok(Self)
+    }
+}
+
+/// Represents the EPK type from OCP LOCK.
+/// This is constructed from the HEK + SEK.
+struct Epk<'a> {
+    kv: &'a mut KeyVault,
+}
+
+impl<'a> Epk<'a> {
+    /// Derive EPK. The EPK is only valid for the lifetime of `Self`.
+    fn new(
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &'a mut KeyVault,
+        sek: Sek,
+    ) -> CaliptraResult<Self> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_HEK)),
+            b"ocp_lock_epk",
+            Some(sek.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_EPK,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+        Ok(Self { kv })
+    }
+}
+
+impl Drop for Epk<'_> {
+    // From Spec:
+    //   > Held in the Key Vault and zeroized after each use.
+    fn drop(&mut self) {
+        // We don't set a write or use lock so this should never fail.
+        let _ = self.kv.erase_key(KEY_ID_EPK);
+    }
+}
 
 /// Provides OCP LOCK functionalities.
 pub struct OcpLockContext {
+    /// OCP LOCK is supported on both HW and FW
     available: bool,
+
+    /// HEK is available
+    hek_available: bool,
+
+    /// Holds MEK secret seed, initialized by calling MEK_SECRET_INITIALIZE. Some commands do not work until
+    /// `mek_secret_seed` has a value.
+    mek_secret_seed: Option<MekSecretSeed>,
 }
 
 impl OcpLockContext {
-    pub fn new(soc_ifc: &SocIfc) -> Self {
+    pub fn new(soc_ifc: &SocIfc, hek_available: bool) -> Self {
         let available = cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled();
-        Self { available }
+        Self {
+            available,
+            mek_secret_seed: None,
+            hek_available,
+        }
     }
 
     /// Checks if the OCP lock is available.
@@ -21,5 +125,25 @@ impl OcpLockContext {
     /// Returns `true` if the "ocp-lock" feature is enabled and the OCP lock is enabled in the SoC.
     pub fn available(&self) -> bool {
         self.available
+    }
+
+    /// Creates an MEK secret seed from `HEK`, `SEK` and `DPK`.
+    pub fn create_mek_secret_seed(
+        &mut self,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+        sek: Sek,
+        dpk: Dpk,
+    ) -> CaliptraResult<()> {
+        if !self.hek_available {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
+        } else {
+            cfi_assert!(self.hek_available);
+        }
+        let epk = Epk::new(hmac, trng, kv, sek)?;
+        let mek_secret_seed = MekSecretSeed::new(hmac, trng, epk, dpk)?;
+        self.mek_secret_seed = Some(mek_secret_seed);
+        Ok(())
     }
 }
