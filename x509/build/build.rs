@@ -45,9 +45,9 @@ const FMC_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 FMC Alias";
 #[cfg(feature = "generate_templates")]
 const FMC_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 FMC Alias";
 #[cfg(feature = "generate_templates")]
-const RT_ALIAS_ECC384: &str = "Caliptra 2.1 MlDsa87 Rt Alias";
+const RT_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 Rt Alias";
 #[cfg(feature = "generate_templates")]
-const RT_ALIAS_MLDSA87: &str = "Caliptra 2.1 Ecc384 Rt Alias";
+const RT_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 Rt Alias";
 
 // Main Entry point
 fn main() {
