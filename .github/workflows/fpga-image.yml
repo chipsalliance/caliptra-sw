@@ -31,9 +31,9 @@ jobs:
       matrix:
         image_variant: [core, subsystem]
         include:
-          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
+          - bitstream_hash: 2f8ba63b36b4a74f38df331be8883dc3b75213cf42f7ba56c00a327bf7c1e518
             image_variant: core
-          - bitstream_name: xsa_core2p0_5d069408.xsa
+          - bitstream_name: xsa_core2p0_2fe48aa8.xsa
             image_variant: core
           - bitstream_hash: 8fade301b2d2d4864a8586b5fea2cf8a80a76102afc711a940f66d7df79e30b3
             image_variant: subsystem
