@@ -368,7 +368,6 @@ fn fetch_idev_mldsa87_info(model: &mut DefaultHwModel) -> GetIdevMldsa87InfoResp
 }
 
 #[test]
-
 fn test_get_idev_mldsa87_info_after_warm_reset() {
     // Boot time
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());

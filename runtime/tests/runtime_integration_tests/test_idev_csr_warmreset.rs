@@ -1,20 +1,13 @@
 use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
-
 use caliptra_builder::{get_ci_rom_version, CiRomVersion};
-
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader,
 };
-
 use caliptra_drivers::{Ecc384IdevIdCsr, MfgFlags, Mldsa87IdevIdCsr};
-
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-
-use openssl::x509::X509Req;
-
-use zerocopy::IntoBytes;
-
 use caliptra_image_types::FwVerificationPqcKeyType;
+use openssl::x509::X509Req;
+use zerocopy::IntoBytes;
 
 pub fn build_model_ready_with_csrbit() -> DefaultHwModel {
     // Request IDEVID CSR generation via manufacturing flags.

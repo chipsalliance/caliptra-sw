@@ -2,20 +2,16 @@
 
 mod common;
 mod test_activate_firmware;
-
 mod test_attestation_warmreset;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
-mod test_centify_warmreset;
+mod test_cert_verify_warmreset;
 mod test_certify_key_extended;
+mod test_certify_warmreset;
 mod test_certs;
 mod test_certs_384_warmreset;
-
-mod test_cert_verify_warmreset;
-
 mod test_certs_mldsa87_warmreset;
-
 mod test_cm_command_warmreset;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
@@ -28,10 +24,8 @@ mod test_firmware_verify;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 mod test_get_image_info;
-
-mod test_idev_csr_warmreset;
-
 mod test_get_img_info_warmreset;
+mod test_idev_csr_warmreset;
 mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
@@ -50,7 +44,7 @@ mod test_selftests_warmreset;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
 mod test_stash_measurement;
-mod test_statsh_warmreset;
+mod test_stash_warmreset;
 mod test_tagging;
 mod test_tagging_warmreset;
 mod test_update_reset;

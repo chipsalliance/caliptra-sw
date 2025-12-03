@@ -1,24 +1,17 @@
 use crate::common::{run_rt_test, RuntimeTestArgs};
-
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
-
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
-
 use caliptra_builder::ImageOptions;
-
 use caliptra_common::mailbox_api::{
     CommandId, GetImageInfoReq, GetImageInfoResp, ImageHashSource, MailboxReq, MailboxReqHeader,
     SetAuthManifestReq,
 };
-
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-
 use caliptra_image_types::FwVerificationPqcKeyType;
-
 use zerocopy::{FromBytes, IntoBytes};
 
 const FW_ID_1: u32 = 1;
@@ -89,7 +82,6 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_image_info_persists_after_warm_reset() {
     //  manifest setup
     let mut flags1 = ImageMetadataFlags(0);
