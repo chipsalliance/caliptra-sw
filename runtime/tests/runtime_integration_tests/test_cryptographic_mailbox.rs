@@ -3061,7 +3061,11 @@ fn test_derive_stable_key_from_rom() {
     }
 }
 
-fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Option<u32>) -> Cmk {
+pub(crate) fn derive_stable_key(
+    model: &mut DefaultHwModel,
+    usage: CmKeyUsage,
+    key_size: Option<u32>,
+) -> Cmk {
     let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
         key_type: CmStableKeyType::IDevId.into(),
         ..Default::default()

@@ -2,14 +2,15 @@ use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use caliptra_api::mailbox::{
-    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
-    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacKdfCounterReq,
-    CmHmacKdfCounterResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq,
-    CmMldsaSignResp, CmMldsaVerifyReq, CmStableKeyType, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader, MAX_CMB_DATA_SIZE,
+    CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq,
+    CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp,
+    CmMldsaVerifyReq, Cmk, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+    MAX_CMB_DATA_SIZE,
 };
 
 use caliptra_image_types::ECC384_SCALAR_BYTE_SIZE;
+
+use crate::test_cryptographic_mailbox::derive_stable_key;
 
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -190,65 +191,6 @@ fn cm_ecdsa_verify(
 
     let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
-}
-
-fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Option<u32>) -> Cmk {
-    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
-        key_type: CmStableKeyType::IDevId.into(),
-        ..Default::default()
-    });
-
-    derive_request.populate_chksum().unwrap();
-    let response = model
-        .mailbox_execute(
-            CommandId::CM_DERIVE_STABLE_KEY.into(),
-            derive_request.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-
-    let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
-    assert_eq!(
-        resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
-    );
-
-    let key_size = key_size.unwrap_or(match usage {
-        CmKeyUsage::Aes => 32,
-        CmKeyUsage::Hmac => 64,
-        CmKeyUsage::Ecdsa => 48,
-        CmKeyUsage::Mldsa => 32,
-        _ => panic!("Unsupported key usage for stable key derivation"),
-    });
-    let cm_hmac_kdf = CmHmacKdfCounterReq {
-        kin: resp.cmk.clone(),
-        hash_algorithm: if key_size == 64 {
-            CmHashAlgorithm::Sha512.into()
-        } else {
-            CmHashAlgorithm::Sha384.into()
-        },
-        key_usage: usage.into(),
-        key_size,
-        label_size: 0,
-        ..Default::default()
-    };
-    let mut cm_hmac_kdf = MailboxReq::CmHmacKdfCounter(cm_hmac_kdf);
-    cm_hmac_kdf.populate_chksum().unwrap();
-
-    let response = model
-        .mailbox_execute(
-            CommandId::CM_HMAC_KDF_COUNTER.into(),
-            cm_hmac_kdf.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-
-    let response = CmHmacKdfCounterResp::ref_from_bytes(response.as_bytes()).unwrap();
-    assert_eq!(
-        resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
-    );
-    response.kout.clone()
 }
 
 // ----------------------
