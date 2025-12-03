@@ -1,27 +1,17 @@
-use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 
 use caliptra_common::{
     checksum::verify_checksum,
     mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader},
 };
 
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_disable_attestation_persists_after_warm_reset() {
-    // --- Boot
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     //  query FW_INFO and return the parsed struct
     let read_fw_info = |m: &mut DefaultHwModel| {
@@ -79,9 +69,8 @@ fn test_disable_attestation_persists_after_warm_reset() {
         "attestation_disabled flag should be set immediately after DISABLE_ATTESTATION"
     );
 
-    // --- Warm reset + wait ready (exactly as requested) ---
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    // --- Warm reset  (exactly as requested) ---
+    model.warm_reset_flow().unwrap();
 
     // Verify the flag persists across warm reset
     let info_after_reset = read_fw_info(&mut model);

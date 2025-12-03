@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    assert_x509_semantic_eq, build_ready_runtime_model, generate_test_x509_cert,
-    get_mldsa_fmc_alias_cert, get_rt_alias_mldsa87_cert, wait_runtime_ready, BuildArgs,
+    assert_x509_semantic_eq, generate_test_x509_cert, get_mldsa_fmc_alias_cert,
+    get_rt_alias_mldsa87_cert, run_rt_test_pqc, RuntimeTestArgs,
 };
 
 use caliptra_common::{
@@ -14,7 +14,7 @@ use caliptra_common::{
     x509::get_tbs,
 };
 
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use openssl::{
     pkey::{PKey, Private, Public},
@@ -104,18 +104,10 @@ fn get_idev_mldsa87_cert(
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_idev_mldsa87_cert_across_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Deterministic MLDSA-87 keypair (same seed => same key)
     let seed = [0x42u8; 32];
@@ -136,8 +128,7 @@ fn test_get_idev_mldsa87_cert_across_warm_reset() {
     let (der_before, x509_before) = get_idev_mldsa87_cert(&mut model, &priv_key, &pub_key);
 
     // Warm reset
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset (re-issue with identical inputs)
     let (der_after, x509_after) = get_idev_mldsa87_cert(&mut model, &priv_key, &pub_key);
@@ -201,19 +192,10 @@ fn get_ldev_mldsa_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_ldev_mldsa87_cert_after_warm_reset() {
     // Boot runtime
 
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // -------- BEFORE warm reset --------
     let ldev_resp_before = get_ldev_mldsa_cert(&mut model);
@@ -229,8 +211,7 @@ fn test_get_ldev_mldsa87_cert_after_warm_reset() {
     assert!(ldev_cert_before.verify(&idev_pk_before).unwrap());
 
     // -------- Warm reset --------
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // -------- AFTER warm reset --------
     let ldev_resp_after = get_ldev_mldsa_cert(&mut model);
@@ -248,18 +229,9 @@ fn test_get_ldev_mldsa87_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // --- BEFORE warm reset ---
     // LDev (issuer of FMC-alias)
@@ -289,8 +261,7 @@ fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
     );
 
     // --- Warm reset ---
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
     let ldev_after = {
@@ -322,18 +293,9 @@ fn test_get_fmc_alias_mldsa87_cert_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_get_rt_alias_mldsa87_cert_after_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // ---------- BEFORE warm reset ----------
     let fmc_before = {
@@ -360,8 +322,7 @@ fn test_get_rt_alias_mldsa87_cert_after_warm_reset() {
     );
 
     // ---------- Warm reset ----------
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // ---------- AFTER warm reset ----------
     let fmc_after = {
@@ -407,18 +368,10 @@ fn fetch_idev_mldsa87_info(model: &mut DefaultHwModel) -> GetIdevMldsa87InfoResp
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+
 fn test_get_idev_mldsa87_info_after_warm_reset() {
     // Boot time
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // ----- BEFORE warm reset -----
     let info_before = fetch_idev_mldsa87_info(&mut model);
@@ -446,8 +399,7 @@ fn test_get_idev_mldsa87_info_after_warm_reset() {
     );
 
     // ----- Warm reset -----
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // ----- AFTER warm reset -----
     let info_after = fetch_idev_mldsa87_info(&mut model);
