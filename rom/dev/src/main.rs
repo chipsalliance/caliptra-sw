@@ -19,7 +19,7 @@ Abstract:
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
-use caliptra_common::{handle_fatal_error, CptraGeneration, RomBootStatus};
+use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
@@ -75,31 +75,16 @@ pub extern "C" fn rom_entry() -> ! {
     };
 
     if !cfg!(feature = "no-cfi") {
-        cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate4();
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
-    } else {
-        cprintln!("[state] CFI Disabled");
     }
 
     // Check if TRNG is correctly sourced as per hw config.
     validate_trng_config(&mut env);
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
-
-    // Check if HW version is supported.
-    let cptra_gen = env.soc_ifc.caliptra_generation();
-    if !is_supported_hw_version(&cptra_gen) {
-        cprintln!(
-            "[state] Unsupported Caliptra Generation: {}.{}.{} (minimum required: 2.0.2)",
-            cptra_gen.major_version(),
-            cptra_gen.minor_version(),
-            cptra_gen.patch_version()
-        );
-        handle_fatal_error(CaliptraError::ROM_GLOBAL_UNSUPPORTED_HW_VERSION.into());
-    }
 
     let reset_reason = env.soc_ifc.reset_reason();
 
@@ -129,7 +114,6 @@ pub extern "C" fn rom_entry() -> ! {
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Prod lifecycle disabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
@@ -364,7 +348,6 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
-        cprintln!("WDT Expired");
         error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
     }
 
@@ -434,17 +417,4 @@ fn validate_trng_config(env: &mut RomEnv) {
         env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
         matches!(env.trng, Trng::MfgMode()),
     );
-}
-
-/// Check if the hardware version is supported
-/// Supports 2.0.2+ and 2.1.0+
-fn is_supported_hw_version(cptra_gen: &CptraGeneration) -> bool {
-    !matches!(
-        (
-            cptra_gen.major_version(),
-            cptra_gen.minor_version(),
-            cptra_gen.patch_version()
-        ),
-        (2, 0, 0..=1)
-    )
 }

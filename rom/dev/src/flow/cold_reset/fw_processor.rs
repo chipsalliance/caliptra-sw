@@ -19,15 +19,17 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_api::mailbox::{
-    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
-    InstallOwnerPkHashResp, ReportHekMetadataReq, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
+    AlgorithmType, CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, GetLdevCertResp,
+    InstallOwnerPkHashReq, InstallOwnerPkHashResp, ReportHekMetadataReq, ResponseVarSize,
+    ZeroizeUdsFeReq, ZeroizeUdsFeResp, CM_STABLE_KEY_INFO_SIZE_BYTES, ZEROIZE_FE0_FLAG,
+    ZEROIZE_FE1_FLAG, ZEROIZE_FE2_FLAG, ZEROIZE_FE3_FLAG, ZEROIZE_UDS_FLAG,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
+use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
 use caliptra_common::{
     capabilities::Capabilities,
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
@@ -681,6 +683,54 @@ impl FirmwareProcessor {
 
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes_partial()?)?;
+                    }
+                    CommandId::ZEROIZE_UDS_FE => {
+                        let mut request = ZeroizeUdsFeReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
+
+                        let result = (|| -> CaliptraResult<()> {
+                            // Zeroize UDS partition
+                            if request.flags & ZEROIZE_UDS_FLAG != 0 {
+                                let uds_flow = UdsFeProgrammingFlow::Uds;
+                                uds_flow.zeroize(soc_ifc, dma)?;
+                            }
+
+                            // Zeroize FE partitions (0-3)
+                            const FE_FLAGS: [u32; 4] = [
+                                ZEROIZE_FE0_FLAG,
+                                ZEROIZE_FE1_FLAG,
+                                ZEROIZE_FE2_FLAG,
+                                ZEROIZE_FE3_FLAG,
+                            ];
+                            for (partition, &flag) in FE_FLAGS.iter().enumerate() {
+                                if request.flags & flag != 0 {
+                                    let fe_flow = UdsFeProgrammingFlow::Fe {
+                                        partition: partition as u32,
+                                    };
+                                    fe_flow.zeroize(soc_ifc, dma)?;
+                                }
+                            }
+
+                            Ok(())
+                        })();
+
+                        // Generate and send response
+                        let mut resp = ZeroizeUdsFeResp {
+                            hdr: MailboxRespHeader::default(),
+                            dpe_result: match result {
+                                Ok(()) => 0,   // NoError
+                                Err(_) => 0x1, // InternalError
+                            },
+                        };
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+
+                        // Shutdown after zeroization as UDS and/or FE values and its derived keys are no longer valid.
+                        if result.is_err() {
+                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED);
+                        } else {
+                            return Err(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_SUCCESS);
+                        }
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
