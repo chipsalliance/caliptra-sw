@@ -24,7 +24,7 @@ Certificate:
                 NIST CURVE: P-384
         X509v3 extensions:
             X509v3 Basic Constraints: critical
-                CA:TRUE, pathlen:3
+                CA:TRUE, pathlen:5
             X509v3 Key Usage: critical
                 Certificate Sign
             2.23.133.5.4.4: 
