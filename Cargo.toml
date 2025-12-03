@@ -207,7 +207,7 @@ ureg = { path = "ureg" }
 ureg-codegen = { path = "ureg/lib/codegen" }
 ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }
-wycheproof = "0.5.1"
+wycheproof = { git = "https://github.com/randombit/wycheproof-rs", rev = "5120390a605bb6fd950048928981dc7a52937379" }
 x509-cert = { version = "0.2.5", features = ["builder", "hazmat"] }
 x509-parser = "0.15.0"
 zerocopy = { version = "0.8.17", features = ["derive"] }
