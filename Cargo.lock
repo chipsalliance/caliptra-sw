@@ -3420,12 +3420,12 @@ dependencies = [
 
 [[package]]
 name = "wycheproof"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71039afb8a94cba8b3fbcd400af2d259eb0ecd833fca548130f9e7681ef2c53a"
+version = "0.6.0"
+source = "git+https://github.com/randombit/wycheproof-rs?rev=5120390a605bb6fd950048928981dc7a52937379#5120390a605bb6fd950048928981dc7a52937379"
 dependencies = [
  "data-encoding",
  "serde",
+ "serde_derive",
  "serde_json",
 ]
 
