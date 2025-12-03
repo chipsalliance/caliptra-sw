@@ -79,7 +79,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: fd4fc951af84dceff9c41716cd8e57946c5957a2
+      CALIPTRA_MCU_COMMIT: c475205e52ea003778248132c1762e0344a516b4
 
     steps:
       - name: Checkout repo
@@ -322,6 +322,7 @@ jobs:
           # -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
           # -E 'package(caliptra-drivers) and test(test_ocp_lock)'
           # test(test_version::test_version), test(test_warm_reset::test_warm_reset_version), test(test_fips::test_fips_version) needs bitstream update
+          # test(test_uds_fe::test_uds_programming_granularity_64bit), test(test_uds_fe::test_uds_programming_granularity_32bit) needs jtag for dbg_manuf_service
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -329,8 +330,8 @@ jobs:
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
-              -E 'package(caliptra-runtime) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd) - test(test_fe_programming::test_fe_programming_invalid_partition) - test(test_pauser_privilege_levels::test_pl0_unset_in_header) - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds) - test(test_pauser_privilege_levels::test_user_not_pl0) - test(test_get_idev_csr::test_get_ecc_csr) - test(test_get_idev_csr::test_get_mldsa_csr) - test(test_mailbox::test_reserved_pauser) - test(test_pauser_privilege_levels::test_change_locality) - test(test_certs::test_all_measurement_apis) - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_info::test_fw_info) - test(test_reallocate_dpe_context_limits) - test(test_invoke_dpe::test_export_cdi_destroyed_root_context) - test(test_fe_programming::test_fe_programming_cmd) - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external) - test(test_stash_measurement::test_pcr31_extended_upon_stash_measurement) - test(test_update_reset::test_context_has_tag_validation) - test(test_update_reset::test_context_tags_validation) - test(test_update_reset::test_dpe_validation_deformed_structure) - test(test_update_reset::test_dpe_validation_illegal_state) - test(test_update_reset::test_dpe_validation_used_context_threshold_exceeded) - test(test_update_reset::test_key_ladder_runtime_update) - test(test_update_reset::test_pcr_reset_counter_persistence) - test(test_update_reset::test_tags_persistence) - test(test_fips::test_fips_version)'
-              -E 'package(caliptra-rom) - test(test_debug_unlock::) - test(test_fmcalias_derivation::test_zero_firmware_size) - test(test_fake_rom::test_fake_rom_production_enabled) - test(test_fake_rom::test_image_verify) - test(test_uds_programming::) - test(test_wdt_activation_and_stoppage::) - test(test_warm_reset::test_warm_reset_during_update_reset) - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation) - test(test_image_validation::cert_test_with_ueid) - test(test_version::test_version) - test(test_warm_reset::test_warm_reset_version)'
+              -E 'package(caliptra-runtime) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd) - test(test_fe_programming::test_fe_programming_invalid_partition) - test(test_pauser_privilege_levels::test_pl0_unset_in_header) - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds) - test(test_pauser_privilege_levels::test_user_not_pl0) - test(test_get_idev_csr::test_get_ecc_csr) - test(test_get_idev_csr::test_get_mldsa_csr) - test(test_mailbox::test_reserved_pauser) - test(test_pauser_privilege_levels::test_change_locality) - test(test_certs::test_all_measurement_apis) - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_info::test_fw_info) - test(test_reallocate_dpe_context_limits) - test(test_invoke_dpe::test_export_cdi_destroyed_root_context) - test(test_fe_programming::test_fe_programming_cmd) - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)  - test(test_fips::test_fips_version)'
+              -E 'package(caliptra-rom) - test(test_debug_unlock::) - test(test_fmcalias_derivation::test_zero_firmware_size) - test(test_fake_rom::test_fake_rom_production_enabled) - test(test_fake_rom::test_image_verify) - test(test_uds_fe::test_uds_programming_granularity_64bit) - test(test_uds_fe::test_uds_programming_granularity_32bit) - test(test_wdt_activation_and_stoppage::) - test(test_warm_reset::test_warm_reset_during_update_reset) - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation) - test(test_image_validation::cert_test_with_ueid) - test(test_version::test_version) - test(test_warm_reset::test_warm_reset_version)'
           )
 
           cargo-nextest nextest list \
