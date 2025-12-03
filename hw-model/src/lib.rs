@@ -111,6 +111,10 @@ pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
 pub type ModelCallback = Box<dyn FnOnce(&mut DefaultHwModel)>;
 
+pub struct OcpLockState {
+    pub mek: [u8; 64],
+}
+
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
 /// function over HwModel::new_unbooted().
@@ -1289,6 +1293,11 @@ pub trait HwModel: SocManager {
     fn fuses(&self) -> &Fuses;
     /// Set the fuse settings. A cold boot will need to be done to take affect.
     fn set_fuses(&mut self, fuses: Fuses);
+
+    /// Get OCP LOCK Info
+    fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
+        None
+    }
 }
 
 #[cfg(test)]

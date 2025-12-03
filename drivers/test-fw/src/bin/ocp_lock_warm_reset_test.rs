@@ -50,7 +50,7 @@ fn warm_reset_flow(test_regs: &mut TestRegisters) {
 
     let fuse_bank = test_regs.soc.fuse_bank().ocp_hek_seed();
     // Check hard coded hek seed from test MCU ROM.
-    assert_eq!(fuse_bank, [0xABDEu32; 8].into());
+    assert_eq!(fuse_bank, [0xABDE_FC82u32; 8].into());
 
     // Write lock should be lost on warm reset
     assert!(!test_regs.kv.key_write_lock(KeyId::KeyId16));
@@ -63,6 +63,8 @@ fn warm_reset_flow(test_regs: &mut TestRegisters) {
         .unwrap();
     // Check that we still derive the same MEK
     kv_release(test_regs);
+    // Need to release model
+    test_regs.soc.set_mcu_firmware_ready();
 }
 
 fn cold_reset_flow(test_regs: &mut TestRegisters) -> ! {
@@ -70,12 +72,12 @@ fn cold_reset_flow(test_regs: &mut TestRegisters) -> ! {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
 
     // Signal test harness we are ready for reset
-    soc_ifc
-        .regs_mut()
-        .cptra_boot_status()
-        .write(|_| OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS);
-
-    loop {}
+    loop {
+        soc_ifc
+            .regs_mut()
+            .cptra_boot_status()
+            .write(|_| OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS);
+    }
 }
 
 fn ocp_lock_flow(test_regs: &mut TestRegisters) {
@@ -107,7 +109,7 @@ fn ocp_lock_flow(test_regs: &mut TestRegisters) {
     test_regs.kv.set_key_write_lock(KeyId::KeyId22);
 
     let fuse_bank = test_regs.soc.fuse_bank().ocp_hek_seed();
-    assert_eq!(fuse_bank, [0xABDEu32; 8].into());
+    assert_eq!(fuse_bank, [0xABDE_FC82u32; 8].into());
 
     test_regs.soc.ocp_lock_set_lock_in_progress();
     assert!(test_regs.soc.ocp_lock_get_lock_in_progress());

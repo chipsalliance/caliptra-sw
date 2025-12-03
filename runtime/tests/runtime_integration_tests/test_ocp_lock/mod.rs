@@ -6,7 +6,7 @@ use caliptra_api::mailbox::{
 };
 use caliptra_builder::{firmware::runtime_tests, FwId};
 use caliptra_drivers::HekSeedState;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelCallback};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelCallback, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
@@ -101,6 +101,11 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
         ocp_lock_en: params.force_ocp_lock_en,
         key_type: Some(FwVerificationPqcKeyType::MLDSA),
         rom_callback,
+        security_state: Some(
+            *SecurityState::default()
+                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                .set_debug_locked(true),
+        ),
         ..Default::default()
     });
 
