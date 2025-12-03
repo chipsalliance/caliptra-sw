@@ -60,7 +60,6 @@ fn send_stash_and_check<T: HwModel>(hw: &mut T, req: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_stash_measurement_after_warm_reset() {
     // Boot runtime
     let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
