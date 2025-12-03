@@ -99,13 +99,13 @@ fn gdb_test() {
     };
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             security_state,
             ..Default::default()
         },
         BootParams {
             fw_image: Some(&image.to_bytes().unwrap()),
-            fuses,
             ..Default::default()
         },
     )

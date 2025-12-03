@@ -8,8 +8,13 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 
 use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
+use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
+
+use constant_time_eq::constant_time_eq;
+use dpe::U8Bool;
 use zerocopy::FromBytes;
+use zeroize::Zeroize;
 
 pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
@@ -27,13 +32,24 @@ impl RevokeExportedCdiHandleCmd {
             }
         }
 
-        for slot in drivers.exported_cdi_slots.iter_mut() {
+        for slot in drivers
+            .persistent_data
+            .get_mut()
+            .exported_cdi_slots
+            .entries
+            .iter_mut()
+        {
             match slot {
-                Some((_cdi, handle)) if *handle == cmd.exported_cdi_handle => {
+                ExportedCdiEntry {
+                    key: _,
+                    handle,
+                    active,
+                } if constant_time_eq(handle, &cmd.exported_cdi_handle) && active.get() => {
                     #[cfg(not(feature = "no-cfi"))]
-                    cfi_assert!(*handle == cmd.exported_cdi_handle);
-
-                    *slot = None;
+                    cfi_assert!(constant_time_eq(handle, &cmd.exported_cdi_handle));
+                    // Setting to false is redundant with zeroize but included for clarity.
+                    *active = U8Bool::new(false);
+                    slot.zeroize();
                     return Ok(0);
                 }
                 _ => (),

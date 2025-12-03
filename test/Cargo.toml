@@ -43,6 +43,7 @@ caliptra-emu-cpu.workspace = true
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 fpga_subsystem = ["caliptra-hw-model/fpga_subsystem"]
 itrng = ["caliptra-hw-model/itrng"]
+ocp-lock = ["caliptra-hw-model/ocp-lock"]
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test = ["caliptra-runtime/fips_self_test"]
 test_env_immutable_rom = []

@@ -29,10 +29,15 @@ const PUB_KEY_Y: [u8; 48] = [
 
 #[test]
 fn test_skip_kats() {
-    let rom =
-        caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem"))).unwrap();
+    let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
+    let fuses = Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(fake_rom(fpga)).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             ..Default::default()
         },
@@ -40,12 +45,21 @@ fn test_skip_kats() {
     )
     .unwrap();
 
-    hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
-    // If KatStarted boot status is posted before ColResetStarted, the statement below will trigger panic.
-    hw.step_until_boot_status(
-        caliptra_common::RomBootStatus::ColdResetStarted.into(),
-        false,
-    );
+    if fpga {
+        // If KatStarted boot status is posted before ColdResetStarted, the statement below will trigger panic.
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read()
+                >= u32::from(caliptra_common::RomBootStatus::ColdResetStarted)
+        });
+    } else {
+        hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
+
+        // If KatStarted boot status is posted before ColdResetStarted, the statement below will trigger panic.
+        hw.step_until_boot_status(
+            caliptra_common::RomBootStatus::ColdResetStarted.into(),
+            false,
+        );
+    }
 }
 
 #[test]
@@ -127,16 +141,15 @@ fn test_fake_rom_fw_load() {
         )
         .unwrap();
 
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
-                rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
                 fuses,
+                rom: &rom,
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
+            BootParams::default(),
         )
         .unwrap();
 
@@ -168,16 +181,15 @@ fn test_fake_rom_update_reset() {
         };
         let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
             .unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
-                rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
                 fuses,
+                rom: &rom,
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
+            BootParams::default(),
         )
         .unwrap();
 
@@ -235,14 +247,15 @@ fn test_image_verify() {
         };
         let rom = caliptra_builder::build_firmware_rom(fake_rom(cfg!(feature = "fpga_subsystem")))
             .unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
                 ..Default::default()
             },

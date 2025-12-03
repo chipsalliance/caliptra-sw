@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState};
+use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState, SocIfc};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
@@ -381,6 +381,22 @@ impl Dma {
     pub fn payload_available(&self) -> bool {
         self.with_dma(|dma| dma.status0().read().payload_available())
     }
+
+    /// Used by OCP LOCK to release an MEK to the Encryption Engine key vault
+    pub fn ocp_lock_key_vault_release(&self, soc: &SocIfc) {
+        let write_addr = AxiAddr::from(soc.ocp_lock_get_key_release_addr());
+        let kv_release_size = soc.ocp_lock_get_key_size();
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: kv_release_size,
+            origin: DmaWriteOrigin::KeyVault,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.setup_dma_write(write_transaction, 0);
+        self.wait_for_dma_complete();
+    }
 }
 
 // Implementation of the Mmio and MmioMut traits that uses
@@ -575,7 +591,7 @@ impl<'a> DmaRecovery<'a> {
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 
@@ -612,7 +628,7 @@ impl<'a> DmaRecovery<'a> {
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 
@@ -630,22 +646,40 @@ impl<'a> DmaRecovery<'a> {
         {
             // FPGA implementation: wait for FIFO to be full and read dword by dword
             for k in (0..image_size_bytes as usize).step_by(BLOCK_SIZE as usize) {
-                // Wait for the FIFO to be full
-                self.with_regs(|r| {
-                    while !r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .full()
-                    {}
-                })?;
+                let remaining_bytes = image_size_bytes as usize - k;
+                let is_last_block = remaining_bytes < BLOCK_SIZE as usize;
 
-                for j in (0..BLOCK_SIZE as usize).step_by(4) {
+                if !is_last_block {
+                    self.with_regs(|r| {
+                        while !r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .full()
+                        {}
+                    })?;
+                }
+
+                // Read up to BLOCK_SIZE or remaining bytes, whichever is smaller
+                let bytes_to_read = core::cmp::min(BLOCK_SIZE as usize, remaining_bytes);
+                for j in (0..bytes_to_read).step_by(4) {
                     let i = k + j;
                     let word_index = i / 4;
 
                     if word_index >= buffer.len() || i >= image_size_bytes as usize {
                         break;
+                    }
+
+                    if is_last_block {
+                        // For the last block, wait for FIFO to not be empty before each read_dword
+                        self.with_regs(|r| {
+                            while r
+                                .sec_fw_recovery_if()
+                                .indirect_fifo_status_0()
+                                .read()
+                                .empty()
+                            {}
+                        })?;
                     }
 
                     buffer[word_index] = self.dma.read_dword(addr);
@@ -655,6 +689,7 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
         {
+            crate::cprintln!("Wrong Code!");
             let read_transaction = DmaReadTransaction {
                 read_addr: addr,
                 fixed_addr: true,
@@ -699,12 +734,6 @@ impl<'a> DmaRecovery<'a> {
 
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-
-            // set RESET signal to indirect control to load the next image
-            recovery
-                .indirect_fifo_ctrl_0()
-                .modify(|val| val.reset(Self::RESET_VAL));
-
             // Set PROT_CAP2.AGENT_CAPS
             // - Bit0  to 1 ('Device ID support')
             // - Bit4  to 1 ('Device Status support')
@@ -829,23 +858,23 @@ impl<'a> DmaRecovery<'a> {
         };
 
         for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
-            // TODO: this will fail if the transaction is not a multiple of the block size
-            // wait for the FIFO to be full
-            if i3c {
-                self.with_regs(|r| {
-                    while !r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .full()
-                    {}
-                })?;
-            }
             for j in (0..BLOCK_SIZE).step_by(4) {
                 let i = k + j;
 
                 if i >= read_transaction.length {
                     break;
+                }
+
+                // if this is an I3C transfer, wait for the FIFO to be not empty
+                if i3c {
+                    self.with_regs(|r| {
+                        while r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .empty()
+                        {}
+                    })?;
                 }
 
                 // translate to single dword transfer

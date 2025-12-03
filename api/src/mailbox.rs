@@ -186,6 +186,7 @@ impl CommandId {
 
     // OCP LOCK Commands
     pub const REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
+    pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
 
 impl From<u32> for CommandId {
@@ -323,6 +324,7 @@ pub enum MailboxResp {
     CmDeriveStableKey(CmDeriveStableKeyResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
+    ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -384,6 +386,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
+            MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -443,6 +446,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -552,6 +556,7 @@ pub enum MailboxReq {
     GetPcrLog(MailboxReqHeader),
     ExternalMailboxCmd(ExternalMailboxCmdReq),
     FeProg(FeProgReq),
+    ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -630,6 +635,7 @@ impl MailboxReq {
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
+            MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -706,6 +712,7 @@ impl MailboxReq {
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -786,6 +793,7 @@ impl MailboxReq {
             }
             MailboxReq::ReportHekMetadata(_) => CommandId::REPORT_HEK_METADATA,
             MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
+            MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
         }
     }
 
@@ -4174,6 +4182,27 @@ pub struct InstallOwnerPkHashResp {
     pub dpe_result: u32,
 }
 impl Response for InstallOwnerPkHashResp {}
+
+// REALLOCATE_DPE_CONTEXT_LIMITS
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReallocateDpeContextLimitsReq {
+    pub hdr: MailboxReqHeader,
+    pub pl0_context_limit: u32,
+}
+impl Request for ReallocateDpeContextLimitsReq {
+    const ID: CommandId = CommandId::REALLOCATE_DPE_CONTEXT_LIMITS;
+    type Resp = ReallocateDpeContextLimitsResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ReallocateDpeContextLimitsResp {
+    pub hdr: MailboxRespHeader,
+    pub new_pl0_context_limit: u32,
+    pub new_pl1_context_limit: u32,
+}
+impl Response for ReallocateDpeContextLimitsResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

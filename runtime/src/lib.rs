@@ -38,6 +38,7 @@ pub mod key_ladder;
 pub mod manifest;
 mod pcr;
 mod populate_idev;
+mod reallocate_dpe_context_limits;
 mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
@@ -86,6 +87,7 @@ pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
+pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::LmsVerifyCmd;
@@ -134,10 +136,12 @@ pub const MAX_ECC_CERT_CHAIN_SIZE: usize = 4096;
 pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 31_000;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
-pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN: usize = 2;
 
-const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+pub const CALIPTRA_LOCALITY: u32 = 0xFFFFFFFF;
+const RESERVED_PAUSER: u32 = CALIPTRA_LOCALITY;
 
 #[inline(always)]
 pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
@@ -212,7 +216,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     }
 
     if drivers.mbox.cmd() == CommandId::FIRMWARE_VERIFY {
-        return firmware_verify::FirmwareVerifyCmd::execute(drivers);
+        return firmware_verify::FirmwareVerifyCmd::execute(
+            drivers,
+            firmware_verify::VerifySrc::Mbox,
+        );
     } else {
         cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_VERIFY);
     }
@@ -239,6 +246,28 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     let mut external_cmd_buffer =
         [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
+
+    // Check for EXTERNAL_MAILBOX_CMD and handle FIRMWARE_VERIFY specially
+    if drivers.soc_ifc.subsystem_mode()
+        && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
+    {
+        let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        if external_cmd.command_id == CommandId::FIRMWARE_VERIFY.into() {
+            let axi_addr = AxiAddr {
+                lo: external_cmd.axi_address_start_low,
+                hi: external_cmd.axi_address_start_high,
+            };
+            return firmware_verify::FirmwareVerifyCmd::execute(
+                drivers,
+                firmware_verify::VerifySrc::External {
+                    axi_address: axi_addr,
+                    image_size: external_cmd.command_size,
+                },
+            );
+        }
+    }
 
     if let Some(ext) =
         handle_external_mailbox_cmd(cmd_id, cmd_bytes, drivers, &mut external_cmd_buffer)?
@@ -470,6 +499,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             cmd_bytes,
         ),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
+        CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
+            ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 
@@ -514,6 +546,11 @@ fn handle_external_mailbox_cmd(
 
     let cmd_id = external_cmd.command_id;
 
+    let axi_addr = AxiAddr {
+        lo: external_cmd.axi_address_start_low,
+        hi: external_cmd.axi_address_start_high,
+    };
+
     if cmd_id == CommandId::FIRMWARE_LOAD.into() {
         cfi_assert_eq(cmd_id, CommandId::FIRMWARE_LOAD.into());
         update::handle_impactless_update(drivers)?;
@@ -525,10 +562,8 @@ fn handle_external_mailbox_cmd(
         cfi_assert_ne(cmd_id, CommandId::FIRMWARE_LOAD.into());
     }
 
-    let axi_addr = AxiAddr {
-        lo: external_cmd.axi_address_start_low,
-        hi: external_cmd.axi_address_start_high,
-    };
+    // FIRMWARE_VERIFY is handled earlier in handle_command() before this function is called
+    cfi_assert_ne(cmd_id, CommandId::FIRMWARE_VERIFY.into());
 
     if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
         cprintln!(

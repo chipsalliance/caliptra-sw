@@ -21,7 +21,8 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageSignData};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
 use dpe::{
@@ -67,10 +68,10 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times. When we initialize
-    // DPE, we measure mailbox valid pausers in pl0_pauser's locality. Thus, we can call derive child
-    // from PL0 exactly 7 times, and the last iteration of this loop, is expected to throw a threshold breached error.
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
+    // 2 PL0 contexts are used by default by Caliptra. When we initialize DPE, we measure mailbox valid pausers in pl0_pauser's locality.
+    // The RT Journey measurement also is counted against PL0's limit. Thus, we can call derive child
+    // from PL0 exactly 14 times, and the last iteration of this loop, is expected to throw a threshold reached error.
+    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let derive_context_cmd = DeriveContextCmd {
             handle,
@@ -80,7 +81,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
             target_locality: 0,
         };
 
-        // If we are on the last call to DeriveContext, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+        // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,
@@ -140,11 +141,10 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
         let mut handle = init_ctx_resp.handle;
 
         // Call DeriveContext with PL1 enough times to breach the threshold on the last iteration.
-        // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. When we initialize
-        // DPE, we measure the RT journey PCR in Caliptra's locality: 0xFFFFFFFF, which counts as a PL1 locality.
+        // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD times.
         // Then, we initialize a simulation context in locality 1. Thus, we can call derive child
-        // from PL1 exactly 16 - 2 = 14 times, and the last iteration of this loop, is expected to throw a threshold breached error.
-        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+        // from PL1 exactly 16 - 1 = 15 times, and the last iteration of this loop, is expected to throw a threshold breached error.
+        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD;
         for i in 0..num_iterations {
             let derive_context_cmd = DeriveContextCmd {
                 handle,
@@ -154,7 +154,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
                 target_locality: 0,
             };
 
-            // If we are on the last call to DeriveContext, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+            // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
             if i == num_iterations - 1 {
                 let resp = execute_dpe_cmd(
                 &mut model,
@@ -188,7 +188,8 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
+    // 2 PL0 contexts are used by Caliptra
+    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
 
@@ -236,14 +237,12 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
 
-        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD;
-        for i in 0..num_iterations {
+        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD;
+        for i in 0..(num_iterations + 1) {
             let init_ctx_cmd = InitCtxCmd::new_simulation();
 
-            // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1st iteration since
-            // RT initialization creates the RT journey measurement context in Caliptra's locality,
-            // which is PL1.
-            if i == num_iterations - 1 {
+            // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD iteration
+            if i == num_iterations {
                 let resp = execute_dpe_cmd(
                 &mut model,
                 &mut Command::InitCtx(&init_ctx_cmd),
@@ -613,32 +612,17 @@ fn test_stash_measurement_pl_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
-    for i in 0..num_iterations {
-        let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0u8; 4],
-            measurement: [0u8; 48],
-            context: [0u8; 48],
-            svn: 0,
-        });
+    // Root node and RT journey (which is technically the Caliptra locality) count as PL0
+    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2;
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0u8; 4],
+        measurement: [0u8; 48],
+        context: [0u8; 48],
+        svn: 0,
+    });
+    for _ in 0..num_iterations {
         cmd.populate_chksum().unwrap();
-
-        if i == num_iterations - 1 {
-            let resp = model
-                .mailbox_execute(
-                    u32::from(CommandId::STASH_MEASUREMENT),
-                    cmd.as_bytes().unwrap(),
-                )
-                .unwrap_err();
-            assert_error(
-                &mut model,
-                CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
-                resp,
-            );
-
-            break;
-        }
 
         let _ = model
             .mailbox_execute(
@@ -648,6 +632,19 @@ fn test_stash_measurement_pl_context_thresholds() {
             .unwrap()
             .expect("We should have received a response");
     }
+
+    // Attempting one more should return a failure
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
+        resp,
+    );
 }
 
 #[test]
@@ -658,10 +655,10 @@ fn test_measurement_log_pl_context_threshold() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Upload PL0_DPE_ACTIVE_CONTEXT_THRESHOLD measurements to measurement log
-    // Since there are some other measurements taken by Caliptra upon startup, this will cause
-    // the PL0_DPE_ACTIVE_CONTEXT_THRESHOLD to be breached.
-    for idx in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 {
+    // Upload (PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) measurements to measurement log
+    // Since 2 measurements taken by Caliptra upon startup, this will cause
+    // the PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD to be breached.
+    for idx in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) as u8 {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
             hdr: MailboxReqHeader { chksum: 0 },
@@ -675,7 +672,7 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement_req = MailboxReq::StashMeasurement(measurement);
         measurement_req.populate_chksum().unwrap();
 
-        if idx == PL0_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 - 1 {
+        if idx == PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8 - 2 {
             model
                 .upload_measurement(measurement_req.as_bytes().unwrap())
                 .unwrap_err();
@@ -700,17 +697,16 @@ fn test_pl0_unset_in_header() {
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let life_cycle = fuses.life_cycle;
     let mut model = caliptra_hw_model::new(
         InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        BootParams {
             fuses,
+            rom: &rom,
+            security_state: SecurityState::from(life_cycle as u32),
             ..Default::default()
         },
+        BootParams::default(),
     )
     .unwrap();
 
@@ -811,17 +807,16 @@ fn test_user_not_pl0() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let life_cycle = fuses.life_cycle;
         let mut model = caliptra_hw_model::new(
             InitParams {
-                rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
                 fuses,
+                rom: &rom,
+                security_state: SecurityState::from(life_cycle as u32),
                 ..Default::default()
             },
+            BootParams::default(),
         )
         .unwrap();
 

@@ -349,6 +349,20 @@ struct caliptra_get_idev_mldsa87_csr_resp
     uint8_t data[9216];
 };
 
+struct caliptra_get_fmc_alias_ecc384_csr_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[768];
+};
+
+struct caliptra_get_fmc_alias_mldsa87_csr_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
+};
+
 struct caliptra_sign_with_exported_ecdsa_req
 {
     struct caliptra_req_header hdr;
@@ -369,6 +383,19 @@ struct caliptra_revoke_exported_cdi_handle_req
 {
     struct caliptra_req_header hdr;
     uint8_t exported_cdi_handle[32];
+};
+
+struct caliptra_reallocate_dpe_context_limits_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t pl0_context_limit;
+};
+
+struct caliptra_reallocate_dpe_context_limits_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t new_pl0_context_limit;
+    uint32_t new_pl1_context_limit;
 };
 
 // DPE commands
