@@ -164,7 +164,7 @@ fn test_uds_zeroization_64bit() {
 
     // Wait till fatal error is raised
     hw.step_until(|m| {
-        m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+        m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
     });
 }
 
@@ -212,7 +212,7 @@ fn test_uds_zeroization_32bit() {
 
     // Wait till fatal error is raised
     hw.step_until(|m| {
-        m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+        m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
     });
 }
 
@@ -271,7 +271,7 @@ fn test_zeroize_fe_partitions_one_at_a_time_64bit() {
 
         // Wait till fatal error is raised
         hw.step_until(|m| {
-            m.soc_ifc().cptra_fw_error_fatal().read() != UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
+            m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
         });
     }
 }
