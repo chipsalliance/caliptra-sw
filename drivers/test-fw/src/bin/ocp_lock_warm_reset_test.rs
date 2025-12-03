@@ -63,6 +63,8 @@ fn warm_reset_flow(test_regs: &mut TestRegisters) {
         .unwrap();
     // Check that we still derive the same MEK
     kv_release(test_regs);
+    // Need to release model
+    test_regs.soc.set_mcu_firmware_ready();
 }
 
 fn cold_reset_flow(test_regs: &mut TestRegisters) -> ! {
@@ -70,12 +72,12 @@ fn cold_reset_flow(test_regs: &mut TestRegisters) -> ! {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
 
     // Signal test harness we are ready for reset
-    soc_ifc
-        .regs_mut()
-        .cptra_boot_status()
-        .write(|_| OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS);
-
-    loop {}
+    loop {
+        soc_ifc
+            .regs_mut()
+            .cptra_boot_status()
+            .write(|_| OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS);
+    }
 }
 
 fn ocp_lock_flow(test_regs: &mut TestRegisters) {

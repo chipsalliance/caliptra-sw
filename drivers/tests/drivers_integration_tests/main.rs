@@ -1261,9 +1261,7 @@ fn test_ocp_lock_warm_reset() {
 
     // When test signals ready for reset, perform warm reset.
     model.step_until_boot_status(OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS, true);
-    model.warm_reset();
-    thread::sleep(Duration::from_secs(1));
-    model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    model.warm_reset_flow().unwrap();
     model.step_until_exit_success().unwrap();
 }
 
