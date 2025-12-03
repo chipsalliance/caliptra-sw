@@ -8,7 +8,10 @@ use caliptra_api::{
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    firmware::{
+        APP_WITH_UART, APP_WITH_UART_FPGA, APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA,
+        FMC_WITH_UART,
+    },
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -236,11 +239,15 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-        &APP_WITH_UART_FPGA
-    } else {
-        &APP_WITH_UART
+    let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
+    let ocp_lock = cfg!(feature = "ocp-lock");
+    let default_rt_fwid = match (fpga, ocp_lock) {
+        (false, false) => &APP_WITH_UART,
+        (true, false) => &APP_WITH_UART_FPGA,
+        (false, true) => &APP_WITH_UART_OCP_LOCK,
+        (true, true) => &APP_WITH_UART_OCP_LOCK_FPGA,
     };
+
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
     let fmc_fwid = args.test_fmc_fwid.unwrap_or(&FMC_WITH_UART);
 

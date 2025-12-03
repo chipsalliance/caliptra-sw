@@ -361,7 +361,14 @@ Command Code: `0x4341_5053` ("CAPS")
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
-| capabilities  | u8[16]     | Firmware capabilities
+| capabilities  | u8[16]     | Firmware capabilities. See table below for details.
+
+*Table: Firmware Capabilities Flags*
+
+| **Name**        | **Bit** | **Description**
+| --------------- | ------- | ---------------
+| `RT_BASE`       | 64      | Base capabilities for Caliptra Runtime v2.1.
+| `RT_OCP_LOCK`   | 65      | Runtime firmware and hardware supports OCP LOCK.
 
 ### GET\_IDEV\_ECC384\_CERT
 
