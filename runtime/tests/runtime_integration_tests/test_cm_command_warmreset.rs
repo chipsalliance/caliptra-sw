@@ -1,4 +1,4 @@
-use crate::common::{build_model_ready, wait_runtime_ready};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 
 use caliptra_api::mailbox::{
@@ -257,14 +257,11 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
 
 #[test]
 fn test_cm_ecdsa_public_key_persists_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let (x_before, y_before) = cm_ecdsa_public_key(&mut model);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let (x_after, y_after) = cm_ecdsa_public_key(&mut model);
 
@@ -280,9 +277,7 @@ fn test_cm_ecdsa_public_key_persists_after_warm_reset() {
 
 #[test]
 fn test_cm_ecdsa_sign_verify_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Derive stable key for ECDSA usage before warm reset
     let cmk_before = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
@@ -291,8 +286,7 @@ fn test_cm_ecdsa_sign_verify_after_warm_reset() {
     cm_ecdsa_verify(&mut model, &cmk_before, TEST_MSG, &r_before, &s_before);
 
     // --- warm reset ---
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // Derive again after warm reset
     let cmk_after = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
@@ -307,9 +301,7 @@ fn test_cm_ecdsa_sign_verify_after_warm_reset() {
 
 #[test]
 fn test_cm_ecdsa_public_key_and_sig_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let pub_before = cm_ecdsa_public_key(&mut model);
 
@@ -319,8 +311,7 @@ fn test_cm_ecdsa_public_key_and_sig_after_warm_reset() {
     let (r_before, s_before) = cm_ecdsa_sign(&mut model, &cmk_before, TEST_MSG);
     cm_ecdsa_verify(&mut model, &cmk_before, TEST_MSG, &r_before, &s_before);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let pub_after = cm_ecdsa_public_key(&mut model);
     assert_eq!(
@@ -341,9 +332,7 @@ fn test_cm_ecdsa_public_key_and_sig_after_warm_reset() {
 
 #[test]
 fn test_cm_mldsa_public_key_and_sig_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let pub_before = cm_mldsa_public_key(&mut model);
 
@@ -353,8 +342,7 @@ fn test_cm_mldsa_public_key_and_sig_after_warm_reset() {
     let sig_before = cm_mldsa_sign(&mut model, &cmk_before, TEST_MSG);
     cm_mldsa_verify(&mut model, &cmk_before, TEST_MSG, &sig_before);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let pub_after = cm_mldsa_public_key(&mut model);
     assert_eq!(
@@ -375,14 +363,11 @@ fn test_cm_mldsa_public_key_and_sig_after_warm_reset() {
 
 #[test]
 fn test_cm_mldsa_public_key_persists_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let pub_before = cm_mldsa_public_key(&mut model);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let pub_after = cm_mldsa_public_key(&mut model);
 
@@ -395,9 +380,7 @@ fn test_cm_mldsa_public_key_persists_after_warm_reset() {
 // MLDSA sign/verify across warm reset
 #[test]
 fn test_cm_mldsa_sign_verify_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Derive stable key for MLDSA usage before warm reset
     let cmk_before = derive_stable_key(&mut model, CmKeyUsage::Mldsa, None);
@@ -405,8 +388,7 @@ fn test_cm_mldsa_sign_verify_after_warm_reset() {
     let sig_before = cm_mldsa_sign(&mut model, &cmk_before, TEST_MSG);
     cm_mldsa_verify(&mut model, &cmk_before, TEST_MSG, &sig_before);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let cmk_after = derive_stable_key(&mut model, CmKeyUsage::Mldsa, None);
 
@@ -419,16 +401,12 @@ fn test_cm_mldsa_sign_verify_after_warm_reset() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_derive_stable_key_after_warm_reset() {
-    let mut model = build_model_ready();
-
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let key_before = derive_stable_key(&mut model, CmKeyUsage::Aes, None);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let key_after = derive_stable_key(&mut model, CmKeyUsage::Aes, None);
 
