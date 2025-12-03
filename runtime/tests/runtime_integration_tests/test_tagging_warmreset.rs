@@ -1,9 +1,9 @@
-use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::HwModel;
 use zerocopy::FromBytes;
 
 const TAG: u32 = 1;
@@ -12,15 +12,7 @@ const DEFAULT_HANDLE: [u8; 16] = [0u8; 16];
 #[test]
 fn test_dpe_tag_tci_after_warm_reset() {
     // --- Boot time ---
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Tag default context
     let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
@@ -60,8 +52,7 @@ fn test_dpe_tag_tci_after_warm_reset() {
     );
 
     // ---- Warm reset & wait ready----
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // Read back the tagged TCI again
     let mut get_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {

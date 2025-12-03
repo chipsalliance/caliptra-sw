@@ -1,4 +1,4 @@
-use crate::common::{build_model_ready, wait_runtime_ready, TEST_LABEL};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs, TEST_LABEL};
 
 use caliptra_common::{
     checksum::verify_checksum,
@@ -92,8 +92,7 @@ pub fn certify_and_get_san_and_raw(model: &mut DefaultHwModel) -> (Vec<u8>, Opti
 #[test]
 fn test_add_subject_alt_name_persists_across_warm_reset() {
     // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Program DMTF device info via ADD_SUBJECT_ALT_NAME
     let dmtf_str_before = "ChipsAlliance:Caliptra:0123456789";
@@ -126,8 +125,7 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
     );
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset: capture raw and SAN payload (no reprogramming)
     let (raw_after, san_payload_after) = certify_and_get_san_and_raw(&mut model);
@@ -146,8 +144,7 @@ fn test_add_subject_alt_name_persists_across_warm_reset() {
 #[test]
 fn test_add_subject_alt_name_after_warm_reset() {
     // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Program initial value
     let first_str = "ChipsAlliance:Caliptra:FirstValue";
@@ -180,8 +177,7 @@ fn test_add_subject_alt_name_after_warm_reset() {
     );
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // Reprogram with a new value
     let second_str = "ChipsAlliance:Caliptra:SecondValue";
@@ -227,15 +223,13 @@ fn test_add_subject_alt_name_after_warm_reset() {
 #[test]
 fn test_certify_key_extended_after_warm_reset() {
     // Boot to RT ready
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // BEFORE warm reset
     let (raw_before, _san_before) = certify_and_get_san_and_raw(&mut model);
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // AFTER warm reset
     let (raw_after, _san_after) = certify_and_get_san_and_raw(&mut model);
@@ -297,14 +291,12 @@ fn extract_stable_cert_fields(resp_raw: &[u8]) -> (String, String, Vec<u8>, usiz
 
 #[test]
 fn test_certify_key_extended_after_warm_reset_stable_fields() {
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let (raw_before, san_before_opt) = certify_and_get_san_and_raw(&mut model);
     let (issuer_b, subject_b, curve_b, spki_len_b) = extract_stable_cert_fields(&raw_before);
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     let (raw_after, san_after_opt) = certify_and_get_san_and_raw(&mut model);
     let (issuer_a, subject_a, curve_a, spki_len_a) = extract_stable_cert_fields(&raw_after);

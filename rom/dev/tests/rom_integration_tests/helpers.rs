@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
 use std::mem;
-use std::sync::LazyLock;
 
 use caliptra_api::SocManager;
 use caliptra_auth_man_gen::{
@@ -45,11 +44,7 @@ pub const LIFECYCLES_ALL: [DeviceLifecycle; 3] = [
 ];
 
 // Default test MCU firmware used for subsystem mode uploads
-pub static DEFAULT_MCU_FW: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let mut mcu_fw_image = vec![0x00, 0x00, 0x00, 0x6f];
-    mcu_fw_image.resize(256, 0);
-    mcu_fw_image
-});
+pub static DEFAULT_MCU_FW: [u8; 4] = [0x00, 0x00, 0x00, 0x6f];
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
@@ -141,13 +136,7 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_soc_manifest(pqc_key_type, svn);
-    let manifest_bytes = manifest.as_bytes();
-    let len = manifest_bytes.len();
-    // Pad to a multiple of 256 bytes
-    let padded_len = ((len + 255) / 256) * 256;
-    let mut padded = vec![0u8; padded_len];
-    padded[..len].copy_from_slice(manifest_bytes);
-    padded
+    manifest.as_bytes().to_vec()
 }
 
 // Matches runtime test helper: uploads via RRI in subsystem mode
@@ -236,6 +225,7 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     security_state.set_debug_locked(fuses.debug_locked);
     caliptra_hw_model::new(
         InitParams {
+            fuses,
             rom: &rom,
             security_state,
             stack_info: Some(StackInfo::new(image_info)),
@@ -246,7 +236,6 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
             ..Default::default()
         },
         BootParams {
-            fuses,
             ..Default::default()
         },
     )

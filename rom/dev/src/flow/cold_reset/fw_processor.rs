@@ -790,6 +790,7 @@ impl FirmwareProcessor {
             mldsa87: venv.mldsa87,
             image: venv.image,
             dma: venv.dma,
+            image_in_mcu: venv.image_in_mcu,
         };
 
         // Random delay for CFI glitch protection.

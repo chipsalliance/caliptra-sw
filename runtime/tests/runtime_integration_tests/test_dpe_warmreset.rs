@@ -1,33 +1,21 @@
-use crate::common::{
-    build_ready_runtime_model, execute_dpe_cmd, wait_runtime_ready, BuildArgs, DpeResult,
-};
+use crate::common::{execute_dpe_cmd, run_rt_test_pqc, DpeResult, RuntimeTestArgs};
 
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::HwModel;
 
 use dpe::{commands::Command, response::Response};
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_invoke_dpe_get_profile_across_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let resp_before = execute_dpe_cmd(&mut model, &mut Command::GetProfile, DpeResult::Success);
     let Some(Response::GetProfile(profile_before)) = resp_before else {
         panic!("Wrong response type!");
     };
 
-    // warm reset + wait ready again
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    // Warm reset  again
+    model.warm_reset_flow().unwrap();
 
     // Re-issue the same command after warm reset
     let resp_after = execute_dpe_cmd(&mut model, &mut Command::GetProfile, DpeResult::Success);

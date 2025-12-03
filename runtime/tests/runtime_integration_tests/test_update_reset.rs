@@ -19,7 +19,7 @@ use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
@@ -317,12 +317,13 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
+    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
     // make dpe.contexts[1].handle non-default in order to pass dpe state validation
     dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
-    // the mbox valid pausers measurement is already in PL0 so creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD suffices
-    for i in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+    // the mbox valid pausers measurement and RT journey measurement already count as PL0
+    // so creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD suffices
+    for i in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) {
         // skip first two contexts measured by RT
         let idx = i + 2;
         // create simulation contexts in PL0
@@ -575,7 +576,7 @@ fn make_model_with_security_state(
         test_fwid: Some(app),
         test_fmc_fwid: Some(fmc),
         init_params: Some(InitParams {
-            rom: &caliptra_builder::rom_for_fw_integration_tests().unwrap(),
+            rom: &crate::common::rom_for_fw_integration_tests().unwrap(),
             security_state: *SecurityState::default()
                 .set_debug_locked(debug_locked)
                 .set_device_lifecycle(lifecycle),
@@ -586,6 +587,8 @@ fn make_model_with_security_state(
 }
 
 #[test]
+// With FPGA subsystem setting the device lifecycle automatically sets a value of debug_unlock
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_key_ladder_changes_with_lifecycle() {
     // Test with several combinations of security state.
 
@@ -644,7 +647,14 @@ fn test_key_ladder_stable_across_fw_updates() {
     // Update both FMC and app FW, and ensure the key ladder is still identical.
 
     let (fmc_a, app_a) = (&FMC_WITH_UART, mbox_test_image());
-    let (fmc_b, app_b) = (&FMC_FAKE_WITH_UART, &MBOX_WITHOUT_UART);
+    let (fmc_b, app_b) = (
+        &FMC_FAKE_WITH_UART,
+        if cfg!(feature = "fpga_subsystem") {
+            &MBOX_WITHOUT_UART_FPGA
+        } else {
+            &MBOX_WITHOUT_UART
+        },
+    );
 
     let ladder_a = {
         let mut model =

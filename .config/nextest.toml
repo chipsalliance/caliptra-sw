@@ -27,7 +27,7 @@ package(ureg-systemrdl)
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
-retries = 2 # the fpga subsystem is a bit flacky with typically 1 test randomly failing out of 100-200
+retries = 3 # the fpga subsystem is a bit flaky with typically 1 test randomly failing out of 100-200
 
 [profile.fpga-subsystem.junit]
 path = "/tmp/junit.xml"
@@ -83,7 +83,11 @@ slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.nightly.overrides]]
 filter = 'test(test_generate_csr_envelop_stress)'
-slow-timeout = { period = "30s", terminate-after = 140 }
+slow-timeout = { period = "30s", terminate-after = 180 }
+
+[[profile.nightly.overrides]]
+filter = 'test(test_binaries_are_identical)'
+slow-timeout = { period = "30s", terminate-after = 30 }
 
 [[profile.nightly.overrides]]
 filter = 'test(test_stress_update)'

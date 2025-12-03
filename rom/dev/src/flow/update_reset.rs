@@ -210,6 +210,7 @@ impl UpdateResetFlow {
             mldsa87: env.mldsa87,
             image: env.image,
             dma: env.dma,
+            image_in_mcu: env.image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(env);

@@ -9,26 +9,25 @@ Abstract:
 --"]
 #[allow(clippy::needless_lifetimes)]
 pub struct InitDevIdCsrTbsEcc384Params<'a> {
-    pub ueid: &'a [u8; 17usize],
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
+    pub ueid: &'a [u8; 17usize],
 }
-#[allow(clippy::needless_lifetimes)]
-impl<'a> InitDevIdCsrTbsEcc384Params<'a> {
-    pub const UEID_LEN: usize = 17usize;
+impl InitDevIdCsrTbsEcc384Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
+    pub const UEID_LEN: usize = 17usize;
 }
 pub struct InitDevIdCsrTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl InitDevIdCsrTbsEcc384 {
-    const UEID_OFFSET: usize = 312usize;
     const PUBLIC_KEY_OFFSET: usize = 144usize;
     const SUBJECT_SN_OFFSET: usize = 57usize;
-    const UEID_LEN: usize = 17usize;
+    const UEID_OFFSET: usize = 312usize;
     const PUBLIC_KEY_LEN: usize = 97usize;
     const SUBJECT_SN_LEN: usize = 64usize;
+    const UEID_LEN: usize = 17usize;
     pub const TBS_TEMPLATE_LEN: usize = 329usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
         48u8, 130u8, 1u8, 69u8, 2u8, 1u8, 0u8, 48u8, 112u8, 49u8, 35u8, 48u8, 33u8, 6u8, 3u8, 85u8,
@@ -78,7 +77,6 @@ impl InitDevIdCsrTbsEcc384 {
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
         }
-        apply_slice::<{ Self::UEID_OFFSET }, { Self::UEID_LEN }>(&mut self.tbs, params.ueid);
         apply_slice::<{ Self::PUBLIC_KEY_OFFSET }, { Self::PUBLIC_KEY_LEN }>(
             &mut self.tbs,
             params.public_key,
@@ -87,5 +85,6 @@ impl InitDevIdCsrTbsEcc384 {
             &mut self.tbs,
             params.subject_sn,
         );
+        apply_slice::<{ Self::UEID_OFFSET }, { Self::UEID_LEN }>(&mut self.tbs, params.ueid);
     }
 }
