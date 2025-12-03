@@ -5,7 +5,11 @@
 
 use core::mem::size_of;
 
-use caliptra_common::{handle_fatal_error, keyids::KEY_ID_TMP, mailbox_api::CommandId};
+use caliptra_common::{
+    handle_fatal_error,
+    keyids::KEY_ID_TMP,
+    mailbox_api::{CommandId, ExternalMailboxCmdReq},
+};
 use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
@@ -126,6 +130,30 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             // Wait for a request from the SoC.
         }
         let cmd = drivers.mbox.cmd();
+
+        // Handle external mailbox command if in subsystem mode
+        if drivers.soc_ifc.subsystem_mode() && cmd == CommandId::EXTERNAL_MAILBOX_CMD {
+            let input_bytes = read_request(&drivers.mbox);
+            let external_cmd = ExternalMailboxCmdReq::read_from_bytes(input_bytes)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+            // Only FIRMWARE_LOAD is supported as external command
+            if external_cmd.command_id == CommandId::FIRMWARE_LOAD.0 {
+                cprintln!("[rt-test] Received external FIRMWARE_LOAD command, triggering reset");
+                unsafe { SocIfcReg::new() }
+                    .regs_mut()
+                    .internal_fw_update_reset()
+                    .write(|w| w.core_rst(true));
+                // Should not reach here
+                return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+            } else {
+                cprintln!(
+                    "[rt-test] External command 0x{:x} not supported, only FIRMWARE_LOAD allowed",
+                    external_cmd.command_id
+                );
+                return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
+            }
+        }
 
         match cmd {
             CommandId(OPCODE_READ_RT_FW_JOURNEY) => {
