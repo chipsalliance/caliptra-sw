@@ -7,7 +7,6 @@ mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
 mod test_capabilities;
-mod test_centify_warmreset;
 mod test_cert_verify_warmreset;
 mod test_certify_key_extended;
 mod test_certify_warmreset;
@@ -30,7 +29,6 @@ mod test_get_image_info;
 mod test_get_img_info_warmreset;
 
 mod test_idev_csr_warmreset;
-
 mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
