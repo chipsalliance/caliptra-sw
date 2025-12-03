@@ -9,7 +9,7 @@ use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError, SecurityState};
+use caliptra_hw_model::{HwModel, SecurityState};
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -450,14 +450,8 @@ fn test_export_cdi_destroyed_root_context() {
 
     model.warm_reset_flow().unwrap();
 
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
-        .unwrap_err();
-    assert_eq!(
-        resp,
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into())
+    model.step_until_fatal_error(
+        CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into(),
+        30_000_000,
     );
 }

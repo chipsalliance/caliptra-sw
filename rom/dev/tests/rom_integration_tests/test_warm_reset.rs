@@ -241,7 +241,7 @@ fn test_warm_reset_during_update_reset() {
     }
 }
 
-const HW_REV_ID: u32 = 0x202;
+const HW_REV_ID: u32 = 0x302;
 
 fn test_version(
     hw: &mut DefaultHwModel,

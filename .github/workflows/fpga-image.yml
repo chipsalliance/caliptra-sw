@@ -29,20 +29,16 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem]
         include:
           - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
             image_variant: core
           - bitstream_name: xsa_core2p0_5d069408.xsa
             image_variant: core
-          - bitstream_hash: a10f0f07e533fd98d2044548460fa6bd339aea855e87afc5c53d24e4771fb2c7
-            image_variant: subsystem-2.0
-          - bitstream_name: xsa_ss2p0_6aa04dbb.xsa
-            image_variant: subsystem-2.0
-          - bitstream_hash: 89b011260235e4fa4f25fa739fac328315b08b5a59a9d121c62a4ac5314bae73
-            image_variant: subsystem-2.1
-          - bitstream_name: xsa_ss2p1_2e6a6886.xsa
-            image_variant: subsystem-2.1
+          - bitstream_hash: 8fade301b2d2d4864a8586b5fea2cf8a80a76102afc711a940f66d7df79e30b3
+            image_variant: subsystem
+          - bitstream_name: xsa_ss2p0_b9f8a767.xsa
+            image_variant: subsystem
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
@@ -50,7 +46,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        with: 
+        with:
           ref: ${{ inputs.branch }}
 
       - name: Cache Kernel output
@@ -82,7 +78,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251117/${BITSTREAM_NAME}" -o /tmp/system.xsa
+          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251201/${BITSTREAM_NAME}" -o /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -93,7 +89,7 @@ jobs:
 
           pushd hw/fpga
 
-          if [[ "$IMAGE_VARIANT" == "subsystem-2.0" || "$IMAGE_VARIANT" == "subsystem-2.1" ]]; then
+          if [[ "$IMAGE_VARIANT" == "subsystem" ]]; then
             export BUILD_SS=true
           fi
 
@@ -127,13 +123,13 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core, subsystem-2.0, subsystem-2.1]
+        image_variant: [core, subsystem]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        with: 
+        with:
           ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
@@ -151,7 +147,7 @@ jobs:
       - name: Install pre-requisites
         run: |
           sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu 
+          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
           cargo +1.88 install cross --git https://github.com/cross-rs/cross --root /tmp/cross
 
