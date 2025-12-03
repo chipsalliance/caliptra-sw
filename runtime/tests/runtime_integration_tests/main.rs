@@ -31,7 +31,6 @@ mod test_get_img_info_warmreset;
 
 mod test_idev_csr_warmreset;
 
-mod test_get_img_info_warmreset;
 mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
