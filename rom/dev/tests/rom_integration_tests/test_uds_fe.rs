@@ -22,7 +22,7 @@ use zerocopy::IntoBytes;
 
 const UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS: u32 = 0xa006_0004;
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
+#[cfg_attr(any(feature = "fpga_subsystem", feature = "fpga_realtime"), ignore)] // No fuse controller in FPGA without MCI
 #[test]
 fn test_uds_programming_no_active_mode() {
     let security_state =
