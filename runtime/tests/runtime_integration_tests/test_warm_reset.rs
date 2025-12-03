@@ -18,11 +18,7 @@ fn test_rt_journey_pcr_validation() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
@@ -40,11 +36,6 @@ fn test_rt_journey_pcr_validation() {
     let binding = image.to_bytes().unwrap();
     let soc_manifest = crate::common::default_soc_manifest_bytes(Default::default(), fw_svn);
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         soc_manifest: Some(&soc_manifest),
         mcu_fw_image: Some(crate::common::DEFAULT_MCU_FW),
@@ -53,6 +44,11 @@ fn test_rt_journey_pcr_validation() {
 
     let mut model = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ss_init_params: SubsystemInitParams {
@@ -97,11 +93,7 @@ fn test_mbox_busy_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
@@ -117,17 +109,17 @@ fn test_mbox_busy_during_warm_reset() {
 
     let binding = image.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         ..Default::default()
     };
 
     let mut model = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ss_init_params: SubsystemInitParams {
@@ -171,11 +163,7 @@ fn test_mbox_idle_during_warm_reset() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(any(
-        feature = "fpga_realtime",
-        feature = "fpga_subsystem"
-    )))
-    .unwrap();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
@@ -191,18 +179,18 @@ fn test_mbox_idle_during_warm_reset() {
 
     let binding = image.to_bytes().unwrap();
     let boot_params = BootParams {
-        fuses: Fuses {
-            vendor_pk_hash: vendor_pk_desc_hash,
-            owner_pk_hash,
-            fw_svn: [0b1111111, 0, 0, 0],
-            ..Default::default()
-        },
         fw_image: Some(&binding),
         ..Default::default()
     };
 
     let mut model = caliptra_hw_model::new(
         InitParams {
+            fuses: Fuses {
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0b1111111, 0, 0, 0],
+                ..Default::default()
+            },
             rom: &rom,
             security_state,
             ss_init_params: SubsystemInitParams {

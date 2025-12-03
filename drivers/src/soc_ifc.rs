@@ -37,10 +37,6 @@ pub fn report_boot_status(val: u32) {
     if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
-    // [TODO][CAP2]: remove this when debug unlock is fixed
-    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-        soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
-    }
 }
 
 pub fn reset_reason() -> ResetReason {
@@ -529,17 +525,20 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .ss_dbg_service_reg_rsp()
-            .write(|w| w.uds_program_in_progress(in_progress));
+            .modify(|w| w.uds_program_in_progress(in_progress));
     }
 
     pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
-        self.soc_ifc.regs_mut().ss_dbg_service_reg_rsp().write(|w| {
-            if flow_succeeded {
-                w.uds_program_success(true).uds_program_fail(false)
-            } else {
-                w.uds_program_success(false).uds_program_fail(true)
-            }
-        });
+        self.soc_ifc
+            .regs_mut()
+            .ss_dbg_service_reg_rsp()
+            .modify(|w| {
+                if flow_succeeded {
+                    w.uds_program_success(true).uds_program_fail(false)
+                } else {
+                    w.uds_program_success(false).uds_program_fail(true)
+                }
+            });
     }
 
     pub fn uds_seed_dest_base_addr_low(&self) -> u32 {
@@ -643,6 +642,14 @@ impl SocIfc {
                 .read()
                 .cptra_generation(),
         )
+    }
+
+    pub fn otp_dai_idle_bit_num(&self) -> u32 {
+        (self.soc_ifc.regs().ss_strap_generic().at(0).read() >> 16) & 0xFFFF
+    }
+
+    pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
+        self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
     }
 }
 

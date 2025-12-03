@@ -6,7 +6,7 @@ use crate::common::{
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
     RuntimeTestArgs, TEST_LABEL,
 };
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
@@ -568,19 +568,19 @@ fn cold_reset(
         // Re-creating the model does not seem to work for FPGA (and SW emulator cannot cold reset)
         hw.cold_reset();
     } else {
+        let fuses = Fuses {
+            fuse_pqc_key_type: pqc_key_type as u32,
+            ..Default::default()
+        };
         hw = caliptra_hw_model::new_unbooted(InitParams {
+            fuses,
             rom,
             ..Default::default()
         })
         .unwrap();
     }
-    let fuses = Fuses {
-        fuse_pqc_key_type: pqc_key_type as u32,
-        ..Default::default()
-    };
     hw.boot(BootParams {
         fw_image: Some(fw_image),
-        fuses,
         ..Default::default()
     })
     .unwrap();
@@ -603,12 +603,19 @@ pub fn test_all_measurement_apis() {
         // Shared inputs for all 3 methods
         let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
         let tci_type: [u8; 4] = [101, 102, 103, 104];
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-        let fw_image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap()
-                .to_bytes()
-                .unwrap();
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
 
         //
         // 1. ROM STASH MEASUREMENT
@@ -621,11 +628,11 @@ pub fn test_all_measurement_apis() {
         };
         let mut hw = caliptra_hw_model::new(
             InitParams {
+                fuses,
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )

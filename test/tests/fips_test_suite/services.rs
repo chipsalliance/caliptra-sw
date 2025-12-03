@@ -791,11 +791,11 @@ pub fn zeroize_halt_check_no_output() {
 
         let mut hw = fips_test_init_to_rt(
             Some(InitParams {
+                fuses,
                 ..Default::default()
             }),
             Some(BootParams {
                 fw_image: Some(&fw_image),
-                fuses,
                 initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
                     << HOOK_CODE_OFFSET,
                 ..Default::default()

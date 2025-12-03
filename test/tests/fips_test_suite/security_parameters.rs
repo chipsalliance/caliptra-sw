@@ -138,11 +138,11 @@ pub fn attempt_ssp_access_rom() {
 
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
+            fuses,
             security_state,
             ..Default::default()
         }),
         Some(BootParams {
-            fuses,
             ..Default::default()
         }),
     );
@@ -174,12 +174,12 @@ pub fn attempt_ssp_access_fw_load() {
 
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
+            fuses,
             rom: &rom,
             security_state,
             ..Default::default()
         }),
         Some(BootParams {
-            fuses,
             initial_dbg_manuf_service_reg: (FipsTestHook::HALT_FW_LOAD as u32) << HOOK_CODE_OFFSET,
             ..Default::default()
         }),
@@ -225,12 +225,12 @@ pub fn attempt_ssp_access_rt() {
 
     let mut hw = fips_test_init_to_rt(
         Some(InitParams {
+            fuses,
             security_state,
             ..Default::default()
         }),
         Some(BootParams {
             fw_image: Some(&fw_image),
-            fuses,
             ..Default::default()
         }),
     );

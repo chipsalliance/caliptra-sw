@@ -1,11 +1,11 @@
-use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use caliptra_common::{
     checksum::verify_checksum,
     mailbox_api::{
         CommandId, EcdsaVerifyReq, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_lms_types::{LmsPublicKey, LmsSignature};
 
 use openssl::sha::sha384;
@@ -83,18 +83,8 @@ fn send_ecdsa_verify_and_get_hdr(model: &mut DefaultHwModel, req_bytes: &[u8]) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_ecdsa384_signature_verify_after_warm_reset() {
-    // Spin up runtime on the model/FPGA wrapper
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Build request once; reuse same bytes after warm reset.
     let req_bytes = build_ecdsa_verify_payload_bytes();
@@ -102,9 +92,8 @@ fn test_ecdsa384_signature_verify_after_warm_reset() {
     // --- Before warm reset ---
     send_ecdsa_verify_and_get_hdr(&mut model, &req_bytes);
 
-    // Warm reset + wait for runtime ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    // Warm reset
+    model.warm_reset_flow().unwrap();
 
     // --- After warm reset (same exact request bytes) ---
     send_ecdsa_verify_and_get_hdr(&mut model, &req_bytes);
@@ -319,26 +308,17 @@ fn send_lms_verify_and_check<T: HwModel>(hw: &mut T, req_bytes: &[u8]) {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_lms_verify_after_warm_reset() {
     // Boot time
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     let req_bytes = make_lms_req_bytes();
 
     // before warm reset
     send_lms_verify_and_check(&mut model, &req_bytes);
 
-    // warm reset and wait
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    // Warm reset
+    model.warm_reset_flow().unwrap();
 
     // after warm reset
     send_lms_verify_and_check(&mut model, &req_bytes);

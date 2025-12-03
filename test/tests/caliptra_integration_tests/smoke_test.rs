@@ -5,8 +5,9 @@ use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
-    GetFmcAliasEcc384CertReq, GetFmcAliasMlDsa87CertReq, GetLdevEcc384CertReq,
-    GetLdevMldsa87CertReq, GetRtAliasEcc384CertReq, GetRtAliasMlDsa87CertReq,
+    GetFmcAliasEcc384CertReq, GetFmcAliasEccCsrReq, GetFmcAliasMlDsa87CertReq,
+    GetFmcAliasMldsaCsrReq, GetLdevEcc384CertReq, GetLdevMldsa87CertReq, GetRtAliasEcc384CertReq,
+    GetRtAliasMlDsa87CertReq,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
@@ -20,7 +21,7 @@ use caliptra_test::{
     swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
+use caliptra_test::{derive, redact_cert, redact_csr, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
@@ -261,12 +262,12 @@ fn smoke_test() {
             };
             let mut hw = caliptra_hw_model::new(
                 InitParams {
+                    fuses: fuses.clone(),
                     rom: &rom,
                     security_state,
                     ..Default::default()
                 },
                 BootParams {
-                    fuses: fuses.clone(),
                     fw_image: Some(&image.to_bytes().unwrap()),
                     ..Default::default()
                 },
@@ -432,43 +433,42 @@ fn smoke_test() {
             hasher.update(&owner_pk_hash);
             let device_info_hash = hasher.finish();
 
-            let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
-            assert_eq!(
-                dice_tcb_info,
-                [
-                    DiceTcbInfo {
-                        vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-                        model: get_rom_test_params()
-                            .tcb_device_info_model
-                            .map(String::from),
-                        // This is from the SVN in the fuses (7 bits set)
-                        svn: Some(0x107),
-                        fwids: vec![DiceFwid {
-                            hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                            digest: device_info_hash.to_vec(),
-                        },],
+            let fmc_expected_tcb_info = [
+                DiceTcbInfo {
+                    vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                    model: get_rom_test_params()
+                        .tcb_device_info_model
+                        .map(String::from),
+                    // This is from the SVN in the fuses (7 bits set)
+                    svn: Some(0x107),
+                    fwids: vec![DiceFwid {
+                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: device_info_hash.to_vec(),
+                    }],
 
-                        flags: get_rom_test_params().tcb_info_flags,
-                        ty: Some(b"DEVICE_INFO".to_vec()),
-                        ..Default::default()
-                    },
-                    DiceTcbInfo {
-                        vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
-                        model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
-                        // This is from the SVN in the image (9)
-                        svn: Some(0x109),
-                        fwids: vec![DiceFwid {
-                            // FMC
-                            hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                            digest: swap_word_bytes(&image.manifest.fmc.digest)
-                                .as_bytes()
-                                .to_vec(),
-                        },],
-                        ty: Some(b"FMC_INFO".to_vec()),
-                        ..Default::default()
-                    },
-                ]
-            );
+                    flags: get_rom_test_params().tcb_info_flags,
+                    ty: Some(b"DEVICE_INFO".to_vec()),
+                    ..Default::default()
+                },
+                DiceTcbInfo {
+                    vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                    model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
+                    // This is from the SVN in the image (9)
+                    svn: Some(0x109),
+                    fwids: vec![DiceFwid {
+                        // FMC
+                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: swap_word_bytes(&image.manifest.fmc.digest)
+                            .as_bytes()
+                            .to_vec(),
+                    }],
+                    ty: Some(b"FMC_INFO".to_vec()),
+                    ..Default::default()
+                },
+            ];
+
+            let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
+            assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
 
             let expected_fmc_alias_key = FmcAliasKey::derive(
                 &Pcr0::derive(&Pcr0Input {
@@ -622,6 +622,108 @@ fn smoke_test() {
                 );
             }
 
+            // Get FMC Alias CSR so we can verify it
+            let fmc_alias_csr_resp = match algorithm_type {
+                AlgorithmType::Ecc384 => hw
+                    .mailbox_execute_req(GetFmcAliasEccCsrReq::default())
+                    .unwrap(),
+                AlgorithmType::Mldsa87 => hw
+                    .mailbox_execute_req(GetFmcAliasMldsaCsrReq::default())
+                    .unwrap(),
+            };
+
+            // Extract the CSR from the response
+            let fmc_alias_csr_der = fmc_alias_csr_resp.data().unwrap();
+            let fmc_alias_csr = openssl::x509::X509Req::from_der(fmc_alias_csr_der).unwrap();
+
+            println!(
+                "fmc-alias csr: {}",
+                String::from_utf8_lossy(&fmc_alias_csr.to_text().unwrap())
+            );
+
+            // Validate TCB info
+            let dice_tcb_info = DiceTcbInfo::find_multiple_in_csr(fmc_alias_csr_der).unwrap();
+
+            // Use the same expected TCB info from FMC Alias cert
+            assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
+
+            // Use the same expected public key from FMC Alias cert
+            match algorithm_type {
+                AlgorithmType::Ecc384 => {
+                    assert!(expected_fmc_alias_key
+                        .derive_public_key()
+                        .public_eq(&fmc_alias_csr.public_key().unwrap()));
+                }
+                AlgorithmType::Mldsa87 => {
+                    assert!(expected_fmc_alias_key
+                        .derive_mldsa_public_key()
+                        .public_eq(&fmc_alias_csr.public_key().unwrap()));
+                }
+            }
+
+            assert!(
+                fmc_alias_csr.verify(&fmc_alias_pubkey).unwrap(),
+                "fmc_alias csr failed to validate with ldev pubkey"
+            );
+
+            // Validate the fmc-alias CSR fields that are redacted in the testdata because they can change:
+            match algorithm_type {
+                AlgorithmType::Ecc384 => {
+                    assert_eq!(
+                        &fmc_alias_csr
+                            .subject_name()
+                            .entries_by_nid(Nid::SERIALNUMBER)
+                            .unwrap_single()
+                            .data()
+                            .as_utf8()
+                            .unwrap()[..],
+                        derive::ecc_serial_number_str(&fmc_alias_pubkey)
+                    );
+                }
+                AlgorithmType::Mldsa87 => {
+                    assert_eq!(
+                        &fmc_alias_csr
+                            .subject_name()
+                            .entries_by_nid(Nid::SERIALNUMBER)
+                            .unwrap_single()
+                            .data()
+                            .as_utf8()
+                            .unwrap()[..],
+                        derive::mldsa_serial_number_str(&fmc_alias_pubkey)
+                    );
+                }
+            }
+            if *algorithm_type == AlgorithmType::Ecc384 {
+                // When comparing fmc-alias CSR golden-data, redact fields that will change
+                let fmc_alias_csr_redacted_der = redact_csr(fmc_alias_csr_der);
+                let fmc_alias_csr_redacted =
+                    openssl::x509::X509Req::from_der(&fmc_alias_csr_redacted_der).unwrap();
+                let fmc_alias_csr_redacted_txt =
+                    String::from_utf8(fmc_alias_csr_redacted.to_text().unwrap()).unwrap();
+
+                // To update the CSR testdata:
+                std::fs::write(
+                    "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.txt",
+                    &fmc_alias_csr_redacted_txt,
+                )
+                .unwrap();
+                std::fs::write(
+                    "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.der",
+                    &fmc_alias_csr_redacted_der,
+                )
+                .unwrap();
+
+                assert_eq!(
+                    fmc_alias_csr_redacted_txt.as_str(),
+                    include_str!("smoke_testdata/fmc_alias_csr_redacted.txt")
+                );
+                assert_eq!(
+                    fmc_alias_csr_redacted_der,
+                    include_bytes!("smoke_testdata/fmc_alias_csr_redacted.der")
+                );
+            }
+
+            // Get the RT Alias Cert so we can verify it
             let rt_alias_cert_resp = match algorithm_type {
                 AlgorithmType::Ecc384 => hw
                     .mailbox_execute_req(GetRtAliasEcc384CertReq::default())
@@ -1100,7 +1202,12 @@ fn test_fmc_wdt_timeout() {
 
         // Boot in debug mode to capture timestamps by boot status.
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let init_params = caliptra_hw_model::InitParams {
+            fuses: fuses.clone(),
             rom: &rom,
             security_state,
             itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1112,15 +1219,9 @@ fn test_fmc_wdt_timeout() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-
         let mut hw = caliptra_hw_model::new(
             init_params,
             BootParams {
-                fuses,
                 ..Default::default()
             },
         )
@@ -1140,6 +1241,7 @@ fn test_fmc_wdt_timeout() {
 
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
         let init_params = caliptra_hw_model::InitParams {
+            fuses,
             rom: &rom,
             security_state,
             itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),

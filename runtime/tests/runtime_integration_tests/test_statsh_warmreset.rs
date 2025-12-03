@@ -1,4 +1,4 @@
-use crate::common::{build_ready_runtime_model, wait_runtime_ready, BuildArgs};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 
 use caliptra_common::{
     checksum::verify_checksum,
@@ -7,7 +7,7 @@ use caliptra_common::{
         StashMeasurementResp,
     },
 };
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::HwModel;
 use zerocopy::{FromBytes, IntoBytes};
 
 fn make_stash_req_bytes() -> Vec<u8> {
@@ -58,27 +58,17 @@ fn send_stash_and_check<T: HwModel>(hw: &mut T, req: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_stash_measurement_after_warm_reset() {
     // Boot runtime
-    let args = BuildArgs {
-        security_state: *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Production),
-        fmc_version: 3,
-        app_version: 5,
-        fw_svn: 9,
-    };
-    let (mut model, _, _, _) = build_ready_runtime_model(args);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     let req_bytes = make_stash_req_bytes();
 
     // before warm reset
     let resp_before = send_stash_and_check(&mut model, &req_bytes);
 
-    // warm reset + wait ready again
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    // Warm reset  again
+    model.warm_reset_flow().unwrap();
 
     // after warm reset
     let resp_after = send_stash_and_check(&mut model, &req_bytes);

@@ -2,8 +2,8 @@
 
 [bitstream]
 name = "core-2.1"
-url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_727059a2.pdi"
-hash = "b6762c19b679b340522cbdd0a5511540659369148aa5ee8b759017f8073e24ea"
+url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_0e072048.pdi"
+hash = "27cde566975cefca325aaf2775d3f2d679e9d8ab197c090b529ccd3b866800a7"
 caliptra_variant = "core"
-caliptra_rtl_commit = "c506fd5a694b2efabd6113172f14b47cb14bd684"
+caliptra_rtl_commit = "0e072048a4e0ec78d880d3fc414b0924f00e73b2"
 
