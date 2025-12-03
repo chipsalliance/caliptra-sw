@@ -101,6 +101,39 @@ pub fn redact_cert(der: &[u8], opts: RedactOpts) -> Vec<u8> {
     result
 }
 
+/// Replace all the non-static fields with 0x44 bytes. This is useful for
+/// creating golden-data for fmc-alias CSR
+pub fn redact_csr(der: &[u8]) -> Vec<u8> {
+    let csr = openssl::x509::X509Req::from_der(der).unwrap();
+    let mut result = crate::x509::replace_sig(der, REDACTED_SIGNATURE).unwrap();
+
+    let pubkey_der = pubkey_ecdsa_der(&csr.public_key().unwrap());
+    replace(&mut result, &pubkey_der, REDACTED_PUBLIC_KEY);
+
+    redact(
+        &mut result,
+        csr.subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_slice(),
+    );
+
+    if let Some(tcb_info) =
+        crate::x509::get_csr_extension(der, &crate::x509::DICE_MULTI_TCB_INFO_OID).unwrap()
+    {
+        redact(&mut result, tcb_info);
+    }
+
+    if let Some(tcb_info) =
+        crate::x509::get_csr_extension(der, &crate::x509::DICE_TCB_INFO_OID).unwrap()
+    {
+        redact(&mut result, tcb_info);
+    }
+
+    result
+}
+
 #[test]
 fn test_redact() {
     let mut value = vec![1_u8, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7];

@@ -20,25 +20,25 @@ use crate::debug_unlock::ProductionDebugUnlock;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
-    MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD,
-    PL0_PAUSER_FLAG, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
+    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
+    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
-use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::cfi_check;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
-use caliptra_drivers::Dma;
 use caliptra_drivers::{
     cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
     Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
+use caliptra_drivers::{Dma, DmaMmio};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -60,15 +60,45 @@ use dpe::{
     dpe_instance::{DpeEnv, DpeInstance},
     DPE_PROFILE,
 };
+use ureg::MmioMut;
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::CryptoBuf;
 use zerocopy::IntoBytes;
 
-#[derive(PartialEq, Clone)]
+pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
+
+#[derive(PartialEq, Clone, Copy)]
 pub enum PauserPrivileges {
     PL0,
     PL1,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum McuResetReason {
+    Cold = 0,
+    FwHitlessUpd = 0b1 << 0,
+    FwBoot = 0b1 << 1,
+    Warm = 0b1 << 2,
+}
+
+impl From<McuResetReason> for u32 {
+    fn from(reason: McuResetReason) -> Self {
+        reason as u32
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum McuFwStatus {
+    NotLoaded,
+    Loaded,
+    HitlessUpdateStarted,
+}
+
+impl From<McuFwStatus> for u32 {
+    fn from(status: McuFwStatus) -> Self {
+        status as u32
+    }
 }
 
 pub struct Drivers {
@@ -121,7 +151,6 @@ pub struct Drivers {
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
-    pub exported_cdi_slots: ExportedCdiHandles,
     pub dma: Dma,
 
     pub cryptographic_mailbox: CmStorage,
@@ -170,7 +199,6 @@ impl Drivers {
             mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
-            exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
             dma: Dma::default(),
             cryptographic_mailbox: CmStorage::new(),
             debug_unlock: ProductionDebugUnlock::new(),
@@ -209,6 +237,9 @@ impl Drivers {
                 Self::validate_context_tags(self)?;
                 Self::check_dpe_rt_journey_unchanged(self)?;
                 Self::update_fw_version(self, true, true);
+                if self.soc_ifc.subsystem_mode() {
+                    Self::release_mcu_sram(self)?;
+                }
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -249,6 +280,18 @@ impl Drivers {
         Ok(root_idx)
     }
 
+    pub fn set_mcu_reset_reason(drivers: &mut Drivers, reason: McuResetReason) {
+        let dma = &drivers.dma;
+        let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();
+        let mmio = &DmaMmio::new(mci_base_addr, dma);
+        unsafe { mmio.write_volatile(MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32, reason.into()) };
+    }
+
+    pub fn request_mcu_reset(drivers: &mut Drivers, reason: McuResetReason) {
+        Self::set_mcu_reset_reason(drivers, reason);
+        drivers.soc_ifc.set_mcu_firmware_ready();
+    }
+
     /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
@@ -274,7 +317,8 @@ impl Drivers {
         } else {
             let _pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             // check that DPE used context limits are not exceeded
-            let dpe_context_threshold_exceeded = drivers.is_dpe_context_threshold_exceeded();
+            let dpe_context_threshold_exceeded =
+                drivers.is_dpe_context_threshold_exceeded(drivers.caller_privilege_level());
             cfi_check!(dpe_context_threshold_exceeded);
             if let Err(e) = dpe_context_threshold_exceeded {
                 let result = DisableAttestationCmd::execute(drivers);
@@ -318,6 +362,28 @@ impl Drivers {
                 .soc_ifc
                 .set_rt_fw_rev_id(drivers.persistent_data.get().manifest1.runtime.version);
         }
+    }
+
+    /// Release MCU SRAM if MCU FW was previously loaded correctly
+    fn release_mcu_sram(drivers: &mut Drivers) -> CaliptraResult<()> {
+        // Check if MCU previous Cold-Reset was successful.
+        let mcu_firmware_loaded = drivers.persistent_data.get().mcu_firmware_loaded;
+        if mcu_firmware_loaded == McuFwStatus::NotLoaded.into() {
+            cprintln!("[rt-warm-reset] Warning: Prev Cold Reset failed, not releasing MCU SRAM");
+        }
+
+        // Check if MCU previous Update-Reset, if any, was successful.
+        if mcu_firmware_loaded == McuFwStatus::HitlessUpdateStarted.into() {
+            cprintln!(
+                "[rt-warm-reset] Warning: Prev Hitless Update Reset failed, not releasing MCU SRAM"
+            );
+        }
+
+        cfi_assert_eq(mcu_firmware_loaded, McuFwStatus::Loaded.into());
+        cprintln!("[rt-warm-reset] MCU FW is loaded in SRAM");
+        Self::request_mcu_reset(drivers, McuResetReason::FwBoot);
+
+        Ok(())
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
@@ -387,10 +453,17 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
+
+        // Set context limits in persistent data as we init DPE
+        drivers.persistent_data.get_mut().dpe_pl0_context_limit =
+            PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
+        drivers.persistent_data.get_mut().dpe_pl1_context_limit =
+            PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
+        let pl0_context_limit = drivers.persistent_data.get().dpe_pl0_context_limit;
+        let pl1_context_limit = drivers.persistent_data.get().dpe_pl1_context_limit;
 
         // create a hash of all the mailbox valid pausers
         const PAUSER_COUNT: usize = 5;
@@ -417,14 +490,14 @@ impl Drivers {
             &mut pdata.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut drivers.exported_cdi_slots,
+            &mut pdata.exported_cdi_slots,
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
-                caliptra_locality,
+                CALIPTRA_LOCALITY,
                 &hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
                 &nb,
@@ -461,7 +534,7 @@ impl Drivers {
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
-        .execute(&mut dpe, &mut env, caliptra_locality);
+        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
         if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
@@ -480,8 +553,10 @@ impl Drivers {
             // Use the helper method here because the DPE instance holds a mutable reference to driver
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                privilege_level.clone(),
+                privilege_level,
                 &dpe,
+                pl0_context_limit as usize,
+                pl1_context_limit as usize,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
@@ -612,25 +687,22 @@ impl Drivers {
         Ok(())
     }
 
-    /// Counts the number of non-inactive DPE contexts and returns an error
-    /// if this number is greater than or equal to the active context threshold
-    /// corresponding to the privilege level of the caller.
-    pub fn is_dpe_context_threshold_exceeded(&self) -> CaliptraResult<()> {
-        Self::is_dpe_context_threshold_exceeded_helper(
+    /// Counts the number of non-inactive DPE contexts
+    pub fn dpe_get_used_context_counts(&self) -> CaliptraResult<(usize, usize)> {
+        Self::dpe_get_used_context_counts_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
-            self.caller_privilege_level(),
             &self.persistent_data.get().dpe,
         )
     }
 
-    fn is_dpe_context_threshold_exceeded_helper(
+    fn dpe_get_used_context_counts_helper(
         pl0_pauser: u32,
-        caller_privilege_level: PauserPrivileges,
         dpe: &DpeInstance,
-    ) -> CaliptraResult<()> {
+    ) -> CaliptraResult<(usize, usize)> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
-                c.state != ContextState::Inactive && c.locality == pl0_pauser
+                c.state != ContextState::Inactive
+                    && (c.locality == pl0_pauser || c.locality == CALIPTRA_LOCALITY)
             })
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
         // the number of used pl1 dpe contexts is the total number of used contexts
@@ -641,10 +713,39 @@ impl Drivers {
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             - used_pl0_dpe_context_count;
 
+        Ok((used_pl0_dpe_context_count, used_pl1_dpe_context_count))
+    }
+
+    /// Counts the number of non-inactive DPE contexts and returns an error
+    /// if this number is greater than or equal to the active context threshold
+    /// corresponding to the privilege level provided.
+    pub fn is_dpe_context_threshold_exceeded(
+        &self,
+        context_privilege_level: PauserPrivileges,
+    ) -> CaliptraResult<()> {
+        Self::is_dpe_context_threshold_exceeded_helper(
+            self.persistent_data.get().manifest1.header.pl0_pauser,
+            context_privilege_level,
+            &self.persistent_data.get().dpe,
+            self.persistent_data.get().dpe_pl0_context_limit as usize,
+            self.persistent_data.get().dpe_pl1_context_limit as usize,
+        )
+    }
+
+    fn is_dpe_context_threshold_exceeded_helper(
+        pl0_pauser: u32,
+        caller_privilege_level: PauserPrivileges,
+        dpe: &DpeInstance,
+        pl0_context_limit: usize,
+        pl1_context_limit: usize,
+    ) -> CaliptraResult<()> {
+        let (used_pl0_dpe_context_count, used_pl1_dpe_context_count) =
+            Self::dpe_get_used_context_counts_helper(pl0_pauser, dpe)?;
+
         match (
             caller_privilege_level,
-            used_pl1_dpe_context_count.cmp(&PL1_DPE_ACTIVE_CONTEXT_THRESHOLD),
-            used_pl0_dpe_context_count.cmp(&PL0_DPE_ACTIVE_CONTEXT_THRESHOLD),
+            used_pl1_dpe_context_count.cmp(&pl1_context_limit),
+            used_pl0_dpe_context_count.cmp(&pl0_context_limit),
         ) {
             (PauserPrivileges::PL1, Equal, _) => {
                 Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED)
@@ -664,10 +765,14 @@ impl Drivers {
 
     /// Retrieves the caller permission level
     pub fn caller_privilege_level(&self) -> PauserPrivileges {
-        let manifest_header = self.persistent_data.get().manifest1.header;
-        let pl0_pauser = manifest_header.pl0_pauser;
-        let flags = manifest_header.flags;
         let locality = self.mbox.id();
+        self.privilege_level_from_locality(locality)
+    }
+
+    pub fn privilege_level_from_locality(&self, locality: u32) -> PauserPrivileges {
+        let manifest_header = self.persistent_data.get().manifest1.header;
+        let flags = manifest_header.flags;
+        let pl0_pauser = manifest_header.pl0_pauser;
 
         // When the PL0_PAUSER_FLAG bit is not set there can be no PL0 PAUSER.
         if flags & PL0_PAUSER_FLAG == 0 {

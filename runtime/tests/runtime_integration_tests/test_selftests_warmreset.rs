@@ -1,4 +1,4 @@
-use crate::common::{build_model_ready, wait_runtime_ready};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
 use zerocopy::{FromBytes, IntoBytes};
@@ -113,15 +113,13 @@ fn assert_results_not_started<T: HwModel>(hw: &mut T) {
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn self_test_get_results_resets_after_warm_reset() {
     // Boot to ready runtime
-    let mut model = build_model_ready();
-    wait_runtime_ready(&mut model);
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
 
     // Start self-test and wait until it passes
     wait_for_self_test_pass(&mut model, 1_000, 10_000);
 
     // Warm reset & wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // Querying results without re-start should return NOT_STARTED
     assert_results_not_started(&mut model);

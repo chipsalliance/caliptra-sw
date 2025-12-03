@@ -167,7 +167,45 @@ impl TrngMode {
 
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
+pub struct SubsystemInitParams<'a> {
+    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
+    pub mcu_rom: Option<&'a [u8]>,
+
+    // Consume MCU UART log with Caliptra UART log
+    pub enable_mcu_uart_log: bool,
+
+    // Whether or not to set the RMA / scrap Physical Presence Detection signal.
+    pub rma_or_scrap_ppd: bool,
+
+    // Raw unlock token cSHAKE128 hash.
+    pub raw_unlock_token_hash: [u32; 4],
+
+    // Number of public key hashes for production debug unlock levels.
+    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
+    // OTP settings are used.
+    pub num_prod_dbg_unlock_pk_hashes: u32,
+
+    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
+    pub prod_dbg_unlock_pk_hashes_offset: u32,
+}
+
+impl Default for SubsystemInitParams<'_> {
+    fn default() -> Self {
+        Self {
+            mcu_rom: Default::default(),
+            enable_mcu_uart_log: Default::default(),
+            rma_or_scrap_ppd: Default::default(),
+            raw_unlock_token_hash: [0xf0930a4d, 0xde8a30e6, 0xd1c8cbba, 0x896e4a11],
+            num_prod_dbg_unlock_pk_hashes: Default::default(),
+            prod_dbg_unlock_pk_hashes_offset: Default::default(),
+        }
+    }
+}
+
 pub struct InitParams<'a> {
+    // Fuse settings
+    pub fuses: Fuses,
+
     // The contents of the boot ROM
     pub rom: &'a [u8],
 
@@ -188,6 +226,10 @@ pub struct InitParams<'a> {
     pub ocp_lock_en: bool,
 
     pub uds_granularity_64: bool,
+
+    pub otp_dai_idle_bit_offset: u32,
+
+    pub otp_direct_access_cmd_reg_offset: u32,
 
     // Keypairs for production debug unlock levels, from low to high
     // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
@@ -238,23 +280,6 @@ pub struct InitParams<'a> {
     pub ss_init_params: SubsystemInitParams<'a>,
 }
 
-#[derive(Default)]
-pub struct SubsystemInitParams<'a> {
-    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
-    pub mcu_rom: Option<&'a [u8]>,
-
-    // Consume MCU UART log with Caliptra UART log
-    pub enable_mcu_uart_log: bool,
-
-    // Number of public key hashes for production debug unlock levels.
-    // Note: does not have to match number of keypairs in prod_dbg_unlock_keypairs above if default
-    // OTP settings are used.
-    pub num_prod_dbg_unlock_pk_hashes: u32,
-
-    // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
-    pub prod_dbg_unlock_pk_hashes_offset: u32,
-}
-
 impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
@@ -272,6 +297,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
+            fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
@@ -280,8 +306,10 @@ impl Default for InitParams<'_> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
-            ocp_lock_en: false,
+            ocp_lock_en: cfg!(feature = "ocp-lock"),
             uds_granularity_64: true,
+            otp_dai_idle_bit_offset: 22,
+            otp_direct_access_cmd_reg_offset: 0x60,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             bootfsm_break: false,
@@ -344,7 +372,6 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 
 #[derive(Clone)]
 pub struct BootParams<'a> {
-    pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
@@ -360,7 +387,6 @@ pub struct BootParams<'a> {
 impl Default for BootParams<'_> {
     fn default() -> Self {
         Self {
-            fuses: Default::default(),
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
@@ -652,7 +678,7 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
-        HwModel::init_fuses(self, &boot_params.fuses);
+        HwModel::init_fuses(self);
 
         self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
@@ -846,9 +872,10 @@ pub trait HwModel: SocManager {
     ///
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
-    fn init_fuses(&mut self, fuses: &Fuses) {
+    fn init_fuses(&mut self) {
         println!("Initializing fuses");
-        if let Err(e) = caliptra_api::SocManager::init_fuses(self, fuses) {
+        let fuses = self.fuses().clone();
+        if let Err(e) = caliptra_api::SocManager::init_fuses(self, &fuses) {
             panic!(
                 "{}",
                 format!("Fuse initializaton error: {}", ModelError::from(e))
@@ -1250,6 +1277,11 @@ pub trait HwModel: SocManager {
 
         Ok(())
     }
+
+    /// Get the fuse settings
+    fn fuses(&self) -> &Fuses;
+    /// Set the fuse settings. A cold boot will need to be done to take affect.
+    fn set_fuses(&mut self, fuses: Fuses);
 }
 
 #[cfg(test)]
@@ -1990,14 +2022,24 @@ mod tests {
         feature = "fpga_subsystem"
     ))]
     pub fn test_cold_reset() {
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &gen_image_hi(),
-                ..Default::default()
-            },
-            BootParams::default(),
-        )
-        .unwrap();
+        let init_params = InitParams {
+            rom: &gen_image_hi(),
+            ..Default::default()
+        };
+        let init_params_summary = init_params.summary();
+        let mut model = DefaultHwModel::new_unbooted(init_params).unwrap();
+        let hw_rev_id = model.soc_ifc().cptra_hw_rev_id().read();
+        println!(
+            "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
+            model.type_name(), model.trng_mode(),  hw_rev_id.cptra_generation(), hw_rev_id.soc_stepping_id()
+        );
+        println!("{init_params_summary:#?}");
+
+        // While in boot(), sometimes the test Caliptra ROM has written to the output before we can set the search term in step_until_output().
+        // So set the search term manually before calling boot().
+        model.output().set_search_term("hii");
+        model.boot(BootParams::default()).unwrap();
+
         model.step_until_output("hii").unwrap();
 
         model.cold_reset();

@@ -1,73 +1,16 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_set_auth_manifest::{
-    create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
-};
+use crate::test_authorize_and_stash::set_auth_manifest;
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_api::mailbox::{GetImageInfoReq, GetImageInfoResp};
-use caliptra_api::SocManager;
-use caliptra_auth_man_types::{
-    Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
-};
-use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{
-    CommandId, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq,
-};
-use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::RtBootStatus;
-use zerocopy::{FromBytes, IntoBytes};
+use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, ImageMetadataFlags};
+use caliptra_common::mailbox_api::{CommandId, ImageHashSource, MailboxReq, MailboxReqHeader};
+use caliptra_hw_model::HwModel;
+use zerocopy::FromBytes;
 
 pub const FW_ID_1: u32 = 1;
 pub const FW_ID_2: u32 = 2;
 pub const FW_ID_BAD: u32 = 3;
-
-fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
-    let runtime_args = RuntimeTestArgs {
-        test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let mut model = run_rt_test(runtime_args);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let auth_manifest = if let Some(auth_manifest) = auth_manifest {
-        auth_manifest
-    } else {
-        create_auth_manifest(&AuthManifestBuilderCfg {
-            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        })
-    };
-
-    let buf = auth_manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
-
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
-
-    model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    model
-}
 
 #[test]
 fn test_get_image_info_success() {

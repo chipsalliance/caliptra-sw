@@ -4,6 +4,7 @@ use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
 use crate::EtrngResponse;
 use crate::{HwModel, SocManager, TrngMode};
+use caliptra_api_types::Fuses;
 use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusMmio;
 use caliptra_emu_bus::Event;
@@ -73,6 +74,7 @@ struct AbsoluteEtrngResponse {
 
 pub struct ModelVerilated {
     pub v: CaliptraVerilated,
+    fuses: Fuses,
 
     output: Output,
     trace_enabled: bool,
@@ -227,6 +229,7 @@ impl HwModel for ModelVerilated {
 
         let mut m = ModelVerilated {
             v,
+            fuses: params.fuses,
             output,
             trace_enabled: false,
             trace_path: trace_path_or_env(params.trace_path),
@@ -456,5 +459,13 @@ impl ModelVerilated {
 
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
         todo!()
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }

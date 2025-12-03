@@ -3,6 +3,7 @@ name: FPGA Build
 
 on:
   pull_request:
+  merge_group:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -271,6 +272,7 @@ jobs:
 
           echo VARS=${VARS}
 
+          # TODO remove version test filter once bitstream is up to date
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -305,7 +307,10 @@ jobs:
                        binary_id(caliptra-test::fips_test_suite) |
                        test(test_update_reset::test_update_reset_verify_image_failure) |
                        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))'
+                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
+                       test(test_version::test_version) |
+                       test(test_warm_reset::test_warm_reset_version) |
+                       test(test_fips::test_fips_version))'
           )
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
@@ -325,3 +330,24 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
+
+  print_test_results:
+    runs-on: ubuntu-22.04
+    needs: [test_artifacts]
+    if: always()
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: 'Download test results'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: /tmp/junit
+
+      - name: Print results
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY

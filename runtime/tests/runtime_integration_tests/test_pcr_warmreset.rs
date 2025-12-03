@@ -1,4 +1,4 @@
-use crate::common::{build_model_ready, wait_runtime_ready};
+use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 
 use caliptra_common::{
     checksum::verify_checksum,
@@ -231,7 +231,7 @@ fn sw_extend(current: &[u8; 48], data: &[u8; 48]) -> [u8; 48] {
 
 #[test]
 fn test_quote_pcrs_ecc384_after_warm_reset() {
-    let mut model = build_model_ready();
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     ensure_mailbox_idle(&mut model);
 
     // Before warm reset
@@ -240,8 +240,8 @@ fn test_quote_pcrs_ecc384_after_warm_reset() {
     assert_eq!(resp_before.digest, digest_before);
 
     // Warm reset
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
+
     ensure_mailbox_idle(&mut model);
 
     // After warm reset
@@ -264,7 +264,7 @@ fn test_quote_pcrs_ecc384_after_warm_reset() {
 fn test_quote_pcrs_mldsa87_after_warm_reset() {
     const NONCE: [u8; 32] = [0xF5; 32];
 
-    let mut model = build_model_ready();
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     ensure_mailbox_idle(&mut model);
 
     // Before warm reset
@@ -273,8 +273,8 @@ fn test_quote_pcrs_mldsa87_after_warm_reset() {
     assert_eq!(resp_before.digest, digest_before);
 
     // Warm reset
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
+
     ensure_mailbox_idle(&mut model);
 
     // After warm reset
@@ -298,7 +298,7 @@ fn test_pcr_reset_counter_persists_after_warm_reset_ecc() {
     const RESET_PCR: u32 = 7;
     const NONCE: [u8; 32] = [0xF5; 32];
 
-    let mut model = build_model_ready();
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     ensure_mailbox_idle(&mut model);
 
     let base = quote_ecc_get_reset_ctr(&mut model, RESET_PCR, NONCE);
@@ -311,8 +311,8 @@ fn test_pcr_reset_counter_persists_after_warm_reset_ecc() {
         "counter should be base+1 before warm reset"
     );
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
+
     ensure_mailbox_idle(&mut model);
 
     inc_pcr_reset_counter(&mut model, RESET_PCR);
@@ -329,7 +329,7 @@ fn test_pcr_reset_counter_persists_after_warm_reset_mldsa() {
     const RESET_PCR: u32 = 7;
     const NONCE: [u8; 32] = [0xF5; 32];
 
-    let mut model = build_model_ready();
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     ensure_mailbox_idle(&mut model);
 
     let base = quote_mldsa_get_reset_ctr(&mut model, RESET_PCR, NONCE);
@@ -342,8 +342,8 @@ fn test_pcr_reset_counter_persists_after_warm_reset_mldsa() {
         "counter should be base+1 before warm reset"
     );
 
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
+
     ensure_mailbox_idle(&mut model);
 
     inc_pcr_reset_counter(&mut model, RESET_PCR);
@@ -361,7 +361,7 @@ fn test_extend_pcr_after_warm_reset() {
     let extension_data: [u8; 48] = [0u8; 48];
 
     // Boot and idle
-    let mut model = build_model_ready();
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::test_productions_args(), Default::default());
     ensure_mailbox_idle(&mut model);
 
     // Baseline PCRs (expect zero for a fresh PCR[4])
@@ -383,8 +383,8 @@ fn test_extend_pcr_after_warm_reset() {
     );
 
     // Warm reset + wait ready
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
+
     ensure_mailbox_idle(&mut model);
 
     // Re-read after warm reset: should be identical

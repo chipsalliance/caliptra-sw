@@ -24,8 +24,7 @@ pub struct FmcAliasCertTbsEcc384Params<'a> {
     pub tcb_info_fw_svn: &'a [u8; 1usize],
     pub tcb_info_fw_svn_fuses: &'a [u8; 1usize],
 }
-#[allow(clippy::needless_lifetimes)]
-impl<'a> FmcAliasCertTbsEcc384Params<'a> {
+impl FmcAliasCertTbsEcc384Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

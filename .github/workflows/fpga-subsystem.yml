@@ -3,6 +3,7 @@ name: Subsystem FPGA Build
 
 on:
   pull_request:
+  merge_group:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -15,6 +16,9 @@ on:
         default: true
         type: boolean
       fpga-itrng:
+        default: true
+        type: boolean
+      ocp-lock:
         default: true
         type: boolean
       hw-version:
@@ -75,7 +79,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: f1ad397549adde53701fb549ffed7c056074979b
+      CALIPTRA_MCU_COMMIT: fd4fc951af84dceff9c41716cd8e57946c5957a2
 
     steps:
       - name: Checkout repo
@@ -177,8 +181,11 @@ jobs:
 
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_subsystem,${{ inputs.extra-features }}
+            if [ "${{ inputs.ocp-lock }}" == "true" ]; then
+              FEATURES="${FEATURES},ocp-lock"
+            fi
           else
-            FEATURES=fpga_subsystem,itrng
+            FEATURES=fpga_subsystem,itrng,ocp-lock
           fi
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
@@ -192,6 +199,18 @@ jobs:
           mkdir /tmp/caliptra-test-binaries/
           tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
+
+      - name: Download bitstream
+        run: |
+          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/subsystem.toml
+          mv subsystem.pdi /tmp/caliptra-bitstream.pdi
+
+      - name: 'Upload bitstream'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream.pdi
+          retention-days: 1
 
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
@@ -219,10 +238,10 @@ jobs:
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
-  test_artifacts:
-    runs-on: vck190-subsystem-2.1
+  test_artifacts_subsystem:
+    runs-on: vck190-subsystem
     needs: [check_cache, build_test_binaries]
-    timeout-minutes: 120
+    timeout-minutes: 180
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
@@ -248,6 +267,12 @@ jobs:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
+      - name: 'Download Bitstream'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-bitstream
+
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -262,6 +287,13 @@ jobs:
         run: |
           sudo lsmod
           ls /sys/class/uio
+
+      - name: Load bitstream
+        run: |
+          sudo mkdir -p /lib/firmware
+          ls /tmp/caliptra-bitstream
+          sudo cp /tmp/caliptra-bitstream/caliptra-bitstream.pdi /lib/firmware
+          sudo bash -c 'echo "caliptra-bitstream.pdi" > /sys/class/fpga_manager/fpga0/firmware'
 
       - name: Execute tests
         run: |
@@ -286,6 +318,10 @@ jobs:
           echo VARS=${VARS}
 
           # TODO add the remaining caliptra core integration tests
+          # temporarily disabled
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
+          # -E 'package(caliptra-drivers) and test(test_ocp_lock)'
+          # test(test_version::test_version), test(test_warm_reset::test_warm_reset_version), test(test_fips::test_fips_version) needs bitstream update
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -293,15 +329,9 @@ jobs:
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock)'
-              -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
-              -E 'package(caliptra-rom) and test(test_capabilities::test_capabilities)'
-              -E 'package(caliptra-rom) and test(test_ocp_lock::test_hek_seed_states)'
-              -E 'package(caliptra-rom) and test(test_ocp_lock::test_invalid_hek_seed_state)'
+              -E 'package(caliptra-runtime) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd) - test(test_fe_programming::test_fe_programming_invalid_partition) - test(test_pauser_privilege_levels::test_pl0_unset_in_header) - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds) - test(test_pauser_privilege_levels::test_user_not_pl0) - test(test_get_idev_csr::test_get_ecc_csr) - test(test_get_idev_csr::test_get_mldsa_csr) - test(test_mailbox::test_reserved_pauser) - test(test_pauser_privilege_levels::test_change_locality) - test(test_certs::test_all_measurement_apis) - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom) - test(test_info::test_fw_info) - test(test_reallocate_dpe_context_limits) - test(test_invoke_dpe::test_export_cdi_destroyed_root_context) - test(test_fe_programming::test_fe_programming_cmd) - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external) - test(test_stash_measurement::test_pcr31_extended_upon_stash_measurement) - test(test_update_reset::test_context_has_tag_validation) - test(test_update_reset::test_context_tags_validation) - test(test_update_reset::test_dpe_validation_deformed_structure) - test(test_update_reset::test_dpe_validation_illegal_state) - test(test_update_reset::test_dpe_validation_used_context_threshold_exceeded) - test(test_update_reset::test_key_ladder_runtime_update) - test(test_update_reset::test_pcr_reset_counter_persistence) - test(test_update_reset::test_tags_persistence) - test(test_fips::test_fips_version)'
+              -E 'package(caliptra-rom) - test(test_debug_unlock::) - test(test_fmcalias_derivation::test_zero_firmware_size) - test(test_fake_rom::test_fake_rom_production_enabled) - test(test_fake_rom::test_image_verify) - test(test_uds_programming::) - test(test_wdt_activation_and_stoppage::) - test(test_warm_reset::test_warm_reset_during_update_reset) - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation) - test(test_image_validation::cert_test_with_ueid) - test(test_version::test_version) - test(test_warm_reset::test_warm_reset_version)'
           )
-
-          # Disabled due to runtime flakiness
-          # -E 'package(caliptra-runtime) & (test(test_activate_firmware::test_activate_fw_id_not_in_manifest) | test(test_activate_firmware::test_activate_invalid_fw_id) | test(test_activate_firmware::test_activate_mcu_fw_success) | test(test_activate_firmware::test_activate_mcu_soc_fw_success) | test(test_activate_firmware::test_activate_soc_fw_success) | test(test_activate_firmware::test_invalid_exec_bit_in_manifest) | test(test_authorize_and_stash::test_authorize_from_load_address) | test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) | test(test_authorize_and_stash::test_authorize_from_staging_address) | test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest))'
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
@@ -321,3 +351,24 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
+
+  print_test_results:
+    runs-on: ubuntu-22.04
+    needs: [test_artifacts_subsystem]
+    if: always()
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: 'Download test results'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: /tmp/junit
+
+      - name: Print results
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY
