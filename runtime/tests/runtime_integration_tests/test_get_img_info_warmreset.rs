@@ -1,4 +1,4 @@
-use crate::common::{run_rt_test, wait_runtime_ready, RuntimeTestArgs};
+use crate::common::{run_rt_test, RuntimeTestArgs};
 
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
@@ -55,7 +55,6 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     };
 
     let mut model = run_rt_test(runtime_args);
-    wait_runtime_ready(&mut model);
 
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
@@ -135,8 +134,7 @@ fn test_get_image_info_persists_after_warm_reset() {
     assert_eq!(resp_before.image_load_address_low, 0u32);
 
     // --- Warm reset ---
-    model.warm_reset();
-    wait_runtime_ready(&mut model);
+    model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
     let resp_after = get_image_info(&mut model, FW_ID_1);
