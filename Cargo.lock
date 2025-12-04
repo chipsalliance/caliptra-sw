@@ -263,6 +263,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.9.1",
  "caliptra-auth-man-types",
+ "caliptra-image-fake-keys",
  "caliptra-image-gen",
  "caliptra-image-types",
  "caliptra-lms-types",
