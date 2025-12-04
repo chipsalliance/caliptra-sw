@@ -2,7 +2,8 @@ use caliptra_api::mailbox::AlgorithmType;
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
     GetFmcAliasEcc384CertReq, GetFmcAliasEccCsrReq, GetFmcAliasMlDsa87CertReq,
@@ -13,6 +14,7 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{
@@ -29,6 +31,30 @@ use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
 use zerocopy::{IntoBytes, TryFromBytes};
+
+fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
+    manifest.as_bytes().to_vec()
+}
+
+// Helper function to upload firmware, handling both regular and subsystem modes
+fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(&DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(fw_image).unwrap();
+    }
+}
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -85,7 +111,8 @@ fn assert_output_contains_regex(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -252,12 +279,20 @@ fn smoke_test() {
                 AlgorithmType::Mldsa87 => get_idevid_pubkey_mldsa(),
             };
 
-            let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(
+                feature = "fpga_subsystem"
+            ))
+            .unwrap();
+            let fw_svn = 9;
             let image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
-                &firmware::APP_WITH_UART,
+                &if cfg!(feature = "fpga_subsystem") {
+                    firmware::APP_WITH_UART_FPGA
+                } else {
+                    firmware::APP_WITH_UART
+                },
                 ImageOptions {
-                    fw_svn: 9,
+                    fw_svn,
                     pqc_key_type: *pqc_key_type,
                     ..Default::default()
                 },
@@ -285,6 +320,8 @@ fn smoke_test() {
                 },
                 BootParams {
                     fw_image: Some(&image.to_bytes().unwrap()),
+                    soc_manifest: Some(&default_soc_manifest_bytes(*pqc_key_type, fw_svn)),
+                    mcu_fw_image: Some(&DEFAULT_MCU_FW),
                     ..Default::default()
                 },
             )
@@ -962,7 +999,8 @@ fn smoke_test() {
             .unwrap();
 
             // Hitlessly update to the no-uart application firmware
-            hw.upload_firmware(&image2.to_bytes().unwrap()).unwrap();
+            hw.upload_firmware_to_mbox(&image2.to_bytes().unwrap())
+                .unwrap();
 
             // Make sure the ldevid cert hasn't changed
             let ldev_cert_resp2 = match algorithm_type {
@@ -1154,11 +1192,17 @@ fn test_rt_wdt_timeout() {
 
     const RUNTIME_BOOT_STATUS_READY: u32 = 0x600;
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let init_params = caliptra_hw_model::InitParams {
+        fuses: Fuses {
+            fuse_pqc_key_type: pqc_key_type as u32,
+            ..Default::default()
+        },
         rom: &rom,
         security_state,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1168,18 +1212,27 @@ fn test_rt_wdt_timeout() {
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
+        ImageOptions {
+            pqc_key_type,
+            ..Default::default()
+        },
     )
     .unwrap();
 
     let mut hw = caliptra_hw_model::new(init_params, BootParams::default()).unwrap();
 
     // WDT started shortly before KATs are started.
-    hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+    if !cfg!(feature = "fpga_subsystem") {
+        hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+    }
     let wdt_start = hw.output().sink().now();
 
-    hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+    test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), pqc_key_type);
 
     hw.step_until_boot_status(RUNTIME_BOOT_STATUS_READY, true);
     let fmc_target = hw.output().sink().now();
@@ -1189,6 +1242,10 @@ fn test_rt_wdt_timeout() {
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
     let init_params = caliptra_hw_model::InitParams {
+        fuses: Fuses {
+            fuse_pqc_key_type: pqc_key_type as u32,
+            ..Default::default()
+        },
         rom: &rom,
         security_state,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1236,7 +1293,9 @@ fn test_fmc_wdt_timeout() {
         };
         const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
 
         // Boot in debug mode to capture timestamps by boot status.
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
@@ -1253,9 +1312,16 @@ fn test_fmc_wdt_timeout() {
             ..Default::default()
         };
 
-        let image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
+            image_options,
+        )
+        .unwrap();
 
         let mut hw = caliptra_hw_model::new(
             init_params,
@@ -1269,7 +1335,7 @@ fn test_fmc_wdt_timeout() {
         hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
         let wdt_start = hw.output().sink().now();
 
-        hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+        test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), *pqc_key_type);
 
         hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
         let fmc_target = hw.output().sink().now();

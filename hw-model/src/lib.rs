@@ -1190,6 +1190,10 @@ pub trait HwModel: SocManager {
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        self.upload_firmware_to_mbox(firmware)
+    }
+
+    fn upload_firmware_to_mbox(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
