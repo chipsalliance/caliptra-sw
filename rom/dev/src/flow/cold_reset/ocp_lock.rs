@@ -72,7 +72,7 @@ fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
         None,
         KEY_ID_MDK,
         HmacMode::Hmac512,
-        KeyUsage::default().set_hmac_key_en(),
+        KeyUsage::default().set_aes_key_en(),
     )?;
     Ok(())
 }
