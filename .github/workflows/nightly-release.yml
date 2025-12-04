@@ -108,6 +108,7 @@ jobs:
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
       rom-version: ${{ matrix.config.rom }}
+      branch: "caliptra-1.x"
 
   create-release:
     name: Create New Release
