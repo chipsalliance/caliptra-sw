@@ -13,9 +13,11 @@
 __attribute__((section("VPK_HASH"))) uint8_t vpk_hash[48];
 __attribute__((section("OPK_HASH"))) uint8_t opk_hash[48];
 
+// DEFAULT_UDS_SEED from api/types/src/lib.rs
 static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f,
                                              0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f,
-                                             0x20212223, 0x24252627, 0x28292a2b, 0x2c2d2e2f };
+                                             0x20212223, 0x24252627, 0x28292a2b, 0x2c2d2e2f,
+                                             0x30313233, 0x34353637, 0x38393a3b, 0x3c3d3e3f };
 
 static const uint32_t default_field_entropy[] = { 0x80818283, 0x84858687, 0x88898a8b, 0x8c8d8e8f,
                                                   0x90919293, 0x94959697, 0x98999a9b, 0x9c9d9e9f };
@@ -25,6 +27,7 @@ static void set_fuses(test_info* info)
     struct caliptra_fuses* fuses = &info->fuses;
     *fuses = (struct caliptra_fuses){0};
 
+    // Set defaults matching Fuses::default() from retrieve_csr_test
     memcpy(&fuses->uds_seed, default_uds_seed, sizeof(fuses->uds_seed));
     memcpy(&fuses->field_entropy, default_field_entropy, sizeof(fuses->field_entropy));
 
