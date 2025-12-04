@@ -127,9 +127,9 @@ impl SdMux for UsbsdMux {
             .to_string_lossy()
             .to_string();
 
-        return Ok(Self {
+        Ok(Self {
             scsi_generic_name: had_dev.strip_prefix("../").unwrap().to_string(),
-        });
+        })
     }
 
     // For now we use the python cli tool implementation provided by the vendor.
