@@ -74,7 +74,7 @@ use get_idev_csr::{GetIdevEcc384CsrCmd, GetIdevMldsa87CsrCmd};
 use get_ldev_cert::GetLdevCertCmd;
 use install_owner_pk_hash::InstallOwnerPkHashCmd;
 use mldsa_verify::MldsaVerifyCmd;
-use report_hek_metadata::ReportHekMetadataCmd;
+use report_hek_metadata::OcpLockReportHekMetadataCmd;
 use ri_download_firmware::RiDownloadFirmwareCmd;
 use self_test::{SelfTestGetResultsCmd, SelfTestStartCmd};
 use shutdown::ShutdownCmd;
@@ -420,8 +420,13 @@ impl FirmwareProcessor {
                         persistent_data,
                         resp,
                     )?,
-                    CommandId::REPORT_HEK_METADATA => {
-                        ReportHekMetadataCmd::execute(cmd_bytes, soc_ifc, persistent_data, resp)?
+                    CommandId::OCP_LOCK_REPORT_HEK_METADATA => {
+                        OcpLockReportHekMetadataCmd::execute(
+                            cmd_bytes,
+                            soc_ifc,
+                            persistent_data,
+                            resp,
+                        )?
                     }
                     CommandId::INSTALL_OWNER_PK_HASH => {
                         InstallOwnerPkHashCmd::execute(cmd_bytes, persistent_data, resp)?

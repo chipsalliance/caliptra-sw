@@ -1,7 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    MailboxReq, ReportHekMetadataReq, ReportHekMetadataResp, ReportHekMetadataRespFlags,
+    MailboxReq, OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
+    OcpLockReportHekMetadataRespFlags,
 };
 use caliptra_builder::firmware::ROM_FPGA_WITH_UART;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
@@ -70,14 +71,14 @@ fn test_invalid_hek_seed_state() {
     let first_invalid_hek_seed_state: u16 = u16::from(HekSeedState::Unerasable) + 1;
     // Check that an unknown HEK Seed state returns an error
     for seed_state in first_invalid_hek_seed_state..first_invalid_hek_seed_state + 3 {
-        let mut cmd = MailboxReq::ReportHekMetadata(ReportHekMetadataReq {
+        let mut cmd = MailboxReq::OcpLockReportHekMetadata(OcpLockReportHekMetadataReq {
             hdr: MailboxReqHeader { chksum: 0 },
             seed_state,
             ..Default::default()
         });
         cmd.populate_chksum().unwrap();
         let response = hw.mailbox_execute(
-            CommandId::REPORT_HEK_METADATA.into(),
+            CommandId::OCP_LOCK_REPORT_HEK_METADATA.into(),
             cmd.as_bytes().unwrap(),
         );
         assert_eq!(
@@ -109,7 +110,7 @@ fn hek_seed_state_helper(
         return;
     }
     for seed_state in seed_states {
-        let mut cmd = MailboxReq::ReportHekMetadata(ReportHekMetadataReq {
+        let mut cmd = MailboxReq::OcpLockReportHekMetadata(OcpLockReportHekMetadataReq {
             hdr: MailboxReqHeader { chksum: 0 },
             seed_state: seed_state.into(),
             ..Default::default()
@@ -117,16 +118,16 @@ fn hek_seed_state_helper(
         cmd.populate_chksum().unwrap();
         let response = hw
             .mailbox_execute(
-                CommandId::REPORT_HEK_METADATA.into(),
+                CommandId::OCP_LOCK_REPORT_HEK_METADATA.into(),
                 cmd.as_bytes().unwrap(),
             )
             .unwrap()
             .unwrap();
-        let response = ReportHekMetadataResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let response = OcpLockReportHekMetadataResp::ref_from_bytes(response.as_bytes()).unwrap();
         assert_eq!(
             response
                 .flags
-                .contains(ReportHekMetadataRespFlags::HEK_AVAILABLE),
+                .contains(OcpLockReportHekMetadataRespFlags::HEK_AVAILABLE),
             expects_hek_available
         );
     }

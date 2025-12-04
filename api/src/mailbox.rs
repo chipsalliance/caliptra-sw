@@ -186,7 +186,9 @@ impl CommandId {
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
 
     // OCP LOCK Commands
-    pub const REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
+    pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
+    pub const OCP_LOCK_GET_ALGORITHMS: Self = Self(0x4741_4C47); // "GALG"
+
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
 
@@ -494,7 +496,7 @@ pub enum RomMailboxResp {
     CmDeriveStableKey(CmDeriveStableKeyResp),
     CmRandomGenerate(CmRandomGenerateResp),
     CmHmac(CmHmacResp),
-    ReportHekMetaData(ReportHekMetadataReq),
+    ReportHekMetaData(OcpLockReportHekMetadataReq),
     InstallOwnerPkHash(InstallOwnerPkHashResp),
     GetLdevCert(GetLdevCertResp),
     ZeroizeUdsFe(ZeroizeUdsFeResp),
@@ -570,7 +572,8 @@ pub enum MailboxReq {
     CmEcdsaSign(CmEcdsaSignReq),
     CmEcdsaVerify(CmEcdsaVerifyReq),
     CmDeriveStableKey(CmDeriveStableKeyReq),
-    ReportHekMetadata(ReportHekMetadataReq),
+    OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
+    OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -649,7 +652,8 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
-            MailboxReq::ReportHekMetadata(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -726,7 +730,8 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
-            MailboxReq::ReportHekMetadata(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -811,9 +816,10 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
-            MailboxReq::ReportHekMetadata(_) => CommandId::REPORT_HEK_METADATA,
             MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
+            MailboxReq::OcpLockReportHekMetadata(_) => CommandId::OCP_LOCK_REPORT_HEK_METADATA,
+            MailboxReq::OcpLockGetAlgorithms(_) => CommandId::OCP_LOCK_GET_ALGORITHMS,
         }
     }
 
@@ -4147,10 +4153,10 @@ pub struct CmDeriveStableKeyResp {
 }
 impl Response for CmDeriveStableKeyResp {}
 
-// REPORT_HEK_METADATA
+// OCP_LOCK_REPORT_HEK_METADATA
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct ReportHekMetadataReq {
+pub struct OcpLockReportHekMetadataReq {
     pub hdr: MailboxReqHeader,
     pub reserved0: u32,
     pub total_slots: u16,
@@ -4158,29 +4164,84 @@ pub struct ReportHekMetadataReq {
     pub seed_state: u16,
     pub padding0: u16,
 }
-impl Request for ReportHekMetadataReq {
-    const ID: CommandId = CommandId::REPORT_HEK_METADATA;
-    type Resp = ReportHekMetadataResp;
+impl Request for OcpLockReportHekMetadataReq {
+    const ID: CommandId = CommandId::OCP_LOCK_REPORT_HEK_METADATA;
+    type Resp = OcpLockReportHekMetadataResp;
 }
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct ReportHekMetadataRespFlags(u32);
+pub struct OcpLockReportHekMetadataRespFlags(u32);
 
 bitflags! {
-    impl ReportHekMetadataRespFlags: u32 {
+    impl OcpLockReportHekMetadataRespFlags: u32 {
         const HEK_AVAILABLE = 1u32 << 31;
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct ReportHekMetadataResp {
+pub struct OcpLockReportHekMetadataResp {
     pub hdr: MailboxRespHeader,
-    pub flags: ReportHekMetadataRespFlags,
+    pub flags: OcpLockReportHekMetadataRespFlags,
     pub reserved: [u32; 3],
 }
-impl Response for ReportHekMetadataResp {}
+impl Response for OcpLockReportHekMetadataResp {}
+
+// OCP_LOCK_GET_ALGORITHMS
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockGetAlgorithmsReq {
+    pub hdr: MailboxReqHeader,
+}
+impl Request for OcpLockGetAlgorithmsReq {
+    const ID: CommandId = CommandId::OCP_LOCK_GET_ALGORITHMS;
+    type Resp = OcpLockGetAlgorithmsResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct EndorsementAlgorithms(u32);
+
+bitflags! {
+    impl EndorsementAlgorithms: u32 {
+        const ECDSA_P384_SHA384 = 1 << 0;
+        const ML_DSA_87 = 1 << 1;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct HpkeAlgorithms(u32);
+
+bitflags! {
+    impl HpkeAlgorithms: u32 {
+        const ECDH_P384_HKDF_SHA384_AES_256_GCM = 1 << 0;
+        const ML_KEM_1024_HKDF_SHA384_AES_256_GCM = 1 << 1;
+        const ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM = 1 << 2;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct AccessKeySizes(u32);
+
+bitflags! {
+    impl AccessKeySizes: u32 {
+        const LEN_256 = 1 << 0;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockGetAlgorithmsResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: [u32; 4],
+    pub endorsement_algorithms: EndorsementAlgorithms,
+    pub hpke_algorithms: HpkeAlgorithms,
+    pub access_key_sizes: AccessKeySizes,
+}
+impl Response for OcpLockGetAlgorithmsResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

@@ -2,6 +2,9 @@
 
 use caliptra_drivers::SocIfc;
 
+mod get_algorithms;
+pub use get_algorithms::GetAlgorithmsCmd;
+
 /// Provides OCP LOCK functionalities.
 pub struct OcpLockContext {
     available: bool,
