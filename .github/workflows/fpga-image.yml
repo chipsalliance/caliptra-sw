@@ -16,6 +16,10 @@ on:
     - cron: '13 13 * * 2,4'
 
   workflow_call:
+    inputs:
+      branch:
+        default: ${{ github.sha }}
+        type: string
   workflow_dispatch:
 
 jobs:

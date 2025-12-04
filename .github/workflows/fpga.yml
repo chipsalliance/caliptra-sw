@@ -32,6 +32,9 @@ on:
       fpga-runs-on:
         default: '["caliptra-fpga"]'
         type: string
+      branch: 
+        default: ${{ github.sha }}
+        type: string
 
   workflow_dispatch:
     inputs:
