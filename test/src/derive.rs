@@ -18,7 +18,10 @@ use caliptra_api_types::DeviceLifecycle;
 use caliptra_image_types::FwVerificationPqcKeyType;
 
 use crate::{
-    crypto::{self, derive_ecdsa_key, derive_mldsa_key, hmac384_drbg_keygen, hmac512, hmac512_kdf},
+    crypto::{
+        self, aes256_ecb_decrypt, aes256_ecb_encrypt, cmac_kdf, derive_ecdsa_key, derive_mldsa_key,
+        hmac384_drbg_keygen, hmac512, hmac512_kdf,
+    },
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
@@ -57,6 +60,22 @@ impl Default for DoeInput {
 
             // in debug-locked mode, this defaults to 0
             keyvault_initial_word_value: 0x0000_0000,
+        }
+    }
+}
+
+impl DoeInput {
+    pub fn debug_unlocked() -> Self {
+        Self {
+            doe_obf_key: [0xffff_ffff_u32; 8],
+
+            doe_iv: DOE_IV,
+
+            uds_seed: [0xffff_ffff_u32; 16],
+            field_entropy_seed: [0xffff_ffff_u32; 8],
+
+            // In debug mode, this defaults to 0xaaaa_aaaa
+            keyvault_initial_word_value: 0xaaaa_aaaa,
         }
     }
 }
@@ -230,6 +249,157 @@ impl IDevId {
     pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
         derive_mldsa_key(&self.mldsa_seed)
     }
+}
+
+pub struct Mek {
+    pub mek: [u8; 64],
+    pub checksum: [u8; 16],
+}
+
+pub struct OcpLockKeyLadderBuilder {
+    cdi: [u32; 16],
+    hek: Option<[u32; 16]>,
+    mdk: Option<[u32; 16]>,
+    intermediate_mek_secret: Option<[u32; 16]>,
+}
+
+impl From<IDevId> for OcpLockKeyLadderBuilder {
+    fn from(value: IDevId) -> Self {
+        Self {
+            cdi: value.cdi,
+            hek: None,
+            mdk: None,
+            intermediate_mek_secret: None,
+        }
+    }
+}
+
+impl OcpLockKeyLadderBuilder {
+    pub fn new(output: DoeOutput) -> Self {
+        let idevid = IDevId::derive(&output);
+        Self {
+            cdi: idevid.cdi,
+            hek: None,
+            mdk: None,
+            intermediate_mek_secret: None,
+        }
+    }
+
+    pub fn add_hek(self, hek_seed: [u32; 8]) -> Self {
+        let mut hek: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&self.cdi).as_bytes(),
+            b"ocp_lock_hek",
+            Some(hek_seed.as_bytes()),
+        ));
+        swap_word_bytes_inplace(&mut hek);
+        Self {
+            hek: Some(hek),
+            ..self
+        }
+    }
+
+    pub fn add_mdk(self) -> Self {
+        let mut mdk: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&self.cdi).as_bytes(),
+            b"ocp_lock_mdk",
+            None
+        ));
+        swap_word_bytes_inplace(&mut mdk);
+
+        Self {
+            mdk: Some(mdk),
+            ..self
+        }
+    }
+
+    pub fn add_intermediate_mek_secret(self, sek: [u8; 32], dpk: [u8; 32]) -> Self {
+        let mut epk: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&self.hek.unwrap()).as_bytes(),
+            b"ocp_lock_epk",
+            Some(sek.as_bytes())
+        ));
+        swap_word_bytes_inplace(&mut epk);
+
+        let mut intermediate_mek_secret: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&epk).as_bytes(),
+            b"ocp_lock_intermediate_mek_secret",
+            Some(dpk.as_bytes()),
+        ));
+        swap_word_bytes_inplace(&mut intermediate_mek_secret);
+
+        Self {
+            intermediate_mek_secret: Some(intermediate_mek_secret),
+            ..self
+        }
+    }
+
+    pub fn derive_mek(self) -> Mek {
+        let ims = self.intermediate_mek_secret.unwrap();
+        let mut mek_secret: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&ims).as_bytes(),
+            b"ocp_lock_derived_mek",
+            None,
+        ));
+        swap_word_bytes_inplace(&mut mek_secret);
+
+        let mek_seed = cmac_kdf(
+            swap_word_bytes(&mek_secret).as_bytes().get(..32).unwrap(),
+            b"ocp_lock_mek_seed",
+            None,
+            4,
+        );
+
+        let key = mek_seed.get(0..32).unwrap().as_bytes();
+        let checksum = aes256_ecb_encrypt(key, &[0; 16]);
+
+        let mdk = swap_word_bytes(&self.mdk.unwrap());
+        let key = mdk.as_bytes().get(..32).unwrap();
+        let decrypted_mek = aes256_ecb_decrypt(key, mek_seed.as_bytes());
+
+        let mut mek_checksum = [0; 16];
+        mek_checksum.clone_from_slice(&checksum);
+
+        let mut mek = [0; 64];
+        mek.clone_from_slice(&decrypted_mek);
+
+        Mek {
+            mek,
+            checksum: mek_checksum,
+        }
+    }
+}
+
+#[test]
+fn test_golden_ocp_lock_keyladder() {
+    let doe_out = DoeOutput::generate(&DoeInput::default());
+    let generated_idevid = IDevId::derive(&doe_out);
+    assert_eq!(
+        generated_idevid.cdi,
+        [
+            1595302429, 2693222204, 2700750034, 2341068947, 1086336218, 1015077934, 3439704633,
+            2756110496, 670106478, 1965056064, 3175014961, 1018544412, 1086626027, 1869434586,
+            2638089882, 3209973098
+        ]
+    );
+
+    let mek = OcpLockKeyLadderBuilder::from(generated_idevid)
+        .add_mdk()
+        .add_hek([0xABDEu32; 8])
+        .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
+        .derive_mek();
+    assert_eq!(
+        mek.checksum,
+        [208, 2, 161, 131, 8, 80, 187, 246, 107, 90, 21, 150, 58, 194, 61, 52]
+    );
+    assert_eq!(
+        mek.mek,
+        [
+            94, 152, 39, 23, 80, 241, 238, 103, 219, 79, 3, 73, 159, 38, 155, 127, 106, 161, 12,
+            18, 56, 249, 187, 171, 151, 33, 80, 177, 43, 88, 170, 232, 206, 234, 175, 214, 95, 181,
+            46, 96, 36, 178, 8, 146, 11, 219, 238, 52, 72, 59, 214, 205, 102, 183, 43, 144, 0, 226,
+            80, 160, 212, 180, 219, 171
+        ]
+    );
 }
 
 #[test]
