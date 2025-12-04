@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          ref: caliptra-2.1-dev
+          ref: main
           submodules: 'true'
           fetch-depth: 0
 
@@ -77,14 +77,14 @@ jobs:
       artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
-      branch: "caliptra-2.1-dev"
+      branch: "main"
       runner: '["ubuntu-24.04"]'
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release-2_1
     if: needs.find-latest-release-2_1.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-2.1-dev
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main
     strategy:
       fail-fast: false
       matrix:
@@ -101,13 +101,13 @@ jobs:
       hw-version: ${{ matrix.hw_config.hw }}
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
-      branch: "caliptra-2.1-dev"
+      branch: "main"
 
   fpga-subsystem:
     name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
     needs: find-latest-release-2_1
     if: needs.find-latest-release-2_1.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@caliptra-2.1-dev
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@main
     strategy:
       fail-fast: false
       matrix:
@@ -128,7 +128,7 @@ jobs:
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
       ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
-      branch: "caliptra-2.1-dev"
+      branch: "main"
   
 
   # TODO(clundin): Enable once find-latest-release is enabled.
