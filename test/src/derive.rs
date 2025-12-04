@@ -359,6 +359,9 @@ pub struct Pcr0Input {
     pub pqc_key_type: u8,
     pub lifecycle: u8,
     pub debug_locked: u8,
+    pub fw_svn: u8,
+    pub vendor_ecc_pk_index: u8,
+    pub vendor_pqc_pk_index: u8,
 }
 impl Pcr0Input {}
 
@@ -387,6 +390,9 @@ impl Pcr0 {
                 input.pqc_key_type,
                 input.lifecycle,
                 input.debug_locked,
+                input.fw_svn,
+                input.vendor_ecc_pk_index,
+                input.vendor_pqc_pk_index,
             ],
         );
         extend(
@@ -430,12 +436,15 @@ fn test_derive_pcr0() {
         pqc_key_type: FwVerificationPqcKeyType::LMS as u8,
         lifecycle: DeviceLifecycle::Production as u8,
         debug_locked: true as u8,
+        fw_svn: 6,
+        vendor_ecc_pk_index: 7,
+        vendor_pqc_pk_index: 8,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            402091812, 3118249835, 1124683874, 345507244, 4041172038, 1550635311, 1207922531,
-            2806889023, 3567642184, 2063122353, 2538737771, 2451052695
+            3710678925, 4185032455, 1031553209, 3402451257, 3725474827, 2544844688, 913468946,
+            1242613594, 835109690, 2975367259, 1698167984, 104997864
         ])
     )
 }

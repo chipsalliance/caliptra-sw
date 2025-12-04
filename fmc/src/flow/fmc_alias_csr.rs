@@ -96,7 +96,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let svn = data_vault.cold_boot_fw_svn() as u8;
     let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, sha2_512_384)?;
     let vendor_device_info_hash =
-        dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, sha2_512_384)?;
+        dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 
     // CSR `To Be Signed` Parameters
     let params = FmcAliasCsrTbsParams {
@@ -152,7 +152,7 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let svn = data_vault.cold_boot_fw_svn() as u8;
     let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, sha2_512_384)?;
     let vendor_device_info_hash =
-        dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, sha2_512_384)?;
+        dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 
     // CSR `To Be Signed` Parameters
     let params = FmcAliasTbsMlDsa87Params {

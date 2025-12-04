@@ -218,6 +218,9 @@ fn test_pcr_log() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                FW_SVN as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
 
@@ -335,6 +338,9 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                0_u8, // FW SVN
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
 
@@ -445,6 +451,9 @@ fn test_pcr_log_fmc_fuse_svn() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                FW_SVN as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
     }

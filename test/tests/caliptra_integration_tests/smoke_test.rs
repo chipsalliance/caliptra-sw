@@ -239,12 +239,14 @@ fn smoke_test() {
                 AlgorithmType::Mldsa87 => get_idevid_pubkey_mldsa(),
             };
 
+            let fw_svn: u32 = 9;
+
             let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
             let image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
                 &firmware::APP_WITH_UART,
                 ImageOptions {
-                    fw_svn: 9,
+                    fw_svn: fw_svn,
                     pqc_key_type: *pqc_key_type,
                     ..Default::default()
                 },
@@ -442,6 +444,9 @@ fn smoke_test() {
             hasher.update(&[fuses.fuse_pqc_key_type as u8]);
             hasher.update(&[security_state.device_lifecycle() as u8]);
             hasher.update(&[security_state.debug_locked() as u8]);
+            hasher.update(&[fw_svn as u8]);
+            hasher.update(&[image.manifest.header.vendor_ecc_pub_key_idx as u8]);
+            hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
             let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [
@@ -474,7 +479,7 @@ fn smoke_test() {
                     vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
                     model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
                     // This is from the SVN in the image (9)
-                    svn: Some(0x109),
+                    svn: Some(0x100 | fw_svn),
                     fwids: vec![DiceFwid {
                         // FMC
                         hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -505,6 +510,9 @@ fn smoke_test() {
                     pqc_key_type: fuses.fuse_pqc_key_type as u8,
                     lifecycle: security_state.device_lifecycle() as u8,
                     debug_locked: security_state.debug_locked() as u8,
+                    fw_svn: fw_svn as u8,
+                    vendor_ecc_pk_index: image.manifest.header.vendor_ecc_pub_key_idx as u8,
+                    vendor_pqc_pk_index: image.manifest.header.vendor_pqc_pub_key_idx as u8,
                 }),
                 &expected_ldevid_key,
             );

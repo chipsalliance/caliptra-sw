@@ -14,8 +14,8 @@ Abstract:
 
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_drivers::{
-    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, Ecc384Signature,
-    Mldsa87Signature, PersistentData, Sha2_512_384, SocIfc,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, DataVault,
+    Ecc384Signature, Mldsa87Signature, PersistentData, Sha2_512_384, SocIfc,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder};
 
@@ -244,6 +244,7 @@ pub fn gen_fmc_alias_owner_device_info_hash(
 /// * `[u8; 48]` - SHA384 hash of the vendor device info
 pub fn gen_fmc_alias_vendor_device_info_hash(
     soc_ifc: &SocIfc,
+    data_vault: &DataVault,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<[u8; 48]> {
     // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
@@ -253,6 +254,9 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
     // PQC type (u8)
     // Lifecycle state (u8)
     // Debug locked (u8)
+    // FW SVN from manifest
+    // ECC vendor key index from manifest
+    // PQC vendor key index from manifest
     let mut fuse_vendor_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
 
@@ -263,6 +267,9 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
         soc_ifc.fuse_bank().pqc_key_type() as u8,
         soc_ifc.lifecycle() as u8,
         soc_ifc.debug_locked() as u8,
+        data_vault.cold_boot_fw_svn() as u8,
+        data_vault.vendor_ecc_pk_index() as u8,
+        data_vault.vendor_pqc_pk_index() as u8,
     ])?;
     hasher.finalize(&mut fuse_vendor_info_digest)?;
 
