@@ -33,7 +33,7 @@ impl FpgaJtag {
                 // Set PS_POR_B high, PS_SRST_B low
                 self.ftdi.write_all_data(&[0x8d])?;
 
-                // wait a bi
+                // wait a bit
                 std::thread::sleep(Duration::from_millis(1));
 
                 // Set PS_POR_B and PS_SRST_B pins high

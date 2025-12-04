@@ -9,7 +9,6 @@ mod tty;
 mod usb_port_path;
 
 use anyhow::{anyhow, Context};
-use find_usb_block_device::find_usb_block_device;
 
 use clap::{arg, value_parser};
 use libftdi1_sys::ftdi_interface;
@@ -24,15 +23,21 @@ use std::{
 
 pub(crate) use fpga_jtag::{FpgaJtag, FpgaReset};
 pub(crate) use ftdi::FtdiCtx;
-pub(crate) use sd_mux::{SdMux, SdMuxTarget};
+use sd_mux::{SDWire, SdMux, SdMuxTarget, UsbsdMux};
 pub(crate) use usb_port_path::UsbPortPath;
+
+// 3 hours
+const JOB_TIMEOUT: Duration = Duration::from_secs(10_800);
 
 fn cli() -> clap::Command<'static> {
     clap::Command::new("fpga-boss")
         .about("FPGA boss tool")
         .arg(
             arg!(--"sdwire" [PORT_PATH] "USB port path to the hub chip on the SDWire (ex: 3-1.2)")
-                .value_parser(value_parser!(UsbPortPath))
+                .value_parser(value_parser!(OsString)))
+        .arg(
+            arg!(--"usbsdmux" [USBID] "USB unique ID for the usbsdmux device (ex: 00048.00643)")
+                .value_parser(value_parser!(OsString))
         )
         .arg(
             arg!(--"zcu104" [PORT_PATH] "USB port path to the FTDI chip on the ZCU104 dev board (ex: 3-1.2)")
@@ -53,6 +58,8 @@ fn cli() -> clap::Command<'static> {
             .arg(arg!(<IMAGE_FILENAME>).value_parser(value_parser!(PathBuf))))
         .subcommand(clap::Command::new("console")
             .about("Tail the UART output from zcu104"))
+        .subcommand(clap::Command::new("reset_fpga")
+            .about("Reset FPGA SoC using FTDI on zcu104 by toggle POR_B reset."))
         .subcommand(clap::Command::new("reset_ftdi")
             .about("Reset FTDI chip on zcu104"))
         .subcommand(clap::Command::new("serve")
@@ -93,21 +100,21 @@ fn open_block_dev(path: &Path) -> std::io::Result<File> {
     }
 }
 
-/// Returns true if the device alread contains the image.
+/// Returns true if the device already contains the image.
 fn verify_image(dev: &mut File, image: &mut File) -> std::io::Result<bool> {
     dev.seek(SeekFrom::Start(0))?;
     let file_len = image.metadata()?.len();
-    let mut buf1 = vec![0_u8; 1024 * 1024];
-    let mut buf2 = vec![0_u8; 1024 * 1024];
+    let mut want = vec![0_u8; 1024 * 1024];
+    let mut have = vec![0_u8; 1024 * 1024];
     let mut total_read: u64 = 0;
     let start_time = Instant::now();
     loop {
-        let bytes_read = image.read(&mut buf1)?;
+        let bytes_read = image.read(&mut want)?;
         if bytes_read == 0 {
             return Ok(true);
         }
-        dev.read_exact(&mut buf2[..bytes_read])?;
-        if buf1[..bytes_read] != buf2[..bytes_read] {
+        dev.read_exact(&mut have[..bytes_read])?;
+        if want[..bytes_read] != have[..bytes_read] {
             return Ok(false);
         }
         total_read += u64::try_from(bytes_read).unwrap();
@@ -151,6 +158,26 @@ fn copy_file(dest: &mut File, src: &mut File) -> std::io::Result<()> {
     Ok(())
 }
 
+/// As we observe conditions that get the FGPA stuck, add them to the error parser.
+fn active_runner_error_checks(input: &str) -> std::io::Result<()> {
+    check_for_github_runner_exception(input)?;
+    check_for_kernel_panic(input)?;
+    Ok(())
+}
+
+/// If the GitHub runner has an unhandled exception it will crash and get stuck. Add this check
+/// to recover the FPGA.
+fn check_for_github_runner_exception(input: &str) -> std::io::Result<()> {
+    if input.contains("Unhandled exception") || input.contains("Bus error") {
+        Err(Error::new(
+            ErrorKind::BrokenPipe,
+            "Github runner had an unhandled exception",
+        ))?;
+    }
+    Ok(())
+}
+
+/// A kernel panic will cause the FPGA to never complete the job, so we want to reset the FPGA.
 fn check_for_kernel_panic(input: &str) -> std::io::Result<()> {
     if input.contains("Kernel panic") {
         Err(Error::new(ErrorKind::BrokenPipe, "FPGA had a kernel panic"))?;
@@ -213,9 +240,26 @@ fn log_uart_until_helper<R: BufRead>(
     Err(Error::new(ErrorKind::UnexpectedEof, "unexpected EOF"))
 }
 
+fn get_sd_mux(
+    sdwire: Option<&OsString>,
+    usbsdmux: Option<&OsString>,
+) -> anyhow::Result<Box<dyn SdMux>> {
+    match (sdwire, usbsdmux) {
+        (Some(sdwire), None) => {
+            Ok(Box::new(SDWire::open(String::from(sdwire.to_str().unwrap()))?) as Box<dyn SdMux>)
+        }
+        (None, Some(usbsdmux)) => Ok(Box::new(UsbsdMux::open(String::from(
+            usbsdmux.to_str().unwrap(),
+        ))?) as Box<dyn SdMux>),
+        _ => Err(anyhow!("One of --sdwire or --usbsdmux required")),
+    }
+}
+
 fn main_impl() -> anyhow::Result<()> {
     let matches = cli().get_matches();
-    let sdwire_hub_path = matches.get_one::<UsbPortPath>("sdwire");
+    let sdwire = matches.get_one::<OsString>("sdwire");
+    let usbsdmux = matches.get_one::<OsString>("usbsdmux");
+
     let zcu104_path = matches.get_one::<UsbPortPath>("zcu104");
     let boss_ftdi_path = matches.get_one::<UsbPortPath>("boss_ftdi");
 
@@ -234,28 +278,12 @@ fn main_impl() -> anyhow::Result<()> {
             .ok_or(anyhow!("--zcu104 flag required"))
             .cloned()
     };
-    let get_sd_mux = || {
-        SdMux::open(
-            sdwire_hub_path
-                .ok_or(anyhow!("--sdwire flag required"))?
-                .child(2),
-        )
-    };
-    let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
-    let get_sd_dev_path = || {
-        let sdwire_hub_path = sdwire_hub_path.ok_or(anyhow!("--sdwire flag required"))?;
-        find_usb_block_device(&sdwire_hub_path.child(1)).with_context(|| {
-            format!(
-                "Could not find block device associated with {}",
-                sdwire_hub_path.child(1)
-            )
-        })
-    };
 
+    let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
     match matches.subcommand() {
         Some(("mode", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             let mut fpga = get_fpga_ftdi();
-            let mut sd_mux = get_sd_mux()?;
             match sub_matches.get_one::<SdMuxTarget>("MODE").unwrap() {
                 SdMuxTarget::Dut => {
                     if let Ok(fpga) = &mut fpga {
@@ -273,6 +301,16 @@ fn main_impl() -> anyhow::Result<()> {
                     }
                     sd_mux.set_target(SdMuxTarget::Host)?;
                 }
+            }
+        }
+        Some(("reset_fpga", _)) => {
+            let mut fpga = get_fpga_ftdi();
+            if let Ok(fpga) = &mut fpga {
+                fpga.set_reset(FpgaReset::Reset)?;
+                std::thread::sleep(Duration::from_millis(1));
+                fpga.set_reset(FpgaReset::Run)?;
+            } else {
+                return Err(anyhow!("Error: failed to connect to FTDI chip."));
             }
         }
         Some(("reset_ftdi", _)) => {
@@ -317,9 +355,9 @@ fn main_impl() -> anyhow::Result<()> {
             println!();
         }
         Some(("flash", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             let mut fpga = get_fpga_ftdi();
-            let mut sd_mux = get_sd_mux()?;
-            let sd_dev_path = get_sd_dev_path()?;
+            let sd_dev_path = sd_mux.get_sd_dev_path()?;
             if let Ok(fpga) = &mut fpga {
                 fpga.set_reset(FpgaReset::Reset)?;
             }
@@ -336,6 +374,9 @@ fn main_impl() -> anyhow::Result<()> {
                 open_block_dev(&sd_dev_path).with_context(|| sd_dev_path.display().to_string())?;
             if !sub_matches.is_present("read_first") || !verify_image(&mut sd_dev, &mut file)? {
                 copy_file(&mut sd_dev, &mut file)?;
+                if !verify_image(&mut sd_dev, &mut file)? {
+                    return Err(anyhow!("Failed to verify image after flashing. Please try again."));
+                }
             } else {
                 println!("Device already contains the desired image");
             }
@@ -345,14 +386,15 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?
             }
         }
+
         Some(("serve", sub_matches)) => {
+            let mut sd_mux = get_sd_mux(sdwire, usbsdmux)?;
             // Reuse the previous token if we never connect to GitHub.
             // This avoids creating a bunch of offline runners if the FPGA fails to establish a
             // connection.
             let mut cached_token: Option<Vec<u8>> = None;
             let mut fpga = get_fpga_ftdi()?;
-            let mut sd_mux = get_sd_mux()?;
-            let sd_dev_path = get_sd_dev_path()?;
+            let sd_dev_path = sd_mux.get_sd_dev_path()?;
             'outer: loop {
                 println!("Putting FPGA into reset");
                 fpga.set_reset(FpgaReset::Reset)?;
@@ -372,7 +414,7 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
-                let boot_timeout = Duration::from_secs(60);
+                let boot_timeout = Duration::from_secs(180);
                 let (uart_rx, mut uart_tx) = ftdi_uart::open_blocking(
                     get_zcu104_path()?,
                     ftdi_interface::INTERFACE_B,
@@ -442,18 +484,14 @@ fn main_impl() -> anyhow::Result<()> {
 
                 // The period of time we wait to receive a job is undefined so a timeout is not
                 // appropriate.
-                //
-                // As we observe conditions that get the FGPA stuck, add them to the error parser.
-                // Currently I have only observed a watchdog triggering a kernel panic.
-                log_uart_until(&mut uart_lines, "Running job", check_for_kernel_panic)?;
+                log_uart_until(&mut uart_lines, "Running job", active_runner_error_checks)?;
 
                 // Now the job is started, so we want to enforce a timeout with enough time for the
                 // job to complete.
-                let job_timeout = Duration::from_secs(7_200);
                 match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
-                    job_timeout,
+                    JOB_TIMEOUT,
                 ) {
                     Err(e) if e.kind() == ErrorKind::TimedOut => {
                         eprintln!("Timed out waiting for FPGA to complete job!");
