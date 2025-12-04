@@ -984,6 +984,8 @@ dependencies = [
  "asn1",
  "caliptra-api",
  "caliptra-api-types",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-coverage",
  "caliptra-drivers",

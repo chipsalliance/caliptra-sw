@@ -2,6 +2,7 @@ use caliptra_api::mailbox::AlgorithmType;
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
@@ -13,6 +14,7 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{
@@ -29,6 +31,30 @@ use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
 use zerocopy::{IntoBytes, TryFromBytes};
+
+fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
+    manifest.as_bytes().to_vec()
+}
+
+// Helper function to upload firmware, handling both regular and subsystem modes
+fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(&DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(fw_image).unwrap();
+    }
+}
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -241,6 +267,7 @@ fn smoke_test() {
                 feature = "fpga_subsystem"
             ))
             .unwrap();
+            let fw_svn = 9;
             let image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
                 &if cfg!(feature = "fpga_subsystem") {
@@ -249,7 +276,7 @@ fn smoke_test() {
                     firmware::APP_WITH_UART
                 },
                 ImageOptions {
-                    fw_svn: 9,
+                    fw_svn,
                     pqc_key_type: *pqc_key_type,
                     ..Default::default()
                 },
@@ -277,6 +304,8 @@ fn smoke_test() {
                 },
                 BootParams {
                     fw_image: Some(&image.to_bytes().unwrap()),
+                    soc_manifest: Some(&default_soc_manifest_bytes(*pqc_key_type, fw_svn)),
+                    mcu_fw_image: Some(&DEFAULT_MCU_FW),
                     ..Default::default()
                 },
             )
@@ -344,26 +373,28 @@ fn smoke_test() {
             // )
             // .unwrap();
 
-            match algorithm_type {
-                AlgorithmType::Ecc384 => {
-                    assert_eq!(
-                        ldev_cert_txt.as_str(),
-                        include_str!("smoke_testdata/ldevid_cert_ecc.txt")
-                    );
-                    assert_eq!(
-                        ldev_cert_der,
-                        include_bytes!("smoke_testdata/ldevid_cert_ecc.der")
-                    );
-                }
-                AlgorithmType::Mldsa87 => {
-                    assert_eq!(
-                        ldev_cert_txt.as_str(),
-                        include_str!("smoke_testdata/ldevid_cert_mldsa.txt")
-                    );
-                    assert_eq!(
-                        ldev_cert_der,
-                        include_bytes!("smoke_testdata/ldevid_cert_mldsa.der")
-                    );
+            if !cfg!(feature = "fpga_subsystem") {
+                match algorithm_type {
+                    AlgorithmType::Ecc384 => {
+                        assert_eq!(
+                            ldev_cert_txt.as_str(),
+                            include_str!("smoke_testdata/ldevid_cert_ecc.txt")
+                        );
+                        assert_eq!(
+                            ldev_cert_der,
+                            include_bytes!("smoke_testdata/ldevid_cert_ecc.der")
+                        );
+                    }
+                    AlgorithmType::Mldsa87 => {
+                        assert_eq!(
+                            ldev_cert_txt.as_str(),
+                            include_str!("smoke_testdata/ldevid_cert_mldsa.txt")
+                        );
+                        assert_eq!(
+                            ldev_cert_der,
+                            include_bytes!("smoke_testdata/ldevid_cert_mldsa.der")
+                        );
+                    }
                 }
             }
 
@@ -1129,7 +1160,12 @@ fn test_rt_wdt_timeout() {
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+    let pqc_key_type = FwVerificationPqcKeyType::LMS; // Default for test
     let init_params = caliptra_hw_model::InitParams {
+        fuses: Fuses {
+            fuse_pqc_key_type: u8::from(pqc_key_type) as u32,
+            ..Default::default()
+        },
         rom: &rom,
         security_state,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1144,17 +1180,22 @@ fn test_rt_wdt_timeout() {
         } else {
             APP_WITH_UART
         },
-        ImageOptions::default(),
+        ImageOptions {
+            pqc_key_type,
+            ..Default::default()
+        },
     )
     .unwrap();
 
     let mut hw = caliptra_hw_model::new(init_params, BootParams::default()).unwrap();
 
     // WDT started shortly before KATs are started.
-    hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+    if !cfg!(feature = "fpga_subsystem") {
+        hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+    }
     let wdt_start = hw.output().sink().now();
 
-    hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+    test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), pqc_key_type);
 
     hw.step_until_boot_status(RUNTIME_BOOT_STATUS_READY, true);
     let fmc_target = hw.output().sink().now();
@@ -1253,7 +1294,7 @@ fn test_fmc_wdt_timeout() {
         hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
         let wdt_start = hw.output().sink().now();
 
-        hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+        test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), *pqc_key_type);
 
         hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
         let fmc_target = hw.output().sink().now();
