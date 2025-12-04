@@ -33,6 +33,7 @@ extra-platforms = aarch64-linux
 extra-sandbox-paths = /usr/bin/qemu-aarch64-static
 EOF
 ```
+
 # Adding secrets
 
 There are a few secrets that this configuration relies on. They are not checked into git so it is up to you to retrieve them.
