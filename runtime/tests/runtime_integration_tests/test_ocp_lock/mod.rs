@@ -60,6 +60,7 @@ struct OcpLockBootParams {
     init_mek_secret_params: Option<InitializeMekSecretParams>,
     force_ocp_lock_en: bool,
     rt_fw_id: Option<&'static FwId<'static>>,
+    security_state: Option<SecurityState>,
     // The linter doesn't like using Default when all params are set.
     _private: (),
 }
@@ -96,16 +97,18 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
         None
     };
 
+    let security_state = params.security_state.unwrap_or(
+        *SecurityState::default()
+            .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+            .set_debug_locked(true),
+    );
+
     let mut model = run_rt_test(RuntimeTestArgs {
         test_fwid: params.rt_fw_id,
         ocp_lock_en: params.force_ocp_lock_en,
         key_type: Some(FwVerificationPqcKeyType::MLDSA),
         rom_callback,
-        security_state: Some(
-            *SecurityState::default()
-                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
-                .set_debug_locked(true),
-        ),
+        security_state: Some(security_state),
         ..Default::default()
     });
 

@@ -20,8 +20,8 @@ Abstract:
 
 use crate::{
     kv_access::{KvAccess, KvAccessErr},
-    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x3,
-    LEArray4x4, LEArray4x8, Trng,
+    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x16,
+    LEArray4x3, LEArray4x4, LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -936,7 +936,7 @@ impl Aes {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     /// AES ECB Decrypt to KV. Used by OCP LOCK for MEK release.
-    pub fn aes_256_ecb_decrypt_kv(&mut self, input: &[u8; 64]) -> CaliptraResult<()> {
+    pub fn aes_256_ecb_decrypt_kv(&mut self, input: &LEArray4x16) -> CaliptraResult<()> {
         // Only KV 16 is allowed to be key KV.
         let mdk_slot = KeyReadArgs::new(KeyId::KeyId16);
         // Only KV 23 is allowed to be destination KV.
@@ -952,7 +952,7 @@ impl Aes {
         &mut self,
         key: AesKey,
         output_kv: KeyWriteArgs,
-        input: &[u8; 64],
+        input: &LEArray4x16,
     ) -> CaliptraResult<()> {
         // Key is always in KV, always load before starting OP.
         self.load_key(key)?;
@@ -983,8 +983,8 @@ impl Aes {
         });
 
         // Load 64 bytes of data
-        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
-            self.load_data_block(input, block_num)?;
+        for block_num in 0..input.as_bytes().chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input.as_bytes(), block_num)?;
         }
 
         // Wait for HW to release result to KV

@@ -16,7 +16,8 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    hmac_kdf, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, ResetReason,
+    hmac_kdf, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x16,
+    ResetReason,
 };
 use caliptra_drivers_test_bin::{
     kv_release, populate_slot, TestRegisters, ENCRYPTED_MEK, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS,
@@ -59,7 +60,7 @@ fn warm_reset_flow(test_regs: &mut TestRegisters) {
     // MDK & HEK should still be in KVs.
     test_regs
         .aes
-        .aes_256_ecb_decrypt_kv(&ENCRYPTED_MEK)
+        .aes_256_ecb_decrypt_kv(&LEArray4x16::from(ENCRYPTED_MEK))
         .unwrap();
     // Check that we still derive the same MEK
     kv_release(test_regs);
@@ -116,7 +117,7 @@ fn ocp_lock_flow(test_regs: &mut TestRegisters) {
 
     test_regs
         .aes
-        .aes_256_ecb_decrypt_kv(&ENCRYPTED_MEK)
+        .aes_256_ecb_decrypt_kv(&LEArray4x16::from(ENCRYPTED_MEK))
         .unwrap();
     kv_release(test_regs);
 }

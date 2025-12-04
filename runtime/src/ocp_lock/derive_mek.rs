@@ -27,9 +27,11 @@ impl DeriveMekCmd {
         let expected_mek_checksum = MekChecksum(cmd.mek_checksum);
         let checksum = drivers.ocp_lock_context.derive_mek(
             &mut drivers.aes,
+            &mut drivers.dma,
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.key_vault,
+            &mut drivers.soc_ifc,
             expected_mek_checksum,
         )?;
 
