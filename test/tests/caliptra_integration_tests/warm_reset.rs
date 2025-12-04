@@ -3,7 +3,7 @@
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
@@ -16,10 +16,15 @@ fn warm_reset_basic() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
         ImageOptions {
             fw_svn: 9,
             ..Default::default()
@@ -71,10 +76,15 @@ fn warm_reset_during_fw_load() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
         ImageOptions {
             fw_svn: 9,
             ..Default::default()

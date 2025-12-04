@@ -2,7 +2,7 @@ use caliptra_api::mailbox::AlgorithmType;
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
     GetFmcAliasEcc384CertReq, GetFmcAliasEccCsrReq, GetFmcAliasMlDsa87CertReq,
@@ -85,7 +85,8 @@ fn assert_output_contains_regex(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
@@ -236,10 +237,17 @@ fn smoke_test() {
                 AlgorithmType::Mldsa87 => get_idevid_pubkey_mldsa(),
             };
 
-            let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+            let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(
+                feature = "fpga_subsystem"
+            ))
+            .unwrap();
             let image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
-                &firmware::APP_WITH_UART,
+                &if cfg!(feature = "fpga_subsystem") {
+                    firmware::APP_WITH_UART_FPGA
+                } else {
+                    firmware::APP_WITH_UART
+                },
                 ImageOptions {
                     fw_svn: 9,
                     pqc_key_type: *pqc_key_type,
@@ -1116,7 +1124,8 @@ fn test_rt_wdt_timeout() {
 
     const RUNTIME_BOOT_STATUS_READY: u32 = 0x600;
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
@@ -1130,7 +1139,11 @@ fn test_rt_wdt_timeout() {
 
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
         ImageOptions::default(),
     )
     .unwrap();
@@ -1198,7 +1211,9 @@ fn test_fmc_wdt_timeout() {
         };
         const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
 
         // Boot in debug mode to capture timestamps by boot status.
         let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
@@ -1215,9 +1230,16 @@ fn test_fmc_wdt_timeout() {
             ..Default::default()
         };
 
-        let image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
+            image_options,
+        )
+        .unwrap();
 
         let mut hw = caliptra_hw_model::new(
             init_params,
