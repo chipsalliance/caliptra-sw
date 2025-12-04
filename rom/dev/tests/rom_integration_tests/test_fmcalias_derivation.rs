@@ -205,6 +205,7 @@ fn test_pcr_log() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                (fuses.owner_pk_hash != [0u32; 12]) as u8, // owner_pub_keys_digest_in_fuses
                 anti_rollback_disable as u8,
                 fuses.fuse_ecc_revocation as u8,
                 fuses.fuse_lms_revocation.to_le_bytes()[0],
@@ -218,6 +219,9 @@ fn test_pcr_log() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                FW_SVN as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
 
@@ -322,6 +326,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                (fuses.owner_pk_hash != [0u32; 12]) as u8, // owner_pub_keys_digest_in_fuses
                 anti_rollback_disable as u8,
                 fuses.fuse_ecc_revocation as u8,
                 fuses.fuse_lms_revocation.to_le_bytes()[0],
@@ -335,6 +340,9 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                0_u8, // FW SVN
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
 
@@ -432,6 +440,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
+                (fuses.owner_pk_hash != [0u32; 12]) as u8, // owner_pub_keys_digest_in_fuses
                 anti_rollback_disable as u8,
                 fuses.fuse_ecc_revocation as u8,
                 fuses.fuse_lms_revocation.to_le_bytes()[0],
@@ -445,6 +454,9 @@ fn test_pcr_log_fmc_fuse_svn() {
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
+                FW_SVN as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             ],
         );
     }

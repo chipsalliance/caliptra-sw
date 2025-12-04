@@ -287,8 +287,6 @@ fn smoke_test() {
                 owner_pk_hash: owner_pk_hash_words,
                 fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 fuse_pqc_key_type: *pqc_key_type as u32,
-                soc_manifest_svn: [0xFFFF_FFFF, 0xFFFF_0000, 0x0, 0x0],
-                soc_manifest_max_svn: 96,
                 ..Default::default()
             };
             let mut hw = caliptra_hw_model::new(
@@ -457,6 +455,7 @@ fn smoke_test() {
 
             let mut hasher = Sha384::new();
             hasher.update(&owner_pk_hash);
+            hasher.update(&[(fuses.owner_pk_hash != [0u32; 12]) as u8]);
             hasher.update(&[fuses.anti_rollback_disable as u8]);
             hasher.update(&[fuses.fuse_ecc_revocation as u8]);
             hasher.update(&fuses.fuse_lms_revocation.to_le_bytes());
@@ -471,6 +470,9 @@ fn smoke_test() {
             hasher.update(&[fuses.fuse_pqc_key_type as u8]);
             hasher.update(&[security_state.device_lifecycle() as u8]);
             hasher.update(&[security_state.debug_locked() as u8]);
+            hasher.update(&[fw_svn as u8]);
+            hasher.update(&[image.manifest.header.vendor_ecc_pub_key_idx as u8]);
+            hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
             let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [
@@ -503,7 +505,7 @@ fn smoke_test() {
                     vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
                     model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
                     // This is from the SVN in the image (9)
-                    svn: Some(0x109),
+                    svn: Some(0x100 | fw_svn),
                     fwids: vec![DiceFwid {
                         // FMC
                         hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -523,6 +525,7 @@ fn smoke_test() {
                 &Pcr0::derive(&Pcr0Input {
                     fmc_digest: image.manifest.fmc.digest,
                     owner_pub_key_hash: owner_pk_hash_words,
+                    owner_pub_key_hash_in_fuses: fuses.owner_pk_hash != [0u32; 12],
                     anti_rollback_disable: fuses.anti_rollback_disable,
                     vendor_ecc_pub_key_revocation: fuses.fuse_ecc_revocation as u8,
                     vendor_lms_pub_key_revocation: fuses.fuse_lms_revocation,
@@ -534,6 +537,9 @@ fn smoke_test() {
                     pqc_key_type: fuses.fuse_pqc_key_type as u8,
                     lifecycle: security_state.device_lifecycle() as u8,
                     debug_locked: security_state.debug_locked() as u8,
+                    fw_svn: fw_svn as u8,
+                    vendor_ecc_pk_index: image.manifest.header.vendor_ecc_pub_key_idx as u8,
+                    vendor_pqc_pk_index: image.manifest.header.vendor_pqc_pub_key_idx as u8,
                 }),
                 &expected_ldevid_key,
             );

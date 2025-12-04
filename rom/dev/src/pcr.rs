@@ -28,7 +28,7 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId,
 };
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, PcrBank, PersistentData, Sha2_512_384, SocIfc,
+    Array4x12, CaliptraError, CaliptraResult, PcrBank, PersistentData, Sha2_512_384, SocIfc,
 };
 use zerocopy::IntoBytes;
 
@@ -86,10 +86,13 @@ pub(crate) fn extend_pcrs(
         .fuse_bank()
         .vendor_lms_pub_key_revocation()
         .to_le_bytes();
+    let owner_pub_keys_digest_in_fuses: bool =
+        soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
 
     // NOTE: The contents of this PCR and the FMC Alias TCB info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
-    let device_status: [u8; 13] = [
+    let device_status: [u8; 17] = [
+        owner_pub_keys_digest_in_fuses as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,
         soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation().bits() as u8,
         lms_revocation_bytes[0],
@@ -103,6 +106,9 @@ pub(crate) fn extend_pcrs(
         soc_ifc.fuse_bank().pqc_key_type() as u8,
         soc_ifc.lifecycle() as u8,
         soc_ifc.debug_locked() as u8,
+        data_vault.cold_boot_fw_svn() as u8,
+        data_vault.vendor_ecc_pk_index() as u8,
+        data_vault.vendor_pqc_pk_index() as u8,
     ];
 
     let mut pcr = PcrExtender {

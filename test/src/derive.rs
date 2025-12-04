@@ -624,6 +624,7 @@ fn test_ldevid() {
 pub struct Pcr0Input {
     pub fmc_digest: [u32; 12],
     pub owner_pub_key_hash: [u32; 12],
+    pub owner_pub_key_hash_in_fuses: bool,
     pub anti_rollback_disable: bool,
     pub vendor_ecc_pub_key_revocation: u8,
     pub vendor_lms_pub_key_revocation: u32,
@@ -635,6 +636,9 @@ pub struct Pcr0Input {
     pub pqc_key_type: u8,
     pub lifecycle: u8,
     pub debug_locked: u8,
+    pub fw_svn: u8,
+    pub vendor_ecc_pk_index: u8,
+    pub vendor_pqc_pk_index: u8,
 }
 impl Pcr0Input {}
 
@@ -650,6 +654,7 @@ impl Pcr0 {
         extend(
             &mut value,
             &[
+                input.owner_pub_key_hash_in_fuses as u8,
                 input.anti_rollback_disable as u8,
                 input.vendor_ecc_pub_key_revocation,
                 input.vendor_lms_pub_key_revocation.to_le_bytes()[0],
@@ -663,6 +668,9 @@ impl Pcr0 {
                 input.pqc_key_type,
                 input.lifecycle,
                 input.debug_locked,
+                input.fw_svn,
+                input.vendor_ecc_pk_index,
+                input.vendor_pqc_pk_index,
             ],
         );
         extend(
@@ -692,6 +700,7 @@ fn test_derive_pcr0() {
             0xdc1a27ef, 0x0c08201a, 0x8b066094, 0x118c29fe, 0x0bc2270e, 0xbd965c43, 0xf7b9a68d,
             0x8eaf37fa, 0x968ca8d8, 0x13b2920b, 0x3b88b026, 0xf2f0ebb0,
         ],
+        owner_pub_key_hash_in_fuses: true,
         anti_rollback_disable: false,
         vendor_ecc_pub_key_revocation: 1,
         vendor_lms_pub_key_revocation: 2,
@@ -706,12 +715,15 @@ fn test_derive_pcr0() {
         pqc_key_type: FwVerificationPqcKeyType::LMS as u8,
         lifecycle: DeviceLifecycle::Production as u8,
         debug_locked: true as u8,
+        fw_svn: 6,
+        vendor_ecc_pk_index: 7,
+        vendor_pqc_pk_index: 8,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            402091812, 3118249835, 1124683874, 345507244, 4041172038, 1550635311, 1207922531,
-            2806889023, 3567642184, 2063122353, 2538737771, 2451052695
+            105088857, 944151149, 2604353809, 791137423, 1712852176, 1628755509, 3990671566,
+            2052346331, 640093718, 3145303069, 2197324478, 520085314
         ])
     )
 }

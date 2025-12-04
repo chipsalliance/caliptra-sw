@@ -14,8 +14,8 @@ Abstract:
 
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_drivers::{
-    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, Ecc384Signature,
-    Mldsa87Signature, PersistentData, Sha2_512_384, SocIfc,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, DataVault,
+    Ecc384Signature, Mldsa87Signature, PersistentData, Sha2_512_384, SocIfc,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder};
 
@@ -197,23 +197,30 @@ pub fn copy_ldevid_mldsa87_cert(
 /// * `[u8; 48]` - SHA384 hash of the owner device info
 pub fn gen_fmc_alias_owner_device_info_hash(
     soc_ifc: &SocIfc,
+    data_vault: &DataVault,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<[u8; 48]> {
     // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
 
-    // Owner public key hash (384 bits)
-    // Anti-rollback disable (u8)
-    // Vendor ECC key revocation (u8)
-    // Vendor LMS key revocation (u32)
-    // Vendor MLDSA key revocation (u8)
-    // FW min SVN - minimum SVN value (u8)
-    // SoC manifest min SVN - minimum SVN value (u8)
-    // SoC manifest min SVN - max SVN value (u8)
+    // Owner Public Key Hash (sha-384)
+    // Owner public key Hash in fuses flag (u8) // Flag to indicate whether Owner Pub Key Hash is Fused
+    // Anti-rollback disable Fuse (u8)
+    // ECC Key Revoke Fuse (u8)
+    // LMS Key Revoke Fuse (u32)
+    // ML-DSA Key Revoke Fuse (u8)
+    // Image Bundle FW min SVN Fuse - min SVN value (u8)
+    // Auth Manifest SoC min SVN Fuse - min SVN value (u8)
+    // Auth Manifest SoC max SVN Fuse - max SVN value (u8)
+
     let mut fuse_owner_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
-    hasher.update(&<[u8; 48]>::from(soc_ifc.fuse_bank().owner_pub_key_hash()))?;
+    let owner_pub_keys_digest_in_fuses: bool =
+        soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
+
+    hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
     hasher.update(&[
+        owner_pub_keys_digest_in_fuses as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,
         soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation().bits() as u8,
     ])?;
@@ -246,15 +253,19 @@ pub fn gen_fmc_alias_owner_device_info_hash(
 /// * `[u8; 48]` - SHA384 hash of the vendor device info
 pub fn gen_fmc_alias_vendor_device_info_hash(
     soc_ifc: &SocIfc,
+    data_vault: &DataVault,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<[u8; 48]> {
     // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
 
-    // Vendor public key hash (384 bits)
-    // PQC type (u8)
-    // Lifecycle state (u8)
-    // Debug locked (u8)
+    // Vendor Public Key Hash Fuse (sha-384)
+    // PQC Type Fuse (u8)
+    // Lifecycle State (u8)
+    // Debug Locked (u8)
+    // Image Bundle FW SVN from cold boot (u8)
+    // PK Index ECC (u8)
+    // PK Index PQC (u8)
     let mut fuse_vendor_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
 
@@ -265,6 +276,9 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
         soc_ifc.fuse_bank().pqc_key_type() as u8,
         soc_ifc.lifecycle() as u8,
         soc_ifc.debug_locked() as u8,
+        data_vault.cold_boot_fw_svn() as u8,
+        data_vault.vendor_ecc_pk_index() as u8,
+        data_vault.vendor_pqc_pk_index() as u8,
     ])?;
     hasher.finalize(&mut fuse_vendor_info_digest)?;
 

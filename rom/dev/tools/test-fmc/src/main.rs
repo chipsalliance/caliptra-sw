@@ -171,7 +171,7 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         [0u8; core::mem::size_of::<FmcAliasCertTbsEcc384>()];
     copy_tbs(&mut tbs, false);
 
-    let mut cert: [u8; 1024] = [0u8; 1024];
+    let mut cert: [u8; 1536] = [0u8; 1536];
     let builder = Ecdsa384CertBuilder::new(
         &tbs[..core::mem::size_of::<FmcAliasCertTbsEcc384>()],
         &ecdsa_sig,
