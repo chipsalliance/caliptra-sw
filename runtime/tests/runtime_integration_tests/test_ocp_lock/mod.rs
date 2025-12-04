@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    CommandId, MailboxReq, MailboxReqHeader, OcpLockReportHekMetadataReq,
-    OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
+    CommandId, MailboxReq, MailboxReqHeader, OcpLockInitializeMekSecretReq,
+    OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
 };
 use caliptra_builder::{firmware::runtime_tests, FwId};
 use caliptra_drivers::HekSeedState;
@@ -13,6 +13,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
+mod test_derive_mek;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
 
@@ -48,9 +49,15 @@ fn test_hek_available() {
     assert_eq!(resp.as_bytes(), expected_val.as_bytes());
 }
 
+struct InitializeMekSecretParams {
+    sek: [u8; 32],
+    dpk: [u8; 32],
+}
+
 #[derive(Default)]
 struct OcpLockBootParams {
     hek_available: bool,
+    init_mek_secret_params: Option<InitializeMekSecretParams>,
     force_ocp_lock_en: bool,
     rt_fw_id: Option<&'static FwId<'static>>,
     // The linter doesn't like using Default when all params are set.
@@ -66,6 +73,8 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
 
     cmd.populate_chksum().unwrap();
 
+    // A common operation is to report the HEK metadata.
+    // The HEK is not available without this step.
     let cb = move |model: &mut DefaultHwModel| {
         let response = model
             .mailbox_execute(
@@ -87,11 +96,32 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
         None
     };
 
-    run_rt_test(RuntimeTestArgs {
+    let mut model = run_rt_test(RuntimeTestArgs {
         test_fwid: params.rt_fw_id,
         ocp_lock_en: params.force_ocp_lock_en,
         key_type: Some(FwVerificationPqcKeyType::MLDSA),
         rom_callback,
         ..Default::default()
-    })
+    });
+
+    // Another common operation is to seed the MEK secret.
+    // Many commands, e.g. `DERIVE_MEK` will not work until this happens.
+    if let Some(params) = params.init_mek_secret_params {
+        // Initialize MEK Secret Seed
+        let mut cmd = MailboxReq::OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            reserved: 0,
+            sek: params.sek,
+            dpk: params.dpk,
+        });
+        cmd.populate_chksum().unwrap();
+        model
+            .mailbox_execute(
+                CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+    }
+    model
 }
