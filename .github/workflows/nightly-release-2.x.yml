@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          ref: main-2.x
+          ref: caliptra-2.0
           submodules: 'true'
           fetch-depth: 0
 
@@ -66,7 +66,7 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-etrng-log
       extra-features: slow_tests
       rom-logging: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
       runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-etrng-nolog-2_x:
@@ -78,7 +78,7 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
       runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-itrng-log-2_x:
@@ -90,7 +90,7 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-itrng-log
       extra-features: slow_tests,itrng
       rom-logging: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
       runner: '["ubuntu-24.04"]'
 
   sw-emulator-hw-latest-full-suite-itrng-nolog-2_x:
@@ -102,60 +102,60 @@ jobs:
       artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
       extra-features: slow_tests,itrng
       rom-logging: false
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
       runner: '["ubuntu-24.04"]'
 
   fpga-latest-full-suite-itrng-nolog:
     name: FPGA Suite (hw-latest, itrng, nolog)
     needs: find-latest-release-2_x
     if: needs.find-latest-release-2_x.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main-2.x
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-2.0
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-nolog
       extra-features: slow_tests,itrng
       hw-version: "latest"
       rom-logging: false
       fpga-itrng: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
 
   fpga-latest-full-suite-itrng-log:
     name: FPGA Suite (hw-latest, itrng, log)
     needs: find-latest-release-2_x
     if: needs.find-latest-release-2_x.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@main-2.x
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-2.0
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-log
       extra-features: slow_tests,itrng
       hw-version: "latest"
       rom-logging: true
       fpga-itrng: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
 
   fpga-subsystem-latest-full-suite-itrng-nolog:
     name: FPGA Subsystem Suite (hw-latest, itrng, nolog)
     needs: find-latest-release-2_x
     if: needs.find-latest-release-2_x.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@main-2.x
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@caliptra-2.0
     with:
       artifact-suffix: -fpga-subsystem-realtime-latest-itrng-nolog
       extra-features: slow_tests,itrng
       hw-version: "latest"
       rom-logging: false
       fpga-itrng: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
 
   fpga-subsystem-latest-full-suite-itrng-log:
     name: FPGA Subsystem Suite (hw-latest, itrng, log)
     needs: find-latest-release-2_x
     if: needs.find-latest-release-2_x.outputs.create_release
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@main-2.x
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-subsystem.yml@caliptra-2.0
     with:
       artifact-suffix: -fpga-subsystem-realtime-latest-itrng-log
       extra-features: slow_tests,itrng
       hw-version: "latest"
       rom-logging: true
       fpga-itrng: true
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
   
 
   create-release-2_x:

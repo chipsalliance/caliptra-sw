@@ -1,4 +1,4 @@
-name: Build FPGA SD image for main-2.x
+name: Build FPGA SD image for caliptra-2.0
 
 on:
   pull_request:
@@ -15,6 +15,6 @@ on:
 jobs:
   build_sd_image:
     name: Build 2.x images
-    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-image.yml@main-2.x
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga-image.yml@caliptra-2.0
     with:
-      branch: "main-2.x"
+      branch: "caliptra-2.0"
