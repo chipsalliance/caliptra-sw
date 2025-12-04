@@ -372,6 +372,7 @@ jobs:
                   - test(test_doe_when_debug_locked)
                   - test(test_doe_when_debug_not_locked)'
               -E 'package(caliptra-fmc)'
+              -E 'package(caliptra-test) & (test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))'
           )
 
           cargo-nextest nextest list \
