@@ -653,7 +653,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
 
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
-    let command_was_running = drivers.persistent_data.get().runtime_cmd_active.get();
+    let command_was_running = drivers.persistent_data.get().dpe.runtime_cmd_active.get();
     if command_was_running {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
@@ -686,7 +686,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
 
         // No command is executing, set the mailbox flow done to true before beginning idle.
         drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
-        drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(false);
+        drivers.persistent_data.get_mut().dpe.runtime_cmd_active = U8Bool::new(false);
 
         enter_idle(drivers);
 
@@ -702,7 +702,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             // We have woken from idle and have a command ready, set the mailbox flow done to false until we return to
             // idle.
             drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
-            drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(true);
+            drivers.persistent_data.get_mut().dpe.runtime_cmd_active = U8Bool::new(true);
 
             // Acknowledge the interrupt so we go back to sleep after
             // processing the mailbox. After this point, if the mailbox is

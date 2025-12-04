@@ -72,7 +72,7 @@ impl InvokeDpeCmd {
                 &mut pdata.fht.rt_dice_ecc_pub_key,
                 key_id_rt_cdi,
                 key_id_rt_priv_key,
-                &mut pdata.exported_cdi_slots,
+                &mut pdata.dpe.exported_cdi_slots,
             );
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
@@ -91,9 +91,9 @@ impl InvokeDpeCmd {
             };
 
             let locality = drivers.mbox.id();
-            let dpe = &mut pdata.dpe;
-            let context_has_tag = &mut pdata.context_has_tag;
-            let context_tags = &mut pdata.context_tags;
+            let dpe = &mut pdata.dpe.dpe;
+            let context_has_tag = &mut pdata.dpe.context_has_tag;
+            let context_tags = &mut pdata.dpe.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
