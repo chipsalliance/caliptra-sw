@@ -1085,6 +1085,14 @@ fn test_upload_measurement_limit_plus_one() {
     }
 
     // Upload a 9th measurement, which should fail and raise a fatal error.
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &measurement.as_bytes()[4..],
+    );
+    let measurement = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..measurement
+    };
     let result = hw.upload_measurement(measurement.as_bytes());
     assert!(result.is_err());
     assert!(matches!(

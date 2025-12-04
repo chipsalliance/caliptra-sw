@@ -18,8 +18,18 @@ fn test_unknown_command_is_fatal() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // This command does not exist
+    // Calculate checksum for unknown command with empty payload (no bytes after header)
+    let checksum = caliptra_common::checksum::calc_checksum(
+        0xabcd_1234,
+        &[], // No payload after header
+    );
+
+    // Create final header with correct checksum
+    let header = MailboxReqHeader { chksum: checksum };
+
+    // This command does not exist
     assert_eq!(
-        hw.mailbox_execute(0xabcd_1234, &[]),
+        hw.mailbox_execute(0xabcd_1234, header.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
         ))
@@ -113,6 +123,14 @@ fn test_mailbox_invalid_req_size_large() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CAPABILITIES),
+        &payload.as_bytes()[4..],
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Send too much data (stash measurement is bigger than capabilities)
     assert_eq!(
@@ -136,12 +154,21 @@ fn test_mailbox_invalid_req_size_small() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let payload_size = core::mem::size_of::<StashMeasurementReq>();
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &payload.as_bytes()[4..payload_size - 4],
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Drop a dword
     assert_eq!(
         hw.mailbox_execute(
             CommandId::STASH_MEASUREMENT.into(),
-            &payload.as_bytes()[4..]
+            &payload.as_bytes()[..payload_size - 4]
         ),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
