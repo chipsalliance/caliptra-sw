@@ -13,6 +13,8 @@ Abstract:
 --*/
 mod generator;
 
+pub mod default_test_manifest;
+
 use caliptra_image_types::FwVerificationPqcKeyType;
 pub use generator::AuthManifestGenerator;
 
