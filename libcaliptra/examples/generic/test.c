@@ -1255,7 +1255,7 @@ int rom_test_idevid_csr(const test_info *info)
 
     if (status)
     {
-        printf("Get IDev CSR failed: 0x%x\n", status);
+        printf("Get ECC384 IDev CSR failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     }
@@ -1263,12 +1263,12 @@ int rom_test_idevid_csr(const test_info *info)
     {
         if (memcmp(ecc_csr_resp.data, ecc_idev_csr_bytes, ecc_csr_resp.data_size) != 0)
         {
-            printf("IDEV CSR does not match\n");
+            printf("ECC384 IDEV CSR does not match\n");
             failure = 1;
         }
         else
         {
-            printf("Get IDev CSR: OK\n");
+            printf("Get ECC384 IDev CSR: OK\n");
         }
     }
 

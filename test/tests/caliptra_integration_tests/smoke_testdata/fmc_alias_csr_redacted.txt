@@ -1,7 +1,7 @@
 Certificate Request:
     Data:
         Version: 1 (0x0)
-        Subject: CN=Caliptra 2.0 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        Subject: CN=Caliptra 2.1 Ecc384 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)

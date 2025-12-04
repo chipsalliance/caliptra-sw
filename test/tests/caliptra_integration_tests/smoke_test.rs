@@ -115,10 +115,26 @@ fn retrieve_csr_test() {
     let mldsa_csr_txt = String::from_utf8(mldsa_csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_ecc.txt", &ecc_csr_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_ecc.der", &ecc_csr_der).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.txt", &mldsa_csr_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der", &mldsa_csr_der).unwrap();
+    // std::fs::write(
+    //     "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_ecc.txt",
+    //     &ecc_csr_txt,
+    // )
+    // .unwrap();
+    // std::fs::write(
+    //     "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_ecc.der",
+    //     &ecc_csr_der,
+    // )
+    // .unwrap();
+    // std::fs::write(
+    //     "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.txt",
+    //     &mldsa_csr_txt,
+    // )
+    // .unwrap();
+    // std::fs::write(
+    //     "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der",
+    //     &mldsa_csr_der,
+    // )
+    // .unwrap();
 
     println!("ecc csr: {}", ecc_csr_txt);
     println!("mldsa csr: {}", mldsa_csr_txt);
@@ -317,7 +333,7 @@ fn smoke_test() {
             //         if *algorithm_type == AlgorithmType::Mldsa87 {
             //             "_mldsa"
             //         } else {
-            //             ""
+            //             "_ecc"
             //         }
             //     ),
             //     &ldev_cert_txt,
@@ -329,7 +345,7 @@ fn smoke_test() {
             //         if *algorithm_type == AlgorithmType::Mldsa87 {
             //             "_mldsa"
             //         } else {
-            //             ""
+            //             "_ecc"
             //         }
             //     ),
             //     ldev_cert_der,
@@ -609,8 +625,22 @@ fn smoke_test() {
                     String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
 
                 // To update the alias-cert golden-data:
-                // std::fs::write(format!("{}/fmc_alias_cert_redacted.txt", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_txt).unwrap();
-                // std::fs::write(format!("{}/fmc_alias_cert_redacted.der", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_der).unwrap();
+                // std::fs::write(
+                //     format!(
+                //         "{}/fmc_alias_cert_redacted.txt",
+                //         get_rom_test_params().testdata_path
+                //     ),
+                //     &fmc_alias_cert_redacted_txt,
+                // )
+                // .unwrap();
+                // std::fs::write(
+                //     format!(
+                //         "{}/fmc_alias_cert_redacted.der",
+                //         get_rom_test_params().testdata_path
+                //     ),
+                //     &fmc_alias_cert_redacted_der,
+                // )
+                // .unwrap();
 
                 assert_eq!(
                     fmc_alias_cert_redacted_txt.as_str(),
@@ -702,16 +732,16 @@ fn smoke_test() {
                     String::from_utf8(fmc_alias_csr_redacted.to_text().unwrap()).unwrap();
 
                 // To update the CSR testdata:
-                std::fs::write(
-                    "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.txt",
-                    &fmc_alias_csr_redacted_txt,
-                )
-                .unwrap();
-                std::fs::write(
-                    "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.der",
-                    &fmc_alias_csr_redacted_der,
-                )
-                .unwrap();
+                // std::fs::write(
+                //     "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.txt",
+                //     &fmc_alias_csr_redacted_txt,
+                // )
+                // .unwrap();
+                // std::fs::write(
+                //     "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_csr_redacted.der",
+                //     &fmc_alias_csr_redacted_der,
+                // )
+                // .unwrap();
 
                 assert_eq!(
                     fmc_alias_csr_redacted_txt.as_str(),
@@ -889,8 +919,16 @@ fn smoke_test() {
                     String::from_utf8(rt_alias_cert_redacted.to_text().unwrap()).unwrap();
 
                 // To update the alias-cert golden-data:
-                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.txt", &rt_alias_cert_redacted_txt).unwrap();
-                // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.der", &rt_alias_cert_redacted_der).unwrap();
+                // std::fs::write(
+                //     "tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.txt",
+                //     &rt_alias_cert_redacted_txt,
+                // )
+                // .unwrap();
+                // std::fs::write(
+                //     "tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.der",
+                //     &rt_alias_cert_redacted_der,
+                // )
+                // .unwrap();
 
                 assert_eq!(
                     rt_alias_cert_redacted_txt.as_str(),
