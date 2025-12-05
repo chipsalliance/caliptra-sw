@@ -583,7 +583,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
     // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..100 {
+    for _ in 0..1000 {
         model.step();
     }
 
@@ -699,7 +699,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
     // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..100 {
+    for _ in 0..1000 {
         model.step();
     }
 

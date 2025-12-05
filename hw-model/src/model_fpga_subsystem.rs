@@ -16,7 +16,9 @@ use crate::otp_provision::{
 };
 use crate::xi3c::XI3cError;
 use crate::SecurityState;
-use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
+use crate::{
+    xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
+};
 use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
@@ -415,6 +417,7 @@ pub struct ModelFpgaSubsystem {
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
     pub bootfsm_break: bool,
+    pub rom_callback: Option<ModelCallback>,
 }
 
 impl ModelFpgaSubsystem {
@@ -1586,6 +1589,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
             bootfsm_break: params.bootfsm_break,
+            rom_callback: params.rom_callback,
         };
 
         println!("AXI reset");
@@ -1602,7 +1606,7 @@ impl HwModel for ModelFpgaSubsystem {
         }));
 
         // Set generic input wires.
-        let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
+        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
 
         m.set_mci_generic_input_wires(&[0, 0]);
@@ -1885,9 +1889,15 @@ impl HwModel for ModelFpgaSubsystem {
         self.step();
         println!("Finished booting");
 
+        // Call ROM callback before informing MCU ROM it can load firmware
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+        }
+
         // Notify MCU ROM it can start loading firmware
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
+        // MCU ROM will wait after reaching the mailbox for this bit before booting RT
         gpio.set(current | 1 << 31);
 
         // ironically, we don't need to support this

@@ -109,6 +109,8 @@ pub type DefaultHwModel = ModelFpgaSubsystem;
 
 pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
+pub type ModelCallback = Box<dyn FnOnce(&mut DefaultHwModel)>;
+
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
 /// function over HwModel::new_unbooted().
@@ -225,7 +227,7 @@ pub struct InitParams<'a> {
 
     pub ocp_lock_en: bool,
 
-    pub uds_granularity_64: bool,
+    pub uds_fuse_row_granularity_64: bool,
 
     pub otp_dai_idle_bit_offset: u32,
 
@@ -278,6 +280,10 @@ pub struct InitParams<'a> {
 
     // Subsystem initialization parameters.
     pub ss_init_params: SubsystemInitParams<'a>,
+
+    /// ROM Mailbox Handler callback
+    /// Some tests need to access the ROM mailbox, and then continue booting to RT
+    pub rom_callback: Option<ModelCallback>,
 }
 
 impl Default for InitParams<'_> {
@@ -307,9 +313,9 @@ impl Default for InitParams<'_> {
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
-            uds_granularity_64: true,
-            otp_dai_idle_bit_offset: 22,
-            otp_direct_access_cmd_reg_offset: 0x60,
+            uds_fuse_row_granularity_64: true,
+            otp_dai_idle_bit_offset: 30,
+            otp_direct_access_cmd_reg_offset: 0x80,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             bootfsm_break: false,
@@ -328,6 +334,7 @@ impl Default for InitParams<'_> {
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
             ss_init_params: Default::default(),
+            rom_callback: None,
         }
     }
 }

@@ -8,7 +8,10 @@ use caliptra_api::{
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
+    firmware::{
+        APP_WITH_UART, APP_WITH_UART_FPGA, APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA,
+        FMC_WITH_UART,
+    },
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -27,7 +30,7 @@ use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
-    ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
+    ModelCallback, ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 
@@ -57,6 +60,7 @@ pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
     24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
 ];
+
 pub const TEST_DIGEST: [u8; 48] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
@@ -137,6 +141,9 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
+    pub ocp_lock_en: bool,
+    pub key_type: Option<FwVerificationPqcKeyType>,
+    pub rom_callback: Option<ModelCallback>,
 }
 
 impl RuntimeTestArgs<'_> {
@@ -178,6 +185,9 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
+            ocp_lock_en: cfg!(feature = "ocp-lock"),
+            key_type: None,
+            rom_callback: None,
         }
     }
 }
@@ -231,11 +241,15 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
-        &APP_WITH_UART_FPGA
-    } else {
-        &APP_WITH_UART
+    let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
+    let ocp_lock = cfg!(feature = "ocp-lock");
+    let default_rt_fwid = match (fpga, ocp_lock) {
+        (false, false) => &APP_WITH_UART,
+        (true, false) => &APP_WITH_UART_FPGA,
+        (false, true) => &APP_WITH_UART_OCP_LOCK,
+        (true, true) => &APP_WITH_UART_OCP_LOCK_FPGA,
     };
+
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
     let fmc_fwid = args.test_fmc_fwid.unwrap_or(&FMC_WITH_UART);
 
@@ -282,10 +296,12 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
+        ocp_lock_en: args.ocp_lock_en,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()
         },
+        rom_callback: args.rom_callback,
         ..Default::default()
     });
     init_params.fuses = Fuses {
@@ -333,7 +349,9 @@ pub fn start_rt_test_pqc_model(
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
-    run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
+    // TODO(clundin): Do we want to use MLDSA by default in 2.1?
+    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::LMS);
+    run_rt_test_pqc(args, key_type)
 }
 
 fn asn1_time_round_to_minute(offset: Duration) -> Asn1Time {
