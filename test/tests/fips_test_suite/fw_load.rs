@@ -2,15 +2,17 @@
 use crate::common;
 
 use caliptra_api::SocManager;
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::firmware::{
-    APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS,
+    APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS,
 };
 use caliptra_builder::ImageOptions;
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{
-    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState, U4,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1};
@@ -44,7 +46,16 @@ const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 ];
 
 pub fn build_fw_image(image_options: ImageOptions) -> ImageBundle {
-    caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options).unwrap()
+    caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
+        image_options,
+    )
+    .unwrap()
 }
 
 fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_digest: TocDigest) {
@@ -234,31 +245,58 @@ fn fw_load_error_flow_base(
     );
 
     // Upload initial FW
-    let mut fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
+    let fw_upload = |hw: &mut DefaultHwModel, image: Vec<u8>| {
+        if hw.subsystem_mode() {
+            hw.upload_firmware_rri(
+                &image,
+                Some(
+                    default_test_soc_manifest(
+                        &DEFAULT_MCU_FW,
+                        pqc_key_type,
+                        image_options.fw_svn,
+                        Crypto::default(),
+                    )
+                    .as_bytes(),
+                ),
+                Some(&DEFAULT_MCU_FW),
+            )
+        } else {
+            hw.upload_firmware(&image)
+        }
+    };
+    let mut fw_load_result = fw_upload(&mut hw, image_to_bytes_no_error_check(&fw_image));
 
     // Update the FW if specified
     match update_fw_image {
         None => {
-            // Verify the correct error was returned from FW load
-            assert_eq!(
-                ModelError::MailboxCmdFailed(exp_error_code),
-                fw_load_result.unwrap_err()
-            );
+            if hw.subsystem_mode() {
+                hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
+            } else {
+                // Verify the correct error was returned from FW load
+                assert_eq!(
+                    ModelError::MailboxCmdFailed(exp_error_code),
+                    fw_load_result.unwrap_err()
+                );
 
-            // Verify we cannot utilize RT FW by sending a message
-            verify_mbox_cmds_fail(&mut hw, exp_error_code);
+                // Verify we cannot utilize RT FW by sending a message
+                verify_mbox_cmds_fail(&mut hw, exp_error_code);
 
-            // Verify an undocumented attempt to clear the error fails
-            hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
-            hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-            verify_mbox_cmds_fail(&mut hw, 0);
-
-            let clean_fw_image = build_fw_image(image_options);
+                // Verify an undocumented attempt to clear the error fails
+                hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
+                hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
+                verify_mbox_cmds_fail(&mut hw, 0);
+            }
+            let clean_fw_image = build_fw_image(image_options.clone());
             let safe_fuses = safe_fuses(&clean_fw_image);
 
             // Clear the error with an approved method - restart Caliptra
             // TODO: Reset to the default fuse state - provided fuses may be intended to cause errors
-            if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+            if cfg!(any(
+                feature = "verilator",
+                feature = "fpga_realtime",
+                feature = "fpga_subsystem"
+            )) {
                 hw.set_fuses(safe_fuses);
                 hw.cold_reset();
             } else {
@@ -281,12 +319,16 @@ fn fw_load_error_flow_base(
             });
 
             // Verify we can load FW (use clean FW)
-            hw.upload_firmware(&clean_fw_image.to_bytes().unwrap())
-                .unwrap();
+            fw_upload(&mut hw, clean_fw_image.to_bytes().unwrap()).unwrap();
         }
         Some(update_image) => {
-            // Verify initial FW load was successful
-            fw_load_result.unwrap();
+            if hw.subsystem_mode() {
+                hw.step_until_output_contains("RT listening for mailbox commands...")
+                    .unwrap();
+            } else {
+                // Verify initial FW load was successful
+                fw_load_result.unwrap();
+            }
 
             // Update FW
             fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&update_image));
@@ -1750,7 +1792,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
         pqc_key_type: FwVerificationPqcKeyType::from_u8(fw_image.manifest.pqc_key_type).unwrap(),
         ..Default::default()
     };
-    let pk_hash_src_image = build_fw_image(image_options);
+    let pk_hash_src_image = build_fw_image(image_options.clone());
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&pk_hash_src_image.manifest);
 
     let life_cycle = DeviceLifecycle::Production;
@@ -1773,13 +1815,34 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
             ..Default::default()
         }),
     );
-    let fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
+    let fw_load_result = if hw.subsystem_mode() {
+        hw.upload_firmware_rri(
+            &image_to_bytes_no_error_check(&fw_image),
+            Some(
+                default_test_soc_manifest(
+                    &DEFAULT_MCU_FW,
+                    image_options.pqc_key_type,
+                    image_options.fw_svn,
+                    Crypto::default(),
+                )
+                .as_bytes(),
+            ),
+            Some(&DEFAULT_MCU_FW),
+        )
+    } else {
+        hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image))
+    };
 
     // Make sure we got the right error
-    assert_eq!(
-        ModelError::MailboxCmdFailed(exp_error_code),
-        fw_load_result.unwrap_err()
-    );
+    if hw.subsystem_mode() {
+        hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
+    } else {
+        assert_eq!(
+            ModelError::MailboxCmdFailed(exp_error_code),
+            fw_load_result.unwrap_err()
+        );
+    }
 }
 
 #[test]
@@ -1941,7 +2004,7 @@ fn fw_load_blank_pub_key_hashes() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fw_image = build_fw_image(image_options);
+        let fw_image = build_fw_image(image_options.clone());
 
         // Don't populate pub key hashes
         let life_cycle = DeviceLifecycle::Production;
@@ -1962,15 +2025,35 @@ fn fw_load_blank_pub_key_hashes() {
                 ..Default::default()
             }),
         );
-        let fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
+        let fw_load_result = if hw.subsystem_mode() {
+            hw.upload_firmware_rri(
+                &image_to_bytes_no_error_check(&fw_image),
+                Some(
+                    default_test_soc_manifest(
+                        &DEFAULT_MCU_FW,
+                        image_options.pqc_key_type,
+                        image_options.fw_svn,
+                        Crypto::default(),
+                    )
+                    .as_bytes(),
+                ),
+                Some(&DEFAULT_MCU_FW),
+            )
+        } else {
+            hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image))
+        };
 
         // Make sure we got the right error
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into()
-            ),
-            fw_load_result.unwrap_err()
-        );
+        let exp_error_code = CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into();
+        if hw.subsystem_mode() {
+            hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+            assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
+        } else {
+            assert_eq!(
+                ModelError::MailboxCmdFailed(exp_error_code),
+                fw_load_result.unwrap_err()
+            );
+        }
     }
 }
 
@@ -1994,7 +2077,7 @@ pub fn corrupted_fw_load_version() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let mut fw_image = build_fw_image(image_options);
+        let mut fw_image = build_fw_image(image_options.clone());
         // Change the runtime image.
         fw_image.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
 
@@ -2005,22 +2088,49 @@ pub fn corrupted_fw_load_version() {
         let rom_fmc_fw_version_before = hw.soc_ifc().cptra_fw_rev_id().read();
 
         // Load the FW
-        let fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
+        let fw_load_result = if hw.subsystem_mode() {
+            hw.upload_firmware_rri(
+                &image_to_bytes_no_error_check(&fw_image),
+                Some(
+                    default_test_soc_manifest(
+                        &DEFAULT_MCU_FW,
+                        image_options.pqc_key_type,
+                        image_options.fw_svn,
+                        Crypto::default(),
+                    )
+                    .as_bytes(),
+                ),
+                Some(&DEFAULT_MCU_FW),
+            )
+        } else {
+            hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image))
+        };
 
         // Make sure we got the right error
         let exp_err: u32 = CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into();
-        assert_eq!(
-            ModelError::MailboxCmdFailed(exp_err),
-            fw_load_result.unwrap_err()
-        );
+        if hw.subsystem_mode() {
+            hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+            assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_err);
 
-        // Make sure we can't use the module
-        verify_mbox_cmds_fail(&mut hw, exp_err);
+            // Verify version info is unchanged
+            assert_eq!(
+                rom_fmc_fw_version_before,
+                hw.soc_ifc().cptra_fw_rev_id().read()
+            );
+        } else {
+            assert_eq!(
+                ModelError::MailboxCmdFailed(exp_err),
+                fw_load_result.unwrap_err()
+            );
 
-        // Verify version info is unchanged
-        assert_eq!(
-            rom_fmc_fw_version_before,
-            hw.soc_ifc().cptra_fw_rev_id().read()
-        );
+            // Make sure we can't use the module
+            verify_mbox_cmds_fail(&mut hw, exp_err);
+
+            // Verify version info is unchanged
+            assert_eq!(
+                rom_fmc_fw_version_before,
+                hw.soc_ifc().cptra_fw_rev_id().read()
+            );
+        }
     }
 }

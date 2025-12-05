@@ -12,6 +12,8 @@ anyhow.workspace = true
 asn1.workspace = true
 caliptra-api-types.workspace = true
 caliptra-api.workspace = true
+caliptra-auth-man-gen.workspace = true
+caliptra-auth-man-types.workspace = true
 caliptra-builder.workspace = true
 caliptra-coverage.workspace = true
 caliptra-drivers = { workspace = true, features = ["fips-test-hooks"] }

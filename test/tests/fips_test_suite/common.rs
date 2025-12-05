@@ -141,7 +141,10 @@ pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // If rom was not provided, build it or get it from the specified path
     let rom = match std::env::var("FIPS_TEST_ROM_BIN") {
         // Build default rom if not provided and no path is specified
-        Err(_) => caliptra_builder::rom_for_fw_integration_tests().unwrap(),
+        Err(_) => {
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap()
+        }
         Ok(rom_path) => {
             // Read in the ROM file if a path was provided
             match std::fs::read(&rom_path) {
