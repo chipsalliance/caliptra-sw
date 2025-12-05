@@ -61,7 +61,7 @@ jobs:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release == 'true'
-    uses: ./.github/workflows/fpga.yml
+    uses: ./.github/workflows/fpga.yml@caliptra-1.x
     strategy:
       fail-fast: false
       matrix:
@@ -89,7 +89,7 @@ jobs:
     name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release == 'true'
-    uses: ./.github/workflows/fw-test-emu.yml
+    uses: ./.github/workflows/fw-test-emu.yml@caliptra-1.x
     strategy:
       fail-fast: false
       matrix:
