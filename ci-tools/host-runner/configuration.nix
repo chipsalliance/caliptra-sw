@@ -27,7 +27,7 @@ let
     mkdir -p ci-images
     pushd ci-images
 
-    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
+    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-1.x.yml caliptra-fpga-image main > caliptra-fpga-image.zip
     ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
     DATE_SUFFIX=$(date +%Y%m%d)
     (mv zcu104.img zcu104.img.old."$DATE_SUFFIX" || true)
@@ -35,7 +35,20 @@ let
     rm caliptra-fpga-image.zip
 
     for VARIANT in "caliptra-fpga-image-core" "caliptra-fpga-image-subsystem"; do
-        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-2.x.yml $VARIANT main > $VARIANT.zip
+        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main > $VARIANT.zip
+        ${pkgs.unzip}/bin/unzip $VARIANT.zip
+        (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
+        mv image.img $VARIANT.img
+        rm $VARIANT.zip
+    done
+
+    popd 
+
+    mkdir -p dev-images
+    pushd dev-images
+
+    for VARIANT in "caliptra-fpga-image-core-dev" "caliptra-fpga-image-subsystem-dev"; do
+        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main > $VARIANT.zip
         ${pkgs.unzip}/bin/unzip $VARIANT.zip
         (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
         mv image.img $VARIANT.img
@@ -44,8 +57,10 @@ let
   '';
   cleanup-old-images-script = pkgs.writeShellScriptBin "cleanup-old-images" ''
     set -eux
-    cd /home/${user}/ci-images
-    ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
+    for dir in "/home/${user}/ci-images" "/home/${user}/dev-images"; do
+        cd $dir
+        ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
+    done
   '';
 in
 {
