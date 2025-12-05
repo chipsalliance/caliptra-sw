@@ -61,8 +61,9 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.branch }}
           submodules: 'true'
   
       - name: Compute cache-keys
@@ -119,9 +120,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           submodules: 'true'
+          ref: ${{ inputs.branch }}
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -257,8 +259,10 @@ jobs:
           #sudo chroot "${SYSROOT}" apt-get -y install build-essential
 
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
+          submodules: 'true'
+          ref: ${{ inputs.branch }}
           path: sysroot/home/runner/caliptra-sw
 
       - name: Build modules
@@ -295,9 +299,10 @@ jobs:
   
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           submodules: 'true'
+          ref: ${{ inputs.branch }}
   
       - name: Mount FPGA tools
         run: |
@@ -365,7 +370,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.branch }}
 
       - name: Pull dpe submodule
         run: |
