@@ -10,13 +10,16 @@ use openssl::x509::X509Req;
 use zerocopy::IntoBytes;
 
 pub fn build_model_ready_with_csrbit() -> DefaultHwModel {
-    // Request IDEVID CSR generation via manufacturing flags.
-    let args = RuntimeTestArgs {
-        test_mfg_flags: Some(MfgFlags::GENERATE_IDEVID_CSR),
-        // successful_reach_rt: true,
-        // production_state: Some(RuntimeProductionArgs { ... }),
-        ..Default::default()
-    };
+    let mut args = RuntimeTestArgs::test_productions_args();
+
+    // Flip debug_locked to false on the existing SecurityState
+    if let Some(ref mut sec_state) = args.security_state {
+        sec_state.set_debug_locked(true);
+    }
+
+    // Optionally add your mfg flags:
+    args.test_mfg_flags = Some(MfgFlags::GENERATE_IDEVID_CSR);
+    // Optionally change PQC key type, etc.
 
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
