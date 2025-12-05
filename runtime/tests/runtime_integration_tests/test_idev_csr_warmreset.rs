@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use caliptra_builder::{get_ci_rom_version, CiRomVersion};
 use caliptra_common::mailbox_api::{

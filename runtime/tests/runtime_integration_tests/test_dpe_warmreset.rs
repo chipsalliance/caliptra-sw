@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use crate::common::{execute_dpe_cmd, run_rt_test_pqc, DpeResult, RuntimeTestArgs};
 
 use caliptra_hw_model::HwModel;

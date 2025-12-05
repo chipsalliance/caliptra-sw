@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use crate::common::{run_rt_test_pqc, RuntimeTestArgs};
 use crate::test_cryptographic_mailbox::derive_stable_key;
 use caliptra_api::mailbox::{

@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use crate::test_authorize_and_stash::set_auth_manifest;
