@@ -280,6 +280,9 @@ The following flows are conducted when the ROM is operating in the manufacturing
 9. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
+
+**Note:** All mailbox command requests start with a 4-byte `MailboxReqHeader` (containing a checksum field), while response payloads start with an 8-byte `MailboxRespHeader` (containing checksum and FIPS status fields).
+
 1. On reset, the ROM checks if the `MANUF_DBG_UNLOCK_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register and the `DEBUG_INTENT` bit in `SS_DEBUG_INTENT` register are set.
 
 2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` & `MANUF_DBG_UNLOCK_IN_PROGRESS` bits in the `SS_DBG_MANUF_SERVICE_REG_RSP` register, then enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 256-bit value.
@@ -301,6 +304,9 @@ The following flows are conducted when the ROM is operating in the manufacturing
 The following flows are conducted when the ROM is operating in the production mode, indicated by a value of `DEVICE_PRODUCTION` (0x3) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### Debug Unlock
+
+**Note:** All mailbox command requests start with a 4-byte `MailboxReqHeader` (containing a checksum field), while response payloads start with an 8-byte `MailboxRespHeader` (containing checksum and FIPS status fields).
+
 1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register and the `DEBUG_INTENT` in `SS_DEBUG_INTENT` register are set.
 
 2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` & `PROD_DBG_UNLOCK_IN_PROGRESS` bits in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
@@ -321,7 +327,7 @@ The following flows are conducted when the ROM is operating in the production mo
 
 | Field                    | Size (bytes) | Description                                        |
 |--------------------------|--------------|----------------------------------------------------|
-| Length                   | 4            | Length of the message in DWORDs. This should be 21.|
+| Length                   | 4            | Reserved.                                          |
 | Unique Device Identifier | 32           | Device identifier of the Caliptra Device.          |
 | Challenge                | 48           | Random number.                                     |
 
