@@ -81,7 +81,7 @@ impl SignWithExportedEcdsaCmd {
             &mut pdata.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut pdata.exported_cdi_slots,
+            &mut pdata.dpe.exported_cdi_slots,
         );
 
         let digest = Digest::new(&cmd.tbs)

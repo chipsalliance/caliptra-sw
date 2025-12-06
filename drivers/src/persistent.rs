@@ -56,8 +56,7 @@ pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
-pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
-pub const _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE: u32 = 4; // u8 + u8 + 2 bytes padding
+pub const _MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
 
 #[cfg(feature = "runtime")]
 // Currently only can export CDI once, but in the future we may want to support multiple exported
@@ -76,17 +75,6 @@ pub struct ExportedCdiEntry {
 pub struct ExportedCdiHandles {
     pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
 }
-
-#[cfg(feature = "runtime")]
-const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
-    + size_of::<u32>() * MAX_HANDLES
-    + size_of::<U8Bool>() * MAX_HANDLES
-    + size_of::<U8Bool>()
-    + size_of::<U8Bool>()
-    + size_of::<ExportedCdiHandles>();
-
-#[cfg(feature = "runtime")]
-const _: () = assert!(DPE_DCCM_STORAGE < DPE_SIZE as usize);
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
@@ -334,19 +322,9 @@ pub struct PersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     #[cfg(feature = "runtime")]
-    pub dpe: DpeInstance,
+    pub dpe: DpePersistentData,
     #[cfg(feature = "runtime")]
-    pub context_tags: [u32; MAX_HANDLES],
-    #[cfg(feature = "runtime")]
-    pub context_has_tag: [U8Bool; MAX_HANDLES],
-    #[cfg(feature = "runtime")]
-    pub attestation_disabled: U8Bool,
-    #[cfg(feature = "runtime")]
-    pub runtime_cmd_active: U8Bool,
-    #[cfg(feature = "runtime")]
-    pub exported_cdi_slots: ExportedCdiHandles,
-    #[cfg(feature = "runtime")]
-    reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
+    reserved6: [u8; DPE_SIZE as usize - size_of::<DpePersistentData>()],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; DPE_SIZE as usize],
     #[cfg(feature = "runtime")]
@@ -385,10 +363,6 @@ pub struct PersistentData {
     pub ocp_lock_metadata: OcpLockMetadata,
 
     pub mcu_firmware_loaded: u32,
-
-    pub dpe_pl0_context_limit: u8,
-    pub dpe_pl1_context_limit: u8,
-    pub reserved12: [u8; 2], // Pad to 4 byte boundary
 }
 
 impl PersistentData {
@@ -550,11 +524,6 @@ impl PersistentData {
                 addr_of!((*P).mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
-            assert_eq!(
-                addr_of!((*P).dpe_pl0_context_limit) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
 
             assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
@@ -599,6 +568,25 @@ impl PersistentDataAccessor {
         unsafe { ref_mut_from_addr(memory_layout::PERSISTENT_DATA_ORG) }
     }
 }
+
+#[cfg(feature = "runtime")]
+#[repr(C)]
+#[derive(IntoBytes, TryFromBytes, KnownLayout, Zeroize)]
+pub struct DpePersistentData {
+    pub dpe: DpeInstance,
+    pub context_tags: [u32; MAX_HANDLES],
+    pub context_has_tag: [U8Bool; MAX_HANDLES],
+    pub attestation_disabled: U8Bool,
+    pub runtime_cmd_active: U8Bool,
+    // to satisfy explicit padding
+    reserved0: [u8; 2],
+    pub exported_cdi_slots: ExportedCdiHandles,
+    pub pl0_context_limit: u8,
+    pub pl1_context_limit: u8,
+}
+
+#[cfg(feature = "runtime")]
+const _: () = assert!(size_of::<DpePersistentData>() <= DPE_SIZE as usize);
 
 #[inline(always)]
 unsafe fn ref_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a T {

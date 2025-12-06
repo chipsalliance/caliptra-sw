@@ -62,7 +62,7 @@ impl StashMeasurementCmd {
                 &mut pdata.fht.rt_dice_ecc_pub_key,
                 key_id_rt_cdi,
                 key_id_rt_priv_key,
-                &mut pdata.exported_cdi_slots,
+                &mut pdata.dpe.exported_cdi_slots,
             );
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -90,7 +90,7 @@ impl StashMeasurementCmd {
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
             }
-            .execute(&mut pdata.dpe, &mut env, locality);
+            .execute(&mut pdata.dpe.dpe, &mut env, locality);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
