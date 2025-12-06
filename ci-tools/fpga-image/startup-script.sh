@@ -22,7 +22,8 @@ elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
     # Update time. This requires a R/W file system, so it failed earlier.
-    systemctl start systemd-timesyncd
+    timedatectl set-ntp true
+    systemctl restart systemd-timesyncd
 
     # Give the NTP service some time
     sleep 1m
