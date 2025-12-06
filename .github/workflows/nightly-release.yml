@@ -77,7 +77,6 @@ jobs:
       artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
-      branch: "main"
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
@@ -100,7 +99,6 @@ jobs:
       hw-version: ${{ matrix.hw_config.hw }}
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
-      branch: "main"
 
   fpga-subsystem:
     name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
