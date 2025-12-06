@@ -72,14 +72,14 @@ fn gen_init_devid_csr(out_dir: &str) {
     usage.set_key_cert_sign(true);
 
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 5)
+        .add_basic_constraints_ext(true, 7)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template(IDEVID_ECC384);
     CodeGen::gen_code("InitDevIdCsrTbsEcc384", template, out_dir);
 
     let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
-        .add_basic_constraints_ext(true, 5)
+        .add_basic_constraints_ext(true, 7)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template(IDEVID_MLDSA87);
@@ -91,7 +91,7 @@ fn gen_fmc_alias_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 3)
+        .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
@@ -116,7 +116,7 @@ fn gen_fmc_alias_csr(out_dir: &str) {
     CodeGen::gen_code("FmcAliasCsrTbsEcc384", template, out_dir);
 
     let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
-        .add_basic_constraints_ext(true, 3)
+        .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
@@ -147,14 +147,14 @@ fn gen_local_devid_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 4)
+        .add_basic_constraints_ext(true, 6)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template(LDEVID_ECC384, IDEVID_ECC384);
     CodeGen::gen_code("LocalDevIdCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
-        .add_basic_constraints_ext(true, 4)
+        .add_basic_constraints_ext(true, 6)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template(LDEVID_MLDSA87, IDEVID_MLDSA87);
@@ -167,7 +167,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 3)
+        .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
@@ -192,7 +192,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
     CodeGen::gen_code("FmcAliasCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
-        .add_basic_constraints_ext(true, 3)
+        .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
@@ -226,8 +226,8 @@ fn gen_rt_alias_cert(out_dir: &str) {
     // Add DigitalSignature to allow signing of firmware
     usage.set_digital_signature(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
-        // Basic Constraints : CA = true, PathLen = 2
-        .add_basic_constraints_ext(true, 2)
+        // Basic Constraints : CA = true, PathLen = 4
+        .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
@@ -241,8 +241,8 @@ fn gen_rt_alias_cert(out_dir: &str) {
     CodeGen::gen_code("RtAliasCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
-        // Basic Constraints : CA = true, PathLen = 2
-        .add_basic_constraints_ext(true, 2)
+        // Basic Constraints : CA = true, PathLen = 4
+        .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
