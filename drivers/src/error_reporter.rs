@@ -47,7 +47,7 @@ pub fn clear_fw_error_non_fatal(persistent_data: &mut PersistentData) {
         0 => {}
         val => {
             // If there is a non-zero error, save it in persistent data before clearing
-            persistent_data.cleared_non_fatal_fw_error = val;
+            persistent_data.rom.cleared_non_fatal_fw_error = val;
             report_fw_error_non_fatal(0);
         }
     }

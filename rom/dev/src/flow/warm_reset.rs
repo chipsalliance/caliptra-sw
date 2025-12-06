@@ -32,7 +32,7 @@ impl WarmResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 
-        let data_vault = &env.persistent_data.get().data_vault;
+        let data_vault = &env.persistent_data.get().rom.data_vault;
 
         // Check if previous Cold-Reset was successful.
         if cfi_launder(data_vault.rom_cold_boot_status()) != ColdResetComplete.into() {

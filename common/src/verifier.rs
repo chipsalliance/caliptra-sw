@@ -281,8 +281,8 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     }
 
     fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
-        if self.persistent_data.dot_owner_pk_hash.valid {
-            Some(&self.persistent_data.dot_owner_pk_hash.owner_pk_hash)
+        if self.persistent_data.rom.dot_owner_pk_hash.valid {
+            Some(&self.persistent_data.rom.dot_owner_pk_hash.owner_pk_hash)
         } else {
             None
         }

@@ -81,9 +81,13 @@ fn log_pcr(
     pcr_ids: u32,
     data: &[u8],
 ) -> CaliptraResult<()> {
-    let fht = &mut persistent_data.fht;
+    let fht = &mut persistent_data.rom.fht;
 
-    let Some(dst) = persistent_data.pcr_log.get_mut(fht.pcr_log_index as usize) else {
+    let Some(dst) = persistent_data
+        .rom
+        .pcr_log
+        .get_mut(fht.pcr_log_index as usize)
+    else {
         return Err(CaliptraError::FMC_GLOBAL_PCR_LOG_EXHAUSTED);
     };
 

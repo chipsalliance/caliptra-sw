@@ -126,11 +126,14 @@ impl InitDevIdLayer {
         }
 
         // Write IDevID public key to FHT
-        env.persistent_data.get_mut().fht.idev_dice_ecdsa_pub_key =
-            output.ecc_subj_key_pair.pub_key;
+        env.persistent_data
+            .get_mut()
+            .rom
+            .fht
+            .idev_dice_ecdsa_pub_key = output.ecc_subj_key_pair.pub_key;
 
         // Copy the MLDSA public key to Persistent Data.
-        env.persistent_data.get_mut().idevid_mldsa_pub_key = output.mldsa_subj_key_pair.pub_key;
+        env.persistent_data.get_mut().rom.idevid_mldsa_pub_key = output.mldsa_subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -301,7 +304,7 @@ impl InitDevIdLayer {
         Self::make_mldsa_csr(env, output)?;
 
         // Create a HMAC tag for the CSR Envelop.
-        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
 
         // Data to be HMACed is everything before the CSR MAC.
         let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
@@ -375,7 +378,7 @@ impl InitDevIdLayer {
         cprintln!("[idev] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
         let ecdsa384_sig = sig.to_ecdsa();
         let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
@@ -434,7 +437,7 @@ impl InitDevIdLayer {
         let mldsa87_signature = caliptra_x509::MlDsa87Signature {
             sig: sig.as_bytes()[..4627].try_into().unwrap(),
         };
-        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
         let result = MlDsa87CsrBuilder::new(tbs.tbs(), &mldsa87_signature)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
         sig.zeroize();
@@ -453,7 +456,7 @@ impl InitDevIdLayer {
     }
 
     fn reset_persistent_storage_csrs(env: &mut RomEnv) -> CaliptraResult<()> {
-        let csr_envelop_persistent_mem = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        let csr_envelop_persistent_mem = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
         *csr_envelop_persistent_mem = InitDevIdCsrEnvelope::default();
 
         Ok(())
@@ -465,7 +468,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     fn send_csr_envelop(env: &mut RomEnv) -> CaliptraResult<()> {
-        let csr_envelop = &env.persistent_data.get().idevid_csr_envelop;
+        let csr_envelop = &env.persistent_data.get().rom.idevid_csr_envelop;
         loop {
             // Create Mailbox send transaction to send the CSR envelop
             if let Some(mut txn) = env.mbox.try_start_send_txn() {

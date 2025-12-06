@@ -29,10 +29,11 @@ impl InstallOwnerPkHashCmd {
 
         // Save the owner public key hash in persistent data.
         persistent_data
+            .rom
             .dot_owner_pk_hash
             .owner_pk_hash
             .copy_from_slice(&request.digest);
-        persistent_data.dot_owner_pk_hash.valid = true;
+        persistent_data.rom.dot_owner_pk_hash.valid = true;
 
         // Zero value of response buffer is good
         Ok(core::mem::size_of::<InstallOwnerPkHashResp>())

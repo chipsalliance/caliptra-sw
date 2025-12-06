@@ -38,7 +38,7 @@ fn rt_entry() {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
+    if !drivers.persistent_data.get().rom.fht.is_valid() {
         cprintln!("Runtime can't load FHT");
         handle_fatal_error(CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
@@ -102,7 +102,7 @@ pub fn handle_command(
 fn read_pcr_log(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
     let mut pcr_entry_count = 0;
     loop {
-        let pcr_entry = persistent_data.get().pcr_log[pcr_entry_count];
+        let pcr_entry = persistent_data.get().rom.pcr_log[pcr_entry_count];
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -121,7 +121,7 @@ fn read_pcr_log(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
 }
 
 fn read_fht(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
-    mbox.write_response(persistent_data.get().fht.as_bytes())
+    mbox.write_response(persistent_data.get().rom.fht.as_bytes())
         .unwrap();
     mbox.set_status(MboxStatusE::DataReady);
 }
