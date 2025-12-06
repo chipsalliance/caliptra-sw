@@ -78,7 +78,6 @@ jobs:
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
       branch: "main"
-      runner: '["ubuntu-24.04"]'
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
