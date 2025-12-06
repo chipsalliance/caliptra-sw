@@ -152,7 +152,7 @@ impl RecoveryFlow {
         }
 
         // notify MCU that it can boot its firmware
-        drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
+        drivers.persistent_data.get_mut().fw.mcu_firmware_loaded = McuFwStatus::Loaded.into();
         Drivers::request_mcu_reset(drivers, McuResetReason::FwBoot);
 
         Ok(())

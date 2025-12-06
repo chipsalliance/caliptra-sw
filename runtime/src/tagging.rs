@@ -29,9 +29,9 @@ impl TagTciCmd {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let pdata_mut = drivers.persistent_data.get_mut();
-        let dpe = &mut pdata_mut.dpe.dpe;
-        let context_has_tag = &mut pdata_mut.dpe.context_has_tag;
-        let context_tags = &mut pdata_mut.dpe.context_tags;
+        let dpe = &mut pdata_mut.fw.dpe.dpe;
+        let context_has_tag = &mut pdata_mut.fw.dpe.context_has_tag;
+        let context_tags = &mut pdata_mut.fw.dpe.context_tags;
 
         // Make sure the tag isn't used by any other contexts.
         if (0..MAX_HANDLES).any(|i| {
@@ -72,8 +72,8 @@ impl GetTaggedTciCmd {
         let cmd = GetTaggedTciReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let persistent_data = drivers.persistent_data.get();
-        let context_has_tag = &persistent_data.dpe.context_has_tag;
-        let context_tags = &persistent_data.dpe.context_tags;
+        let context_has_tag = &persistent_data.fw.dpe.context_has_tag;
+        let context_tags = &persistent_data.fw.dpe.context_tags;
         let idx = (0..MAX_HANDLES)
             .find(|i| {
                 *i < context_has_tag.len()
@@ -82,10 +82,10 @@ impl GetTaggedTciCmd {
                     && context_tags[*i] == cmd.tag
             })
             .ok_or(CaliptraError::RUNTIME_TAGGING_FAILURE)?;
-        if idx >= persistent_data.dpe.dpe.contexts.len() {
+        if idx >= persistent_data.fw.dpe.dpe.contexts.len() {
             return Err(CaliptraError::RUNTIME_TAGGING_FAILURE);
         }
-        let context = persistent_data.dpe.dpe.contexts[idx];
+        let context = persistent_data.fw.dpe.dpe.contexts[idx];
 
         let resp = mutrefbytes::<GetTaggedTciResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();

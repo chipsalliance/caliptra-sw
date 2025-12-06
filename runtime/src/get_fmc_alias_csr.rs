@@ -14,7 +14,7 @@ impl GetFmcAliasCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
-        let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
+        let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
 
         match csr_persistent_mem.get_ecc_csr_len() {
             FmcAliasCsrs::UNPROVISIONED_CSR => {
@@ -42,7 +42,7 @@ impl GetFmcAliasMldsaCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
-        let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
+        let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
 
         match csr_persistent_mem.get_mldsa_csr_len() {
             FmcAliasCsrs::UNPROVISIONED_CSR => {

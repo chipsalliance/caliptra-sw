@@ -81,8 +81,9 @@ impl StashMeasurementCmd {
         persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
-        let fht = &mut persistent_data.fht;
+        let fht = &mut persistent_data.rom.fht;
         let Some(dst) = persistent_data
+            .rom
             .measurement_log
             .get_mut(fht.meas_log_index as usize)
         else {

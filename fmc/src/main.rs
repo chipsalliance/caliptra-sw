@@ -49,7 +49,7 @@ Running Caliptra FMC ...
 fn fix_fht(env: &mut fmc_env::FmcEnv) {
     if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
         cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
-        env.persistent_data.get_mut().fht.reserved.fill(0xFF);
+        env.persistent_data.get_mut().rom.fht.reserved.fill(0xFF);
     }
 }
 
@@ -73,12 +73,12 @@ pub extern "C" fn entry_point() -> ! {
 
     fix_fht(&mut env);
 
-    if env.persistent_data.get().fht.is_valid() {
+    if env.persistent_data.get().rom.fht.is_valid() {
         // Set FHT fields and jump to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
-            env.persistent_data.get_mut().fht.rt_cdi_kv_hdl =
+            env.persistent_data.get_mut().rom.fht.rt_cdi_kv_hdl =
                 HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_CDI));
-            env.persistent_data.get_mut().fht.rt_priv_key_kv_hdl =
+            env.persistent_data.get_mut().rom.fht.rt_priv_key_kv_hdl =
                 HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_ECDSA_PRIV_KEY));
             HandOff::to_rt(&env);
         }

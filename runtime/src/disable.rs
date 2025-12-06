@@ -31,7 +31,12 @@ impl DisableAttestationCmd {
         Self::zero_cdi(drivers, key_id_rt_cdi)?;
         Self::zero_cdi(drivers, KEY_ID_EXPORTED_DPE_CDI)?;
         Self::generate_dice_key(drivers)?;
-        drivers.persistent_data.get_mut().dpe.attestation_disabled = U8Bool::new(true);
+        drivers
+            .persistent_data
+            .get_mut()
+            .fw
+            .dpe
+            .attestation_disabled = U8Bool::new(true);
         Ok(0)
     }
 
@@ -97,7 +102,12 @@ impl DisableAttestationCmd {
             )
             .into(),
         )?;
-        drivers.persistent_data.get_mut().fht.rt_dice_ecc_pub_key = pub_key;
+        drivers
+            .persistent_data
+            .get_mut()
+            .rom
+            .fht
+            .rt_dice_ecc_pub_key = pub_key;
 
         Ok(())
     }

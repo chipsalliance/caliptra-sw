@@ -65,15 +65,15 @@ impl ReallocateDpeContextLimitsCmd {
         }
 
         // Update limits in persistent data now that error checking has passed
-        drivers.persistent_data.get_mut().dpe.pl0_context_limit = cmd.pl0_context_limit as u8;
-        drivers.persistent_data.get_mut().dpe.pl1_context_limit = pl1_context_limit as u8;
+        drivers.persistent_data.get_mut().fw.dpe.pl0_context_limit = cmd.pl0_context_limit as u8;
+        drivers.persistent_data.get_mut().fw.dpe.pl1_context_limit = pl1_context_limit as u8;
 
         // Populate response
         let resp = mutrefbytes::<ReallocateDpeContextLimitsResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
 
-        resp.new_pl0_context_limit = drivers.persistent_data.get().dpe.pl0_context_limit as u32;
-        resp.new_pl1_context_limit = drivers.persistent_data.get().dpe.pl1_context_limit as u32;
+        resp.new_pl0_context_limit = drivers.persistent_data.get().fw.dpe.pl0_context_limit as u32;
+        resp.new_pl1_context_limit = drivers.persistent_data.get().fw.dpe.pl1_context_limit as u32;
 
         Ok(core::mem::size_of::<ReallocateDpeContextLimitsResp>())
     }

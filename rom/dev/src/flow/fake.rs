@@ -112,7 +112,7 @@ fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
-    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+    let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
     data_vault.set_ldev_dice_ecc_signature(&FAKE_LDEV_ECC_SIG);
@@ -124,10 +124,11 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_ECC_TBS;
-    env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .ecc_ldevid_tbs
         .get_mut(..tbs.len())
     else {
@@ -136,10 +137,11 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     dst.copy_from_slice(tbs);
 
     let tbs = &FAKE_LDEV_MLDSA_TBS;
-    env.persistent_data.get_mut().fht.mldsa_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.mldsa_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .mldsa_ldevid_tbs
         .get_mut(..tbs.len())
     else {
@@ -151,7 +153,7 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
-    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+    let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
     data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_ECC_SIG);
@@ -163,10 +165,11 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_ECC_TBS;
-    env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .ecc_fmcalias_tbs
         .get_mut(..tbs.len())
     else {
@@ -175,10 +178,15 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     dst.copy_from_slice(tbs);
 
     let tbs = &FAKE_FMC_ALIAS_MLDSA_TBS;
-    env.persistent_data.get_mut().fht.mldsa_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data
+        .get_mut()
+        .rom
+        .fht
+        .mldsa_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .mldsa_fmcalias_tbs
         .get_mut(..tbs.len())
     else {

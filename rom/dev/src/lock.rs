@@ -55,8 +55,12 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn lock_cold_reset_reg(env: &mut RomEnv) {
-    let base_addr =
-        &env.persistent_data.get_mut().data_vault.cold_reset_entries as *const _ as usize;
+    let base_addr = &env
+        .persistent_data
+        .get_mut()
+        .rom
+        .data_vault
+        .cold_reset_entries as *const _ as usize;
     lock_datavault_region(base_addr, size_of::<ColdResetEntries>(), true);
 }
 
@@ -67,7 +71,11 @@ pub fn lock_cold_reset_reg(env: &mut RomEnv) {
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn lock_common_reg_set(env: &mut RomEnv) {
-    let base_addr =
-        &env.persistent_data.get_mut().data_vault.warm_reset_entries as *const _ as usize;
+    let base_addr = &env
+        .persistent_data
+        .get_mut()
+        .rom
+        .data_vault
+        .warm_reset_entries as *const _ as usize;
     lock_datavault_region(base_addr, size_of::<WarmResetEntries>(), false);
 }

@@ -74,12 +74,12 @@ pub(crate) fn extend_pcrs(
     sha2_512_384: &mut Sha2_512_384,
     info: &ImageVerificationInfo,
 ) -> CaliptraResult<()> {
-    let data_vault = &persistent_data.data_vault;
+    let data_vault = &persistent_data.rom.data_vault;
     let owner_pk_hash = <[u8; 48]>::from(&data_vault.owner_pk_hash());
     let fmc_tci = <[u8; 48]>::from(&data_vault.fmc_tci());
 
     // Reset the PCR log size to zero.
-    persistent_data.fht.pcr_log_index = 0;
+    persistent_data.rom.fht.pcr_log_index = 0;
 
     // Clear the Current PCR, but do not clear the Journey PCR
     pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
@@ -138,8 +138,8 @@ pub fn log_pcr(
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
     }
 
-    let pcr_log = &mut persistent_data.pcr_log;
-    let fht = &mut persistent_data.fht;
+    let pcr_log = &mut persistent_data.rom.pcr_log;
+    let fht = &mut persistent_data.rom.fht;
 
     let Some(dst) = pcr_log.get_mut(fht.pcr_log_index as usize) else {
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_EXHAUSTED);

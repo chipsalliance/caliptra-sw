@@ -341,7 +341,7 @@ impl LocalDevIdLayer {
         cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
         // Save the Local Device ID cert signature in data vault.
         data_vault.set_ldev_dice_ecc_signature(sig);
@@ -411,7 +411,7 @@ impl LocalDevIdLayer {
                 sig.zeroize();
             })?;
 
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
         // Save the Local Device ID cert signature in data vault.
         data_vault.set_ldev_dice_mldsa_signature(sig);

@@ -95,6 +95,7 @@ impl ActivateFirmwareCmd {
                 &drivers
                     .persistent_data
                     .get()
+                    .fw
                     .auth_manifest_image_metadata_col,
                 fw_id,
             )
@@ -150,7 +151,7 @@ impl ActivateFirmwareCmd {
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
 
-            drivers.persistent_data.get_mut().mcu_firmware_loaded =
+            drivers.persistent_data.get_mut().fw.mcu_firmware_loaded =
                 McuFwStatus::HitlessUpdateStarted.into();
             Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpd);
 
@@ -189,6 +190,7 @@ impl ActivateFirmwareCmd {
                 &drivers
                     .persistent_data
                     .get()
+                    .fw
                     .auth_manifest_image_metadata_col,
                 ActivateFirmwareReq::MCU_IMAGE_ID,
             )
@@ -231,7 +233,7 @@ impl ActivateFirmwareCmd {
                 .map(|_| ())
                 .map_err(|_| ())?;
 
-            drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
+            drivers.persistent_data.get_mut().fw.mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
 
         for i in 0..4 {

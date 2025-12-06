@@ -25,29 +25,29 @@ impl FwInfoCmd {
         let pdata = drivers.persistent_data.get();
 
         let handoff = RtHandoff {
-            data_vault: &pdata.data_vault,
-            fht: &pdata.fht,
+            data_vault: &pdata.rom.data_vault,
+            fht: &pdata.rom.fht,
         };
         let rom_info = handoff.fht.rom_info_addr.get()?;
 
         let resp = mutrefbytes::<FwInfoResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
 
-        resp.pl0_pauser = pdata.manifest1.header.pl0_pauser;
+        resp.pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
         resp.fw_svn = handoff.fw_svn();
         resp.min_fw_svn = handoff.fw_min_svn();
         resp.cold_boot_fw_svn = handoff.cold_boot_fw_svn();
-        resp.attestation_disabled = pdata.dpe.attestation_disabled.get().into();
+        resp.attestation_disabled = pdata.fw.dpe.attestation_disabled.get().into();
         resp.rom_revision = rom_info.revision;
-        resp.fmc_revision = pdata.manifest1.fmc.revision;
-        resp.runtime_revision = pdata.manifest1.runtime.revision;
+        resp.fmc_revision = pdata.rom.manifest1.fmc.revision;
+        resp.runtime_revision = pdata.rom.manifest1.runtime.revision;
         resp.rom_sha256_digest = rom_info.sha256_digest;
-        resp.fmc_sha384_digest = pdata.manifest1.fmc.digest;
-        resp.runtime_sha384_digest = pdata.manifest1.runtime.digest;
-        resp.owner_pub_key_hash = pdata.data_vault.owner_pk_hash().into();
-        resp.authman_sha384_digest = pdata.auth_manifest_digest;
+        resp.fmc_sha384_digest = pdata.rom.manifest1.fmc.digest;
+        resp.runtime_sha384_digest = pdata.rom.manifest1.runtime.digest;
+        resp.owner_pub_key_hash = pdata.rom.data_vault.owner_pk_hash().into();
+        resp.authman_sha384_digest = pdata.fw.auth_manifest_digest;
         resp.most_recent_fw_error = match get_fw_error_non_fatal() {
-            0 => drivers.persistent_data.get().cleared_non_fatal_fw_error,
+            0 => drivers.persistent_data.get().rom.cleared_non_fatal_fw_error,
             e => e,
         };
         Ok(core::mem::size_of::<FwInfoResp>())
@@ -65,7 +65,7 @@ impl IDevIdInfoCmd {
         let pdata = drivers.persistent_data.get();
         match alg_type {
             AlgorithmType::Ecc384 => {
-                let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
+                let pub_key = pdata.rom.fht.idev_dice_ecdsa_pub_key;
 
                 let resp = mutrefbytes::<GetIdevEcc384InfoResp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();
@@ -74,7 +74,7 @@ impl IDevIdInfoCmd {
                 Ok(core::mem::size_of::<GetIdevEcc384InfoResp>())
             }
             AlgorithmType::Mldsa87 => {
-                let pub_key = pdata.idevid_mldsa_pub_key;
+                let pub_key = pdata.rom.idevid_mldsa_pub_key;
 
                 let resp = mutrefbytes::<GetIdevMldsa87InfoResp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();

@@ -431,7 +431,7 @@ impl Crypto {
     }
 
     pub fn get_cmb_aes_key(pdata: &PersistentData) -> (LEArray4x8, LEArray4x8) {
-        (pdata.cmb_aes_key_share0, pdata.cmb_aes_key_share1)
+        (pdata.rom.cmb_aes_key_share0, pdata.rom.cmb_aes_key_share1)
     }
 
     /// Encrypt the Cryptographic Mailbox Key (CML) using the Key Encryption Key (KEK)

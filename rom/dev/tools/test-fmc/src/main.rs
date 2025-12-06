@@ -51,7 +51,7 @@ pub extern "C" fn fmc_entry() -> ! {
 
     if cfg!(not(feature = "fake-fmc")) {
         let persistent_data = unsafe { PersistentDataAccessor::new() };
-        assert!(persistent_data.get().fht.is_valid());
+        assert!(persistent_data.get().rom.fht.is_valid());
     }
 
     process_mailbox_commands();
@@ -127,7 +127,7 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
     // Retrieve the ECC public key and signature from the data vault.
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let data_vault = &persistent_data.get().data_vault;
+    let data_vault = &persistent_data.get().rom.data_vault;
 
     let ldevid_pub_key = data_vault.ldev_dice_ecc_pub_key();
     let mut _pub_der: [u8; 97] = ldevid_pub_key.to_der();
@@ -187,9 +187,9 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     // Copy the tbs from DCCM
     let src = if ldevid_tbs {
-        &persistent_data.get().ecc_ldevid_tbs
+        &persistent_data.get().rom.ecc_ldevid_tbs
     } else {
-        &persistent_data.get().ecc_fmcalias_tbs
+        &persistent_data.get().rom.ecc_fmcalias_tbs
     };
     tbs.copy_from_slice(&src[..tbs.len()]);
 }
@@ -288,8 +288,8 @@ fn process_mailbox_commands() {
 
 fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let key0 = persistent_data.get().cmb_aes_key_share0;
-    let key1 = persistent_data.get().cmb_aes_key_share1;
+    let key0 = persistent_data.get().rom.cmb_aes_key_share0;
+    let key1 = persistent_data.get().rom.cmb_aes_key_share1;
     let mut key = LEArray4x8::default();
     for (i, element) in key.0.iter_mut().enumerate() {
         *element = key0.0[i] ^ key1.0[i];
@@ -300,7 +300,7 @@ fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) 
 
 fn test_datavault_pmp(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>, start: bool) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let data_vault = &persistent_data.get().data_vault;
+    let data_vault = &persistent_data.get().rom.data_vault;
 
     let dv_bytes: &mut [u8] = unsafe {
         core::slice::from_raw_parts_mut(
@@ -320,7 +320,7 @@ fn test_datavault_pmp(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut
 
 fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let data_vault = &persistent_data.get().data_vault;
+    let data_vault = &persistent_data.get().rom.data_vault;
 
     let fmc_load_addr = data_vault.fmc_entry_point();
     let rt_load_addr = data_vault.rt_entry_point();
@@ -384,7 +384,7 @@ fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
 fn read_datavault(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let data_vault = &persistent_data.get().data_vault;
+    let data_vault = &persistent_data.get().rom.data_vault;
 
     send_to_mailbox(mbox, data_vault.as_bytes(), false);
 
@@ -402,10 +402,10 @@ fn trigger_update_reset() {
 
 fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let pcr_entry_count = persistent_data.get().fht.pcr_log_index as usize;
+    let pcr_entry_count = persistent_data.get().rom.fht.pcr_log_index as usize;
 
     for i in 0..pcr_entry_count {
-        let pcr_entry = persistent_data.get().pcr_log[i];
+        let pcr_entry = persistent_data.get().rom.pcr_log[i];
         send_to_mailbox(mbox, pcr_entry.as_bytes(), false);
     }
 
@@ -419,10 +419,10 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
 fn read_measurement_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let measurement_entry_count = persistent_data.get().fht.meas_log_index as usize;
+    let measurement_entry_count = persistent_data.get().rom.fht.meas_log_index as usize;
 
     for i in 0..measurement_entry_count {
-        let meas_entry = persistent_data.get().measurement_log[i];
+        let meas_entry = persistent_data.get().rom.measurement_log[i];
         send_to_mailbox(mbox, meas_entry.as_bytes(), false);
     }
 
@@ -486,6 +486,7 @@ fn read_rom_info(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         mbox,
         persistent_data
             .get()
+            .rom
             .fht
             .rom_info_addr
             .get()
@@ -517,12 +518,12 @@ fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
 fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    persistent_data.get().fuse_log[entry_index]
+    persistent_data.get().rom.fuse_log[entry_index]
 }
 
 fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    send_to_mailbox(mbox, persistent_data.get().fht.as_bytes(), true);
+    send_to_mailbox(mbox, persistent_data.get().rom.fht.as_bytes(), true);
 }
 
 fn send_to_mailbox(

@@ -35,7 +35,13 @@ impl IncrementPcrResetCounterCmd {
         let pcr =
             PcrId::try_from(index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        if !drivers.persistent_data.get_mut().pcr_reset.increment(pcr) {
+        if !drivers
+            .persistent_data
+            .get_mut()
+            .fw
+            .pcr_reset
+            .increment(pcr)
+        {
             return Err(CaliptraError::RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED);
         }
 
@@ -69,7 +75,7 @@ impl GetPcrQuoteCmd {
                 for (i, p) in raw_pcrs.iter().enumerate() {
                     resp.pcrs[i] = p.into()
                 }
-                resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
+                resp.reset_ctrs = drivers.persistent_data.get().fw.pcr_reset.all_counters();
 
                 // Change the word endianness for ECC verification. Take lower 48 bytes.
                 resp.digest
@@ -95,7 +101,7 @@ impl GetPcrQuoteCmd {
                 for (i, p) in raw_pcrs.iter().enumerate() {
                     resp.pcrs[i] = p.into()
                 }
-                resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
+                resp.reset_ctrs = drivers.persistent_data.get().fw.pcr_reset.all_counters();
 
                 resp.digest.copy_from_slice(pcr_hash.0.as_bytes());
                 resp.signature = signature.into();
@@ -140,7 +146,7 @@ impl GetPcrLogCmd {
     pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let resp = mutrefbytes::<GetPcrLogResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        let pcr_log = drivers.persistent_data.get().pcr_log.as_bytes();
+        let pcr_log = drivers.persistent_data.get().rom.pcr_log.as_bytes();
         let len = pcr_log.len();
         resp.data_size = len as u32;
         resp.data[..len].copy_from_slice(&pcr_log[..len]);

@@ -55,7 +55,7 @@ impl ColdResetFlow {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
         {
-            let data_vault = &mut env.persistent_data.get_mut().data_vault;
+            let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
             // Indicate that Cold-Reset flow has started.
             // This is used by the next Warm-Reset flow to confirm that the Cold-Reset was successful.
@@ -90,7 +90,7 @@ impl ColdResetFlow {
 
         // Indicate Cold-Reset successful completion.
         // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
         data_vault.set_rom_cold_boot_status(ColdResetComplete.into());
 
         report_boot_status(ColdResetComplete.into());
@@ -105,8 +105,8 @@ impl ColdResetFlow {
 fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
     let key_share0: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
     let key_share1: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
-    env.persistent_data.get_mut().cmb_aes_key_share0 = transmute!(key_share0);
-    env.persistent_data.get_mut().cmb_aes_key_share1 = transmute!(key_share1);
+    env.persistent_data.get_mut().rom.cmb_aes_key_share0 = transmute!(key_share0);
+    env.persistent_data.get_mut().rom.cmb_aes_key_share1 = transmute!(key_share1);
     Ok(())
 }
 
@@ -125,29 +125,33 @@ pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResu
     let persistent_data = env.persistent_data.get_mut();
     let dst = match tbs_type {
         TbsType::EccLdevid => {
-            persistent_data.fht.ecc_ldevid_tbs_size = tbs.len() as u16;
+            persistent_data.rom.fht.ecc_ldevid_tbs_size = tbs.len() as u16;
             persistent_data
+                .rom
                 .ecc_ldevid_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::EccFmcalias => {
-            persistent_data.fht.ecc_fmcalias_tbs_size = tbs.len() as u16;
+            persistent_data.rom.fht.ecc_fmcalias_tbs_size = tbs.len() as u16;
             persistent_data
+                .rom
                 .ecc_fmcalias_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?
         }
         TbsType::MldsaLdevid => {
-            persistent_data.fht.mldsa_ldevid_tbs_size = tbs.len() as u16;
+            persistent_data.rom.fht.mldsa_ldevid_tbs_size = tbs.len() as u16;
             persistent_data
+                .rom
                 .mldsa_ldevid_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::MldsaFmcalias => {
-            persistent_data.fht.mldsa_fmcalias_tbs_size = tbs.len() as u16;
+            persistent_data.rom.fht.mldsa_fmcalias_tbs_size = tbs.len() as u16;
             persistent_data
+                .rom
                 .mldsa_fmcalias_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?

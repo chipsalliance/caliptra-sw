@@ -179,7 +179,7 @@ impl Drivers {
         let soc_ifc = SocIfc::new(SocIfcReg::new());
         let persistent_data = PersistentDataAccessor::new();
 
-        let hek_available = persistent_data.get().ocp_lock_metadata.hek_available;
+        let hek_available = persistent_data.get().rom.ocp_lock_metadata.hek_available;
         let ocp_lock_context = OcpLockContext::new(&soc_ifc, hek_available);
 
         Ok(Self {
@@ -219,7 +219,7 @@ impl Drivers {
         Self::create_cert_chain(self)?;
         self.cryptographic_mailbox
             .init(&self.persistent_data, &mut self.trng)?;
-        if self.persistent_data.get().dpe.attestation_disabled.get() {
+        if self.persistent_data.get().fw.dpe.attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
         }
@@ -302,7 +302,7 @@ impl Drivers {
 
     /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe.dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().fw.dpe.dpe;
         let dpe_validator = DpeValidator { dpe };
         let validation_result = dpe_validator.validate_dpe();
         if let Err(e) = validation_result {
@@ -323,7 +323,13 @@ impl Drivers {
                 }
             }
         } else {
-            let _pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+            let _pl0_pauser = drivers
+                .persistent_data
+                .get()
+                .rom
+                .manifest1
+                .header
+                .pl0_pauser;
             // check that DPE used context limits are not exceeded
             let dpe_context_threshold_exceeded =
                 drivers.is_dpe_context_threshold_exceeded(drivers.caller_privilege_level());
@@ -349,7 +355,7 @@ impl Drivers {
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe.dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().fw.dpe.dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
@@ -363,19 +369,19 @@ impl Drivers {
         if update_fmc_ver {
             drivers
                 .soc_ifc
-                .set_fmc_fw_rev_id(drivers.persistent_data.get().manifest1.fmc.version as u16);
+                .set_fmc_fw_rev_id(drivers.persistent_data.get().rom.manifest1.fmc.version as u16);
         }
         if update_rt_ver {
             drivers
                 .soc_ifc
-                .set_rt_fw_rev_id(drivers.persistent_data.get().manifest1.runtime.version);
+                .set_rt_fw_rev_id(drivers.persistent_data.get().rom.manifest1.runtime.version);
         }
     }
 
     /// Release MCU SRAM if MCU FW was previously loaded correctly
     fn release_mcu_sram(drivers: &mut Drivers) -> CaliptraResult<()> {
         // Check if MCU previous Cold-Reset was successful.
-        let mcu_firmware_loaded = drivers.persistent_data.get().mcu_firmware_loaded;
+        let mcu_firmware_loaded = drivers.persistent_data.get().fw.mcu_firmware_loaded;
         if mcu_firmware_loaded == McuFwStatus::NotLoaded.into() {
             cprintln!("[rt-warm-reset] Warning: Prev Cold Reset failed, not releasing MCU SRAM");
         }
@@ -396,7 +402,7 @@ impl Drivers {
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
     fn check_dpe_rt_journey_unchanged(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &drivers.persistent_data.get().dpe.dpe;
+        let dpe = &drivers.persistent_data.get().fw.dpe.dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
@@ -430,9 +436,9 @@ impl Drivers {
     /// Check that inactive DPE contexts do not have context tags set
     fn validate_context_tags(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
-        let context_has_tag = &pdata.dpe.context_has_tag;
-        let context_tags = &pdata.dpe.context_tags;
-        let dpe = &pdata.dpe.dpe;
+        let context_has_tag = &pdata.fw.dpe.context_has_tag;
+        let context_tags = &pdata.fw.dpe.context_tags;
+        let dpe = &pdata.fw.dpe.dpe;
 
         for i in 0..MAX_HANDLES {
             if dpe.contexts[i].state == ContextState::Inactive {
@@ -449,7 +455,13 @@ impl Drivers {
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
-        let key = self.persistent_data.get().fht.rt_dice_ecc_pub_key.to_der();
+        let key = self
+            .persistent_data
+            .get()
+            .rom
+            .fht
+            .rt_dice_ecc_pub_key
+            .to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
         let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
@@ -461,17 +473,23 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+        let pl0_pauser_locality = drivers
+            .persistent_data
+            .get()
+            .rom
+            .manifest1
+            .header
+            .pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
-        drivers.persistent_data.get_mut().dpe.pl0_context_limit =
+        drivers.persistent_data.get_mut().fw.dpe.pl0_context_limit =
             PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
-        drivers.persistent_data.get_mut().dpe.pl1_context_limit =
+        drivers.persistent_data.get_mut().fw.dpe.pl1_context_limit =
             PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
-        let pl0_context_limit = drivers.persistent_data.get().dpe.pl0_context_limit;
-        let pl1_context_limit = drivers.persistent_data.get().dpe.pl1_context_limit;
+        let pl0_context_limit = drivers.persistent_data.get().fw.dpe.pl0_context_limit;
+        let pl1_context_limit = drivers.persistent_data.get().fw.dpe.pl1_context_limit;
 
         // create a hash of all the mailbox valid pausers
         const PAUSER_COUNT: usize = 5;
@@ -495,13 +513,13 @@ impl Drivers {
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.fht.rt_dice_ecc_pub_key,
+            &mut pdata.rom.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut pdata.dpe.exported_cdi_slots,
+            &mut pdata.fw.dpe.exported_cdi_slots,
         );
 
-        let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
+        let (nb, nf) = Self::get_cert_validity_info(&pdata.rom.manifest1);
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
@@ -552,8 +570,8 @@ impl Drivers {
         }
 
         // Call DeriveContext to create TCIs for each measurement added in ROM
-        let num_measurements = pdata.fht.meas_log_index as usize;
-        let measurement_log = pdata.measurement_log;
+        let num_measurements = pdata.rom.fht.meas_log_index as usize;
+        let measurement_log = pdata.rom.measurement_log;
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
@@ -592,7 +610,7 @@ impl Drivers {
         }
 
         // Write DPE to persistent data.
-        pdata.dpe.dpe = dpe;
+        pdata.fw.dpe.dpe = dpe;
         Ok(())
     }
 
@@ -698,8 +716,8 @@ impl Drivers {
     /// Counts the number of non-inactive DPE contexts
     pub fn dpe_get_used_context_counts(&self) -> CaliptraResult<(usize, usize)> {
         Self::dpe_get_used_context_counts_helper(
-            self.persistent_data.get().manifest1.header.pl0_pauser,
-            &self.persistent_data.get().dpe.dpe,
+            self.persistent_data.get().rom.manifest1.header.pl0_pauser,
+            &self.persistent_data.get().fw.dpe.dpe,
         )
     }
 
@@ -731,9 +749,9 @@ impl Drivers {
         &self,
         context_privilege_level: PauserPrivileges,
     ) -> CaliptraResult<()> {
-        let dpe_data = &self.persistent_data.get().dpe;
+        let dpe_data = &self.persistent_data.get().fw.dpe;
         Self::is_dpe_context_threshold_exceeded_helper(
-            self.persistent_data.get().manifest1.header.pl0_pauser,
+            self.persistent_data.get().rom.manifest1.header.pl0_pauser,
             context_privilege_level,
             &dpe_data.dpe,
             dpe_data.pl0_context_limit as usize,
@@ -779,7 +797,7 @@ impl Drivers {
     }
 
     pub fn privilege_level_from_locality(&self, locality: u32) -> PauserPrivileges {
-        let manifest_header = self.persistent_data.get().manifest1.header;
+        let manifest_header = self.persistent_data.get().rom.manifest1.header;
         let flags = manifest_header.flags;
         let pl0_pauser = manifest_header.pl0_pauser;
 
@@ -808,6 +826,7 @@ impl Drivers {
         let ds: DataStore = drivers
             .persistent_data
             .get()
+            .rom
             .fht
             .rt_cdi_kv_hdl
             .try_into()
@@ -832,6 +851,7 @@ impl Drivers {
         let ds: DataStore = drivers
             .persistent_data
             .get()
+            .rom
             .fht
             .rt_priv_key_kv_hdl
             .try_into()

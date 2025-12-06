@@ -107,7 +107,7 @@ impl RtAliasLayer {
             mldsa_subj_key_id,
         };
 
-        let manifest = &env.persistent_data.get().manifest1;
+        let manifest = &env.persistent_data.get().rom.manifest1;
 
         let (nb, nf) = Self::get_cert_validity_info(manifest);
 
@@ -525,7 +525,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn copy_ecc_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
-        let Some(dest) = persistent_data.ecc_rtalias_tbs.get_mut(..tbs.len()) else {
+        let Some(dest) = persistent_data.fw.ecc_rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_ECC_TBS_SIZE_EXCEEDED);
         };
         dest.copy_from_slice(tbs);
@@ -534,7 +534,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn copy_mldsa_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
-        let Some(dest) = persistent_data.mldsa_rtalias_tbs.get_mut(..tbs.len()) else {
+        let Some(dest) = persistent_data.fw.mldsa_rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED);
         };
         dest.copy_from_slice(tbs);

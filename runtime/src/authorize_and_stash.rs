@@ -67,7 +67,7 @@ impl AuthorizeAndStashCmd {
             drivers.soc_ifc.mci_base_addr().into(),
             &drivers.dma,
         );
-        let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
+        let auth_manifest_image_metadata_col = &persistent_data.fw.auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
         let auth_result = if let Some(metadata_entry) =

@@ -43,7 +43,7 @@ fn test_clear_fw_error_non_fatal() {
     // Ensure clear function zeros the fw_non_fatal_error and stores it in persistent data correctly
     clear_fw_error_non_fatal(persistent_data);
     assert_eq!(0, get_fw_error_non_fatal());
-    assert_eq!(err1, persistent_data.cleared_non_fatal_fw_error);
+    assert_eq!(err1, persistent_data.rom.cleared_non_fatal_fw_error);
 
     // Write a new error
     report_fw_error_non_fatal(err2);
@@ -51,13 +51,13 @@ fn test_clear_fw_error_non_fatal() {
 
     clear_fw_error_non_fatal(persistent_data);
     assert_eq!(0, get_fw_error_non_fatal());
-    assert_eq!(err2, persistent_data.cleared_non_fatal_fw_error);
+    assert_eq!(err2, persistent_data.rom.cleared_non_fatal_fw_error);
 
     // Repeatedly clearing should not overwrite the stored previous error when no error is present
     clear_fw_error_non_fatal(persistent_data);
     clear_fw_error_non_fatal(persistent_data);
     assert_eq!(0, get_fw_error_non_fatal());
-    assert_eq!(err2, persistent_data.cleared_non_fatal_fw_error);
+    assert_eq!(err2, persistent_data.rom.cleared_non_fatal_fw_error);
 }
 
 fn test_report_fw_error_fatal() {

@@ -745,7 +745,7 @@ impl SetAuthManifestCmd {
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
             auth_manifest_preamble,
-            &persistent_data.manifest1.preamble,
+            &persistent_data.rom.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -756,7 +756,7 @@ impl SetAuthManifestCmd {
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
             auth_manifest_preamble,
-            &persistent_data.manifest1.preamble,
+            &persistent_data.rom.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -769,7 +769,7 @@ impl SetAuthManifestCmd {
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
             auth_manifest_preamble,
-            &mut persistent_data.auth_manifest_image_metadata_col,
+            &mut persistent_data.fw.auth_manifest_image_metadata_col,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -779,7 +779,7 @@ impl SetAuthManifestCmd {
         )?;
 
         if !verify_only {
-            persistent_data.auth_manifest_digest =
+            persistent_data.fw.auth_manifest_digest =
                 drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
         }
         Ok(())

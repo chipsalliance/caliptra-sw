@@ -181,7 +181,7 @@ impl FirmwareProcessor {
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,
-            data_vault: &env.persistent_data.get().data_vault,
+            data_vault: &env.persistent_data.get().rom.data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
             dma: &mut env.dma,
@@ -193,7 +193,10 @@ impl FirmwareProcessor {
         let info = Self::verify_image(&mut venv, manifest, image_size_bytes);
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
+        Self::update_fuse_log(
+            &mut env.persistent_data.get_mut().rom.fuse_log,
+            &info.log_info,
+        )?;
 
         // Populate data vault
         Self::populate_data_vault(info, &mut env.persistent_data);
@@ -377,7 +380,7 @@ impl FirmwareProcessor {
                         MldsaVerifyCmd::execute(cmd_bytes, env.mldsa87, resp)?
                     }
                     CommandId::STASH_MEASUREMENT => {
-                        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
+                        if persistent_data.rom.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!("[fwproc] Max # of measurements received.");
                             txn.complete(false)?;
 
@@ -521,7 +524,7 @@ impl FirmwareProcessor {
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
-        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest = &mut persistent_data.get_mut().rom.manifest1;
         let mbox_sram = txn.raw_mailbox_contents();
         let manifest_buf = manifest.as_mut_bytes();
         if mbox_sram.len() < manifest_buf.len() {
@@ -543,7 +546,7 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
         dma: &mut Dma,
     ) -> CaliptraResult<ImageManifest> {
-        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest = &mut persistent_data.get_mut().rom.manifest1;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Get MCU SRAM address
@@ -903,8 +906,8 @@ impl FirmwareProcessor {
         info: &ImageVerificationInfo,
         persistent_data: &mut PersistentDataAccessor,
     ) {
-        let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
-        let data_vault = &mut persistent_data.get_mut().data_vault;
+        let manifest_address = &persistent_data.get().rom.manifest1 as *const _ as u32;
+        let data_vault = &mut persistent_data.get_mut().rom.data_vault;
         data_vault.set_fmc_tci(&info.fmc.digest.into());
         data_vault.set_cold_boot_fw_svn(info.fw_svn);
         data_vault.set_fmc_entry_point(info.fmc.entry_point);
@@ -922,7 +925,7 @@ impl FirmwareProcessor {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
-        let svn = env.persistent_data.get().data_vault.fw_svn();
+        let svn = env.persistent_data.get().rom.data_vault.fw_svn();
 
         if svn > MAX_FIRMWARE_SVN {
             // If this occurs it is an internal programming error.

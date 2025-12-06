@@ -42,8 +42,8 @@ impl KeyLadder {
         dest: KeyId,
     ) -> CaliptraResult<()> {
         let handoff = RtHandoff {
-            data_vault: &drivers.persistent_data.get().data_vault,
-            fht: &drivers.persistent_data.get().fht,
+            data_vault: &drivers.persistent_data.get().rom.data_vault,
+            fht: &drivers.persistent_data.get().rom.fht,
         };
 
         let key_ladder_svn = handoff.fw_min_svn();

@@ -20,8 +20,10 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, FmcAliasCsrs, LEArray4x8, Mldsa87PubKey, Mldsa87Signature,
+    DataVault, FirmwareHandoffTable, LEArray4x8, Mldsa87PubKey,
 };
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+use crate::{FmcAliasCsrs, Mldsa87Signature};
 
 #[cfg(feature = "runtime")]
 use crate::{pcr_reset::PcrResetCounter, KeyId};
@@ -35,28 +37,36 @@ pub const FHT_SIZE: u32 = 2 * 1024;
 pub const IDEVID_MLDSA_PUB_KEY_MAX_SIZE: u32 = 3 * 1024;
 pub const ECC_LDEVID_TBS_SIZE: u32 = 1024;
 pub const ECC_FMCALIAS_TBS_SIZE: u32 = 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const ECC_RTALIAS_TBS_SIZE: u32 = 1024;
 pub const MLDSA_LDEVID_TBS_SIZE: u32 = 4 * 1024;
 pub const MLDSA_FMCALIAS_TBS_SIZE: u32 = 4 * 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
 pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const DPE_SIZE: u32 = 5 * 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
 pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
-pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
+pub const _OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
-pub const _MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
 
 #[cfg(feature = "runtime")]
 // Currently only can export CDI once, but in the future we may want to support multiple exported
@@ -285,6 +295,22 @@ pub struct OcpLockMetadata {
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
+    pub rom: RomPersistentData,
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    pub fw: FwPersistentData,
+}
+
+impl PersistentData {
+    pub fn assert_matches_layout() {
+        RomPersistentData::assert_matches_layout();
+        #[cfg(any(feature = "fmc", feature = "runtime"))]
+        FwPersistentData::assert_matches_layout();
+    }
+}
+
+#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
+pub struct RomPersistentData {
     pub manifest1: ImageManifest,
     reserved0: [u8; MAN1_SIZE as usize - size_of::<ImageManifest>()],
 
@@ -303,14 +329,8 @@ pub struct PersistentData {
 
     pub ecc_ldevid_tbs: [u8; ECC_LDEVID_TBS_SIZE as usize],
     pub ecc_fmcalias_tbs: [u8; ECC_FMCALIAS_TBS_SIZE as usize],
-    pub ecc_rtalias_tbs: [u8; ECC_RTALIAS_TBS_SIZE as usize],
     pub mldsa_ldevid_tbs: [u8; MLDSA_LDEVID_TBS_SIZE as usize],
     pub mldsa_fmcalias_tbs: [u8; MLDSA_FMCALIAS_TBS_SIZE as usize],
-    pub mldsa_rtalias_tbs: [u8; MLDSA_RTALIAS_TBS_SIZE as usize],
-
-    pub rtalias_mldsa_tbs_size: u16,
-    reserved2_2: [u8; 2],
-    pub rt_dice_mldsa_sign: Mldsa87Signature,
 
     pub pcr_log: PcrLogArray,
     reserved3: [u8; PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
@@ -321,12 +341,146 @@ pub struct PersistentData {
     pub fuse_log: FuseLogArray,
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
-    #[cfg(feature = "runtime")]
-    pub dpe: DpePersistentData,
-    #[cfg(feature = "runtime")]
-    reserved6: [u8; DPE_SIZE as usize - size_of::<DpePersistentData>()],
-    #[cfg(not(feature = "runtime"))]
-    dpe: [u8; DPE_SIZE as usize],
+    pub idevid_csr_envelop: InitDevIdCsrEnvelope,
+    reserved6: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
+
+    pub cmb_aes_key_share0: LEArray4x8,
+    pub cmb_aes_key_share1: LEArray4x8,
+
+    pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
+
+    pub cleared_non_fatal_fw_error: u32,
+
+    // TODO(clundin): For runtime we may want to gate this behind a feature flag.
+    pub ocp_lock_metadata: OcpLockMetadata,
+}
+
+impl RomPersistentData {
+    pub fn assert_matches_layout() {
+        const P: *const PersistentData =
+            memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
+        unsafe {
+            let mut persistent_data_offset = 0;
+            assert_eq!(
+                addr_of!((*P).rom.manifest1) as u32,
+                memory_layout::PERSISTENT_DATA_ORG
+            );
+            persistent_data_offset += MAN1_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.manifest2) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MAN2_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.data_vault) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += DATAVAULT_MAX_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.fht) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FHT_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.idevid_mldsa_pub_key) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.ecc_ldevid_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += ECC_LDEVID_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.ecc_fmcalias_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += ECC_FMCALIAS_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.mldsa_ldevid_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MLDSA_LDEVID_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.mldsa_fmcalias_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MLDSA_FMCALIAS_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.pcr_log) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PCR_LOG_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.measurement_log) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MEASUREMENT_LOG_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.fuse_log) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FUSE_LOG_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.idevid_csr_envelop) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.cmb_aes_key_share0) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.cmb_aes_key_share1) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.dot_owner_pk_hash) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.cleared_non_fatal_fw_error) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.ocp_lock_metadata) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+        }
+    }
+}
+
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
+pub struct FwPersistentData {
+    pub ecc_rtalias_tbs: [u8; ECC_RTALIAS_TBS_SIZE as usize],
+    pub mldsa_rtalias_tbs: [u8; MLDSA_RTALIAS_TBS_SIZE as usize],
+
+    pub rtalias_mldsa_tbs_size: u16,
+    reserved1: [u8; 2],
+    pub rt_dice_mldsa_sign: Mldsa87Signature,
+
     #[cfg(feature = "runtime")]
     pub pcr_reset: PcrResetCounter,
     #[cfg(feature = "runtime")]
@@ -346,182 +500,77 @@ pub struct PersistentData {
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
-    pub idevid_csr_envelop: InitDevIdCsrEnvelope,
-    reserved10: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
-
     pub fmc_alias_csr: FmcAliasCsrs,
-    reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
-
-    pub cmb_aes_key_share0: LEArray4x8,
-    pub cmb_aes_key_share1: LEArray4x8,
-
-    pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
-
-    pub cleared_non_fatal_fw_error: u32,
-
-    // TODO(clundin): For runtime we may want to gate this behind a feature flag.
-    pub ocp_lock_metadata: OcpLockMetadata,
+    reserved4: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
     pub mcu_firmware_loaded: u32,
+
+    #[cfg(feature = "runtime")]
+    pub dpe: DpePersistentData,
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; DPE_SIZE as usize - size_of::<DpePersistentData>()],
+    #[cfg(not(feature = "runtime"))]
+    dpe: [u8; DPE_SIZE as usize],
 }
 
-impl PersistentData {
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+impl FwPersistentData {
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
             memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         unsafe {
-            let mut persistent_data_offset = 0;
+            let mut persistent_data_offset = size_of::<RomPersistentData>() as u32;
             assert_eq!(
-                addr_of!((*P).manifest1) as u32,
-                memory_layout::PERSISTENT_DATA_ORG
-            );
-            persistent_data_offset += MAN1_SIZE;
-            assert_eq!(
-                addr_of!((*P).manifest2) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += MAN2_SIZE;
-            assert_eq!(
-                addr_of!((*P).data_vault) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += DATAVAULT_MAX_SIZE;
-            assert_eq!(
-                addr_of!((*P).fht) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += FHT_SIZE;
-            assert_eq!(
-                addr_of!((*P).idevid_mldsa_pub_key) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
-            assert_eq!(
-                addr_of!((*P).ecc_ldevid_tbs) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += ECC_LDEVID_TBS_SIZE;
-            assert_eq!(
-                addr_of!((*P).ecc_fmcalias_tbs) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += ECC_FMCALIAS_TBS_SIZE;
-            assert_eq!(
-                addr_of!((*P).ecc_rtalias_tbs) as u32,
+                addr_of!((*P).fw.ecc_rtalias_tbs) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += ECC_RTALIAS_TBS_SIZE;
             assert_eq!(
-                addr_of!((*P).mldsa_ldevid_tbs) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += MLDSA_LDEVID_TBS_SIZE;
-            assert_eq!(
-                addr_of!((*P).mldsa_fmcalias_tbs) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += MLDSA_FMCALIAS_TBS_SIZE;
-            assert_eq!(
-                addr_of!((*P).mldsa_rtalias_tbs) as u32,
+                addr_of!((*P).fw.mldsa_rtalias_tbs) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += MLDSA_RTALIAS_TBS_SIZE;
             assert_eq!(
-                addr_of!((*P).rtalias_mldsa_tbs_size) as u32,
+                addr_of!((*P).fw.rtalias_mldsa_tbs_size) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += 4;
             assert_eq!(
-                addr_of!((*P).rt_dice_mldsa_sign) as u32,
+                addr_of!((*P).fw.rt_dice_mldsa_sign) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += MLDSA_SIGNATURE_SIZE;
-            assert_eq!(
-                addr_of!((*P).pcr_log) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
 
-            persistent_data_offset += PCR_LOG_SIZE;
             assert_eq!(
-                addr_of!((*P).measurement_log) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += MEASUREMENT_LOG_SIZE;
-            assert_eq!(
-                addr_of!((*P).fuse_log) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += FUSE_LOG_SIZE;
-            assert_eq!(
-                addr_of!((*P).dpe) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += DPE_SIZE;
-            assert_eq!(
-                addr_of!((*P).pcr_reset) as u32,
+                addr_of!((*P).fw.pcr_reset) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += PCR_RESET_COUNTER_SIZE;
             assert_eq!(
-                addr_of!((*P).auth_manifest_image_metadata_col) as u32,
+                addr_of!((*P).fw.auth_manifest_image_metadata_col) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
             assert_eq!(
-                addr_of!((*P).idevid_csr_envelop) as u32,
+                addr_of!((*P).fw.fmc_alias_csr) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
-            assert_eq!(
-                addr_of!((*P).fmc_alias_csr) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
             persistent_data_offset += FMC_ALIAS_CSR_SIZE;
             assert_eq!(
-                addr_of!((*P).cmb_aes_key_share0) as u32,
+                addr_of!((*P).fw.mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
+
+            persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
             assert_eq!(
-                addr_of!((*P).cmb_aes_key_share1) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
-            assert_eq!(
-                addr_of!((*P).dot_owner_pk_hash) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
-            assert_eq!(
-                addr_of!((*P).cleared_non_fatal_fw_error) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-            persistent_data_offset += CLEARED_NON_FATAL_FW_ERROR_SIZE;
-            assert_eq!(
-                addr_of!((*P).ocp_lock_metadata) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-            persistent_data_offset += OCP_LOCK_METADATA_SIZE;
-            assert_eq!(
-                addr_of!((*P).mcu_firmware_loaded) as u32,
+                addr_of!((*P).fw.dpe) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

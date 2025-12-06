@@ -90,10 +90,10 @@ pub fn handle_report_hek_metadata(
     let hek_seed_state = HekSeedState::try_from(req.seed_state)?;
     let hek_available = hek_seed_state.hek_is_available(lifecycle_state, hek_seed);
 
-    pdata.ocp_lock_metadata.hek_available = hek_available;
-    pdata.ocp_lock_metadata.total_hek_seed_slots = req.total_slots;
-    pdata.ocp_lock_metadata.active_hek_seed_slots = req.active_slots;
-    pdata.ocp_lock_metadata.hek_seed_state = req.seed_state;
+    pdata.rom.ocp_lock_metadata.hek_available = hek_available;
+    pdata.rom.ocp_lock_metadata.total_hek_seed_slots = req.total_slots;
+    pdata.rom.ocp_lock_metadata.active_hek_seed_slots = req.active_slots;
+    pdata.rom.ocp_lock_metadata.hek_seed_state = req.seed_state;
 
     let mut resp = OcpLockReportHekMetadataResp::default();
     resp.flags.set(
@@ -110,10 +110,10 @@ pub fn handle_report_hek_metadata(
 /// If HEK is available, NOP
 /// If HEK is unavailable, erase HEK.
 fn zeroize_hek_if_needed(pdata: &mut PersistentData, kv: &mut KeyVault) -> CaliptraResult<()> {
-    if cfi_launder(pdata.ocp_lock_metadata.hek_available) {
+    if cfi_launder(pdata.rom.ocp_lock_metadata.hek_available) {
         return Ok(());
     } else {
-        cfi_assert!(!pdata.ocp_lock_metadata.hek_available)
+        cfi_assert!(!pdata.rom.ocp_lock_metadata.hek_available)
     }
     // HEK seed is not available, erase the HEK.
     kv.erase_key(KEY_ID_HEK)
