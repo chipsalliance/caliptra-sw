@@ -507,3 +507,49 @@ fn test_cmac_kdf() {
 
     assert_eq!(output, expected);
 }
+
+pub fn aes256_ecb_encrypt(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use openssl::symm::{Cipher, Crypter, Mode};
+    let mut crypter = Crypter::new(Cipher::aes_256_ecb(), Mode::Encrypt, key, None).unwrap();
+    crypter.pad(false);
+    let mut ciphertext = vec![0; data.len() + Cipher::aes_256_ecb().block_size()];
+    let count = crypter.update(data, &mut ciphertext).unwrap();
+    let rest = crypter.finalize(&mut ciphertext[count..]).unwrap();
+    ciphertext.truncate(count + rest);
+    ciphertext
+}
+
+pub fn aes256_ecb_decrypt(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use openssl::symm::{Cipher, Crypter, Mode};
+    let mut crypter = Crypter::new(Cipher::aes_256_ecb(), Mode::Decrypt, key, None).unwrap();
+    crypter.pad(false);
+    let mut plaintext = vec![0; data.len() + Cipher::aes_256_ecb().block_size()];
+    let count = crypter.update(data, &mut plaintext).unwrap();
+    let rest = crypter.finalize(&mut plaintext[count..]).unwrap();
+    plaintext.truncate(count + rest);
+    plaintext
+}
+
+#[test]
+fn test_aes256_ecb() {
+    // NIST SP 800-38A F.1.5
+    let key = [
+        0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77,
+        0x81, 0x1f, 0x35, 0x2c, 0x07, 0x3b, 0x61, 0x08, 0xd7, 0x2d, 0x98, 0x10, 0xa3, 0x09, 0x14,
+        0xdf, 0xf4,
+    ];
+    let plaintext = [
+        0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17,
+        0x2a,
+    ];
+    let expected_ciphertext = [
+        0xf3, 0xee, 0xd1, 0xbd, 0xb5, 0xd2, 0xa0, 0x3c, 0x06, 0x4b, 0x5a, 0x7e, 0x3d, 0xb1, 0x81,
+        0xf8,
+    ];
+
+    let ciphertext = aes256_ecb_encrypt(&key, &plaintext);
+    assert_eq!(ciphertext, expected_ciphertext);
+
+    let decrypted = aes256_ecb_decrypt(&key, &ciphertext);
+    assert_eq!(decrypted, plaintext);
+}
