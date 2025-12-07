@@ -13,6 +13,8 @@ use crate::common::{run_rt_test, RuntimeTestArgs};
 
 use zerocopy::{FromBytes, IntoBytes};
 
+use super::supports_ocp_lock;
+
 #[test]
 fn test_get_algorithms() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -32,7 +34,7 @@ fn test_get_algorithms() {
         payload.as_bytes(),
     );
 
-    if model.subsystem_mode() && model.supports_ocp_lock() {
+    if supports_ocp_lock(&mut model) {
         let response = response.unwrap().unwrap();
         let get_algs_resp = OcpLockGetAlgorithmsResp::ref_from_bytes(response.as_bytes()).unwrap();
 
