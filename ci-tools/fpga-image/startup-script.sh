@@ -21,13 +21,6 @@ if [[ -f "/etc/no_overlayfs" ]]; then
 elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
-    # Update time. This requires a R/W file system, so it failed earlier.
-    timedatectl set-ntp true
-    systemctl restart systemd-timesyncd
-
-    # Give the NTP service some time
-    sleep 1m
-
     # TODO(clundin): Get this at job runtime instead.
     insmod /home/runner/io-module.ko
 
@@ -36,6 +29,18 @@ elif grep -q "overlay" /proc/mounts; then
     ip link set dev end0 down
     macchanger -r end0 || true
     ip link set dev end0 up
+
+    HOST="google.com"
+    while ! ping -c 1 "$HOST" &> /dev/null; do
+      echo "Connection to $HOST failed. Retrying in 1 second..."
+      sleep 1
+    done
+
+    # Update time. This requires a R/W file system, so it failed earlier.
+    timedatectl set-ntp true
+    systemctl restart systemd-timesyncd
+
+    sleep 15s
 
     function runner_jitconfig() {
       echo "Executing GHA runner"
