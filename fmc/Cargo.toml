@@ -27,10 +27,12 @@ cfg-if.workspace = true
 
 [dev-dependencies]
 caliptra-api.workspace = true
+caliptra-auth-man-gen.workspace = true
 caliptra-builder.workspace = true
 caliptra-hw-model.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
+caliptra-image-crypto.workspace = true
 caliptra-test.workspace = true
-caliptra-image-types.workspace = true
 openssl.workspace = true
 
 [features]

@@ -554,6 +554,7 @@ name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
  "caliptra-api",
+ "caliptra-auth-man-gen",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
@@ -562,6 +563,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
+ "caliptra-image-crypto",
  "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test",

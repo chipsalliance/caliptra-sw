@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::{
     firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
@@ -12,6 +13,8 @@ use caliptra_drivers::{
     FirmwareHandoffTable, PcrId,
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_types::FwVerificationPqcKeyType;
 
 use caliptra_test::swap_word_bytes;
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
@@ -81,15 +84,20 @@ fn test_boot_status_reporting() {
     }
 }
 
+fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
+    manifest.as_bytes().to_vec()
+}
+
 #[test]
 fn test_fht_info() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+    for &pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
+            fuse_pqc_key_type: pqc_key_type as u32,
             ..Default::default()
         };
         let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
+            pqc_key_type,
             ..Default::default()
         };
         let rom =
@@ -110,6 +118,8 @@ fn test_fht_info() {
             },
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
+                soc_manifest: Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                mcu_fw_image: Some(&DEFAULT_MCU_FW),
                 ..Default::default()
             },
         )
@@ -127,9 +137,9 @@ fn test_fht_info() {
 
 #[test]
 fn test_pcr_log() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+    for &pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
+            fuse_pqc_key_type: pqc_key_type as u32,
             ..Default::default()
         };
         let rom =
@@ -140,7 +150,7 @@ fn test_pcr_log() {
             &MOCK_RT_INTERACTIVE,
             ImageOptions {
                 app_version: 1,
-                pqc_key_type: *pqc_key_type,
+                pqc_key_type,
                 ..Default::default()
             },
         )
@@ -150,7 +160,7 @@ fn test_pcr_log() {
             &MOCK_RT_INTERACTIVE,
             ImageOptions {
                 app_version: 2,
-                pqc_key_type: *pqc_key_type,
+                pqc_key_type,
                 ..Default::default()
             },
         )
@@ -164,6 +174,8 @@ fn test_pcr_log() {
             },
             BootParams {
                 fw_image: Some(&image1.to_bytes().unwrap()),
+                soc_manifest: Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                mcu_fw_image: Some(&DEFAULT_MCU_FW),
                 ..Default::default()
             },
         )
