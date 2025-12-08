@@ -26,6 +26,7 @@ caliptra-gen-linker-scripts.workspace = true
 cfg-if.workspace = true
 
 [dev-dependencies]
+caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-test.workspace = true

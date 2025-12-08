@@ -1,4 +1,5 @@
 // Licensed under the Apache-2.0 license
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
     firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
@@ -113,6 +114,7 @@ fn test_fht_info() {
             },
         )
         .unwrap();
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
         let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
@@ -166,6 +168,7 @@ fn test_pcr_log() {
             },
         )
         .unwrap();
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
         let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
         let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
