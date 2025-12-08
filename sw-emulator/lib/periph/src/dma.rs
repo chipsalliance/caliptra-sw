@@ -357,6 +357,11 @@ impl Dma {
     fn axi_to_mailbox(&mut self) -> bool {
         let xfer = self.read_xfer();
 
+        match self.block_size.reg.get() {
+            0 | 256 => (),
+            _ => panic!("Unsupported DMA block size: must be 0/256 for AXI to mailbox"),
+        }
+
         // check if we have to do the read async
         if self.axi.must_schedule(xfer.src) {
             self.pending_axi_to_mailbox = true;
@@ -383,6 +388,10 @@ impl Dma {
     // Returns true if this completed immediately.
     fn axi_to_fifo(&mut self) -> bool {
         let xfer = self.read_xfer();
+        match self.block_size.reg.get() {
+            0 => (),
+            _ => panic!("Unsupported DMA block size: must be 0 for AXI to FIFO"),
+        }
 
         // check if we have to do the read async
         if self.axi.must_schedule(xfer.src) {
@@ -413,6 +422,11 @@ impl Dma {
     fn axi_to_axi(&mut self) -> bool {
         let read_xfer = self.read_xfer();
         let write_xfer = self.write_xfer();
+
+        match self.block_size.reg.get() {
+            0 | 64 => (),
+            _ => panic!("Unsupported DMA block size: must be 0/64 for AXI to AXI"),
+        }
 
         // check if we have to do the read async
         if self.axi.must_schedule(read_xfer.src) {
@@ -479,6 +493,11 @@ impl Dma {
         let xfer = self.write_xfer();
         let mbox_ram = self.mailbox.borrow_mut();
 
+        match self.block_size.reg.get() {
+            0 | 256 => (),
+            _ => panic!("Unsupported DMA block size: must be 0/256 for mailbox to AXI"),
+        }
+
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = mbox_ram
@@ -494,6 +513,12 @@ impl Dma {
     // Returns true if this completed immediately.
     fn fifo_to_axi(&mut self) -> bool {
         let xfer = self.write_xfer();
+
+        match self.block_size.reg.get() {
+            0 => (),
+            _ => panic!("Unsupported DMA block size: must be 0 for FIFO to AXI"),
+        }
+
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = match self.fifo.pop_front() {

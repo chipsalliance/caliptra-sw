@@ -25,7 +25,10 @@ use caliptra_registers::sha512_acc::RegisterBlock as ShaAccRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 
-const BLOCK_SIZE: u32 = 256; // Block size for DMA transfers
+// AXI to AXI block size.
+const AXI_TO_AXI_DMA_BLOCK_SIZE: u32 = 64;
+// DMA general block size.
+const DMA_GENERAL_BLOCK_SIZE: u32 = 256;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 // SHA384 of empty stream
 const SHA384_EMPTY: Array4x12 = Array4x12::new([
@@ -578,7 +581,8 @@ impl<'a> DmaRecovery<'a> {
             aes_mode: false,
             aes_gcm: false,
         };
-        self.exec_dma_read(read_transaction)?;
+        // use the general DMA block size for AXI to mailbox
+        self.exec_dma_read(read_transaction, DMA_GENERAL_BLOCK_SIZE)?;
         Ok(())
     }
 
@@ -645,9 +649,9 @@ impl<'a> DmaRecovery<'a> {
         #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
         {
             // FPGA implementation: wait for FIFO to be full and read dword by dword
-            for k in (0..image_size_bytes as usize).step_by(BLOCK_SIZE as usize) {
+            for k in (0..image_size_bytes as usize).step_by(AXI_TO_AXI_DMA_BLOCK_SIZE as usize) {
                 let remaining_bytes = image_size_bytes as usize - k;
-                let is_last_block = remaining_bytes < BLOCK_SIZE as usize;
+                let is_last_block = remaining_bytes < AXI_TO_AXI_DMA_BLOCK_SIZE as usize;
 
                 if !is_last_block {
                     self.with_regs(|r| {
@@ -660,8 +664,9 @@ impl<'a> DmaRecovery<'a> {
                     })?;
                 }
 
-                // Read up to BLOCK_SIZE or remaining bytes, whichever is smaller
-                let bytes_to_read = core::cmp::min(BLOCK_SIZE as usize, remaining_bytes);
+                // Read up to AXI_TO_AXI_DMA_BLOCK_SIZE or remaining bytes, whichever is smaller
+                let bytes_to_read =
+                    core::cmp::min(AXI_TO_AXI_DMA_BLOCK_SIZE as usize, remaining_bytes);
                 for j in (0..bytes_to_read).step_by(4) {
                     let i = k + j;
                     let word_index = i / 4;
@@ -835,16 +840,19 @@ impl<'a> DmaRecovery<'a> {
             aes_mode: aes_mode.aes(),
             aes_gcm: aes_mode.gcm(),
         };
-        self.exec_dma_read(read_transaction)?;
+        self.exec_dma_read(read_transaction, AXI_TO_AXI_DMA_BLOCK_SIZE)?;
         Ok(())
     }
 
     // TODO: remove this when the FPGA can do fixed burst transfers
     #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
-    fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
+    fn exec_dma_read(
+        &self,
+        read_transaction: DmaReadTransaction,
+        block_size: u32,
+    ) -> CaliptraResult<()> {
         // Flush DMA before doing anything
         self.dma.flush();
-
         // check if this is an I3C DMA
         let i3c = match read_transaction.read_addr {
             AxiAddr { lo, hi }
@@ -856,8 +864,8 @@ impl<'a> DmaRecovery<'a> {
             _ => false,
         };
 
-        for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
-            for j in (0..BLOCK_SIZE).step_by(4) {
+        for k in (0..read_transaction.length).step_by(block_size as usize) {
+            for j in (0..block_size).step_by(4) {
                 let i = k + j;
 
                 if i >= read_transaction.length {
@@ -907,9 +915,13 @@ impl<'a> DmaRecovery<'a> {
     }
 
     #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
-    fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
+    fn exec_dma_read(
+        &self,
+        read_transaction: DmaReadTransaction,
+        block_size: u32,
+    ) -> CaliptraResult<()> {
         self.dma.flush();
-        self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);
+        self.dma.setup_dma_read(read_transaction, block_size);
         self.dma.wait_for_dma_complete();
         Ok(())
     }
