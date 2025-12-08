@@ -33,7 +33,9 @@ fn test_valid_mek_secret_seed() {
         CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
         cmd.as_bytes().unwrap(),
     );
+    dbg!(&response);
     if supports_ocp_lock(&mut model) {
+        eprintln!("CAPs says supported!");
         response.unwrap().unwrap();
     } else {
         assert_eq!(

@@ -190,6 +190,7 @@ jobs:
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
+          echo "Building archive with features: ${FEATURES}"
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
