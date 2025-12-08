@@ -76,7 +76,7 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
+    if !drivers.persistent_data.get().rom.fht.is_valid() {
         cprintln!("[rt] RT can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }

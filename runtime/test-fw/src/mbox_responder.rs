@@ -76,7 +76,7 @@ fn rt_entry() {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
+    if !drivers.persistent_data.get().rom.fht.is_valid() {
         cprintln!("Runtime can't load FHT");
         handle_fatal_error(CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
@@ -91,7 +91,13 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
 
-    let command_was_running = drivers.persistent_data.get().dpe.runtime_cmd_active.get();
+    let command_was_running = drivers
+        .persistent_data
+        .get()
+        .fw
+        .dpe
+        .runtime_cmd_active
+        .get();
     if command_was_running {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
@@ -177,7 +183,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             CommandId(OPCODE_HASH_DPE_TCI_DATA) => {
                 let mut hasher = drivers.sha2_512_384.sha384_digest_init().unwrap();
-                for context in drivers.persistent_data.get().dpe.dpe.contexts {
+                for context in drivers.persistent_data.get().fw.dpe.dpe.contexts {
                     if context.state != ContextState::Inactive {
                         hasher.update(context.tci.tci_current.as_bytes()).unwrap();
                     }
@@ -193,17 +199,17 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             CommandId(OPCODE_READ_DPE_ROOT_CONTEXT_MEASUREMENT) => {
                 let root_idx =
-                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().dpe.dpe)
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.dpe)
                         .unwrap();
-                let root_measurement = drivers.persistent_data.get().dpe.dpe.contexts[root_idx]
+                let root_measurement = drivers.persistent_data.get().fw.dpe.dpe.contexts[root_idx]
                     .tci
                     .tci_current
                     .as_bytes();
                 write_response(&mut drivers.mbox, root_measurement);
             }
             CommandId(OPCODE_READ_DPE_TAGS) => {
-                let context_tags = drivers.persistent_data.get().dpe.context_tags;
-                let context_has_tag = drivers.persistent_data.get().dpe.context_has_tag;
+                let context_tags = drivers.persistent_data.get().fw.dpe.context_tags;
+                let context_has_tag = drivers.persistent_data.get().fw.dpe.context_has_tag;
                 const CONTEXT_TAGS_SIZE: usize = MAX_HANDLES * size_of::<u32>();
                 const CONTEXT_HAS_TAG_SIZE: usize = MAX_HANDLES * size_of::<U8Bool>();
                 let mut tags_info = [0u8; CONTEXT_TAGS_SIZE + CONTEXT_HAS_TAG_SIZE];
@@ -216,7 +222,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
                 let corrupted_context_tags =
                     <[u32; MAX_HANDLES]>::read_from_bytes(input_bytes).unwrap();
-                drivers.persistent_data.get_mut().dpe.context_tags = corrupted_context_tags;
+                drivers.persistent_data.get_mut().fw.dpe.context_tags = corrupted_context_tags;
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_CORRUPT_CONTEXT_HAS_TAG) => {
@@ -228,6 +234,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers
                     .persistent_data
                     .get_mut()
+                    .fw
                     .dpe
                     .context_has_tag
                     .clone_from_slice(corrupted_context_has_tag);
@@ -236,29 +243,29 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_READ_DPE_INSTANCE) => {
                 write_response(
                     &mut drivers.mbox,
-                    drivers.persistent_data.get().dpe.dpe.as_bytes(),
+                    drivers.persistent_data.get().fw.dpe.dpe.as_bytes(),
                 );
             }
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
                 let corrupted_dpe = DpeInstance::try_read_from_bytes(input_bytes).unwrap();
-                drivers.persistent_data.get_mut().dpe.dpe = corrupted_dpe;
+                drivers.persistent_data.get_mut().fw.dpe.dpe = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_READ_PCR_RESET_COUNTER) => {
                 write_response(
                     &mut drivers.mbox,
-                    drivers.persistent_data.get().pcr_reset.as_bytes(),
+                    drivers.persistent_data.get().fw.pcr_reset.as_bytes(),
                 );
             }
             CommandId(OPCODE_CORRUPT_DPE_ROOT_TCI) => {
                 let input_bytes = read_request(&drivers.mbox);
 
                 let root_idx =
-                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().dpe.dpe)
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.dpe)
                         .unwrap();
-                drivers.persistent_data.get_mut().dpe.dpe.contexts[root_idx]
+                drivers.persistent_data.get_mut().fw.dpe.dpe.contexts[root_idx]
                     .tci
                     .tci_current = TciMeasurement(input_bytes.try_into().unwrap());
                 write_response(&mut drivers.mbox, &[]);
@@ -269,6 +276,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     &drivers
                         .persistent_data
                         .get()
+                        .rom
                         .fht
                         .fw_key_ladder_max_svn
                         .to_le_bytes(),
@@ -278,6 +286,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 let hek_available = drivers
                     .persistent_data
                     .get()
+                    .rom
                     .ocp_lock_metadata
                     .hek_available;
                 let state = U8Bool::new(hek_available);
@@ -302,7 +311,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .write(|w| w.core_rst(true));
             }
             CommandId(OPCODE_HOLD_COMMAND_BUSY) => {
-                drivers.persistent_data.get_mut().dpe.runtime_cmd_active = U8Bool::new(true);
+                drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(true);
                 write_response(&mut drivers.mbox, &[]);
             }
             _ => {

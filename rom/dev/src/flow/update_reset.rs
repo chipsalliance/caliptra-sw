@@ -43,7 +43,7 @@ impl UpdateResetFlow {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
         // Indicate that Update-Reset flow has started.
         // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
@@ -111,7 +111,7 @@ impl UpdateResetFlow {
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
                 mldsa87: &mut env.mldsa87,
-                data_vault: &env.persistent_data.get().data_vault,
+                data_vault: &env.persistent_data.get().rom.data_vault,
                 pcr_bank: &mut env.pcr_bank,
                 image: recv_txn.raw_mailbox_contents(),
                 dma: &env.dma,
@@ -120,14 +120,14 @@ impl UpdateResetFlow {
             };
 
             let info = {
-                let manifest = &env.persistent_data.get().manifest2;
+                let manifest = &env.persistent_data.get().rom.manifest2;
                 Self::verify_image(&mut venv, manifest, img_bundle_sz)
             };
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
             // Populate data vault
-            let data_vault = &mut env.persistent_data.get_mut().data_vault;
+            let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
             Self::populate_data_vault(data_vault, info, &mut env.hmac, &mut env.trng)?;
 
             // Extend PCR0 and PCR1
@@ -145,7 +145,7 @@ impl UpdateResetFlow {
                 info.vendor_ecc_pub_key_idx
             );
 
-            let manifest = &env.persistent_data.get().manifest2;
+            let manifest = &env.persistent_data.get().rom.manifest2;
             Self::load_image(
                 manifest,
                 &mut recv_txn,
@@ -170,14 +170,14 @@ impl UpdateResetFlow {
 
         let persistent_data = env.persistent_data.get_mut();
         cprintln!("[update-reset] Copying MAN_2 To MAN_1");
-        persistent_data.manifest1 = persistent_data.manifest2;
+        persistent_data.rom.manifest1 = persistent_data.rom.manifest2;
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
         // Set RT version. FMC does not change.
         env.soc_ifc
-            .set_rt_fw_rev_id(persistent_data.manifest1.runtime.version);
+            .set_rt_fw_rev_id(persistent_data.rom.manifest1.runtime.version);
 
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
         data_vault.set_rom_update_reset_status(UpdateResetComplete.into());
 
         cprintln!("[update-reset Success] --");
@@ -347,7 +347,7 @@ impl UpdateResetFlow {
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.manifest2;
+        let manifest = &mut persistent_data.rom.manifest2;
         let mbox_sram = txn.raw_mailbox_contents();
         let manifest_buf = manifest.as_mut_bytes();
         if mbox_sram.len() < manifest_buf.len() {
@@ -364,7 +364,7 @@ impl UpdateResetFlow {
         dma: &mut Dma,
         staging_addr: u64,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.manifest2;
+        let manifest = &mut persistent_data.rom.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Read manifest from staging area using DMA directly into manifest buffer

@@ -39,11 +39,11 @@ pub struct HandOff {}
 
 impl HandOff {
     fn fht(env: &FmcEnv) -> &FirmwareHandoffTable {
-        &env.persistent_data.get().fht
+        &env.persistent_data.get().rom.fht
     }
 
     fn fht_mut(env: &mut FmcEnv) -> &mut FirmwareHandoffTable {
-        &mut env.persistent_data.get_mut().fht
+        &mut env.persistent_data.get_mut().rom.fht
     }
 
     /// Retrieve FMC CDI
@@ -65,7 +65,7 @@ impl HandOff {
     /// * fmc ECC public key
     ///
     pub fn fmc_ecc_pub_key(env: &FmcEnv) -> Ecc384PubKey {
-        env.persistent_data.get().data_vault.fmc_ecc_pub_key()
+        env.persistent_data.get().rom.data_vault.fmc_ecc_pub_key()
     }
 
     /// Get the fmc MLDSA public key.
@@ -74,7 +74,7 @@ impl HandOff {
     /// * fmc MLDSA public key
     ///
     pub fn fmc_mldsa_pub_key(env: &FmcEnv) -> Mldsa87PubKey {
-        env.persistent_data.get().data_vault.fmc_mldsa_pub_key()
+        env.persistent_data.get().rom.data_vault.fmc_mldsa_pub_key()
     }
 
     /// Retrieve FMC Alias ECC Private Key
@@ -144,12 +144,12 @@ impl HandOff {
 
     /// Retrieve runtime TCI (digest)
     pub fn rt_tci(env: &FmcEnv) -> Array4x12 {
-        env.persistent_data.get().data_vault.rt_tci()
+        env.persistent_data.get().rom.data_vault.rt_tci()
     }
 
     /// Retrieve firmware SVN.
     pub fn fw_svn(env: &FmcEnv) -> u32 {
-        env.persistent_data.get().data_vault.fw_svn()
+        env.persistent_data.get().rom.data_vault.fw_svn()
     }
 
     /// Store runtime Dice ECC Signature
@@ -167,17 +167,17 @@ impl HandOff {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rt_dice_mldsa_signature(env: &mut FmcEnv, sig: &Mldsa87Signature) {
         // Self::fht_mut(env).rt_dice_mldsa_sign = *sig;
-        env.persistent_data.get_mut().rt_dice_mldsa_sign = *sig;
+        env.persistent_data.get_mut().fw.rt_dice_mldsa_sign = *sig;
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rtalias_mldsa_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
-        env.persistent_data.get_mut().rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
+        env.persistent_data.get_mut().fw.rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
     }
 
     /// Retrieve the entry point of the runtime firmware.
     fn rt_entry_point(env: &FmcEnv) -> u32 {
-        env.persistent_data.get().data_vault.rt_entry_point()
+        env.persistent_data.get().rom.data_vault.rt_entry_point()
     }
 
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.

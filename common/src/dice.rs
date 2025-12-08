@@ -35,7 +35,7 @@ pub const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
 ///
 /// * `Ecc384Signature` - The formed signature
 pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
-    persistent_data.data_vault.ldev_dice_ecc_signature()
+    persistent_data.rom.data_vault.ldev_dice_ecc_signature()
 }
 
 /// Return the LDevId MLDSA87 cert signature
@@ -48,7 +48,7 @@ pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
 ///
 /// * `Mldsa87Signature` - The formed signature
 pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Signature {
-    persistent_data.data_vault.ldev_dice_mldsa_signature()
+    persistent_data.rom.data_vault.ldev_dice_mldsa_signature()
 }
 
 pub struct GetLdevCertCmd;
@@ -158,8 +158,9 @@ pub fn copy_ldevid_ecc384_cert(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
+        .rom
         .ecc_ldevid_tbs
-        .get(..persistent_data.fht.ecc_ldevid_tbs_size.into());
+        .get(..persistent_data.rom.fht.ecc_ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data);
     ecc384_cert_from_tbs_and_sig(tbs, &sig, cert).map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
 }
@@ -180,8 +181,9 @@ pub fn copy_ldevid_mldsa87_cert(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
+        .rom
         .mldsa_ldevid_tbs
-        .get(..persistent_data.fht.mldsa_ldevid_tbs_size.into());
+        .get(..persistent_data.rom.fht.mldsa_ldevid_tbs_size.into());
     let sig = ldevid_dice_mldsa87_sign(persistent_data);
     mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
