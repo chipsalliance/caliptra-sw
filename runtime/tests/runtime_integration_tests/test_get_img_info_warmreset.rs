@@ -83,6 +83,8 @@ fn test_get_image_info_persists_after_warm_reset() {
     model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
+    let mut model = set_auth_manifest(Some(auth_manifest.clone()));
+
     let resp_after = get_image_info(&mut model, FW_ID_1);
 
     // The image info for the same fw_id should be stable across warm reset.
