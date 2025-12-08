@@ -46,7 +46,9 @@ fn test_boot_status_reporting() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
 
         let image = caliptra_builder::build_and_sign_image(
             &firmware::FMC_WITH_UART,
@@ -89,7 +91,9 @@ fn test_fht_info() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
         let image = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
             &MOCK_RT_INTERACTIVE,
@@ -126,7 +130,9 @@ fn test_pcr_log() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
         let image1 = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
             &MOCK_RT_INTERACTIVE,
