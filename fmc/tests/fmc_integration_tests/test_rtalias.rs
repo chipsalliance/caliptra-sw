@@ -2,7 +2,11 @@
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
+    firmware::{
+        self,
+        runtime_tests::{MOCK_RT_INTERACTIVE, MOCK_RT_INTERACTIVE_FPGA},
+        FMC_WITH_UART,
+    },
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -105,7 +109,11 @@ fn test_fht_info() {
                 .unwrap();
         let image = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &MOCK_RT_INTERACTIVE,
+            &if cfg!(feature = "fpga_subsystem") {
+                MOCK_RT_INTERACTIVE_FPGA
+            } else {
+                MOCK_RT_INTERACTIVE
+            },
             image_options,
         )
         .unwrap();
@@ -147,7 +155,11 @@ fn test_pcr_log() {
                 .unwrap();
         let image1 = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &MOCK_RT_INTERACTIVE,
+            &if cfg!(feature = "fpga_subsystem") {
+                MOCK_RT_INTERACTIVE_FPGA
+            } else {
+                MOCK_RT_INTERACTIVE
+            },
             ImageOptions {
                 app_version: 1,
                 pqc_key_type,
@@ -157,7 +169,11 @@ fn test_pcr_log() {
         .unwrap();
         let image2 = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &MOCK_RT_INTERACTIVE,
+            &if cfg!(feature = "fpga_subsystem") {
+                MOCK_RT_INTERACTIVE_FPGA
+            } else {
+                MOCK_RT_INTERACTIVE
+            },
             ImageOptions {
                 app_version: 2,
                 pqc_key_type,
