@@ -40,7 +40,7 @@ fn test_linker_symbols_match_memory_layout() {
 
     assert_symbol_addr(&symbols, "CFI_STATE_ORG", memory_layout::CFI_STATE_ORG);
     assert_eq!(
-        memory_layout::ROM_DATA_ORG + memory_layout::ROM_DATA_SIZE,
+        memory_layout::ROM_DATA_ORG + memory_layout::ROM_DATA_RESERVED_SIZE,
         memory_layout::CFI_STATE_ORG
     );
     assert_eq!(
