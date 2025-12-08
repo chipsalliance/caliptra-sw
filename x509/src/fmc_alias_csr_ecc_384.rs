@@ -14,9 +14,9 @@ Abstract:
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs.rs"));
+include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs_ecc_384.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/fmc_alias_csr_tbs.rs"}
+include! {"../build/fmc_alias_csr_tbs_ecc_384.rs"}
 #[cfg(feature = "generate_templates")]
 include!(concat!(env!("OUT_DIR"), "/fmc_alias_tbs_ml_dsa_87.rs"));
 #[cfg(not(feature = "generate_templates"))]
@@ -36,16 +36,16 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; FmcAliasCsrTbs::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; FmcAliasCsrTbsEcc384::UEID_LEN];
     const TEST_DEVICE_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCsrTbsParams::TCB_INFO_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCsrTbsParams::TCB_INFO_FMC_TCI_LEN];
+        &[0xCDu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_DEVICE_INFO_HASH_LEN];
+    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_FMC_TCI_LEN];
     const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
     const TEST_TCB_INFO_FMC_SVN: &[u8] = &[0xB7];
     const TEST_TCB_INFO_FMC_SVN_FUSES: &[u8] = &[0xB8];
 
-    fn make_test_csr(subject_key: &Ecc384AsymKey) -> FmcAliasCsrTbs {
-        let params = FmcAliasCsrTbsParams {
+    fn make_test_csr(subject_key: &Ecc384AsymKey) -> FmcAliasCsrTbsEcc384 {
+        let params = FmcAliasCsrTbsEcc384Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
@@ -56,7 +56,7 @@ mod tests {
             tcb_info_fmc_svn_fuses: &TEST_TCB_INFO_FMC_SVN_FUSES.try_into().unwrap(),
         };
 
-        FmcAliasCsrTbs::new(&params)
+        FmcAliasCsrTbsEcc384::new(&params)
     }
 
     #[test]
@@ -73,47 +73,50 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), FmcAliasCsrTbs::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), FmcAliasCsrTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::PUBLIC_KEY_OFFSET
-                ..FmcAliasCsrTbs::PUBLIC_KEY_OFFSET + FmcAliasCsrTbs::PUBLIC_KEY_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET
+                ..FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET + FmcAliasCsrTbsEcc384::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::SUBJECT_SN_OFFSET
-                ..FmcAliasCsrTbs::SUBJECT_SN_OFFSET + FmcAliasCsrTbs::SUBJECT_SN_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET
+                ..FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET + FmcAliasCsrTbsEcc384::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::UEID_OFFSET
-                ..FmcAliasCsrTbs::UEID_OFFSET + FmcAliasCsrTbs::UEID_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::UEID_OFFSET
+                ..FmcAliasCsrTbsEcc384::UEID_OFFSET + FmcAliasCsrTbsEcc384::UEID_LEN],
             TEST_UEID,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbs::TCB_INFO_DEVICE_INFO_HASH_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCsrTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCsrTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_LEN],
             TEST_DEVICE_INFO_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_TCI_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FMC_TCI_OFFSET + FmcAliasCsrTbs::TCB_INFO_FMC_TCI_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
+                ..FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
+                    + FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_LEN],
             TEST_FMC_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FLAGS_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FLAGS_OFFSET + FmcAliasCsrTbs::TCB_INFO_FLAGS_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FLAGS_OFFSET
+                ..FmcAliasCsrTbsEcc384::TCB_INFO_FLAGS_OFFSET
+                    + FmcAliasCsrTbsEcc384::TCB_INFO_FLAGS_LEN],
             TEST_TCB_INFO_FLAGS,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_SVN_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FMC_SVN_OFFSET + FmcAliasCsrTbs::TCB_INFO_FMC_SVN_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_OFFSET
+                ..FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_OFFSET
+                    + FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_LEN],
             TEST_TCB_INFO_FMC_SVN,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                ..FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                    + FmcAliasCsrTbs::TCB_INFO_FMC_SVN_FUSES_LEN],
+            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                ..FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                    + FmcAliasCsrTbsEcc384::TCB_INFO_FMC_SVN_FUSES_LEN],
             TEST_TCB_INFO_FMC_SVN_FUSES,
         );
 

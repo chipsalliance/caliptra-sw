@@ -2,15 +2,8 @@
 name: Build FPGA SD image
 
 on:
-  # Disable on 2.1 branch.
-  # Images are currently only built on main-2.x
-  # pull_request:
-  #   paths:
-  #     - ".github/workflows/fpga-image.yml"
-  #     - "ci-tools/fpga-image/**"
-
   push:
-    branches: ["main-2.x"]
+    branches: ["main"]
     paths:
       - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"

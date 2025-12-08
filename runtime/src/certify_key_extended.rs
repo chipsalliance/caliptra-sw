@@ -57,7 +57,7 @@ impl CertifyKeyExtendedCmd {
             &mut pdata.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut pdata.exported_cdi_slots,
+            &mut pdata.dpe.exported_cdi_slots,
         );
         let pl0_pauser = pdata.manifest1.header.pl0_pauser;
         let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
@@ -83,7 +83,7 @@ impl CertifyKeyExtendedCmd {
             ),
         };
 
-        let dpe = &mut pdata.dpe;
+        let dpe = &mut pdata.dpe.dpe;
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;

@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    ReportHekMetadataReq, ReportHekMetadataResp, ReportHekMetadataRespFlags,
+    OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
 };
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
@@ -84,9 +84,9 @@ fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
 pub fn handle_report_hek_metadata(
     lifecycle_state: Lifecycle,
     pdata: &mut PersistentData,
-    req: &ReportHekMetadataReq,
+    req: &OcpLockReportHekMetadataReq,
     hek_seed: &Array4x8,
-) -> CaliptraResult<ReportHekMetadataResp> {
+) -> CaliptraResult<OcpLockReportHekMetadataResp> {
     let hek_seed_state = HekSeedState::try_from(req.seed_state)?;
     let hek_available = hek_seed_state.hek_is_available(lifecycle_state, hek_seed);
 
@@ -95,9 +95,11 @@ pub fn handle_report_hek_metadata(
     pdata.ocp_lock_metadata.active_hek_seed_slots = req.active_slots;
     pdata.ocp_lock_metadata.hek_seed_state = req.seed_state;
 
-    let mut resp = ReportHekMetadataResp::default();
-    resp.flags
-        .set(ReportHekMetadataRespFlags::HEK_AVAILABLE, hek_available);
+    let mut resp = OcpLockReportHekMetadataResp::default();
+    resp.flags.set(
+        OcpLockReportHekMetadataRespFlags::HEK_AVAILABLE,
+        hek_available,
+    );
     Ok(resp)
 }
 

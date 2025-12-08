@@ -1,0 +1,190 @@
+name: Nightly Release
+
+on:
+  workflow_dispatch:
+  schedule:
+  # 2:11 AM PST tuesday-saturday
+  - cron: '11 10 * * 2-6'
+
+jobs:
+  find-latest-release:
+    name: Find Latest Release
+    runs-on: ubuntu-22.04
+    outputs:
+      create_release: ${{ steps.find.outputs.create_release }}
+      new_release_tag: ${{ steps.find.outputs.new_release_tag }}
+      release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: caliptra-1.x
+          submodules: 'true'
+          fetch-depth: 0
+
+      - name: Find latest release
+        id: find
+        run: |
+          DATE="$(date +'%Y%m%d')"
+          TAG_PREFIX="release_v"
+          TAG_BASE="${TAG_PREFIX}${DATE}_"
+          INDEX=0
+          while git tag | grep ${TAG_BASE}${INDEX}; do
+              ((INDEX+=1))
+          done
+          git submodule update --remote hw/1.0/rtl
+          git submodule update --remote hw/latest/rtl
+          CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
+          MOST_RECENT_RELEASE=None
+          if git tag | grep ${TAG_PREFIX} > /dev/null; then
+              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
+          fi
+          if [ "$MOST_RECENT_RELEASE" == "None" ] && [ -z "$CHECK_RELEASE_SYNC" ]; then
+              echo "create_release=true" >> $GITHUB_OUTPUT
+          else
+              COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
+              if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
+                  echo "create_release=true" >> $GITHUB_OUTPUT
+              else
+                  echo "create_release=false" >> $GITHUB_OUTPUT
+              fi
+          fi
+          echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
+          echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
+
+  fpga-tests:
+    name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release == 'true'
+    uses: chipsalliance/caliptra-sw/.github/workflows/fpga.yml@caliptra-1.x
+    strategy:
+      fail-fast: false
+      matrix:
+        hw_config:
+          - { name: "1.0", hw: "1.0", rom: "1.0", suffix_prefix: "hw-1.0" }
+          - { name: "1.1", hw: "latest", rom: "1.1", suffix_prefix: "rom-1.1" }
+          - { name: "latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
+        rng:
+          - { name: "etrng", fpga_itrng: false, extra: "slow_tests" }
+          - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
+    with:
+      artifact-suffix: -fpga-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
+      extra-features: ${{ matrix.rng.extra }}
+      hw-version: ${{ matrix.hw_config.hw }}
+      rom-version: ${{ matrix.hw_config.rom }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      fpga-itrng: ${{ matrix.rng.fpga_itrng }}
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
+      branch: "caliptra-1.x"
+
+  sw-emulator-tests:
+    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release == 'true'
+    uses: chipsalliance/caliptra-sw/.github/workflows/fw-test-emu.yml@caliptra-1.x
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # The current 1.0.x ROM used in CI will overflow the stack into unused space
+          # We disable the stack overflow check (sw_emu_stack_check_disable) when testing against that ROM
+          - { name: "1.0", rom: "1.0", suffix: "hw-1.0", base_features: "hw-1.0,slow_tests,sw_emu_stack_check_disable" }
+          - { name: "1.1", rom: "1.1", suffix: "rom-1.1", base_features: "slow_tests" }
+          - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
+        rng:
+          - { name: "etrng", extra: "" }
+          - { name: "itrng", extra: ",itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
+    with:
+      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
+      extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      rom-version: ${{ matrix.config.rom }}
+      branch: "caliptra-1.x"
+
+  create-release:
+    name: Create New Release
+    needs:
+      - find-latest-release
+      - fpga-tests
+      - sw-emulator-tests
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: caliptra-1.x
+          submodules: 'true'
+          fetch-depth: 0
+
+      - name: Generate release zip
+        run: |
+          ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
+          mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
+      - name: 'Download all artifacts'
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/artifacts
+
+      - name: Package all test artifacts for release
+        run: |
+          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
+      - name: Tag repo with new release number
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
+          git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
+
+      - name: Create draft release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          draft: true
+          files: |
+            ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          draft: false
+          prerelease: true
+
+      - name: Write artifact to workflow with release info
+        run: |
+          mkdir /tmp/release-info
+          echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
+          echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
+
+      - name: Write artifact with release info
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-info
+          path: /tmp/release-info
+
+  publish-website:
+    name: Publish https://caliptra-sw.github.io/
+    needs:
+      create-release
+    uses: chipsalliance/caliptra-sw/.github/workflows/publish-website.yml@caliptra-1.x
+    permissions:
+      pages: write
+      id-token: write

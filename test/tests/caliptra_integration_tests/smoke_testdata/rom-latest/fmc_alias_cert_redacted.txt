@@ -4,11 +4,11 @@ Certificate:
         Serial Number:
             44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
         Signature Algorithm: ecdsa-with-SHA384
-        Issuer: CN=Caliptra 2.0 Ecc384 LDevID/serialNumber=DE96A450F23A8E4A5333005E60BFCF4D3DA8FA1603FAFB605D2B22C44F4C2292
+        Issuer: CN=Caliptra 2.1 Ecc384 LDevID/serialNumber=DE96A450F23A8E4A5333005E60BFCF4D3DA8FA1603FAFB605D2B22C44F4C2292
         Validity
             Not Before: Jan  1 00:00:00 2023 GMT
             Not After : Dec 31 23:59:59 9999 GMT
-        Subject: CN=Caliptra 2.0 Ecc384 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        Subject: CN=Caliptra 2.1 Ecc384 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)

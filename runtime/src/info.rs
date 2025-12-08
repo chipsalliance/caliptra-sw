@@ -37,7 +37,7 @@ impl FwInfoCmd {
         resp.fw_svn = handoff.fw_svn();
         resp.min_fw_svn = handoff.fw_min_svn();
         resp.cold_boot_fw_svn = handoff.cold_boot_fw_svn();
-        resp.attestation_disabled = pdata.attestation_disabled.get().into();
+        resp.attestation_disabled = pdata.dpe.attestation_disabled.get().into();
         resp.rom_revision = rom_info.revision;
         resp.fmc_revision = pdata.manifest1.fmc.revision;
         resp.runtime_revision = pdata.manifest1.runtime.revision;

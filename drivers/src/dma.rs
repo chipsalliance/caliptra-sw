@@ -689,7 +689,6 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
         {
-            crate::cprintln!("Wrong Code!");
             let read_transaction = DmaReadTransaction {
                 read_addr: addr,
                 fixed_addr: true,

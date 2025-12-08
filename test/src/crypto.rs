@@ -428,3 +428,128 @@ DmQQPrr5e0u3qIopwfq1hXtOLI0nTm2F
         ]
     )
 }
+
+pub fn aes_cmac(key: &[u8], data: &[u8]) -> [u8; 16] {
+    use openssl::hash::MessageDigest;
+    use openssl::sign::Signer;
+    use openssl::symm::Cipher;
+
+    let cipher = Cipher::aes_256_cbc();
+    let pkey = PKey::cmac(&cipher, key).unwrap();
+
+    let mut signer = Signer::new(MessageDigest::null(), &pkey).unwrap();
+    signer.update(data).unwrap();
+    let mut result = [0u8; 16];
+    signer.sign(&mut result).unwrap();
+    result
+}
+
+#[test]
+fn test_aes_cmac() {
+    // Test vector from NIST SP 800-38B
+    // D.3 Example 9
+    let key = [
+        0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77,
+        0x81, 0x1f, 0x35, 0x2c, 0x07, 0x3b, 0x61, 0x08, 0xd7, 0x2d, 0x98, 0x10, 0xa3, 0x09, 0x14,
+        0xdf, 0xf4,
+    ];
+    let data = [];
+    let expected = [
+        0x02, 0x89, 0x62, 0xf6, 0x1b, 0x7b, 0xf8, 0x9e, 0xfc, 0x6b, 0x55, 0x1f, 0x46, 0x67, 0xd9,
+        0x83,
+    ];
+    assert_eq!(aes_cmac(&key, &data), expected);
+}
+
+pub fn cmac_kdf(key: &[u8], label: &[u8], context: Option<&[u8]>, rounds: usize) -> Vec<u8> {
+    let mut output = Vec::new();
+
+    for i in 1..=rounds {
+        let mut input = Vec::new();
+        input.extend_from_slice(&(i as u32).to_be_bytes());
+        input.extend_from_slice(label);
+        if let Some(ctx) = context {
+            input.push(0x00);
+            input.extend_from_slice(ctx);
+        }
+
+        output.extend_from_slice(&aes_cmac(key, &input));
+    }
+
+    output
+}
+
+#[test]
+fn test_cmac_kdf() {
+    // Test vector from kat/src/cmackdf_kat.rs
+    // Key: BFB99C6AAB859A9873ACC9880BD875BB83A8B24A9307576A054216908756BE5B
+    let key = [
+        0xbf, 0xb9, 0x9c, 0x6a, 0xab, 0x85, 0x9a, 0x98, 0x73, 0xac, 0xc9, 0x88, 0x0b, 0xd8, 0x75,
+        0xbb, 0x83, 0xa8, 0xb2, 0x4a, 0x93, 0x07, 0x57, 0x6a, 0x05, 0x42, 0x16, 0x90, 0x87, 0x56,
+        0xbe, 0x5b,
+    ];
+    // Fixed Data: CD9B9791F5EEE211918BA1E2B01B4E29
+    let label = [
+        0xcd, 0x9b, 0x97, 0x91, 0xf5, 0xee, 0xe2, 0x11, 0x91, 0x8b, 0xa1, 0xe2, 0xb0, 0x1b, 0x4e,
+        0x29,
+    ];
+
+    let output = cmac_kdf(&key, &label, None, 4);
+
+    // Key Out: C303887FB0ACA8E78DEBB8A008E75C88C26E927F0FA8A1DF1614C97E1B6F78B...
+    let expected = [
+        0xc3, 0x03, 0x88, 0x7f, 0xb0, 0xac, 0xa8, 0xe7, 0x8d, 0xeb, 0xb8, 0xa0, 0x08, 0xe7, 0x5c,
+        0x88, 0xc2, 0x6e, 0x92, 0x7f, 0x0f, 0xa8, 0xa1, 0xdf, 0x16, 0x14, 0xc9, 0x7e, 0x1b, 0x6f,
+        0x78, 0xb3, 0x5c, 0x8f, 0x8a, 0x1c, 0xb9, 0xcd, 0x9f, 0x18, 0xdc, 0x30, 0xd0, 0x6c, 0x73,
+        0xb7, 0x5f, 0xde, 0xa5, 0xa6, 0x36, 0xac, 0xb9, 0x2f, 0x69, 0x0f, 0xc6, 0xcb, 0x06, 0x0f,
+        0x0a, 0x3d, 0xb6, 0x6e,
+    ];
+
+    assert_eq!(output, expected);
+}
+
+pub fn aes256_ecb_encrypt(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use openssl::symm::{Cipher, Crypter, Mode};
+    let mut crypter = Crypter::new(Cipher::aes_256_ecb(), Mode::Encrypt, key, None).unwrap();
+    crypter.pad(false);
+    let mut ciphertext = vec![0; data.len() + Cipher::aes_256_ecb().block_size()];
+    let count = crypter.update(data, &mut ciphertext).unwrap();
+    let rest = crypter.finalize(&mut ciphertext[count..]).unwrap();
+    ciphertext.truncate(count + rest);
+    ciphertext
+}
+
+pub fn aes256_ecb_decrypt(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use openssl::symm::{Cipher, Crypter, Mode};
+    let mut crypter = Crypter::new(Cipher::aes_256_ecb(), Mode::Decrypt, key, None).unwrap();
+    crypter.pad(false);
+    let mut plaintext = vec![0; data.len() + Cipher::aes_256_ecb().block_size()];
+    let count = crypter.update(data, &mut plaintext).unwrap();
+    let rest = crypter.finalize(&mut plaintext[count..]).unwrap();
+    plaintext.truncate(count + rest);
+    plaintext
+}
+
+#[test]
+fn test_aes256_ecb() {
+    // NIST SP 800-38A F.1.5
+    let key = [
+        0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77,
+        0x81, 0x1f, 0x35, 0x2c, 0x07, 0x3b, 0x61, 0x08, 0xd7, 0x2d, 0x98, 0x10, 0xa3, 0x09, 0x14,
+        0xdf, 0xf4,
+    ];
+    let plaintext = [
+        0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17,
+        0x2a,
+    ];
+    let expected_ciphertext = [
+        0xf3, 0xee, 0xd1, 0xbd, 0xb5, 0xd2, 0xa0, 0x3c, 0x06, 0x4b, 0x5a, 0x7e, 0x3d, 0xb1, 0x81,
+        0xf8,
+    ];
+
+    let ciphertext = aes256_ecb_encrypt(&key, &plaintext);
+    assert_eq!(ciphertext, expected_ciphertext);
+
+    let decrypted = aes256_ecb_decrypt(&key, &ciphertext);
+    assert_eq!(decrypted, plaintext);
+}

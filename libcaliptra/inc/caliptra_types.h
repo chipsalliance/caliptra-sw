@@ -28,7 +28,7 @@ typedef struct caliptra_buffer
  */
 struct caliptra_fuses
 {
-    uint32_t uds_seed[12];
+    uint32_t uds_seed[16];
     uint32_t field_entropy[8];
     uint32_t vendor_pk_hash[12];
     uint32_t ecc_revocation : 4;

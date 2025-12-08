@@ -31,6 +31,24 @@ use {
     x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage, MlDsa87Algo},
 };
 
+// Version strings
+#[cfg(feature = "generate_templates")]
+const IDEVID_ECC384: &str = "Caliptra 2.1 Ecc384 IDevID";
+#[cfg(feature = "generate_templates")]
+const IDEVID_MLDSA87: &str = "Caliptra 2.1 MlDsa87 IDevID";
+#[cfg(feature = "generate_templates")]
+const LDEVID_ECC384: &str = "Caliptra 2.1 Ecc384 LDevID";
+#[cfg(feature = "generate_templates")]
+const LDEVID_MLDSA87: &str = "Caliptra 2.1 MlDsa87 LDevID";
+#[cfg(feature = "generate_templates")]
+const FMC_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 FMC Alias";
+#[cfg(feature = "generate_templates")]
+const FMC_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 FMC Alias";
+#[cfg(feature = "generate_templates")]
+const RT_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 Rt Alias";
+#[cfg(feature = "generate_templates")]
+const RT_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 Rt Alias";
+
 // Main Entry point
 fn main() {
     #[cfg(feature = "generate_templates")]
@@ -57,14 +75,14 @@ fn gen_init_devid_csr(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template("Caliptra 2.0 Ecc384 IDevID");
+    let template = bldr.tbs_template(IDEVID_ECC384);
     CodeGen::gen_code("InitDevIdCsrTbsEcc384", template, out_dir);
 
     let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 IDevID");
+    let template = bldr.tbs_template(IDEVID_MLDSA87);
     CodeGen::gen_code("InitDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
@@ -94,8 +112,8 @@ fn gen_fmc_alias_csr(out_dir: &str) {
                 },
             }],
         );
-    let template = bldr.tbs_template("Caliptra 2.0 FMC Alias");
-    CodeGen::gen_code("FmcAliasCsrTbs", template, out_dir);
+    let template = bldr.tbs_template(FMC_ALIAS_ECC384);
+    CodeGen::gen_code("FmcAliasCsrTbsEcc384", template, out_dir);
 
     let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 3)
@@ -119,7 +137,7 @@ fn gen_fmc_alias_csr(out_dir: &str) {
                 },
             }],
         );
-    let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 FMC Alias");
+    let template = bldr.tbs_template(FMC_ALIAS_MLDSA87);
     CodeGen::gen_code("FmcAliasTbsMlDsa87", template, out_dir);
 }
 
@@ -132,14 +150,14 @@ fn gen_local_devid_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template("Caliptra 2.0 Ecc384 LDevID", "Caliptra 2.0 Ecc384 IDevID");
+    let template = bldr.tbs_template(LDEVID_ECC384, IDEVID_ECC384);
     CodeGen::gen_code("LocalDevIdCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 LDevID", "Caliptra 2.0 MlDsa87 IDevID");
+    let template = bldr.tbs_template(LDEVID_MLDSA87, IDEVID_MLDSA87);
     CodeGen::gen_code("LocalDevIdCertTbsMlDsa87", template, out_dir);
 }
 
@@ -170,10 +188,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
                 },
             }],
         );
-    let template = bldr.tbs_template(
-        "Caliptra 2.0 Ecc384 FMC Alias",
-        "Caliptra 2.0 Ecc384 LDevID",
-    );
+    let template = bldr.tbs_template(FMC_ALIAS_ECC384, LDEVID_ECC384);
     CodeGen::gen_code("FmcAliasCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
@@ -198,10 +213,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
                 },
             }],
         );
-    let template = bldr.tbs_template(
-        "Caliptra 2.0 MlDsa87 FMC Alias",
-        "Caliptra 2.0 MlDsa87 LDevID",
-    );
+    let template = bldr.tbs_template(FMC_ALIAS_MLDSA87, LDEVID_MLDSA87);
     CodeGen::gen_code("FmcAliasCertTbsMlDsa87", template, out_dir);
 }
 
@@ -225,10 +237,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
                 digest: &[0xCD; 48],
             },
         }]);
-    let template = bldr.tbs_template(
-        "Caliptra 2.0 Ecc384 Rt Alias",
-        "Caliptra 2.0 Ecc384 FMC Alias",
-    );
+    let template = bldr.tbs_template(RT_ALIAS_ECC384, FMC_ALIAS_ECC384);
     CodeGen::gen_code("RtAliasCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
@@ -243,10 +252,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
                 digest: &[0xCD; 48],
             },
         }]);
-    let template = bldr.tbs_template(
-        "Caliptra 2.0 MlDsa87 Rt Alias",
-        "Caliptra 2.0 MlDsa87 FMC Alias",
-    );
+    let template = bldr.tbs_template(RT_ALIAS_MLDSA87, FMC_ALIAS_MLDSA87);
     CodeGen::gen_code("RtAliasCertTbsMlDsa87", template, out_dir);
 }
 
@@ -268,10 +274,7 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
             HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
             HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
         ));
-    let template = bldr.tbs_template(
-        "OCP LOCK HPKE Endorsement ML-KEM 1024",
-        "Caliptra 2.0 Ecc384 Rt Alias",
-    );
+    let template = bldr.tbs_template("OCP LOCK HPKE Endorsement ML-KEM 1024", RT_ALIAS_ECC384);
     CodeGen::gen_code("OcpLockMlKemCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlKem1024Algo>::new()
@@ -282,10 +285,7 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
             HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
             HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
         ));
-    let template = bldr.tbs_template(
-        "OCP LOCK HPKE Endorsement ML-KEM 1024",
-        "Caliptra 2.0 MlDsa87 Rt Alias",
-    );
+    let template = bldr.tbs_template("OCP LOCK HPKE Endorsement ML-KEM 1024", RT_ALIAS_MLDSA87);
     CodeGen::gen_code("OcpLockMlKemCertTbsMlDsa87", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
@@ -296,10 +296,7 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
             HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
             HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
         ));
-    let template = bldr.tbs_template(
-        "OCP LOCK HPKE Endorsement ECDH P-384",
-        "Caliptra 2.0 Ecc384 Rt Alias",
-    );
+    let template = bldr.tbs_template("OCP LOCK HPKE Endorsement ECDH P-384", RT_ALIAS_ECC384);
     CodeGen::gen_code("OcpLockEcdh384CertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, EcdsaSha384Algo>::new()
@@ -310,9 +307,6 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
             HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
             HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
         ));
-    let template = bldr.tbs_template(
-        "OCP LOCK HPKE Endorsement ECDH P-384",
-        "Caliptra 2.0 MlDsa87 Rt Alias",
-    );
+    let template = bldr.tbs_template("OCP LOCK HPKE Endorsement ECDH P-384", RT_ALIAS_MLDSA87);
     CodeGen::gen_code("OcpLockEcdh384CertTbsMlDsa87", template, out_dir);
 }

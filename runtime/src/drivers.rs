@@ -177,7 +177,10 @@ impl Drivers {
 
         let aes = Aes::new(AesReg::new(), AesClpReg::new());
         let soc_ifc = SocIfc::new(SocIfcReg::new());
-        let ocp_lock_context = OcpLockContext::new(&soc_ifc);
+        let persistent_data = PersistentDataAccessor::new();
+
+        let hek_available = persistent_data.get().ocp_lock_metadata.hek_available;
+        let ocp_lock_context = OcpLockContext::new(&soc_ifc, hek_available);
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -194,7 +197,7 @@ impl Drivers {
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
-            persistent_data: PersistentDataAccessor::new(),
+            persistent_data,
             pcr_bank: PcrBank::new(PvReg::new()),
             pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]
@@ -216,7 +219,7 @@ impl Drivers {
         Self::create_cert_chain(self)?;
         self.cryptographic_mailbox
             .init(&self.persistent_data, &mut self.trng)?;
-        if self.persistent_data.get().attestation_disabled.get() {
+        if self.persistent_data.get().dpe.attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
         }
@@ -299,7 +302,7 @@ impl Drivers {
 
     /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().dpe.dpe;
         let dpe_validator = DpeValidator { dpe };
         let validation_result = dpe_validator.validate_dpe();
         if let Err(e) = validation_result {
@@ -346,7 +349,7 @@ impl Drivers {
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().dpe.dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
@@ -393,7 +396,7 @@ impl Drivers {
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
     fn check_dpe_rt_journey_unchanged(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &drivers.persistent_data.get().dpe;
+        let dpe = &drivers.persistent_data.get().dpe.dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
@@ -427,9 +430,9 @@ impl Drivers {
     /// Check that inactive DPE contexts do not have context tags set
     fn validate_context_tags(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
-        let context_has_tag = &pdata.context_has_tag;
-        let context_tags = &pdata.context_tags;
-        let dpe = &pdata.dpe;
+        let context_has_tag = &pdata.dpe.context_has_tag;
+        let context_tags = &pdata.dpe.context_tags;
+        let dpe = &pdata.dpe.dpe;
 
         for i in 0..MAX_HANDLES {
             if dpe.contexts[i].state == ContextState::Inactive {
@@ -463,12 +466,12 @@ impl Drivers {
         let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
-        drivers.persistent_data.get_mut().dpe_pl0_context_limit =
+        drivers.persistent_data.get_mut().dpe.pl0_context_limit =
             PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
-        drivers.persistent_data.get_mut().dpe_pl1_context_limit =
+        drivers.persistent_data.get_mut().dpe.pl1_context_limit =
             PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8;
-        let pl0_context_limit = drivers.persistent_data.get().dpe_pl0_context_limit;
-        let pl1_context_limit = drivers.persistent_data.get().dpe_pl1_context_limit;
+        let pl0_context_limit = drivers.persistent_data.get().dpe.pl0_context_limit;
+        let pl1_context_limit = drivers.persistent_data.get().dpe.pl1_context_limit;
 
         // create a hash of all the mailbox valid pausers
         const PAUSER_COUNT: usize = 5;
@@ -495,7 +498,7 @@ impl Drivers {
             &mut pdata.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut pdata.exported_cdi_slots,
+            &mut pdata.dpe.exported_cdi_slots,
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
@@ -589,7 +592,7 @@ impl Drivers {
         }
 
         // Write DPE to persistent data.
-        pdata.dpe = dpe;
+        pdata.dpe.dpe = dpe;
         Ok(())
     }
 
@@ -696,7 +699,7 @@ impl Drivers {
     pub fn dpe_get_used_context_counts(&self) -> CaliptraResult<(usize, usize)> {
         Self::dpe_get_used_context_counts_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
-            &self.persistent_data.get().dpe,
+            &self.persistent_data.get().dpe.dpe,
         )
     }
 
@@ -728,12 +731,13 @@ impl Drivers {
         &self,
         context_privilege_level: PauserPrivileges,
     ) -> CaliptraResult<()> {
+        let dpe_data = &self.persistent_data.get().dpe;
         Self::is_dpe_context_threshold_exceeded_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
             context_privilege_level,
-            &self.persistent_data.get().dpe,
-            self.persistent_data.get().dpe_pl0_context_limit as usize,
-            self.persistent_data.get().dpe_pl1_context_limit as usize,
+            &dpe_data.dpe,
+            dpe_data.pl0_context_limit as usize,
+            dpe_data.pl1_context_limit as usize,
         )
     }
 

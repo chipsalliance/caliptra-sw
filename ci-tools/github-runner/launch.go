@@ -106,8 +106,10 @@ func isMachineType(label string) bool {
 }
 
 type MachineInfo struct {
-	machineType  string
-	hasFpgaTools bool
+	machineType    string
+	hasFpgaTools   bool
+	hasVck190Tools bool
+	hasBigDisk bool
 }
 
 func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
@@ -122,6 +124,12 @@ func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
 		}
 		if item == "fpga-tools" {
 			result.hasFpgaTools = true
+		}
+		if item == "vck190-tools" {
+			result.hasVck190Tools = true
+		}
+		if item == "big-disk" {
+			result.hasBigDisk = true
 		}
 	}
 	if result.machineType == "" {
@@ -147,12 +155,25 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 	if err != nil {
 		return err
 	}
-	disks := singleDisk("global/images/family/github-runner", 16)
+
+    var disks []*computepb.AttachedDisk
+    disks = singleDisk("global/images/family/github-runner", 32)
+
 	if machineInfo.hasFpgaTools {
 		disks = append(disks, &computepb.AttachedDisk{
 			Source: proto.String(fmt.Sprintf("zones/%s/disks/fpga-tools", gcpZone)),
 			Mode:   proto.String("READ_ONLY"),
 		})
+	}
+	if machineInfo.hasVck190Tools {
+        disks = singleDisk("global/images/family/github-runner", 128)
+		disks = append(disks, &computepb.AttachedDisk{
+			Source: proto.String(fmt.Sprintf("zones/%s/disks/vck190-tools", gcpZone)),
+			Mode:   proto.String("READ_ONLY"),
+		})
+	}
+	if machineInfo.hasBigDisk {
+        disks = singleDisk("global/images/family/github-runner", 64)
 	}
 
 	script := strings.ReplaceAll(launchStartupScript, "${JITCONFIG}", runner.JitConfig)

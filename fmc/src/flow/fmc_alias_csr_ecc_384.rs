@@ -12,7 +12,7 @@ use caliptra_drivers::{
     Ecc384Signature,
 };
 use caliptra_x509::{
-    Ecdsa384CsrBuilder, Ecdsa384Signature, FmcAliasCsrTbs, FmcAliasCsrTbsParams,
+    Ecdsa384CsrBuilder, Ecdsa384Signature, FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params,
     FmcAliasTbsMlDsa87, FmcAliasTbsMlDsa87Params, MlDsa87CsrBuilder,
 };
 use zerocopy::IntoBytes;
@@ -148,7 +148,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let common_params = get_tbs_common_params(env)?;
 
     // CSR `To Be Signed` Parameters
-    let params = FmcAliasCsrTbsParams {
+    let params = FmcAliasCsrTbsEcc384Params {
         ueid: &common_params.ueid,
         subject_sn: &output.ecc_subj_sn,
         public_key: &key_pair.pub_key.to_der(),
@@ -160,7 +160,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     };
 
     // Generate the `To Be Signed` portion of the CSR
-    let tbs = FmcAliasCsrTbs::new(&params);
+    let tbs = FmcAliasCsrTbsEcc384::new(&params);
 
     // Sign the `To Be Signed` portion
     let mut sig = Crypto::ecdsa384_sign_and_verify(
