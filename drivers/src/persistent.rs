@@ -28,6 +28,9 @@ use crate::{FmcAliasCsrs, Mldsa87Signature};
 #[cfg(feature = "runtime")]
 use crate::{pcr_reset::PcrResetCounter, KeyId};
 
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+pub use fw::*;
+
 pub const ECC384_MAX_IDEVID_CSR_SIZE: usize = 512;
 pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
 pub const MAN1_SIZE: u32 = 17 * 1024;
@@ -37,36 +40,32 @@ pub const FHT_SIZE: u32 = 2 * 1024;
 pub const IDEVID_MLDSA_PUB_KEY_MAX_SIZE: u32 = 3 * 1024;
 pub const ECC_LDEVID_TBS_SIZE: u32 = 1024;
 pub const ECC_FMCALIAS_TBS_SIZE: u32 = 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const ECC_RTALIAS_TBS_SIZE: u32 = 1024;
 pub const MLDSA_LDEVID_TBS_SIZE: u32 = 4 * 1024;
 pub const MLDSA_FMCALIAS_TBS_SIZE: u32 = 4 * 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
 pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const DPE_SIZE: u32 = 5 * 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
 pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
-#[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const _OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
+
 #[cfg(any(feature = "fmc", feature = "runtime"))]
-pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+mod fw {
+    pub const ECC_RTALIAS_TBS_SIZE: u32 = 1024;
+    pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
+    pub const DPE_SIZE: u32 = 5 * 1024;
+    pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
+    pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
+    pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
+    pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
+    pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+}
 
 #[cfg(feature = "runtime")]
 // Currently only can export CDI once, but in the future we may want to support multiple exported
