@@ -12,9 +12,10 @@ RUN rustup install nightly-2025-02-15 --profile=default --no-self-update \
   && rustup +nightly-2025-02-15 target add riscv32imc-unknown-none-elf \
   && rustup +nightly-2025-02-15 target add aarch64-unknown-linux-gnu
 RUN rustup install 1.85 --profile=default --no-self-update \
+  && rustup install 1.91 --profile=default --no-self-update \
   && rustup +1.85 target add riscv32imc-unknown-none-elf \
   && rustup +1.85 target add aarch64-unknown-linux-gnu
-RUN cargo +nightly-2025-02-15 install cargo-nextest
+RUN cargo +1.91 install cargo-nextest
 RUN cargo +1.85 install sccache --version 0.10.0 --no-default-features --features=gha --locked
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
 ENV OPENSSL_SHA256="c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec"
