@@ -152,7 +152,7 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
     soc_size: 0x5e0,
 
     otp_offset: 0xa406_0000,
-    otp_size: 0x140,
+    otp_size: OTP_FULL_SIZE as u32,
 
     lc_offset: 0xa404_0000,
     lc_size: 0x8c,
@@ -161,7 +161,12 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_AXI_PAUSER: u32 = 0x1;
-const OTP_SIZE: usize = 16384;
+// we split the OTP memory into two parts: the OTP half and a simulated flash half.
+const OTP_FULL_SIZE: usize = 16384;
+const FLASH_SIZE: usize = 8192;
+const OTP_SIZE: usize = 8192;
+const _: () = assert!(OTP_SIZE + FLASH_SIZE == OTP_FULL_SIZE);
+const _: () = assert!(OTP_LIFECYCLE_PARTITION_OFFSET + 88 + 8 <= OTP_SIZE);
 const AXI_CLK_HZ: u32 = 199_999_000;
 const I3C_CLK_HZ: u32 = 12_500_000;
 
@@ -1387,6 +1392,15 @@ impl ModelFpgaSubsystem {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
 
+    pub fn flash_slice(&self) -> &mut [u8] {
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                self.otp_mem_backdoor.offset(OTP_SIZE as isize),
+                FLASH_SIZE,
+            )
+        }
+    }
+
     pub fn print_otp_memory(&self) {
         let otp = self.otp_slice();
         for (i, oi) in otp.iter().copied().enumerate() {
@@ -1744,10 +1758,7 @@ impl HwModel for ModelFpgaSubsystem {
         }
 
         // Return here if there isn't any mutable code to load
-        if boot_params.fw_image.is_none()
-            && boot_params.mcu_fw_image.is_none()
-            && boot_params.soc_manifest.is_none()
-        {
+        if boot_params.fw_image.is_none() {
             // Give the FPGA some time to start. If this returns too quickly some of the tests fail
             // with a kernel panic.
             let start = self.cycle_count();
@@ -1916,7 +1927,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         self.step_until(|hw| {
             hw.mci_boot_milestones()
-                .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
+                .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
         });
     }
 
@@ -1943,6 +1954,62 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Return the physical address of the staging area
         Ok(mci_base_addr + 0xc00000)
+    }
+
+    /// Trigger a warm reset and advance the boot
+    fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        // Store non-persistent config regs set at boot
+        let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let i_trng_entropy_config_1: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
+        let i_trng_entropy_config_0: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
+        // Store mbox pausers
+        let mut valid_pausers: Vec<u32> = Vec::new();
+        for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
+            // Only store if locked
+            if self
+                .soc_ifc()
+                .cptra_mbox_axi_user_lock()
+                .at(i)
+                .read()
+                .lock()
+            {
+                valid_pausers.push(
+                    self.soc_ifc()
+                        .cptra_mbox_axi_user_lock()
+                        .at(i)
+                        .read()
+                        .into(),
+                );
+            }
+        }
+
+        // Perform the warm reset
+        self.warm_reset();
+
+        // TODO: support passing these into MCU ROM
+
+        // self.soc_ifc()
+        //     .cptra_dbg_manuf_service_reg()
+        //     .write(|_| dbg_manuf_service_reg);
+        // self.soc_ifc()
+        //     .cptra_i_trng_entropy_config_1()
+        //     .write(|_| i_trng_entropy_config_1.into());
+        // self.soc_ifc()
+        //     .cptra_i_trng_entropy_config_0()
+        //     .write(|_| i_trng_entropy_config_0.into());
+
+        // // Re-set the valid pausers
+        // self.setup_mailbox_users(valid_pausers.as_slice())
+        //     .map_err(ModelError::from)?;
+
+        self.step();
+
+        Ok(())
     }
 
     fn cold_reset(&mut self) {
