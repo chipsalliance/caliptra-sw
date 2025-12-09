@@ -52,7 +52,7 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
-pub const _OCP_LOCK_METADATA_SIZE: u32 = 8;
+pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
@@ -353,11 +353,20 @@ pub struct RomPersistentData {
 
     // TODO(clundin): For runtime we may want to gate this behind a feature flag.
     pub ocp_lock_metadata: OcpLockMetadata,
-    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
-    // needs to grow upwards
+
+    /// Major version.
+    pub major_version: u16,
+    /// Minor version. Initially written by ROM but may be changed to a higher version by FMC.
+    pub minor_version: u16,
+    /// Keep this as the bottom of the struct
+    pub marker: u32,
 }
 
 impl RomPersistentData {
+    pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
+    pub const MAJOR_VERSION: u16 = 1;
+    pub const MINOR_VERSION: u16 = 0;
+
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
             memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
@@ -366,10 +375,12 @@ impl RomPersistentData {
             let mut persistent_data_offset = size_of::<FwPersistentData>() as u32;
             #[cfg(not(any(feature = "fmc", feature = "runtime")))]
             let mut persistent_data_offset = 0;
+
             assert_eq!(
                 addr_of!((*P).rom.manifest1) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+
             persistent_data_offset += MAN1_SIZE;
             assert_eq!(
                 addr_of!((*P).rom.manifest2) as u32,
@@ -472,6 +483,24 @@ impl RomPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
+            persistent_data_offset += OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.major_version) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += 2;
+            assert_eq!(
+                addr_of!((*P).rom.minor_version) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += 2;
+            assert_eq!(
+                addr_of!((*P).rom.marker) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
             assert_eq!(P.add(1) as u32, memory_layout::ROM_DATA_ORG);
         }
     }
@@ -520,12 +549,16 @@ pub struct FwPersistentData {
     reserved4: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
     pub mcu_firmware_loaded: u32,
-    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
-    // needs to grow upwards
+    pub version: u32,
+    /// Keep this as the bottom of the struct
+    pub marker: u32,
 }
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
 impl FwPersistentData {
+    pub const MAGIC: u32 = u32::from_be_bytes(*b"FWPD");
+    pub const VERSION: u32 = 1;
+
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
             memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
@@ -582,6 +615,18 @@ impl FwPersistentData {
             persistent_data_offset += FMC_ALIAS_CSR_SIZE;
             assert_eq!(
                 addr_of!((*P).fw.mcu_firmware_loaded) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += 4;
+            assert_eq!(
+                addr_of!((*P).fw.version) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += 4;
+            assert_eq!(
+                addr_of!((*P).fw.marker) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
         }

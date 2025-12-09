@@ -54,6 +54,11 @@ impl ColdResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
+
+        env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
+        env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
+        env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+
         {
             let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
