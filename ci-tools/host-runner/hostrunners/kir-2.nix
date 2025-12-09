@@ -1,124 +1,41 @@
 {
   config,
+  lib,
   pkgs,
   user,
-  fpga-boss-script,
+  rtool,
+  fpga-boss,
   ...
 }:
+let
+  fpga_service = import ../fpga-service.nix {
+    inherit
+      pkgs
+      rtool
+      fpga-boss
+      user
+      ;
+  };
+in
 {
-  # systemd.user.services.vck-6 = {
-  #   enable = true;
-  #   description = "VCK-6 Service";
-  #   after = [ "network.target" ];
-  #   wantedBy = [ "multi-user.target" ];
-  #
-  #   serviceConfig = {
-  #     Type = "simple";
-  #     ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-  #     Restart = "on-failure";
-  #     RestartSec = "15s";
-  #     Environment = [
-  #       ''ZCU_FTDI="1-1.2.1.4"''
-  #       ''ZCU_SDWIRE="1-1.2.1.3"''
-  #       ''IDENTIFIER="caliptra-kir-vck190-6"''
-  #       ''FPGA_TARGET="vck190"''
-  #       ''IMAGE="/home/${user}/ci-images/vck190.img"''
-  #     ];
-  #   };
-  # };
-  systemd.user.services.vck-5 = {
-    description = "VCK-5 Service";
-    after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
-
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-      Restart = "on-failure";
-      RestartSec = "15s";
-      Environment = [
-        ''ZCU_FTDI="1-1.2.1.1"''
-        ''ZCU_SDWIRE="1-1.2.1.2"''
-        ''IDENTIFIER="caliptra-kir-vck190-5"''
-        ''FPGA_TARGET="vck190-subsystem"''
-        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-subsystem.img"''
-      ];
-    };
-  };
-  # systemd.user.services.vck-3 = {
-  #   description = "VCK-3 Service";
-  #   after = [ "network.target" ];
-  #   wantedBy = [ "multi-user.target" ];
-  #
-  #   serviceConfig = {
-  #     Type = "simple";
-  #     ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-  #     Restart = "on-failure";
-  #     RestartSec = "15s";
-  #     Environment = [
-  #       ''ZCU_FTDI="1-1.2.3"''
-  #       ''ZCU_SDWIRE="1-1.2.4"''
-  #       ''IDENTIFIER="caliptra-kir-vck190-3"''
-  #       ''FPGA_TARGET="vck190-subsystem"''
-  #       ''IMAGE="/home/${user}/vck190-subsystem.img"''
-  #     ];
-  #   };
-  # };
-  systemd.user.services.vck-2 = {
-    description = "VCK-2 Service";
-    after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
-
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-      Restart = "on-failure";
-      RestartSec = "15s";
-      Environment = [
-        ''ZCU_FTDI="1-1.4"''
-        ''ZCU_SDWIRE="1-1.3"''
-        ''IDENTIFIER="caliptra-kir-vck190-2"''
-        ''FPGA_TARGET="vck190-subsystem"''
-        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-subsystem.img"''
-      ];
-    };
-  };
-  environment.systemPackages = with pkgs; [
-    (
-      (pkgs.writeShellScriptBin "vck-2-debug" ''
-        #!${pkgs.bash}/bin/bash
-        export ZCU_FTDI="1-1.4"
-        export ZCU_SDWIRE="1-1.3"
-
-        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"k
-      '')
-    )
-    (
-      (pkgs.writeShellScriptBin "vck-3-debug" ''
-        #!${pkgs.bash}/bin/bash
-        export ZCU_FTDI="1-1.2.3"
-        export ZCU_SDWIRE="1-1.2.4"
-
-        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-      '')
-    )
-    (
-      (pkgs.writeShellScriptBin "vck-5-debug" ''
-        #!${pkgs.bash}/bin/bash
-        export ZCU_FTDI="1-1.2.1.1"
-        export ZCU_SDWIRE="1-1.2.1.2"
-
-        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-      '')
-    )
-    (
-      (pkgs.writeShellScriptBin "vck-6-debug" ''
-        #!${pkgs.bash}/bin/bash
-        export ZCU_FTDI="1-1.2.1.4"
-        export ZCU_SDWIRE="1-1.2.1.3"
-
-        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
-      '')
-    )
+  config = lib.mkMerge [
+    (fpga_service.mkVckSubsystemJob "caliptra-kir-vck-2" {
+      ftdi = "1-1.4";
+      sdwire = "1-1.3";
+    })
+    # Note don't start this one, zhalvorsen dev FPGA
+    (fpga_service.mkVckSubsystemJob "caliptra-kir-vck-3" {
+      ftdi = "1-1.2.3";
+      sdwire = "1-1.2.4";
+    })
+    (fpga_service.mkVckSubsystemJob "caliptra-kir-vck-5" {
+      ftdi = "1-1.2.1.1";
+      sdwire = "1-1.2.1.2";
+    })
+    # Note don't start this one, clundin dev FPGA
+    (fpga_service.mkVckCoreJob "caliptra-kir-vck-6" {
+      ftdi = "1-1.2.1.4";
+      sdwire = "1-1.2.1.3";
+    })
   ];
 }
