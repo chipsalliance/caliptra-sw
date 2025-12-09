@@ -5,8 +5,8 @@ use caliptra_api::mailbox::{
     MailboxRespHeader, OcpLockGetAlgorithmsResp,
 };
 use caliptra_api::SocManager;
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
-use caliptra_kat::CaliptraError;
 use caliptra_runtime::RtBootStatus;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};

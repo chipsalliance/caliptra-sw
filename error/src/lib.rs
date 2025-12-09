@@ -1618,6 +1618,7 @@ impl CaliptraError {
             0x000E0073,
             "Runtime Error: Reallocate DPE context requested fewer PL1 contexts than are used currently"
         ),
+        // TODO(clundin): Align error codes with OCP LOCK spec.
         (
             RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND,
             0x000E0074,
@@ -1629,9 +1630,24 @@ impl CaliptraError {
             "OCP LOCK Error: HEK Unavailable to runtime"
         ),
         (
-            RUNTIME_OCP_LOCK_UNINITIALIZED_MEK_SECRET,
+            RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED,
             0x000E0076,
-            "OCP LOCK Error: Unintialized MEK Secret"
+            "OCP LOCK Error: MEK was not initialized by OCP_LOCK_INITIALIZE_MEK_SECRET"
+        ),
+        (
+            RUNTIME_OCP_LOCK_INVALID_MEK_SECRET_SEED_SIZE,
+            0x000E0077,
+            "OCP LOCK Error: Invalid MEK secret seed size"
+        ),
+        (
+            RUNTIME_OCP_LOCK_INVALID_MEK_SEED_SIZE,
+            0x000E0078,
+            "OCP LOCK Error: Invalid MEK seed size"
+        ),
+        (
+            RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL,
+            0x000E0079,
+            "OCP LOCK Error: Error in derivation caused MEK mismatch"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
