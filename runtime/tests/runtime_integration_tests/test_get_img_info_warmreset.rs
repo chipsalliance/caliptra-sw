@@ -4,12 +4,15 @@ use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use crate::test_authorize_and_stash::set_auth_manifest;
 
-use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, ImageMetadataFlags};
+use caliptra_auth_man_types::{
+    Addr64, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+};
 use caliptra_common::mailbox_api::{
     CommandId, GetImageInfoReq, GetImageInfoResp, ImageHashSource, MailboxReq, MailboxReqHeader,
+    SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 const FW_ID_1: u32 = 1;
 const FW_ID_2: u32 = 2;
@@ -33,6 +36,33 @@ fn get_image_info(model: &mut DefaultHwModel, fw_id: u32) -> GetImageInfoResp {
 
     // Use read_from_bytes to get an owned struct (easier to compare later).
     GetImageInfoResp::read_from_bytes(resp.as_slice()).expect("failed to parse GetImageInfoResp")
+}
+
+/// Re-send SET_AUTH_MANIFEST to an already-booted runtime model.
+/// Unlike set_auth_manifest(), this never rebuilds the model or reboots runtime.
+pub(crate) fn set_auth_manifest_in_place(
+    model: &mut DefaultHwModel,
+    auth_manifest: &AuthorizationManifest,
+) {
+    let buf = auth_manifest.as_bytes();
+
+    let mut manifest_buf = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    manifest_buf[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: manifest_buf,
+    });
+    cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("SET_AUTH_MANIFEST should return a response");
 }
 
 #[test]
@@ -83,7 +113,7 @@ fn test_get_image_info_persists_after_warm_reset() {
     model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
-    let mut model = set_auth_manifest(Some(auth_manifest.clone()));
+    set_auth_manifest_in_place(&mut model, &auth_manifest);
 
     let resp_after = get_image_info(&mut model, FW_ID_1);
 
