@@ -26,10 +26,6 @@ impl InitializeMekSecretCmd {
         let cmd = OcpLockInitializeMekSecretReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        if !drivers.ocp_lock_context.available() {
-            Err(CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND)?;
-        }
-
         drivers.ocp_lock_context.create_mek_secret_seed(
             &mut drivers.hmac,
             &mut drivers.trng,
