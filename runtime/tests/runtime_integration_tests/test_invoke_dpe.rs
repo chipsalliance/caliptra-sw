@@ -396,7 +396,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
     );
 
     // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..100 {
+    for _ in 0..1000 {
         model.step();
     }
 
@@ -444,7 +444,7 @@ fn test_export_cdi_destroyed_root_context() {
     );
 
     // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..100 {
+    for _ in 0..1000 {
         model.step();
     }
 
