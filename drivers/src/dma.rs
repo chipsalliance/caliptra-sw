@@ -25,7 +25,7 @@ use caliptra_registers::sha512_acc::RegisterBlock as ShaAccRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 
-const BLOCK_SIZE: u32 = 256; // Block size for DMA transfers
+const I3C_BLOCK_SIZE: u32 = 64;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 // SHA384 of empty stream
 const SHA384_EMPTY: Array4x12 = Array4x12::new([
@@ -116,6 +116,7 @@ impl Add for AxiAddr {
     }
 }
 
+/// Used to read from an AXI address and DMA the contents to a variety of targets.
 pub struct DmaReadTransaction {
     pub read_addr: AxiAddr,
     pub fixed_addr: bool,
@@ -123,6 +124,7 @@ pub struct DmaReadTransaction {
     pub target: DmaReadTarget,
     pub aes_mode: bool,
     pub aes_gcm: bool,
+    pub i3c_indirect_fifo_data: bool,
 }
 
 pub enum DmaWriteOrigin {
@@ -132,6 +134,7 @@ pub enum DmaWriteOrigin {
     KeyVault,
 }
 
+/// Used to write to an AXI address from a variety of origins.
 pub struct DmaWriteTransaction {
     pub write_addr: AxiAddr,
     pub fixed_addr: bool,
@@ -173,7 +176,7 @@ impl Dma {
         })
     }
 
-    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction, block_size: u32) {
+    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction) {
         self.with_dma(|dma| {
             let read_addr = read_transaction.read_addr;
             dma.src_addr_l().write(|_| read_addr.lo);
@@ -199,6 +202,11 @@ impl Dma {
             dma.byte_count().write(|_| read_transaction.length);
 
             // Set the block size.
+            let block_size = if read_transaction.i3c_indirect_fifo_data {
+                I3C_BLOCK_SIZE
+            } else {
+                0
+            };
             dma.block_size().write(|f| f.size(block_size));
 
             dma.ctrl().write(|c| {
@@ -225,7 +233,7 @@ impl Dma {
         });
     }
 
-    pub fn setup_dma_write(&self, write_transaction: DmaWriteTransaction, block_size: u32) {
+    pub fn setup_dma_write(&self, write_transaction: DmaWriteTransaction) {
         self.with_dma(|dma| {
             let write_addr = write_transaction.write_addr;
             dma.dst_addr_l().write(|_| write_addr.lo);
@@ -250,8 +258,8 @@ impl Dma {
             // Set the number of bytes to write.
             dma.byte_count().write(|_| write_transaction.length);
 
-            // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
+            // Set the block size (always 0 for DMA writes).
+            dma.block_size().write(|f| f.size(0));
 
             dma.ctrl().write(|c| {
                 c.wr_route(|_| match write_transaction.origin {
@@ -343,10 +351,11 @@ impl Dma {
             target: DmaReadTarget::AhbFifo,
             aes_mode: false,
             aes_gcm: false,
+            i3c_indirect_fifo_data: false,
         };
 
         self.flush();
-        self.setup_dma_read(read_transaction, 0);
+        self.setup_dma_read(read_transaction);
         self.dma_read_fifo(buffer);
         self.wait_for_dma_complete();
     }
@@ -368,7 +377,7 @@ impl Dma {
             aes_gcm: false,
         };
         self.flush();
-        self.setup_dma_write(write_transaction, 0);
+        self.setup_dma_write(write_transaction);
         self.dma_write_fifo(write_val);
         self.wait_for_dma_complete();
     }
@@ -394,7 +403,7 @@ impl Dma {
             aes_mode: false,
             aes_gcm: false,
         };
-        self.setup_dma_write(write_transaction, 0);
+        self.setup_dma_write(write_transaction);
         self.wait_for_dma_complete();
     }
 }
@@ -563,6 +572,11 @@ impl<'a> DmaRecovery<'a> {
         mmio.check_error(t)
     }
 
+    fn is_i3c(&self, addr: AxiAddr) -> bool {
+        let i3c = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
+        i3c.hi == addr.hi && i3c.lo == addr.lo
+    }
+
     fn transfer_payload_to_mbox(
         &self,
         read_addr: AxiAddr,
@@ -577,6 +591,7 @@ impl<'a> DmaRecovery<'a> {
             target: DmaReadTarget::Mbox(offset),
             aes_mode: false,
             aes_gcm: false,
+            i3c_indirect_fifo_data: self.is_i3c(read_addr),
         };
         self.exec_dma_read(read_transaction)?;
         Ok(())
@@ -644,46 +659,19 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
         {
-            // FPGA implementation: wait for FIFO to be full and read dword by dword
-            for k in (0..image_size_bytes as usize).step_by(BLOCK_SIZE as usize) {
-                let remaining_bytes = image_size_bytes as usize - k;
-                let is_last_block = remaining_bytes < BLOCK_SIZE as usize;
-
-                if !is_last_block {
-                    self.with_regs(|r| {
-                        while !r
-                            .sec_fw_recovery_if()
-                            .indirect_fifo_status_0()
-                            .read()
-                            .full()
-                        {}
-                    })?;
-                }
-
-                // Read up to BLOCK_SIZE or remaining bytes, whichever is smaller
-                let bytes_to_read = core::cmp::min(BLOCK_SIZE as usize, remaining_bytes);
-                for j in (0..bytes_to_read).step_by(4) {
-                    let i = k + j;
-                    let word_index = i / 4;
-
-                    if word_index >= buffer.len() || i >= image_size_bytes as usize {
-                        break;
-                    }
-
-                    if is_last_block {
-                        // For the last block, wait for FIFO to not be empty before each read_dword
-                        self.with_regs(|r| {
-                            while r
-                                .sec_fw_recovery_if()
-                                .indirect_fifo_status_0()
-                                .read()
-                                .empty()
-                            {}
-                        })?;
-                    }
-
-                    buffer[word_index] = self.dma.read_dword(addr);
-                }
+            // FPGA implementation: wait for FIFO to be not empty and read dword by dword
+            let len = (image_size_bytes as usize / 4).min(buffer.len());
+            for i in 0..len {
+                // Wait for FIFO to not be empty before each read_dword.
+                self.with_regs(|r| {
+                    while r
+                        .sec_fw_recovery_if()
+                        .indirect_fifo_status_0()
+                        .read()
+                        .empty()
+                    {}
+                })?;
+                buffer[i] = self.dma.read_dword(addr);
             }
         }
 
@@ -696,10 +684,11 @@ impl<'a> DmaRecovery<'a> {
                 target: DmaReadTarget::AhbFifo,
                 aes_mode: false,
                 aes_gcm: false,
+                i3c_indirect_fifo_data: true,
             };
 
             self.dma.flush();
-            self.dma.setup_dma_read(read_transaction, 0);
+            self.dma.setup_dma_read(read_transaction);
             self.dma.dma_read_fifo(buffer);
             self.dma.wait_for_dma_complete();
         }
@@ -834,6 +823,7 @@ impl<'a> DmaRecovery<'a> {
             target: DmaReadTarget::AxiWr(write_addr, write_fixed_addr),
             aes_mode: aes_mode.aes(),
             aes_gcm: aes_mode.gcm(),
+            i3c_indirect_fifo_data: self.is_i3c(read_addr),
         };
         self.exec_dma_read(read_transaction)?;
         Ok(())
@@ -845,63 +835,45 @@ impl<'a> DmaRecovery<'a> {
         // Flush DMA before doing anything
         self.dma.flush();
 
-        // check if this is an I3C DMA
-        let i3c = match read_transaction.read_addr {
-            AxiAddr { lo, hi }
-                if hi == self.recovery_base.hi
-                    && lo == self.recovery_base.lo + Self::INDIRECT_FIFO_DATA_OFFSET =>
-            {
-                true
+        for i in (0..read_transaction.length).step_by(4) {
+            // if this is an I3C transfer, wait for the FIFO to be not empty
+            if read_transaction.i3c_indirect_fifo_data {
+                self.with_regs(|r| {
+                    while r
+                        .sec_fw_recovery_if()
+                        .indirect_fifo_status_0()
+                        .read()
+                        .empty()
+                    {}
+                })?;
             }
-            _ => false,
-        };
 
-        for k in (0..read_transaction.length).step_by(BLOCK_SIZE as usize) {
-            for j in (0..BLOCK_SIZE).step_by(4) {
-                let i = k + j;
-
-                if i >= read_transaction.length {
-                    break;
+            // translate to single dword transfer
+            match read_transaction.target {
+                DmaReadTarget::AxiWr(addr, fixed) => {
+                    let word = self.dma.read_dword(
+                        read_transaction.read_addr
+                            + if read_transaction.fixed_addr { 0 } else { i },
+                    );
+                    self.dma.write_dword(addr + if fixed { 0 } else { i }, word);
                 }
-
-                // if this is an I3C transfer, wait for the FIFO to be not empty
-                if i3c {
-                    self.with_regs(|r| {
-                        while r
-                            .sec_fw_recovery_if()
-                            .indirect_fifo_status_0()
-                            .read()
-                            .empty()
-                        {}
-                    })?;
+                DmaReadTarget::Mbox(offset) => {
+                    let rd_tx = DmaReadTransaction {
+                        read_addr: read_transaction.read_addr
+                            + if read_transaction.fixed_addr { 0 } else { i },
+                        fixed_addr: false,
+                        length: 4,
+                        target: DmaReadTarget::Mbox(offset + i as u32),
+                        aes_mode: false,
+                        aes_gcm: false,
+                        i3c_indirect_fifo_data: read_transaction.i3c_indirect_fifo_data,
+                    };
+                    self.dma.flush();
+                    self.dma.setup_dma_read(rd_tx);
+                    self.dma.wait_for_dma_complete();
                 }
-
-                // translate to single dword transfer
-                match read_transaction.target {
-                    DmaReadTarget::AxiWr(addr, fixed) => {
-                        let word = self.dma.read_dword(
-                            read_transaction.read_addr
-                                + if read_transaction.fixed_addr { 0 } else { i },
-                        );
-                        self.dma.write_dword(addr + if fixed { 0 } else { i }, word);
-                    }
-                    DmaReadTarget::Mbox(offset) => {
-                        let rd_tx = DmaReadTransaction {
-                            read_addr: read_transaction.read_addr
-                                + if read_transaction.fixed_addr { 0 } else { i },
-                            fixed_addr: false,
-                            length: 4,
-                            target: DmaReadTarget::Mbox(offset + i as u32),
-                            aes_mode: false,
-                            aes_gcm: false,
-                        };
-                        self.dma.flush();
-                        self.dma.setup_dma_read(rd_tx, 0);
-                        self.dma.wait_for_dma_complete();
-                    }
-                    _ => Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED)?, // should be unreachable
-                };
-            }
+                _ => Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED)?, // should be unreachable
+            };
         }
         Ok(())
     }
@@ -909,7 +881,7 @@ impl<'a> DmaRecovery<'a> {
     #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
         self.dma.flush();
-        self.dma.setup_dma_read(read_transaction, BLOCK_SIZE);
+        self.dma.setup_dma_read(read_transaction);
         self.dma.wait_for_dma_complete();
         Ok(())
     }
@@ -975,14 +947,6 @@ impl<'a> DmaRecovery<'a> {
 
             // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
             let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
-
-            // stream the data in to the SHA accelerator
-            cprintln!(
-                "[dma-image] SHA384 image digest calculation: source = {:08x}{:08x}, length = {}",
-                source.hi,
-                source.lo,
-                length
-            );
 
             // stream the data in to the SHA accelerator
             self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode)?;
