@@ -24,10 +24,6 @@ impl DeriveMekCmd {
         let cmd = OcpLockDeriveMekReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        if !drivers.ocp_lock_context.available() {
-            Err(CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND)?;
-        }
-
         let expected_mek_checksum = MekChecksum(cmd.mek_checksum);
         let checksum = drivers.ocp_lock_context.derive_mek(
             &mut drivers.aes,

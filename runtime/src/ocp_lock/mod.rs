@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::mailbox::CommandId;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
@@ -18,6 +19,8 @@ mod initialize_mek_secret;
 pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
+
+use crate::Drivers;
 
 /// Represents the SEK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
@@ -256,5 +259,27 @@ impl OcpLockContext {
         // Do not release an MEK with a failing checksum!
         // TODO(clundin): MEK should be released to KV here.
         Ok(checksum)
+    }
+}
+
+/// Entry point for OCP LOCK commands
+pub fn command_handler(
+    cmd_id: CommandId,
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+    resp: &mut [u8],
+) -> CaliptraResult<usize> {
+    // If we have not enabled 'ocp-lock' we don't want the compiler to link these commands, so exit
+    // the function early.
+    if !cfg!(feature = "ocp-lock") || !drivers.ocp_lock_context.available() {
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND)?;
+    }
+    match cmd_id {
+        CommandId::OCP_LOCK_GET_ALGORITHMS => GetAlgorithmsCmd::execute(resp),
+        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
+            InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::OCP_LOCK_DERIVE_MEK => DeriveMekCmd::execute(drivers, cmd_bytes, resp),
+        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

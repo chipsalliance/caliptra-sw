@@ -503,14 +503,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
             ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)
         }
-        // TODO(clundin): Feature flag OCP LOCK commands.
-        CommandId::OCP_LOCK_GET_ALGORITHMS => {
-            ocp_lock::GetAlgorithmsCmd::execute(&mut drivers.ocp_lock_context, resp)
+        ocp_lock_command_id @ CommandId::OCP_LOCK_GET_ALGORITHMS
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK => {
+            ocp_lock::command_handler(ocp_lock_command_id, drivers, cmd_bytes, resp)
         }
-        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
-            ocp_lock::InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
-        }
-        CommandId::OCP_LOCK_DERIVE_MEK => ocp_lock::DeriveMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 
