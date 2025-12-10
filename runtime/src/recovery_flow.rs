@@ -16,7 +16,6 @@ use crate::{
     activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET,
     authorize_and_stash::AuthorizeAndStashCmd,
     drivers::{McuFwStatus, McuResetReason},
-    set_auth_manifest::AuthManifestSource,
     Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
@@ -58,7 +57,7 @@ impl RecoveryFlow {
 
             // download SoC manifest
             dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
-            AuthManifestSource::Slice(buffer.as_bytes())
+            buffer.as_bytes()
         };
 
         SetAuthManifestCmd::set_auth_manifest(drivers, source, false)?;
