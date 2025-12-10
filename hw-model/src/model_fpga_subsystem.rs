@@ -1739,6 +1739,11 @@ impl HwModel for ModelFpgaSubsystem {
         let current = gpio.extract().get();
         gpio.set(current | 1 << 30);
 
+        // Set soc_ifc settings before MCU ROM sets fuses
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
         while !self
             .mci_boot_milestones()
             .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
@@ -1757,18 +1762,27 @@ impl HwModel for ModelFpgaSubsystem {
             self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
         }
 
+        // Give the FPGA some time to start. If this returns too quickly some of the tests fail
+        // with a kernel panic.
+        let start = self.cycle_count();
+        while self.cycle_count().wrapping_sub(start) < 20_000_000 {
+            self.step();
+            let flow_status = self.soc_ifc().cptra_flow_status().read();
+            if flow_status.idevid_csr_ready() {
+                // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
+                // once the CSR is ready to continue making progress.
+                //
+                // Generally the CSR should be read from the mailbox at this point, but to
+                // accommodate test cases that ignore the CSR mailbox, we will ignore it here.
+                self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+            }
+            if flow_status.ready_for_mb_processing() {
+                break;
+            }
+        }
+
         // Return here if there isn't any mutable code to load
         if boot_params.fw_image.is_none() {
-            // Give the FPGA some time to start. If this returns too quickly some of the tests fail
-            // with a kernel panic.
-            let start = self.cycle_count();
-            while self.cycle_count().wrapping_sub(start) < 10_000_000 {
-                self.step();
-                let flow_status = self.soc_ifc().cptra_flow_status().read();
-                if flow_status.ready_for_mb_processing() {
-                    break;
-                }
-            }
             println!("Finished booting with no mutable firmware to load");
             return Ok(());
         }
@@ -1795,11 +1809,6 @@ impl HwModel for ModelFpgaSubsystem {
         //     .cptra_wdt_cfg()
         //     .at(1)
         //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // TODO: do we need to support these in MCU ROM?
-        // self.soc_ifc()
-        //     .cptra_dbg_manuf_service_reg()
-        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
 
         // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
         //     self.soc_ifc()
