@@ -224,6 +224,11 @@ impl CaliptraError {
             "Driver Error: CMAC KDF invalid number of rounds"
         ),
         (
+            DRIVER_KAT_NOT_RUN,
+            0x00040013,
+            "Driver Error: KAT not run"
+        ),
+        (
             DRIVER_ECC384_READ_SEED_KV_READ,
             0x00050001,
             "Driver Error: ECC384 read seed KV read"
@@ -448,6 +453,7 @@ impl CaliptraError {
             0x000a0004,
             "SHA1 Error: Index out of bounds"
         ),
+
         (
             DRIVER_OCP_LOCK_COLD_RESET_INVALID_HEK_SEED,
             0x000b0000,

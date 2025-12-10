@@ -43,6 +43,7 @@ mod mailbox;
 pub mod memory_layout;
 mod ml_kem;
 mod mldsa87;
+mod needs_kat;
 pub mod ocp_lock;
 mod okref;
 mod pcr_bank;
