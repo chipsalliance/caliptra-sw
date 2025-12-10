@@ -117,7 +117,6 @@ pub use mldsa87::{
     Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
     Mldsa87Signature,
 };
-pub use needs_kat::NeedsKat;
 pub use ocp_lock::HekSeedState;
 pub use okref::okmutref;
 pub use okref::okref;

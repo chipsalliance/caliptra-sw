@@ -92,9 +92,9 @@ impl<T> NeedsKat<T> {
     ///
     /// Returns `Ok(())` if the KAT passes, marking the driver as ready.
     /// Returns the error from the closure if the KAT fails.
-    pub unsafe fn run_kat<E, F, G>(&mut self, f: F) -> Result<G, E>
+    pub unsafe fn run_kat<E, F>(&mut self, f: F) -> Result<(), E>
     where
-        F: FnOnce(&mut T) -> Result<G, E>,
+        F: FnOnce(&mut T) -> Result<(), E>,
     {
         let result = f(&mut self.driver);
         if result.is_ok() {
