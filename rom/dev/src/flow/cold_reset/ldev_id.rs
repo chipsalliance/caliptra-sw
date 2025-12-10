@@ -17,7 +17,7 @@ use super::dice::*;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -52,7 +52,7 @@ impl LocalDevIdLayer {
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &mut RomEnvNonCrypto, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!(
@@ -130,7 +130,7 @@ impl LocalDevIdLayer {
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut RomEnvNonCrypto, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac_mac(
             &mut env.hmac,
             &mut env.trng,
@@ -168,7 +168,7 @@ impl LocalDevIdLayer {
     /// * `stable_idev` - Key Slot to store the generated stable identity root IDevID key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_stable_identity_root_idev(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         idev: KeyId,
         stable_idev: KeyId,
     ) -> CaliptraResult<()> {
@@ -198,7 +198,7 @@ impl LocalDevIdLayer {
     /// * `stable_ldev` - Key Slot to store the generated stable identity root LDevID key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_stable_identity_root_ldev(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         ldev: KeyId,
         stable_ldev: KeyId,
     ) -> CaliptraResult<()> {
@@ -233,7 +233,7 @@ impl LocalDevIdLayer {
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         cdi: KeyId,
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
@@ -282,7 +282,7 @@ impl LocalDevIdLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_ecc(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
     ) -> CaliptraResult<()> {
@@ -363,7 +363,7 @@ impl LocalDevIdLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_mldsa(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
     ) -> CaliptraResult<()> {

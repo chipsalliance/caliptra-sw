@@ -26,14 +26,14 @@ use caliptra_drivers::Lifecycle;
 use caliptra_error::CaliptraError;
 use zerocopy::IntoBytes;
 
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 
 /// Debug Unlock Flow
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn debug_unlock(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     if env.soc_ifc.ss_debug_intent() {
         // Clear the device secrets if debug intent is set.
         env.doe.clear_secrets()?;
@@ -55,7 +55,7 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     }
 }
 
-fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
+fn handle_manufacturing(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     cprintln!("[dbg_manuf] ++");
 
     // Set debug unlock in progress and unlock the mailbox for tap access.
@@ -122,7 +122,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 fn handle_auth_debug_unlock_request(
-    env: &mut RomEnv,
+    env: &mut RomEnvNonCrypto,
 ) -> CaliptraResult<(
     ProductionAuthDebugUnlockReq,
     ProductionAuthDebugUnlockChallenge,
@@ -177,7 +177,7 @@ fn handle_auth_debug_unlock_request(
 }
 
 fn handle_auth_debug_unlock_token(
-    env: &mut RomEnv,
+    env: &mut RomEnvNonCrypto,
     request: &ProductionAuthDebugUnlockReq,
     challenge: &ProductionAuthDebugUnlockChallenge,
 ) -> CaliptraResult<()> {
@@ -231,7 +231,7 @@ fn handle_auth_debug_unlock_token(
     result
 }
 
-fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
+fn handle_production(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     cprintln!("[dbg_prod] ++");
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);

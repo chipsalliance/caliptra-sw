@@ -26,7 +26,8 @@ use crate::flow::cold_reset::fmc_alias::FmcAliasLayer;
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
-use crate::{cprintln, rom_env::RomEnv};
+use crate::rom_env::RomEnv;
+use crate::{cprintln, rom_env::RomEnvNonCrypto};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::RomBootStatus::*;
@@ -107,7 +108,7 @@ impl ColdResetFlow {
 }
 
 /// Generates the cryptographic mailbox AES key.
-fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
+fn generate_cmb_aes_key(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let key_share0: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
     let key_share1: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
     env.persistent_data.get_mut().rom.cmb_aes_key_share0 = transmute!(key_share0);
@@ -126,7 +127,7 @@ fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
 ///     CaliptraResult
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 #[inline(never)]
-pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let persistent_data = env.persistent_data.get_mut();
     let dst = match tbs_type {
         TbsType::EccLdevid => {

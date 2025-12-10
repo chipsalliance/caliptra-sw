@@ -27,13 +27,11 @@ use caliptra_registers::{
     soc_ifc_trng::SocIfcTrngReg,
 };
 
-/// Rom Context
-pub struct RomEnv {
+/// Non-Crypto ROM Context
+/// Contains only the non-cryptographic drivers and those needed before KAT execution
+pub struct RomEnvNonCrypto {
     /// Deobfuscation engine
     pub doe: DeobfuscationEngine,
-
-    // SHA1 Engine
-    pub sha1: Sha1,
 
     // SHA2-256 Engine
     pub sha256: Sha256,
@@ -84,7 +82,7 @@ pub struct RomEnv {
     pub aes: Aes,
 }
 
-impl RomEnv {
+impl RomEnvNonCrypto {
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let trng = Trng::new(
             CsrngReg::new(),
@@ -95,7 +93,6 @@ impl RomEnv {
 
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
-            sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
@@ -113,5 +110,57 @@ impl RomEnv {
             dma: Dma::default(),
             aes: Aes::new(AesReg::new(), AesClpReg::new()),
         })
+    }
+}
+
+/// Full ROM Context
+/// Contains all drivers needed after KAT execution
+pub struct RomEnv {
+    /// Non-crypto environment (embedded)
+    pub non_crypto: RomEnvNonCrypto,
+
+    // SHA1 Engine (initialized by KATs)
+    pub sha1: Sha1,
+
+    /// Key Vault
+    pub key_vault: KeyVault,
+}
+
+impl RomEnv {
+    /// Create RomEnv from non-crypto environment and initialized drivers
+    pub unsafe fn from_non_crypto(
+        non_crypto: RomEnvNonCrypto,
+        initialized: caliptra_kat::InitializedDrivers,
+    ) -> Self {
+        Self {
+            non_crypto,
+            sha1: initialized.sha1,
+            key_vault: KeyVault::new(KvReg::new()),
+        }
+    }
+
+    /// Get a mutable reference to the non-crypto environment
+    pub fn non_crypto_mut(&mut self) -> &mut RomEnvNonCrypto {
+        &mut self.non_crypto
+    }
+
+    /// Get an immutable reference to the non-crypto environment
+    pub fn non_crypto(&self) -> &RomEnvNonCrypto {
+        &self.non_crypto
+    }
+}
+
+// Provide transparent access to non-crypto fields via Deref
+impl core::ops::Deref for RomEnv {
+    type Target = RomEnvNonCrypto;
+
+    fn deref(&self) -> &Self::Target {
+        &self.non_crypto
+    }
+}
+
+impl core::ops::DerefMut for RomEnv {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.non_crypto
     }
 }

@@ -17,7 +17,7 @@ use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::key_ladder;
 use crate::pcr;
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 use caliptra_api::mailbox;
 use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::mailbox::{
@@ -100,11 +100,8 @@ pub struct FwProcInfo {
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
-    pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
+    pub fn process(env: &mut RomEnvNonCrypto) -> CaliptraResult<FwProcInfo> {
         let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
             // sha256
             sha256: &mut env.sha256,
 
@@ -937,7 +934,7 @@ impl FirmwareProcessor {
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
+    fn populate_fw_key_ladder(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         let svn = env.persistent_data.get().rom.data_vault.fw_svn();
 
         if svn > MAX_FIRMWARE_SVN {

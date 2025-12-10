@@ -55,18 +55,24 @@ pub use sha384_kat::Sha384Kat;
 pub use sha3_kat::Shake256Kat;
 pub use sha512_kat::Sha512Kat;
 
-use caliptra_drivers::cprintln;
+use caliptra_drivers::{cprintln, Sha1};
+
+/// Drivers that have been initialized after KAT execution
+pub struct InitializedDrivers {
+    pub sha1: Sha1,
+}
 
 /// Execute Known Answer Tests
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
+pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
     cprintln!("[kat] ++");
 
     cprintln!("[kat] sha1");
-    Sha1Kat::default().execute(env.sha1)?;
+    let mut sha1 = Sha1::default();
+    Sha1Kat::default().execute(&mut sha1)?;
 
     cprintln!("[kat] SHA2-256");
     Sha256Kat::default().execute(env.sha256)?;
@@ -127,5 +133,5 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] --");
 
-    Ok(())
+    Ok(InitializedDrivers { sha1 })
 }

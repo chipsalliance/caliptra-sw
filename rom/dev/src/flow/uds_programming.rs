@@ -11,7 +11,7 @@ Abstract:
     File contains the implementation of UDS programming flow.
 --*/
 
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::cprintln;
@@ -24,7 +24,7 @@ pub struct UdsProgrammingFlow {}
 impl UdsProgrammingFlow {
     #[inline(never)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn program_uds(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn program_uds(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         // Check if UDS programming is requested.
         if !env.soc_ifc.uds_program_req() {
             return Ok(());
