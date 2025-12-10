@@ -16,7 +16,6 @@ use crate::{
     activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET,
     authorize_and_stash::AuthorizeAndStashCmd,
     drivers::{McuFwStatus, McuResetReason},
-    set_auth_manifest::AuthManifestSource,
     Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
@@ -41,10 +40,6 @@ impl RecoveryFlow {
         const SOC_MANIFEST_INDEX: u32 = 1;
         const MCU_FIRMWARE_INDEX: u32 = 2;
 
-        // we need to hold the mailbox lock since we are downloading to it
-        if drivers.mbox.lock() {
-            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
-        }
         // use different scopes since we need to borrow drivers mutably and immutably
         let mut buffer = [0; size_of::<AuthorizationManifest>() / 4];
         let source = {
@@ -61,17 +56,11 @@ impl RecoveryFlow {
             )?;
 
             // download SoC manifest
-            if drivers.soc_ifc.subsystem_mode() {
-                dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
-                AuthManifestSource::Slice(buffer.as_bytes())
-            } else {
-                dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
-                AuthManifestSource::Mailbox
-            }
+            dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
+            buffer.as_bytes()
         };
 
         SetAuthManifestCmd::set_auth_manifest(drivers, source, false)?;
-        drivers.mbox.unlock();
 
         let digest = {
             let dma = &drivers.dma;

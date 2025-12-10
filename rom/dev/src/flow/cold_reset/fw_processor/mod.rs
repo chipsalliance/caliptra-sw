@@ -341,7 +341,10 @@ impl FirmwareProcessor {
                     drop(txn);
 
                     // Now we can access mbox again since the transaction is complete
-                    return RiDownloadFirmwareCmd::execute(mbox, dma, soc_ifc, subsystem_mode);
+                    return Ok((
+                        ManuallyDrop::new(mbox.recovery_recv_txn()),
+                        RiDownloadFirmwareCmd::execute(dma, soc_ifc)?,
+                    ));
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
@@ -1037,27 +1040,6 @@ impl FirmwareProcessor {
         };
 
         Ok(())
-    }
-
-    /// Retrieve the fw image from the recovery interface and store it in the mailbox sram.
-    ///
-    /// # Arguments
-    /// * `dma` - DMA driver
-    /// * `soc_ifc` - SOC Interface
-    ///
-    /// # Returns
-    /// * `CaliptraResult<u32>` - Size of the image downloaded
-    ///   Error code on failure.
-    pub(crate) fn retrieve_image_from_recovery_interface(
-        dma: &mut Dma,
-        soc_ifc: &mut SocIfc,
-    ) -> CaliptraResult<u32> {
-        let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
-        let caliptra_base_addr = soc_ifc.caliptra_base_axi_addr().into();
-        let mci_base_addr = soc_ifc.mci_base_addr().into();
-        const FW_IMAGE_INDEX: u32 = 0x0;
-        let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
-        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 
     /// Retrieve the fw image from the recovery interface and download it to MCU.
