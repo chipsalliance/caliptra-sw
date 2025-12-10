@@ -55,7 +55,7 @@ impl AesDmaMode {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AxiAddr {
     pub lo: u32,
     pub hi: u32,
@@ -124,7 +124,27 @@ pub struct DmaReadTransaction {
     pub target: DmaReadTarget,
     pub aes_mode: bool,
     pub aes_gcm: bool,
-    pub i3c_indirect_fifo_data: bool,
+    pub block_mode: BlockMode,
+}
+
+/// Specified the kind of block size to be used for the DMA, either I3C (recovery)
+/// or anything else. I3C requires a specific block size to be programmed for
+/// DMA to work.
+#[derive(Clone, Copy)]
+pub enum BlockMode {
+    /// Reading from the I3C recovery register indirect fifo data
+    RecoveryIndirectFifoData,
+    /// Reading from anywhere else
+    Other,
+}
+
+impl DmaReadTransaction {
+    fn block_size(&self) -> u32 {
+        match self.block_mode {
+            BlockMode::RecoveryIndirectFifoData => I3C_BLOCK_SIZE,
+            BlockMode::Other => 0,
+        }
+    }
 }
 
 pub enum DmaWriteOrigin {
@@ -202,11 +222,7 @@ impl Dma {
             dma.byte_count().write(|_| read_transaction.length);
 
             // Set the block size.
-            let block_size = if read_transaction.i3c_indirect_fifo_data {
-                I3C_BLOCK_SIZE
-            } else {
-                0
-            };
+            let block_size = read_transaction.block_size();
             dma.block_size().write(|f| f.size(block_size));
 
             dma.ctrl().write(|c| {
@@ -351,7 +367,7 @@ impl Dma {
             target: DmaReadTarget::AhbFifo,
             aes_mode: false,
             aes_gcm: false,
-            i3c_indirect_fifo_data: false,
+            block_mode: BlockMode::Other,
         };
 
         self.flush();
@@ -572,9 +588,13 @@ impl<'a> DmaRecovery<'a> {
         mmio.check_error(t)
     }
 
-    fn is_i3c(&self, addr: AxiAddr) -> bool {
-        let i3c = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
-        i3c.hi == addr.hi && i3c.lo == addr.lo
+    /// Returns the appropriate block mode for the given AXI address.
+    fn block_mode_for_addr(&self, addr: AxiAddr) -> BlockMode {
+        if addr == self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET {
+            BlockMode::RecoveryIndirectFifoData
+        } else {
+            BlockMode::Other
+        }
     }
 
     fn transfer_payload_to_mbox(
@@ -591,7 +611,7 @@ impl<'a> DmaRecovery<'a> {
             target: DmaReadTarget::Mbox(offset),
             aes_mode: false,
             aes_gcm: false,
-            i3c_indirect_fifo_data: self.is_i3c(read_addr),
+            block_mode: self.block_mode_for_addr(read_addr),
         };
         self.exec_dma_read(read_transaction)?;
         Ok(())
@@ -684,7 +704,7 @@ impl<'a> DmaRecovery<'a> {
                 target: DmaReadTarget::AhbFifo,
                 aes_mode: false,
                 aes_gcm: false,
-                i3c_indirect_fifo_data: true,
+                block_mode: BlockMode::RecoveryIndirectFifoData,
             };
 
             self.dma.flush();
@@ -823,7 +843,7 @@ impl<'a> DmaRecovery<'a> {
             target: DmaReadTarget::AxiWr(write_addr, write_fixed_addr),
             aes_mode: aes_mode.aes(),
             aes_gcm: aes_mode.gcm(),
-            i3c_indirect_fifo_data: self.is_i3c(read_addr),
+            block_mode: self.block_mode_for_addr(read_addr),
         };
         self.exec_dma_read(read_transaction)?;
         Ok(())
@@ -837,7 +857,10 @@ impl<'a> DmaRecovery<'a> {
 
         for i in (0..read_transaction.length).step_by(4) {
             // if this is an I3C transfer, wait for the FIFO to be not empty
-            if read_transaction.i3c_indirect_fifo_data {
+            if matches!(
+                read_transaction.block_mode,
+                BlockMode::RecoveryIndirectFifoData
+            ) {
                 self.with_regs(|r| {
                     while r
                         .sec_fw_recovery_if()
@@ -866,7 +889,7 @@ impl<'a> DmaRecovery<'a> {
                         target: DmaReadTarget::Mbox(offset + i as u32),
                         aes_mode: false,
                         aes_gcm: false,
-                        i3c_indirect_fifo_data: read_transaction.i3c_indirect_fifo_data,
+                        block_mode: read_transaction.block_mode,
                     };
                     self.dma.flush();
                     self.dma.setup_dma_read(rd_tx);

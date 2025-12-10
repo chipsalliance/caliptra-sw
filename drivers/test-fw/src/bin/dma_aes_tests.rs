@@ -200,7 +200,7 @@ fn dma_aes(dma: &mut Dma, aes: &mut Aes, trng: &mut Trng, src: u64, dst: u64, ma
         target: DmaReadTarget::AxiWr(dst.into(), false),
         aes_mode: true,
         aes_gcm: true,
-        i3c_indirect_fifo_data: false,
+        block_mode: caliptra_drivers::dma::BlockMode::Other,
     });
     dma.wait_for_dma_complete();
 }
@@ -225,7 +225,7 @@ fn run_dma_aes_test(
         target: DmaReadTarget::AhbFifo,
         aes_mode: false,
         aes_gcm: false,
-        i3c_indirect_fifo_data: false,
+        block_mode: caliptra_drivers::dma::BlockMode::Other,
     });
     dma.dma_read_fifo(&mut output[..len]);
     dma.wait_for_dma_complete();
