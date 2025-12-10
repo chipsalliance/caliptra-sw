@@ -343,13 +343,10 @@ jobs:
                   - test(test_mailbox::test_reserved_pauser)
                   - test(test_pauser_privilege_levels::test_change_locality)
                   - test(test_certs::test_all_measurement_apis)
-                  - test(test_cryptographic_mailbox::test_derive_stable_key_from_rom)
-                  - test(test_info::test_fw_info)
                   - test(test_reallocate_dpe_context_limits)
                   - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
                   - test(test_fe_programming::test_fe_programming_cmd)
-                  - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)
-                  - test(test_fips::test_fips_version)'
+                  - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)'
               -E 'package(caliptra-rom)
                   - test(test_debug_unlock::)
                   - test(test_fmcalias_derivation::test_zero_firmware_size)
@@ -358,8 +355,6 @@ jobs:
                   - test(test_warm_reset::test_warm_reset_during_update_reset)
                   - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)
                   - test(test_image_validation::cert_test_with_ueid)
-                  - test(test_version::test_version)
-                  - test(test_warm_reset::test_warm_reset_version)
                   - test(ocp_lock)'
               -E 'package(caliptra-drivers)
                   - test(test_ocp_lock)
