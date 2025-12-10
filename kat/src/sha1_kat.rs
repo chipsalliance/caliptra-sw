@@ -39,9 +39,12 @@ impl Sha1Kat {
 
     fn kat_no_data(&self, sha: &mut Sha1) -> CaliptraResult<()> {
         let data = [];
-        let digest = sha
-            .digest(&data)
-            .map_err(|_| CaliptraError::KAT_SHA1_DIGEST_FAILURE)?;
+        let digest = unsafe {
+            sha.run_kat(|sha| {
+                sha.digest(&data)
+                    .map_err(|_| CaliptraError::KAT_SHA1_DIGEST_FAILURE)
+            })?
+        };
 
         if digest != EXPECTED_DIGEST {
             Err(CaliptraError::KAT_SHA1_DIGEST_MISMATCH)?;

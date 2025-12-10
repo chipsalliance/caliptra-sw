@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x5, CaliptraError, CaliptraResult};
+use crate::{Array4x5, CaliptraError, CaliptraResult, NeedsKat};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use zeroize::Zeroize;
@@ -23,12 +23,21 @@ const SHA1_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 pub type Sha1Digest<'a> = &'a mut Array4x5;
 
+/// Type alias for SHA1 driver that requires KAT to be run before use
+pub type Sha1 = NeedsKat<Sha1Internal>;
+
+impl Default for Sha1 {
+    fn default() -> Self {
+        NeedsKat::new(Sha1Internal::default())
+    }
+}
+
 #[derive(Default)]
-pub struct Sha1 {
+pub struct Sha1Internal {
     compressor: Sha1Compressor,
 }
 
-impl Sha1 {
+impl Sha1Internal {
     /// Initialize multi step digest operation
     ///
     /// # Returns
@@ -204,7 +213,7 @@ enum Sha1DigestState {
 pub struct Sha1DigestOp<'a> {
     /// SHA-256 Engine
     #[zeroize(skip)]
-    sha: &'a mut Sha1,
+    sha: &'a mut Sha1Internal,
 
     /// State
     #[zeroize(skip)]

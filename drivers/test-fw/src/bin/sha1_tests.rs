@@ -21,8 +21,17 @@ use caliptra_kat::Sha1Kat;
 
 use caliptra_test_harness::test_suite;
 
+fn sha1() -> Sha1 {
+    let mut sha = Sha1::default();
+    // For tests, we just mark KAT as passed
+    unsafe {
+        let _ = sha.run_kat(|_| Ok::<(), ()>(()));
+    }
+    sha
+}
+
 fn test_sha1(data: &str, expected: Array4x5) {
-    let digest = Sha1::default().digest(data.as_bytes()).unwrap();
+    let digest = sha1().unwrap_mut().digest(data.as_bytes()).unwrap();
     assert_eq!(digest, expected);
 }
 
@@ -54,7 +63,8 @@ fn test_op1() {
     let expected = Array4xN([0x521d84ef, 0xcae113d0, 0x00a14796, 0x8b508e06, 0x7cb60184]);
     const DATA: [u8; 1000] = [0x61; 1000];
     let mut digest = Array4x5::default();
-    let mut sha = Sha1::default();
+    let mut sha = sha1();
+    let sha = sha.unwrap_mut();
     let mut digest_op = sha.digest_init().unwrap();
     for _ in 0..300 {
         assert!(digest_op.update(&DATA).is_ok());
