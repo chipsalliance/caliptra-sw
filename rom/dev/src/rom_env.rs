@@ -121,9 +121,6 @@ pub struct RomEnv {
 
     // SHA1 Engine (initialized by KATs)
     pub sha1: Sha1,
-
-    /// Key Vault
-    pub key_vault: KeyVault,
 }
 
 impl RomEnv {
@@ -135,7 +132,6 @@ impl RomEnv {
         Self {
             non_crypto,
             sha1: initialized.sha1,
-            key_vault: KeyVault::new(KvReg::new()),
         }
     }
 
