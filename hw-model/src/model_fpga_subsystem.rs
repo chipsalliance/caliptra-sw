@@ -1962,10 +1962,10 @@ impl HwModel for ModelFpgaSubsystem {
         Self: Sized,
     {
         // Store non-persistent config regs set at boot
-        let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
-        let i_trng_entropy_config_1: u32 =
+        let _dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let _i_trng_entropy_config_1: u32 =
             self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
-        let i_trng_entropy_config_0: u32 =
+        let _i_trng_entropy_config_0: u32 =
             self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
         // Store mbox pausers
         let mut valid_pausers: Vec<u32> = Vec::new();
