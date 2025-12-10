@@ -22,7 +22,7 @@ DCCM_ORG         = 0x50000000;
 STACK_ORG        = 0x50000000;
 ESTACK_ORG       = 0x50023000;
 NSTACK_ORG       = 0x50023400;
-DATA_ORG         = 0x50023c00;
+DATA_ORG         = 0x50023800;
 
 ICCM_SIZE         = 16K;
 DCCM_SIZE         = 256K;

@@ -22,9 +22,9 @@ DCCM_ORG         = 0x50000000;
 STACK_ORG        = 0x50000000;
 ESTACK_ORG       = 0x50023000;
 NSTACK_ORG       = 0x50023400;
-DATA_ORG         = 0x50023800;
+DATA_ORG         = 0x5003FC00;
 
-CFI_STATE_ORG      = 0x50023BE4;
+CFI_STATE_ORG      = 0x5003FFE4;
 
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are

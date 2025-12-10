@@ -20,7 +20,6 @@ pub(crate) mod uds_programming;
 mod update_reset;
 mod warm_reset;
 
-use crate::cprintln;
 pub use crate::flow::uds_programming::UdsProgrammingFlow;
 use crate::{handle_fatal_error, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
@@ -70,7 +69,6 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
             && !(env.soc_ifc.prod_en_in_fake_mode())
         {
-            cprintln!("Fake ROM in Prod disabled");
             handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
         }
 

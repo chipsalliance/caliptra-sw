@@ -27,19 +27,20 @@ pub const ICCM_ORG: u32 = 0x40000000;
 ///
 /// Layout
 ///
-/// | Partition       | Field        | Start       | End         | Size     |
-/// |-----------------|--------------|-------------|-------------|----------|
-/// | DCCM            |              | 0x5000_0000 | 0x5004_0000 | 0x4_0000 |
-/// | Stack           |              | 0x5000_0000 | 0x5002_3800 | 0x2_3800 |
-/// |                 | FW Stack     | 0x5000_0000 | 0x5002_3000 | 0x2_3000 |
-/// |                 | ROM Stack    | 0x5000_0000 | 0x5001_4000 | 0x1_4000 |
-/// |                 | EStack       | 0x5002_3000 | 0x5002_3400 | 0x400    |
-/// |                 | NStack       | 0x5002_3400 | 0x5002_3800 | 0x400    |
-/// | ROM Data        |              | 0x5002_3800 | 0x5002_3c00 | 0x400    |
-/// |                 | Reserved     | 0x5002_3800 | 0x5002_3be4 | 0x3e4    |
-/// |                 | CFI State    | 0x5002_3be4 | 0x5002_3bfc | 0x18     |
-/// |                 | Boot Status  | 0x5002_3bfc | 0x5002_3c00 | 0x4      |
-/// | Persistent Data |              | 0x5002_3c00 | 0x5004_0000 | 0x1_cc00 |
+/// | Partition       | Field        | Start       | End         | Size                 |
+/// |-----------------|--------------|-------------|-------------|----------------------|
+/// | DCCM            |              | 0x5000_0000 | 0x5004_0000 | 0x4_0000             |
+/// | Stack           |              | 0x5000_0000 | 0x5002_3800 | 0x2_3800             |
+/// |                 | FW Stack     | 0x5000_0000 | 0x5002_3000 | 0x2_3000             |
+/// |                 | ROM Stack    | 0x5000_0000 | 0x5001_2c00 | 0x1_2c00             |
+/// |                 | EStack       | 0x5002_3000 | 0x5002_3400 | 0x400                |
+/// |                 | NStack       | 0x5002_3400 | 0x5002_3800 | 0x400                |
+/// | Extra memory    |              | 0x5002_3800 | Extra end   | Extra memory size    |
+/// | Persistent Data |              | Extra end   | 0x5003_fc00 | Persistent data size |
+/// | ROM Data        |              | 0x5003_fc00 | 0x5004_0000 | 0x400                |
+/// |                 | Reserved     | 0x5003_fc00 | 0x5003_ffe4 | 0x3e4                |
+/// |                 | CFI State    | 0x5003_ffe4 | 0x5003_fffc | 0x18                 |
+/// |                 | Boot Status  | 0x5003_fffc | 0x5004_0000 | 0x4                  |
 pub const DCCM_ORG: u32 = 0x50000000;
 
 /// Stack is placed at the beginning of DCCM so a stack overflow will cause a hardware fault
@@ -54,13 +55,16 @@ pub const ROM_ESTACK_ORG: u32 = ESTACK_ORG;
 pub const NSTACK_ORG: u32 = ESTACK_ORG + ESTACK_SIZE;
 pub const ROM_NSTACK_ORG: u32 = NSTACK_ORG;
 
-pub const ROM_DATA_ORG: u32 = NSTACK_ORG + NSTACK_SIZE;
+/// Extra memory reserved for stack and/or persistent data growth
+pub const EXTRA_MEMORY_ORG: u32 = NSTACK_ORG + NSTACK_SIZE;
+
+/// Persistent data shared between boot stages and stored across warm and update resets
+pub const PERSISTENT_DATA_ORG: u32 = ROM_DATA_ORG - size_of::<PersistentData>() as u32;
+
+pub const ROM_DATA_ORG: u32 = DCCM_ORG + DCCM_SIZE - ROM_DATA_SIZE;
 pub const CFI_STATE_ORG: u32 = ROM_DATA_ORG + 0x3E4; // size = 6 words
 pub const BOOT_STATUS_ORG: u32 = ROM_DATA_ORG + 0x3FC;
-pub const PERSISTENT_DATA_ORG: u32 = ROM_DATA_ORG + ROM_DATA_SIZE;
-pub const DATA_ORG: u32 = PERSISTENT_DATA_ORG + size_of::<PersistentData>() as u32;
-
-pub const LAST_REGION_END: u32 = PERSISTENT_DATA_ORG + size_of::<PersistentData>() as u32;
+pub const LAST_REGION_END: u32 = ROM_DATA_ORG + ROM_DATA_SIZE;
 
 //
 // Memory Sizes In Bytes
@@ -80,8 +84,7 @@ pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
 pub const ROM_NSTACK_SIZE: u32 = 1024;
-// This is mostly used for relaxation ptrs and is basically padding otherwise.
-pub const DATA_SIZE: u32 = DCCM_SIZE
+pub const EXTRA_MEMORY_SIZE: u32 = DCCM_SIZE
     - NSTACK_SIZE
     - ESTACK_SIZE
     - STACK_SIZE
@@ -95,19 +98,9 @@ pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_persistent_data() {
-    assert_eq!(
-        (DATA_ORG - PERSISTENT_DATA_ORG),
-        size_of::<PersistentData>() as u32
-    );
-}
-
-#[test]
-#[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_data() {
-    assert_eq!((DCCM_ORG + DCCM_SIZE - DATA_ORG), DATA_SIZE);
-    // we must leave room for 0x800 bytes for the relaxation pointers
-    assert!(DATA_SIZE >= 2 * 1024);
+fn mem_layout_test_stacks_start() {
+    assert_eq!(DCCM_ORG, STACK_ORG);
+    assert_eq!(DCCM_ORG, ROM_STACK_ORG);
 }
 
 #[test]
@@ -125,13 +118,28 @@ fn mem_layout_test_estack() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_nstack() {
-    assert_eq!((ROM_DATA_ORG - NSTACK_ORG), NSTACK_SIZE);
+    assert_eq!((EXTRA_MEMORY_ORG - NSTACK_ORG), NSTACK_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_extra_memory() {
+    assert_eq!((PERSISTENT_DATA_ORG - EXTRA_MEMORY_ORG), EXTRA_MEMORY_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_persistent_data() {
+    assert_eq!(
+        (ROM_DATA_ORG - PERSISTENT_DATA_ORG),
+        size_of::<PersistentData>() as u32
+    );
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_rom_data() {
-    assert_eq!((PERSISTENT_DATA_ORG - ROM_DATA_ORG), ROM_DATA_SIZE);
+    assert_eq!((DCCM_ORG + DCCM_SIZE - ROM_DATA_ORG), ROM_DATA_SIZE);
 }
 
 #[test]

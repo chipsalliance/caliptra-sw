@@ -263,7 +263,6 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
         digest.zeroize();
-        cprintln!("ROM integrity test failed");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
     digest.zeroize();

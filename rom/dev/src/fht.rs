@@ -22,7 +22,7 @@ use caliptra_common::{
     },
     FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
-use caliptra_drivers::{cprintln, RomAddr};
+use caliptra_drivers::RomAddr;
 use caliptra_image_verify::MAX_FIRMWARE_SVN;
 
 const FHT_MAJOR_VERSION: u16 = 1;
@@ -53,8 +53,6 @@ impl FhtDataStore {
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
-
-    cprintln!("[fht] FHT @ 0x{:08X}", &pdata.rom.fht as *const _ as usize);
 
     env.persistent_data.get_mut().rom.fht = FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
