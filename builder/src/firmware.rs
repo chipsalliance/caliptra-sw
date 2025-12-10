@@ -554,6 +554,12 @@ pub mod runtime_tests {
         bin_name: "mock_rt_interact",
         ..RUNTIME_TEST_FWID_BASE
     };
+
+    pub const MOCK_RT_INTERACTIVE_FPGA: FwId = FwId {
+        bin_name: "mock_rt_interact",
+        features: &["emu", "riscv", "runtime", "fpga_realtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
 }
 
 pub const REGISTERED_FW: &[&FwId] = &[
@@ -644,4 +650,5 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MBOX_WITHOUT_UART_FPGA,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
+    &runtime_tests::MOCK_RT_INTERACTIVE_FPGA,
 ];

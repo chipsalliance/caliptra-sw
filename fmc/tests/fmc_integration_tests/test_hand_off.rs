@@ -15,7 +15,9 @@ fn test_hand_off() {
             ..Default::default()
         };
 
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom =
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap();
 
         let image = caliptra_builder::build_and_sign_image(
             &firmware::FMC_WITH_UART,

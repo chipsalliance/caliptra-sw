@@ -8,19 +8,17 @@ use crate::{
 };
 use caliptra_api::mailbox::ExternalMailboxCmdReq;
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
-use caliptra_auth_man_gen::{
-    AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
+use caliptra_auth_man_gen::default_test_manifest::{
+    create_test_auth_manifest_with_config, create_test_auth_manifest_with_metadata,
 };
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeysConfig,
-    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_fake_keys::*;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
@@ -43,62 +41,6 @@ impl Default for AuthManifestBuilderCfg {
 }
 
 pub fn create_auth_manifest(cfg: &AuthManifestBuilderCfg) -> AuthorizationManifest {
-    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
-            }),
-        });
-
-    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
-            }),
-        });
-
-    let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
-    let owner_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
     let image_digest2: [u8; 48] = [
         0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50,
         0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF,
@@ -130,20 +72,13 @@ pub fn create_auth_manifest(cfg: &AuthManifestBuilderCfg) -> AuthorizationManife
         },
     ];
 
-    let gen_config: AuthManifestGeneratorConfig = AuthManifestGeneratorConfig {
-        vendor_fw_key_info,
-        vendor_man_key_info,
-        owner_fw_key_info,
-        owner_man_key_info,
+    create_test_auth_manifest_with_config(
         image_metadata_list,
-        version: 1,
-        flags: cfg.manifest_flags,
-        pqc_key_type: cfg.pqc_key_type,
-        svn: cfg.svn,
-    };
-
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+        cfg.manifest_flags,
+        cfg.pqc_key_type,
+        cfg.svn,
+        Crypto::default(),
+    )
 }
 
 // Default
@@ -162,138 +97,18 @@ pub fn create_auth_manifest_with_metadata_with_svn(
     pqc_key_type: FwVerificationPqcKeyType,
     svn: u32,
 ) -> AuthorizationManifest {
-    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
-            }),
-        });
-
-    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
-            }),
-        });
-
-    let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
-    let owner_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
-    let gen_config: AuthManifestGeneratorConfig = AuthManifestGeneratorConfig {
-        vendor_fw_key_info,
-        vendor_man_key_info,
-        owner_fw_key_info,
-        owner_man_key_info,
+    create_test_auth_manifest_with_metadata(
         image_metadata_list,
-        version: 1,
-        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
         pqc_key_type,
         svn,
-    };
-
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+        Crypto::default(),
+    )
 }
 
 fn create_auth_manifest_of_metadata_size(
     metadata_size: usize,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> AuthorizationManifest {
-    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_0_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_0_PRIVATE,
-            }),
-        });
-
-    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-                mldsa_pub_key: VENDOR_MLDSA_KEY_1_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-                mldsa_priv_key: VENDOR_MLDSA_KEY_1_PRIVATE,
-            }),
-        });
-
-    let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
-    let owner_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
-        Some(AuthManifestGeneratorKeyConfig {
-            pub_keys: AuthManifestPubKeysConfig {
-                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
-                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
-                mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
-            },
-            priv_keys: Some(AuthManifestPrivKeysConfig {
-                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
-                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
-                mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
-            }),
-        });
-
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(true);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -311,20 +126,7 @@ fn create_auth_manifest_of_metadata_size(
         })
     }
 
-    let gen_config: AuthManifestGeneratorConfig = AuthManifestGeneratorConfig {
-        vendor_fw_key_info,
-        vendor_man_key_info,
-        owner_fw_key_info,
-        owner_man_key_info,
-        image_metadata_list,
-        version: 1,
-        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type,
-        svn: 1,
-    };
-
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+    create_test_auth_manifest_with_metadata(image_metadata_list, pqc_key_type, 1, Crypto::default())
 }
 
 #[test]
