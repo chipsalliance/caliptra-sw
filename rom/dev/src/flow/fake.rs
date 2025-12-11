@@ -54,6 +54,10 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
+                env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
+                env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
+                env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+
                 // Zeroize the key vault in the fake ROM flow
                 unsafe { KeyVault::zeroize() };
 

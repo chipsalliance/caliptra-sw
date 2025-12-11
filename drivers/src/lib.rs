@@ -122,13 +122,15 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsrs;
+#[cfg(any(feature = "fmc", feature = "runtime"))]
+pub use persistent::FwPersistentData;
 #[cfg(feature = "runtime")]
 pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 pub use persistent::{
     Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
-    PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_FMC_ALIAS_CSR_SIZE,
-    ECC384_MAX_IDEVID_CSR_SIZE, FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE,
-    PCR_LOG_MAX_COUNT,
+    PersistentData, PersistentDataAccessor, RomPersistentData, StashMeasurementArray,
+    ECC384_MAX_FMC_ALIAS_CSR_SIZE, ECC384_MAX_IDEVID_CSR_SIZE, FUSE_LOG_MAX_COUNT,
+    MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE, PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

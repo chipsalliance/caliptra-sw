@@ -19,8 +19,8 @@ use crate::{cprintln, pcr, rom_env::RomEnv};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
-use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
+use caliptra_common::{handle_fatal_error, RomBootStatus::*};
+use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason, RomPersistentData};
 use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
 use caliptra_drivers::{AxiAddr, DataVault, Dma, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -42,6 +42,16 @@ impl UpdateResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
+
+        // Check persistent data is valid
+        let pdata = env.persistent_data.get();
+        if pdata.rom.marker != RomPersistentData::MAGIC {
+            handle_fatal_error(CaliptraError::ROM_INVALID_ROM_PERSISTENT_DATA_MARKER.into())
+        }
+        // Only check the major version because the minor version may have been modified by FMC
+        if pdata.rom.major_version != RomPersistentData::MAJOR_VERSION {
+            handle_fatal_error(CaliptraError::ROM_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
+        }
 
         let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
