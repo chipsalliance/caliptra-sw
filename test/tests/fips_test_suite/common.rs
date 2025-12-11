@@ -1,11 +1,13 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::*,
@@ -234,6 +236,14 @@ pub fn fips_test_init_to_rt(
     } else {
         let fw_image = fips_fw_image();
         boot_params.fw_image = Some(&fw_image);
+        let soc_manifest = default_test_soc_manifest(
+            &DEFAULT_MCU_FW,
+            FwVerificationPqcKeyType::MLDSA,
+            1,
+            Crypto::default(),
+        );
+        boot_params.soc_manifest = Some(soc_manifest.as_bytes());
+        boot_params.mcu_fw_image = Some(&DEFAULT_MCU_FW);
         fips_test_init_base(init_params, Some(boot_params))
     };
     // We need this on fpga_subsystem
