@@ -12,7 +12,7 @@ use caliptra_test::derive::{DoeInput, DoeOutput, Mek, OcpLockKeyLadderBuilder};
 
 use crate::test_ocp_lock::InitializeMekSecretParams;
 
-use super::{boot_ocp_lock_runtime, OcpLockBootParams};
+use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams};
 
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -32,9 +32,6 @@ static EXPECTED_MEK: LazyLock<Mek> = LazyLock::new(|| {
 });
 
 // TODO(clundin): Follow up with the following test cases:
-//
-// These follow ups are pending an independently constructed key ladder / splitting into smaller
-// PRs.
 //
 // * MEK and MEK checksum are the same after a hitless update to new firmware.
 
@@ -59,17 +56,17 @@ fn test_derive_mek() {
     });
     cmd.populate_chksum().unwrap();
 
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -94,17 +91,17 @@ fn test_derive_mek_warm_reset() {
     });
     derive_mek_cmd.populate_chksum().unwrap();
 
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            derive_mek_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        derive_mek_cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 
     model.warm_reset_flow().unwrap();
 
@@ -116,25 +113,26 @@ fn test_derive_mek_warm_reset() {
     });
     cmd.populate_chksum().unwrap();
 
-    model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
+        cmd.as_bytes().unwrap(),
+    );
 
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            derive_mek_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        response.unwrap().unwrap();
+    });
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        derive_mek_cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -164,10 +162,14 @@ fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
         CommandId::OCP_LOCK_DERIVE_MEK.into(),
         cmd.as_bytes().unwrap(),
     );
-    assert_eq!(
-        response.unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),)
-    );
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),
+            )
+        );
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -203,21 +205,21 @@ fn test_derive_mek_debug_unlocked() {
     });
     cmd.populate_chksum().unwrap();
 
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_eq!(response.mek_checksum, expected_debug_unlocked_mek.checksum);
-    assert_eq!(actual_mek.mek, expected_debug_unlocked_mek.mek);
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        cmd.as_bytes().unwrap(),
+    );
 
-    // Debug unlocked should not match the production UDS & FE.
-    assert_ne!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_ne!(actual_mek.mek, EXPECTED_MEK.mek);
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(response.mek_checksum, expected_debug_unlocked_mek.checksum);
+        assert_eq!(actual_mek.mek, expected_debug_unlocked_mek.mek);
+
+        // Debug unlocked should not match the production UDS & FE.
+        assert_ne!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_ne!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -245,10 +247,13 @@ fn test_derive_corrupted_sek() {
         CommandId::OCP_LOCK_DERIVE_MEK.into(),
         cmd.as_bytes().unwrap(),
     );
-    assert_eq!(
-        response.unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL.into(),)
-    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL.into(),)
+        );
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -271,17 +276,16 @@ fn test_derive_corrupted_sek_no_checksum() {
     });
     cmd.populate_chksum().unwrap();
 
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_ne!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_ne!(actual_mek.mek, EXPECTED_MEK.mek);
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_ne!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_ne!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -305,10 +309,15 @@ fn test_derive_missing_secret_seed() {
         CommandId::OCP_LOCK_DERIVE_MEK.into(),
         cmd.as_bytes().unwrap(),
     );
-    assert_eq!(
-        response.unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),)
-    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),
+            )
+        );
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -333,26 +342,30 @@ fn test_derive_consumed_secret_seed() {
     cmd.populate_chksum().unwrap();
 
     // Consumes the `MEK_SECRET_SEED` so `DERIVE_MEK` will not work until another call to `INITIALIZE_MEK_SECRET`
-    let response = model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_DERIVE_MEK.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
-    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
-    let actual_mek = model.ocp_lock_state().unwrap();
-    assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
-    assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
+        assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
+    });
 
     let response = model.mailbox_execute(
         CommandId::OCP_LOCK_DERIVE_MEK.into(),
         cmd.as_bytes().unwrap(),
     );
-    assert_eq!(
-        response.unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),)
-    );
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),
+            )
+        );
+    });
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -376,8 +389,13 @@ fn test_derive_mek_missing_hek() {
         CommandId::OCP_LOCK_DERIVE_MEK.into(),
         cmd.as_bytes().unwrap(),
     );
-    assert_eq!(
-        response.unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),)
-    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),
+            )
+        );
+    });
 }

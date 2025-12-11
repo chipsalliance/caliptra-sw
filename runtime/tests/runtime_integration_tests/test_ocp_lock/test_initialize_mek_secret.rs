@@ -6,10 +6,7 @@ use caliptra_api::mailbox::{
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
 
-use super::{boot_ocp_lock_runtime, OcpLockBootParams};
-
-// TODO(clundin): Validate MEK Secret Seed contents by constructing key ladder in other OCP LOCK
-// commands.
+use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams};
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
@@ -28,16 +25,17 @@ fn test_valid_mek_secret_seed() {
         dpk: [0xCD; 32],
     });
     cmd.populate_chksum().unwrap();
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
+        cmd.as_bytes().unwrap(),
+    );
 
-    model
-        .mailbox_execute(
-            CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .unwrap();
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        response.unwrap().unwrap();
+    });
 }
 
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_initialize_mek_secret_no_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams::default());
@@ -55,17 +53,10 @@ fn test_initialize_mek_secret_no_hek() {
         cmd.as_bytes().unwrap(),
     );
 
-    if model.subsystem_mode() && model.supports_ocp_lock() {
+    validate_ocp_lock_response(&mut model, response, |response, _| {
         assert_eq!(
             response.unwrap_err(),
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE.into(),)
         );
-    } else {
-        assert_eq!(
-            response.unwrap_err(),
-            ModelError::MailboxCmdFailed(
-                CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND.into(),
-            )
-        );
-    }
+    });
 }

@@ -342,7 +342,6 @@ jobs:
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
               -E 'package(caliptra-drivers) and test(test_dma_aes)'
               -E 'package(caliptra-runtime)
-                  - test(test_ocp_lock)
                   - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys)
                   - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd)
                   - test(test_fe_programming::test_fe_programming_invalid_partition)
