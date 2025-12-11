@@ -38,6 +38,11 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
+            arg!(--"svn" <U32> "Manifest Security Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"flags" <U32> "Manifest Flags")
                 .required(true)
                 .value_parser(value_parser!(u32)),
