@@ -1,14 +1,14 @@
 ##########################################
 #             Code Ownership
 ##########################################
-/rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
-/rom/dev/tests/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @jhand2 @zhalvorsen
-/kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
-/drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson
-/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen
-/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2 @zhalvorsen
-/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @zhalvorsen
-/fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims
-/runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen
-/hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims @zhalvorsen
-/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton @jhand2 @zhalvorsen
+/rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel
+/rom/dev/tests/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @jhand2 @zhalvorsen @timothytrippel
+/kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel
+/drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson @zhalvorsen @timothytrippel
+/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel
+/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel
+/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @timothytrippel
+/fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel
+/runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel
+/hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims @zhalvorsen @timothytrippel
+/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton @jhand2 @zhalvorsen @timothytrippel
