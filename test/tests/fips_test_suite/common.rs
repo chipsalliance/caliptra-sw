@@ -229,13 +229,16 @@ pub fn fips_test_init_to_rt(
     // Create params if not provided
     let mut boot_params = boot_params.unwrap_or_default();
 
-    if boot_params.fw_image.is_some() {
+    let mut hw = if boot_params.fw_image.is_some() {
         fips_test_init_base(init_params, Some(boot_params))
     } else {
         let fw_image = fips_fw_image();
         boot_params.fw_image = Some(&fw_image);
         fips_test_init_base(init_params, Some(boot_params))
-    }
+    };
+    // We need this on fpga_subsystem
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    hw
 
     // HW model will complete FW upload cmd, nothing to wait for
 }
