@@ -43,11 +43,14 @@ pub struct FirmwareVerifyCmd;
 impl FirmwareVerifyCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, src: VerifySrc) -> CaliptraResult<MboxStatusE> {
-        let (image_size, image_in_mcu) = match src {
+        let (image_size, image_source) = match src {
             VerifySrc::Mbox => {
                 let raw_data = drivers.mbox.raw_mailbox_contents();
                 Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
-                (drivers.mbox.dlen(), false)
+                (
+                    drivers.mbox.dlen(),
+                    caliptra_common::verifier::ImageSource::Memory(raw_data),
+                )
             }
             VerifySrc::External {
                 axi_address,
@@ -58,11 +61,13 @@ impl FirmwareVerifyCmd {
                     &mut drivers.dma,
                     axi_address,
                 )?;
-                (image_size, true)
+                (
+                    image_size,
+                    caliptra_common::verifier::ImageSource::McuSram(&drivers.dma),
+                )
             }
         };
 
-        let raw_data = drivers.mbox.raw_mailbox_contents();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut drivers.sha256,
             sha2_512_384: &mut drivers.sha2_512_384,
@@ -72,10 +77,8 @@ impl FirmwareVerifyCmd {
             mldsa87: &mut drivers.mldsa87,
             data_vault: &drivers.persistent_data.get().rom.data_vault,
             pcr_bank: &mut drivers.pcr_bank,
-            image: raw_data,
-            dma: &drivers.dma,
+            image_source,
             persistent_data: drivers.persistent_data.get(),
-            image_in_mcu,
         };
         let mut verifier = ImageVerifier::new(&mut venv);
 

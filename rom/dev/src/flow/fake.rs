@@ -196,6 +196,14 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     Ok(())
 }
 
+/// Image source for verification
+pub enum ImageSource<'a, 'b> {
+    /// Image is in memory (accessible as a byte slice)
+    Memory(&'b [u8]),
+    /// Image is in MCU SRAM (requires DMA access)
+    McuSram(&'a Dma),
+}
+
 // ROM Verification Environment
 pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
@@ -205,9 +213,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
     pub(crate) mldsa87: &'a mut Mldsa87,
-    pub image: &'b [u8],
-    pub(crate) dma: &'a Dma,
-    pub(crate) image_in_mcu: bool,
+    pub image_source: ImageSource<'a, 'b>,
 }
 
 impl FakeRomImageVerificationEnv<'_, '_> {
@@ -225,38 +231,52 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu {
-            let dma = FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result =
-                dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len, dma::AesDmaMode::None)?;
-            Ok(result.into())
-        } else {
-            let data = self
-                .image
-                .get(offset as usize..)
-                .ok_or(err)?
-                .get(..len as usize)
-                .ok_or(err)?;
-            Ok(self.sha2_512_384.sha384_digest(data)?.0)
+        match &self.image_source {
+            ImageSource::McuSram(dma) => {
+                let dma_recovery =
+                    FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery.sha384_mcu_sram(
+                    self.sha2_512_384_acc,
+                    offset,
+                    len,
+                    dma::AesDmaMode::None,
+                )?;
+                Ok(result.into())
+            }
+            ImageSource::Memory(image) => {
+                let data = image
+                    .get(offset as usize..)
+                    .ok_or(err)?
+                    .get(..len as usize)
+                    .ok_or(err)?;
+                Ok(self.sha2_512_384.sha384_digest(data)?.0)
+            }
         }
     }
 
     /// Calculate 512 digest using SHA2 Engine
     fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu {
-            let dma = FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result =
-                dma.sha512_mcu_sram(self.sha2_512_384_acc, offset, len, AesDmaMode::None)?;
-            Ok(result.into())
-        } else {
-            let data = self
-                .image
-                .get(offset as usize..)
-                .ok_or(err)?
-                .get(..len as usize)
-                .ok_or(err)?;
-            Ok(self.sha2_512_384.sha512_digest(data)?.0)
+        match &self.image_source {
+            ImageSource::McuSram(dma) => {
+                let dma_recovery =
+                    FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery.sha512_mcu_sram(
+                    self.sha2_512_384_acc,
+                    offset,
+                    len,
+                    AesDmaMode::None,
+                )?;
+                Ok(result.into())
+            }
+            ImageSource::Memory(image) => {
+                let data = image
+                    .get(offset as usize..)
+                    .ok_or(err)?
+                    .get(..len as usize)
+                    .ok_or(err)?;
+                Ok(self.sha2_512_384.sha512_digest(data)?.0)
+            }
         }
     }
 
@@ -266,24 +286,27 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
-        if self.image_in_mcu {
-            // For MCU case, use the existing sha384_digest function
-            self.sha384_digest(offset, len).map_err(|_| digest_failure)
-        } else {
-            let mut digest = Array4x12::default();
+        match &self.image_source {
+            ImageSource::McuSram(_) => {
+                // For MCU case, use the existing sha384_digest function
+                self.sha384_digest(offset, len).map_err(|_| digest_failure)
+            }
+            ImageSource::Memory(_) => {
+                let mut digest = Array4x12::default();
 
-            if let Some(mut sha_acc_op) = self
-                .sha2_512_384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                sha_acc_op
-                    .digest_384(len, offset, StreamEndianness::Reorder, &mut digest)
-                    .map_err(|_| digest_failure)?;
-            } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-            };
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_384(len, offset, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
 
-            Ok(digest.0)
+                Ok(digest.0)
+            }
         }
     }
 
@@ -293,24 +316,27 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
-        if self.image_in_mcu {
-            // For MCU case, use the existing sha512_digest function
-            self.sha512_digest(offset, len).map_err(|_| digest_failure)
-        } else {
-            let mut digest = Array4x16::default();
+        match &self.image_source {
+            ImageSource::McuSram(_) => {
+                // For MCU case, use the existing sha512_digest function
+                self.sha512_digest(offset, len).map_err(|_| digest_failure)
+            }
+            ImageSource::Memory(_) => {
+                let mut digest = Array4x16::default();
 
-            if let Some(mut sha_acc_op) = self
-                .sha2_512_384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                sha_acc_op
-                    .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
-                    .map_err(|_| digest_failure)?;
-            } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-            };
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
 
-            Ok(digest.0)
+                Ok(digest.0)
+            }
         }
     }
 

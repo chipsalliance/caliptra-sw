@@ -108,7 +108,11 @@ pub mod fips_self_test_cmd {
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+        } else {
+            caliptra_common::verifier::ImageSource::Memory(env.mbox.raw_mailbox_contents())
+        };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -118,10 +122,8 @@ pub mod fips_self_test_cmd {
             mldsa87: &mut env.mldsa87,
             data_vault: &env.persistent_data.get().rom.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: env.mbox.raw_mailbox_contents(),
-            dma: &env.dma,
+            image_source,
             persistent_data: &env.persistent_data.get(),
-            image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);

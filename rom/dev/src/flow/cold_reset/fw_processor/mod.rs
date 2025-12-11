@@ -173,7 +173,11 @@ impl FirmwareProcessor {
         );
         let manifest = okref(&manifest)?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+        } else {
+            caliptra_common::verifier::ImageSource::Memory(txn.raw_mailbox_contents())
+        };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -183,10 +187,8 @@ impl FirmwareProcessor {
             mldsa87: &mut env.mldsa87,
             data_vault: &env.persistent_data.get().rom.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: txn.raw_mailbox_contents(),
-            dma: &mut env.dma,
+            image_source,
             persistent_data: env.persistent_data.get(),
-            image_in_mcu,
         };
 
         // Verify the image
@@ -583,6 +585,12 @@ impl FirmwareProcessor {
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
+        let dma = if let caliptra_common::verifier::ImageSource::McuSram(dma) = &venv.image_source {
+            Some(*dma)
+        } else {
+            None
+        };
+
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
@@ -592,9 +600,14 @@ impl FirmwareProcessor {
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
             mldsa87: venv.mldsa87,
-            image: venv.image,
-            dma: venv.dma,
-            image_in_mcu: venv.image_in_mcu,
+            image_source: match &venv.image_source {
+                caliptra_common::verifier::ImageSource::Memory(img) => {
+                    crate::flow::fake::ImageSource::Memory(img)
+                }
+                caliptra_common::verifier::ImageSource::McuSram(dma) => {
+                    crate::flow::fake::ImageSource::McuSram(dma)
+                }
+            },
         };
 
         // Random delay for CFI glitch protection.
@@ -603,18 +616,15 @@ impl FirmwareProcessor {
         CfiCounter::delay();
         CfiCounter::delay();
 
-        let dma = venv.dma;
         let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
-
         let mci_base_addr = venv.soc_ifc.mci_base_addr().into();
         let caliptra_base_addr = venv.soc_ifc.caliptra_base_axi_addr().into();
-        let subsystem_mode = venv.soc_ifc.subsystem_mode();
 
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset);
 
         // If running in subsystem mode, set the recovery status.
-        if subsystem_mode {
+        if let Some(dma) = dma {
             let dma_recovery = DmaRecovery::new(
                 recovery_interface_base_addr,
                 caliptra_base_addr,
