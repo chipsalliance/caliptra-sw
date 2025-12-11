@@ -68,7 +68,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 4];
+pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
 
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_test_soc_manifest(DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
