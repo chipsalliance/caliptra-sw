@@ -1824,7 +1824,7 @@ impl HwModel for ModelFpgaSubsystem {
         while self.cycle_count().wrapping_sub(start) < 20_000_000 {
             self.step();
             let flow_status = self.soc_ifc().cptra_flow_status().read();
-            if flow_status.idevid_csr_ready() {
+            if flow_status.idevid_csr_ready() && boot_params.fw_image.is_some() {
                 // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
                 // once the CSR is ready to continue making progress.
                 //
