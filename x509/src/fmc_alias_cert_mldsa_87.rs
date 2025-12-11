@@ -35,13 +35,13 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{MlDsa87CertBuilder, MlDsa87Signature, NotAfter, NotBefore};
 
-    const TEST_DEVICE_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCertTbsMlDsa87Params::TCB_INFO_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCertTbsMlDsa87Params::TCB_INFO_FMC_TCI_LEN];
     const TEST_UEID: &[u8] = &[0xABu8; FmcAliasCertTbsMlDsa87Params::UEID_LEN];
-    const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
+    const TEST_OWNER_INFO_HASH: &[u8] =
+        &[0xCDu8; FmcAliasCertTbsMlDsa87Params::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN];
+    const TEST_VENDOR_INFO_HASH: &[u8] =
+        &[0xEFu8; FmcAliasCertTbsMlDsa87Params::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
+    const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasCertTbsMlDsa87Params::TCB_INFO_FMC_TCI_LEN];
     const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
-    const TEST_TCB_INFO_FW_SVN_FUSES: &[u8] = &[0xB8];
 
     fn make_test_cert(
         subject_key: &MlDsa87AsymKey,
@@ -65,11 +65,10 @@ mod tests {
             ueid: TEST_UEID.try_into().unwrap(),
             subject_key_id: &subject_key.sha1(),
             authority_key_id: &issuer_key.sha1(),
-            tcb_info_flags: TEST_TCB_INFO_FLAGS.try_into().unwrap(),
-            tcb_info_device_info_hash: &TEST_DEVICE_INFO_HASH.try_into().unwrap(),
+            tcb_info_owner_device_info_hash: &TEST_OWNER_INFO_HASH.try_into().unwrap(),
+            tcb_info_vendor_device_info_hash: &TEST_VENDOR_INFO_HASH.try_into().unwrap(),
             tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
             tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
-            tcb_info_fw_svn_fuses: &TEST_TCB_INFO_FW_SVN_FUSES.try_into().unwrap(),
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
         };
@@ -131,16 +130,16 @@ mod tests {
             issuer_key.sha1(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_FLAGS_OFFSET
-                ..FmcAliasCertTbsMlDsa87::TCB_INFO_FLAGS_OFFSET
-                    + FmcAliasCertTbsMlDsa87::TCB_INFO_FLAGS_LEN],
-            TEST_TCB_INFO_FLAGS,
+            &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCertTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCertTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN],
+            TEST_OWNER_INFO_HASH,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCertTbsMlDsa87::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCertTbsMlDsa87::TCB_INFO_DEVICE_INFO_HASH_LEN],
-            TEST_DEVICE_INFO_HASH,
+            &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCertTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCertTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN],
+            TEST_VENDOR_INFO_HASH,
         );
         assert_eq!(
             &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_FMC_TCI_OFFSET
@@ -153,12 +152,6 @@ mod tests {
                 ..FmcAliasCertTbsMlDsa87::TCB_INFO_FW_SVN_OFFSET
                     + FmcAliasCertTbsMlDsa87::TCB_INFO_FW_SVN_LEN],
             TEST_TCB_INFO_FW_SVN,
-        );
-        assert_eq!(
-            &cert.tbs()[FmcAliasCertTbsMlDsa87::TCB_INFO_FW_SVN_FUSES_OFFSET
-                ..FmcAliasCertTbsMlDsa87::TCB_INFO_FW_SVN_FUSES_OFFSET
-                    + FmcAliasCertTbsMlDsa87::TCB_INFO_FW_SVN_FUSES_LEN],
-            TEST_TCB_INFO_FW_SVN_FUSES,
         );
 
         let mldsa_sig = crate::MlDsa87Signature {
