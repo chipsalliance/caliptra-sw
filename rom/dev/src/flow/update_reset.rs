@@ -169,7 +169,6 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetLoadImageComplete.into());
 
         let persistent_data = env.persistent_data.get_mut();
-        cprintln!("[update-reset] Copying MAN_2 To MAN_1");
         persistent_data.rom.manifest1 = persistent_data.rom.manifest2;
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 

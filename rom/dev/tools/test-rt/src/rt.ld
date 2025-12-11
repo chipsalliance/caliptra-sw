@@ -19,10 +19,10 @@ ENTRY(_start)
 
 ICCM_ORG    = 0x40004000; /* Range [0x40000000 - 0x40003FFF] is reserved for FMC */
 DCCM_ORG    = 0x50000000;
-DATA_ORG    = 0x50004C00;
-STACK_ORG   = 0x5003C000;
-ESTACK_ORG  = 0x5003F800;
-NSTACK_ORG  = 0x5003FC00;
+STACK_ORG   = 0x50000000;
+ESTACK_ORG  = 0x50023000;
+NSTACK_ORG  = 0x50023400;
+DATA_ORG    = 0x50023c00;
 
 ICCM_SIZE   = 112K;
 DCCM_SIZE   = 256K;
@@ -38,9 +38,9 @@ MEMORY
 	STACK  (rw) : ORIGIN = STACK_ORG,  LENGTH = STACK_SIZE
 	ESTACK (rw) : ORIGIN = ESTACK_ORG, LENGTH = ESTACK_SIZE
 	NSTACK (rw) : ORIGIN = NSTACK_ORG, LENGTH = NSTACK_SIZE
-} 
+}
 
-SECTIONS 
+SECTIONS
 {
 	.text : ALIGN(4)
 	{
@@ -57,7 +57,7 @@ SECTIONS
 	.rodata : ALIGN(4)
 	{
         _srodata = .;
-		
+
 		  *(.srodata .srodata.*);
     	*(.rodata .rodata.*);
 
@@ -69,13 +69,13 @@ SECTIONS
 	{
 		  _sidata = LOADADDR(.data);
 	    _sdata = .;
-		
+
 	    /* Must be called __global_pointer$ for linker relaxations to work. */
 	    PROVIDE(__global_pointer$ = . + 0x800);
-   
+
 		*(.sdata .sdata.* .sdata2 .sdata2.*);
 	    *(.data .data.*);
-	    
+
 		. = ALIGN(4);
 	    _edata = .;
 	} > DATA AT> ICCM
@@ -90,7 +90,7 @@ SECTIONS
     } > ICCM
 
 
-	.bss (NOLOAD) : ALIGN(4) 
+	.bss (NOLOAD) : ALIGN(4)
     {
 		_sbss = .;
 
@@ -98,14 +98,14 @@ SECTIONS
         *(.sbss*)
         *(COMMON)
         . = ALIGN(4);
-		
+
 		_ebss = .;
     } > DATA
 
     .stack (NOLOAD): ALIGN(4)
     {
     	_estack = .;
-		
+
         . = . + STACK_SIZE;
 
         . = ALIGN(4);
@@ -115,7 +115,7 @@ SECTIONS
 	.estack (NOLOAD): ALIGN(4)
     {
     	_eestack = .;
-		
+
         . = . + ESTACK_SIZE;
 
         . = ALIGN(4);
@@ -125,7 +125,7 @@ SECTIONS
     .nstack (NOLOAD): ALIGN(4)
     {
     	_enstack = .;
-		
+
         . = . + NSTACK_SIZE;
 
         . = ALIGN(4);
@@ -137,14 +137,14 @@ SECTIONS
     	KEEP(*(.got .got.*));
   	}
 
-  	.eh_frame (INFO) : 
-	{ 
+  	.eh_frame (INFO) :
+	{
 		KEEP(*(.eh_frame))
 	}
-	
+
   	.eh_frame_hdr (INFO) :
 	{
-		*(.eh_frame_hdr) 
+		*(.eh_frame_hdr)
 	}
 }
 

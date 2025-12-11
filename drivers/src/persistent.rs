@@ -64,7 +64,6 @@ mod fw {
     pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
     pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
     pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
-    pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
 }
 
 #[cfg(feature = "runtime")]
@@ -294,9 +293,9 @@ pub struct OcpLockMetadata {
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
-    pub rom: RomPersistentData,
     #[cfg(any(feature = "fmc", feature = "runtime"))]
     pub fw: FwPersistentData,
+    pub rom: RomPersistentData,
 }
 
 impl PersistentData {
@@ -310,6 +309,8 @@ impl PersistentData {
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct RomPersistentData {
+    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
+    // needs to grow upwards
     pub manifest1: ImageManifest,
     reserved0: [u8; MAN1_SIZE as usize - size_of::<ImageManifest>()],
 
@@ -352,6 +353,8 @@ pub struct RomPersistentData {
 
     // TODO(clundin): For runtime we may want to gate this behind a feature flag.
     pub ocp_lock_metadata: OcpLockMetadata,
+    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
+    // needs to grow upwards
 }
 
 impl RomPersistentData {
@@ -359,10 +362,13 @@ impl RomPersistentData {
         const P: *const PersistentData =
             memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         unsafe {
+            #[cfg(any(feature = "fmc", feature = "runtime"))]
+            let mut persistent_data_offset = size_of::<FwPersistentData>() as u32;
+            #[cfg(not(any(feature = "fmc", feature = "runtime")))]
             let mut persistent_data_offset = 0;
             assert_eq!(
                 addr_of!((*P).rom.manifest1) as u32,
-                memory_layout::PERSISTENT_DATA_ORG
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
             persistent_data_offset += MAN1_SIZE;
             assert_eq!(
@@ -465,6 +471,8 @@ impl RomPersistentData {
                 addr_of!((*P).rom.ocp_lock_metadata) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+
+            assert_eq!(P.add(1) as u32, memory_layout::ROM_DATA_ORG);
         }
     }
 }
@@ -473,6 +481,15 @@ impl RomPersistentData {
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct FwPersistentData {
+    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
+    // needs to grow upwards
+    #[cfg(feature = "runtime")]
+    pub dpe: DpePersistentData,
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; DPE_SIZE as usize - size_of::<DpePersistentData>()],
+    #[cfg(not(feature = "runtime"))]
+    dpe: [u8; DPE_SIZE as usize],
+
     pub ecc_rtalias_tbs: [u8; ECC_RTALIAS_TBS_SIZE as usize],
     pub mldsa_rtalias_tbs: [u8; MLDSA_RTALIAS_TBS_SIZE as usize],
 
@@ -503,13 +520,8 @@ pub struct FwPersistentData {
     reserved4: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
     pub mcu_firmware_loaded: u32,
-
-    #[cfg(feature = "runtime")]
-    pub dpe: DpePersistentData,
-    #[cfg(feature = "runtime")]
-    reserved6: [u8; DPE_SIZE as usize - size_of::<DpePersistentData>()],
-    #[cfg(not(feature = "runtime"))]
-    dpe: [u8; DPE_SIZE as usize],
+    // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
+    // needs to grow upwards
 }
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
@@ -518,7 +530,13 @@ impl FwPersistentData {
         const P: *const PersistentData =
             memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         unsafe {
-            let mut persistent_data_offset = size_of::<RomPersistentData>() as u32;
+            let mut persistent_data_offset = 0;
+            assert_eq!(
+                addr_of!((*P).fw.dpe) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += DPE_SIZE;
             assert_eq!(
                 addr_of!((*P).fw.ecc_rtalias_tbs) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -566,14 +584,6 @@ impl FwPersistentData {
                 addr_of!((*P).fw.mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-
-            persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
-            assert_eq!(
-                addr_of!((*P).fw.dpe) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
     }
 }

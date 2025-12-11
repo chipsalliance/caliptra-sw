@@ -51,5 +51,5 @@ pub const FMC_SIZE: u32 = 36 * 1024; // Must be 4k aligned
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 160 * 1024;
 
-pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
+pub use memory_layout::{EXTRA_MEMORY_ORG, PERSISTENT_DATA_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};

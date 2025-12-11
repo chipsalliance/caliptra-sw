@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, rom_env::RomEnv};
+use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
@@ -30,7 +30,6 @@ use core::mem::size_of;
 /// * `reset_reason` - Reset reason
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
-    cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
         lock_common_reg_set(env);
@@ -39,12 +38,10 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
         lock_common_reg_set(env);
     }
 
-    cprintln!("[state] Locking PCR0, PCR1 and PCR31");
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_CURRENT);
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_JOURNEY);
     env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
 
-    cprintln!("[state] Locking ICCM");
     env.soc_ifc.set_iccm_lock(true);
 }
 
