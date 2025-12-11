@@ -95,6 +95,16 @@ jobs:
           path: /tmp/caliptra-fpga-sysroot.tar
           key: sysroot-v9-${{ env.CACHE_BUSTER }}
 
+      - name: Check MCU Commit validity
+        run: |
+          git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch main-2.1
+          pushd caliptra-mcu-sw
+          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then 
+            echo 'CALIPTRA_MCU_COMMIT is not in the `main-2.1` branch!'
+            exit 1
+          fi
+          popd
+
       - name: Extract sysroot
         if: "steps.restore_sysroot_cache.outputs.cache-hit"
         run: |
