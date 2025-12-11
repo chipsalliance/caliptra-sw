@@ -1504,7 +1504,8 @@ impl Commands {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
-        let tag = &cmd.tag[..cmd.tag_len as usize];
+        let tag_arr: [u8; 16] = transmute!(cmd.tag);
+        let tag = &tag_arr[..cmd.tag_len as usize];
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
         let encrypted_context = EncryptedAesGcmContext::ref_from_bytes(&cmd.context[..])
