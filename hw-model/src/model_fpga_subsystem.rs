@@ -23,7 +23,7 @@ use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
+use caliptra_hw_model_types::HexSlice;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::marker::PhantomData;
@@ -74,7 +74,11 @@ const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PAR
 const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
 const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 20; // 4 bytes
                                                                                                 // LIFECYCLE_PARTITION
-                                                                                                // CPTRA_SS_LOCK_HEK_PROD partitions
+                                                                                                // VENDOR_NON_SECRET_PROD_PARTITION
+pub const VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET: usize = 0xaa8;
+const UDS_SEED_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET; // 64 bytes
+const FIELD_ENTROPY_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET + 64; // 32 bytes
+                                                                                       // CPTRA_SS_LOCK_HEK_PROD partitions
 const OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET: usize = 0xCB0;
 const OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET + 48;
 const OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET + 48;
@@ -1317,12 +1321,59 @@ impl ModelFpgaSubsystem {
         // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
         // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
-        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
-            anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
-            ..Default::default()
-        })?;
+        let mem =
+            otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
+                anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
+                idevid_cert_attr: self
+                    .fuses
+                    .idevid_cert_attr
+                    .iter()
+                    .fold(vec![], |mut acc, f| {
+                        let bytes = f.to_le_bytes();
+                        acc.extend_from_slice(&bytes);
+                        acc
+                    })
+                    .try_into()
+                    .unwrap(),
+                hsm_id: self.fuses.idevid_manuf_hsm_id.iter().enumerate().fold(
+                    0,
+                    |mut acc, (f, i)| {
+                        acc |= (f as u128) << (i * 32);
+                        acc
+                    },
+                ),
+                stepping_id: self.fuses.soc_stepping_id as u32,
+                ..Default::default()
+            })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Provision UDS seed in SECRET_MANUF partition
+        println!("Provisioning UDS seed in SECRET_MANUF partition.");
+        let uds_seed_bytes: Vec<u8> = self
+            .fuses
+            .uds_seed
+            .iter()
+            .flat_map(|&word| word.to_le_bytes())
+            .collect();
+        println!("Setting UDS seed to {:x?}", HexSlice(&uds_seed_bytes));
+        otp_data[UDS_SEED_OFFSET..UDS_SEED_OFFSET + uds_seed_bytes.len()]
+            .copy_from_slice(&uds_seed_bytes);
+
+        // Provision field entropy in SECRET_MANUF partition
+        println!("Provisioning field entropy in SECRET_MANUF partition.");
+        let field_entropy_bytes: Vec<u8> = self
+            .fuses
+            .field_entropy
+            .iter()
+            .flat_map(|&word| word.to_le_bytes())
+            .collect();
+        println!(
+            "Setting field entropy to {:x?}",
+            HexSlice(&field_entropy_bytes)
+        );
+        otp_data[FIELD_ENTROPY_OFFSET..FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
+            .copy_from_slice(&field_entropy_bytes);
 
         let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
         println!(
@@ -1653,16 +1704,6 @@ impl HwModel for ModelFpgaSubsystem {
         // Set the CSR HMAC key
         for i in 0..16 {
             m.wrapper.regs().cptra_csr_hmac_key[i].set(params.csr_hmac_key[i]);
-        }
-
-        // Set the UDS Seed
-        for (i, udsi) in DEFAULT_UDS_SEED.iter().copied().enumerate() {
-            m.wrapper.regs().cptra_obf_uds_seed[i].set(udsi);
-        }
-
-        // Set the FE Seed
-        for (i, fei) in DEFAULT_FIELD_ENTROPY.iter().copied().enumerate() {
-            m.wrapper.regs().cptra_obf_field_entropy[i].set(fei);
         }
 
         // Currently not using strap UDS and FE
