@@ -38,7 +38,8 @@ fn check_jtag_accessible(
 fn jtag_locked() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     // When debug is locked JTAG is only accesisble in Manufacturing mode.
     check_jtag_accessible(
         &rom,
