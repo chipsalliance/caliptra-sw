@@ -117,6 +117,7 @@ pub struct RuntimeTestArgs<'a> {
     pub production_state: Option<RuntimeProductionArgs>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub hek_seed: Option<[u32; 8]>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
@@ -161,6 +162,7 @@ impl Default for RuntimeTestArgs<'_> {
             production_state: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
+            hek_seed: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
@@ -289,6 +291,7 @@ pub fn start_rt_test_pqc_model(
         soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
         soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
         fw_svn: svn_to_bitmap(production_state.fw_svn),
+        hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
         ..Default::default()
     };
 

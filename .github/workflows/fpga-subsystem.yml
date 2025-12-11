@@ -354,10 +354,8 @@ jobs:
                   - test(test_wdt_activation_and_stoppage::)
                   - test(test_warm_reset::test_warm_reset_during_update_reset)
                   - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)
-                  - test(test_image_validation::cert_test_with_ueid)
-                  - test(ocp_lock)'
+                  - test(test_image_validation::cert_test_with_ueid)'
               -E 'package(caliptra-drivers)
-                  - test(test_ocp_lock)
                   - test(test_ocp_lock_warm_reset)
                   - test(test_csrng_adaptive_proportion)
                   - test(test_csrng_repetition_count)
