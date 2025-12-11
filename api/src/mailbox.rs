@@ -3454,7 +3454,7 @@ pub struct CmAesGcmDecryptFinalReq {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub tag_len: u32,
-    pub tag: [u8; 16],
+    pub tag: [u32; 4],
     pub ciphertext_size: u32,
     pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
 }
@@ -3465,7 +3465,7 @@ impl Default for CmAesGcmDecryptFinalReq {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
             tag_len: 0,
-            tag: [0u8; 16],
+            tag: [0u32; 4],
             ciphertext_size: 0,
             ciphertext: [0u8; MAX_CMB_DATA_SIZE],
         }
