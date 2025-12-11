@@ -13,11 +13,11 @@ fn test_persistent_data_layout() {
 fn test_read_write() {
     {
         let mut accessor = unsafe { PersistentDataAccessor::new() };
-        accessor.get_mut().fht.fht_marker = 0xfe9cd1c0;
+        accessor.get_mut().rom.fht.fht_marker = 0xfe9cd1c0;
     }
     {
         let accessor = unsafe { PersistentDataAccessor::new() };
-        assert_eq!(accessor.get().fht.fht_marker, 0xfe9cd1c0);
+        assert_eq!(accessor.get().rom.fht.fht_marker, 0xfe9cd1c0);
     }
 }
 

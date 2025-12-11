@@ -10,32 +10,36 @@ echo 3 > /proc/sys/kernel/printk
 
 # TODO(clundin): There are a lot of hacks that get cleaned up if using initrd.
 
+# The VCK-190 image currently always has the same MAC. Do this for now until 
+# a better option is found.
+ip link set dev end0 down
+macchanger -r end0 || true
+ip link set dev end0 up
+
 # Overlay exists so we can proceed.
 if [[ -f "/etc/no_overlayfs" ]]; then
     echo "Skipping overlayfs setup for development image."
     mount -o rw,remount /
     systemctl start resize-rootfs
-    ip link set dev end0 up
     insmod /home/runner/io-module.ko
     login -f root
 elif grep -q "overlay" /proc/mounts; then
     mount -o rw,remount /
 
+    # TODO(clundin): Get this at job runtime instead.
+    insmod /home/runner/io-module.ko
+
+    HOST="google.com"
+    while ! ping -c 1 "$HOST" &> /dev/null; do
+      echo "Connection to $HOST failed. Retrying in 1 second..."
+      sleep 1
+    done
+
     # Update time. This requires a R/W file system, so it failed earlier.
     timedatectl set-ntp true
     systemctl restart systemd-timesyncd
 
-    # Give the NTP service some time
-    sleep 1m
-
-    # TODO(clundin): Get this at job runtime instead.
-    insmod /home/runner/io-module.ko
-
-    # The VCK-190 image currently always has the same MAC. Do this for now until
-    # a better option is found.
-    ip link set dev end0 down
-    macchanger -r end0 || true
-    ip link set dev end0 up
+    sleep 15s
 
     function runner_jitconfig() {
       echo "Executing GHA runner"
@@ -71,7 +75,7 @@ else
    # We need to mount the squashfs in an overlayfs. To spare myself more pain
    # wrestling with petalinux I will mount the overlay here (why not). Eventually
    # I want to do this the proper way but this will do for now.
-
+  
    LOWER_DIR="/mnt/root_base"
    MERGED_DIR="/mnt/new_root"
    UPPER_MNT="/mnt/root_overlay"

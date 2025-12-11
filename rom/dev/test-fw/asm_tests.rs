@@ -12,6 +12,7 @@ core::arch::global_asm!(include_str!("../src/start.S"));
 #[path = "../src/exception.rs"]
 mod exception;
 
+use caliptra_common::memory_layout::{DCCM_ORG, DCCM_SIZE, ROM_STACK_SIZE};
 use caliptra_drivers::cprintln;
 use caliptra_drivers::ExitCtrl;
 
@@ -75,8 +76,11 @@ pub extern "C" fn rom_entry() -> ! {
         // Test that memory is cleared at startup
         assert!(is_zeroed(0x4000_0000 as *const u32, 1024 * 128));
 
-        // Check everything but the last 3k, which might contain non-zero stack bytes
-        assert!(is_zeroed(0x5000_0000 as *const u32, 1024 * (128 - 3)));
+        // Check everything except the stack is zeroed
+        assert!(is_zeroed(
+            (DCCM_ORG + ROM_STACK_SIZE) as *const u32,
+            (DCCM_SIZE - ROM_STACK_SIZE) as usize
+        ));
 
         // Test _zero_mem256
 

@@ -5,7 +5,7 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
         r#"
         ICCM_ORG  		 = 0x{iccm_org:08X};
         DCCM_ORG  		 = 0x{DCCM_ORG:08X};
-        DATA_ORG  		 = 0x{DATA_ORG:08X};
+        DATA_ORG  		 = 0x{EXTRA_MEMORY_ORG:08X};
         STACK_ORG 		 = 0x{STACK_ORG:08X};
         ESTACK_ORG  	 = 0x{ESTACK_ORG:08X};
         NSTACK_ORG       = 0x{NSTACK_ORG:08X};
@@ -15,7 +15,7 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
 
         ICCM_SIZE   = 0x{iccm_size:08X};
         DCCM_SIZE   = 0x{DCCM_SIZE:08X};
-        DATA_SIZE   = 0x{DATA_SIZE:08X};
+        DATA_SIZE   = 0x{EXTRA_MEMORY_SIZE:08X};
         STACK_SIZE  = 0x{STACK_SIZE:08X};
         ESTACK_SIZE = 0x{ESTACK_SIZE:08X};
         NSTACK_SIZE = 0x{NSTACK_SIZE:08X};

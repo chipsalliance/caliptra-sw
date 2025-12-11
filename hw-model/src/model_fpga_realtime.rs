@@ -22,7 +22,6 @@ use crate::Fuses;
 use crate::ModelError;
 use crate::Output;
 use crate::{HwModel, SecurityState, SocManager, TrngMode};
-use caliptra_hw_model_types::{DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OpenOcdError {
@@ -514,6 +513,9 @@ impl HwModel for ModelFpgaRealtime {
             }
         };
 
+        let uds_seed = params.fuses.uds_seed;
+        let field_entropy = params.fuses.field_entropy;
+
         let mut m = Self {
             dev,
             wrapper,
@@ -586,7 +588,7 @@ impl HwModel for ModelFpgaRealtime {
             unsafe {
                 m.wrapper
                     .offset(FPGA_WRAPPER_OBF_UDS_SEED_OFFSET + i)
-                    .write_volatile(DEFAULT_UDS_SEED[i as usize])
+                    .write_volatile(uds_seed[i as usize])
             };
         }
 
@@ -595,7 +597,7 @@ impl HwModel for ModelFpgaRealtime {
             unsafe {
                 m.wrapper
                     .offset(FPGA_WRAPPER_OBF_FIELD_ENTROPY_OFFSET + i)
-                    .write_volatile(DEFAULT_FIELD_ENTROPY[i as usize])
+                    .write_volatile(field_entropy[i as usize])
             };
         }
 

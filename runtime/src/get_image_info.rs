@@ -33,6 +33,7 @@ impl GetImageInfoCmd {
                 &drivers
                     .persistent_data
                     .get()
+                    .fw
                     .auth_manifest_image_metadata_col,
                 u32::from_le_bytes(cmd.fw_id),
             )

@@ -21,7 +21,9 @@ mod tci;
 use crate::flow::rt_alias::RtAliasLayer;
 
 use crate::fmc_env::FmcEnv;
-use caliptra_drivers::CaliptraResult;
+use caliptra_cfi_lib::cfi_assert_ne;
+use caliptra_drivers::{CaliptraResult, FwPersistentData, RomPersistentData};
+use caliptra_error::CaliptraError;
 
 /// Execute FMC Flows based on reset reason
 ///
@@ -37,8 +39,27 @@ pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
 
         if reset_reason == ResetReason::ColdReset {
             cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+
+            let pdata = env.persistent_data.get_mut();
+            pdata.rom.minor_version = RomPersistentData::MINOR_VERSION;
+            pdata.fw.marker = FwPersistentData::MAGIC;
+            pdata.fw.version = FwPersistentData::VERSION;
+
             // Generate the FMC Alias Certificate Signing Request (CSR)
             fmc_alias_csr_ecc_384::generate_csr(env)?;
+        } else {
+            cfi_assert_ne(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+
+            let pdata = env.persistent_data.get();
+            if pdata.rom.minor_version != RomPersistentData::MINOR_VERSION {
+                return Err(CaliptraError::FMC_INVALID_ROM_PERSISTENT_DATA_VERSION);
+            }
+            if pdata.fw.marker != FwPersistentData::MAGIC {
+                return Err(CaliptraError::FMC_INVALID_FW_PERSISTENT_DATA_MARKER);
+            }
+            if pdata.fw.version != FwPersistentData::VERSION {
+                return Err(CaliptraError::FMC_INVALID_FW_PERSISTENT_DATA_VERSION);
+            }
         }
     }
 

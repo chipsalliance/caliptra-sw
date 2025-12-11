@@ -1,12 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
-use caliptra_auth_man_types::ImageMetadataFlags;
-use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthorizationManifest};
+use caliptra_auth_man_gen::default_test_manifest::default_test_soc_manifest;
 use caliptra_builder::{
     firmware::{
         APP_WITH_UART, APP_WITH_UART_FPGA, APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA,
@@ -22,8 +20,6 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
-use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
-
 use caliptra_image_types::FwVerificationPqcKeyType;
 
 use caliptra_drivers::MfgFlags;
@@ -76,24 +72,8 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 
 pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 4];
 
-fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
-    // generate a default SoC manifest if one is not provided in subsystem mode
-    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
-    let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
-    let metadata = vec![AuthManifestImageMetadata {
-        fw_id: 2,
-        flags: flags.0,
-        digest,
-        ..Default::default()
-    }];
-    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
-}
-
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_soc_manifest(pqc_key_type, svn);
+    let manifest = default_test_soc_manifest(DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
     manifest.as_bytes().to_vec()
 }
 
@@ -139,6 +119,7 @@ pub struct RuntimeTestArgs<'a> {
     pub production_state: Option<RuntimeProductionArgs>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub hek_seed: Option<[u32; 8]>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
@@ -183,6 +164,7 @@ impl Default for RuntimeTestArgs<'_> {
             production_state: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
+            hek_seed: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
@@ -311,6 +293,7 @@ pub fn start_rt_test_pqc_model(
         soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
         soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
         fw_svn: svn_to_bitmap(production_state.fw_svn),
+        hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
         ..Default::default()
     };
 

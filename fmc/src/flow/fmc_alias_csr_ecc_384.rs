@@ -99,7 +99,7 @@ pub struct FmcAliasCsrTbsCommonParams {
 }
 
 fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommonParams> {
-    let data_vault = &env.persistent_data.get().data_vault;
+    let data_vault = &env.persistent_data.get().rom.data_vault;
 
     let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
@@ -179,7 +179,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     sig.zeroize();
 
     let csr_bldr = result?;
-    let fmc_alias_csr = &mut env.persistent_data.get_mut().fmc_alias_csr;
+    let fmc_alias_csr = &mut env.persistent_data.get_mut().fw.fmc_alias_csr;
     let csr_len = csr_bldr
         .build(&mut fmc_alias_csr.ecc_csr)
         .ok_or(CaliptraError::FMC_ALIAS_CSR_BUILDER_BUILD_FAILURE)?;
@@ -230,7 +230,7 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     sig.zeroize();
 
     let csr_bldr = result?;
-    let fmc_alias_csr = &mut env.persistent_data.get_mut().fmc_alias_csr;
+    let fmc_alias_csr = &mut env.persistent_data.get_mut().fw.fmc_alias_csr;
     let csr_len = csr_bldr
         .build(&mut fmc_alias_csr.mldsa_csr)
         .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;

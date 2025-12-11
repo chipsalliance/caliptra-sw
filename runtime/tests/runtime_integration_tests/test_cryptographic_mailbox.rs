@@ -1650,7 +1650,7 @@ fn mailbox_gcm_decrypt(
         hdr: MailboxReqHeader::default(),
         context,
         tag_len: tag.len() as u32,
-        tag: *tag,
+        tag: transmute!(*tag),
         ciphertext_size: ciphertext.len() as u32,
         ciphertext: [0; MAX_CMB_DATA_SIZE],
     };
@@ -1768,7 +1768,7 @@ fn mailbox_spdm_gcm_decrypt(
         hdr: MailboxReqHeader::default(),
         context,
         tag_len: tag.len() as u32,
-        tag: *tag,
+        tag: transmute!(*tag),
         ciphertext_size: ciphertext.len() as u32,
         ciphertext: [0; MAX_CMB_DATA_SIZE],
     };

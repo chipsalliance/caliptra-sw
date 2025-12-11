@@ -3,7 +3,10 @@
 #![no_main]
 #![no_std]
 
-use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
+use caliptra_common::{
+    handle_fatal_error,
+    mailbox_api::{CommandId, ExternalMailboxCmdReq},
+};
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
 
 use caliptra_drivers::{cprintln, CaliptraError, CaliptraResult};
@@ -12,7 +15,7 @@ use caliptra_registers::pv::PvReg;
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{mailbox::Mailbox, Drivers, RtBootStatus};
 use caliptra_test_harness::{runtime_handlers, test_suite};
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
@@ -38,7 +41,7 @@ fn rt_entry() {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
+    if !drivers.persistent_data.get().rom.fht.is_valid() {
         cprintln!("Runtime can't load FHT");
         handle_fatal_error(CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
@@ -75,6 +78,11 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     }
 }
 
+fn read_request(mbox: &Mailbox) -> &[u8] {
+    let size = mbox.dlen() as usize;
+    &mbox.raw_mailbox_contents()[..size]
+}
+
 pub fn handle_command(
     drivers: &mut Drivers,
     persistent_data: &PersistentDataAccessor,
@@ -84,6 +92,30 @@ pub fn handle_command(
             // Wait for a request from the SoC.
         }
         let cmd = drivers.mbox.cmd();
+        // Handle external mailbox command if in subsystem mode
+        if drivers.soc_ifc.subsystem_mode() && cmd == CommandId::EXTERNAL_MAILBOX_CMD {
+            let input_bytes = read_request(&drivers.mbox);
+            let external_cmd = ExternalMailboxCmdReq::read_from_bytes(input_bytes)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+            // Only FIRMWARE_LOAD is supported as external command
+            if external_cmd.command_id == CommandId::FIRMWARE_LOAD.0 {
+                cprintln!("[rt-test] Received external FIRMWARE_LOAD command, triggering reset");
+                unsafe { SocIfcReg::new() }
+                    .regs_mut()
+                    .internal_fw_update_reset()
+                    .write(|w| w.core_rst(true));
+                // Should not reach here
+                return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+            } else {
+                cprintln!(
+                    "[rt-test] External command 0x{:x} not supported, only FIRMWARE_LOAD allowed",
+                    external_cmd.command_id
+                );
+                return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND);
+            }
+        }
+
         let mbox = &mut drivers.mbox;
 
         match cmd {
@@ -102,7 +134,7 @@ pub fn handle_command(
 fn read_pcr_log(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
     let mut pcr_entry_count = 0;
     loop {
-        let pcr_entry = persistent_data.get().pcr_log[pcr_entry_count];
+        let pcr_entry = persistent_data.get().rom.pcr_log[pcr_entry_count];
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -121,7 +153,7 @@ fn read_pcr_log(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
 }
 
 fn read_fht(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
-    mbox.write_response(persistent_data.get().fht.as_bytes())
+    mbox.write_response(persistent_data.get().rom.fht.as_bytes())
         .unwrap();
     mbox.set_status(MboxStatusE::DataReady);
 }

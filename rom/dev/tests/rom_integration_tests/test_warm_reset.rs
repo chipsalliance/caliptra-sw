@@ -102,9 +102,7 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Step till Cold boot starts
-    hw.step_until(|model| {
-        model.soc_ifc().cptra_boot_status().read() >= IDevIdDecryptUdsComplete.into()
-    });
+    hw.step_until(|m| m.ready_for_fw());
 
     // Perform a warm reset
     hw.warm_reset_flow().unwrap();

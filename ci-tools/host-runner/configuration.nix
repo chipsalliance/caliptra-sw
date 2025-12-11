@@ -11,57 +11,14 @@
   ...
 }:
 let
-  download-image-script = pkgs.writeShellScriptBin "download-fpga-image" ''
-    export GCP_ZONE="us-central1"
-    export GITHUB_ORG="chipsalliance"
-    export GCP_PROJECT="caliptra-github-ci"
-    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml "$@"
-  '';
-  update-fpga-script = pkgs.writeShellScriptBin "update-fpga-image" ''
-    export GCP_ZONE="us-central1"
-    export GITHUB_ORG="chipsalliance"
-    export GCP_PROJECT="caliptra-github-ci"
-
-    cd /home/${user}
-    set -eux
-    mkdir -p ci-images
-    pushd ci-images
-
-    ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image-1.x.yml caliptra-fpga-image main > caliptra-fpga-image.zip
-    ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
-    DATE_SUFFIX=$(date +%Y%m%d)
-    (mv zcu104.img zcu104.img.old."$DATE_SUFFIX" || true)
-    mv image.img zcu104.img
-    rm caliptra-fpga-image.zip
-
-    for VARIANT in "caliptra-fpga-image-core" "caliptra-fpga-image-subsystem"; do
-        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main > $VARIANT.zip
-        ${pkgs.unzip}/bin/unzip $VARIANT.zip
-        (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
-        mv image.img $VARIANT.img
-        rm $VARIANT.zip
-    done
-
-    popd 
-
-    mkdir -p dev-images
-    pushd dev-images
-
-    for VARIANT in "caliptra-fpga-image-core-dev" "caliptra-fpga-image-subsystem-dev"; do
-        ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main > $VARIANT.zip
-        ${pkgs.unzip}/bin/unzip $VARIANT.zip
-        (mv $VARIANT.img $VARIANT.img.old."$DATE_SUFFIX" || true)
-        mv image.img $VARIANT.img
-        rm $VARIANT.zip
-     done
-  '';
-  cleanup-old-images-script = pkgs.writeShellScriptBin "cleanup-old-images" ''
-    set -eux
-    for dir in "/home/${user}/ci-images" "/home/${user}/dev-images"; do
-        cd $dir
-        ${pkgs.fd}/bin/fd --glob "*.img*.old" --change-older-than "4 weeks" -X rm
-    done
-  '';
+  scripts = import ./scripts.nix {
+    inherit
+      pkgs
+      rtool
+      fpga-boss
+      user
+      ;
+  };
 in
 {
   imports = [
@@ -137,9 +94,8 @@ in
     fpga-boss
     picocom
     usbsdmux
-    update-fpga-script
-    download-image-script
-    cleanup-old-images-script
+    scripts.sync-images
+    scripts.download-image
   ];
 
   programs.zsh.enable = true;
@@ -169,7 +125,7 @@ in
   # Keep logs for 2 weeks, we generally only need to look at them when things break.
   services.journald.extraConfig = "MaxRetentionSec=2weeks";
 
-  systemd.timers."update-fpga-image" = {
+  systemd.timers."sync-images" = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "Wed *-*-* 05:00:00";
@@ -177,15 +133,15 @@ in
     };
   };
 
-  systemd.services."update-fpga-image" = {
+  systemd.services."sync-images" = {
     serviceConfig = {
       Type = "oneshot";
       User = "${user}";
-      ExecStart = "${update-fpga-script}/bin/update-fpga-image";
+      ExecStart = "${scripts.sync-images}/bin/sync-images";
     };
   };
 
-  systemd.timers."cleanup-old-images" = {
+  systemd.timers."image-cleanup" = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "Sat *-*-* 05:00:00";
@@ -193,11 +149,11 @@ in
     };
   };
 
-  systemd.services."cleanup-old-images" = {
+  systemd.services."image-cleanup" = {
     serviceConfig = {
       Type = "oneshot";
       User = "${user}";
-      ExecStart = "${cleanup-old-images-script}/bin/cleanup-old-images";
+      ExecStart = "${scripts.image-cleanup}/bin/image-cleanup";
     };
   };
 }

@@ -85,15 +85,15 @@ pub mod fips_self_test_cmd {
     fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
         env.mbox.write_cmd(0)?;
         env.mbox.set_dlen(
-            env.persistent_data.get().manifest1.size
-                + env.persistent_data.get().manifest1.fmc.size
-                + env.persistent_data.get().manifest1.runtime.size,
+            env.persistent_data.get().rom.manifest1.size
+                + env.persistent_data.get().rom.manifest1.fmc.size
+                + env.persistent_data.get().rom.manifest1.runtime.size,
         )?;
         env.mbox
-            .copy_bytes_to_mbox(env.persistent_data.get().manifest1.as_bytes())?;
+            .copy_bytes_to_mbox(env.persistent_data.get().rom.manifest1.as_bytes())?;
 
-        let fmc_toc = &env.persistent_data.get().manifest1.fmc;
-        let rt_toc = &env.persistent_data.get().manifest1.runtime;
+        let fmc_toc = &env.persistent_data.get().rom.manifest1.fmc;
+        let rt_toc = &env.persistent_data.get().rom.manifest1.runtime;
 
         if fmc_toc.size > FMC_SIZE {
             return Err(CaliptraError::RUNTIME_INVALID_FMC_SIZE);
@@ -108,7 +108,11 @@ pub mod fips_self_test_cmd {
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+        } else {
+            caliptra_common::verifier::ImageSource::Memory(env.mbox.raw_mailbox_contents())
+        };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -116,20 +120,18 @@ pub mod fips_self_test_cmd {
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,
-            data_vault: &env.persistent_data.get().data_vault,
+            data_vault: &env.persistent_data.get().rom.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: env.mbox.raw_mailbox_contents(),
-            dma: &env.dma,
+            image_source,
             persistent_data: &env.persistent_data.get(),
-            image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
         let _info = verifier.verify(
-            &env.persistent_data.get().manifest1,
-            env.persistent_data.get().manifest1.size
-                + env.persistent_data.get().manifest1.fmc.size
-                + env.persistent_data.get().manifest1.runtime.size,
+            &env.persistent_data.get().rom.manifest1,
+            env.persistent_data.get().rom.manifest1.size
+                + env.persistent_data.get().rom.manifest1.fmc.size
+                + env.persistent_data.get().rom.manifest1.runtime.size,
             ResetReason::UpdateReset,
         )?;
         cprintln!("[rt] Verify complete");
@@ -194,7 +196,7 @@ pub mod fips_self_test_cmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
     fn rom_integrity_test(env: &mut Drivers) -> CaliptraResult<()> {
         // Extract the expected has from the fht.
-        let rom_info = env.persistent_data.get().fht.rom_info_addr.get()?;
+        let rom_info = env.persistent_data.get().rom.fht.rom_info_addr.get()?;
 
         // WARNING: It is undefined behavior to dereference a zero (null) pointer in
         // rust code. This is only safe because the dereference is being done by an
@@ -204,7 +206,7 @@ pub mod fips_self_test_cmd {
         let rom_start = 0 as *const [u32; 16];
 
         let n_blocks =
-            env.persistent_data.get().fht.rom_info_addr.get()? as *const RomInfo as usize / 64;
+            env.persistent_data.get().rom.fht.rom_info_addr.get()? as *const RomInfo as usize / 64;
 
         let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
         if digest.0 != rom_info.sha256_digest {

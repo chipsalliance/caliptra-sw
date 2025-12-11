@@ -35,6 +35,7 @@ impl RevokeExportedCdiHandleCmd {
         for slot in drivers
             .persistent_data
             .get_mut()
+            .fw
             .dpe
             .exported_cdi_slots
             .entries

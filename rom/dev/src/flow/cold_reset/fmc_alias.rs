@@ -202,7 +202,7 @@ impl FmcAliasLayer {
         let auth_priv_key = input.ecc_auth_key_pair.priv_key;
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
-        let data_vault = &env.persistent_data.get().data_vault;
+        let data_vault = &env.persistent_data.get().rom.data_vault;
         let soc_ifc = &env.soc_ifc;
 
         let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
@@ -269,7 +269,7 @@ impl FmcAliasLayer {
         })?;
 
         // Set the FMC Certificate Signature in data vault.
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
         data_vault.set_fmc_dice_ecc_signature(sig);
         sig.zeroize();
 
@@ -298,7 +298,7 @@ impl FmcAliasLayer {
         let auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
         let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
         let pub_key = output.mldsa_subj_key_pair.pub_key;
-        let data_vault = &env.persistent_data.get().data_vault;
+        let data_vault = &env.persistent_data.get().rom.data_vault;
         let soc_ifc = &env.soc_ifc;
 
         let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
@@ -368,7 +368,7 @@ impl FmcAliasLayer {
         })?;
 
         // Set the FMC Certificate Signature in data vault.
-        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
         data_vault.set_fmc_dice_mldsa_signature(sig);
         sig.zeroize();
 

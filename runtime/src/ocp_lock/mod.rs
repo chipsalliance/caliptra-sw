@@ -1,60 +1,119 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::mailbox::CommandId;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
-    hmac_kdf, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
-    SocIfc, Trng,
+    cmac_kdf, hmac_kdf, Aes, AesKey, AesOperation, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
+    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use zerocopy::{Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
+mod derive_mek;
 mod get_algorithms;
 mod initialize_mek_secret;
 
+pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
 
-#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+use crate::Drivers;
+
 /// Represents the SEK type from OCP LOCK.
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Sek(pub [u8; 32]);
 
-#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 /// Represents the DPK type from OCP LOCK.
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Dpk(pub [u8; 32]);
 
-/// Represents the MEK Secret from OCP LOCK.
+/// Represents the Intermediate MEK Secret from OCP LOCK.
 /// This is constructed from the EPK + DPK.
 ///
-/// NOTE: MPKs will be mixed into `MekSecretSeed`
-pub struct MekSecretSeed;
+/// NOTE: MPKs will be mixed into `IntermediateMekSecret`
+pub struct IntermediateMekSecret;
 
-// TODO(clundin): Erase MEK_SECRETS KV on drop? That would require holding a reference to the
-// key vault for the lifetime of `MekSecretSeed`
-impl MekSecretSeed {
-    /// Consumes the EPK and DPK to produce a `MekSecretSeed`
-    fn new(hmac: &mut Hmac, trng: &mut Trng, epk: Epk, dpk: Dpk) -> CaliptraResult<Self> {
+impl IntermediateMekSecret {
+    /// Consumes `Self` to produce a `MekSecret`.
+    fn derive_mek_secret<'a>(
+        self,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &'a mut KeyVault,
+    ) -> CaliptraResult<MekSecret<'a>> {
         hmac_kdf(
             hmac,
-            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
-            b"ocp_lock_mek_secret_seed",
-            Some(dpk.as_bytes()),
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"ocp_lock_derived_mek",
+            None,
             trng,
             HmacTag::Key(KeyWriteArgs::new(
                 KEY_ID_MEK_SECRETS,
-                // TODO(clundin): Will likely need to add AES key usage in a follow up.
-                KeyUsage::default().set_hmac_key_en(),
+                KeyUsage::default().set_aes_key_en(),
             )),
             HmacMode::Hmac512,
         )?;
+        Ok(MekSecret { kv })
+    }
+}
 
-        // Manually drop EPK to Erase EPK KV.
-        // This should happen automatically but otherwise the linter complains that the EPK wasn't
-        // used.
-        drop(epk);
-        Ok(Self)
+/// Represents the MEK Secret from OCP LOCK.
+/// This is constructed from `IntermediateMekSecret`
+pub struct MekSecret<'a> {
+    kv: &'a mut KeyVault,
+}
+
+impl MekSecret<'_> {
+    /// Consumes `Self` to produce a `MekSeed`.
+    /// NOTE: This will erase the `MEK_SECRET` key vault.
+    fn derive_mek_seed(self, aes: &mut Aes) -> CaliptraResult<MekSeed> {
+        Ok(MekSeed(cmac_kdf(
+            aes,
+            AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"ocp_lock_mek_seed",
+            None,
+            4,
+        )?))
+    }
+}
+
+impl Drop for MekSecret<'_> {
+    // From Spec:
+    //   > Held in the Key Vault and zeroized after each use.
+    fn drop(&mut self) {
+        // We don't set a write or use lock so this should never fail.
+        let _ = self.kv.erase_key(KEY_ID_MEK_SECRETS);
+    }
+}
+
+/// Checksum of an `Mek`
+#[derive(Default, IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop, PartialEq, Eq)]
+pub struct MekChecksum(pub [u8; 16]);
+
+/// Represents the MEK Seed from OCP LOCK.
+/// This is constructed from `MekSecret`
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+pub struct MekSeed(LEArray4x16);
+impl MekSeed {
+    fn checksum(&self, aes: &mut Aes) -> CaliptraResult<MekChecksum> {
+        let key = self
+            .0
+            .as_bytes()
+            .get(0..32)
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_INVALID_MEK_SEED_SIZE)?;
+        let key = LEArray4x8::ref_from_bytes(key)
+            .map_err(|_| CaliptraError::RUNTIME_OCP_LOCK_INVALID_MEK_SEED_SIZE)?;
+        let mut output = [0; 16];
+        aes.aes_256_ecb(
+            AesKey::Array(key),
+            AesOperation::Encrypt,
+            &[0; 16],
+            &mut output,
+        )?;
+        Ok(MekChecksum(output))
     }
 }
 
@@ -86,6 +145,28 @@ impl<'a> Epk<'a> {
         )?;
         Ok(Self { kv })
     }
+
+    /// Consumes `Self` and DPK to produce a `IntermediateMekSecret`
+    fn derive_intermediate_mek_secret(
+        self,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        dpk: Dpk,
+    ) -> CaliptraResult<IntermediateMekSecret> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            b"ocp_lock_intermediate_mek_secret",
+            Some(dpk.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_MEK_SECRETS,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+        Ok(IntermediateMekSecret)
+    }
 }
 
 impl Drop for Epk<'_> {
@@ -105,9 +186,9 @@ pub struct OcpLockContext {
     /// HEK is available
     hek_available: bool,
 
-    /// Holds MEK secret seed, initialized by calling MEK_SECRET_INITIALIZE. Some commands do not work until
-    /// `mek_secret_seed` has a value.
-    mek_secret_seed: Option<MekSecretSeed>,
+    /// Holds Intermediate Mek Secret, initialized by calling INITIALIZE_MEK_SECRET. Some commands do not work until
+    /// `intermediate_secret` has a value.
+    intermediate_secret: Option<IntermediateMekSecret>,
 }
 
 impl OcpLockContext {
@@ -115,7 +196,7 @@ impl OcpLockContext {
         let available = cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled();
         Self {
             available,
-            mek_secret_seed: None,
+            intermediate_secret: None,
             hek_available,
         }
     }
@@ -127,8 +208,8 @@ impl OcpLockContext {
         self.available
     }
 
-    /// Creates an MEK secret seed from `HEK`, `SEK` and `DPK`.
-    pub fn create_mek_secret_seed(
+    /// Creates an MEK intermediate secret from `HEK`, `SEK` and `DPK`.
+    pub fn create_intermediate_mek_secret(
         &mut self,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -142,8 +223,63 @@ impl OcpLockContext {
             cfi_assert!(self.hek_available);
         }
         let epk = Epk::new(hmac, trng, kv, sek)?;
-        let mek_secret_seed = MekSecretSeed::new(hmac, trng, epk, dpk)?;
-        self.mek_secret_seed = Some(mek_secret_seed);
+        let intermediate_secret = epk.derive_intermediate_mek_secret(hmac, trng, dpk)?;
+        self.intermediate_secret = Some(intermediate_secret);
         Ok(())
+    }
+
+    /// Derives an MEK
+    ///
+    /// NOTE: This operation will consume `intermediate_secret` and erase the MEK secret key vault on
+    /// completion.
+    pub fn derive_mek(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+        expect_mek_checksum: MekChecksum,
+    ) -> CaliptraResult<MekChecksum> {
+        // After `intermediate_secret` is consumed a new MEK cannot be created without first calling
+        // `OCP_LOCK_INITIALIZE_MEK_SECRET` so we take it.
+        let Some(intermediate_secret) = self.intermediate_secret.take() else {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED);
+        };
+        let mek_secret = intermediate_secret.derive_mek_secret(hmac, trng, kv)?;
+        let mek_seed = mek_secret.derive_mek_seed(aes)?;
+        let checksum = mek_seed.checksum(aes)?;
+
+        // If `expect_mek_checksum` is all zeros, skip checking that the MEK checksum matches.
+        // `expect_mek_checksum` should match the `checksum` that was derived.
+        // Otherwise we need to report an error.
+        if expect_mek_checksum != MekChecksum::default() && expect_mek_checksum != checksum {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL);
+        }
+
+        // Do not release an MEK with a failing checksum!
+        // TODO(clundin): MEK should be released to KV here.
+        Ok(checksum)
+    }
+}
+
+/// Entry point for OCP LOCK commands
+pub fn command_handler(
+    cmd_id: CommandId,
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+    resp: &mut [u8],
+) -> CaliptraResult<usize> {
+    // If we have not enabled 'ocp-lock' we don't want the compiler to link these commands, so exit
+    // the function early.
+    if !cfg!(feature = "ocp-lock") || !drivers.ocp_lock_context.available() {
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND)?;
+    }
+    match cmd_id {
+        CommandId::OCP_LOCK_GET_ALGORITHMS => GetAlgorithmsCmd::execute(resp),
+        CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
+            InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::OCP_LOCK_DERIVE_MEK => DeriveMekCmd::execute(drivers, cmd_bytes, resp),
+        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

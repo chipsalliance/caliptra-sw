@@ -54,6 +54,10 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
+                env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
+                env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
+                env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+
                 // Zeroize the key vault in the fake ROM flow
                 unsafe { KeyVault::zeroize() };
 
@@ -112,7 +116,7 @@ fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
-    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+    let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
     data_vault.set_ldev_dice_ecc_signature(&FAKE_LDEV_ECC_SIG);
@@ -124,10 +128,11 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_ECC_TBS;
-    env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .ecc_ldevid_tbs
         .get_mut(..tbs.len())
     else {
@@ -136,10 +141,11 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     dst.copy_from_slice(tbs);
 
     let tbs = &FAKE_LDEV_MLDSA_TBS;
-    env.persistent_data.get_mut().fht.mldsa_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.mldsa_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .mldsa_ldevid_tbs
         .get_mut(..tbs.len())
     else {
@@ -151,7 +157,7 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
-    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+    let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
     data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_ECC_SIG);
@@ -163,10 +169,11 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_ECC_TBS;
-    env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().rom.fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .ecc_fmcalias_tbs
         .get_mut(..tbs.len())
     else {
@@ -175,10 +182,15 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     dst.copy_from_slice(tbs);
 
     let tbs = &FAKE_FMC_ALIAS_MLDSA_TBS;
-    env.persistent_data.get_mut().fht.mldsa_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data
+        .get_mut()
+        .rom
+        .fht
+        .mldsa_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
         .get_mut()
+        .rom
         .mldsa_fmcalias_tbs
         .get_mut(..tbs.len())
     else {
@@ -186,6 +198,14 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     };
     dst.copy_from_slice(tbs);
     Ok(())
+}
+
+/// Image source for verification
+pub enum ImageSource<'a, 'b> {
+    /// Image is in memory (accessible as a byte slice)
+    Memory(&'b [u8]),
+    /// Image is in MCU SRAM (requires DMA access)
+    McuSram(&'a Dma),
 }
 
 // ROM Verification Environment
@@ -197,9 +217,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
     pub(crate) mldsa87: &'a mut Mldsa87,
-    pub image: &'b [u8],
-    pub(crate) dma: &'a Dma,
-    pub(crate) image_in_mcu: bool,
+    pub image_source: ImageSource<'a, 'b>,
 }
 
 impl FakeRomImageVerificationEnv<'_, '_> {
@@ -217,38 +235,52 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu {
-            let dma = FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result =
-                dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len, dma::AesDmaMode::None)?;
-            Ok(result.into())
-        } else {
-            let data = self
-                .image
-                .get(offset as usize..)
-                .ok_or(err)?
-                .get(..len as usize)
-                .ok_or(err)?;
-            Ok(self.sha2_512_384.sha384_digest(data)?.0)
+        match &self.image_source {
+            ImageSource::McuSram(dma) => {
+                let dma_recovery =
+                    FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery.sha384_mcu_sram(
+                    self.sha2_512_384_acc,
+                    offset,
+                    len,
+                    dma::AesDmaMode::None,
+                )?;
+                Ok(result.into())
+            }
+            ImageSource::Memory(image) => {
+                let data = image
+                    .get(offset as usize..)
+                    .ok_or(err)?
+                    .get(..len as usize)
+                    .ok_or(err)?;
+                Ok(self.sha2_512_384.sha384_digest(data)?.0)
+            }
         }
     }
 
     /// Calculate 512 digest using SHA2 Engine
     fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu {
-            let dma = FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result =
-                dma.sha512_mcu_sram(self.sha2_512_384_acc, offset, len, AesDmaMode::None)?;
-            Ok(result.into())
-        } else {
-            let data = self
-                .image
-                .get(offset as usize..)
-                .ok_or(err)?
-                .get(..len as usize)
-                .ok_or(err)?;
-            Ok(self.sha2_512_384.sha512_digest(data)?.0)
+        match &self.image_source {
+            ImageSource::McuSram(dma) => {
+                let dma_recovery =
+                    FakeRomImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery.sha512_mcu_sram(
+                    self.sha2_512_384_acc,
+                    offset,
+                    len,
+                    AesDmaMode::None,
+                )?;
+                Ok(result.into())
+            }
+            ImageSource::Memory(image) => {
+                let data = image
+                    .get(offset as usize..)
+                    .ok_or(err)?
+                    .get(..len as usize)
+                    .ok_or(err)?;
+                Ok(self.sha2_512_384.sha512_digest(data)?.0)
+            }
         }
     }
 
@@ -258,24 +290,27 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
-        if self.image_in_mcu {
-            // For MCU case, use the existing sha384_digest function
-            self.sha384_digest(offset, len).map_err(|_| digest_failure)
-        } else {
-            let mut digest = Array4x12::default();
+        match &self.image_source {
+            ImageSource::McuSram(_) => {
+                // For MCU case, use the existing sha384_digest function
+                self.sha384_digest(offset, len).map_err(|_| digest_failure)
+            }
+            ImageSource::Memory(_) => {
+                let mut digest = Array4x12::default();
 
-            if let Some(mut sha_acc_op) = self
-                .sha2_512_384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                sha_acc_op
-                    .digest_384(len, offset, StreamEndianness::Reorder, &mut digest)
-                    .map_err(|_| digest_failure)?;
-            } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-            };
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_384(len, offset, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
 
-            Ok(digest.0)
+                Ok(digest.0)
+            }
         }
     }
 
@@ -285,24 +320,27 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
-        if self.image_in_mcu {
-            // For MCU case, use the existing sha512_digest function
-            self.sha512_digest(offset, len).map_err(|_| digest_failure)
-        } else {
-            let mut digest = Array4x16::default();
+        match &self.image_source {
+            ImageSource::McuSram(_) => {
+                // For MCU case, use the existing sha512_digest function
+                self.sha512_digest(offset, len).map_err(|_| digest_failure)
+            }
+            ImageSource::Memory(_) => {
+                let mut digest = Array4x16::default();
 
-            if let Some(mut sha_acc_op) = self
-                .sha2_512_384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                sha_acc_op
-                    .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
-                    .map_err(|_| digest_failure)?;
-            } else {
-                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-            };
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
 
-            Ok(digest.0)
+                Ok(digest.0)
+            }
         }
     }
 

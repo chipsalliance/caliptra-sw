@@ -173,7 +173,11 @@ impl FirmwareProcessor {
         );
         let manifest = okref(&manifest)?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+        } else {
+            caliptra_common::verifier::ImageSource::Memory(txn.raw_mailbox_contents())
+        };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -181,19 +185,20 @@ impl FirmwareProcessor {
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,
-            data_vault: &env.persistent_data.get().data_vault,
+            data_vault: &env.persistent_data.get().rom.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: txn.raw_mailbox_contents(),
-            dma: &mut env.dma,
+            image_source,
             persistent_data: env.persistent_data.get(),
-            image_in_mcu,
         };
 
         // Verify the image
         let info = Self::verify_image(&mut venv, manifest, image_size_bytes);
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
+        Self::update_fuse_log(
+            &mut env.persistent_data.get_mut().rom.fuse_log,
+            &info.log_info,
+        )?;
 
         // Populate data vault
         Self::populate_data_vault(info, &mut env.persistent_data);
@@ -338,7 +343,10 @@ impl FirmwareProcessor {
                     drop(txn);
 
                     // Now we can access mbox again since the transaction is complete
-                    return RiDownloadFirmwareCmd::execute(mbox, dma, soc_ifc, subsystem_mode);
+                    return Ok((
+                        ManuallyDrop::new(mbox.recovery_recv_txn()),
+                        RiDownloadFirmwareCmd::execute(dma, soc_ifc)?,
+                    ));
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
@@ -377,7 +385,7 @@ impl FirmwareProcessor {
                         MldsaVerifyCmd::execute(cmd_bytes, env.mldsa87, resp)?
                     }
                     CommandId::STASH_MEASUREMENT => {
-                        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
+                        if persistent_data.rom.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!("[fwproc] Max # of measurements received.");
                             txn.complete(false)?;
 
@@ -521,7 +529,7 @@ impl FirmwareProcessor {
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
-        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest = &mut persistent_data.get_mut().rom.manifest1;
         let mbox_sram = txn.raw_mailbox_contents();
         let manifest_buf = manifest.as_mut_bytes();
         if mbox_sram.len() < manifest_buf.len() {
@@ -543,7 +551,7 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
         dma: &mut Dma,
     ) -> CaliptraResult<ImageManifest> {
-        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest = &mut persistent_data.get_mut().rom.manifest1;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Get MCU SRAM address
@@ -577,6 +585,12 @@ impl FirmwareProcessor {
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
+        let dma = if let caliptra_common::verifier::ImageSource::McuSram(dma) = &venv.image_source {
+            Some(*dma)
+        } else {
+            None
+        };
+
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
@@ -586,9 +600,14 @@ impl FirmwareProcessor {
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
             mldsa87: venv.mldsa87,
-            image: venv.image,
-            dma: venv.dma,
-            image_in_mcu: venv.image_in_mcu,
+            image_source: match &venv.image_source {
+                caliptra_common::verifier::ImageSource::Memory(img) => {
+                    crate::flow::fake::ImageSource::Memory(img)
+                }
+                caliptra_common::verifier::ImageSource::McuSram(dma) => {
+                    crate::flow::fake::ImageSource::McuSram(dma)
+                }
+            },
         };
 
         // Random delay for CFI glitch protection.
@@ -597,18 +616,15 @@ impl FirmwareProcessor {
         CfiCounter::delay();
         CfiCounter::delay();
 
-        let dma = venv.dma;
         let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
-
         let mci_base_addr = venv.soc_ifc.mci_base_addr().into();
         let caliptra_base_addr = venv.soc_ifc.caliptra_base_axi_addr().into();
-        let subsystem_mode = venv.soc_ifc.subsystem_mode();
 
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset);
 
         // If running in subsystem mode, set the recovery status.
-        if subsystem_mode {
+        if let Some(dma) = dma {
             let dma_recovery = DmaRecovery::new(
                 recovery_interface_base_addr,
                 caliptra_base_addr,
@@ -903,8 +919,8 @@ impl FirmwareProcessor {
         info: &ImageVerificationInfo,
         persistent_data: &mut PersistentDataAccessor,
     ) {
-        let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
-        let data_vault = &mut persistent_data.get_mut().data_vault;
+        let manifest_address = &persistent_data.get().rom.manifest1 as *const _ as u32;
+        let data_vault = &mut persistent_data.get_mut().rom.data_vault;
         data_vault.set_fmc_tci(&info.fmc.digest.into());
         data_vault.set_cold_boot_fw_svn(info.fw_svn);
         data_vault.set_fmc_entry_point(info.fmc.entry_point);
@@ -922,7 +938,7 @@ impl FirmwareProcessor {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
-        let svn = env.persistent_data.get().data_vault.fw_svn();
+        let svn = env.persistent_data.get().rom.data_vault.fw_svn();
 
         if svn > MAX_FIRMWARE_SVN {
             // If this occurs it is an internal programming error.
@@ -1034,27 +1050,6 @@ impl FirmwareProcessor {
         };
 
         Ok(())
-    }
-
-    /// Retrieve the fw image from the recovery interface and store it in the mailbox sram.
-    ///
-    /// # Arguments
-    /// * `dma` - DMA driver
-    /// * `soc_ifc` - SOC Interface
-    ///
-    /// # Returns
-    /// * `CaliptraResult<u32>` - Size of the image downloaded
-    ///   Error code on failure.
-    pub(crate) fn retrieve_image_from_recovery_interface(
-        dma: &mut Dma,
-        soc_ifc: &mut SocIfc,
-    ) -> CaliptraResult<u32> {
-        let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
-        let caliptra_base_addr = soc_ifc.caliptra_base_axi_addr().into();
-        let mci_base_addr = soc_ifc.mci_base_addr().into();
-        const FW_IMAGE_INDEX: u32 = 0x0;
-        let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
-        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 
     /// Retrieve the fw image from the recovery interface and download it to MCU.

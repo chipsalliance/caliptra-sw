@@ -734,29 +734,37 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x3c0)]
     fuse_hek_seed: [u32; FUSE_HEK_SEED_SIZE / 4],
 
+    // writable from MCU
     #[register(offset = 0x500)]
-    ss_caliptra_base_addr_l: ReadOnlyRegister<u32>,
+    ss_caliptra_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x504)]
-    ss_caliptra_base_addr_h: ReadOnlyRegister<u32>,
+    ss_caliptra_base_addr_h: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x508)]
-    ss_recovery_mci_base_addr_l: ReadOnlyRegister<u32>,
+    ss_recovery_mci_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x50c)]
-    ss_recovery_mci_base_addr_h: ReadOnlyRegister<u32>,
+    ss_recovery_mci_base_addr_h: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x510)]
-    ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
+    ss_recovery_ifc_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x514)]
-    ss_recovery_ifc_base_addr_h: ReadOnlyRegister<u32>,
+    ss_recovery_ifc_base_addr_h: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x518)]
-    ss_otp_fc_base_addr_l: ReadOnlyRegister<u32>,
+    ss_otp_fc_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x51c)]
-    ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
+    ss_otp_fc_base_addr_h: ReadWriteRegister<u32>,
 
     // writable from MCU
     #[register(offset = 0x520)]
@@ -1024,10 +1032,10 @@ impl SocRegistersImpl {
             fuse_soc_manifest_svn: [0; 4],
             fuse_soc_manifest_max_svn: 128,
             fuse_hek_seed: [0; 8],
-            ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
-            ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
-            ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
-            ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
+            ss_caliptra_base_addr_l: ReadWriteRegister::new(cptra_offset as u32),
+            ss_caliptra_base_addr_h: ReadWriteRegister::new((cptra_offset >> 32) as u32),
+            ss_recovery_ifc_base_addr_l: ReadWriteRegister::new(rri_offset as u32),
+            ss_recovery_ifc_base_addr_h: ReadWriteRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
@@ -1072,12 +1080,12 @@ impl SocRegistersImpl {
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
             fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
-            ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
-            ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
+            ss_otp_fc_base_addr_l: ReadWriteRegister::new(otc_fc_offset as u32),
+            ss_otp_fc_base_addr_h: ReadWriteRegister::new((otc_fc_offset >> 32) as u32),
             ss_uds_seed_base_addr_l: ReadWriteRegister::new(uds_seed_offset as u32),
             ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
-            ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
-            ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
+            ss_recovery_mci_base_addr_l: ReadWriteRegister::new(mci_base as u32),
+            ss_recovery_mci_base_addr_h: ReadWriteRegister::new((mci_base >> 32) as u32),
             ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
                 ss_prod_dbg_unlock_number_of_fuses as u32,
             ),

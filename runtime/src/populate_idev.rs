@@ -37,7 +37,7 @@ impl PopulateIDevIdEcc384CertCmd {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
-        let flags = drivers.persistent_data.get().manifest1.header.flags;
+        let flags = drivers.persistent_data.get().rom.manifest1.header.flags;
         // PL1 cannot call this mailbox command
         if flags & PL0_PAUSER_FLAG == 0 {
             return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
@@ -117,7 +117,7 @@ impl PopulateIDevIdMldsa87CertCmd {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
-        let flags = drivers.persistent_data.get().manifest1.header.flags;
+        let flags = drivers.persistent_data.get().rom.manifest1.header.flags;
         // PL1 cannot call this mailbox command
         if flags & PL0_PAUSER_FLAG == 0 {
             return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);

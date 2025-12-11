@@ -15,6 +15,20 @@ pub trait JtagAccessibleReg {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u32)]
+pub enum DmReg {
+    DmControl = 0x10,
+    DmStatus = 0x11,
+}
+
+impl JtagAccessibleReg for DmReg {
+    // The offsets above are word offsets.
+    fn byte_offset(&self) -> u32 {
+        *self as u32 * 4
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u32)]
 pub enum CaliptraCoreReg {
     MboxDlen = 0x50,
     MboxDout = 0x51,

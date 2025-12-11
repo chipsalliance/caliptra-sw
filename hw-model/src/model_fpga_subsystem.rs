@@ -23,7 +23,7 @@ use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
+use caliptra_hw_model_types::HexSlice;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::marker::PhantomData;
@@ -74,6 +74,20 @@ const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PAR
 const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
 const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 20; // 4 bytes
                                                                                                 // LIFECYCLE_PARTITION
+                                                                                                // VENDOR_NON_SECRET_PROD_PARTITION
+pub const VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET: usize = 0xaa8;
+const UDS_SEED_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET; // 64 bytes
+const FIELD_ENTROPY_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET + 64; // 32 bytes
+                                                                                       // CPTRA_SS_LOCK_HEK_PROD partitions
+const OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET: usize = 0xCB0;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET + 48;
+const OTP_CPTRA_SS_LOCK_HEK_PROD_7_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET + 48;
+// LIFECYCLE_PARTITION
 const OTP_LIFECYCLE_PARTITION_OFFSET: usize = 0xE30;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
@@ -152,7 +166,7 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
     soc_size: 0x5e0,
 
     otp_offset: 0xa406_0000,
-    otp_size: 0x140,
+    otp_size: OTP_FULL_SIZE as u32,
 
     lc_offset: 0xa404_0000,
     lc_size: 0x8c,
@@ -161,7 +175,12 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_AXI_PAUSER: u32 = 0x1;
-const OTP_SIZE: usize = 16384;
+// we split the OTP memory into two parts: the OTP half and a simulated flash half.
+const OTP_FULL_SIZE: usize = 16384;
+const FLASH_SIZE: usize = 8192;
+const OTP_SIZE: usize = 8192;
+const _: () = assert!(OTP_SIZE + FLASH_SIZE == OTP_FULL_SIZE);
+const _: () = assert!(OTP_LIFECYCLE_PARTITION_OFFSET + 88 + 8 <= OTP_SIZE);
 const AXI_CLK_HZ: u32 = 199_999_000;
 const I3C_CLK_HZ: u32 = 12_500_000;
 
@@ -1302,12 +1321,59 @@ impl ModelFpgaSubsystem {
         // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
         // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
-        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
-            anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
-            ..Default::default()
-        })?;
+        let mem =
+            otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
+                anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
+                idevid_cert_attr: self
+                    .fuses
+                    .idevid_cert_attr
+                    .iter()
+                    .fold(vec![], |mut acc, f| {
+                        let bytes = f.to_le_bytes();
+                        acc.extend_from_slice(&bytes);
+                        acc
+                    })
+                    .try_into()
+                    .unwrap(),
+                hsm_id: self.fuses.idevid_manuf_hsm_id.iter().enumerate().fold(
+                    0,
+                    |mut acc, (f, i)| {
+                        acc |= (f as u128) << (i * 32);
+                        acc
+                    },
+                ),
+                stepping_id: self.fuses.soc_stepping_id as u32,
+                ..Default::default()
+            })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        // Provision UDS seed in SECRET_MANUF partition
+        println!("Provisioning UDS seed in SECRET_MANUF partition.");
+        let uds_seed_bytes: Vec<u8> = self
+            .fuses
+            .uds_seed
+            .iter()
+            .flat_map(|&word| word.to_le_bytes())
+            .collect();
+        println!("Setting UDS seed to {:x?}", HexSlice(&uds_seed_bytes));
+        otp_data[UDS_SEED_OFFSET..UDS_SEED_OFFSET + uds_seed_bytes.len()]
+            .copy_from_slice(&uds_seed_bytes);
+
+        // Provision field entropy in SECRET_MANUF partition
+        println!("Provisioning field entropy in SECRET_MANUF partition.");
+        let field_entropy_bytes: Vec<u8> = self
+            .fuses
+            .field_entropy
+            .iter()
+            .flat_map(|&word| word.to_le_bytes())
+            .collect();
+        println!(
+            "Setting field entropy to {:x?}",
+            HexSlice(&field_entropy_bytes)
+        );
+        otp_data[FIELD_ENTROPY_OFFSET..FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
+            .copy_from_slice(&field_entropy_bytes);
 
         let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
         println!(
@@ -1371,6 +1437,11 @@ impl ModelFpgaSubsystem {
             ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
             .copy_from_slice(soc_manifest_svn);
 
+        println!("Provisioning CPTRA_SS_LOCK_HEK_PROD_0 partition.");
+        let hek_seed_bytes = self.fuses.hek_seed.as_bytes();
+        let offset = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET;
+        otp_data[offset..offset + hek_seed_bytes.len()].copy_from_slice(hek_seed_bytes);
+
         // Max SOC Manifest SVN (1 byte used)
         println!(
             "Burning fuse for SOC MAX SVN {}",
@@ -1385,6 +1456,15 @@ impl ModelFpgaSubsystem {
 
     pub fn otp_slice(&self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
+    }
+
+    pub fn flash_slice(&self) -> &mut [u8] {
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                self.otp_mem_backdoor.offset(OTP_SIZE as isize),
+                FLASH_SIZE,
+            )
+        }
     }
 
     pub fn print_otp_memory(&self) {
@@ -1626,16 +1706,6 @@ impl HwModel for ModelFpgaSubsystem {
             m.wrapper.regs().cptra_csr_hmac_key[i].set(params.csr_hmac_key[i]);
         }
 
-        // Set the UDS Seed
-        for (i, udsi) in DEFAULT_UDS_SEED.iter().copied().enumerate() {
-            m.wrapper.regs().cptra_obf_uds_seed[i].set(udsi);
-        }
-
-        // Set the FE Seed
-        for (i, fei) in DEFAULT_FIELD_ENTROPY.iter().copied().enumerate() {
-            m.wrapper.regs().cptra_obf_field_entropy[i].set(fei);
-        }
-
         // Currently not using strap UDS and FE
         m.set_secrets_valid(false);
 
@@ -1725,6 +1795,11 @@ impl HwModel for ModelFpgaSubsystem {
         let current = gpio.extract().get();
         gpio.set(current | 1 << 30);
 
+        // Set soc_ifc settings before MCU ROM sets fuses
+        self.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
         while !self
             .mci_boot_milestones()
             .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
@@ -1743,21 +1818,27 @@ impl HwModel for ModelFpgaSubsystem {
             self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
         }
 
-        // Return here if there isn't any mutable code to load
-        if boot_params.fw_image.is_none()
-            && boot_params.mcu_fw_image.is_none()
-            && boot_params.soc_manifest.is_none()
-        {
-            // Give the FPGA some time to start. If this returns too quickly some of the tests fail
-            // with a kernel panic.
-            let start = self.cycle_count();
-            while self.cycle_count().wrapping_sub(start) < 10_000_000 {
-                self.step();
-                let flow_status = self.soc_ifc().cptra_flow_status().read();
-                if flow_status.ready_for_mb_processing() {
-                    break;
-                }
+        // Give the FPGA some time to start. If this returns too quickly some of the tests fail
+        // with a kernel panic.
+        let start = self.cycle_count();
+        while self.cycle_count().wrapping_sub(start) < 20_000_000 {
+            self.step();
+            let flow_status = self.soc_ifc().cptra_flow_status().read();
+            if flow_status.idevid_csr_ready() {
+                // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
+                // once the CSR is ready to continue making progress.
+                //
+                // Generally the CSR should be read from the mailbox at this point, but to
+                // accommodate test cases that ignore the CSR mailbox, we will ignore it here.
+                self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
             }
+            if flow_status.ready_for_mb_processing() {
+                break;
+            }
+        }
+
+        // Return here if there isn't any mutable code to load
+        if boot_params.fw_image.is_none() {
             println!("Finished booting with no mutable firmware to load");
             return Ok(());
         }
@@ -1784,11 +1865,6 @@ impl HwModel for ModelFpgaSubsystem {
         //     .cptra_wdt_cfg()
         //     .at(1)
         //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // TODO: do we need to support these in MCU ROM?
-        // self.soc_ifc()
-        //     .cptra_dbg_manuf_service_reg()
-        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
 
         // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
         //     self.soc_ifc()
@@ -1916,7 +1992,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         self.step_until(|hw| {
             hw.mci_boot_milestones()
-                .contains(McuBootMilestones::WARM_RESET_FLOW_COMPLETE)
+                .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
         });
     }
 
@@ -1943,6 +2019,62 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Return the physical address of the staging area
         Ok(mci_base_addr + 0xc00000)
+    }
+
+    /// Trigger a warm reset and advance the boot
+    fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        // Store non-persistent config regs set at boot
+        let _dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let _i_trng_entropy_config_1: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
+        let _i_trng_entropy_config_0: u32 =
+            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
+        // Store mbox pausers
+        let mut valid_pausers: Vec<u32> = Vec::new();
+        for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
+            // Only store if locked
+            if self
+                .soc_ifc()
+                .cptra_mbox_axi_user_lock()
+                .at(i)
+                .read()
+                .lock()
+            {
+                valid_pausers.push(
+                    self.soc_ifc()
+                        .cptra_mbox_axi_user_lock()
+                        .at(i)
+                        .read()
+                        .into(),
+                );
+            }
+        }
+
+        // Perform the warm reset
+        self.warm_reset();
+
+        // TODO: support passing these into MCU ROM
+
+        // self.soc_ifc()
+        //     .cptra_dbg_manuf_service_reg()
+        //     .write(|_| dbg_manuf_service_reg);
+        // self.soc_ifc()
+        //     .cptra_i_trng_entropy_config_1()
+        //     .write(|_| i_trng_entropy_config_1.into());
+        // self.soc_ifc()
+        //     .cptra_i_trng_entropy_config_0()
+        //     .write(|_| i_trng_entropy_config_0.into());
+
+        // // Re-set the valid pausers
+        // self.setup_mailbox_users(valid_pausers.as_slice())
+        //     .map_err(ModelError::from)?;
+
+        self.step();
+
+        Ok(())
     }
 
     fn cold_reset(&mut self) {

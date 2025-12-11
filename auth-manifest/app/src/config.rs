@@ -99,6 +99,11 @@ fn key_config_from_file(
         priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
     }
 
+    if let Some(pem_file) = &config.mldsa_priv_key {
+        let priv_key_path = path.join(pem_file);
+        priv_keys.mldsa_priv_key = Crypto::mldsa_priv_key_from_file(&priv_key_path)?;
+    }
+
     Ok(AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeysConfig {
             ecc_pub_key: Crypto::ecc_pub_key_from_pem(&path.join(&config.ecc_pub_key))?,

@@ -1618,6 +1618,7 @@ impl CaliptraError {
             0x000E0073,
             "Runtime Error: Reallocate DPE context requested fewer PL1 contexts than are used currently"
         ),
+        // TODO(clundin): Align error codes with OCP LOCK spec.
         (
             RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND,
             0x000E0074,
@@ -1629,9 +1630,44 @@ impl CaliptraError {
             "OCP LOCK Error: HEK Unavailable to runtime"
         ),
         (
-            RUNTIME_OCP_LOCK_UNINITIALIZED_MEK_SECRET,
+            RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED,
             0x000E0076,
-            "OCP LOCK Error: Unintialized MEK Secret"
+            "OCP LOCK Error: MEK was not initialized by OCP_LOCK_INITIALIZE_MEK_SECRET"
+        ),
+        (
+            RUNTIME_OCP_LOCK_INVALID_MEK_SECRET_SEED_SIZE,
+            0x000E0077,
+            "OCP LOCK Error: Invalid MEK secret seed size"
+        ),
+        (
+            RUNTIME_OCP_LOCK_INVALID_MEK_SEED_SIZE,
+            0x000E0078,
+            "OCP LOCK Error: Invalid MEK seed size"
+        ),
+        (
+            RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL,
+            0x000E0079,
+            "OCP LOCK Error: Error in derivation caused MEK mismatch"
+        ),
+        (
+            RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
+            0x000E007A,
+            "Runtime Error: Invalid ROM persistent data marker"
+        ),
+        (
+            RUNTIME_INVALID_ROM_PERSISTENT_DATA_VERSION,
+            0x000E007B,
+            "Runtime Error: Invalid ROM persistent data version"
+        ),
+        (
+            RUNTIME_INVALID_FW_PERSISTENT_DATA_MARKER,
+            0x000E007C,
+            "Runtime Error: Invalid FW persistent data marker"
+        ),
+        (
+            RUNTIME_INVALID_FW_PERSISTENT_DATA_VERSION,
+            0x000E007D,
+            "Runtime Error: Invalid FW persistent data version"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
@@ -1721,6 +1757,26 @@ impl CaliptraError {
             FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED,
             0x000F00014,
             "FMC Error: RT alias MLDSA TBS size exceeded"
+        ),
+        (
+            FMC_INVALID_ROM_PERSISTENT_DATA_MARKER,
+            0x000F00015,
+            "FMC Error: Invalid ROM persistent data marker"
+        ),
+        (
+            FMC_INVALID_ROM_PERSISTENT_DATA_VERSION,
+            0x000F00016,
+            "FMC Error: Invalid ROM persistent data version"
+        ),
+        (
+            FMC_INVALID_FW_PERSISTENT_DATA_MARKER,
+            0x000F00017,
+            "FMC Error: Invalid FW persistent data marker"
+        ),
+        (
+            FMC_INVALID_FW_PERSISTENT_DATA_VERSION,
+            0x000F00018,
+            "FMC Error: Invalid FW persistent data version"
         ),
         (
             DRIVER_TRNG_EXT_TIMEOUT,
@@ -2043,6 +2099,16 @@ impl CaliptraError {
             ROM_GLOBAL_UNSUPPORTED_HW_VERSION,
             0x01050010,
             "ROM Global Error: Unsupported HW version"
+        ),
+        (
+            ROM_INVALID_ROM_PERSISTENT_DATA_MARKER,
+            0x01050011,
+            "ROM Error: Invalid ROM persistent data marker"
+        ),
+        (
+            ROM_INVALID_ROM_PERSISTENT_DATA_VERSION,
+            0x01050012,
+            "ROM Error: Invalid ROM persistent data version"
         ),
         (
             KAT_SHA256_DIGEST_FAILURE,

@@ -128,8 +128,6 @@ pub extern "C" fn rom_entry() -> ! {
 
     if env.soc_ifc.ocp_lock_enabled() {
         cprintln!("[ROM] OCP-LOCK Supported");
-    } else {
-        cprintln!("[ROM] OCP-LOCK Unsupported");
     }
 
     // Set the ROM version
@@ -263,7 +261,6 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
         digest.zeroize();
-        cprintln!("ROM integrity test failed");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
     digest.zeroize();
@@ -277,7 +274,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     }
 
     // Get the fmc entry point from data vault
-    let entry = env.persistent_data.get().data_vault.fmc_entry_point();
+    let entry = env.persistent_data.get().rom.data_vault.fmc_entry_point();
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 

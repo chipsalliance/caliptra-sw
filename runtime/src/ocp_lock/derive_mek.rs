@@ -2,19 +2,17 @@
 
 use crate::{mutrefbytes, Drivers};
 
-use caliptra_api::mailbox::{
-    MailboxRespHeader, OcpLockInitializeMekSecretReq, OcpLockInitializeMekSecretResp,
-};
+use caliptra_api::mailbox::{MailboxRespHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use zerocopy::FromBytes;
 
-use super::{Dpk, Sek};
+use super::MekChecksum;
 
-pub struct InitializeMekSecretCmd;
-impl InitializeMekSecretCmd {
+pub struct DeriveMekCmd;
+impl DeriveMekCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
@@ -23,19 +21,21 @@ impl InitializeMekSecretCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         // TODO(clundin): Add a PauserPrivileges check?
-        let cmd = OcpLockInitializeMekSecretReq::ref_from_bytes(cmd_args)
+        let cmd = OcpLockDeriveMekReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        drivers.ocp_lock_context.create_intermediate_mek_secret(
+        let expected_mek_checksum = MekChecksum(cmd.mek_checksum);
+        let checksum = drivers.ocp_lock_context.derive_mek(
+            &mut drivers.aes,
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.key_vault,
-            Sek(cmd.sek),
-            Dpk(cmd.dpk),
+            expected_mek_checksum,
         )?;
 
-        let resp = mutrefbytes::<OcpLockInitializeMekSecretResp>(resp)?;
+        let resp = mutrefbytes::<OcpLockDeriveMekResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        Ok(core::mem::size_of::<OcpLockInitializeMekSecretResp>())
+        resp.mek_checksum = checksum.0;
+        Ok(core::mem::size_of::<OcpLockDeriveMekResp>())
     }
 }

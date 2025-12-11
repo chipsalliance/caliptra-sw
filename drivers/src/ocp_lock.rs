@@ -58,7 +58,8 @@ impl HekSeedState {
     ///
     /// Section 4.6.4.1 of the OCP LOCK v1.0 spec.
     pub fn hek_is_available(&self, lifecycle_state: Lifecycle, hek_seed_value: &Array4x8) -> bool {
-        let seed_is_empty = *hek_seed_value == Array4x8::default();
+        let seed_is_empty = *hek_seed_value == Array4x8::default()
+            || *hek_seed_value == Array4x8::from([u32::MAX; 8]);
         match (self, lifecycle_state, seed_is_empty) {
             // HEK is always available in these life cycle states.
             (_, Lifecycle::Unprovisioned | Lifecycle::Manufacturing, _) => true,

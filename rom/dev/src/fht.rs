@@ -22,7 +22,7 @@ use caliptra_common::{
     },
     FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
-use caliptra_drivers::{cprintln, RomAddr};
+use caliptra_drivers::RomAddr;
 use caliptra_image_verify::MAX_FIRMWARE_SVN;
 
 const FHT_MAJOR_VERSION: u16 = 1;
@@ -54,9 +54,7 @@ impl FhtDataStore {
 pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
 
-    cprintln!("[fht] FHT @ 0x{:08X}", &pdata.fht as *const _ as usize);
-
-    env.persistent_data.get_mut().fht = FirmwareHandoffTable {
+    env.persistent_data.get_mut().rom.fht = FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
         fht_major_ver: FHT_MAJOR_VERSION,
         fht_minor_ver: FHT_MINOR_VERSION,
@@ -67,14 +65,14 @@ pub fn initialize_fht(env: &mut RomEnv) {
         rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
         rom_info_addr: RomAddr::from(unsafe { &CALIPTRA_ROM_INFO }),
-        manifest_load_addr: &pdata.manifest1 as *const _ as u32,
-        ecc_ldevid_tbs_addr: &pdata.ecc_ldevid_tbs as *const _ as u32,
-        ecc_fmcalias_tbs_addr: &pdata.ecc_fmcalias_tbs as *const _ as u32,
-        mldsa_ldevid_tbs_addr: &pdata.mldsa_ldevid_tbs as *const _ as u32,
-        mldsa_fmcalias_tbs_addr: &pdata.mldsa_fmcalias_tbs as *const _ as u32,
-        pcr_log_addr: &pdata.pcr_log as *const _ as u32,
-        meas_log_addr: &pdata.measurement_log as *const _ as u32,
-        fuse_log_addr: &pdata.fuse_log as *const _ as u32,
+        manifest_load_addr: &pdata.rom.manifest1 as *const _ as u32,
+        ecc_ldevid_tbs_addr: &pdata.rom.ecc_ldevid_tbs as *const _ as u32,
+        ecc_fmcalias_tbs_addr: &pdata.rom.ecc_fmcalias_tbs as *const _ as u32,
+        mldsa_ldevid_tbs_addr: &pdata.rom.mldsa_ldevid_tbs as *const _ as u32,
+        mldsa_fmcalias_tbs_addr: &pdata.rom.mldsa_fmcalias_tbs as *const _ as u32,
+        pcr_log_addr: &pdata.rom.pcr_log as *const _ as u32,
+        meas_log_addr: &pdata.rom.measurement_log as *const _ as u32,
+        fuse_log_addr: &pdata.rom.fuse_log as *const _ as u32,
         fw_key_ladder_max_svn: MAX_FIRMWARE_SVN as u16,
         fw_key_ladder_kv_hdl: FhtDataStore::fw_key_ladder_store(),
         ..Default::default()

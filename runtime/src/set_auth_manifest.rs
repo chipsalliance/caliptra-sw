@@ -36,11 +36,6 @@ use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
-pub(crate) enum AuthManifestSource<'a> {
-    Mailbox,
-    Slice(&'a [u8]),
-}
-
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
     fn sha384_digest(
@@ -700,23 +695,15 @@ impl SetAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
-        Self::set_auth_manifest(
-            drivers,
-            AuthManifestSource::Slice(manifest_buf),
-            verify_only,
-        )?;
+        Self::set_auth_manifest(drivers, manifest_buf, verify_only)?;
         Ok(0)
     }
 
     pub(crate) fn set_auth_manifest(
         drivers: &mut Drivers,
-        manifest_src: AuthManifestSource,
+        manifest_buf: &[u8],
         verify_only: bool,
     ) -> CaliptraResult<()> {
-        let manifest_buf = match manifest_src {
-            AuthManifestSource::Mailbox => drivers.mbox.raw_mailbox_contents(),
-            AuthManifestSource::Slice(buf) => buf,
-        };
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {
             let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
@@ -745,7 +732,7 @@ impl SetAuthManifestCmd {
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
             auth_manifest_preamble,
-            &persistent_data.manifest1.preamble,
+            &persistent_data.rom.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -756,7 +743,7 @@ impl SetAuthManifestCmd {
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
             auth_manifest_preamble,
-            &persistent_data.manifest1.preamble,
+            &persistent_data.rom.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -769,7 +756,7 @@ impl SetAuthManifestCmd {
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
             auth_manifest_preamble,
-            &mut persistent_data.auth_manifest_image_metadata_col,
+            &mut persistent_data.fw.auth_manifest_image_metadata_col,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -779,7 +766,7 @@ impl SetAuthManifestCmd {
         )?;
 
         if !verify_only {
-            persistent_data.auth_manifest_digest =
+            persistent_data.fw.auth_manifest_digest =
                 drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
         }
         Ok(())

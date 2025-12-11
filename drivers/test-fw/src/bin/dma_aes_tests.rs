@@ -193,17 +193,15 @@ fn dma_aes(dma: &mut Dma, aes: &mut Aes, trng: &mut Trng, src: u64, dst: u64, ma
     .unwrap();
     aes.gcm_set_text(16);
 
-    dma.setup_dma_read(
-        DmaReadTransaction {
-            read_addr: src.into(), // MCU SRAM, which should be zero
-            fixed_addr: false,
-            length: max_len as u32,
-            target: DmaReadTarget::AxiWr(dst.into(), false),
-            aes_mode: true,
-            aes_gcm: true,
-        },
-        0,
-    );
+    dma.setup_dma_read(DmaReadTransaction {
+        read_addr: src.into(), // MCU SRAM, which should be zero
+        fixed_addr: false,
+        length: max_len as u32,
+        target: DmaReadTarget::AxiWr(dst.into(), false),
+        aes_mode: true,
+        aes_gcm: true,
+        block_mode: caliptra_drivers::dma::BlockMode::Other,
+    });
     dma.wait_for_dma_complete();
 }
 
@@ -220,17 +218,15 @@ fn run_dma_aes_test(
 
     dma.flush();
     let len = max_len.div_ceil(4).min(output.len());
-    dma.setup_dma_read(
-        DmaReadTransaction {
-            read_addr: dst.into(), // MCU SRAM, which should be encrypted output
-            fixed_addr: false,
-            length: (len * 4) as u32,
-            target: DmaReadTarget::AhbFifo,
-            aes_mode: false,
-            aes_gcm: false,
-        },
-        0,
-    );
+    dma.setup_dma_read(DmaReadTransaction {
+        read_addr: dst.into(), // MCU SRAM, which should be encrypted output
+        fixed_addr: false,
+        length: (len * 4) as u32,
+        target: DmaReadTarget::AhbFifo,
+        aes_mode: false,
+        aes_gcm: false,
+        block_mode: caliptra_drivers::dma::BlockMode::Other,
+    });
     dma.dma_read_fifo(&mut output[..len]);
     dma.wait_for_dma_complete();
 

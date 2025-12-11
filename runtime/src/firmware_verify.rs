@@ -43,11 +43,14 @@ pub struct FirmwareVerifyCmd;
 impl FirmwareVerifyCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, src: VerifySrc) -> CaliptraResult<MboxStatusE> {
-        let (image_size, image_in_mcu) = match src {
+        let (image_size, image_source) = match src {
             VerifySrc::Mbox => {
                 let raw_data = drivers.mbox.raw_mailbox_contents();
                 Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
-                (drivers.mbox.dlen(), false)
+                (
+                    drivers.mbox.dlen(),
+                    caliptra_common::verifier::ImageSource::Memory(raw_data),
+                )
             }
             VerifySrc::External {
                 axi_address,
@@ -58,11 +61,13 @@ impl FirmwareVerifyCmd {
                     &mut drivers.dma,
                     axi_address,
                 )?;
-                (image_size, true)
+                (
+                    image_size,
+                    caliptra_common::verifier::ImageSource::McuSram(&drivers.dma),
+                )
             }
         };
 
-        let raw_data = drivers.mbox.raw_mailbox_contents();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut drivers.sha256,
             sha2_512_384: &mut drivers.sha2_512_384,
@@ -70,16 +75,14 @@ impl FirmwareVerifyCmd {
             soc_ifc: &mut drivers.soc_ifc,
             ecc384: &mut drivers.ecc384,
             mldsa87: &mut drivers.mldsa87,
-            data_vault: &drivers.persistent_data.get().data_vault,
+            data_vault: &drivers.persistent_data.get().rom.data_vault,
             pcr_bank: &mut drivers.pcr_bank,
-            image: raw_data,
-            dma: &drivers.dma,
+            image_source,
             persistent_data: drivers.persistent_data.get(),
-            image_in_mcu,
         };
         let mut verifier = ImageVerifier::new(&mut venv);
 
-        let manifest = drivers.persistent_data.get().manifest2;
+        let manifest = drivers.persistent_data.get().rom.manifest2;
         let resp = &mut [0u8; core::mem::size_of::<FirmwareVerifyResp>()][..];
         let resp = mutrefbytes::<FirmwareVerifyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -102,6 +105,7 @@ impl FirmwareVerifyCmd {
         drivers
             .persistent_data
             .get_mut()
+            .rom
             .manifest2
             .as_mut_bytes()
             .fill(0);
@@ -119,6 +123,7 @@ impl FirmwareVerifyCmd {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         }
         persistent_data
+            .rom
             .manifest2
             .as_mut_bytes()
             .copy_from_slice(fw_payload[..size_of::<ImageManifest>()].as_ref());
@@ -132,7 +137,7 @@ impl FirmwareVerifyCmd {
         dma: &mut caliptra_drivers::Dma,
         axi_address: AxiAddr,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.manifest2;
+        let manifest = &mut persistent_data.rom.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Read manifest from external memory using DMA directly into manifest buffer
