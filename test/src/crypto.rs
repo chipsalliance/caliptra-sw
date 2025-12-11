@@ -15,6 +15,20 @@ use openssl::{
     pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant},
 };
 
+use ml_kem::{
+    kem::{DecapsulationKey, Kem},
+    Encoded, EncodedSizeUser, KemCore, MlKem1024, MlKem1024Params,
+};
+
+use serde::{Deserialize, Serialize};
+use serde_json;
+
+pub mod hpke;
+
+use hpke::Hpke;
+
+const ML_KEM_ID: u16 = 66;
+
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
 pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
     let priv_key = hmac384_drbg_keygen(seed, &[0; 48]);
@@ -552,4 +566,38 @@ fn test_aes256_ecb() {
 
     let decrypted = aes256_ecb_decrypt(&key, &ciphertext);
     assert_eq!(decrypted, plaintext);
+}
+
+#[test]
+fn hpke_mlkem_1024() {
+    let test_vector = hpke::test_vector::HpkeTestArgs::new(ML_KEM_ID);
+    let ctx = hpke::HpkeMlKem1024::derive_key_pair(test_vector.ikm_r);
+    assert_eq!(ctx.ek.as_bytes().as_slice().to_vec(), test_vector.pk_rm);
+    assert_eq!(ctx.dk, test_vector.sk_rm);
+    assert_eq!(
+        ctx.decap(&test_vector.enc, &ctx.dk),
+        test_vector.shared_secret.clone()
+    );
+
+    let mut reader_ctx = ctx.setup_base_r(&test_vector.enc, &test_vector.sk_rm, &test_vector.info);
+    assert_eq!(reader_ctx.base_nonce, test_vector.base_nonce);
+    assert_eq!(reader_ctx.key, test_vector.key);
+    assert_eq!(reader_ctx.exporter_secret, test_vector.exporter_secret);
+
+    for (idx, encryption) in test_vector.encryptions.iter().enumerate() {
+        assert_eq!(encryption.nonce, reader_ctx.computed_nonce());
+        assert_eq!(
+            encryption.pt,
+            reader_ctx.open(&encryption.aad, &encryption.ct)
+        );
+    }
+
+    // Self talk test
+    let (enc, mut sender_ctx) = ctx.setup_base_s(&test_vector.pk_rm, &test_vector.info);
+    let mut reader_ctx = ctx.setup_base_r(&enc, &ctx.dk, &test_vector.info);
+
+    for (idx, encryption) in test_vector.encryptions.iter().enumerate() {
+        let ct = sender_ctx.seal(&encryption.aad, &encryption.pt);
+        assert_eq!(encryption.pt, reader_ctx.open(&encryption.aad, &ct));
+    }
 }
