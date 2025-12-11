@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
@@ -359,7 +359,11 @@ pub fn fips_fw_image() -> Vec<u8> {
         // Build default FW if not provided and no path is specified
         Err(_) => caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &APP_WITH_UART,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
