@@ -24,7 +24,7 @@ Certificate:
                 NIST CURVE: P-384
         X509v3 extensions:
             X509v3 Basic Constraints: critical
-                CA:TRUE, pathlen:4
+                CA:TRUE, pathlen:6
             X509v3 Key Usage: critical
                 Certificate Sign
             2.23.133.5.4.4: 
@@ -35,9 +35,9 @@ Certificate:
                 34:81:C7:4A:AB:11:71:5C:08:03:D8:78:92:AB:8A:2B:7E:B2:2A:90
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
-        30:66:02:31:00:e8:e8:c3:6b:21:43:48:32:bf:9a:03:a7:44:
-        70:03:47:7e:bc:9b:14:27:58:af:d1:3f:e3:26:bf:da:c3:0d:
-        d9:66:37:60:b2:9c:6d:04:1b:33:70:39:aa:30:3f:4d:43:02:
-        31:00:e1:29:7c:a6:e7:c4:04:29:87:8d:6a:35:28:21:77:c3:
-        d1:ad:2d:7c:9f:42:9c:70:93:32:f2:4b:ad:ef:fd:45:ff:38:
-        21:4b:a6:4c:27:f2:96:46:ff:64:ba:f5:19:9c
+        30:65:02:31:00:e5:73:11:cb:4b:1a:35:2b:55:0a:6f:85:1c:
+        e4:d1:41:cc:7c:01:25:05:dd:b5:43:75:73:cd:ff:4f:4e:2c:
+        15:a5:d9:7d:8e:a6:f3:ae:e9:a9:3f:ef:33:eb:31:1d:f5:02:
+        30:59:1b:f0:74:1b:1e:78:ab:84:85:f5:03:32:b5:e0:ad:3d:
+        15:5e:1a:24:f6:51:f3:b6:48:e1:d7:f1:5e:5b:9f:a9:52:ba:
+        51:02:70:14:25:73:02:7c:00:e9:ec:7b:35
