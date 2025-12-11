@@ -103,7 +103,11 @@ impl UpdateResetFlow {
             )?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
-            let image_in_mcu = env.soc_ifc.subsystem_mode();
+            let image_source = if env.soc_ifc.subsystem_mode() {
+                caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+            } else {
+                caliptra_common::verifier::ImageSource::Memory(recv_txn.raw_mailbox_contents())
+            };
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha2_512_384: &mut env.sha2_512_384,
@@ -113,10 +117,8 @@ impl UpdateResetFlow {
                 mldsa87: &mut env.mldsa87,
                 data_vault: &env.persistent_data.get().rom.data_vault,
                 pcr_bank: &mut env.pcr_bank,
-                image: recv_txn.raw_mailbox_contents(),
-                dma: &env.dma,
+                image_source,
                 persistent_data: env.persistent_data.get(),
-                image_in_mcu,
             };
 
             let info = {
@@ -207,9 +209,14 @@ impl UpdateResetFlow {
             data_vault: env.data_vault,
             ecc384: env.ecc384,
             mldsa87: env.mldsa87,
-            image: env.image,
-            dma: env.dma,
-            image_in_mcu: env.image_in_mcu,
+            image_source: match &env.image_source {
+                caliptra_common::verifier::ImageSource::Memory(img) => {
+                    crate::flow::fake::ImageSource::Memory(img)
+                }
+                caliptra_common::verifier::ImageSource::McuSram(dma) => {
+                    crate::flow::fake::ImageSource::McuSram(dma)
+                }
+            },
         };
 
         let mut verifier = ImageVerifier::new(env);
