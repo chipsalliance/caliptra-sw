@@ -41,6 +41,8 @@ on:
         default: true
         type: boolean
 
+env:
+  CALIPTRA_MCU_COMMIT: 982ca4f02b7e9fefb58850657246b0c8f28e5b53
 
 jobs:
   check_cache:
@@ -71,6 +73,18 @@ jobs:
           fi
           echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
+  check_mcu_commit:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check MCU Commit validity
+        run: |
+          git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch main-2.1
+          pushd caliptra-mcu-sw
+          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then 
+            echo 'CALIPTRA_MCU_COMMIT is not in the `main-2.1` branch! Are you sure this is the correct commit?'
+            exit 1
+          fi
+          popd
 
   build_test_binaries:
     runs-on: [e2-standard-8]
@@ -79,7 +93,6 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: 982ca4f02b7e9fefb58850657246b0c8f28e5b53
 
     steps:
       - name: Checkout repo
@@ -94,16 +107,6 @@ jobs:
         with:
           path: /tmp/caliptra-fpga-sysroot.tar
           key: sysroot-v9-${{ env.CACHE_BUSTER }}
-
-      - name: Check MCU Commit validity
-        run: |
-          git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch main-2.1
-          pushd caliptra-mcu-sw
-          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then 
-            echo 'CALIPTRA_MCU_COMMIT is not in the `main-2.1` branch!'
-            exit 1
-          fi
-          popd
 
       - name: Extract sysroot
         if: "steps.restore_sysroot_cache.outputs.cache-hit"
@@ -160,6 +163,7 @@ jobs:
       - name: Build test MCU ROM
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
         run: |
+          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
           pushd caliptra-mcu-sw
           git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
           git reset --hard ${CALIPTRA_MCU_COMMIT}
