@@ -1070,3 +1070,51 @@ fn test_set_auth_manifest_svn_gt_128() {
         Some(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED),
     );
 }
+
+#[test]
+fn test_set_auth_manifest_cmd_warm_reset() {
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    });
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // Perform warm reset
+    model.warm_reset_flow().unwrap();
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+}
