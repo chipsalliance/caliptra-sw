@@ -34,6 +34,7 @@ impl Bmc {
     }
 
     pub fn push_recovery_image(&mut self, image: Vec<u8>) {
+        println!("Pushing image of size {} to RRI", image.len());
         self.recovery_state_machine
             .context_mut()
             .recovery_images
