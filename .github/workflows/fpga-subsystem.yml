@@ -160,7 +160,6 @@ jobs:
       - name: Build test MCU ROM
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
         run: |
-          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
           pushd caliptra-mcu-sw
           git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
           git reset --hard ${CALIPTRA_MCU_COMMIT}
