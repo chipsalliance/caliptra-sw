@@ -3,9 +3,8 @@
 #![no_std]
 
 use caliptra_drivers::{
-    dma::MCU_SRAM_OFFSET, Aes, Array4x16, AxiAddr, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac,
-    HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, SocIfc,
-    Trng,
+    Aes, Array4x16, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode,
+    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
@@ -199,22 +198,10 @@ pub fn hmac_helper(
 
 /// Verifies the OCP LOCK KV release flow
 pub fn kv_release(test_regs: &mut TestRegisters) {
-    let mcu_sram_base_addr = test_regs.soc.mci_base_addr() + MCU_SRAM_OFFSET;
-    let fuse_addr = test_regs.soc.ocp_lock_get_key_release_addr();
     let kv_release_size = test_regs.soc.ocp_lock_get_key_size();
-
-    // We expect the MCU TEST ROM to point the OCP LOCK key release to the start of MCU SRAM.
-    assert_eq!(mcu_sram_base_addr, fuse_addr);
 
     // We expect the MCU TEST ROM to set the OCP LOCK key release size to 0x40.
     assert_eq!(0x40, kv_release_size);
 
     test_regs.dma.ocp_lock_key_vault_release(&test_regs.soc);
-
-    let mut output = [0; 16];
-    test_regs
-        .dma
-        .read_buffer(AxiAddr::from(fuse_addr), &mut output);
-    let output = <[u8; 64]>::read_from_bytes(output.as_bytes()).unwrap();
-    assert_eq!(output, PLAINTEXT_MEK);
 }

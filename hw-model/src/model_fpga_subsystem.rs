@@ -15,10 +15,10 @@ use crate::otp_provision::{
     LifecycleControllerState, OtpSwManufPartition,
 };
 use crate::xi3c::XI3cError;
-use crate::SecurityState;
 use crate::{
     xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
 };
+use crate::{OcpLockState, SecurityState};
 use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
@@ -33,7 +33,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use uio::{UioDevice, UioError};
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: (usize, usize) = (0, 0);
@@ -2091,6 +2091,21 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
+    }
+
+    fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
+        let mut mek = [0; 64];
+        for (idx, word) in mek.chunks_exact_mut(4).enumerate() {
+            let mut word = u32::mut_from_bytes(word).unwrap();
+            *word = self
+                .wrapper
+                .regs()
+                .ocp_lock_key_release_reg
+                .get(idx)
+                .unwrap()
+                .get();
+        }
+        Some(OcpLockState { mek })
     }
 }
 
