@@ -15,6 +15,7 @@ jobs:
     env:
       CARGO_INCREMENTAL: 0
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      EVENT_NAME: ${{github.event_name}}
       PR_TITLE: ${{github.event.pull_request.title}}
       PR_BASE_COMMIT: ${{github.event.pull_request.base.sha}}
       GIT_AUTHOR_NAME: ${{github.event.pull_request.user.login}}
