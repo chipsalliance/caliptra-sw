@@ -134,8 +134,6 @@ pub struct Drivers {
 
     pub lms: Lms,
 
-    pub sha1: Sha1,
-
     pub pcr_bank: PcrBank,
 
     pub pic: Pic,
@@ -194,7 +192,6 @@ impl Drivers {
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             mldsa87: Mldsa87::new(AbrReg::new()),
-            sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
             persistent_data,
