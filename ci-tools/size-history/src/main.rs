@@ -65,7 +65,8 @@ fn real_main() -> io::Result<()> {
     let worktree = git::WorkTree::new(Path::new("/tmp/caliptra-size-history-wt"))?;
     let head_commit = worktree.head_commit_id()?;
 
-    let is_pr = env::var("PR_TITLE").is_ok() && env::var("PR_BASE_COMMIT").is_ok();
+    let is_pr = env::var("EVENT_NAME").is_ok_and(|name| name == "pull_request")
+        && env::var("PR_BASE_COMMIT").is_ok();
 
     // require linear history for PRs; non-linear is OK for main branches
     if is_pr && !worktree.is_log_linear()? {
