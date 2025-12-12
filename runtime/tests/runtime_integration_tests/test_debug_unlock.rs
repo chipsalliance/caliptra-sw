@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use caliptra_api::{
@@ -112,12 +112,11 @@ fn test_dbg_unlock_prod_success() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -130,7 +129,7 @@ fn test_dbg_unlock_prod_success() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -320,12 +319,11 @@ fn test_dbg_unlock_prod_invalid_length() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -338,7 +336,7 @@ fn test_dbg_unlock_prod_invalid_length() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -438,12 +436,11 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -456,7 +453,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -613,12 +610,11 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -631,7 +627,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -776,12 +772,11 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -794,7 +789,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(DEFAULT_MCU_FW),
         ..Default::default()
     };
 
@@ -894,12 +889,11 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             ..Default::default()
         };
 
-        let mcu_fw = vec![1, 2, 3, 4];
         const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
         let mut flags = ImageMetadataFlags(0);
         flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
         let crypto = Crypto::default();
-        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let digest = from_hw_format(&crypto.sha384_digest(DEFAULT_MCU_FW).unwrap());
         let metadata = vec![AuthManifestImageMetadata {
             fw_id: 2,
             flags: flags.0,
@@ -912,7 +906,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         let runtime_args = RuntimeTestArgs {
             init_params: Some(init_params),
             soc_manifest: Some(soc_manifest),
-            mcu_fw_image: Some(&mcu_fw),
+            mcu_fw_image: Some(DEFAULT_MCU_FW),
             ..Default::default()
         };
 
