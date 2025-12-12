@@ -40,7 +40,7 @@ fn get_image_info(model: &mut DefaultHwModel, fw_id: u32) -> GetImageInfoResp {
 
 /// Re-send SET_AUTH_MANIFEST to an already-booted runtime model.
 /// Unlike set_auth_manifest(), this never rebuilds the model or reboots runtime.
-pub(crate) fn set_auth_manifest_in_place(
+/*pub(crate) fn set_auth_manifest_in_place(
     model: &mut DefaultHwModel,
     auth_manifest: &AuthorizationManifest,
 ) {
@@ -63,7 +63,7 @@ pub(crate) fn set_auth_manifest_in_place(
         )
         .unwrap()
         .expect("SET_AUTH_MANIFEST should return a response");
-}
+}*/
 
 #[test]
 fn test_get_image_info_persists_after_warm_reset() {
