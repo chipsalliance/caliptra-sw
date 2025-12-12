@@ -365,9 +365,7 @@ jobs:
                   - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)'
               -E 'package(caliptra-drivers)
                   - test(test_csrng_adaptive_proportion)
-                  - test(test_csrng_repetition_count)
-                  - test(test_doe_when_debug_locked)
-                  - test(test_doe_when_debug_not_locked)'
+                  - test(test_csrng_repetition_count)'
               -E 'package(caliptra-fmc)'
           )
 
