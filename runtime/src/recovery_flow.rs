@@ -70,6 +70,9 @@ impl RecoveryFlow {
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
+            // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
+            dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
+
             // need to make sure the device status is correct to load the next image
             dma_recovery.set_device_status(
                 DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
