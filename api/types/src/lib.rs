@@ -235,6 +235,7 @@ pub struct Fuses {
     pub debug_locked: bool,
     pub soc_manifest_svn: [u32; 4],
     pub soc_manifest_max_svn: u8,
+    pub hek_seed: [u32; 8],
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -258,6 +259,7 @@ impl Default for Fuses {
             debug_locked: false,
             soc_manifest_max_svn: 128,
             soc_manifest_svn: Default::default(),
+            hek_seed: Default::default(),
         }
     }
 }
