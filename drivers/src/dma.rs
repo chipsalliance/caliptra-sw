@@ -762,7 +762,7 @@ impl<'a> DmaRecovery<'a> {
                         fixed_addr: false,
                         length: 4,
                         target: DmaReadTarget::Mbox(offset + i as u32),
-                        block_mode: read_transaction.block_mode,
+                        block_mode: BlockMode::Other, // since this is a single dword transfer, we need to set the block size to 0 explicitly
                     };
                     self.dma.flush();
                     self.dma.setup_dma_read(rd_tx);
