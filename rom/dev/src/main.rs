@@ -144,7 +144,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let initialized = if cfg!(feature = "fake-rom") {
         InitializedDrivers {
-            sha1: Sha1::default(),
+            sha1: Sha1::new().unwrap(),
         }
     } else {
         let mut kats_env = caliptra_kat::KatsEnv {
