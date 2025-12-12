@@ -113,7 +113,6 @@ fn test_get_image_info_persists_after_warm_reset() {
     model.warm_reset_flow().unwrap();
 
     // --- AFTER warm reset ---
-    set_auth_manifest_in_place(&mut model, &auth_manifest);
 
     let resp_after = get_image_info(&mut model, FW_ID_1);
 
