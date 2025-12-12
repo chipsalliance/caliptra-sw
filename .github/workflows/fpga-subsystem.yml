@@ -79,7 +79,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: 0f18ea08a717263d8631562fca764ecd7187702e
+      CALIPTRA_MCU_COMMIT: 982ca4f02b7e9fefb58850657246b0c8f28e5b53
 
     steps:
       - name: Checkout repo
@@ -355,7 +355,6 @@ jobs:
                   - test(test_warm_reset::test_warm_reset_during_update_reset)
                   - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)'
               -E 'package(caliptra-drivers)
-                  - test(test_ocp_lock_warm_reset)
                   - test(test_csrng_adaptive_proportion)
                   - test(test_csrng_repetition_count)
                   - test(test_doe_when_debug_locked)

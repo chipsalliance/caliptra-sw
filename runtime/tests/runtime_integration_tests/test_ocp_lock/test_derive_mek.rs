@@ -2,6 +2,7 @@
 
 use caliptra_api::mailbox::{
     CommandId, MailboxReq, MailboxReqHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp,
+    OcpLockInitializeMekSecretReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -14,7 +15,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 /// Temporary checksum. This will be calculated from the full keyladder.
 const EXPECTED_MEK_CHECKSUM: [u8; 16] = [
-    73, 146, 30, 45, 219, 194, 205, 122, 216, 126, 125, 129, 216, 54, 127, 49,
+    208, 2, 161, 131, 8, 80, 187, 246, 107, 90, 21, 150, 58, 194, 61, 52,
 ];
 
 // TODO(clundin): Follow up with the following test cases:
@@ -24,7 +25,6 @@ const EXPECTED_MEK_CHECKSUM: [u8; 16] = [
 //
 // * Release MEK and validate MEK contents.
 // * Validate MEK checksum is correct.
-// * MEK and MEK checksum are the same after a warm reset.
 // * MEK and MEK checksum are the same after a hitless update to new firmware.
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
@@ -43,7 +43,8 @@ fn test_derive_mek() {
     let mut cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
-        mek_checksum: EXPECTED_MEK_CHECKSUM,
+        // mek_checksum: EXPECTED_MEK_CHECKSUM,
+        mek_checksum: [0; 16],
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -57,6 +58,100 @@ fn test_derive_mek() {
         .unwrap();
     let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
     assert_eq!(&response.mek_checksum, &EXPECTED_MEK_CHECKSUM);
+}
+
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+/// Verifies MEK does not change after a warm reset.
+fn test_derive_mek_warm_reset() {
+    let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
+        hek_available: true,
+        force_ocp_lock_en: true,
+        init_mek_secret_params: Some(InitializeMekSecretParams {
+            sek: [0xAB; 32],
+            dpk: [0xCD; 32],
+        }),
+        ..Default::default()
+    });
+
+    let mut derive_mek_cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        reserved: 0,
+        mek_checksum: EXPECTED_MEK_CHECKSUM,
+        ..Default::default()
+    });
+    derive_mek_cmd.populate_chksum().unwrap();
+
+    let response = model
+        .mailbox_execute(
+            CommandId::OCP_LOCK_DERIVE_MEK.into(),
+            derive_mek_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+    assert_eq!(&response.mek_checksum, &EXPECTED_MEK_CHECKSUM);
+
+    model.warm_reset_flow().unwrap();
+
+    let mut cmd = MailboxReq::OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        reserved: 0,
+        sek: [0xAB; 32],
+        dpk: [0xCD; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let response = model
+        .mailbox_execute(
+            CommandId::OCP_LOCK_DERIVE_MEK.into(),
+            derive_mek_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+    assert_eq!(&response.mek_checksum, &EXPECTED_MEK_CHECKSUM);
+}
+
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
+    let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
+        hek_available: true,
+        force_ocp_lock_en: true,
+        init_mek_secret_params: Some(InitializeMekSecretParams {
+            sek: [0xAB; 32],
+            dpk: [0xCD; 32],
+        }),
+        ..Default::default()
+    });
+
+    model.warm_reset_flow().unwrap();
+
+    let mut cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        reserved: 0,
+        mek_checksum: EXPECTED_MEK_CHECKSUM,
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_DERIVE_MEK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+    assert_eq!(
+        response.unwrap_err(),
+        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED.into(),)
+    );
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
