@@ -17,7 +17,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf, AesKey, Array4x4, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs,
+    KeyWriteArgs, LEArray4x16,
 };
 use caliptra_drivers_test_bin::{
     hmac_kv_sequence_check, kv_release, populate_slot, TestRegisters, DOE_TEST_IV, ENCRYPTED_MEK,
@@ -97,7 +97,7 @@ fn test_aes_kv_release_unlocked() {
 
         assert!(test_regs
             .aes
-            .aes_256_ecb_decrypt_kv_internal(AesKey::KV(key), output, &[0; 64])
+            .aes_256_ecb_decrypt_kv_internal(AesKey::KV(key), output, &LEArray4x16::default())
             .is_err(),);
     }
 }
@@ -127,7 +127,7 @@ fn test_aes_kv_release_locked() {
 
         assert!(test_regs
             .aes
-            .aes_256_ecb_decrypt_kv_internal(AesKey::KV(key), output, &[0; 64])
+            .aes_256_ecb_decrypt_kv_internal(AesKey::KV(key), output, &LEArray4x16::default())
             .is_err(),);
     }
 }
@@ -226,7 +226,7 @@ fn test_decrypt_to_mek_kv_locked() {
 
     test_regs
         .aes
-        .aes_256_ecb_decrypt_kv(&ENCRYPTED_MEK)
+        .aes_256_ecb_decrypt_kv(&LEArray4x16::from(ENCRYPTED_MEK))
         .unwrap();
 }
 
