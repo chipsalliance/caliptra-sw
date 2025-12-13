@@ -48,7 +48,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     let Some(Response::GetProfile(profile)) = resp else {
         panic!("Wrong response type!");
     };
-    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE);
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
@@ -348,7 +348,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
@@ -381,7 +381,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
@@ -431,7 +431,7 @@ fn test_export_cdi_destroyed_root_context() {
     // destroyed.
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,

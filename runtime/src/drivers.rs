@@ -534,9 +534,8 @@ impl Drivers {
         };
 
         // Initialize DPE with the RT journey PCR
-        let rt_journey_measurement = <[u8; DPE_PROFILE.get_hash_size()]>::from(
-            &drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR),
-        );
+        let rt_journey_measurement =
+            <[u8; DPE_PROFILE.hash_size()]>::from(&drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         let mut dpe = DpeInstance::new_auto_init(
             &mut env,
             DPE_SUPPORT,
@@ -555,7 +554,7 @@ impl Drivers {
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
-                | DeriveContextFlags::INPUT_ALLOW_CA
+                | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                 | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
@@ -594,7 +593,7 @@ impl Drivers {
                     .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
