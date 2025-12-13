@@ -4,8 +4,8 @@ use caliptra_api::mailbox::CommandId;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
-    cmac_kdf, hmac_kdf, Aes, AesKey, AesOperation, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
+    cmac_kdf, hmac_kdf, Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -97,6 +97,13 @@ pub struct MekChecksum(pub [u8; 16]);
 /// This is constructed from `MekSecret`
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct MekSeed(LEArray4x16);
+
+impl AsRef<LEArray4x16> for MekSeed {
+    fn as_ref(&self) -> &LEArray4x16 {
+        &self.0
+    }
+}
+
 impl MekSeed {
     fn checksum(&self, aes: &mut Aes) -> CaliptraResult<MekChecksum> {
         let key = self
@@ -232,12 +239,18 @@ impl OcpLockContext {
     ///
     /// NOTE: This operation will consume `intermediate_secret` and erase the MEK secret key vault on
     /// completion.
+    // TODO(clundin): Maybe we will want to split the MEK
+    // release into a separate step since other flows will
+    // need it. This will reduce the args.
+    #[allow(clippy::too_many_arguments)]
     pub fn derive_mek(
         &mut self,
         aes: &mut Aes,
+        dma: &mut Dma,
         hmac: &mut Hmac,
         trng: &mut Trng,
         kv: &mut KeyVault,
+        soc: &mut SocIfc,
         expect_mek_checksum: MekChecksum,
     ) -> CaliptraResult<MekChecksum> {
         // After `intermediate_secret` is consumed a new MEK cannot be created without first calling
@@ -256,8 +269,11 @@ impl OcpLockContext {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL);
         }
 
-        // Do not release an MEK with a failing checksum!
-        // TODO(clundin): MEK should be released to KV here.
+        // Decrypt MEK from MEK seed using MDK.
+        aes.aes_256_ecb_decrypt_kv(mek_seed.as_ref())?;
+        // Release MEK to Encryption Engine.
+        dma.ocp_lock_key_vault_release(soc);
+
         Ok(checksum)
     }
 }
