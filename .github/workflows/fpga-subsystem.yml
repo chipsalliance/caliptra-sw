@@ -373,7 +373,8 @@ jobs:
               -E 'package(caliptra-fmc)'
               -E 'package(caliptra-test) &
                   ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
-                  | test(services::))'
+                  | test(services::)
+                  | test(self_tests::))'
           )
 
           cargo-nextest nextest list \
