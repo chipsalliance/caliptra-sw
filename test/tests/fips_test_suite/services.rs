@@ -3,7 +3,9 @@ use crate::common;
 
 use caliptra_api::SocManager;
 use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
-use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
+use caliptra_builder::firmware::{
+    APP_WITH_UART_FIPS_TEST_HOOKS, APP_WITH_UART_FIPS_TEST_HOOKS_FPGA, FMC_WITH_UART,
+};
 use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
@@ -809,7 +811,11 @@ pub fn zeroize_halt_check_no_output() {
         // Build FW with test hooks and init to runtime
         let fw_image = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &APP_WITH_UART_FIPS_TEST_HOOKS,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FIPS_TEST_HOOKS_FPGA
+            } else {
+                APP_WITH_UART_FIPS_TEST_HOOKS
+            },
             image_options,
         )
         .unwrap()
