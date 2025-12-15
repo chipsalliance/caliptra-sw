@@ -5,13 +5,14 @@ use caliptra_api::mailbox::{
     MailboxRespHeader, OcpLockGetAlgorithmsResp,
 };
 use caliptra_api::SocManager;
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
 use zerocopy::{FromBytes, IntoBytes};
+
+use super::validate_ocp_lock_response;
 
 #[test]
 fn test_get_algorithms() {
@@ -32,7 +33,7 @@ fn test_get_algorithms() {
         payload.as_bytes(),
     );
 
-    if model.subsystem_mode() && model.supports_ocp_lock() {
+    validate_ocp_lock_response(&mut model, response, |response, _| {
         let response = response.unwrap().unwrap();
         let get_algs_resp = OcpLockGetAlgorithmsResp::ref_from_bytes(response.as_bytes()).unwrap();
 
@@ -54,12 +55,5 @@ fn test_get_algorithms() {
         );
         assert_eq!(get_algs_resp.hpke_algorithms, HpkeAlgorithms::all());
         assert_eq!(get_algs_resp.access_key_sizes, AccessKeySizes::LEN_256);
-    } else {
-        assert_eq!(
-            response.unwrap_err(),
-            ModelError::MailboxCmdFailed(
-                CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND.into(),
-            )
-        );
-    }
+    });
 }

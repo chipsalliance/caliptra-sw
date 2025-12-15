@@ -1,12 +1,19 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::{
-    CommandId, MailboxReq, MailboxReqHeader, OcpLockInitializeMekSecretReq,
-    OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
+use caliptra_api::{
+    mailbox::{
+        CapabilitiesResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+        OcpLockInitializeMekSecretReq, OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
+        OcpLockReportHekMetadataRespFlags,
+    },
+    Capabilities,
 };
 use caliptra_builder::{firmware::runtime_tests, FwId};
 use caliptra_drivers::HekSeedState;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelCallback, SecurityState};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{
+    DefaultHwModel, HwModel, ModelCallback, ModelError, OcpLockState, SecurityState,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
@@ -123,13 +130,58 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
             dpk: params.dpk,
         });
         cmd.populate_chksum().unwrap();
-        model
-            .mailbox_execute(
-                CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
-                cmd.as_bytes().unwrap(),
-            )
-            .unwrap()
-            .unwrap();
+        let response = model.mailbox_execute(
+            CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET.into(),
+            cmd.as_bytes().unwrap(),
+        );
+        validate_ocp_lock_response(&mut model, response, |response, _| {
+            response.unwrap().unwrap();
+        });
     }
     model
+}
+
+fn ocp_lock_supported(model: &mut DefaultHwModel) -> bool {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
+    };
+
+    let response = model
+        .mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let capabilities_resp = CapabilitiesResp::ref_from_bytes(response.as_bytes()).unwrap();
+    assert!(caliptra_common::checksum::verify_checksum(
+        capabilities_resp.hdr.chksum,
+        0x0,
+        &capabilities_resp.as_bytes()[core::mem::size_of_val(&capabilities_resp.hdr.chksum)..],
+    ));
+    assert_eq!(
+        capabilities_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    let caps = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
+    assert!(caps.contains(Capabilities::RT_BASE));
+
+    caps.contains(Capabilities::RT_OCP_LOCK)
+}
+
+fn validate_ocp_lock_response(
+    model: &mut DefaultHwModel,
+    response: std::result::Result<Option<Vec<u8>>, ModelError>,
+    check_callback: impl FnOnce(std::result::Result<Option<Vec<u8>>, ModelError>, OcpLockState),
+) {
+    if ocp_lock_supported(model) {
+        let state = model.ocp_lock_state().unwrap();
+        check_callback(response, state);
+    } else {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND.into(),
+            )
+        );
+    }
 }
