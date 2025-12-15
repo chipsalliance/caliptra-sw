@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 use crate::common;
 
+use caliptra_api::SocManager;
 use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
@@ -649,7 +650,25 @@ pub fn version_info_update() {
 
     // Load the FW
     let fw_image = fips_fw_image();
-    hw.upload_firmware(&fw_image).unwrap();
+    if hw.subsystem_mode() {
+        hw.upload_firmware_rri(
+            &fw_image,
+            Some(
+                default_test_soc_manifest(
+                    &DEFAULT_MCU_FW,
+                    FwVerificationPqcKeyType::MLDSA,
+                    1,
+                    Crypto::default(),
+                )
+                .as_bytes(),
+            ),
+            Some(&DEFAULT_MCU_FW),
+        )
+        .unwrap();
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    } else {
+        hw.upload_firmware(&fw_image).unwrap()
+    }
 
     // FMC and FW version should be populated after loading FW
     exec_cmd_version(&mut hw, fmc_version, fw_version);
