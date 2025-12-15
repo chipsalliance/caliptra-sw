@@ -37,6 +37,7 @@ use dpe::{
         CertifyKeyResp, DeriveContextExportedCdiResp, DeriveContextResp, DpeErrorCode,
         GetCertificateChainResp, GetProfileResp, NewHandleResp, Response, ResponseHdr, SignResp,
     },
+    DPE_PROFILE,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time, Asn1TimeRef},
@@ -48,7 +49,7 @@ use openssl::{
 };
 use std::borrow::Cow;
 use std::io;
-use zerocopy::{FromBytes, FromZeros, IntoBytes};
+use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -404,7 +405,7 @@ fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
 
 fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
     if let Ok(&ResponseHdr { status, .. }) =
-        ResponseHdr::ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
+        ResponseHdr::try_ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
     {
         if status != expected_status.get_error_code() {
             panic!("Unexpected DPE Status: 0x{:X}", status);
@@ -418,34 +419,34 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
 
     match dpe_cmd {
         Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
+            Response::CertifyKey(CertifyKeyResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::DeriveContext(DeriveContextCmd { flags, .. })
             if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
         {
             Response::DeriveContextExportedCdi(
-                DeriveContextExportedCdiResp::read_from_bytes(resp_bytes).unwrap(),
+                DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap(),
             )
         }
         Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
+            Response::DeriveContext(DeriveContextResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::read_from_bytes(resp_bytes).unwrap(),
+            GetCertificateChainResp::try_read_from_bytes(resp_bytes).unwrap(),
         ),
         Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
+            Response::DestroyCtx(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::GetProfile => {
-            Response::GetProfile(GetProfileResp::read_from_bytes(resp_bytes).unwrap())
+            Response::GetProfile(GetProfileResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+            Response::InitCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+            Response::RotateCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
         }
-        Command::Sign(_) => Response::Sign(SignResp::read_from_bytes(resp_bytes).unwrap()),
+        Command::Sign(_) => Response::Sign(SignResp::try_read_from_bytes(resp_bytes).unwrap()),
     }
 }
 
@@ -462,7 +463,7 @@ pub fn execute_dpe_cmd(
 ) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(DPE_PROFILE, dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = as_bytes(dpe_cmd);
@@ -497,7 +498,7 @@ pub fn execute_dpe_cmd(
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
         DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from_bytes(resp_bytes).unwrap()),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
 }
