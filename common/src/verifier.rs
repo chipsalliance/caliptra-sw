@@ -24,9 +24,15 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 /// Image source for verification
 pub enum ImageSource<'a, 'b> {
     /// Image is in memory (accessible as a byte slice)
-    Memory(&'b [u8]),
+    MboxMemory(&'b [u8]),
     /// Image is in MCU SRAM (requires DMA access)
     McuSram(&'a Dma),
+    /// Image is in ICCM/DCCM for FIPS self-test (manifest, FMC, and runtime in their loaded locations)
+    FipsTest {
+        manifest: &'b [u8],
+        fmc: &'b [u8],
+        runtime: &'b [u8],
+    },
 }
 
 /// ROM Verification Environemnt
@@ -52,6 +58,45 @@ impl FirmwareImageVerificationEnv<'_, '_> {
             dma,
         )
     }
+
+    /// Helper to read from composite FipsTest image without copying
+    fn read_fips_test_slice<'a>(
+        manifest: &'a [u8],
+        fmc: &'a [u8],
+        runtime: &'a [u8],
+        offset: usize,
+        len: usize,
+    ) -> CaliptraResult<&'a [u8]> {
+        let manifest_len = manifest.len();
+        let fmc_len = fmc.len();
+        let total_len = manifest_len + fmc_len + runtime.len();
+
+        if offset >= total_len || offset + len > total_len {
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS);
+        }
+
+        // Determine which image(s) the requested range spans
+        if offset + len <= manifest_len {
+            // Entirely in manifest
+            manifest
+                .get(offset..offset + len)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)
+        } else if offset >= manifest_len && offset + len <= manifest_len + fmc_len {
+            // Entirely in FMC
+            let fmc_offset = offset - manifest_len;
+            fmc.get(fmc_offset..fmc_offset + len)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)
+        } else if offset >= manifest_len + fmc_len {
+            // Entirely in runtime
+            let rt_offset = offset - manifest_len - fmc_len;
+            runtime
+                .get(rt_offset..rt_offset + len)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)
+        } else {
+            // Spans multiple images - not supported for zero-copy
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)
+        }
+    }
 }
 
 impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
@@ -70,12 +115,30 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 )?;
                 Ok(result.into())
             }
-            ImageSource::Memory(image) => {
+            ImageSource::MboxMemory(image) => {
                 let data = image
                     .get(offset as usize..)
                     .ok_or(err)?
                     .get(..len as usize)
                     .ok_or(err)?;
+                let result = self.sha2_512_384.sha384_digest(data)?.0;
+                Ok(result)
+            }
+            ImageSource::FipsTest {
+                manifest,
+                fmc,
+                runtime,
+            } => {
+                // For FipsTest, the data must be within a single component for non-accelerator digest.
+                // Multi-component spans are not supported here - use sha384_acc_digest instead.
+                let data = FirmwareImageVerificationEnv::read_fips_test_slice(
+                    manifest,
+                    fmc,
+                    runtime,
+                    offset as usize,
+                    len as usize,
+                )
+                .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)?;
                 let result = self.sha2_512_384.sha384_digest(data)?.0;
                 Ok(result)
             }
@@ -97,12 +160,29 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 )?;
                 Ok(result.into())
             }
-            ImageSource::Memory(image) => {
+            ImageSource::MboxMemory(image) => {
                 let data = image
                     .get(offset as usize..)
                     .ok_or(err)?
                     .get(..len as usize)
                     .ok_or(err)?;
+                Ok(self.sha2_512_384.sha512_digest(data)?.0)
+            }
+            ImageSource::FipsTest {
+                manifest,
+                fmc,
+                runtime,
+            } => {
+                // For FipsTest, the data must be within a single component for non-accelerator digest.
+                // Multi-component spans are not supported here - use sha512_acc_digest instead.
+                let data = FirmwareImageVerificationEnv::read_fips_test_slice(
+                    manifest,
+                    fmc,
+                    runtime,
+                    offset as usize,
+                    len as usize,
+                )
+                .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)?;
                 Ok(self.sha2_512_384.sha512_digest(data)?.0)
             }
         }
@@ -119,7 +199,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 // For MCU case, use the existing sha384_digest function
                 self.sha384_digest(offset, len).map_err(|_| digest_failure)
             }
-            ImageSource::Memory(_) => {
+            ImageSource::MboxMemory(_) => {
                 let mut digest = Array4x12::default();
 
                 if let Some(mut sha_acc_op) = self
@@ -132,6 +212,37 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 } else {
                     Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
                 };
+                Ok(digest.0)
+            }
+            ImageSource::FipsTest {
+                manifest,
+                fmc,
+                runtime,
+            } => {
+                // For FIPS test, the data must be within a single component.
+                // Multi-component spans are not supported.
+                let data = FirmwareImageVerificationEnv::read_fips_test_slice(
+                    manifest,
+                    fmc,
+                    runtime,
+                    offset as usize,
+                    len as usize,
+                )
+                .map_err(|_| digest_failure)?;
+
+                let mut digest = Array4x12::default();
+
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_384_slice(data, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
+
                 Ok(digest.0)
             }
         }
@@ -148,7 +259,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 // For MCU case, use the existing sha512_digest function
                 self.sha512_digest(offset, len).map_err(|_| digest_failure)
             }
-            ImageSource::Memory(_) => {
+            ImageSource::MboxMemory(_) => {
                 let mut digest = Array4x16::default();
 
                 if let Some(mut sha_acc_op) = self
@@ -157,6 +268,37 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 {
                     sha_acc_op
                         .digest_512(len, offset, StreamEndianness::Reorder, &mut digest)
+                        .map_err(|_| digest_failure)?;
+                } else {
+                    Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+                };
+
+                Ok(digest.0)
+            }
+            ImageSource::FipsTest {
+                manifest,
+                fmc,
+                runtime,
+            } => {
+                // For FIPS test, the data must be within a single component.
+                // Multi-component spans are not supported.
+                let data = FirmwareImageVerificationEnv::read_fips_test_slice(
+                    manifest,
+                    fmc,
+                    runtime,
+                    offset as usize,
+                    len as usize,
+                )
+                .map_err(|_| digest_failure)?;
+
+                let mut digest = Array4x16::default();
+
+                if let Some(mut sha_acc_op) = self
+                    .sha2_512_384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    sha_acc_op
+                        .digest_512_slice(data, StreamEndianness::Reorder, &mut digest)
                         .map_err(|_| digest_failure)?;
                 } else {
                     Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
