@@ -3,25 +3,56 @@
 use crate::common;
 use caliptra_api::SocManager;
 
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
 use caliptra_builder::firmware::{
-    APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS, ROM_WITH_UART,
+    APP_WITH_UART_FIPS_TEST_HOOKS, APP_WITH_UART_FIPS_TEST_HOOKS_FPGA, FMC_WITH_UART,
+    ROM_WITH_FIPS_TEST_HOOKS, ROM_WITH_FIPS_TEST_HOOKS_FPGA, ROM_WITH_UART,
 };
-use caliptra_builder::ImageOptions;
+use caliptra_builder::{FwId, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use common::*;
 use zerocopy::IntoBytes;
+
+fn rom_with_fips_test() -> &'static FwId<'static> {
+    if cfg!(feature = "fpga_subsystem") {
+        &ROM_WITH_FIPS_TEST_HOOKS_FPGA
+    } else {
+        &ROM_WITH_FIPS_TEST_HOOKS
+    }
+}
+
+// Helper function to upload firmware with subsystem mode support
+fn try_upload_firmware<T: HwModel>(
+    hw: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> Result<(), ModelError> {
+    if hw.subsystem_mode() {
+        let soc_manifest =
+            default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, 1, Crypto::default());
+        hw.upload_firmware_rri(
+            fw_image,
+            Some(soc_manifest.as_bytes()),
+            Some(&DEFAULT_MCU_FW),
+        )
+    } else {
+        hw.upload_firmware(fw_image)
+    }
+}
 
 #[test]
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[cfg(all(
     not(feature = "test_env_immutable_rom"),
-    not(feature = "fpga_realtime")
+    not(any(feature = "fpga_realtime", feature = "fpga_subsystem")),
 ))]
 pub fn kat_halt_check_no_output() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(rom_with_fips_test()).unwrap();
 
     let mut hw = fips_test_init_to_boot_start(
         Some(InitParams {
@@ -45,7 +76,7 @@ pub fn kat_halt_check_no_output() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn fw_load_halt_check_no_output() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(rom_with_fips_test()).unwrap();
 
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
@@ -72,7 +103,7 @@ pub fn fw_load_halt_check_no_output() {
 }
 
 fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(rom_with_fips_test()).unwrap();
 
     let mut hw = fips_test_init_to_boot_start(
         Some(InitParams {
@@ -101,7 +132,7 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     //     Using the Load FW message since that is what uses most of the crypto anyway
     // Check that the SHA engine is not usable
     let fw_image = fips_fw_image();
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
             if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
@@ -116,14 +147,18 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
     }
 
     // Restart Caliptra
-    if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+    if cfg!(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )) {
         hw.cold_reset();
     } else {
         hw = fips_test_init_model(Some(InitParams {
@@ -139,25 +174,57 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
             .ready_for_mb_processing()
     });
 
-    // Verify we can load FW
-    hw.upload_firmware(&fw_image).unwrap();
+    // Verify we reach load FW, we don't care about success here
+    //    hw.upload_firmware_to_mbox(&fw_image).unwrap();
+    match hw.upload_firmware_to_mbox(&fw_image) {
+        Ok(_) => {
+            if hw.subsystem_mode() {
+                panic!("FW Load should fail at this point")
+            }
+        }
+        Err(error) => {
+            if !hw.subsystem_mode() {
+                panic!("FW Load should succeeds at this point")
+            }
+            if error
+                != ModelError::MailboxCmdFailed(
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
+                )
+            {
+                panic!("Unexpected error!")
+            }
+        }
+    }
 }
 
 fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     // Build FW with test hooks and init to runtime
     let fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART_FIPS_TEST_HOOKS,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FIPS_TEST_HOOKS_FPGA
+        } else {
+            APP_WITH_UART_FIPS_TEST_HOOKS
+        },
         ImageOptions::default(),
     )
     .unwrap()
     .to_bytes()
     .unwrap();
 
+    let soc_manifest = default_test_soc_manifest(
+        &DEFAULT_MCU_FW,
+        FwVerificationPqcKeyType::MLDSA,
+        1,
+        Crypto::default(),
+    );
+
     let mut hw = fips_test_init_to_rt(
         None,
         Some(BootParams {
             fw_image: Some(&fw_image),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
             ..Default::default()
         }),
     );
@@ -196,7 +263,7 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
 
     // Verify we cannot use the algorithm
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
             if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
@@ -211,14 +278,18 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
     }
 
     // Restart Caliptra
-    if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+    if cfg!(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )) {
         hw.cold_reset();
     } else {
         hw = fips_test_init_model(None)
@@ -232,7 +303,8 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     });
 
     // Verify we can load FW
-    hw.upload_firmware(&fw_image).unwrap();
+    try_upload_firmware(&mut hw, &fw_image, FwVerificationPqcKeyType::MLDSA).unwrap();
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 }
 
 #[test]
@@ -550,7 +622,7 @@ pub fn integrity_check_failure_rom() {
 
     // Verify we cannot send messages or use the SHA engine
     let fw_image = fips_fw_image();
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
             if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
@@ -565,7 +637,7 @@ pub fn integrity_check_failure_rom() {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
