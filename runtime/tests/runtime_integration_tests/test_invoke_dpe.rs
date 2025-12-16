@@ -352,6 +352,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -387,6 +388,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -435,6 +437,7 @@ fn test_export_cdi_destroyed_root_context() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
