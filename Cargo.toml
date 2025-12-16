@@ -230,7 +230,8 @@ codegen-units = 1
 debug = true      # Keep debug symbols in the release ELF so that we can debug more easily.
 
 [patch.crates-io]
-openssl = { git = "https://github.com/teythoon/rust-openssl.git", branch = "justus/pqc" } # MLDSA
+# Fork of https://github.com/teythoon/rust-openssl.git/justus/pqc
+openssl = { git = "https://github.com/clundin25/rust-openssl.git", rev = "4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7" } # MLDSA
 
 # Always optimize the emulator during tests, as it is a major bottleneck for
 # test speed.
