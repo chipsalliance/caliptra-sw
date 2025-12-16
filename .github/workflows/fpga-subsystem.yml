@@ -354,7 +354,6 @@ jobs:
                   - test(test_pauser_privilege_levels::test_user_not_pl0)
                   - test(test_mailbox::test_reserved_pauser)
                   - test(test_pauser_privilege_levels::test_change_locality)
-                  - test(test_certs::test_all_measurement_apis)
                   - test(test_reallocate_dpe_context_limits)
                   - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
                   - test(test_fe_programming::test_fe_programming_cmd)
