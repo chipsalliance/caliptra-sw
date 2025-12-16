@@ -27,6 +27,7 @@ fn test_revoke_exported_cdi_handle() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -64,6 +65,7 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -153,6 +155,7 @@ fn test_export_cdi_after_revoke() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(resp)) = execute_dpe_cmd(

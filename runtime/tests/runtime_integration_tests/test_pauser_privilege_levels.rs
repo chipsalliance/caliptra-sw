@@ -79,6 +79,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
+            svn: 0,
         };
 
         // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
@@ -152,6 +153,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
                 flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
                 tci_type: 0,
                 target_locality: 0,
+                svn: 0,
             };
 
             // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
@@ -287,6 +289,7 @@ fn test_change_locality() {
             | DeriveContextFlags::INPUT_ALLOW_X509,
         tci_type: 0,
         target_locality: 2,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -304,6 +307,7 @@ fn test_change_locality() {
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 2,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -473,6 +477,7 @@ fn test_export_cdi_cannot_be_called_from_pl1() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let _ = execute_dpe_cmd(
         &mut model,
@@ -592,6 +597,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
             tci_type: 0,
             target_locality: 0,
+            svn: 0,
         };
         let resp = execute_dpe_cmd(
             &mut model,

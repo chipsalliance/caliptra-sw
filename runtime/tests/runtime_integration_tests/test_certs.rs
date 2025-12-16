@@ -697,6 +697,7 @@ pub fn test_all_measurement_apis() {
                 | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::read_from_bytes(&tci_type[..]).unwrap(),
             target_locality: 0,
+            svn: 0,
         };
         let resp = execute_dpe_cmd(
             &mut hw,
