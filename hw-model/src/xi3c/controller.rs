@@ -226,6 +226,10 @@ impl Controller {
         Ok(())
     }
 
+    pub fn set_i3c_not_ready(&self) {
+        self.ready.set(false);
+    }
+
     pub fn cfg_initialize(&self) -> Result<(), XI3cError> {
         if self.ready.get() {
             return Err(XI3cError::DeviceStarted);

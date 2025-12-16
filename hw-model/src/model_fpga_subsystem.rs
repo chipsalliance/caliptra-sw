@@ -2078,6 +2078,12 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn cold_reset(&mut self) {
+        self.i3c_controller()
+            .unwrap()
+            .controller
+            .lock()
+            .unwrap()
+            .set_i3c_not_ready();
         self.set_subsystem_reset(true);
         std::thread::sleep(std::time::Duration::from_micros(1));
         self.init_otp(None)
