@@ -2183,7 +2183,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openssl"
 version = "0.10.72"
-source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "bitflags 2.9.1",
  "cfg-if",
@@ -2197,7 +2197,7 @@ dependencies = [
 [[package]]
 name = "openssl-macros"
 version = "0.1.1"
-source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2216,7 +2216,7 @@ dependencies = [
 [[package]]
 name = "openssl-sys"
 version = "0.9.108"
-source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "cc",
  "libc",
