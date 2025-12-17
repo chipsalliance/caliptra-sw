@@ -10,7 +10,7 @@ use caliptra_auth_man_types::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
+use dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -676,7 +676,7 @@ impl PersistentDataAccessor {
 #[repr(C)]
 #[derive(IntoBytes, TryFromBytes, KnownLayout, Zeroize)]
 pub struct DpePersistentData {
-    pub dpe: DpeInstance,
+    pub state: dpe::State,
     pub context_tags: [u32; MAX_HANDLES],
     pub context_has_tag: [U8Bool; MAX_HANDLES],
     pub attestation_disabled: U8Bool,
