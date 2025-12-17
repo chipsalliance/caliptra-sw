@@ -89,15 +89,16 @@ impl InvokeDpeCmd {
                     None,
                     Some(ueid),
                 ),
+                state: &mut pdata.fw.dpe.state,
             };
 
             let locality = drivers.mbox.id();
-            let dpe = &mut pdata.fw.dpe.dpe;
+            let dpe = &mut DpeInstance::initialized();
             let context_has_tag = &mut pdata.fw.dpe.context_has_tag;
             let context_tags = &mut pdata.fw.dpe.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
-                    dpe.get_profile(&mut env.platform)
+                    dpe.get_profile(&mut env.platform, env.state.support)
                         .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
                 )),
                 Command::InitCtx(cmd) => {
@@ -142,7 +143,11 @@ impl InvokeDpeCmd {
                 Command::DestroyCtx(cmd) => {
                     let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
                     // clear tags for destroyed contexts
-                    Self::clear_tags_for_inactive_contexts(dpe, context_has_tag, context_tags);
+                    Self::clear_tags_for_inactive_contexts(
+                        env.state,
+                        context_has_tag,
+                        context_tags,
+                    );
                     destroy_ctx_resp
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
@@ -184,12 +189,12 @@ impl InvokeDpeCmd {
     ///
     /// # Arguments
     ///
-    /// * `dpe` - DpeInstance
+    /// * `dpe` - DPE state
     /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
     /// * `context_tags` - Tags for each DPE context
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
-        dpe: &mut DpeInstance,
+        dpe: &mut dpe::State,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
         context_tags: &mut [u32; MAX_HANDLES],
     ) {
