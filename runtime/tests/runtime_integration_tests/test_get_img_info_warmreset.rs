@@ -4,15 +4,12 @@ use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 
 use crate::test_authorize_and_stash::set_auth_manifest;
 
-use caliptra_auth_man_types::{
-    Addr64, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
-};
+use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, ImageMetadataFlags};
 use caliptra_common::mailbox_api::{
     CommandId, GetImageInfoReq, GetImageInfoResp, ImageHashSource, MailboxReq, MailboxReqHeader,
-    SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 const FW_ID_1: u32 = 1;
 const FW_ID_2: u32 = 2;
