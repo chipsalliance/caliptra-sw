@@ -12,7 +12,7 @@ File Name:
 ++*/
 
 use crate::flow::dice::DiceOutput;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::FmcEnvNonCrypto;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{handle_fatal_error, DataStore::*};
@@ -38,16 +38,16 @@ pub type IccmAddr<T> = caliptra_drivers::BoundedAddr<T, IccmBounds>;
 pub struct HandOff {}
 
 impl HandOff {
-    fn fht(env: &FmcEnv) -> &FirmwareHandoffTable {
+    fn fht(env: &FmcEnvNonCrypto) -> &FirmwareHandoffTable {
         &env.persistent_data.get().rom.fht
     }
 
-    fn fht_mut(env: &mut FmcEnv) -> &mut FirmwareHandoffTable {
+    fn fht_mut(env: &mut FmcEnvNonCrypto) -> &mut FirmwareHandoffTable {
         &mut env.persistent_data.get_mut().rom.fht
     }
 
     /// Retrieve FMC CDI
-    pub fn fmc_cdi(env: &FmcEnv) -> KeyId {
+    pub fn fmc_cdi(env: &FmcEnvNonCrypto) -> KeyId {
         let ds: DataStore = Self::fht(env)
             .fmc_cdi_kv_hdl
             .try_into()
@@ -64,7 +64,7 @@ impl HandOff {
     /// # Returns
     /// * fmc ECC public key
     ///
-    pub fn fmc_ecc_pub_key(env: &FmcEnv) -> Ecc384PubKey {
+    pub fn fmc_ecc_pub_key(env: &FmcEnvNonCrypto) -> Ecc384PubKey {
         env.persistent_data.get().rom.data_vault.fmc_ecc_pub_key()
     }
 
@@ -73,12 +73,12 @@ impl HandOff {
     /// # Returns
     /// * fmc MLDSA public key
     ///
-    pub fn fmc_mldsa_pub_key(env: &FmcEnv) -> Mldsa87PubKey {
+    pub fn fmc_mldsa_pub_key(env: &FmcEnvNonCrypto) -> Mldsa87PubKey {
         env.persistent_data.get().rom.data_vault.fmc_mldsa_pub_key()
     }
 
     /// Retrieve FMC Alias ECC Private Key
-    pub fn fmc_ecc_priv_key(env: &FmcEnv) -> KeyId {
+    pub fn fmc_ecc_priv_key(env: &FmcEnvNonCrypto) -> KeyId {
         let ds: DataStore = Self::fht(env)
             .fmc_ecc_priv_key_kv_hdl
             .try_into()
@@ -100,7 +100,7 @@ impl HandOff {
     }
 
     /// Retrieve FMC Alias MLDSA KeyPair Seed KV Slot
-    pub fn fmc_mldsa_keypair_seed_key(env: &FmcEnv) -> KeyId {
+    pub fn fmc_mldsa_keypair_seed_key(env: &FmcEnvNonCrypto) -> KeyId {
         let ds: DataStore = Self::fht(env)
             .fmc_mldsa_keypair_seed_kv_hdl
             .try_into()
@@ -125,7 +125,7 @@ impl HandOff {
     }
 
     /// Transfer control to the runtime firmware.
-    pub fn to_rt(env: &FmcEnv) -> ! {
+    pub fn to_rt(env: &FmcEnvNonCrypto) -> ! {
         // Function is defined in start.S
         extern "C" {
             fn transfer_control(entry: u32) -> !;
@@ -143,40 +143,40 @@ impl HandOff {
     }
 
     /// Retrieve runtime TCI (digest)
-    pub fn rt_tci(env: &FmcEnv) -> Array4x12 {
+    pub fn rt_tci(env: &FmcEnvNonCrypto) -> Array4x12 {
         env.persistent_data.get().rom.data_vault.rt_tci()
     }
 
     /// Retrieve firmware SVN.
-    pub fn fw_svn(env: &FmcEnv) -> u32 {
+    pub fn fw_svn(env: &FmcEnvNonCrypto) -> u32 {
         env.persistent_data.get().rom.data_vault.fw_svn()
     }
 
     /// Store runtime Dice ECC Signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_dice_ecc_signature(env: &mut FmcEnv, sig: &Ecc384Signature) {
+    pub fn set_rt_dice_ecc_signature(env: &mut FmcEnvNonCrypto, sig: &Ecc384Signature) {
         Self::fht_mut(env).rt_dice_ecc_sign = *sig;
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rtalias_ecc_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
+    pub fn set_rtalias_ecc_tbs_size(env: &mut FmcEnvNonCrypto, rtalias_tbs_size: usize) {
         Self::fht_mut(env).rtalias_ecc_tbs_size = rtalias_tbs_size as u16;
     }
 
     /// Store runtime Dice MLDSA Signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_dice_mldsa_signature(env: &mut FmcEnv, sig: &Mldsa87Signature) {
+    pub fn set_rt_dice_mldsa_signature(env: &mut FmcEnvNonCrypto, sig: &Mldsa87Signature) {
         // Self::fht_mut(env).rt_dice_mldsa_sign = *sig;
         env.persistent_data.get_mut().fw.rt_dice_mldsa_sign = *sig;
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rtalias_mldsa_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
+    pub fn set_rtalias_mldsa_tbs_size(env: &mut FmcEnvNonCrypto, rtalias_tbs_size: usize) {
         env.persistent_data.get_mut().fw.rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
     }
 
     /// Retrieve the entry point of the runtime firmware.
-    fn rt_entry_point(env: &FmcEnv) -> u32 {
+    fn rt_entry_point(env: &FmcEnvNonCrypto) -> u32 {
         env.persistent_data.get().rom.data_vault.rt_entry_point()
     }
 
@@ -187,7 +187,7 @@ impl HandOff {
 
     /// Update HandOff Table with RT Parameters
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn update(env: &mut FmcEnv, out: DiceOutput) -> CaliptraResult<()> {
+    pub fn update(env: &mut FmcEnvNonCrypto, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
         Self::fht_mut(env).rt_cdi_kv_hdl = Self::key_id_to_handle(out.cdi);
         Self::fht_mut(env).rt_priv_key_kv_hdl =
@@ -198,7 +198,7 @@ impl HandOff {
 
     /// Check if the HandOff Table is ready for RT by ensuring RTAlias CDI and
     /// private key handles are valid.
-    pub fn is_ready_for_rt(env: &FmcEnv) -> CaliptraResult<()> {
+    pub fn is_ready_for_rt(env: &FmcEnvNonCrypto) -> CaliptraResult<()> {
         let fht = Self::fht(env);
         if fht.rt_cdi_kv_hdl.is_valid() && fht.rt_priv_key_kv_hdl.is_valid() {
             Ok(())
