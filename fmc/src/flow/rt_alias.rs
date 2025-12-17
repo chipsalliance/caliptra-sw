@@ -19,7 +19,7 @@ use caliptra_common::x509;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::{FmcEnv, FmcEnvNonCrypto};
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cfi_check;
@@ -195,7 +195,7 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv) -> CaliptraResult<()> {
+    pub fn extend_pcrs(env: &mut FmcEnvNonCrypto) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             ResetReason::ColdReset => {
@@ -253,7 +253,7 @@ impl RtAliasLayer {
     /// * `fmc_cdi` - Key Slot that holds the current CDI
     /// * `rt_cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut FmcEnvNonCrypto, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
@@ -295,7 +295,7 @@ impl RtAliasLayer {
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvNonCrypto,
         cdi: KeyId,
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
@@ -395,9 +395,9 @@ impl RtAliasLayer {
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         let sig = Crypto::ecdsa384_sign(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
-            &mut env.trng,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
+            &mut env.non_crypto.trng,
             auth_priv_key,
             auth_pub_key,
             tbs.tbs(),
@@ -425,8 +425,8 @@ impl RtAliasLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
             auth_pub_key,
             tbs.tbs(),
             sig,
@@ -490,8 +490,8 @@ impl RtAliasLayer {
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         let sig = Crypto::mldsa87_sign(
-            &mut env.mldsa,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa,
+            &mut env.non_crypto.trng,
             key_pair_seed,
             auth_pub_key,
             tbs.tbs(),

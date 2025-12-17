@@ -34,7 +34,10 @@ const LADDER_KEY: KeyId = KEY_ID_FW_KEY_LADDER;
 /// * `env` - ROM Environment
 /// * `ladder_len` - Length of ladder to initialize, based on firmware's SVN
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub(crate) fn initialize_key_ladder(env: &mut RomEnvNonCrypto, ladder_len: u32) -> CaliptraResult<()> {
+pub(crate) fn initialize_key_ladder(
+    env: &mut RomEnvNonCrypto,
+    ladder_len: u32,
+) -> CaliptraResult<()> {
     Crypto::hmac_kdf(
         &mut env.hmac,
         &mut env.trng,

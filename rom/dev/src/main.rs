@@ -16,24 +16,23 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
-use crate::rom_env::RomEnv;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason, Sha1,
-    ShaAccLockState, Trng,
+    Sha256, ShaAccLockState, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
-use caliptra_kat::KatsEnv;
-use rom_env::RomEnvNonCrypto;
+use rom_env::{RomEnv, RomEnvNonCrypto};
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
@@ -145,57 +144,63 @@ pub extern "C" fn rom_entry() -> ! {
     let initialized = if cfg!(feature = "fake-rom") {
         InitializedDrivers {
             sha1: Sha1::new().unwrap(),
+            sha256: unsafe { Sha256::new(Sha256Reg::new()).unwrap() },
         }
     } else {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // sha256
-            sha256: &mut env.sha256,
-
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
-
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-
-            // SHA3/SHAKE
-            sha3: &mut env.sha3,
-
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
-
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
-
-            // LMS Engine
-            lms: &mut env.lms,
-
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
-
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
-
-            // AES Engine
-            aes: &mut env.aes,
-
-            // SHA Acc lock state.
-            // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            // On an Update Reset, it is expected to be unlocked.
-            // Not having it unlocked will result in a fatal error.
-            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-                ShaAccLockState::NotAcquired
-            } else {
-                ShaAccLockState::AssumedLocked
-            },
-        };
-        match run_fips_tests(&mut kats_env) {
-            Err(err) => handle_fatal_error(err.into()),
+        match unsafe { InitializedDrivers::new() } {
             Ok(initialized) => initialized,
+            Err(e) => handle_fatal_error(e.into()),
         }
     };
 
     // Safety: the KATs have been run
     let mut env = unsafe { RomEnv::from_non_crypto(env, initialized) };
+
+    let mut kats_env = caliptra_kat::KatsEnv {
+        // SHA2-256 Engine
+        sha256: &mut env.sha256,
+
+        // SHA2-512/384 Engine
+        sha2_512_384: &mut env.non_crypto.sha2_512_384,
+
+        // SHA2-512/384 Accelerator
+        sha2_512_384_acc: &mut env.non_crypto.sha2_512_384_acc,
+
+        // SHA3/SHAKE
+        sha3: &mut env.non_crypto.sha3,
+
+        // Hmac-512/384 Engine
+        hmac: &mut env.non_crypto.hmac,
+
+        // Cryptographically Secure Random Number Generator
+        trng: &mut env.non_crypto.trng,
+
+        // LMS Engine
+        lms: &mut env.non_crypto.lms,
+
+        // MLDSA87 Engine
+        mldsa87: &mut env.non_crypto.mldsa87,
+
+        // Ecc384 Engine
+        ecc384: &mut env.non_crypto.ecc384,
+
+        // AES Engine
+        aes: &mut env.non_crypto.aes,
+
+        // SHA Acc lock state.
+        // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+        // On an Update Reset, it is expected to be unlocked.
+        // Not having it unlocked will result in a fatal error.
+        sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+            ShaAccLockState::NotAcquired
+        } else {
+            ShaAccLockState::AssumedLocked
+        },
+    };
+
+    if let Err(err) = run_fips_tests(&mut kats_env) {
+        handle_fatal_error(err.into());
+    }
 
     if let Err(err) = flow::run(&mut env) {
         //
@@ -229,11 +234,8 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
+fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     report_boot_status(KatStarted.into());
-
-    cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(env.sha256)?;
 
     #[cfg(feature = "fips-test-hooks")]
     unsafe {
@@ -246,11 +248,11 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
 
-    let initialized_drivers = caliptra_kat::execute_kat(env)?;
+    caliptra_kat::execute_kat(env)?;
 
     report_boot_status(KatComplete.into());
 
-    Ok(initialized_drivers)
+    Ok(())
 }
 
 fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {

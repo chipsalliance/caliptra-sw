@@ -17,7 +17,7 @@ use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::key_ladder;
 use crate::pcr;
-use crate::rom_env::RomEnvNonCrypto;
+use crate::rom_env::{RomEnv, RomEnvNonCrypto};
 use caliptra_api::mailbox;
 use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::mailbox::{
@@ -100,57 +100,57 @@ pub struct FwProcInfo {
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
-    pub fn process(env: &mut RomEnvNonCrypto) -> CaliptraResult<FwProcInfo> {
+    pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
         let mut kats_env = caliptra_kat::KatsEnv {
             // sha256
             sha256: &mut env.sha256,
 
             // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
+            sha2_512_384: &mut env.non_crypto.sha2_512_384,
 
             // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+            sha2_512_384_acc: &mut env.non_crypto.sha2_512_384_acc,
 
             // SHA3/SHAKE Engine
-            sha3: &mut env.sha3,
+            sha3: &mut env.non_crypto.sha3,
 
             // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
+            hmac: &mut env.non_crypto.hmac,
 
             // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
+            trng: &mut env.non_crypto.trng,
 
             // LMS Engine
-            lms: &mut env.lms,
+            lms: &mut env.non_crypto.lms,
 
             // Mldsa87 Engine
-            mldsa87: &mut env.mldsa87,
+            mldsa87: &mut env.non_crypto.mldsa87,
 
             // Ecc384 Engine
-            ecc384: &mut env.ecc384,
+            ecc384: &mut env.non_crypto.ecc384,
 
             // AES Engine
-            aes: &mut env.aes,
+            aes: &mut env.non_crypto.aes,
 
             // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
         let (mut txn, image_size_bytes) = Self::process_mailbox_commands(
-            &mut env.soc_ifc,
-            &mut env.mbox,
-            &mut env.pcr_bank,
-            &mut env.dma,
+            &mut env.non_crypto.soc_ifc,
+            &mut env.non_crypto.mbox,
+            &mut env.non_crypto.pcr_bank,
+            &mut env.non_crypto.dma,
             &mut kats_env,
-            env.persistent_data.get_mut(),
+            env.non_crypto.persistent_data.get_mut(),
         )?;
 
         // After processing commands but before booting into the next stage we need to complete the OCP LOCK flow.
-        if env.soc_ifc.ocp_lock_enabled() {
+        if env.non_crypto.soc_ifc.ocp_lock_enabled() {
             ocp_lock::complete_ocp_lock_flow(
-                &mut env.soc_ifc,
-                env.persistent_data.get_mut(),
-                &mut env.key_vault,
+                &mut env.non_crypto.soc_ifc,
+                env.non_crypto.persistent_data.get_mut(),
+                &mut env.non_crypto.key_vault,
             )?;
         }
 
@@ -163,29 +163,29 @@ impl FirmwareProcessor {
 
         // Load the manifest into DCCM.
         let manifest = Self::load_manifest(
-            &mut env.persistent_data,
+            &mut env.non_crypto.persistent_data,
             &mut txn,
-            &mut env.soc_ifc,
-            &mut env.dma,
+            &mut env.non_crypto.soc_ifc,
+            &mut env.non_crypto.dma,
         );
         let manifest = okref(&manifest)?;
 
-        let image_source = if env.soc_ifc.subsystem_mode() {
-            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+        let image_source = if env.non_crypto.soc_ifc.subsystem_mode() {
+            caliptra_common::verifier::ImageSource::McuSram(&env.non_crypto.dma)
         } else {
             caliptra_common::verifier::ImageSource::Memory(txn.raw_mailbox_contents())
         };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
-            sha2_512_384: &mut env.sha2_512_384,
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-            soc_ifc: &mut env.soc_ifc,
-            ecc384: &mut env.ecc384,
-            mldsa87: &mut env.mldsa87,
-            data_vault: &env.persistent_data.get().rom.data_vault,
-            pcr_bank: &mut env.pcr_bank,
+            sha2_512_384: &mut env.non_crypto.sha2_512_384,
+            sha2_512_384_acc: &mut env.non_crypto.sha2_512_384_acc,
+            soc_ifc: &mut env.non_crypto.soc_ifc,
+            ecc384: &mut env.non_crypto.ecc384,
+            mldsa87: &mut env.non_crypto.mldsa87,
+            data_vault: &env.non_crypto.persistent_data.get().rom.data_vault,
+            pcr_bank: &mut env.non_crypto.pcr_bank,
             image_source,
-            persistent_data: env.persistent_data.get(),
+            persistent_data: env.non_crypto.persistent_data.get(),
         };
 
         // Verify the image
@@ -193,25 +193,30 @@ impl FirmwareProcessor {
         let info = okref(&info)?;
 
         Self::update_fuse_log(
-            &mut env.persistent_data.get_mut().rom.fuse_log,
+            &mut env.non_crypto.persistent_data.get_mut().rom.fuse_log,
             &info.log_info,
         )?;
 
         // Populate data vault
-        Self::populate_data_vault(info, &mut env.persistent_data);
+        Self::populate_data_vault(info, &mut env.non_crypto.persistent_data);
 
         // Extend PCR0 and PCR1
         pcr::extend_pcrs(
-            env.persistent_data.get_mut(),
-            &env.soc_ifc,
-            &mut env.pcr_bank,
-            &mut env.sha2_512_384,
+            env.non_crypto.persistent_data.get_mut(),
+            &env.non_crypto.soc_ifc,
+            &mut env.non_crypto.pcr_bank,
+            &mut env.non_crypto.sha2_512_384,
             info,
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn, &mut env.soc_ifc, &mut env.dma)?;
+        Self::load_image(
+            manifest,
+            &mut txn,
+            &mut env.non_crypto.soc_ifc,
+            &mut env.non_crypto.dma,
+        )?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -220,8 +225,12 @@ impl FirmwareProcessor {
 
         // Update FW version registers
         // Truncate FMC version to 16 bits (no error for 31:16 != 0)
-        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version as u16);
-        env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
+        env.non_crypto
+            .soc_ifc
+            .set_fmc_fw_rev_id(manifest.fmc.version as u16);
+        env.non_crypto
+            .soc_ifc
+            .set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info
         let (nb, nf) = Self::get_cert_validity_info(manifest);

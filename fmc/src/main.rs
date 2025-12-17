@@ -21,6 +21,7 @@ use caliptra_common::{
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY},
 };
 use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_kat::InitializedDrivers;
 
 use caliptra_drivers::{
     hand_off::{DataStore, HandOffDataHandle},
@@ -35,6 +36,7 @@ mod hand_off;
 pub use boot_status::FmcBootStatus;
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
+use fmc_env::FmcEnv;
 use hand_off::HandOff;
 
 #[cfg(feature = "std")]
@@ -56,7 +58,7 @@ fn fix_fht(env: &mut fmc_env::FmcEnv) {
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
+    let mut env = match unsafe { fmc_env::FmcEnvNonCrypto::new_from_registers() } {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
     };
@@ -78,6 +80,15 @@ pub extern "C" fn entry_point() -> ! {
     if pdata.rom.major_version != RomPersistentData::MAJOR_VERSION {
         handle_fatal_error(CaliptraError::FMC_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
     }
+
+    let initialized = match unsafe { InitializedDrivers::new() } {
+        Ok(initialized) => initialized,
+        Err(e) => handle_fatal_error(e.into()),
+    };
+
+    // Safety: the KATs have been run.
+    let mut env = unsafe { FmcEnv::from_non_crypto(env, initialized) };
+
     fix_fht(&mut env);
 
     if env.persistent_data.get().rom.fht.is_valid() {

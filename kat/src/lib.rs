@@ -27,7 +27,6 @@ mod hmac_kdf_kat;
 mod kats_env;
 mod lms_kat;
 mod mldsa87_kat;
-mod sha256_kat;
 mod sha2_512_384acc_kat;
 mod sha384_kat;
 mod sha3_kat;
@@ -39,6 +38,7 @@ pub use aes256ctr_kat::Aes256CtrKat;
 pub use aes256ecb_kat::Aes256EcbKat;
 pub use aes256gcm_kat::Aes256GcmKat;
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_registers::sha256::Sha256Reg;
 pub use cmackdf_kat::CmacKdfKat;
 pub use ecc384_kat::Ecc384Kat;
 pub use ecdh_kat::EcdhKat;
@@ -47,17 +47,26 @@ pub use hmac_kdf_kat::{Hmac384KdfKat, Hmac512KdfKat};
 pub use kats_env::KatsEnv;
 pub use lms_kat::LmsKat;
 pub use mldsa87_kat::Mldsa87Kat;
-pub use sha256_kat::Sha256Kat;
 pub use sha2_512_384acc_kat::Sha2_512_384AccKat;
 pub use sha384_kat::Sha384Kat;
 pub use sha3_kat::Shake256Kat;
 pub use sha512_kat::Sha512Kat;
 
-use caliptra_drivers::{cprintln, Sha1};
+use caliptra_drivers::{cprintln, Sha1, Sha256};
 
 /// Drivers that have been initialized after KAT execution
 pub struct InitializedDrivers {
     pub sha1: Sha1,
+    pub sha256: Sha256,
+}
+
+impl InitializedDrivers {
+    pub unsafe fn new() -> CaliptraResult<Self> {
+        Ok(InitializedDrivers {
+            sha1: Sha1::new()?,
+            sha256: Sha256::new(Sha256Reg::new())?,
+        })
+    }
 }
 
 /// Execute Known Answer Tests
@@ -65,14 +74,8 @@ pub struct InitializedDrivers {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
+pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ++");
-
-    cprintln!("[kat] sha1");
-    let sha1 = Sha1::new()?;
-
-    cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(env.sha256)?;
 
     cprintln!("[kat] SHA2-384");
     Sha384Kat::default().execute(env.sha2_512_384)?;
@@ -130,5 +133,5 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
 
     cprintln!("[kat] --");
 
-    Ok(InitializedDrivers { sha1 })
+    Ok(())
 }

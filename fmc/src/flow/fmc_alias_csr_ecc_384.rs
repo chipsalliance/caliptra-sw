@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::flow::dice::DiceOutput;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::{FmcEnv, FmcEnvNonCrypto};
 use crate::HandOff;
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
@@ -98,7 +98,7 @@ pub struct FmcAliasCsrTbsCommonParams {
     pub tcb_info_fmc_svn_fuses: [u8; 1],
 }
 
-fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommonParams> {
+fn get_tbs_common_params(env: &mut FmcEnvNonCrypto) -> CaliptraResult<FmcAliasCsrTbsCommonParams> {
     let data_vault = &env.persistent_data.get().rom.data_vault;
 
     let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
@@ -142,7 +142,7 @@ fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommo
     Ok(params)
 }
 
-fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
+fn make_ecc_csr(env: &mut FmcEnvNonCrypto, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.ecc_subj_key_pair;
 
     let common_params = get_tbs_common_params(env)?;
@@ -192,7 +192,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     Ok(())
 }
 
-fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
+fn make_mldsa_csr(env: &mut FmcEnvNonCrypto, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.mldsa_subj_key_pair;
 
     let common_params = get_tbs_common_params(env)?;

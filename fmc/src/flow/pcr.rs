@@ -21,7 +21,7 @@ Note:
 
 --*/
 use crate::flow::tci::Tci;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::FmcEnvNonCrypto;
 use crate::HandOff;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
@@ -41,7 +41,7 @@ use zerocopy::IntoBytes;
 /// * `env` - FMC Environment
 /// * `pcr_id` - PCR slot to extend the data into
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
+pub fn extend_pcr_common(env: &mut FmcEnvNonCrypto) -> CaliptraResult<()> {
     // Calculate RT TCI (Hash over runtime code)
     let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
@@ -60,7 +60,11 @@ pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
 
 /// Extend `data` into both the current and journey PCRs, and updates the PCR log.
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> CaliptraResult<()> {
+fn extend_and_log(
+    env: &mut FmcEnvNonCrypto,
+    entry_id: PcrLogEntryId,
+    data: &[u8],
+) -> CaliptraResult<()> {
     env.pcr_bank
         .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha2_512_384, data)?;
     env.pcr_bank

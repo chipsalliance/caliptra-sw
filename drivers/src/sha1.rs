@@ -25,7 +25,7 @@ pub type Sha1Digest<'a> = &'a mut Array4x5;
 
 pub struct Sha1 {
     compressor: Sha1Compressor,
-    _private: (), // prevent instantiation from outside drivers/ package
+    _private: (), // prevent instantiation from outside drivers / package
 }
 
 impl Sha1 {

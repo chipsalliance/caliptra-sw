@@ -46,7 +46,7 @@ pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u
         }
         X509KeyIdAlgo::Sha256 => {
             cprintln!("[idev] Sha256 KeyId Algorithm");
-            let digest = env.non_crypto.sha256.digest(data);
+            let digest = env.sha256.digest(data);
             let digest: [u8; 32] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }
