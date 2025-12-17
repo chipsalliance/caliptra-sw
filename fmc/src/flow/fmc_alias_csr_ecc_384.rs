@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::flow::dice::DiceOutput;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::FmcEnvNonCrypto;
 use crate::HandOff;
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
@@ -42,7 +42,7 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 /// # Returns
 ///
 /// * `DiceInput` - DICE Layer Input
-fn dice_output_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceOutput> {
+fn dice_output_from_hand_off(env: &mut FmcEnvNonCrypto) -> CaliptraResult<DiceOutput> {
     let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
     let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
     let ecc_subj_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
@@ -72,7 +72,7 @@ fn dice_output_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceOutput> {
 }
 
 #[inline(always)]
-pub fn generate_csr(env: &mut FmcEnv) -> CaliptraResult<()> {
+pub fn generate_csr(env: &mut FmcEnvNonCrypto) -> CaliptraResult<()> {
     dice_output_from_hand_off(env).and_then(|output| make_csr(env, &output))
 }
 
@@ -84,7 +84,7 @@ pub fn generate_csr(env: &mut FmcEnv) -> CaliptraResult<()> {
 /// * `output` - DICE Output
 // Inlined to reduce FMC size
 #[inline(always)]
-pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
+pub fn make_csr(env: &mut FmcEnvNonCrypto, output: &DiceOutput) -> CaliptraResult<()> {
     make_ecc_csr(env, output)?;
     make_mldsa_csr(env, output)
 }
@@ -98,7 +98,7 @@ pub struct FmcAliasCsrTbsCommonParams {
     pub tcb_info_fmc_svn_fuses: [u8; 1],
 }
 
-fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommonParams> {
+fn get_tbs_common_params(env: &mut FmcEnvNonCrypto) -> CaliptraResult<FmcAliasCsrTbsCommonParams> {
     let data_vault = &env.persistent_data.get().rom.data_vault;
 
     let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
@@ -142,7 +142,7 @@ fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommo
     Ok(params)
 }
 
-fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
+fn make_ecc_csr(env: &mut FmcEnvNonCrypto, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.ecc_subj_key_pair;
 
     let common_params = get_tbs_common_params(env)?;
@@ -192,7 +192,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     Ok(())
 }
 
-fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
+fn make_mldsa_csr(env: &mut FmcEnvNonCrypto, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.mldsa_subj_key_pair;
 
     let common_params = get_tbs_common_params(env)?;

@@ -141,6 +141,7 @@ impl RomEnv {
     }
 
     /// Get an immutable reference to the non-crypto environment
+    #[allow(dead_code)]
     pub fn non_crypto(&self) -> &RomEnvNonCrypto {
         &self.non_crypto
     }

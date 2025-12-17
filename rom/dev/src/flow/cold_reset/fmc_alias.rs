@@ -117,7 +117,11 @@ impl FmcAliasLayer {
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnvNonCrypto, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(
+        env: &mut RomEnvNonCrypto,
+        measurements: &Array4x12,
+        cdi: KeyId,
+    ) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
         let result = Crypto::hmac_kdf(
