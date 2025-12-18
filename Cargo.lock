@@ -3096,7 +3096,9 @@ name = "vector_gen"
 version = "0.1.0"
 dependencies = [
  "caliptra-test",
+ "hkdf",
  "openssl",
+ "sha2",
 ]
 
 [[package]]

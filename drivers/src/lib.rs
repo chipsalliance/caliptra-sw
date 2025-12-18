@@ -97,7 +97,7 @@ pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorEccPubKeyRevocation, X509Key
 pub use hand_off::FirmwareHandoffTable;
 pub use hkdf::{hkdf_expand, hkdf_extract};
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
-pub use hmac_kdf::hmac_kdf;
+pub use hmac_kdf::{hmac_kdf, hmac_kdf_expand, hmac_kdf_extract};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{

@@ -12,12 +12,14 @@ Abstract:
 
 --*/
 
+mod hkdf_vector_gen;
 mod hmac384_kdf_vector_gen;
 mod hmac384_vector_gen;
 mod mdk;
 mod preconditioned_key_extract_gen;
 mod utils;
 
+use crate::hkdf_vector_gen::HkdfVector;
 use crate::hmac384_kdf_vector_gen::Hmac384KdfVector;
 use crate::hmac384_vector_gen::Hmac384Vector;
 use crate::mdk::Mdk;
@@ -35,6 +37,24 @@ fn hex_arr(bytes: &[u8]) -> String {
 }
 
 fn main() {
+    let vec_hkdf: HkdfVector = hkdf_vector_gen::gen_vector(0, 48);
+    println!("hmac_hkdf salt_len=0 info_len=48");
+    println!("  let ikm = {};", hex_arr(&vec_hkdf.ikm));
+    println!("  let salt = {};", hex_arr(&vec_hkdf.salt));
+    println!("  let info = {};", hex_arr(&vec_hkdf.info));
+    println!("  let prk = {};", hex_arr(&vec_hkdf.prk));
+    println!("  let okm = {};", hex_arr(&vec_hkdf.okm));
+    println!();
+
+    let vec_hkdf: HkdfVector = hkdf_vector_gen::gen_vector(48, 48);
+    println!("hmac_hkdf salt_len=48 info_len=48");
+    println!("  let ikm = {};", hex_arr(&vec_hkdf.ikm));
+    println!("  let salt = {};", hex_arr(&vec_hkdf.salt));
+    println!("  let info = {};", hex_arr(&vec_hkdf.info));
+    println!("  let prk = {};", hex_arr(&vec_hkdf.prk));
+    println!("  let okm = {};", hex_arr(&vec_hkdf.okm));
+    println!();
+
     let vec_d8: Hmac384Vector = hmac384_vector_gen::gen_vector(8);
     println!("hmac384 data_len=8");
     println!("  let seed = {};", hex_arr(&vec_d8.seed));
