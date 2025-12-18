@@ -116,7 +116,7 @@ impl UpdateResetFlow {
             let image_source = if env.soc_ifc.subsystem_mode() {
                 caliptra_common::verifier::ImageSource::McuSram(&env.dma)
             } else {
-                caliptra_common::verifier::ImageSource::Memory(recv_txn.raw_mailbox_contents())
+                caliptra_common::verifier::ImageSource::MboxMemory(recv_txn.raw_mailbox_contents())
             };
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
@@ -220,12 +220,13 @@ impl UpdateResetFlow {
             ecc384: env.ecc384,
             mldsa87: env.mldsa87,
             image_source: match &env.image_source {
-                caliptra_common::verifier::ImageSource::Memory(img) => {
+                caliptra_common::verifier::ImageSource::MboxMemory(img) => {
                     crate::flow::fake::ImageSource::Memory(img)
                 }
                 caliptra_common::verifier::ImageSource::McuSram(dma) => {
                     crate::flow::fake::ImageSource::McuSram(dma)
                 }
+                _ => panic!("Image source cannot be fips test"),
             },
         };
 

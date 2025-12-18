@@ -49,7 +49,7 @@ impl FirmwareVerifyCmd {
                 Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
                 (
                     drivers.mbox.dlen(),
-                    caliptra_common::verifier::ImageSource::Memory(raw_data),
+                    caliptra_common::verifier::ImageSource::MboxMemory(raw_data),
                 )
             }
             VerifySrc::External {
