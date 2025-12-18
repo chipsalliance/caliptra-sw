@@ -78,10 +78,15 @@ fn gdb_test() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+        .unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
-        &firmware::APP_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            firmware::APP_WITH_UART_FPGA
+        } else {
+            firmware::APP_WITH_UART
+        },
         ImageOptions {
             fw_svn: 9,
             ..Default::default()
@@ -118,7 +123,12 @@ fn gdb_test() {
     #[cfg(feature = "fpga_realtime")]
     hw.launch_openocd().unwrap();
 
-    let elf_path = get_elf_path(&firmware::APP_WITH_UART).unwrap();
+    let elf_path = get_elf_path(&if cfg!(feature = "fpga_subsystem") {
+        firmware::APP_WITH_UART_FPGA
+    } else {
+        firmware::APP_WITH_UART
+    })
+    .unwrap();
     let mut gdb = Command::new("gdb-multiarch")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

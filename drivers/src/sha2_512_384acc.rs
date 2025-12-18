@@ -182,6 +182,172 @@ impl Drop for Sha2_512_384AccOp<'_> {
 }
 
 impl Sha2_512_384AccOp<'_> {
+    /// Perform SHA 384 digest on a byte slice
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - byte slice to hash
+    /// * `endianness` - byte endianness mode (Native or Reorder)
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest_384_slice(
+        &mut self,
+        data: &[u8],
+        endianness: StreamEndianness,
+        digest: Sha384Digest,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
+        let dlen = data.len() as u32;
+
+        // Start streaming
+        self.stream_start_384(dlen, endianness)?;
+
+        // Write data dword by dword to datain register
+        for chunk in data.chunks(4) {
+            let mut dword = [0u8; 4];
+            dword[..chunk.len()].copy_from_slice(chunk);
+            self.sha512_acc
+                .regs_mut()
+                .datain()
+                .write(|_| u32::from_le_bytes(dword));
+        }
+
+        // Finish streaming and get digest
+        self.stream_finish_384(digest)?;
+
+        Ok(())
+    }
+
+    /// Perform SHA 384 digest on multiple byte slices (concatenated)
+    ///
+    /// # Arguments
+    ///
+    /// * `slices` - array of byte slices to hash (in order)
+    /// * `endianness` - byte endianness mode (Native or Reorder)
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest_384_slices(
+        &mut self,
+        slices: &[&[u8]],
+        endianness: StreamEndianness,
+        digest: Sha384Digest,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
+        // Calculate total length
+        let dlen: u32 = slices.iter().map(|s| s.len() as u32).sum();
+
+        // Start streaming
+        self.stream_start_384(dlen, endianness)?;
+
+        // Write data from all slices dword by dword to datain register
+        for data in slices {
+            for chunk in data.chunks(4) {
+                let mut dword = [0u8; 4];
+                dword[..chunk.len()].copy_from_slice(chunk);
+                self.sha512_acc
+                    .regs_mut()
+                    .datain()
+                    .write(|_| u32::from_le_bytes(dword));
+            }
+        }
+
+        // Finish streaming and get digest
+        self.stream_finish_384(digest)?;
+
+        Ok(())
+    }
+
+    /// Perform SHA 512 digest on a byte slice
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - byte slice to hash
+    /// * `endianness` - byte endianness mode (Native or Reorder)
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest_512_slice(
+        &mut self,
+        data: &[u8],
+        endianness: StreamEndianness,
+        digest: Sha512Digest,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+            )?
+        }
+
+        let dlen = data.len() as u32;
+
+        // Start streaming
+        self.stream_start_512(dlen, endianness)?;
+
+        // Write data dword by dword to datain register
+        for chunk in data.chunks(4) {
+            let mut dword = [0u8; 4];
+            dword[..chunk.len()].copy_from_slice(chunk);
+            self.sha512_acc
+                .regs_mut()
+                .datain()
+                .write(|_| u32::from_le_bytes(dword));
+        }
+
+        // Finish streaming and get digest
+        self.stream_finish_512(digest)?;
+
+        Ok(())
+    }
+
+    /// Perform SHA 512 digest on multiple byte slices (concatenated)
+    ///
+    /// # Arguments
+    ///
+    /// * `slices` - array of byte slices to hash (in order)
+    /// * `endianness` - byte endianness mode (Native or Reorder)
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest_512_slices(
+        &mut self,
+        slices: &[&[u8]],
+        endianness: StreamEndianness,
+        digest: Sha512Digest,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+            )?
+        }
+
+        // Calculate total length
+        let dlen: u32 = slices.iter().map(|s| s.len() as u32).sum();
+
+        // Start streaming
+        self.stream_start_512(dlen, endianness)?;
+
+        // Write data from all slices dword by dword to datain register
+        for data in slices {
+            for chunk in data.chunks(4) {
+                let mut dword = [0u8; 4];
+                dword[..chunk.len()].copy_from_slice(chunk);
+                self.sha512_acc
+                    .regs_mut()
+                    .datain()
+                    .write(|_| u32::from_le_bytes(dword));
+            }
+        }
+
+        // Finish streaming and get digest
+        self.stream_finish_512(digest)?;
+
+        Ok(())
+    }
+
     /// Prepare the SHA accelerator for streaming.
     ///
     /// # Arguments

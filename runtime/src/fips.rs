@@ -83,15 +83,6 @@ pub mod fips_self_test_cmd {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
     fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
-        env.mbox.write_cmd(0)?;
-        env.mbox.set_dlen(
-            env.persistent_data.get().rom.manifest1.size
-                + env.persistent_data.get().rom.manifest1.fmc.size
-                + env.persistent_data.get().rom.manifest1.runtime.size,
-        )?;
-        env.mbox
-            .copy_bytes_to_mbox(env.persistent_data.get().rom.manifest1.as_bytes())?;
-
         let fmc_toc = &env.persistent_data.get().rom.manifest1.fmc;
         let rt_toc = &env.persistent_data.get().rom.manifest1.runtime;
 
@@ -102,17 +93,16 @@ pub mod fips_self_test_cmd {
             return Err(CaliptraError::RUNTIME_INVALID_RUNTIME_SIZE);
         }
 
+        let manifest = env.persistent_data.get().rom.manifest1.as_bytes();
         let fmc = unsafe { create_slice(fmc_toc) };
         let rt = unsafe { create_slice(rt_toc) };
 
-        env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
-        env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
-
-        let image_source = if env.soc_ifc.subsystem_mode() {
-            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
-        } else {
-            caliptra_common::verifier::ImageSource::Memory(env.mbox.raw_mailbox_contents())
+        let image_source = caliptra_common::verifier::ImageSource::FipsTest {
+            manifest,
+            fmc,
+            runtime: rt,
         };
+
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,

@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
@@ -55,7 +55,12 @@ pub fn run_test(
     init_params: Option<InitParams>,
     boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
-    let runtime_fwid = test_fwid.unwrap_or(&APP_WITH_UART);
+    let default_fwid = &if cfg!(feature = "fpga_subsystem") {
+        APP_WITH_UART_FPGA
+    } else {
+        APP_WITH_UART
+    };
+    let runtime_fwid = test_fwid.unwrap_or(default_fwid);
 
     let image_options = test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
