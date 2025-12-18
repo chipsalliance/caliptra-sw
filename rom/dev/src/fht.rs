@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
+use crate::{rom_env::RomEnvNonCrypto, CALIPTRA_ROM_INFO};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
@@ -51,7 +51,7 @@ impl FhtDataStore {
 }
 
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn initialize_fht(env: &mut RomEnv) {
+pub fn initialize_fht(env: &mut RomEnvNonCrypto) {
     let pdata = &env.persistent_data.get();
 
     env.persistent_data.get_mut().rom.fht = FirmwareHandoffTable {
