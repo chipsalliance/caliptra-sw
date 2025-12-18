@@ -214,15 +214,15 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
         .unwrap();
 
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+    let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
+    let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
     let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // We don't expect the image_digest to be part of the stash
     let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
+    hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
     let expected_measurement_hash = hasher.finalize();
 
@@ -274,15 +274,15 @@ fn test_authorize_and_stash_cmd_success() {
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
         .unwrap();
 
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+    let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
+    let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
     let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order to check that stashed measurement was added to DPE
     let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
+    hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
