@@ -947,6 +947,11 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x12> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
         // the hardware does not support hashing an empty stream
         if length == 0 {
             return Ok(SHA384_EMPTY);
