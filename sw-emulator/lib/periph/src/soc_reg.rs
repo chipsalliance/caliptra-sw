@@ -975,6 +975,8 @@ impl SocRegistersImpl {
         let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
             crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
+        let encryption_engine_offset =
+            crate::dma::axi_root_bus::AxiRootBus::ENCRYPTION_ENGINE_OFFSET;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -1057,9 +1059,9 @@ impl SocRegistersImpl {
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
             ss_caliptra_dma_axi_user: 0,
-            ss_key_release_base_addr_l: 0,
-            ss_key_release_base_addr_h: 0,
-            ss_key_release_size: 0,
+            ss_key_release_base_addr_l: encryption_engine_offset as u32,
+            ss_key_release_base_addr_h: (encryption_engine_offset >> 32) as u32,
+            ss_key_release_size: 64,
             ss_ocp_lock_ctrl: 0,
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
