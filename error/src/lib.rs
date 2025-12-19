@@ -2402,6 +2402,36 @@ impl CaliptraError {
             "Driver Error: AES output KV is invalid"
         ),
         (
+            RUNTIME_DRIVER_HPKE_SEQ_EXHAUSTED,
+            0xa004_1000,
+            "Driver Error: HPKE sequence count exhausted"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_SHAKE_INVALID_LABEL_LEN,
+            0xa004_1001,
+            "Driver Error: HPKE SHAKE label len was invalid"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_ENCAP_TRNG_FAIL,
+            0xa004_1002,
+            "Driver Error: HPKE trng failed during encap"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,
+            0xa004_1100,
+            "Driver Error: HPKE ml-kem failed to generate a key pair due to trng failure"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL,
+            0xa004_1101,
+            "Driver Error: HPKE ml-kem failed to deseriliaze the PKR in setup base s"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_SECRET_DESERIALIZATION_FAIL,
+            0xa004_1102,
+            "Driver Error: HPKE ml-kem failed to deseriliaze the encapsulated secret"
+        ),
+        (
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
             0xa005_0000,
             "Runtime Error: Signaure mismatch"

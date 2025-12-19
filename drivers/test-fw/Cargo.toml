@@ -240,3 +240,8 @@ required-features = ["riscv"]
 name = "axi_bypass"
 path = "src/bin/axi_bypass.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "hpke"
+path = "src/bin/hpke_tests.rs"
+required-features = ["riscv"]
