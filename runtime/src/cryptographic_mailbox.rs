@@ -22,34 +22,35 @@ use caliptra_common::{
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
     mailbox_api::{
         CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
-        CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp,
-        CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
-        CmAesGcmDecryptUpdateResp, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
-        CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-        CmAesGcmEncryptUpdateResp, CmAesGcmSpdmDecryptInitReq, CmAesGcmSpdmDecryptInitResp,
-        CmAesGcmSpdmEncryptInitReq, CmAesGcmSpdmEncryptInitResp, CmAesMode, CmAesResp, CmDeleteReq,
-        CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp,
-        CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
-        CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq,
-        CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
-        CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq,
-        CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
-        CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
-        CmShaInitResp, CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
-        MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-        CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-        CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES,
-        MAX_CMB_DATA_SIZE,
+        CmAesEncryptUpdateReq, CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp,
+        CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptInitReq,
+        CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
+        CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp, CmAesGcmEncryptInitReq,
+        CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
+        CmAesGcmSpdmDecryptInitReq, CmAesGcmSpdmDecryptInitResp, CmAesGcmSpdmEncryptInitReq,
+        CmAesGcmSpdmEncryptInitResp, CmAesMode, CmAesResp, CmDeleteReq, CmDeriveStableKeyReq,
+        CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+        CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq,
+        CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp,
+        CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp,
+        CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
+        CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq,
+        CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
+        CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk, MailboxRespHeader,
+        MailboxRespHeaderVarSize, ResponseVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE,
+        CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
+        CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
     },
 };
 use caliptra_drivers::{
     cmac_kdf, hkdf_expand, hkdf_extract, hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
-    Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
-    CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x3, LEArray4x4, LEArray4x8,
-    Mldsa87Result, Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES,
-    AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
+    Aes, AesContext, AesDmaMode, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12,
+    Array4x16, AxiAddr, BootMode, CaliptraResult, DmaRecovery, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
+    Ecc384PubKey, Ecc384Result, Ecc384Seed, Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157,
+    LEArray4x3, LEArray4x4, LEArray4x8, Mldsa87Result, Mldsa87Seed, PersistentDataAccessor,
+    Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
+    MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -2369,6 +2370,140 @@ impl Commands {
             *x = x.swap_bytes();
         });
         Ok(tag.0)
+    }
+
+    /// Performs in-place AES-GCM decryption of data at an AXI address using DMA.
+    ///
+    /// This command:
+    /// 1. Validates that the boot mode was EncryptedFirmware
+    /// 2. Decrypts the CMK
+    /// 3. Verifies the SHA384 hash of the encrypted data at the AXI address (first DMA pass)
+    /// 4. Performs in-place AES-GCM decryption via DMA (second pass)
+    /// 5. Returns whether the GCM tag was verified successfully
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_decrypt_dma(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+
+        // Validate boot mode - this command is only allowed when boot mode is EncryptedFirmware
+        let boot_mode = drivers.persistent_data.get().rom.boot_mode;
+        if boot_mode != BootMode::EncryptedFirmware {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptDmaReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmDecryptDmaReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        // Validate AAD length
+        if cmd.aad_length as usize > cmd.aad.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let aad = &cmd.aad[..cmd.aad_length as usize];
+
+        // Decrypt the CMK
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        // Validate key usage - must be AES key
+        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
+        if !matches!(key_usage, CmKeyUsage::Aes) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        // Get the AXI address
+        let axi_addr = AxiAddr {
+            lo: cmd.axi_addr_lo,
+            hi: cmd.axi_addr_hi,
+        };
+        let length = cmd.length;
+
+        // First pass: Verify SHA384 of encrypted data
+        // Create DMA recovery handle for SHA384 calculation
+        let dma_recovery = DmaRecovery::new(
+            drivers.soc_ifc.recovery_interface_base_addr().into(),
+            drivers.soc_ifc.caliptra_base_axi_addr().into(),
+            drivers.soc_ifc.mci_base_addr().into(),
+            &drivers.dma,
+        );
+
+        let computed_digest = dma_recovery.sha384_image(
+            &mut drivers.sha2_512_384_acc,
+            axi_addr,
+            length,
+            AesDmaMode::None,
+        )?;
+
+        let computed_digest_bytes: [u8; 48] = computed_digest.into();
+        if computed_digest_bytes != cmd.encrypted_data_sha384 {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        // Extract key and IV from CMK
+        let key: [u8; 32] = cmk.key_material[..32]
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+        let key: LEArray4x8 = transmute!(key);
+        let iv: LEArray4x3 = LEArray4x3::new(cmd.iv);
+
+        // Initialize AES-GCM for decryption - use initialize_aes_gcm directly
+        // instead of aes_256_gcm_init to avoid zeroizing the engine before DMA
+        let _iv = drivers.aes.initialize_aes_gcm(
+            &mut drivers.trng,
+            AesGcmIv::Array(&iv),
+            AesKey::Array(&key),
+            aad,
+            AesOperation::Decrypt,
+        )?;
+
+        // Set the text phase with the length of the final partial block (or 16 if full)
+        let partial_len = length as usize % 16;
+        let text_len = if partial_len == 0 { 16 } else { partial_len };
+        drivers.aes.gcm_set_text(text_len as u32);
+
+        // Second pass: Perform in-place AES-GCM decryption via DMA
+        // The DMA hardware will read from axi_addr, decrypt through AES engine,
+        // and write back to axi_addr
+        let dma_recovery = DmaRecovery::new(
+            drivers.soc_ifc.recovery_interface_base_addr().into(),
+            drivers.soc_ifc.caliptra_base_axi_addr().into(),
+            drivers.soc_ifc.mci_base_addr().into(),
+            &drivers.dma,
+        );
+
+        dma_recovery.transfer_payload_to_axi(
+            axi_addr,
+            length,
+            axi_addr, // in-place: write back to same address
+            false,    // read_fixed_addr
+            false,    // write_fixed_addr
+            AesDmaMode::AesGcm,
+        )?;
+
+        // Compute and verify the GCM tag
+        let computed_tag = drivers.aes.compute_tag(aad.len(), length as usize)?;
+        let expected_tag: LEArray4x4 = LEArray4x4::new(cmd.tag);
+        let tag_verified = computed_tag.as_bytes() == expected_tag.as_bytes();
+
+        // Build response
+        let resp = mutrefbytes::<CmAesGcmDecryptDmaResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.tag_verified = tag_verified as u32;
+
+        Ok(core::mem::size_of::<CmAesGcmDecryptDmaResp>())
     }
 }
 

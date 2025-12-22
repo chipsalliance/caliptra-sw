@@ -717,6 +717,10 @@ impl HwModel for ModelFpgaRealtime {
         Err(ModelError::SubsystemSramError)
     }
 
+    fn read_payload_from_ss_staging_area(&mut self, _len: usize) -> Result<Vec<u8>, ModelError> {
+        Err(ModelError::SubsystemSramError)
+    }
+
     fn fuses(&self) -> &Fuses {
         &self.fuses
     }

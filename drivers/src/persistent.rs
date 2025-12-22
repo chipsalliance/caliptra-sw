@@ -59,22 +59,27 @@ pub const BOOT_MODE_SIZE: u32 = 4;
 /// Boot mode indicating how the firmware was loaded by ROM.
 /// This is used by runtime to determine appropriate behavior during recovery flow.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, TryFromBytes, IntoBytes, KnownLayout, Immutable, Zeroize,
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    TryFromBytes,
+    IntoBytes,
+    KnownLayout,
+    Immutable,
+    Zeroize,
+    Default,
 )]
 #[repr(u32)]
 pub enum BootMode {
     /// Normal boot mode (firmware loaded unencrypted)
+    #[default]
     Normal = 0,
     /// Encrypted firmware boot mode (firmware loaded via RI_DOWNLOAD_ENCRYPTED_FIRMWARE)
     /// In this mode, runtime should not activate MCU firmware after downloading,
     /// allowing MCU ROM to decrypt the firmware first.
     EncryptedFirmware = 1,
-}
-
-impl Default for BootMode {
-    fn default() -> Self {
-        BootMode::Normal
-    }
 }
 
 impl From<BootMode> for u32 {
