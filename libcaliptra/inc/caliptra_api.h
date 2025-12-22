@@ -200,6 +200,9 @@ int caliptra_dpe_get_tagged_tci(struct caliptra_get_tagged_tci_req *req, struct 
 // Increment PCR Reset Counter
 int caliptra_increment_pcr_reset_counter(struct caliptra_increment_pcr_reset_counter_req *req, bool async);
 
+// Get PCR log
+int caliptra_get_pcr_log(struct caliptra_get_pcr_log_resp *resp, bool async);
+
 // Quote PCRs
 int caliptra_quote_pcrs(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_resp *resp, bool async);
 
