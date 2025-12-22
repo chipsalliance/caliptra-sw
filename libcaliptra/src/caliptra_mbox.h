@@ -58,6 +58,7 @@ enum mailbox_command {
     OP_SIGN_WITH_EXPORTED_ECDSA      = 0x53574545, // "SWEE"
     OP_REVOKE_EXPORTED_CDI_HANDLE    = 0x52564348, // "RVCH"
     OP_REALLOCATE_DPE_CONTEXT_LIMITS = 0x52435458, // "RCTX"
+    OP_GET_PCR_LOG                   = 0x504C4F47, // "PLOG"
 };
 
 struct parcel {

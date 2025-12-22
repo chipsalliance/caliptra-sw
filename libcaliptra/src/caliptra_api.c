@@ -1164,6 +1164,20 @@ int caliptra_increment_pcr_reset_counter(struct caliptra_increment_pcr_reset_cou
     return pack_and_execute_command(&p, async);
 }
 
+int caliptra_get_pcr_log(struct caliptra_get_pcr_log_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_PCR_LOG, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Quote PCRs
 int caliptra_quote_pcrs(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_resp *resp, bool async)
 {
