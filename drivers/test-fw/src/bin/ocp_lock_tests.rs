@@ -52,17 +52,20 @@ test_suite! {
 }
 
 fn test_ocp_lock_enabled() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let test_regs = TestRegisters::default();
     assert!(test_regs.soc.ocp_lock_enabled());
 }
 
 fn test_set_ocp_lock_in_progress() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::default();
     test_regs.soc.ocp_lock_set_lock_in_progress();
     assert!(test_regs.soc.ocp_lock_get_lock_in_progress());
 }
 
 fn test_hek_seed_fuse_bank() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let test_regs = TestRegisters::default();
     let fuse_bank = test_regs.soc.fuse_bank().ocp_hek_seed();
     // Check hard coded hek seed from test MCU ROM.
@@ -72,6 +75,7 @@ fn test_hek_seed_fuse_bank() {
 // TODO(clundin): Verify decrypted contents
 // TODO(clundin): Test can't be called twice.
 fn test_hek_seed_doe() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::default();
     test_regs
         .doe
@@ -81,6 +85,7 @@ fn test_hek_seed_doe() {
 
 // AES Decrypt to KV should never work for all KVs until register OCP in progress is set.
 fn test_aes_kv_release_unlocked() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::default();
     for (input_kv, output_kv) in OCP_LOCK_KV_RANGE.cartesian_product(OCP_LOCK_KV_RANGE) {
         let input = KeyId::try_from(input_kv).unwrap();
@@ -104,6 +109,7 @@ fn test_aes_kv_release_unlocked() {
 
 // AES Decrypt to KV only work for KV 16 -> KV 23 when OCP in progress is set.
 fn test_aes_kv_release_locked() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::default();
     for (input_kv, output_kv) in OCP_LOCK_KV_RANGE.cartesian_product(OCP_LOCK_KV_RANGE) {
         let input = KeyId::try_from(input_kv).unwrap();
