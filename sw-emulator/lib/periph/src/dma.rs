@@ -624,7 +624,7 @@ mod tests {
 
     use tock_registers::registers::InMemoryRegister;
 
-    use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
+    use crate::{aes_clp::AesKeyReleaseOp, CaliptraRootBusArgs, Iccm, MailboxInternal};
 
     use super::*;
 
@@ -717,7 +717,7 @@ mod tests {
         let mci = Mci::new(vec![]);
         let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, mci.clone(), args);
         let aes_key = Rc::new(RefCell::new(None));
-        let aes = crate::Aes::new(aes_key);
+        let aes = crate::Aes::new(aes_key, Rc::new(RefCell::new(AesKeyReleaseOp::default())));
         let mut dma = Dma::new(
             &clock,
             mbox_ram.clone(),

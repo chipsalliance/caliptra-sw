@@ -68,7 +68,7 @@ register_bitfields! [
     ],
 
     /// Tag Write Control Register Fields
-    TagWriteControl[
+    pub TagWriteControl[
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
         USAGE OFFSET(6) NUMBITS(8) [],
@@ -76,7 +76,7 @@ register_bitfields! [
     ],
 
     // Tag Status Register Fields
-    TagWriteStatus[
+    pub TagWriteStatus[
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
         ERROR OFFSET(2) NUMBITS(8) [

@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::aes_clp::AesKeyReleaseOp;
 use crate::helpers::words_from_bytes_be;
 use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes256;
@@ -18,7 +19,7 @@ use tock_registers::register_bitfields;
 
 register_bitfields! [
     u32,
-    Status [
+    pub Status [
         IDLE OFFSET(0) NUMBITS(1) [],
         STALL OFFSET(1) NUMBITS(1) [],
         OUTPUT_LOST OFFSET(2) NUMBITS(1) [],
@@ -27,7 +28,7 @@ register_bitfields! [
         ALERT_RECOV_CTRL_UPDATE_ERROR OFFSET(5) NUMBITS(1) [],
         ALERT_FATAL_FAULT OFFSET(6) NUMBITS(1) [],
     ],
-    Ctrl [
+    pub Ctrl [
         OP OFFSET(0) NUMBITS(2) [
             ENCRYPT = 1,
             DECRYPT = 2,
@@ -117,11 +118,15 @@ pub struct AesRegs {
     data_out_read: [bool; 4],
     data_out_block_queue: VecDeque<u32>,
     key_vault_key: Rc<RefCell<Option<[u8; 32]>>>,
+    key_vault_destination: Rc<RefCell<AesKeyReleaseOp>>,
 }
 
 impl AesRegs {
     /// Create a new AES peripheral registers instance
-    pub fn new(key_vault_key: Rc<RefCell<Option<[u8; 32]>>>) -> Self {
+    pub fn new(
+        key_vault_key: Rc<RefCell<Option<[u8; 32]>>>,
+        key_vault_destination: Rc<RefCell<AesKeyReleaseOp>>,
+    ) -> Self {
         Self {
             key_share0: [0; 8],
             key_share1: [0; 8],
@@ -144,6 +149,7 @@ impl AesRegs {
             data_out_read: [true; 4],
             data_out_block_queue: VecDeque::new(),
             key_vault_key,
+            key_vault_destination,
         }
     }
 
@@ -328,6 +334,9 @@ impl AesRegs {
         self.data_out[1] = u32::from_le_bytes(data[4..8].try_into().unwrap());
         self.data_out[2] = u32::from_le_bytes(data[8..12].try_into().unwrap());
         self.data_out[3] = u32::from_le_bytes(data[12..16].try_into().unwrap());
+
+        let mut kv_op = self.key_vault_destination.borrow_mut();
+        kv_op.load_data(&self.data_out);
     }
 
     fn update_cbc(&mut self, data: &[u8]) {
@@ -548,9 +557,15 @@ pub struct Aes {
 
 impl Aes {
     /// Create a new AES peripheral instance
-    pub fn new(key_vault_key: Rc<RefCell<Option<[u8; 32]>>>) -> Self {
+    pub fn new(
+        key_vault_key: Rc<RefCell<Option<[u8; 32]>>>,
+        key_vault_destination: Rc<RefCell<AesKeyReleaseOp>>,
+    ) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(AesRegs::new(key_vault_key))),
+            regs: Rc::new(RefCell::new(AesRegs::new(
+                key_vault_key,
+                key_vault_destination,
+            ))),
         }
     }
 
