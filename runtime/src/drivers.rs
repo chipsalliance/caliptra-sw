@@ -34,7 +34,10 @@ use caliptra_common::cfi_check;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::{
-    cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
+    cprintln,
+    hand_off::DataStore,
+    pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
+    sha2_512_384::Sha2DigestOpTrait,
     Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
@@ -59,7 +62,6 @@ use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
-    DPE_PROFILE,
 };
 use ureg::MmioMut;
 
@@ -237,13 +239,13 @@ impl Drivers {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
-                Self::update_dpe_rt_journey(self)?;
+                Self::update_dpe_rt_tci(self)?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
-                Self::check_dpe_rt_journey_unchanged(self)?;
+                Self::check_dpe_rt_pcrs_unchanged(self)?;
                 Self::update_fw_version(self, true, true);
                 if self.soc_ifc.subsystem_mode() {
                     Self::release_mcu_sram(self)?;
@@ -354,12 +356,13 @@ impl Drivers {
 
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
+    fn update_dpe_rt_tci(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().fw.dpe.state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
-        let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
-        dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
-        dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(latest_pcr);
+        let current_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR));
+        let journey_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
+        dpe.contexts[root_idx].tci.tci_current = TciMeasurement(current_pcr);
+        dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(journey_pcr);
 
         Ok(())
     }
@@ -401,22 +404,28 @@ impl Drivers {
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
-    fn check_dpe_rt_journey_unchanged(drivers: &mut Drivers) -> CaliptraResult<()> {
+    fn check_dpe_rt_pcrs_unchanged(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &drivers.persistent_data.get().fw.dpe.state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
-        let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
+        let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR);
+        let journey_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_cumulative.0);
+        let journey_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
 
-        // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
-        if latest_pcr != latest_tci {
-            // If latest pcr validation fails, disable attestation
+        // Ensure TCIs from SRAM == PCRs
+        if latest_pcr != latest_tci || journey_pcr != journey_tci {
+            // If pcr validation fails, disable attestation
             let result = DisableAttestationCmd::execute(drivers);
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    caliptra_drivers::report_fw_error_non_fatal(
-                        CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
-                    );
+                    let error = if latest_pcr != latest_tci {
+                        CaliptraError::RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED
+                    } else {
+                        CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED
+                    };
+
+                    caliptra_drivers::report_fw_error_non_fatal(error.into());
                 }
                 Err(e) => {
                     cprintln!("{}", e.0);
@@ -427,7 +436,11 @@ impl Drivers {
             cfi_assert_eq_12_words(
                 &<[u32; 12]>::from(latest_tci),
                 &<[u32; 12]>::from(latest_pcr),
-            )
+            );
+            cfi_assert_eq_12_words(
+                &<[u32; 12]>::from(journey_tci),
+                &<[u32; 12]>::from(journey_pcr),
+            );
         }
 
         Ok(())
@@ -535,15 +548,17 @@ impl Drivers {
             state: &mut state,
         };
 
-        // Initialize DPE with the RT journey PCR
-        let rt_journey_measurement =
-            <[u8; DPE_PROFILE.hash_size()]>::from(&drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
-        let mut dpe = DpeInstance::new_auto_init(
-            &mut env,
-            u32::from_be_bytes(*b"RTJM"),
-            rt_journey_measurement,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+        // Initialize DPE with the RT current PCR
+        let current_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR));
+        let mut dpe =
+            DpeInstance::new_auto_init(&mut env, u32::from_be_bytes(*b"RTMR"), current_pcr)
+                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        // DPE internally extends the current measurement to set the cumulative measurement. Set it
+        // to the journey PCR so it follows the hardware.
+        let root_idx = Self::get_dpe_root_context_idx(env.state)?;
+        env.state.contexts[root_idx].tci.tci_cumulative =
+            TciMeasurement(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR).into());
 
         // Call DeriveContext to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
         let derive_context_resp = DeriveContextCmd {

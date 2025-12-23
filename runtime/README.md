@@ -2581,10 +2581,10 @@ this case, the new Runtime Firmware must:
 
 1. Validate DPE state in SRAM
     1. Ensure the TCI tree is well-formed
-    1. Ensure all nodes chain to the root (TYPE = RTJM, “Internal TCI” flag is set)
+    1. Ensure all nodes chain to the root (TYPE = RTMR, “Internal TCI” flag is set)
 1. Verify that the “Latest TCI” field of the TCI Node that contains the
-   Runtime Journey PCR (TYPE = RTJM, “Internal TCI” flag is set) matches the
-   “Latest” Runtime PCR value from PCRX
+   Runtime PCRs (TYPE = RTMR, “Internal TCI” flag is set) matches the
+   “Latest” and Journey Runtime PCR values.
     1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR`
 1. Check that retired and inactive contexts do not have tags
 1. If any validations fail, Runtime Firmware executes the
@@ -2686,9 +2686,9 @@ Caliptra Runtime Firmware is responsible for initializing DPE’s default contex
 
 * Runtime Firmware SHALL initialize the default context in “internal-cdi” mode.
 * Perform the following initial measurements:
-  * Call DeriveContext with Caliptra Journey PCR
+  * Call DeriveContext with Caliptra RT PCRs
     * INPUT\_DATA = PCRX (RT journey PCR as defined in the FHT)
-    * TYPE = “RTJM”
+    * TYPE = “RTMR”
     * CONTEXT\_HANDLE = default context
     * TARGET\_LOCALITY = Caliptra locality (0xFFFFFFFF)
   * Call DeriveContext with mailbox valid PAUSERS
