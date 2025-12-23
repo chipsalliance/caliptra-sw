@@ -984,6 +984,7 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "asn1",
  "caliptra-api",
@@ -1005,9 +1006,16 @@ dependencies = [
  "der 0.7.10",
  "dpe",
  "elf",
+ "hex",
+ "hkdf",
+ "ml-kem",
  "openssl",
  "rand",
  "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sha3 0.10.8",
  "ureg",
  "zerocopy",
 ]
@@ -1821,6 +1829,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hkdf"
