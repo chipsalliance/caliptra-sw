@@ -8,6 +8,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes-gcm.workspace = true
 anyhow.workspace = true
 asn1.workspace = true
 caliptra-api-types.workspace = true
@@ -28,9 +29,16 @@ caliptra_common = { workspace = true, default-features = false }
 der.workspace = true
 dpe.workspace = true
 elf.workspace = true
+hex.workspace = true
+hkdf.workspace = true
 openssl.workspace = true
+ml-kem.workspace = true
 rand.workspace = true
 regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sha3.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
 
