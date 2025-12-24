@@ -484,6 +484,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_DERIVE_STABLE_KEY => {
             cryptographic_mailbox::Commands::derive_stable_key(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_AES_GCM_DECRYPT_DMA => {
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_dma(drivers, cmd_bytes, resp)
+        }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,
             &drivers.soc_ifc,

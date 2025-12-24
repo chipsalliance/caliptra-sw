@@ -108,6 +108,9 @@ impl CommandId {
     // The download firmware from recovery interface command.
     pub const RI_DOWNLOAD_FIRMWARE: Self = Self(0x5249_4644); // "RIFD"
 
+    // The download encrypted firmware from recovery interface command.
+    pub const RI_DOWNLOAD_ENCRYPTED_FIRMWARE: Self = Self(0x5249_4645); // "RIFE"
+
     // The get IDevID ECC CSR command.
     pub const GET_IDEV_ECC384_CSR: Self = Self(0x4944_4352); // "IDCR"
 
@@ -184,6 +187,7 @@ impl CommandId {
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
+    pub const CM_AES_GCM_DECRYPT_DMA: Self = Self(0x434D_4444); // "CMDD"
 
     // OCP LOCK Commands
     pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
@@ -327,6 +331,7 @@ pub enum MailboxResp {
     CmEcdsaPublicKey(CmEcdsaPublicKeyResp),
     CmEcdsaSign(CmEcdsaSignResp),
     CmDeriveStableKey(CmDeriveStableKeyResp),
+    CmAesGcmDecryptDma(CmAesGcmDecryptDmaResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
@@ -389,6 +394,7 @@ impl MailboxResp {
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
@@ -449,6 +455,7 @@ impl MailboxResp {
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
@@ -574,6 +581,7 @@ pub enum MailboxReq {
     CmEcdsaSign(CmEcdsaSignReq),
     CmEcdsaVerify(CmEcdsaVerifyReq),
     CmDeriveStableKey(CmDeriveStableKeyReq),
+    CmAesGcmDecryptDma(CmAesGcmDecryptDmaReq),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
     OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
     OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq),
@@ -656,6 +664,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
+            MailboxReq::CmAesGcmDecryptDma(req) => req.as_bytes_partial(),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_bytes()),
@@ -736,6 +745,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmAesGcmDecryptDma(req) => req.as_bytes_partial_mut(),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_mut_bytes()),
@@ -816,6 +826,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaSign(_) => CommandId::CM_ECDSA_SIGN,
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
+            MailboxReq::CmAesGcmDecryptDma(_) => CommandId::CM_AES_GCM_DECRYPT_DMA,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
             MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
@@ -4162,6 +4173,86 @@ pub struct CmDeriveStableKeyResp {
     pub cmk: Cmk,
 }
 impl Response for CmDeriveStableKeyResp {}
+
+/// Maximum AAD size for CM_AES_GCM_DECRYPT_DMA command
+pub const CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE: usize = MAX_CMB_DATA_SIZE;
+
+// CM_AES_GCM_DECRYPT_DMA
+// This command performs in-place AES-GCM decryption of data at an AXI address using DMA.
+// It first verifies the SHA384 of the encrypted data, then performs decryption.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmDecryptDmaReq {
+    pub hdr: MailboxReqHeader,
+    /// CMK (Cryptographic Mailbox Key) - 128 bytes
+    pub cmk: Cmk,
+    /// AES-GCM IV (12 bytes)
+    pub iv: [u32; 3],
+    /// AES-GCM tag (16 bytes)
+    pub tag: [u32; 4],
+    /// SHA384 hash of the encrypted data (48 bytes)
+    pub encrypted_data_sha384: [u8; 48],
+    /// AXI address (64 bits - low 32 bits)
+    pub axi_addr_lo: u32,
+    /// AXI address (64 bits - high 32 bits)
+    pub axi_addr_hi: u32,
+    /// Length of data to decrypt in bytes
+    pub length: u32,
+    /// Length of AAD in bytes
+    pub aad_length: u32,
+    /// AAD data (0..=4095 bytes)
+    pub aad: [u8; CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
+}
+
+impl Default for CmAesGcmDecryptDmaReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            iv: [0u32; 3],
+            tag: [0u32; 4],
+            encrypted_data_sha384: [0u8; 48],
+            axi_addr_lo: 0,
+            axi_addr_hi: 0,
+            length: 0,
+            aad_length: 0,
+            aad: [0u8; CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
+        }
+    }
+}
+
+impl CmAesGcmDecryptDmaReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.aad_length as usize > CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE - self.aad_length as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.aad_length as usize > CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE - self.aad_length as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesGcmDecryptDmaReq {
+    const ID: CommandId = CommandId::CM_AES_GCM_DECRYPT_DMA;
+    type Resp = CmAesGcmDecryptDmaResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmDecryptDmaResp {
+    pub hdr: MailboxRespHeader,
+    /// Indicates whether the GCM tag was verified successfully (1 = success, 0 = failure)
+    pub tag_verified: u32,
+}
+
+impl Response for CmAesGcmDecryptDmaResp {}
 
 // OCP_LOCK_REPORT_HEK_METADATA
 #[repr(C)]

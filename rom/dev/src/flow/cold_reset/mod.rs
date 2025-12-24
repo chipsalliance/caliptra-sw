@@ -58,6 +58,7 @@ impl ColdResetFlow {
         env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
         env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
         env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+        env.persistent_data.get_mut().rom.boot_mode = BootMode::Normal;
 
         {
             let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
