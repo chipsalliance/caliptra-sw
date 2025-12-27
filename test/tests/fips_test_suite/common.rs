@@ -1,11 +1,13 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::*,
@@ -50,10 +52,18 @@ pub struct RomExpVals {
     pub capabilities: [u8; 16],
 }
 
+#[cfg(not(feature = "ocp-lock"))]
 const ROM_EXP_2_0_0: RomExpVals = RomExpVals {
     rom_version: 0x1000, // 2.0.0
     capabilities: [
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
+    ],
+};
+#[cfg(feature = "ocp-lock")]
+const ROM_EXP_2_0_0: RomExpVals = RomExpVals {
+    rom_version: 0x1000, // 2.0.0
+    capabilities: [
+        0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3,
     ],
 };
 
@@ -142,7 +152,10 @@ pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // If rom was not provided, build it or get it from the specified path
     let rom = match std::env::var("FIPS_TEST_ROM_BIN") {
         // Build default rom if not provided and no path is specified
-        Err(_) => caliptra_builder::rom_for_fw_integration_tests().unwrap(),
+        Err(_) => {
+            caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
+                .unwrap()
+        }
         Ok(rom_path) => {
             // Read in the ROM file if a path was provided
             match std::fs::read(&rom_path) {
@@ -226,13 +239,24 @@ pub fn fips_test_init_to_rt(
     // Create params if not provided
     let mut boot_params = boot_params.unwrap_or_default();
 
-    if boot_params.fw_image.is_some() {
+    let mut hw = if boot_params.fw_image.is_some() {
         fips_test_init_base(init_params, Some(boot_params))
     } else {
         let fw_image = fips_fw_image();
         boot_params.fw_image = Some(&fw_image);
+        let soc_manifest = default_test_soc_manifest(
+            &DEFAULT_MCU_FW,
+            FwVerificationPqcKeyType::MLDSA,
+            1,
+            Crypto::default(),
+        );
+        boot_params.soc_manifest = Some(soc_manifest.as_bytes());
+        boot_params.mcu_fw_image = Some(&DEFAULT_MCU_FW);
         fips_test_init_base(init_params, Some(boot_params))
-    }
+    };
+    // We need this on fpga_subsystem
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    hw
 
     // HW model will complete FW upload cmd, nothing to wait for
 }
@@ -353,7 +377,11 @@ pub fn fips_fw_image() -> Vec<u8> {
         // Build default FW if not provided and no path is specified
         Err(_) => caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &APP_WITH_UART,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FPGA
+            } else {
+                APP_WITH_UART
+            },
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),

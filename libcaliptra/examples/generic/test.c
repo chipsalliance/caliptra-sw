@@ -1122,7 +1122,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Give self test time to run
-    for (int i = 0; i < 4000000; i++)
+    for (int i = 0; i < 6000000; i++)
     {
         caliptra_wait();
     }

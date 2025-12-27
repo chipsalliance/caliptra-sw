@@ -1321,30 +1321,28 @@ impl ModelFpgaSubsystem {
         // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
         // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
-        let mem =
-            otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
-                anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
-                idevid_cert_attr: self
-                    .fuses
-                    .idevid_cert_attr
+        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
+            anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
+            idevid_cert_attr: self
+                .fuses
+                .idevid_cert_attr
+                .iter()
+                .flat_map(|f| f.to_le_bytes())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            hsm_id: u128::from_le_bytes(
+                self.fuses
+                    .idevid_manuf_hsm_id
                     .iter()
-                    .fold(vec![], |mut acc, f| {
-                        let bytes = f.to_le_bytes();
-                        acc.extend_from_slice(&bytes);
-                        acc
-                    })
+                    .flat_map(|f| f.to_le_bytes())
+                    .collect::<Vec<_>>()
                     .try_into()
                     .unwrap(),
-                hsm_id: self.fuses.idevid_manuf_hsm_id.iter().enumerate().fold(
-                    0,
-                    |mut acc, (f, i)| {
-                        acc |= (f as u128) << (i * 32);
-                        acc
-                    },
-                ),
-                stepping_id: self.fuses.soc_stepping_id as u32,
-                ..Default::default()
-            })?;
+            ),
+            stepping_id: self.fuses.soc_stepping_id as u32,
+            ..Default::default()
+        })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
@@ -1824,7 +1822,7 @@ impl HwModel for ModelFpgaSubsystem {
         while self.cycle_count().wrapping_sub(start) < 20_000_000 {
             self.step();
             let flow_status = self.soc_ifc().cptra_flow_status().read();
-            if flow_status.idevid_csr_ready() {
+            if flow_status.idevid_csr_ready() && boot_params.fw_image.is_some() {
                 // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
                 // once the CSR is ready to continue making progress.
                 //
