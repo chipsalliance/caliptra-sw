@@ -50,6 +50,7 @@ use caliptra_registers::{
     soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
+use crypto::Digest;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
@@ -64,7 +65,6 @@ use dpe::{
 use ureg::MmioMut;
 
 use core::cmp::Ordering::{Equal, Greater};
-use crypto::CryptoBuf;
 use zerocopy::IntoBytes;
 
 pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
@@ -454,7 +454,7 @@ impl Drivers {
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
+    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self
             .persistent_data
             .get()
@@ -464,8 +464,7 @@ impl Drivers {
             .to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
-        let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
-            .map_err(|_| CaliptraError::RUNTIME_COMPUTE_RT_ALIAS_SN_FAILED)?;
+        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }
