@@ -15,11 +15,11 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
+    ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
     QuotePcrsResp,
 };
 use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
@@ -96,5 +96,24 @@ impl ExtendPcrCmd {
             .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
 
         Ok(MailboxResp::default())
+    }
+}
+
+pub struct GetPcrLogCmd;
+impl GetPcrLogCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        let pcr_log = drivers.persistent_data.get().pcr_log.as_bytes();
+        let len = pcr_log.len();
+
+        let mut get_pcr_log_resp = GetPcrLogResp {
+            hdr: MailboxRespHeader::default(),
+            data_size: len as u32,
+            data: [0u8; GetPcrLogResp::DATA_MAX_SIZE],
+        };
+        get_pcr_log_resp.data[..len].copy_from_slice(&pcr_log[..len]);
+
+        Ok(MailboxResp::GetPcrLog(get_pcr_log_resp))
     }
 }
