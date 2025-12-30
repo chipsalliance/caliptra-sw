@@ -255,14 +255,16 @@ impl FirmwareProcessor {
     /// * `persistent_data` - Persistent data
     ///
     /// # Returns
-    /// * `MailboxRecvTxn` - Mailbox Receive Transaction
+    /// * `Option<MailboxRecvTxn>` - Mailbox Receive Transaction (Some in passive mode, None in subsystem mode)
+    /// * `u32` - Image size in bytes
     ///
-    /// Mailbox transaction handle (returned only for the FIRMWARE_LOAD command).
+    /// In passive mode, the mailbox transaction handle is returned for the FIRMWARE_LOAD command.
+    /// In subsystem mode, firmware is loaded via the recovery interface and None is returned.
     /// This transaction is ManuallyDrop because we don't want the transaction
     /// to be completed with failure until after handle_fatal_error is called.
     /// This prevents a race condition where the SoC reads FW_ERROR_NON_FATAL
     /// immediately after the mailbox transaction fails,
-    ///  but before caliptra has set the FW_ERROR_NON_FATAL register.
+    /// but before caliptra has set the FW_ERROR_NON_FATAL register.
     fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
@@ -499,6 +501,13 @@ impl FirmwareProcessor {
     }
 
     /// Load the manifest
+    ///
+    /// # Arguments
+    ///
+    /// * `persistent_data` - Persistent data accessor
+    /// * `txn` - Mailbox transaction (Some in passive mode, None in subsystem mode)
+    /// * `soc_ifc` - SoC Interface
+    /// * `dma` - DMA engine
     ///
     /// # Returns
     ///
@@ -773,7 +782,7 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `manifest` - Manifest
-    /// * `txn`      - Mailbox Receive Transaction
+    /// * `txn`      - Mailbox Receive Transaction (Some in passive mode, None in subsystem mode)
     /// * `soc_ifc`  - SoC Interface
     /// * `dma`      - DMA engine
     ///
