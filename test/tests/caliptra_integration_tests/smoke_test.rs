@@ -2,7 +2,7 @@ use caliptra_api::mailbox::AlgorithmType;
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
-use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
@@ -14,13 +14,12 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
-use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{
-    bytes_to_be_words_48,
+    bytes_to_be_words_48, default_soc_manifest_bytes,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
-    swap_word_bytes,
+    swap_word_bytes, test_upload_firmware,
     x509::{DiceFwid, DiceTcbInfo},
 };
 use caliptra_test::{derive, redact_cert, redact_csr, run_test, RedactOpts, UnwrapSingle};
@@ -31,30 +30,6 @@ use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
 use zerocopy::{IntoBytes, TryFromBytes};
-
-fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
-    manifest.as_bytes().to_vec()
-}
-
-// Helper function to upload firmware, handling both regular and subsystem modes
-fn test_upload_firmware<T: HwModel>(
-    model: &mut T,
-    fw_image: &[u8],
-    pqc_key_type: FwVerificationPqcKeyType,
-) {
-    if model.subsystem_mode() {
-        model
-            .upload_firmware_rri(
-                fw_image,
-                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
-                Some(&DEFAULT_MCU_FW),
-            )
-            .unwrap();
-    } else {
-        model.upload_firmware(fw_image).unwrap();
-    }
-}
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,

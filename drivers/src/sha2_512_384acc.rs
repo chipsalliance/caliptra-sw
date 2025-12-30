@@ -182,6 +182,18 @@ impl Drop for Sha2_512_384AccOp<'_> {
 }
 
 impl Sha2_512_384AccOp<'_> {
+    /// Write data dword by dword to the datain register
+    fn write_data_to_datain(&mut self, data: &[u8]) {
+        for chunk in data.chunks(4) {
+            let mut dword = [0u8; 4];
+            dword[..chunk.len()].copy_from_slice(chunk);
+            self.sha512_acc
+                .regs_mut()
+                .datain()
+                .write(|_| u32::from_le_bytes(dword));
+        }
+    }
+
     /// Perform SHA 384 digest on a byte slice
     ///
     /// # Arguments
@@ -206,14 +218,7 @@ impl Sha2_512_384AccOp<'_> {
         self.stream_start_384(dlen, endianness)?;
 
         // Write data dword by dword to datain register
-        for chunk in data.chunks(4) {
-            let mut dword = [0u8; 4];
-            dword[..chunk.len()].copy_from_slice(chunk);
-            self.sha512_acc
-                .regs_mut()
-                .datain()
-                .write(|_| u32::from_le_bytes(dword));
-        }
+        self.write_data_to_datain(data);
 
         // Finish streaming and get digest
         self.stream_finish_384(digest)?;
@@ -247,14 +252,7 @@ impl Sha2_512_384AccOp<'_> {
 
         // Write data from all slices dword by dword to datain register
         for data in slices {
-            for chunk in data.chunks(4) {
-                let mut dword = [0u8; 4];
-                dword[..chunk.len()].copy_from_slice(chunk);
-                self.sha512_acc
-                    .regs_mut()
-                    .datain()
-                    .write(|_| u32::from_le_bytes(dword));
-            }
+            self.write_data_to_datain(data);
         }
 
         // Finish streaming and get digest
@@ -289,14 +287,7 @@ impl Sha2_512_384AccOp<'_> {
         self.stream_start_512(dlen, endianness)?;
 
         // Write data dword by dword to datain register
-        for chunk in data.chunks(4) {
-            let mut dword = [0u8; 4];
-            dword[..chunk.len()].copy_from_slice(chunk);
-            self.sha512_acc
-                .regs_mut()
-                .datain()
-                .write(|_| u32::from_le_bytes(dword));
-        }
+        self.write_data_to_datain(data);
 
         // Finish streaming and get digest
         self.stream_finish_512(digest)?;
@@ -332,14 +323,7 @@ impl Sha2_512_384AccOp<'_> {
 
         // Write data from all slices dword by dword to datain register
         for data in slices {
-            for chunk in data.chunks(4) {
-                let mut dword = [0u8; 4];
-                dword[..chunk.len()].copy_from_slice(chunk);
-                self.sha512_acc
-                    .regs_mut()
-                    .datain()
-                    .write(|_| u32::from_le_bytes(dword));
-            }
+            self.write_data_to_datain(data);
         }
 
         // Finish streaming and get digest

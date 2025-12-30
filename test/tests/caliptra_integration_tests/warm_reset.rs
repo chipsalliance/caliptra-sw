@@ -2,41 +2,15 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
-use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
-use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_test::image_pk_desc_hash;
-use zerocopy::IntoBytes;
-
-fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
-    manifest.as_bytes().to_vec()
-}
-
-// Helper function to upload firmware, handling both regular and subsystem modes
-fn test_upload_firmware<T: HwModel>(
-    model: &mut T,
-    fw_image: &[u8],
-    pqc_key_type: FwVerificationPqcKeyType,
-) {
-    if model.subsystem_mode() {
-        model
-            .upload_firmware_rri(
-                fw_image,
-                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
-                Some(&DEFAULT_MCU_FW),
-            )
-            .unwrap();
-    } else {
-        model.upload_firmware(fw_image).unwrap();
-    }
-}
+use caliptra_test::{default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware};
 
 #[test]
 fn warm_reset_basic() {

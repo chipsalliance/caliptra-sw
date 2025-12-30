@@ -1,11 +1,15 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::soc_mgr::SocManager;
+use caliptra_auth_man_gen::default_test_manifest::default_test_soc_manifest;
+pub use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use zerocopy::IntoBytes;
 
 pub mod crypto;
@@ -45,6 +49,31 @@ pub fn image_pk_desc_hash(manifest: &ImageManifest) -> ([u32; 12], [u32; 12]) {
     let owner_pk_hash = bytes_to_be_words_48(&sha384(manifest.preamble.owner_pub_keys.as_bytes()));
 
     (vendor_pk_desc_hash, owner_pk_hash)
+}
+
+/// Generate default SOC manifest bytes for testing
+pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
+    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
+    manifest.as_bytes().to_vec()
+}
+
+/// Helper function to upload firmware, handling both regular and subsystem modes
+pub fn test_upload_firmware<T: HwModel>(
+    model: &mut T,
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) {
+    if model.subsystem_mode() {
+        model
+            .upload_firmware_rri(
+                fw_image,
+                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
+                Some(&DEFAULT_MCU_FW),
+            )
+            .unwrap();
+    } else {
+        model.upload_firmware(fw_image).unwrap();
+    }
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
