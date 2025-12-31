@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
-use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::{
     firmware::{
         self,
@@ -17,10 +17,8 @@ use caliptra_drivers::{
     FirmwareHandoffTable, PcrId,
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
-use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_types::FwVerificationPqcKeyType;
 
-use caliptra_test::swap_word_bytes;
+use caliptra_test::{default_soc_manifest_bytes, swap_word_bytes};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::helpers;
@@ -86,11 +84,6 @@ fn test_boot_status_reporting() {
         hw.step_until_boot_status(RT_ALIAS_CERT_SIG_GENERATION_COMPLETE, true);
         hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
     }
-}
-
-fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
-    manifest.as_bytes().to_vec()
 }
 
 #[test]

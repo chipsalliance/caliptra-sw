@@ -4,7 +4,6 @@ use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
 };
-use caliptra_auth_man_gen::default_test_manifest::default_test_soc_manifest;
 use caliptra_builder::{
     firmware::{
         APP_WITH_UART, APP_WITH_UART_FPGA, APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA,
@@ -28,9 +27,10 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
     ModelCallback, ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
-use caliptra_image_crypto::OsslCrypto as Crypto;
 
-use caliptra_test::image_pk_desc_hash;
+pub use caliptra_test::{
+    default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware, DEFAULT_MCU_FW,
+};
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
     response::{
@@ -68,31 +68,6 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
     FwVerificationPqcKeyType::MLDSA,
 ];
-
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
-
-pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_test_soc_manifest(DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
-    manifest.as_bytes().to_vec()
-}
-
-pub fn test_upload_firmware<T: HwModel>(
-    model: &mut T,
-    fw_image: &[u8],
-    pqc_key_type: FwVerificationPqcKeyType,
-) {
-    if model.subsystem_mode() {
-        model
-            .upload_firmware_rri(
-                fw_image,
-                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
-                Some(DEFAULT_MCU_FW),
-            )
-            .unwrap();
-    } else {
-        model.upload_firmware(fw_image).unwrap();
-    }
-}
 
 #[derive(Default)]
 pub struct RuntimeProductionArgs {
@@ -308,7 +283,7 @@ pub fn start_rt_test_pqc_model(
     let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
         default_manifest_bytes =
             default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
-        (Some(&default_manifest_bytes[..]), Some(DEFAULT_MCU_FW))
+        (Some(&default_manifest_bytes[..]), Some(&DEFAULT_MCU_FW[..]))
     } else {
         (args.soc_manifest, args.mcu_fw_image)
     };

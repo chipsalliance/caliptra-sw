@@ -1,13 +1,19 @@
 // Licensed under the Apache-2.0 license
 use crate::common;
 
-use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
+use caliptra_api::SocManager;
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_builder::firmware::{
+    APP_WITH_UART_FIPS_TEST_HOOKS, APP_WITH_UART_FIPS_TEST_HOOKS_FPGA, FMC_WITH_UART,
+};
 use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
@@ -647,7 +653,25 @@ pub fn version_info_update() {
 
     // Load the FW
     let fw_image = fips_fw_image();
-    hw.upload_firmware(&fw_image).unwrap();
+    if hw.subsystem_mode() {
+        hw.upload_firmware_rri(
+            &fw_image,
+            Some(
+                default_test_soc_manifest(
+                    &DEFAULT_MCU_FW,
+                    FwVerificationPqcKeyType::MLDSA,
+                    1,
+                    Crypto::default(),
+                )
+                .as_bytes(),
+            ),
+            Some(&DEFAULT_MCU_FW),
+        )
+        .unwrap();
+        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    } else {
+        hw.upload_firmware(&fw_image).unwrap()
+    }
 
     // FMC and FW version should be populated after loading FW
     exec_cmd_version(&mut hw, fmc_version, fw_version);
@@ -681,10 +705,19 @@ pub fn execute_all_services_rom() {
 #[test]
 pub fn execute_all_services_rt() {
     let fw_image = fips_fw_image();
+    let soc_manifest = default_test_soc_manifest(
+        &DEFAULT_MCU_FW,
+        FwVerificationPqcKeyType::MLDSA,
+        1,
+        Crypto::default(),
+    );
+
     let mut hw = fips_test_init_to_rt(
         None,
         Some(BootParams {
             fw_image: Some(&fw_image),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
             ..Default::default()
         }),
     );
@@ -778,7 +811,11 @@ pub fn zeroize_halt_check_no_output() {
         // Build FW with test hooks and init to runtime
         let fw_image = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &APP_WITH_UART_FIPS_TEST_HOOKS,
+            &if cfg!(feature = "fpga_subsystem") {
+                APP_WITH_UART_FIPS_TEST_HOOKS_FPGA
+            } else {
+                APP_WITH_UART_FIPS_TEST_HOOKS
+            },
             image_options,
         )
         .unwrap()
@@ -790,6 +827,9 @@ pub fn zeroize_halt_check_no_output() {
             ..Default::default()
         };
 
+        let soc_manifest =
+            default_test_soc_manifest(&DEFAULT_MCU_FW, *pqc_key_type, 1, Crypto::default());
+
         let mut hw = fips_test_init_to_rt(
             Some(InitParams {
                 fuses,
@@ -799,6 +839,8 @@ pub fn zeroize_halt_check_no_output() {
                 fw_image: Some(&fw_image),
                 initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
                     << HOOK_CODE_OFFSET,
+                soc_manifest: Some(soc_manifest.as_bytes()),
+                mcu_fw_image: Some(&DEFAULT_MCU_FW),
                 ..Default::default()
             }),
         );
