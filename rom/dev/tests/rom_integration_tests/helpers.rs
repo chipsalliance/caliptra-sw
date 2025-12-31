@@ -3,8 +3,6 @@
 use std::mem;
 
 use caliptra_api::SocManager;
-use caliptra_auth_man_gen::default_test_manifest::default_test_soc_manifest;
-pub use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::{firmware, FwId, ImageOptions};
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::{
@@ -18,9 +16,10 @@ use caliptra_hw_model::{
     StackRange, SubsystemInitParams,
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
-use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
-use zerocopy::{IntoBytes, TryFromBytes};
+use zerocopy::TryFromBytes;
+
+pub use caliptra_test::{default_soc_manifest_bytes, test_upload_firmware, DEFAULT_MCU_FW};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -35,30 +34,6 @@ pub const LIFECYCLES_ALL: [DeviceLifecycle; 3] = [
     DeviceLifecycle::Manufacturing,
     DeviceLifecycle::Production,
 ];
-
-pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
-    let manifest = default_test_soc_manifest(&DEFAULT_MCU_FW, pqc_key_type, svn, Crypto::default());
-    manifest.as_bytes().to_vec()
-}
-
-// Matches runtime test helper: uploads via RRI in subsystem mode
-pub fn test_upload_firmware(
-    model: &mut DefaultHwModel,
-    fw_image: &[u8],
-    pqc_key_type: FwVerificationPqcKeyType,
-) {
-    if model.subsystem_mode() {
-        model
-            .upload_firmware_rri(
-                fw_image,
-                Some(&default_soc_manifest_bytes(pqc_key_type, 1)),
-                Some(&DEFAULT_MCU_FW),
-            )
-            .unwrap();
-    } else {
-        model.upload_firmware(fw_image).unwrap();
-    }
-}
 
 pub fn wait_until_runtime(model: &mut DefaultHwModel) {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());

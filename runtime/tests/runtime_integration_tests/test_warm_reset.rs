@@ -38,7 +38,7 @@ fn test_rt_journey_pcr_validation() {
     let boot_params = BootParams {
         fw_image: Some(&binding),
         soc_manifest: Some(&soc_manifest),
-        mcu_fw_image: Some(crate::common::DEFAULT_MCU_FW),
+        mcu_fw_image: Some(&crate::common::DEFAULT_MCU_FW[..]),
         ..Default::default()
     };
 

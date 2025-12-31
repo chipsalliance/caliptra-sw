@@ -8,7 +8,10 @@ use caliptra_api::mailbox::{
 };
 use caliptra_api_types::Fuses;
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART},
+    firmware::{
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART,
+        ROM_FAKE_WITH_UART_FPGA,
+    },
     ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, SecurityState};
@@ -72,10 +75,19 @@ fn fake_boot_test() {
                 AlgorithmType::Mldsa87 => get_idevid_pubkey_mldsa(),
             };
 
-            let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(&if cfg!(feature = "fpga_subsystem") {
+                ROM_FAKE_WITH_UART_FPGA
+            } else {
+                ROM_FAKE_WITH_UART
+            })
+            .unwrap();
             let image = caliptra_builder::build_and_sign_image(
                 &FMC_FAKE_WITH_UART,
-                &APP_WITH_UART,
+                &if cfg!(feature = "fpga_subsystem") {
+                    APP_WITH_UART_FPGA
+                } else {
+                    APP_WITH_UART
+                },
                 ImageOptions {
                     fw_svn: 9,
                     pqc_key_type: *pqc_key_type,

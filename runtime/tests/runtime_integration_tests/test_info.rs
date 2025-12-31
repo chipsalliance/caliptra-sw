@@ -77,7 +77,11 @@ fn test_fw_info() {
     } else {
         &APP_WITH_UART
     };
-    let mcu_fw_image = if fpga { Some(DEFAULT_MCU_FW) } else { None };
+    let mcu_fw_image: Option<&[u8]> = if fpga {
+        Some(&DEFAULT_MCU_FW[..])
+    } else {
+        None
+    };
 
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let soc_manifest = if fpga {
