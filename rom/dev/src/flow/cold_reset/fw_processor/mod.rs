@@ -29,7 +29,7 @@ use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
     mailbox_api::{CommandId, MailboxReqHeader, ZeroizeUdsFeResp},
-    verifier::FirmwareImageVerificationEnv,
+    verifier::{FirmwareImageVerificationEnv, ImageSource},
     FuseLogEntryId,
     RomBootStatus::*,
 };
@@ -173,7 +173,17 @@ impl FirmwareProcessor {
         );
         let manifest = okref(&manifest)?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            let mci_base: AxiAddr = env.soc_ifc.mci_base_addr().into();
+            ImageSource::Staging {
+                axi_start: mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET,
+            }
+        } else {
+            ImageSource::Mailbox {
+                data: txn.raw_mailbox_contents(),
+            }
+        };
+
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -183,10 +193,9 @@ impl FirmwareProcessor {
             mldsa87: &mut env.mldsa87,
             data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: txn.raw_mailbox_contents(),
-            dma: &mut env.dma,
+            image_source,
+            dma: &env.dma,
             persistent_data: env.persistent_data.get(),
-            image_in_mcu,
         };
 
         // Verify the image
@@ -586,9 +595,8 @@ impl FirmwareProcessor {
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
             mldsa87: venv.mldsa87,
-            image: venv.image,
+            image_source: venv.image_source,
             dma: venv.dma,
-            image_in_mcu: venv.image_in_mcu,
         };
 
         // Random delay for CFI glitch protection.

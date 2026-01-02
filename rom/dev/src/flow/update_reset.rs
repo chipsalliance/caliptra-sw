@@ -18,7 +18,7 @@ use crate::{cprintln, pcr, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::verifier::FirmwareImageVerificationEnv;
+use caliptra_common::verifier::{FirmwareImageVerificationEnv, ImageSource};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
@@ -82,7 +82,7 @@ impl UpdateResetFlow {
                     | (external_cmd.axi_address_start_low as u64);
                 (
                     external_cmd.command_id,
-                    Some(staging_addr),
+                    Some(AxiAddr::from(staging_addr)),
                     external_cmd.command_size,
                 )
             } else {
@@ -103,7 +103,15 @@ impl UpdateResetFlow {
             )?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
-            let image_in_mcu = env.soc_ifc.subsystem_mode();
+            let image_source = if env.soc_ifc.subsystem_mode() {
+                ImageSource::Staging {
+                    axi_start: staging_addr.unwrap_or_else(|| AxiAddr::from(0u32)),
+                }
+            } else {
+                ImageSource::Mailbox {
+                    data: recv_txn.raw_mailbox_contents(),
+                }
+            };
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha2_512_384: &mut env.sha2_512_384,
@@ -113,10 +121,9 @@ impl UpdateResetFlow {
                 mldsa87: &mut env.mldsa87,
                 data_vault: &env.persistent_data.get().data_vault,
                 pcr_bank: &mut env.pcr_bank,
-                image: recv_txn.raw_mailbox_contents(),
+                image_source,
                 dma: &env.dma,
                 persistent_data: env.persistent_data.get(),
-                image_in_mcu,
             };
 
             let info = {
@@ -208,9 +215,8 @@ impl UpdateResetFlow {
             data_vault: env.data_vault,
             ecc384: env.ecc384,
             mldsa87: env.mldsa87,
-            image: env.image,
+            image_source: env.image_source,
             dma: env.dma,
-            image_in_mcu: env.image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(env);
@@ -234,7 +240,7 @@ impl UpdateResetFlow {
         txn: &mut MailboxRecvTxn,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
-        staging_addr: Option<u64>,
+        staging_addr: Option<AxiAddr>,
     ) -> CaliptraResult<()> {
         if soc_ifc.subsystem_mode() {
             let addr =
@@ -291,13 +297,14 @@ impl UpdateResetFlow {
     fn load_image_from_mcu(
         manifest: &ImageManifest,
         dma: &mut Dma,
-        staging_addr: u64,
+        staging_addr: AxiAddr,
     ) -> CaliptraResult<()> {
         cprintln!(
-            "[update-reset] Loading Runtime at addr 0x{:08x} len {} from staging 0x{:016x}",
+            "[update-reset] Loading Runtime at addr 0x{:08x} len {} from staging 0x{:08x}{:08x}",
             manifest.runtime.load_addr,
             manifest.runtime.size,
-            staging_addr
+            staging_addr.hi,
+            staging_addr.lo
         );
 
         // Load Runtime from staging area
@@ -313,7 +320,7 @@ impl UpdateResetFlow {
             )
         };
         let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
-        let source_addr = AxiAddr::from(staging_addr + runtime_offset as u64);
+        let source_addr = staging_addr + AxiAddr::from(runtime_offset as u64);
         dma.read_buffer(source_addr, runtime_words);
 
         Ok(())
@@ -330,7 +337,7 @@ impl UpdateResetFlow {
         txn: &mut MailboxRecvTxn,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
-        staging_addr: Option<u64>,
+        staging_addr: Option<AxiAddr>,
     ) -> CaliptraResult<()> {
         if soc_ifc.subsystem_mode() {
             let addr =
@@ -362,7 +369,7 @@ impl UpdateResetFlow {
     fn load_manifest_from_mcu(
         persistent_data: &mut PersistentData,
         dma: &mut Dma,
-        staging_addr: u64,
+        staging_addr: AxiAddr,
     ) -> CaliptraResult<()> {
         let manifest = &mut persistent_data.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
@@ -376,8 +383,7 @@ impl UpdateResetFlow {
             )
         };
 
-        let source_addr = AxiAddr::from(staging_addr);
-        dma.read_buffer(source_addr, manifest_words);
+        dma.read_buffer(staging_addr, manifest_words);
 
         Ok(())
     }

@@ -18,8 +18,10 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::populate_checksum;
 use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_common::mailbox_api::{FirmwareVerifyResp, FirmwareVerifyResult};
-use caliptra_common::verifier::FirmwareImageVerificationEnv;
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, PersistentData, ResetReason};
+use caliptra_common::verifier::{FirmwareImageVerificationEnv, ImageSource};
+use caliptra_drivers::{
+    dma::MCU_SRAM_OFFSET, AxiAddr, CaliptraError, CaliptraResult, PersistentData, ResetReason,
+};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::ImageVerifier;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -43,26 +45,36 @@ pub struct FirmwareVerifyCmd;
 impl FirmwareVerifyCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, src: VerifySrc) -> CaliptraResult<MboxStatusE> {
-        let (image_size, image_in_mcu) = match src {
+        let raw_data = drivers.mbox.raw_mailbox_contents();
+
+        let (mut image_size, image_source) = match src {
             VerifySrc::Mbox => {
-                let raw_data = drivers.mbox.raw_mailbox_contents();
                 Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
-                (drivers.mbox.dlen(), false)
+                (drivers.mbox.dlen(), ImageSource::Mailbox { data: raw_data })
             }
             VerifySrc::External {
                 axi_address,
                 image_size,
             } => {
+                let image_axi_start = if u64::from(axi_address) == 0 {
+                    let mci_base: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
+                    mci_base + MCU_SRAM_OFFSET
+                } else {
+                    axi_address
+                };
                 Self::load_manifest_from_external(
                     drivers.persistent_data.get_mut(),
                     &mut drivers.dma,
-                    axi_address,
+                    image_axi_start,
                 )?;
-                (image_size, true)
+                (
+                    image_size,
+                    ImageSource::Staging {
+                        axi_start: image_axi_start,
+                    },
+                )
             }
         };
-
-        let raw_data = drivers.mbox.raw_mailbox_contents();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut drivers.sha256,
             sha2_512_384: &mut drivers.sha2_512_384,
@@ -72,10 +84,9 @@ impl FirmwareVerifyCmd {
             mldsa87: &mut drivers.mldsa87,
             data_vault: &drivers.persistent_data.get().data_vault,
             pcr_bank: &mut drivers.pcr_bank,
-            image: raw_data,
+            image_source,
             dma: &drivers.dma,
             persistent_data: drivers.persistent_data.get(),
-            image_in_mcu,
         };
         let mut verifier = ImageVerifier::new(&mut venv);
 
