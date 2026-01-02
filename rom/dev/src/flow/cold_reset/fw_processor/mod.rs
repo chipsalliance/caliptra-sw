@@ -167,16 +167,16 @@ impl FirmwareProcessor {
         // Load the manifest into DCCM.
         let manifest = Self::load_manifest(
             &mut env.persistent_data,
-            &mut txn,
+            txn.as_deref_mut(),
             &mut env.soc_ifc,
             &mut env.dma,
         );
         let manifest = okref(&manifest)?;
 
-        let image_source = if env.soc_ifc.subsystem_mode() {
-            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
-        } else {
+        let image_source = if let Some(ref txn) = txn {
             caliptra_common::verifier::ImageSource::MboxMemory(txn.raw_mailbox_contents())
+        } else {
+            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
         };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
@@ -214,10 +214,12 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn, &mut env.soc_ifc, &mut env.dma)?;
+        Self::load_image(manifest, txn.as_deref_mut(), &mut env.soc_ifc, &mut env.dma)?;
 
         // Complete the mailbox transaction indicating success.
-        txn.complete(true)?;
+        if let Some(ref mut txn) = txn {
+            txn.complete(true)?;
+        }
 
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
@@ -253,14 +255,16 @@ impl FirmwareProcessor {
     /// * `persistent_data` - Persistent data
     ///
     /// # Returns
-    /// * `MailboxRecvTxn` - Mailbox Receive Transaction
+    /// * `Option<MailboxRecvTxn>` - Mailbox Receive Transaction (Some in passive mode, None in subsystem mode)
+    /// * `u32` - Image size in bytes
     ///
-    /// Mailbox transaction handle (returned only for the FIRMWARE_LOAD command).
+    /// In passive mode, the mailbox transaction handle is returned for the FIRMWARE_LOAD command.
+    /// In subsystem mode, firmware is loaded via the recovery interface and None is returned.
     /// This transaction is ManuallyDrop because we don't want the transaction
     /// to be completed with failure until after handle_fatal_error is called.
     /// This prevents a race condition where the SoC reads FW_ERROR_NON_FATAL
     /// immediately after the mailbox transaction fails,
-    ///  but before caliptra has set the FW_ERROR_NON_FATAL register.
+    /// but before caliptra has set the FW_ERROR_NON_FATAL register.
     fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
@@ -268,7 +272,7 @@ impl FirmwareProcessor {
         dma: &mut Dma,
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
-    ) -> CaliptraResult<(ManuallyDrop<MailboxRecvTxn<'a>>, u32)> {
+    ) -> CaliptraResult<(Option<ManuallyDrop<MailboxRecvTxn<'a>>>, u32)> {
         let mut self_test_in_progress = false;
         let subsystem_mode = soc_ifc.subsystem_mode();
 
@@ -312,7 +316,7 @@ impl FirmwareProcessor {
 
                     cprintln!("[fwproc] Received Image of size {} bytes", image_size_bytes);
                     report_boot_status(FwProcessorDownloadImageComplete.into());
-                    return Ok((txn, image_size_bytes));
+                    return Ok((Some(txn), image_size_bytes));
                 }
 
                 // Handle RI_DOWNLOAD_FIRMWARE as a separate case since it needs mutable access to mbox
@@ -331,9 +335,8 @@ impl FirmwareProcessor {
                     }
                     cfi_assert_bool(subsystem_mode);
 
-                    // Complete the command indicating success first, before accessing mbox again
+                    // Complete the command indicating success
                     cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
-                    // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
                     let txn = mbox
                         .peek_recv()
                         .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
@@ -343,10 +346,7 @@ impl FirmwareProcessor {
                     drop(txn);
 
                     // Now we can access mbox again since the transaction is complete
-                    return Ok((
-                        ManuallyDrop::new(mbox.recovery_recv_txn()),
-                        RiDownloadFirmwareCmd::execute(dma, soc_ifc)?,
-                    ));
+                    return Ok((None, RiDownloadFirmwareCmd::execute(dma, soc_ifc)?));
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
@@ -502,20 +502,27 @@ impl FirmwareProcessor {
 
     /// Load the manifest
     ///
+    /// # Arguments
+    ///
+    /// * `persistent_data` - Persistent data accessor
+    /// * `txn` - Mailbox transaction (Some in passive mode, None in subsystem mode)
+    /// * `soc_ifc` - SoC Interface
+    /// * `dma` - DMA engine
+    ///
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
-        txn: &mut MailboxRecvTxn,
+        txn: Option<&mut MailboxRecvTxn>,
         soc_ifc: &mut SocIfc,
         dma: &mut Dma,
     ) -> CaliptraResult<ImageManifest> {
-        if soc_ifc.subsystem_mode() {
-            Self::load_manifest_from_mcu(persistent_data, soc_ifc, dma)
-        } else {
+        if let Some(txn) = txn {
             Self::load_manifest_from_mbox(persistent_data, txn)
+        } else {
+            Self::load_manifest_from_mcu(persistent_data, soc_ifc, dma)
         }
     }
 
@@ -775,7 +782,7 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `manifest` - Manifest
-    /// * `txn`      - Mailbox Receive Transaction
+    /// * `txn`      - Mailbox Receive Transaction (Some in passive mode, None in subsystem mode)
     /// * `soc_ifc`  - SoC Interface
     /// * `dma`      - DMA engine
     ///
@@ -784,14 +791,14 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(
         manifest: &ImageManifest,
-        txn: &mut MailboxRecvTxn,
+        txn: Option<&mut MailboxRecvTxn>,
         soc_ifc: &mut SocIfc,
         dma: &mut Dma,
     ) -> CaliptraResult<()> {
-        if soc_ifc.subsystem_mode() {
-            Self::load_image_from_mcu(manifest, soc_ifc, dma)
-        } else {
+        if let Some(txn) = txn {
             Self::load_image_from_mbox(manifest, txn)
+        } else {
+            Self::load_image_from_mcu(manifest, soc_ifc, dma)
         }
     }
 
