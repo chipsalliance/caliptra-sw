@@ -47,7 +47,7 @@ impl FirmwareVerifyCmd {
     pub(crate) fn execute(drivers: &mut Drivers, src: VerifySrc) -> CaliptraResult<MboxStatusE> {
         let raw_data = drivers.mbox.raw_mailbox_contents();
 
-        let (mut image_size, image_source) = match src {
+        let (image_size, image_source) = match src {
             VerifySrc::Mbox => {
                 Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
                 (drivers.mbox.dlen(), ImageSource::Mailbox { data: raw_data })
