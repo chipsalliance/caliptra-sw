@@ -13,6 +13,7 @@ Abstract:
 --*/
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
+use caliptra_drivers::AxiAddr;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -64,7 +65,10 @@ pub mod fips_self_test_cmd {
     use super::*;
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
     use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
-    use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
+    use caliptra_common::{
+        verifier::{FirmwareImageVerificationEnv, ImageSource},
+        FMC_SIZE, RUNTIME_SIZE,
+    };
     use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::{ImageTocEntry, RomInfo};
     use caliptra_image_verify::ImageVerifier;
@@ -108,7 +112,15 @@ pub mod fips_self_test_cmd {
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
-        let image_in_mcu = env.soc_ifc.subsystem_mode();
+        let image_source = if env.soc_ifc.subsystem_mode() {
+            ImageSource::Staging {
+                axi_start: AxiAddr::from(0u32),
+            }
+        } else {
+            ImageSource::Mailbox {
+                data: env.mbox.raw_mailbox_contents(),
+            }
+        };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -118,10 +130,9 @@ pub mod fips_self_test_cmd {
             mldsa87: &mut env.mldsa87,
             data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
-            image: env.mbox.raw_mailbox_contents(),
+            image_source,
             dma: &env.dma,
             persistent_data: &env.persistent_data.get(),
-            image_in_mcu,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
