@@ -1669,6 +1669,11 @@ impl CaliptraError {
             0x000E007D,
             "Runtime Error: Invalid FW persistent data version"
         ),
+        (
+            RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED,
+            0x000E007E,
+            "Runtime Error: RT current PCR validation failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

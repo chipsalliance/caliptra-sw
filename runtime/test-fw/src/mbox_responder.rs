@@ -12,7 +12,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::{
     cprintln,
-    pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
+    pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
     Array4x12, CaliptraError, CaliptraResult, ResetReason,
 };
@@ -25,17 +25,20 @@ use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 const OPCODE_READ_RT_FW_JOURNEY: u32 = 0x1000_0000;
+const OPCODE_READ_RT_FW_CURRENT: u32 = 0x1000_0001;
 const OPCODE_READ_MBOX_PAUSER_HASH: u32 = 0x2000_0000;
 const OPCODE_HASH_DPE_TCI_DATA: u32 = 0x3000_0000;
 const OPCODE_READ_STASHED_MEASUREMENT_PCR: u32 = 0x5000_0000;
 const OPCODE_READ_DPE_ROOT_CONTEXT_MEASUREMENT: u32 = 0x6000_0000;
+const OPCODE_READ_DPE_ROOT_CONTEXT_CUMULATIVE: u32 = 0x6000_0001;
 const OPCODE_READ_DPE_TAGS: u32 = 0x7000_0000;
 const OPCODE_CORRUPT_CONTEXT_TAGS: u32 = 0x8000_0000;
 const OPCODE_CORRUPT_CONTEXT_HAS_TAG: u32 = 0x9000_0000;
 const OPCODE_READ_DPE_INSTANCE: u32 = 0xA000_0000;
 const OPCODE_CORRUPT_DPE_INSTANCE: u32 = 0xB000_0000;
 const OPCODE_READ_PCR_RESET_COUNTER: u32 = 0xC000_0000;
-const OPCODE_CORRUPT_DPE_ROOT_TCI: u32 = 0xD000_0000;
+const OPCODE_CORRUPT_DPE_ROOT_JOURNEY_TCI: u32 = 0xD000_0000;
+const OPCODE_CORRUPT_DPE_ROOT_CURRENT_TCI: u32 = 0xD000_0001;
 const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_READ_KEY_LADDER_MAX_SVN: u32 = 0xF000_0000;
 const OPCODE_OCP_LOCK_HEK_STATE: u32 = 0xF100_0000;
@@ -166,6 +169,10 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 let rt_journey_pcr: [u8; 48] = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR).into();
                 write_response(&mut drivers.mbox, &rt_journey_pcr);
             }
+            CommandId(OPCODE_READ_RT_FW_CURRENT) => {
+                let rt_journey_pcr: [u8; 48] = drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR).into();
+                write_response(&mut drivers.mbox, &rt_journey_pcr);
+            }
             CommandId(OPCODE_READ_MBOX_PAUSER_HASH) => {
                 const PAUSER_COUNT: usize = 5;
                 let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
@@ -205,6 +212,17 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     [root_idx]
                     .tci
                     .tci_current
+                    .as_bytes();
+                write_response(&mut drivers.mbox, root_measurement);
+            }
+            CommandId(OPCODE_READ_DPE_ROOT_CONTEXT_CUMULATIVE) => {
+                let root_idx =
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.state)
+                        .unwrap();
+                let root_measurement = drivers.persistent_data.get().fw.dpe.state.contexts
+                    [root_idx]
+                    .tci
+                    .tci_cumulative
                     .as_bytes();
                 write_response(&mut drivers.mbox, root_measurement);
             }
@@ -260,7 +278,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     drivers.persistent_data.get().fw.pcr_reset.as_bytes(),
                 );
             }
-            CommandId(OPCODE_CORRUPT_DPE_ROOT_TCI) => {
+            CommandId(OPCODE_CORRUPT_DPE_ROOT_CURRENT_TCI) => {
                 let input_bytes = read_request(&drivers.mbox);
 
                 let root_idx =
@@ -269,6 +287,17 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers.persistent_data.get_mut().fw.dpe.state.contexts[root_idx]
                     .tci
                     .tci_current = TciMeasurement(input_bytes.try_into().unwrap());
+                write_response(&mut drivers.mbox, &[]);
+            }
+            CommandId(OPCODE_CORRUPT_DPE_ROOT_JOURNEY_TCI) => {
+                let input_bytes = read_request(&drivers.mbox);
+
+                let root_idx =
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().fw.dpe.state)
+                        .unwrap();
+                drivers.persistent_data.get_mut().fw.dpe.state.contexts[root_idx]
+                    .tci
+                    .tci_cumulative = TciMeasurement(input_bytes.try_into().unwrap());
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_READ_KEY_LADDER_MAX_SVN) => {
