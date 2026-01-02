@@ -91,8 +91,12 @@ pub fn fw_load_halt_check_no_output() {
 
     // Start the FW load (don't wait for a result)
     let fw_image = fips_fw_image();
-    hw.start_mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &fw_image)
-        .unwrap();
+    if hw.subsystem_mode() {
+        hw.upload_firmware_rri(&fw_image, None, None).unwrap();
+    } else {
+        hw.start_mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &fw_image)
+            .unwrap();
+    }
 
     // Wait for ACK that ROM reached halt point
     hook_wait_for_complete(&mut hw);
