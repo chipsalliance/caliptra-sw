@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::dma::encryption_engine::EncryptionEngine;
 use crate::dma::recovery::RecoveryRegisterInterface;
 use crate::helpers::words_from_bytes_le_vec;
 use crate::SocRegistersInternal;
@@ -46,6 +47,7 @@ pub struct AxiRootBus {
     pub mcu_sram: ReadWriteMemory<MCU_SRAM_SIZE>,
     pub indirect_fifo_status: u32,
     pub use_mcu_recovery_interface: bool,
+    pub encryption_engine: EncryptionEngine,
 }
 
 impl AxiRootBus {
@@ -99,6 +101,10 @@ impl AxiRootBus {
     pub const EXTERNAL_TEST_SRAM_END: AxiAddr =
         Self::EXTERNAL_TEST_SRAM_OFFSET + EXTERNAL_TEST_SRAM_SIZE as u64;
 
+    pub const ENCRYPTION_ENGINE_OFFSET: AxiAddr =
+        (const_random!(u64) & 0xffffffff_00000000) + 0x2000;
+    pub const ENCRYPTION_ENGINE_END: AxiAddr = Self::ENCRYPTION_ENGINE_OFFSET + 0x84;
+
     pub fn new(
         soc_reg: SocRegistersInternal,
         sha512_acc: Sha512Accelerator,
@@ -129,6 +135,7 @@ impl AxiRootBus {
             mcu_sram,
             indirect_fifo_status: 0,
             use_mcu_recovery_interface,
+            encryption_engine: EncryptionEngine::new(),
         }
     }
 
@@ -265,6 +272,10 @@ impl AxiRootBus {
                     return Err(LoadAccessFault);
                 }
             }
+            Self::ENCRYPTION_ENGINE_OFFSET..=Self::ENCRYPTION_ENGINE_END => {
+                let addr = (addr - Self::ENCRYPTION_ENGINE_OFFSET) as RvAddr;
+                return Bus::read(&mut self.encryption_engine, size, addr);
+            }
             _ => {}
         };
 
@@ -321,6 +332,10 @@ impl AxiRootBus {
                 } else {
                     return Err(StoreAccessFault);
                 }
+            }
+            Self::ENCRYPTION_ENGINE_OFFSET..=Self::ENCRYPTION_ENGINE_END => {
+                let addr = (addr - Self::ENCRYPTION_ENGINE_OFFSET) as RvAddr;
+                return Bus::write(&mut self.encryption_engine, size, addr, val);
             }
             _ => {}
         };
