@@ -92,7 +92,8 @@ pub fn fw_load_halt_check_no_output() {
     // Start the FW load (don't wait for a result)
     let fw_image = fips_fw_image();
     if hw.subsystem_mode() {
-        hw.upload_firmware_rri(&fw_image, None, None).unwrap();
+        hw.start_mailbox_execute(u32::from(CommandId::RI_DOWNLOAD_FIRMWARE), &[])
+            .unwrap();
     } else {
         hw.start_mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &fw_image)
             .unwrap();
