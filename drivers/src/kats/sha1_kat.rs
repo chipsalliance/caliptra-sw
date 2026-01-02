@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Array4x5, CaliptraError, CaliptraResult, Sha1};
+use crate::{Array4x5, CaliptraError, CaliptraResult, Sha1};
 
 const EXPECTED_DIGEST: Array4x5 =
     Array4x5::new([0xda39a3ee, 0x5e6b4b0d, 0x3255bfef, 0x95601890, 0xafd80709]);

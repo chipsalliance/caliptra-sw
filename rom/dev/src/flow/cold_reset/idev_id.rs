@@ -18,7 +18,7 @@ use crate::cprintln;
 use crate::crypto::Ecdsa384SignatureAdapter;
 use crate::flow::{cold_reset, cold_reset::ocp_lock};
 use crate::print::HexBytes;
-use crate::rom_env::RomEnv;
+use crate::rom_env::{RomEnv, RomEnvNonCrypto};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -176,7 +176,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
+    fn clear_doe_secrets(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         let result = env.doe.clear_secrets();
         if result.is_ok() {
             report_boot_status(IDevIdClearDoeSecretsComplete.into());
@@ -192,7 +192,7 @@ impl InitDevIdLayer {
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut RomEnvNonCrypto, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,
@@ -227,7 +227,7 @@ impl InitDevIdLayer {
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         cdi: KeyId,
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
@@ -303,6 +303,7 @@ impl InitDevIdLayer {
         // Generate MLDSA CSR.
         Self::make_mldsa_csr(env, output)?;
 
+        let env = env.non_crypto_mut();
         // Create a HMAC tag for the CSR Envelop.
         let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
 
@@ -334,6 +335,7 @@ impl InitDevIdLayer {
     }
 
     fn make_ecc_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+        let env = env.non_crypto_mut();
         let key_pair = &output.ecc_subj_key_pair;
 
         // CSR `To Be Signed` Parameters
@@ -426,8 +428,8 @@ impl InitDevIdLayer {
 
         // Sign the `To Be Signed` portion
         let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa87,
+            &mut env.non_crypto.trng,
             key_pair.key_pair_seed,
             &key_pair.pub_key,
             tbs.tbs(),
@@ -467,7 +469,7 @@ impl InitDevIdLayer {
     /// # Argument
     ///
     /// * `env` - ROM Environment
-    fn send_csr_envelop(env: &mut RomEnv) -> CaliptraResult<()> {
+    fn send_csr_envelop(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         let csr_envelop = &env.persistent_data.get().rom.idevid_csr_envelop;
         loop {
             // Create Mailbox send transaction to send the CSR envelop
