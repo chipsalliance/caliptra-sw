@@ -104,6 +104,7 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
+            let mci_base = env.soc_ifc.mci_base_addr();
             Self::load_manifest(
                 env.persistent_data.get_mut(),
                 &mut recv_txn,
@@ -114,7 +115,12 @@ impl UpdateResetFlow {
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
             let image_source = if env.soc_ifc.subsystem_mode() {
-                caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+                let axi_addr = staging_addr
+                    .unwrap_or_else(|| mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET);
+                caliptra_common::verifier::ImageSource::Axi {
+                    dma: &env.dma,
+                    axi_start: AxiAddr::from(axi_addr),
+                }
             } else {
                 caliptra_common::verifier::ImageSource::MboxMemory(recv_txn.raw_mailbox_contents())
             };
@@ -223,7 +229,7 @@ impl UpdateResetFlow {
                 caliptra_common::verifier::ImageSource::MboxMemory(img) => {
                     crate::flow::fake::ImageSource::Memory(img)
                 }
-                caliptra_common::verifier::ImageSource::McuSram(dma) => {
+                caliptra_common::verifier::ImageSource::Axi { dma, axi_start: _ } => {
                     crate::flow::fake::ImageSource::McuSram(dma)
                 }
                 _ => panic!("Image source cannot be fips test"),

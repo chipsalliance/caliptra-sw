@@ -93,9 +93,10 @@ impl AxiRootBus {
     pub const TEST_SRAM_OFFSET: AxiAddr = 0x00000000_00500000;
     pub const TEST_SRAM_END: AxiAddr = Self::TEST_SRAM_OFFSET + TEST_SRAM_SIZE as u64;
 
-    // External Test SRAM is used for testing purposes and is not part of the actual design.
+    // External Test SRAM maps to the external staging area used for transferring
+    // large data between Caliptra and MCU.
     // This SRAM is accessible from the Caliptra Core and the MCU emulators.
-    pub const EXTERNAL_TEST_SRAM_OFFSET: AxiAddr = 0x00000000_80000000;
+    pub const EXTERNAL_TEST_SRAM_OFFSET: AxiAddr = 0x00000000_B00C0000;
     pub const EXTERNAL_TEST_SRAM_END: AxiAddr =
         Self::EXTERNAL_TEST_SRAM_OFFSET + EXTERNAL_TEST_SRAM_SIZE as u64;
 

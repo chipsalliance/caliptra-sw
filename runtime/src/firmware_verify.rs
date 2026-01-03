@@ -63,7 +63,10 @@ impl FirmwareVerifyCmd {
                 )?;
                 (
                     image_size,
-                    caliptra_common::verifier::ImageSource::McuSram(&drivers.dma),
+                    caliptra_common::verifier::ImageSource::Axi {
+                        dma: &drivers.dma,
+                        axi_start: axi_address,
+                    },
                 )
             }
         };
