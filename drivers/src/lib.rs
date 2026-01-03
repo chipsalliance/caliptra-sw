@@ -36,6 +36,7 @@ pub mod hand_off;
 mod hkdf;
 mod hmac;
 mod hmac_kdf;
+pub mod kats;
 mod key_vault;
 mod kv_access;
 mod lms;

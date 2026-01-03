@@ -14,7 +14,7 @@ Abstract:
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::key_ladder;
-use crate::{cprintln, pcr, rom_env::RomEnv};
+use crate::{cprintln, pcr, rom_env::RomEnvNonCrypto};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
@@ -39,7 +39,7 @@ impl UpdateResetFlow {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
