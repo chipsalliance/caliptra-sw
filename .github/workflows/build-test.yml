@@ -26,7 +26,30 @@ jobs:
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
+      # Nextest version
+      NEXTEST_VERSION: 0.9.114
+      CACHE_BUSTER: f7c64774f37c
+
     steps:
+      - name: Restore cargo-nextest binary
+        uses: actions/cache/restore@v3
+        id: nextest_bin_restore
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: nextest-bin-${{ env.NEXTEST_VERSION}}-${{ env.CACHE_BUSTER }}
+
+      - name: Install cargo-nextest
+        if: steps.nextest_bin_restore.outputs.cache-hit != 'true'
+        run: |
+          cargo install cargo-nextest --version ${NEXTEST_VERSION} --locked --no-default-features --features=default-no-update
+
+      - name: Save cargo-nextest binary
+        uses: actions/cache/save@v3
+        if: steps.nextest_bin_restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
+
       - name: Checkout repo
         uses: actions/checkout@v3
 
@@ -127,16 +150,24 @@ jobs:
             popd; \
           done
 
+      - name: Build test firmware
+        run: |
+          rustup target add riscv32imc-unknown-none-elf
+          sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          mkdir /tmp/caliptra-test-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
+
       - name: Run tests
         run: |
-          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked
+          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+
+          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" nextest run --locked --no-fail-fast
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" run --manifest-path ./coverage/Cargo.toml
 
-          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
+          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" nextest run --locked --no-fail-fast --manifest-path ci-tools/fpga-boss/Cargo.toml
 
       - name: Run emulator conformance tests
         run: |
-          sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
           cargo --config "$EXTRA_CARGO_CONFIG" run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
 
