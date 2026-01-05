@@ -215,7 +215,8 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/subsystem.toml
+          cargo install --git https://github.com/chipsalliance/caliptra-infra caliptra-bitstream-downloader --root /tmp/bitstream-downloader
+          /tmp/bitstream-downloader/bin/caliptra-bitstream-downloader --bitstream-manifest hw/fpga/bitstream_manifests/subsystem.toml
           mv subsystem.pdi /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
