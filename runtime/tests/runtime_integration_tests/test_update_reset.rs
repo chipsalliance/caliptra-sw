@@ -78,6 +78,86 @@ fn test_rt_journey_pcr_updated_in_dpe() {
 }
 
 #[test]
+fn test_rt_journey_pcr_updated_with_good_fw() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        test_fwid: Some(mbox_test_image()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let orig_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let orig_rt_journey_pcr: [u8; 48] = orig_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    // trigger update reset
+    update_fw(&mut model, mbox_test_image(), image_options);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let new_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let new_rt_journey_pcr: [u8; 48] = new_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    assert_ne!(orig_rt_journey_pcr, new_rt_journey_pcr);
+}
+
+#[test]
+fn test_rt_journey_pcr_not_updated_with_bad_fw() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        test_fwid: Some(mbox_test_image()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let orig_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let orig_rt_journey_pcr: [u8; 48] = orig_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    let expected_error = if model.subsystem_mode() {
+        CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM.into()
+    } else {
+        CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+    };
+
+    // trigger update reset with bad FW bundle
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &[0u8; 128]),
+        Err(ModelError::MailboxCmdFailed(expected_error))
+    );
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        expected_error
+    );
+
+    let new_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let new_rt_journey_pcr: [u8; 48] = new_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    assert_eq!(orig_rt_journey_pcr, new_rt_journey_pcr);
+}
+
+#[test]
 fn test_tags_persistence() {
     let image_options = ImageOptions {
         pqc_key_type: FwVerificationPqcKeyType::LMS,

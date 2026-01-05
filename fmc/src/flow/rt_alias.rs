@@ -13,8 +13,9 @@ Abstract:
 --*/
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder};
 use caliptra_common::x509;
+use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
@@ -30,8 +31,8 @@ use caliptra_common::keyids::{
 };
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId,
-    KeyUsage, Mldsa87Result, PersistentData, ResetReason,
+    okref, report_boot_status, Array4x12, CaliptraError, CaliptraResult, Ecc384Result, HmacMode,
+    KeyId, KeyUsage, Mldsa87Result, PersistentData, ResetReason,
 };
 use caliptra_x509::{
     NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params, RtAliasCertTbsMlDsa87,
@@ -204,7 +205,18 @@ impl RtAliasLayer {
             }
             ResetReason::UpdateReset => {
                 cfi_assert_eq(reset_reason, ResetReason::UpdateReset);
-                extend_pcr_common(env)
+
+                // If the same image is being loaded as before (this probably indicates a failed
+                // update), there is no need to extend PCRs.
+                let predicted_pcr = Self::predict_pcr_value(env)?;
+                let prev_pcr = env.pcr_bank.read_pcr(caliptra_common::RT_FW_CURRENT_PCR);
+                if cfi_launder(predicted_pcr == prev_pcr) {
+                    cfi_assert_eq(predicted_pcr, prev_pcr);
+                    Ok(())
+                } else {
+                    cfi_assert_ne(predicted_pcr, prev_pcr);
+                    extend_pcr_common(env)
+                }
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
@@ -539,5 +551,27 @@ impl RtAliasLayer {
         };
         dest.copy_from_slice(tbs);
         Ok(())
+    }
+
+    fn predict_pcr_value(env: &mut FmcEnv) -> CaliptraResult<Array4x12> {
+        fn extend(env: &mut FmcEnv, value: &mut Array4x12, buf: &[u8]) -> CaliptraResult<()> {
+            let mut sha = env.sha2_512_384.sha384_digest_init()?;
+            sha.update(&Into::<[u8; 48]>::into(*value))?;
+            sha.update(buf)?;
+            sha.finalize(value)?;
+            Ok(())
+        }
+
+        // Extend RT TCI (Hash over runtime code)
+        let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
+        let mut pcr = Array4x12::default();
+        extend(env, &mut pcr, &rt_tci)?;
+
+        // Extend FW Image Manifest digest
+        let manifest_digest = Tci::image_manifest_digest(env);
+        let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
+        extend(env, &mut pcr, &manifest_digest)?;
+
+        Ok(pcr)
     }
 }
