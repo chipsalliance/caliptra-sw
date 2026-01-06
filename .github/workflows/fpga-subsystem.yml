@@ -335,52 +335,16 @@ jobs:
 
           echo VARS=${VARS}
 
-          # TODO add the remaining caliptra core integration tests
-          # temporarily disabled
-          # Will be fixed by https://github.com/chipsalliance/caliptra-sw/pull/2915
-          # -E 'package(caliptra-drivers) and test(test_ocp_lock_warm_reset)'
-          # -E 'package(caliptra-drivers) and test(test_ocp_lock)'
-          # -E 'package(caliptra-rom) and test(test_ocp_lock)'
-          # test(test_version::test_version), test(test_warm_reset::test_warm_reset_version), test(test_fips::test_fips_version) needs bitstream update
-          # test(test_uds_fe::test_uds_programming_granularity_64bit), test(test_uds_fe::test_uds_programming_granularity_32bit) needs jtag for dbg_manuf_service
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'package(caliptra-hw-model) and test(tests::test_execution)'
-              -E 'package(caliptra-drivers) and test(test_dma_aes)'
-              -E 'package(caliptra-runtime)
-                  - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys)
-                  - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd)
-                  - test(test_fe_programming::test_fe_programming_invalid_partition)
-                  - test(test_pauser_privilege_levels::test_pl0_unset_in_header)
-                  - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds)
-                  - test(test_pauser_privilege_levels::test_user_not_pl0)
-                  - test(test_mailbox::test_reserved_pauser)
-                  - test(test_pauser_privilege_levels::test_change_locality)
-                  - test(test_reallocate_dpe_context_limits)
-                  - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
-                  - test(test_fe_programming::test_fe_programming_cmd)
-                  - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)'
-              -E 'package(caliptra-rom)
-                  - test(test_debug_unlock::)
-                  - test(test_fmcalias_derivation::test_zero_firmware_size)
-                  - test(test_uds_fe)
-                  - test(test_wdt_activation_and_stoppage::)
-                  - test(test_warm_reset::test_warm_reset_during_update_reset)
-                  - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)'
-              -E 'package(caliptra-drivers)
-                  - test(test_csrng_adaptive_proportion)
-                  - test(test_csrng_repetition_count)
-                  - test(test_doe_when_debug_locked)
-                  - test(test_doe_when_debug_not_locked)'
-              -E 'package(caliptra-fmc)'
-              -E 'package(caliptra-test) &
-                  ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
-                  | test(services::))'
+              --profile=fpga-subsystem
           )
 
+          
+          cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
               --message-format json > /tmp/nextest-list.json
@@ -388,8 +352,7 @@ jobs:
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
               --test-threads=1 \
-              --no-fail-fast \
-              --profile=nightly
+              --no-fail-fast
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4

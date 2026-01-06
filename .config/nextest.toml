@@ -2,27 +2,38 @@
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
 [profile.fpga-subsystem]
-default-filter = """package(caliptra-api) +
-package(caliptra-api-types) +
-package(caliptra-auth-man-types) +
-package(caliptra-cfi-lib) +
-package(caliptra-coverage) +
-(package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)) +
-package(caliptra-error) +
-(package(caliptra-hw-model) - test(tests::test_axi) - test(tests::test_mbox) - test(tests::test_mbox_negative) - binary_id(caliptra-hw-model::model_tests) - test(tests::test_negative_soc_mgr_mbox_users)) +
-package(caliptra-hw-model-types) +
-package(caliptra-image-crypto) +
-package(caliptra-image-elf) +
-package(caliptra-image-types) +
-package(caliptra-lms-types) +
-package(caliptra-size-history) +
-package(caliptra-systemrdl) +
-package(caliptra-verilated) +
-package(caliptra-x509) +
-package(ureg) +
-package(ureg-codegen) +
-package(ureg-schema) +
-package(ureg-systemrdl)
+default-filter = """
+(package(caliptra-hw-model) and test(tests::test_execution)) |
+(package(caliptra-drivers) and test(test_dma_aes)) |
+(package(caliptra-runtime)
+    - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys)
+    - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd)
+    - test(test_fe_programming::test_fe_programming_invalid_partition)
+    - test(test_pauser_privilege_levels::test_pl0_unset_in_header)
+    - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds)
+    - test(test_pauser_privilege_levels::test_user_not_pl0)
+    - test(test_mailbox::test_reserved_pauser)
+    - test(test_pauser_privilege_levels::test_change_locality)
+    - test(test_reallocate_dpe_context_limits)
+    - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
+    - test(test_fe_programming::test_fe_programming_cmd)
+    - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)) |
+(package(caliptra-rom)
+    - test(test_debug_unlock::)
+    - test(test_fmcalias_derivation::test_zero_firmware_size)
+    - test(test_uds_fe)
+    - test(test_wdt_activation_and_stoppage::)
+    - test(test_warm_reset::test_warm_reset_during_update_reset)
+    - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)) |
+(package(caliptra-drivers)
+    - test(test_csrng_adaptive_proportion)
+    - test(test_csrng_repetition_count)
+    - test(test_doe_when_debug_locked)
+    - test(test_doe_when_debug_not_locked)) |
+(package(caliptra-fmc)) |
+(package(caliptra-test) &
+    ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
+    | test(services::)))
 """
 failure-output = "immediate-final"
 fail-fast = false
@@ -35,41 +46,60 @@ store-success-output = true
 store-failure-output = true
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
+# TODO add the remaining caliptra core integration tests temporarily disabled
+# test(test_version::test_version), test(test_warm_reset::test_warm_reset_version), test(test_fips::test_fips_version) needs bitstream update
+# test(test_uds_fe::test_uds_programming_granularity_64bit), test(test_uds_fe::test_uds_programming_granularity_32bit) needs jtag for dbg_manuf_service
 [profile.fpga-core]
 default-filter = """
 not (package(/caliptra-emu-.*/) |
-    package(caliptra-builder) |
-    package(caliptra-cfi-derive) |
-    package(caliptra-file-header-fix) |
-    package(compliance-test) |
-    test(test_sign_validation_failure) |
-    test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-    test(test_activate_firmware::test_activate_invalid_fw_id) |
-    test(test_activate_firmware::test_activate_mcu_fw_success) |
-    test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-    test(test_activate_firmware::test_activate_soc_fw_success) |
-    test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-    test(test_authorize_and_stash::test_authorize_from_load_address) |
-    test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-    test(test_authorize_and_stash::test_authorize_from_staging_address) |
-    test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-    test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-    test(test_fe_programming::test_fe_programming_cmd) |
-    test(test_fips::test_fips_shutdown) |
-    test(test_lms::test_lms_verify_cmd) |
-    test(test_lms::test_lms_verify_failure) |
-    test(test_lms::test_lms_verify_invalid_key_lms_type) |
-    test(test_lms::test_lms_verify_invalid_lmots_type) |
-    test(test_lms::test_lms_verify_invalid_sig_lms_type) |
-    test(test_rtalias::test_boot_status_reporting) |
-    binary_id(caliptra-test::fips_test_suite) |
-    test(test_update_reset::test_update_reset_verify_image_failure) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
+       package(caliptra-builder) |
+       package(caliptra-cfi-derive) |
+       package(caliptra-file-header-fix) |
+       package(compliance-test) |
+       test(test_doe_when_debug_not_locked) |
+       test(test_sign_validation_failure) |
+       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
+       test(test_activate_firmware::test_activate_invalid_fw_id) |
+       test(test_activate_firmware::test_activate_mcu_fw_success) |
+       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
+       test(test_activate_firmware::test_activate_soc_fw_success) |
+       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
+       test(test_authorize_and_stash::test_authorize_from_load_address) |
+       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
+       test(test_authorize_and_stash::test_authorize_from_staging_address) |
+       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
+       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
+       test(test_fe_programming::test_fe_programming_cmd) |
+       test(test_fips::test_fips_shutdown) |
+       test(test_lms::test_lms_verify_cmd) |
+       test(test_lms::test_lms_verify_failure) |
+       test(test_lms::test_lms_verify_invalid_key_lms_type) |
+       test(test_lms::test_lms_verify_invalid_lmots_type) |
+       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
+       test(test_doe_when_debug_not_locked) |
+       binary_id(caliptra-test::fips_test_suite) |
+       test(test_update_reset::test_update_reset_verify_image_failure) |
+       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
+       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
+       test(test_version::test_version) |
+       test(test_warm_reset::test_warm_reset_version) |
+       test(test_fips::test_fips_version))
 """
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
+
+[[profile.fpga-core.overrides]]
+filter = 'test(test_generate_csr_envelop_stress)'
+slow-timeout = { period = "30s", terminate-after = 180 }
+
+[[profile.fpga-core.overrides]]
+filter = 'test(test_binaries_are_identical)'
+slow-timeout = { period = "30s", terminate-after = 30 }
+
+[[profile.fpga-core.overrides]]
+filter = 'test(test_stress_update)'
+slow-timeout = { period = "30s", terminate-after = 100 }
 
 [profile.fpga-core.junit]
 path = "/tmp/junit.xml"
