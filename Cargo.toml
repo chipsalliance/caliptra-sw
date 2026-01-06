@@ -23,8 +23,6 @@ exclude = [
   # test-matrix depends on octocrab (github API), which is very heavyweight.
   "ci-tools/test-matrix",
 
-  # Don't pull reqwest into workspace.
-  "ci-tools/bitstream-downloader",
   # Don't pull unnecessary tools into the workspace
   "ci-tools/test-printer",
 ]

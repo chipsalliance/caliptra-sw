@@ -28,6 +28,7 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
     ModelCallback, ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
+
 pub use caliptra_test::{
     default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware, DEFAULT_MCU_FW,
 };
@@ -50,8 +51,6 @@ use openssl::{
 use std::borrow::Cow;
 use std::io;
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
-
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
