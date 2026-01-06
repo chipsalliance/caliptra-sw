@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
@@ -16,8 +17,6 @@ use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
-
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
 #[test]
 fn test_dmtf_other_name_validation_fail() {

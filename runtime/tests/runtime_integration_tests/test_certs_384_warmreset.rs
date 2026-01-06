@@ -17,7 +17,6 @@ use dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
 };
-
 use openssl::{
     bn::{BigNum, BigNumContext},
     ec::{EcGroup, EcKey, EcPoint},
@@ -26,7 +25,6 @@ use openssl::{
     pkey::{PKey, Private},
     x509::X509,
 };
-
 use zerocopy::{FromBytes, IntoBytes};
 
 fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usize {
