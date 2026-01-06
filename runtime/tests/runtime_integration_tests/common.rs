@@ -19,6 +19,7 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+
 use caliptra_image_types::FwVerificationPqcKeyType;
 
 use caliptra_drivers::MfgFlags;
