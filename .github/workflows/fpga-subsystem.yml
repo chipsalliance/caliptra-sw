@@ -263,6 +263,10 @@ jobs:
     runs-on: vck190-subsystem
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1, 2, 3, 4]
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
@@ -350,21 +354,25 @@ jobs:
           cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --message-format json > /tmp/nextest-list.json
+              --partition count:${{ matrix.partition }}/4 \
+              --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
 
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
+              --partition count:${{ matrix.partition }}/4 \
               --test-threads=1 \
               --no-fail-fast
+
+          sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          name: caliptra-test-results${{ inputs.artifact-suffix }}-${{ matrix.partition }}
           path: |
-            /tmp/junit.xml
-            /tmp/nextest-list.json
+            /tmp/junit-${{ matrix.partition }}.xml
+            /tmp/nextest-list-${{ matrix.partition }}.json
 
   print_test_results:
     runs-on: ubuntu-22.04
@@ -379,10 +387,13 @@ jobs:
       - name: 'Download test results'
         uses: actions/download-artifact@v4
         with:
-          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          pattern: caliptra-test-results${{ inputs.artifact-suffix }}-*
+          merge-multiple: true
           path: /tmp/junit
 
       - name: Print results
         run: |
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path /tmp/junit/junit.xml >> $GITHUB_STEP_SUMMARY
+          for xml in /tmp/junit/junit-*.xml; do
+            cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
+          done
