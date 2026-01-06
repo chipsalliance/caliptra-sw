@@ -164,6 +164,7 @@ impl FirmwareProcessor {
             )
         };
 
+        let mci_base = env.soc_ifc.mci_base_addr();
         // Load the manifest into DCCM.
         let manifest = Self::load_manifest(
             &mut env.persistent_data,
@@ -176,7 +177,10 @@ impl FirmwareProcessor {
         let image_source = if let Some(ref txn) = txn {
             caliptra_common::verifier::ImageSource::MboxMemory(txn.raw_mailbox_contents())
         } else {
-            caliptra_common::verifier::ImageSource::McuSram(&env.dma)
+            caliptra_common::verifier::ImageSource::Axi {
+                dma: &env.dma,
+                axi_start: AxiAddr::from(mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET),
+            }
         };
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
@@ -592,7 +596,9 @@ impl FirmwareProcessor {
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
-        let dma = if let caliptra_common::verifier::ImageSource::McuSram(dma) = &venv.image_source {
+        let dma = if let caliptra_common::verifier::ImageSource::Axi { dma, axi_start: _ } =
+            &venv.image_source
+        {
             Some(*dma)
         } else {
             None
@@ -611,7 +617,7 @@ impl FirmwareProcessor {
                 caliptra_common::verifier::ImageSource::MboxMemory(img) => {
                     crate::flow::fake::ImageSource::Memory(img)
                 }
-                caliptra_common::verifier::ImageSource::McuSram(dma) => {
+                caliptra_common::verifier::ImageSource::Axi { dma, axi_start: _ } => {
                     crate::flow::fake::ImageSource::McuSram(dma)
                 }
                 _ => panic!("Image source cannot be fips test"),

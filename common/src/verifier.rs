@@ -16,7 +16,6 @@ use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
-use dma::AesDmaMode;
 use zerocopy::{FromBytes, IntoBytes};
 
 use caliptra_drivers::memory_layout::ICCM_RANGE;
@@ -25,8 +24,8 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 pub enum ImageSource<'a, 'b> {
     /// Image is in memory (accessible as a byte slice)
     MboxMemory(&'b [u8]),
-    /// Image is in MCU SRAM (requires DMA access)
-    McuSram(&'a Dma),
+    /// Image is retrieved from memory on AXI (requires DMA access)
+    Axi { dma: &'a Dma, axi_start: AxiAddr },
     /// Image is in ICCM/DCCM for FIPS self-test (manifest, FMC, and runtime in their loaded locations)
     FipsTest {
         manifest: &'b [u8],
@@ -104,17 +103,6 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         match &self.image_source {
-            ImageSource::McuSram(dma) => {
-                let dma_recovery =
-                    FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
-                let result = dma_recovery.sha384_mcu_sram(
-                    self.sha2_512_384_acc,
-                    offset,
-                    len,
-                    dma::AesDmaMode::None,
-                )?;
-                Ok(result.into())
-            }
             ImageSource::MboxMemory(image) => {
                 let data = image
                     .get(offset as usize..)
@@ -142,6 +130,19 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 let result = self.sha2_512_384.sha384_digest(data)?.0;
                 Ok(result)
             }
+            ImageSource::Axi { dma, axi_start } => {
+                let dma_recovery =
+                    FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery
+                    .sha384_image(
+                        self.sha2_512_384_acc,
+                        *axi_start + AxiAddr::from(offset as u64),
+                        len,
+                        dma::AesDmaMode::None,
+                    )?
+                    .0;
+                Ok(result)
+            }
         }
     }
 
@@ -149,17 +150,6 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         match &self.image_source {
-            ImageSource::McuSram(dma) => {
-                let dma_recovery =
-                    FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
-                let result = dma_recovery.sha512_mcu_sram(
-                    self.sha2_512_384_acc,
-                    offset,
-                    len,
-                    AesDmaMode::None,
-                )?;
-                Ok(result.into())
-            }
             ImageSource::MboxMemory(image) => {
                 let data = image
                     .get(offset as usize..)
@@ -185,6 +175,17 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
                 .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS)?;
                 Ok(self.sha2_512_384.sha512_digest(data)?.0)
             }
+            ImageSource::Axi { dma, axi_start } => {
+                let dma_recovery =
+                    FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
+                let result = dma_recovery.sha512_image(
+                    self.sha2_512_384_acc,
+                    *axi_start + AxiAddr::from(offset as u64),
+                    len,
+                    dma::AesDmaMode::None,
+                )?;
+                Ok(result.into())
+            }
         }
     }
 
@@ -195,7 +196,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
         match &self.image_source {
-            ImageSource::McuSram(_) => {
+            ImageSource::Axi { .. } => {
                 // For MCU case, use the existing sha384_digest function
                 self.sha384_digest(offset, len).map_err(|_| digest_failure)
             }
@@ -255,7 +256,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
         match &self.image_source {
-            ImageSource::McuSram(_) => {
+            ImageSource::Axi { .. } => {
                 // For MCU case, use the existing sha512_digest function
                 self.sha512_digest(offset, len).map_err(|_| digest_failure)
             }
