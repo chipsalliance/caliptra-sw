@@ -50,6 +50,7 @@ use openssl::{
 };
 use std::borrow::Cow;
 use std::io;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
