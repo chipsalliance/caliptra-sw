@@ -104,7 +104,11 @@ impl GetPcrLogCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
-        let pcr_log = drivers.persistent_data.get().pcr_log.as_bytes();
+        let next_available = drivers.persistent_data.get().fht.pcr_log_index as usize;
+        let Some(pcr_logs) = drivers.persistent_data.get().pcr_log.get(..next_available) else {
+            return Err(CaliptraError::RUNTIME_PCR_INVALID_INDEX);
+        };
+        let pcr_log = pcr_logs.as_bytes();
         let len = pcr_log.len();
 
         let mut get_pcr_log_resp = GetPcrLogResp {
@@ -112,7 +116,8 @@ impl GetPcrLogCmd {
             data_size: len as u32,
             data: [0u8; GetPcrLogResp::DATA_MAX_SIZE],
         };
-        get_pcr_log_resp.data[..len].copy_from_slice(&pcr_log[..len]);
+        let data = get_pcr_log_resp.data.get_mut(..len).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        data.copy_from_slice(&pcr_log);
 
         Ok(MailboxResp::GetPcrLog(get_pcr_log_resp))
     }
