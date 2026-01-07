@@ -282,40 +282,9 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'not (package(/caliptra-emu-.*/) |
-                       package(caliptra-builder) |
-                       package(caliptra-cfi-derive) |
-                       package(caliptra-file-header-fix) |
-                       package(compliance-test) |
-                       test(test_doe_when_debug_not_locked) |
-                       test(test_sign_validation_failure) |
-                       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-                       test(test_activate_firmware::test_activate_invalid_fw_id) |
-                       test(test_activate_firmware::test_activate_mcu_fw_success) |
-                       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-                       test(test_activate_firmware::test_activate_soc_fw_success) |
-                       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address) |
-                       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address) |
-                       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-                       test(test_fe_programming::test_fe_programming_cmd) |
-                       test(test_fips::test_fips_shutdown) |
-                       test(test_lms::test_lms_verify_cmd) |
-                       test(test_lms::test_lms_verify_failure) |
-                       test(test_lms::test_lms_verify_invalid_key_lms_type) |
-                       test(test_lms::test_lms_verify_invalid_lmots_type) |
-                       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
-                       test(test_doe_when_debug_not_locked) |
-                       binary_id(caliptra-test::fips_test_suite) |
-                       test(test_update_reset::test_update_reset_verify_image_failure) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-                       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
-                       test(test_version::test_version) |
-                       test(test_warm_reset::test_warm_reset_version) |
-                       test(test_fips::test_fips_version))'
+              --profile=fpga-core
           )
+          cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
               --message-format json > /tmp/nextest-list.json
@@ -323,8 +292,7 @@ jobs:
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
               --test-threads=1 \
-              --no-fail-fast \
-              --profile=nightly
+              --no-fail-fast
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
