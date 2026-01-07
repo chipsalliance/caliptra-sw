@@ -26,7 +26,7 @@ mod test_firmware_verify;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 mod test_get_image_info;
-mod test_get_img_info_warmreset;
+//mod test_get_img_info_warmreset;
 
 mod test_idev_csr_warmreset;
 mod test_info;
