@@ -19,6 +19,10 @@ on:
         default: ${{ github.sha }}
         type: string
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   build_kernel:
     runs-on: [e2-standard-32, vck190-tools]
