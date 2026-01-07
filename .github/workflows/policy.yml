@@ -6,6 +6,9 @@ on:
   pull_request:
   merge_group:
 
+permissions:
+  contents: read
+
 jobs:
   check_policy:
     runs-on: ubuntu-22.04

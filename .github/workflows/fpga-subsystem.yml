@@ -45,6 +45,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 env:
   CALIPTRA_MCU_COMMIT: 982ca4f02b7e9fefb58850657246b0c8f28e5b53
 

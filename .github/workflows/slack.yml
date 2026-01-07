@@ -4,6 +4,8 @@ on:
     types: [closed]
     branches: [main]
 
+permissions: {}
+
 jobs:
   slack_publish:
     runs-on: ubuntu-22.04

@@ -61,6 +61,8 @@ jobs:
     name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
+    permissions:
+      contents: read
     uses: ./.github/workflows/fw-test-emu.yml
     strategy:
       fail-fast: false
@@ -82,6 +84,8 @@ jobs:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
+    permissions:
+      contents: read
     uses: ./.github/workflows/fpga.yml
     strategy:
       fail-fast: false
@@ -104,6 +108,8 @@ jobs:
     name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
+    permissions:
+      contents: read
     uses: ./.github/workflows/fpga-subsystem.yml
     strategy:
       fail-fast: false
