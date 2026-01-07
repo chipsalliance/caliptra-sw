@@ -14,36 +14,29 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_INCREMENTAL: 0
+  SCCACHE_VERSION: 0.10.0
+  SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
+  SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
+  SCCACHE_GHA_ENABLED: "on"
+  # CPTRA_COVERAGE_PATH: /tmp
+
+  # Compiler warnings should fail to compile
+  EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
+
 jobs:
-  build_and_test:
+  lint:
     runs-on: ubuntu-24.04
-
-    env:
-      CARGO_INCREMENTAL: 0
-      SCCACHE_VERSION: 0.10.0
-      SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
-      SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
-      SCCACHE_GHA_ENABLED: "on"
-      # CPTRA_COVERAGE_PATH: /tmp
-
-      # Compiler warnings should fail to compile
-      EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Test commit name
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
-
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
-      - name: Install required packages
-        run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
 
       - name: Check that Cargo.lock doesn't need to be updated
           # Note: this isn't the same as checking that Cargo.lock is up to date
@@ -69,6 +62,23 @@ jobs:
       - name: Check license headers
         run: |
           cargo run -p caliptra-file-header-fix --locked -- --check
+
+  build:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Test commit name
+        run: |
+          echo "Build-Test: release_ref=$(git rev-parse HEAD)"
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
 
       - name: Build
         run: |
@@ -130,6 +140,19 @@ jobs:
             popd; \
           done
 
+  test_unit:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
+
       - name: Run tests
         run: |
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked
@@ -137,11 +160,40 @@ jobs:
 
           CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
 
+  test_compliance:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
       - name: Run emulator conformance tests
         run: |
-          sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          sudo apt-get update -qy && sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
           cargo --config "$EXTRA_CARGO_CONFIG" run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
+
+  test_rom:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
+
+      - name: Build ROM artifacts
+        run: |
+          drivers/test-fw/build.sh
+          (cd fmc && ./build.sh)
+          (cd runtime && ./build.sh)
+          (cd rom/dev && ./build.sh)
 
       - name: ROM Makefile
         run: |
@@ -152,14 +204,34 @@ jobs:
           (cd rom/dev && DEVICE_LIFECYCLE=manufacturing make run-active)
           (cd rom/dev && DEVICE_LIFECYCLE=production make run-active)
 
+  test_integration:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
+
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
-          git submodule update --init
           (cd hw-model/c-binding/examples && make run)
 
       - name: Caliptra C API Hwmodel Integration Test
         run: |
           (cd libcaliptra/examples/hwmodel && make && ./hwmodel)
+
       - name: DPE Verification Tests
         run: |
           (cd test/dpe_verification && make run)
+
+  all_checks_passed:
+    needs: [build, test_unit, test_compliance, test_rom, test_integration]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All checks passed
+        run: echo "All checks passed"
