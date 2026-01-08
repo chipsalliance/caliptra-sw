@@ -72,14 +72,16 @@ impl ColdResetFlow {
         fht::initialize_fht(env);
 
         // Execute IDEVID layer
-        let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
-        let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
-
-        // Execute LDEVID layer
-        let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
-        idevid_layer_output.zeroize();
-        let mut ldevid_layer_output = result?;
-        let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
+        let mut dice_out = InitDevIdLayer::derive(env)?;
+        let dice_in = dice_input_from_output(&dice_out);
+        let mut dice_out = {
+            // Execute LDEVID layer
+            let res = LocalDevIdLayer::derive(env, &dice_in);
+            dice_out.zeroize();
+            res?
+        };
+        let dice_in = dice_input_from_output(&dice_out);
+        // Generate the CMB AES key
 
         // Generate the CMB AES key
         generate_cmb_aes_key(env)?;
@@ -88,8 +90,8 @@ impl ColdResetFlow {
         let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
         // Execute FMCALIAS layer
-        let result = FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info);
-        ldevid_layer_output.zeroize();
+        let result = FmcAliasLayer::derive(env, &dice_in, &fw_proc_info);
+        dice_out.zeroize();
         fw_proc_info.zeroize();
         result?;
 
