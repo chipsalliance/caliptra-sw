@@ -21,6 +21,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   reusable_libfuzzer:
     # TODO: Set these as parameters?

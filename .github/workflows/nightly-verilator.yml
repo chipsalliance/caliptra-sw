@@ -7,6 +7,9 @@ on:
     # 5:30 PM Pacific on tuesday and friday
     - cron: '30 0 * * 3,6'
 
+permissions:
+  contents: read
+
 jobs:
   smoke_test:
     name: Smoke Test

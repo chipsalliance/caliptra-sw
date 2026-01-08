@@ -4,6 +4,9 @@ on:
     # 3:00 AM PST monday-saturday
     - cron: '00 11 * * 1-6'
 
+permissions:
+  contents: read
+
 jobs:
   image_verify_seed_corpus:
     name: Build Image Verifier seed corpus
