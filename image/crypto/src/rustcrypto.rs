@@ -21,6 +21,7 @@ use caliptra_image_gen::{
     from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
 };
 use caliptra_image_types::*;
+use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
 
 use fips204::ml_dsa_87::{PrivateKey, PublicKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
@@ -33,7 +34,7 @@ use {
     sha2::{Digest, Sha256, Sha384, Sha512},
 };
 
-use crate::{sign_with_lms_key, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
+use crate::{sign_with_lms_key, LmsKeyGen, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
 
 #[derive(Default)]
 pub struct RustCrypto {}
@@ -176,6 +177,25 @@ impl ImageGeneratorCrypto for RustCrypto {
     }
 }
 
+impl LmsKeyGen for RustCrypto {
+    /// Generate a new random LMS private key with the specified tree type and OTS type
+    fn generate_lms_private_key(
+        tree_type: LmsAlgorithmType,
+        otstype: LmotsAlgorithmType,
+    ) -> anyhow::Result<ImageLmsPrivKey> {
+        let mut priv_key = ImageLmsPrivKey {
+            tree_type,
+            otstype,
+            ..Default::default()
+        };
+
+        OsRng.fill_bytes(&mut priv_key.id);
+        OsRng.fill_bytes(priv_key.seed.as_mut_bytes());
+
+        Ok(priv_key)
+    }
+}
+
 pub struct RustCryptoHasher(Sha256);
 
 impl Sha256Hasher for RustCryptoHasher {
@@ -187,5 +207,95 @@ impl Sha256Hasher for RustCryptoHasher {
     }
     fn finish(self) -> [u8; 32] {
         self.0.finalize().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        generate_lms_pubkey, sign_with_lms_key, RustCryptoHasher, IMAGE_LMS_OTS_TYPE,
+        IMAGE_LMS_OTS_TYPE_8, IMAGE_LMS_TREE_TYPE, IMAGE_LMS_TREE_TYPE_HT_5,
+    };
+
+    #[test]
+    fn test_lms_keygen_trait() {
+        // Test the LmsKeyGen trait implementation for RustCrypto
+        let priv_key =
+            RustCrypto::generate_lms_private_key(IMAGE_LMS_TREE_TYPE_HT_5, IMAGE_LMS_OTS_TYPE_8)
+                .unwrap();
+
+        // Verify the key has correct algorithm types
+        assert_eq!(priv_key.tree_type, IMAGE_LMS_TREE_TYPE_HT_5);
+        assert_eq!(priv_key.otstype, IMAGE_LMS_OTS_TYPE_8);
+
+        // Verify randomness - ID and seed should be non-zero
+        assert_ne!(priv_key.id, [0u8; 16]);
+        assert_ne!(priv_key.seed.as_bytes(), &[0u8; 24]);
+
+        // Test with standard IMAGE types
+        let std_priv_key =
+            RustCrypto::generate_lms_private_key(IMAGE_LMS_TREE_TYPE, IMAGE_LMS_OTS_TYPE).unwrap();
+        assert_eq!(std_priv_key.tree_type, IMAGE_LMS_TREE_TYPE);
+        assert_eq!(std_priv_key.otstype, IMAGE_LMS_OTS_TYPE);
+
+        // Different invocations should generate different keys
+        let priv_key2 =
+            RustCrypto::generate_lms_private_key(IMAGE_LMS_TREE_TYPE_HT_5, IMAGE_LMS_OTS_TYPE_8)
+                .unwrap();
+        assert_ne!(priv_key.id, priv_key2.id);
+        assert_ne!(priv_key.seed.as_bytes(), priv_key2.seed.as_bytes());
+    }
+
+    #[test]
+    fn test_lms_keygen_with_pubkey_generation() {
+        // Test full workflow: generate private key using trait, then generate public key
+        let priv_key =
+            RustCrypto::generate_lms_private_key(IMAGE_LMS_TREE_TYPE_HT_5, IMAGE_LMS_OTS_TYPE_8)
+                .unwrap();
+        let pub_key = generate_lms_pubkey::<RustCryptoHasher>(&priv_key).unwrap();
+
+        // Public key should match private key metadata
+        assert_eq!(pub_key.tree_type, priv_key.tree_type);
+        assert_eq!(pub_key.otstype, priv_key.otstype);
+        assert_eq!(pub_key.id, priv_key.id);
+
+        // Digest should be non-zero (derived from seed)
+        assert_ne!(pub_key.digest.as_bytes(), &[0u8; 24]);
+    }
+
+    #[test]
+    fn test_lms_keygen_with_signing() {
+        // Test complete workflow: generate key using trait, generate public key, sign message
+        let priv_key =
+            RustCrypto::generate_lms_private_key(IMAGE_LMS_TREE_TYPE_HT_5, IMAGE_LMS_OTS_TYPE_8)
+                .unwrap();
+        let _pub_key = generate_lms_pubkey::<RustCryptoHasher>(&priv_key).unwrap();
+
+        // Test signing with generated key
+        let message = b"test message for LmsKeyGen trait";
+        let nonce = [0x42u8; 24];
+        let sig = sign_with_lms_key::<RustCryptoHasher>(&priv_key, message, &nonce, 1).unwrap();
+
+        // Signature should have correct metadata
+        assert_eq!(sig.tree_type, priv_key.tree_type);
+        assert_eq!(sig.ots.ots_type, priv_key.otstype);
+        assert_eq!(sig.q.get(), 1);
+    }
+
+    /// Generic test function that works with any crypto backend implementing LmsKeyGen
+    fn test_lms_keygen_generic<T: LmsKeyGen>() {
+        let priv_key =
+            T::generate_lms_private_key(IMAGE_LMS_TREE_TYPE_HT_5, IMAGE_LMS_OTS_TYPE_8).unwrap();
+
+        assert_eq!(priv_key.tree_type, IMAGE_LMS_TREE_TYPE_HT_5);
+        assert_eq!(priv_key.otstype, IMAGE_LMS_OTS_TYPE_8);
+        assert_ne!(priv_key.id, [0u8; 16]);
+        assert_ne!(priv_key.seed.as_bytes(), &[0u8; 24]);
+    }
+
+    #[test]
+    fn test_lms_keygen_generic_rustcrypto() {
+        test_lms_keygen_generic::<RustCrypto>();
     }
 }
