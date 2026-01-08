@@ -4,8 +4,8 @@ use crate::common::{get_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
-    CommandId, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader,
-    QuotePcrsReq, QuotePcrsResp,
+    CommandId, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxReq,
+    MailboxReqHeader, QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{pcr_log::PcrLogEntry, PcrId};
 use caliptra_error::CaliptraError;
@@ -208,15 +208,19 @@ fn test_get_pcr_log() {
         .unwrap();
 
     let resp = GetPcrLogResp::read_from_bytes(resp.as_slice()).unwrap();
-    
+
     let entry_size = core::mem::size_of::<PcrLogEntry>();
-    assert_eq!(resp.data_size as usize % entry_size, 0, "data_size must be a multiple of PcrLogEntry size");
-    
+    assert_eq!(
+        resp.data_size as usize % entry_size,
+        0,
+        "data_size must be a multiple of PcrLogEntry size"
+    );
+
     if resp.data_size > 0 {
         let data_slice = &resp.data[..resp.data_size as usize];
         let mut offset = 0;
         while offset < data_slice.len() {
-            let (entry, _) = PcrLogEntry::read_from_prefix(&data_slice[offset..]).unwrap();
+            let (_entry, _) = PcrLogEntry::read_from_prefix(&data_slice[offset..]).unwrap();
             offset += entry_size;
         }
     }

@@ -15,8 +15,8 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
-    QuotePcrsResp,
+    ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader,
+    QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
 use zerocopy::{FromBytes, IntoBytes};
@@ -116,7 +116,10 @@ impl GetPcrLogCmd {
             data_size: len as u32,
             data: [0u8; GetPcrLogResp::DATA_MAX_SIZE],
         };
-        let data = get_pcr_log_resp.data.get_mut(..len).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let data = get_pcr_log_resp
+            .data
+            .get_mut(..len)
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         data.copy_from_slice(&pcr_log);
 
         Ok(MailboxResp::GetPcrLog(get_pcr_log_resp))
