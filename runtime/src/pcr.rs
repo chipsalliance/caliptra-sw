@@ -120,7 +120,7 @@ impl GetPcrLogCmd {
             .data
             .get_mut(..len)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        data.copy_from_slice(&pcr_log);
+        data.copy_from_slice(pcr_log);
 
         Ok(MailboxResp::GetPcrLog(get_pcr_log_resp))
     }
