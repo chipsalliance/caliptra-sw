@@ -1325,6 +1325,7 @@ impl CaliptraError {
             "FMC Alias CSR Verification Failure"
         ),
         (FMC_ALIAS_CSR_OVERFLOW, 0x000F0013, "FMC Alias CSR Overflow"),
+        (FMC_REGENERATE_FMC_KEY_PAIR_FAILED, 0x000F0014, "FMC Error: Regenerating FMC Key Pair Failed"),
         (
             DRIVER_TRNG_EXT_TIMEOUT,
             0x00100001,

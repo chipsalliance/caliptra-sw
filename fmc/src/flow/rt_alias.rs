@@ -134,16 +134,29 @@ impl RtAliasLayer {
     ///
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
-        let auth_pub = HandOff::fmc_pub_key(env);
-        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
-        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
-        // Create initial output
+        // In debug mode, the key vault is wiped on warm reset but IDEV, LDEV,
+        // and FMC alias are not re-derived by the ROM. Regenerate a dummy FMC
+        // key pair from the (now-zeroed) FMC CDI slot so that the RT alias
+        // derivation can still proceed.
+        let reset_reason = env.soc_ifc.reset_reason();
+        let debug_not_locked = !env.soc_ifc.debug_locked();
+        let auth_key_pair = if reset_reason == ResetReason::WarmReset && debug_not_locked {
+            cfi_assert_eq(reset_reason, ResetReason::WarmReset);
+            cfi_assert_bool(debug_not_locked);
+            Self::regenerate_fmc_key_pair(env)?
+        } else {
+            Ecc384KeyPair {
+                priv_key: HandOff::fmc_priv_key(env),
+                pub_key: HandOff::fmc_pub_key(env),
+            }
+        };
+
+        let auth_serial_number = X509::subj_sn(env, &auth_key_pair.pub_key)?;
+        let auth_key_id = X509::subj_key_id(env, &auth_key_pair.pub_key)?;
+
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: HandOff::fmc_priv_key(env),
-                pub_key: auth_pub,
-            },
+            auth_key_pair,
             auth_sn: auth_serial_number,
             auth_key_id,
         };
@@ -374,5 +387,37 @@ impl RtAliasLayer {
         };
         dest.copy_from_slice(tbs);
         Ok(())
+    }
+
+    /// Regenerate a dummy FMC alias key pair from the FMC CDI key vault slot.
+    ///
+    /// In debug mode, the key vault is wiped on a warm reset, but the ROM
+    /// does not re-derive IDEV, LDEV, or FMC alias keys. This function
+    /// generates a new FMC key pair from the (now-zeroed) CDI slot so that
+    /// the RT alias derivation flow can still execute. The resulting key
+    /// will not match the key certified in the FMC alias certificate.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384KeyPair` - Regenerated FMC key pair
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn regenerate_fmc_key_pair(env: &mut FmcEnv) -> CaliptraResult<Ecc384KeyPair> {
+        let fmc_cdi = HandOff::fmc_cdi(env);
+        let fmc_priv_key = HandOff::fmc_priv_key(env);
+
+        cprintln!("[art] Regenerating FMC key pair (debug warm reset)");
+        cprintln!("[art] FMC CDI.KEYID = {}", fmc_cdi as u8);
+        cprintln!("[art] FMC PRIV_KEY.KEYID = {}", fmc_priv_key as u8);
+
+        let key_pair = Crypto::ecc384_key_gen(env, fmc_cdi, b"fmc_alias_keygen", fmc_priv_key)
+            .map_err(|_| CaliptraError::FMC_REGENERATE_FMC_KEY_PAIR_FAILED)?;
+
+        cprintln!("[art] Regenerating FMC key pair - Done");
+
+        Ok(key_pair)
     }
 }
