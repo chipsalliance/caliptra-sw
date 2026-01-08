@@ -348,8 +348,8 @@ fn generate_ots_signature_helper<T: Sha256Hasher>(
     sig
 }
 
-#[allow(unused)]
-fn generate_lms_pubkey<T: Sha256Hasher>(
+/// Generate an LMS public key from a private key
+pub fn generate_lms_pubkey<T: Sha256Hasher>(
     priv_key: &ImageLmsPrivKey,
 ) -> anyhow::Result<ImageLmsPublicKey> {
     match priv_key.tree_type {
@@ -385,7 +385,8 @@ fn generate_lms_pubkey<T: Sha256Hasher>(
     Ok(pub_key.unwrap())
 }
 
-fn sign_with_lms_key<T: Sha256Hasher>(
+/// Sign a message with an LMS private key
+pub fn sign_with_lms_key<T: Sha256Hasher>(
     priv_key: &ImageLmsPrivKey,
     message: &[u8],
     nonce: &[u8],
@@ -434,6 +435,15 @@ fn sign_with_lms_key<T: Sha256Hasher>(
         &mut sig,
     );
     Ok(sig.unwrap())
+}
+
+/// Trait for LMS key generation functionality
+pub trait LmsKeyGen {
+    /// Generate a new random LMS private key with the specified tree type and OTS type
+    fn generate_lms_private_key(
+        tree_type: LmsAlgorithmType,
+        otstype: LmotsAlgorithmType,
+    ) -> anyhow::Result<ImageLmsPrivKey>;
 }
 
 #[cfg(test)]
@@ -1033,5 +1043,36 @@ mod tests {
                 tree_path: expected_tree_path,
             }
         );
+    }
+
+    #[test]
+    fn test_deterministic_pubkey_generation() {
+        use super::*;
+        // Test that same private key always generates same public key
+        let priv_key = ImageLmsPrivKey {
+            tree_type: IMAGE_LMS_TREE_TYPE_HT_5,
+            otstype: IMAGE_LMS_OTS_TYPE_8,
+            id: [
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ],
+            seed: bytes_to_words_6([
+                0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
+                0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+            ]),
+        };
+
+        #[cfg(feature = "openssl")]
+        {
+            let pub_key1 = generate_lms_pubkey::<OpensslHasher>(&priv_key).unwrap();
+            let pub_key2 = generate_lms_pubkey::<OpensslHasher>(&priv_key).unwrap();
+            assert_eq!(pub_key1, pub_key2);
+        }
+        #[cfg(feature = "rustcrypto")]
+        {
+            let pub_key1 = generate_lms_pubkey::<RustCryptoHasher>(&priv_key).unwrap();
+            let pub_key2 = generate_lms_pubkey::<RustCryptoHasher>(&priv_key).unwrap();
+            assert_eq!(pub_key1, pub_key2);
+        }
     }
 }
