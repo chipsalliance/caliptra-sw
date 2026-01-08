@@ -69,7 +69,7 @@ pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
-pub use pcr::IncrementPcrResetCounterCmd;
+pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -237,6 +237,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, cmd_bytes),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
         }

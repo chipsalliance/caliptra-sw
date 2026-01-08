@@ -751,6 +751,30 @@ int rt_test_all_commands(const test_info* info)
         printf("Increment PCR Reset Counter: OK\n");
     }
 
+    // Get PCR log
+    struct caliptra_get_pcr_log_resp get_pcr_log_resp = {};
+    struct pcr_log_entry *pcr_logs;
+    
+    status = caliptra_get_pcr_log(&get_pcr_log_resp, false);
+    
+    if (status) {
+        printf("Get PCR log failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get PCR log: OK\n");
+        int pcr_log_entry_num = get_pcr_log_resp.data_size / sizeof(struct pcr_log_entry);
+
+        for(int i=0; i<pcr_log_entry_num; i++) {
+            pcr_logs = (struct pcr_log_entry*)&get_pcr_log_resp.data[i*sizeof(struct pcr_log_entry)];
+            printf("%d)id: 0%04x / 0%08x\npcr: ",i, pcr_logs->id, pcr_logs->pcr_ids);
+            for(int n=0; n<48; n++) {
+                printf("%02x", pcr_logs->pcr_data[n]);
+            }
+            printf("\n");
+        }
+    }
+
     // Quote PCRs
     struct caliptra_quote_pcrs_req quote_pcrs_req = {};
     struct caliptra_quote_pcrs_resp quote_pcrs_resp;

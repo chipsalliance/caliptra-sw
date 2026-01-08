@@ -15,11 +15,11 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
-    QuotePcrsResp,
+    ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader,
+    QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
@@ -96,5 +96,32 @@ impl ExtendPcrCmd {
             .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
 
         Ok(MailboxResp::default())
+    }
+}
+
+pub struct GetPcrLogCmd;
+impl GetPcrLogCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        let next_available = drivers.persistent_data.get().fht.pcr_log_index as usize;
+        let Some(pcr_logs) = drivers.persistent_data.get().pcr_log.get(..next_available) else {
+            return Err(CaliptraError::RUNTIME_PCR_INVALID_INDEX);
+        };
+        let pcr_log = pcr_logs.as_bytes();
+        let len = pcr_log.len();
+
+        let mut get_pcr_log_resp = GetPcrLogResp {
+            hdr: MailboxRespHeader::default(),
+            data_size: len as u32,
+            data: [0u8; GetPcrLogResp::DATA_MAX_SIZE],
+        };
+        let data = get_pcr_log_resp
+            .data
+            .get_mut(..len)
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        data.copy_from_slice(pcr_log);
+
+        Ok(MailboxResp::GetPcrLog(get_pcr_log_resp))
     }
 }
