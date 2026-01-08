@@ -9,8 +9,8 @@ use kem::{
     MlKemEncapsulationKey,
 };
 use suites::CipherSuite;
-use zerocopy::IntoBytes;
-use zeroize::ZeroizeOnDrop;
+use zerocopy::transmute;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::Trng;
 
@@ -19,6 +19,29 @@ mod encryption_context;
 pub mod kdf;
 pub mod kem;
 mod suites;
+
+#[derive(Clone, Zeroize, PartialEq)]
+pub struct HpkeHandle(u32);
+
+/// Tracks the next HPKE handle id
+#[derive(Default)]
+pub struct HpkeCursor(u32);
+
+impl HpkeCursor {
+    /// Creates the next available HPKE handle.
+    fn generate_handle(&mut self) -> HpkeHandle {
+        // There are only a small number of active handles (certainly less than `u32::MAX` so it's
+        // okay to wrap the handle count.
+        self.0 = self.0.wrapping_add(1);
+        HpkeHandle(self.0)
+    }
+}
+
+impl From<HpkeHandle> for u32 {
+    fn from(value: HpkeHandle) -> Self {
+        value.0
+    }
+}
 
 /// HPKE trait - A high level interface to
 /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
@@ -72,6 +95,68 @@ pub trait Hpke<
     fn serialize_public_key(&self, kem: &mut Self::K<'_>) -> CaliptraResult<EncapsulationKey<NPK>>;
 }
 
+#[derive(ZeroizeOnDrop)]
+enum HpkePrivateKey {
+    MlKem {
+        handle: HpkeHandle,
+        context: HpkeMlKemContext,
+    },
+}
+
+// High level struct for https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
+pub struct HpkeContext {
+    /// HPKE Private Keys
+    priv_keys: [HpkePrivateKey; 1],
+    /// Tracks the next unique HPKE handle
+    /// Used by the rotate command to create new HPKE handles on rotation.
+    #[allow(unused)]
+    handle_cursor: HpkeCursor,
+}
+
+impl HpkeContext {
+    pub fn new(trng: &mut Trng) -> CaliptraResult<Self> {
+        let mut handle_cursor = HpkeCursor::default();
+        let hpke_key = HpkePrivateKey::MlKem {
+            handle: handle_cursor.generate_handle(),
+            context: HpkeMlKemContext::generate(trng)?,
+        };
+
+        let priv_keys = [hpke_key];
+        Ok(Self {
+            priv_keys,
+            handle_cursor,
+        })
+    }
+
+    pub fn iter(&self) -> HpkeContextIter<'_> {
+        HpkeContextIter {
+            ctx: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct HpkeContextIter<'a> {
+    ctx: &'a HpkeContext,
+    index: usize,
+}
+
+impl Iterator for HpkeContextIter<'_> {
+    type Item = (HpkeHandle, CipherSuite);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let key = self.ctx.priv_keys.get(self.index);
+        let item = match key {
+            Some(HpkePrivateKey::MlKem { handle, .. }) => {
+                Some((handle.clone(), CipherSuite::ML_KEM_1024))
+            }
+            _ => None,
+        };
+        self.index += 1;
+        item
+    }
+}
+
 /// ML-KEM 1024 HPKE Context
 #[derive(ZeroizeOnDrop)]
 pub struct HpkeMlKemContext {
@@ -83,9 +168,9 @@ impl HpkeMlKemContext {
     /// Create a new `HpkeMlKemContext` context. Seeds the `ikm` secret using `trng`.
     pub fn generate(trng: &mut Trng) -> CaliptraResult<Self> {
         let rnd = trng.generate16()?;
-        let mut ikm = [0; MlKem::NSK];
-        ikm.clone_from_slice(rnd.as_bytes());
-        Ok(Self { ikm })
+        Ok(Self {
+            ikm: transmute!(rnd),
+        })
     }
 
     /// # SAFETY
@@ -137,13 +222,4 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         let (ek, _dk) = kem.derive_key_pair(&self.ikm)?;
         Ok(MlKemEncapsulationKey::from(ek))
     }
-}
-
-// High level struct for https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
-// TODO(clundin): This will be generated on boot and used for rotating HPKE keys.
-pub struct HpkeContext {
-    // TODO(clundin): This will be used in a future PR as the HPKE driver is tied into the OCP LOCK
-    // runtime implementation.
-    #[allow(dead_code)]
-    ml_kem: HpkeMlKemContext,
 }

@@ -21,6 +21,7 @@ use zerocopy::{FromBytes, IntoBytes};
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
 mod test_derive_mek;
+mod test_enumerate_hpke_handles;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
 
