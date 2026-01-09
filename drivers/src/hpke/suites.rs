@@ -5,9 +5,9 @@ use caliptra_error::CaliptraError;
 
 /// Describes a HPKE CipherSuite.
 pub struct CipherSuite {
-    kem: KemId,
-    kdf: KdfId,
-    aead: AeadId,
+    pub kem: KemId,
+    pub kdf: KdfId,
+    pub aead: AeadId,
 }
 
 impl CipherSuite {

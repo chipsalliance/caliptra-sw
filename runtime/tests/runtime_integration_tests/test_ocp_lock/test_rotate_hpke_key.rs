@@ -9,7 +9,10 @@ use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
 use zerocopy::{FromBytes, IntoBytes};
 
-use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams};
+use super::{
+    boot_ocp_lock_runtime, ocp_lock_supported, validate_ocp_lock_response, verify_hpke_pub_key,
+    OcpLockBootParams,
+};
 
 // TODO(clundin): Verify that the public key from endorsement changes.
 // TODO(clundin): When multiple algs are supported verify different orders of rotations will work.
@@ -29,8 +32,8 @@ fn test_rotate_ml_kem_hpke_handle() {
         cmd.as_bytes().unwrap(),
     );
 
-    let mut handle = 0;
-    validate_ocp_lock_response(&mut model, response, |response, _| {
+    // If we don't get the first handle the rest of the test doesn't make such anymore.
+    let Some(handle) = validate_ocp_lock_response(&mut model, response, |response, _| {
         let response = response.unwrap().unwrap();
         let enumerate_resp =
             OcpLockEnumerateHpkeHandlesResp::ref_from_bytes(response.as_bytes()).unwrap();
@@ -42,8 +45,12 @@ fn test_rotate_ml_kem_hpke_handle() {
                 handle.hpke_algorithm == HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM
             })
             .unwrap();
-        handle = key_pair.handle;
-    });
+        key_pair.handle
+    }) else {
+        return;
+    };
+
+    let first_endorsement = verify_hpke_pub_key(&mut model, handle);
 
     let mut cmd = MailboxReq::OcpLockRotateHpkeKey(OcpLockRotateHpkeKeyReq {
         hpke_handle: handle,
@@ -55,7 +62,7 @@ fn test_rotate_ml_kem_hpke_handle() {
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY.into(),
         cmd.as_bytes().unwrap(),
     );
-    validate_ocp_lock_response(&mut model, response, |response, _| {
+    let Some(handle) = validate_ocp_lock_response(&mut model, response, |response, _| {
         let response = response.unwrap().unwrap();
         let response = OcpLockRotateHpkeKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
 
@@ -72,7 +79,20 @@ fn test_rotate_ml_kem_hpke_handle() {
         );
 
         assert_eq!(response.hpke_handle, handle + 1);
-    });
+        response.hpke_handle
+    }) else {
+        return;
+    };
+
+    let second_endorsement = verify_hpke_pub_key(&mut model, handle);
+
+    // Don't need this check but let's make sure this test doesn't fail open.
+    if ocp_lock_supported(&mut model) {
+        assert_ne!(
+            first_endorsement.unwrap().pub_key,
+            second_endorsement.unwrap().pub_key
+        );
+    }
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]

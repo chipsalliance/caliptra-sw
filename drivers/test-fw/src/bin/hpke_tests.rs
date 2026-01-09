@@ -15,7 +15,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::hpke::{self, Hpke, HpkeMlKemContext};
+use caliptra_drivers::hpke::{self, kem::MlKemEncapsulationKey, Hpke, HpkeMlKemContext};
 use caliptra_drivers_test_bin::TestRegisters;
 use caliptra_test_harness::test_suite;
 
@@ -605,8 +605,9 @@ fn test_ml_kem_1024_test_vector() {
     let mut ml_kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut regs.ml_kem);
     let mut hkdf = hpke::kdf::Hmac384::new(&mut regs.hmac);
 
-    let pk_r = hpke.serialize_public_key(&mut ml_kem).unwrap();
-    assert_eq!(pk_r.as_ref(), TEST_VECTOR.pk_rm);
+    let mut pk_rm = [0; hpke::kem::MlKem::NPK];
+    hpke.serialize_public_key(&mut ml_kem, &mut pk_rm).unwrap();
+    assert_eq!(pk_rm.as_ref(), TEST_VECTOR.pk_rm);
 
     let enc = TEST_VECTOR.enc.into();
     let mut reader = hpke
@@ -641,13 +642,14 @@ fn test_ml_kem_1024_self_talk() {
     let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut regs.ml_kem);
     let mut hkdf = hpke::kdf::Hmac384::new(&mut regs.hmac);
 
-    let pk_rm = hpke.serialize_public_key(&mut kem).unwrap();
+    let mut pk_rm = [0; hpke::kem::MlKem::NPK];
+    hpke.serialize_public_key(&mut kem, &mut pk_rm).unwrap();
     let (enc, mut sender) = hpke
         .setup_base_s(
             &mut kem,
             &mut hkdf,
             &mut regs.trng,
-            &pk_rm,
+            &MlKemEncapsulationKey::from(pk_rm),
             &TEST_VECTOR.info,
         )
         .unwrap();

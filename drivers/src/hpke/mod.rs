@@ -9,19 +9,31 @@ use kem::{
     MlKemEncapsulationKey,
 };
 use suites::CipherSuite;
-use zerocopy::{transmute, FromBytes};
+use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{LEArray4x392, Trng};
+use crate::{LEArray4x392, MlKem1024, Sha3, Trng};
 
 mod aead;
 mod encryption_context;
 pub mod kdf;
 pub mod kem;
-mod suites;
+pub mod suites;
 
 #[derive(Clone, Zeroize, PartialEq)]
 pub struct HpkeHandle(u32);
+
+impl From<u32> for HpkeHandle {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<HpkeHandle> for u32 {
+    fn from(value: HpkeHandle) -> Self {
+        value.0
+    }
+}
 
 /// Tracks the next HPKE handle id
 #[derive(Default)]
@@ -34,18 +46,6 @@ impl HpkeCursor {
         // okay to wrap the handle count.
         self.0 = self.0.wrapping_add(1);
         HpkeHandle(self.0)
-    }
-}
-
-impl From<HpkeHandle> for u32 {
-    fn from(value: HpkeHandle) -> Self {
-        value.0
-    }
-}
-
-impl From<u32> for HpkeHandle {
-    fn from(value: u32) -> Self {
-        Self(value)
     }
 }
 
@@ -98,7 +98,11 @@ pub trait Hpke<
     ) -> CaliptraResult<EncryptionContext<Receiver, NSK, NENC, NPK, NSECRET>>;
 
     /// Serialize the encapsulation key
-    fn serialize_public_key(&self, kem: &mut Self::K<'_>) -> CaliptraResult<EncapsulationKey<NPK>>;
+    fn serialize_public_key(
+        &self,
+        kem: &mut Self::K<'_>,
+        out_key: &mut [u8; NPK],
+    ) -> CaliptraResult<usize>;
 }
 
 #[derive(ZeroizeOnDrop)]
@@ -159,6 +163,43 @@ impl HpkeContext {
                     *context = HpkeMlKemContext::generate(trng)?;
                     *handle = self.handle_cursor.generate_handle();
                     return Ok(handle.clone());
+                }
+                _ => (),
+            }
+        }
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+    }
+
+    /// Get HPKE public key
+    pub fn get_pub_key(
+        &mut self,
+        sha: &mut Sha3,
+        ml_kem: &mut MlKem1024,
+        hpke_handle: &HpkeHandle,
+        pub_out: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        for key in self.priv_keys.iter() {
+            match key {
+                HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
+                    let mut ml_kem = MlKem::new(sha, ml_kem);
+                    let pub_out = pub_out
+                        .get_mut(..MlKem::NPK)
+                        .and_then(|pub_out| <[u8; MlKem::NPK]>::mut_from_bytes(pub_out).ok())
+                        .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE)?;
+                    return context.serialize_public_key(&mut ml_kem, pub_out);
+                }
+                _ => (),
+            }
+        }
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+    }
+
+    /// Get HPKE Cipher Suite
+    pub fn get_cipher_suite(&mut self, hpke_handle: &HpkeHandle) -> CaliptraResult<CipherSuite> {
+        for key in self.priv_keys.iter() {
+            match key {
+                HpkePrivateKey::MlKem { handle, .. } if handle == hpke_handle => {
+                    return Ok(CipherSuite::ML_KEM_1024);
                 }
                 _ => (),
             }
@@ -251,8 +292,15 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         Ok(ctx)
     }
 
-    fn serialize_public_key(&self, kem: &mut Self::K<'_>) -> CaliptraResult<MlKemEncapsulationKey> {
+    fn serialize_public_key(
+        &self,
+        kem: &mut Self::K<'_>,
+        out_key: &mut [u8; MlKem::NPK],
+    ) -> CaliptraResult<usize> {
         let (ek, _dk) = kem.derive_key_pair(&self.ikm)?;
-        Ok(MlKemEncapsulationKey::from(ek))
+        let ek = <[u8; MlKem::NPK]>::ref_from_bytes(ek.as_bytes())
+            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_KEY_SERIALIZATION_FAIL)?;
+        out_key.clone_from_slice(ek);
+        Ok(MlKem::NPK)
     }
 }

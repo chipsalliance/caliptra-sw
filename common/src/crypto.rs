@@ -13,11 +13,11 @@ Abstract:
 --*/
 use crate::keyids::KEY_ID_TMP;
 use caliptra_drivers::{
-    okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId,
-    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Mldsa87,
-    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentData,
-    Sha2_512_384, Trng,
+    hpke::kem::MlKemEncapsulationKey, okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12,
+    CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result,
+    Ecc384Signature, Hmac, HmacData, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault,
+    KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Mldsa87, Mldsa87PubKey, Mldsa87Result,
+    Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentData, Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -49,6 +49,7 @@ pub struct MlDsaKeyPair {
 pub enum PubKey<'a> {
     Ecc(&'a Ecc384PubKey),
     Mldsa(&'a Mldsa87PubKey),
+    MlKem(&'a MlKemEncapsulationKey),
 }
 
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;

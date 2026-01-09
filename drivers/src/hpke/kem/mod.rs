@@ -79,8 +79,14 @@ impl<const NPK: usize> AsRef<[u8]> for EncapsulationKey<NPK> {
     }
 }
 
+impl<const NPK: usize> AsRef<[u8; NPK]> for EncapsulationKey<NPK> {
+    fn as_ref(&self) -> &[u8; NPK] {
+        &self.buf
+    }
+}
+
 /// Serialized ML-KEM Decap key
-#[derive(ZeroizeOnDrop)]
+#[derive(Debug, ZeroizeOnDrop)]
 pub struct DecapsulationKey<const NSK: usize> {
     buf: [u8; NSK],
 }

@@ -42,7 +42,7 @@ use caliptra_drivers::{
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{Dma, DmaMmio};
+use caliptra_drivers::{Dma, DmaMmio, MlKem1024};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -132,6 +132,9 @@ pub struct Drivers {
     /// Mldsa87 Engine
     pub mldsa87: Mldsa87,
 
+    /// ML-KEM Engine
+    pub ml_kem: MlKem1024,
+
     pub persistent_data: PersistentDataAccessor,
 
     pub lms: Lms,
@@ -195,7 +198,10 @@ impl Drivers {
             sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
+            // TODO(clundin): Don't pass multiple `AbrReg`'s to higher level drivers.
+            // https://github.com/chipsalliance/caliptra-sw/issues/3107
             mldsa87: Mldsa87::new(AbrReg::new()),
+            ml_kem: MlKem1024::new(AbrReg::new()),
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
