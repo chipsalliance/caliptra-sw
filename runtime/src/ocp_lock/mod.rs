@@ -1,23 +1,26 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::CommandId;
+use caliptra_api::mailbox::{CommandId, WrappedKey};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
-use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
+use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MDK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
     hpke::{HpkeContext, HpkeContextIter, HpkeHandle},
+    preconditioned_aes::preconditioned_aes_encrypt,
     Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
     KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use enumerate_hpke_handles::EnumerateHpkeHandles;
+use generate_mek::GenerateMekCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
 mod derive_mek;
 mod enumerate_hpke_handles;
+mod generate_mek;
 mod get_algorithms;
 mod initialize_mek_secret;
 mod rotate_hpke_key;
@@ -42,8 +45,94 @@ pub struct Dpk(pub [u8; 32]);
 /// NOTE: MPKs will be mixed into `IntermediateMekSecret`
 pub struct IntermediateMekSecret;
 
+/// Represents a `WrappedMek`
+///
+/// OCP LOCK version 1.0 RC2, Section "Common mailbox types".
+pub struct WrappedMek {
+    salt: [u8; 12],
+    iv: [u8; 12],
+    encrypted_key: [u8; Self::KEY_LEN],
+    tag: [u8; 16],
+}
+
+#[derive(IntoBytes, KnownLayout, Immutable)]
+#[repr(C, packed)]
+pub struct WrappedMekAad {
+    key_type: u16,
+    metadata_len: u32,
+}
+const _: () = assert!(
+    core::mem::size_of::<WrappedMekAad>()
+        == core::mem::size_of::<u16>() + core::mem::size_of::<u32>()
+);
+
+impl WrappedMek {
+    const KEY_TYPE: u16 = 0x03;
+    const KEY_LEN: usize = 64;
+}
+
+impl TryFrom<WrappedMek> for WrappedKey {
+    type Error = CaliptraError;
+    fn try_from(value: WrappedMek) -> Result<Self, Self::Error> {
+        let mut ciphertext_and_auth_tag = [0; 80];
+        ciphertext_and_auth_tag[..64].copy_from_slice(&value.encrypted_key);
+        ciphertext_and_auth_tag[64..].copy_from_slice(&value.tag);
+
+        Ok(Self {
+            key_type: WrappedMek::KEY_TYPE,
+            salt: value.salt,
+            metadata_len: 0,
+            key_len: WrappedMek::KEY_LEN as u32,
+            iv: value.iv,
+            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            ..Default::default()
+        })
+    }
+}
+
+/// An `MEK` encrypted by the `MDK`.
+#[derive(ZeroizeOnDrop)]
+pub struct SingleEncryptedMek {
+    key: [u8; 64],
+}
+
+impl AsRef<[u8]> for SingleEncryptedMek {
+    fn as_ref(&self) -> &[u8] {
+        &self.key
+    }
+}
+
+/// A `MEK`
+#[derive(ZeroizeOnDrop)]
+pub struct Mek {
+    key: [u8; 64],
+}
+
+impl Mek {
+    /// Generate a new `Mek`
+    pub fn generate(trng: &mut Trng) -> CaliptraResult<Self> {
+        let key = {
+            let seed = trng.generate16()?;
+            transmute!(seed)
+        };
+        Ok(Self { key })
+    }
+
+    /// Consumes `Mek` and encrypts `Mek` with the `Mdk` and returns a `SingleEncryptedMek`
+    pub fn encrypt(self, aes: &mut Aes) -> CaliptraResult<SingleEncryptedMek> {
+        let mut output = [0; 64];
+        aes.aes_256_ecb(
+            AesKey::KV(KeyReadArgs::new(KEY_ID_MDK)),
+            AesOperation::Encrypt,
+            &self.key,
+            &mut output,
+        )?;
+        Ok(SingleEncryptedMek { key: output })
+    }
+}
+
 impl IntermediateMekSecret {
-    /// Consumes `Self` to produce a `MekSecret`.
+    /// Consumes `Self` to produce a derived `MekSecret`.
     fn derive_mek_secret<'a>(
         self,
         hmac: &mut Hmac,
@@ -59,6 +148,28 @@ impl IntermediateMekSecret {
             HmacTag::Key(KeyWriteArgs::new(
                 KEY_ID_MEK_SECRETS,
                 KeyUsage::default().set_aes_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+        Ok(MekSecret { kv })
+    }
+    /// Consumes `Self` to produce a `MekSecret`
+    /// The `MekSecret` will be used encrypt other secrets
+    fn wrapping_mek_secret<'a>(
+        self,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &'a mut KeyVault,
+    ) -> CaliptraResult<MekSecret<'a>> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"ocp_lock_wrapped_mek",
+            None,
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_MEK_SECRETS,
+                KeyUsage::default().set_hmac_key_en(),
             )),
             HmacMode::Hmac512,
         )?;
@@ -83,6 +194,43 @@ impl MekSecret<'_> {
             None,
             4,
         )?))
+    }
+
+    /// Consumes `Self` to produce a `SingleEncryptedMek`.
+    /// NOTE: This will erase the `MEK_SECRET` key vault.
+    fn generate_mek(
+        self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        hmac: &mut Hmac,
+    ) -> CaliptraResult<WrappedMek> {
+        let mek = Mek::generate(trng)?;
+        let mek = mek.encrypt(aes)?;
+
+        let aad = WrappedMekAad {
+            key_type: WrappedMek::KEY_TYPE,
+            metadata_len: 0,
+        };
+        let aad = aad.as_bytes();
+
+        let mut encrypted_key = [0; WrappedMek::KEY_LEN];
+        let result = preconditioned_aes_encrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"wrapped_mek",
+            aad,
+            mek.as_ref(),
+            &mut encrypted_key,
+        )?;
+
+        Ok(WrappedMek {
+            encrypted_key,
+            salt: result.salt.into(),
+            iv: result.iv.into(),
+            tag: result.tag.into(),
+        })
     }
 }
 
@@ -302,6 +450,26 @@ impl OcpLockContext {
     ) -> CaliptraResult<HpkeHandle> {
         self.hpke_context.rotate(trng, handle)
     }
+
+    /// Generate an MEK
+    ///
+    /// NOTE: This operation will consume `intermediate_secret` and erase the MEK secret key vault on
+    /// completion.
+    pub fn generate_mek(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+    ) -> CaliptraResult<WrappedMek> {
+        // After `intermediate_secret` is consumed a new MEK cannot be created without first calling
+        // `OCP_LOCK_INITIALIZE_MEK_SECRET` so we take it.
+        let Some(intermediate_secret) = self.intermediate_secret.take() else {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED);
+        };
+        let mek_secret = intermediate_secret.wrapping_mek_secret(hmac, trng, kv)?;
+        mek_secret.generate_mek(aes, trng, hmac)
+    }
 }
 
 /// Entry point for OCP LOCK commands
@@ -326,6 +494,7 @@ pub fn command_handler(
             EnumerateHpkeHandles::execute(drivers, cmd_bytes, resp)
         }
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY => RotateHpkeKeyCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
