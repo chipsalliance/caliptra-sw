@@ -161,15 +161,15 @@ fn test_boot_tci_data() {
     };
     let mut model = run_rt_test(args);
 
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+    let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
+    let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
     let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
     let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
+    hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
     let expected_measurement_hash = hasher.finalize();
 
@@ -222,15 +222,15 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
 
     model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
 
-    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+    let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
+    let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
     let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
     let mut hasher = Sha384::new();
-    hasher.update(rt_journey_pcr);
+    hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();

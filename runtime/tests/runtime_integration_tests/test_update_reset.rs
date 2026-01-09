@@ -36,7 +36,7 @@ pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: 
 }
 
 #[test]
-fn test_rt_journey_pcr_updated_in_dpe() {
+fn test_rt_pcr_updated_in_dpe() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -49,10 +49,18 @@ fn test_rt_journey_pcr_updated_in_dpe() {
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
 
-    let dpe_root_measurement_resp = model.mailbox_execute(0x6000_0000, &[]).unwrap().unwrap();
+    let dpe_root_measurement_resp = model.mailbox_execute(0x6000_0001, &[]).unwrap().unwrap();
     let dpe_root_measurement: [u8; 48] = dpe_root_measurement_resp.as_bytes().try_into().unwrap();
 
     assert_eq!(dpe_root_measurement, rt_journey_pcr);
+
+    let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
+    let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
+
+    let dpe_root_measurement_resp = model.mailbox_execute(0x6000_0000, &[]).unwrap().unwrap();
+    let dpe_root_measurement: [u8; 48] = dpe_root_measurement_resp.as_bytes().try_into().unwrap();
+
+    assert_eq!(dpe_root_measurement, rt_current_pcr);
 }
 
 #[test]
