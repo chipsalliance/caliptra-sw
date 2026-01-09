@@ -353,19 +353,8 @@ impl Dma {
         }
     }
 
-    fn check_block_size(&self) {
-        match (self.read_xfer().fixed, self.block_size.reg.get()) {
-            (true, 64) => (),
-            (false, 0) => (),
-            _ => {
-                panic!("Unsupported DMA block size: must be 64 for I3C to mailbox and 0 otherwise")
-            }
-        }
-    }
-
     // Returns true if this completed immediately.
     fn axi_to_mailbox(&mut self) -> bool {
-        self.check_block_size();
         let xfer = self.read_xfer();
 
         // check if we have to do the read async
@@ -393,7 +382,6 @@ impl Dma {
 
     // Returns true if this completed immediately.
     fn axi_to_fifo(&mut self) -> bool {
-        self.check_block_size();
         let xfer = self.read_xfer();
 
         // check if we have to do the read async
@@ -423,7 +411,6 @@ impl Dma {
 
     // Returns true if this completed immediately.
     fn axi_to_axi(&mut self) -> bool {
-        self.check_block_size();
         let read_xfer = self.read_xfer();
         let write_xfer = self.write_xfer();
 
@@ -492,10 +479,6 @@ impl Dma {
         let xfer = self.write_xfer();
         let mbox_ram = self.mailbox.borrow_mut();
 
-        if self.block_size.reg.get() != 0 {
-            panic!("Unsupported DMA block size: must be 0 for mailbox to AXI");
-        }
-
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = mbox_ram
@@ -511,10 +494,6 @@ impl Dma {
     // Returns true if this completed immediately.
     fn fifo_to_axi(&mut self) -> bool {
         let xfer = self.write_xfer();
-
-        if self.block_size.reg.get() != 0 {
-            panic!("Unsupported DMA block size: must be 0 for FIFO to AXI");
-        }
 
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
