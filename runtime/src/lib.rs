@@ -506,6 +506,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         ocp_lock_command_id @ CommandId::OCP_LOCK_GET_ALGORITHMS
         | ocp_lock_command_id @ CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET
         | ocp_lock_command_id @ CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_ROTATE_HPKE_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK => {
             ocp_lock::command_handler(ocp_lock_command_id, drivers, cmd_bytes, resp)
         }

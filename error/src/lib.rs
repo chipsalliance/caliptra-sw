@@ -1650,6 +1650,11 @@ impl CaliptraError {
             "OCP LOCK Error: Error in derivation caused MEK mismatch"
         ),
         (
+            RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE,
+            0x000E007F,
+            "OCP LOCK Error: received an unknown hpke handle"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"

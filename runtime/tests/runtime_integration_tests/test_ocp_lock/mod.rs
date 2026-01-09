@@ -24,6 +24,7 @@ mod test_derive_mek;
 mod test_enumerate_hpke_handles;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
+mod test_rotate_hpke_key;
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]

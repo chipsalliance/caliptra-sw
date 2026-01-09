@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_error::CaliptraResult;
+use caliptra_error::{CaliptraError, CaliptraResult};
 
 use encryption_context::{EncryptionContext, MlKemEncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
@@ -40,6 +40,12 @@ impl HpkeCursor {
 impl From<HpkeHandle> for u32 {
     fn from(value: HpkeHandle) -> Self {
         value.0
+    }
+}
+
+impl From<u32> for HpkeHandle {
+    fn from(value: u32) -> Self {
+        Self(value)
     }
 }
 
@@ -133,6 +139,31 @@ impl HpkeContext {
             ctx: self,
             index: 0,
         }
+    }
+
+    /// Searches for a matching `HpkeHandle`. If it is found a new HPKE seed is generated and a new
+    /// handle is returned
+    ///
+    /// If `hpke_handle` does not match any existing `HpkeHandle`, `CaliptraError` is returned
+    pub fn rotate(
+        &mut self,
+        trng: &mut Trng,
+        hpke_handle: &HpkeHandle,
+    ) -> CaliptraResult<HpkeHandle> {
+        for handle in self.priv_keys.iter_mut() {
+            match handle {
+                HpkePrivateKey::MlKem {
+                    ref mut handle,
+                    ref mut context,
+                } if handle == hpke_handle => {
+                    *context = HpkeMlKemContext::generate(trng)?;
+                    *handle = self.handle_cursor.generate_handle();
+                    return Ok(handle.clone());
+                }
+                _ => (),
+            }
+        }
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
     }
 }
 
