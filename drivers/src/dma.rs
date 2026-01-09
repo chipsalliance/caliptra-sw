@@ -818,6 +818,15 @@ impl<'a> DmaRecovery<'a> {
         })
     }
 
+    pub fn reset_indirect_fifo_ctrl(&self) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery
+                .indirect_fifo_ctrl_0()
+                .modify(|val| val.reset(Self::RESET_VAL));
+        })
+    }
+
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
