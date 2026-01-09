@@ -84,6 +84,71 @@ fn test_rt_journey_pcr_validation() {
 }
 
 #[test]
+fn test_rt_current_pcr_validation() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+
+    let fw_svn = 9;
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &MBOX,
+        ImageOptions {
+            fmc_svn: fw_svn,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+
+    let binding = image.to_bytes().unwrap();
+    let boot_params = BootParams {
+        fuses: Fuses {
+            key_manifest_pk_hash: vendor_pk_hash,
+            owner_pk_hash,
+            ..Default::default()
+        },
+        fw_image: Some(&binding),
+        ..Default::default()
+    };
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        boot_params,
+    )
+    .unwrap();
+
+    // Wait for boot
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    let _ = model
+        .mailbox_execute(0xD000_0001, &[0u8; DPE_PROFILE.get_tci_size()])
+        .unwrap()
+        .unwrap();
+
+    // Perform warm reset
+    model.warm_reset_flow().unwrap();
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_non_fatal().read()
+            == u32::from(CaliptraError::RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED)
+    });
+
+    // Wait for boot
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+}
+
+#[test]
 fn test_mbox_busy_during_warm_reset() {
     // This test uses the mailbox responder binary to set the mailbox_flow_done register to
     // false.
