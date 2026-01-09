@@ -1563,6 +1563,11 @@ impl CaliptraError {
             0x000E0073,
             "Runtime Error: Reallocate DPE context requested fewer PL1 contexts than are used currently"
         ),
+        (
+            RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED,
+            0x000E0074,
+            "Runtime Error: RT current PCR validation failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
