@@ -40,6 +40,28 @@ pub fn hkdf_extract(
     unsafe {
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
+    let ikm = [ikm];
+    hkdf_extract_ext(hmac, ikm.iter(), salt, trng, prk, mode)
+}
+
+/// Allows loading arbitrary `ikm` slices without an allocation
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn hkdf_extract_ext<I, T>(
+    hmac: &mut Hmac,
+    ikm: I,
+    salt: &[u8],
+    trng: &mut Trng,
+    prk: HmacTag,
+    mode: HmacMode,
+) -> CaliptraResult<()>
+where
+    I: Iterator<Item = T>,
+    T: AsRef<[u8]>,
+{
+    #[cfg(feature = "fips-test-hooks")]
+    unsafe {
+        crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
+    }
     // NIST SP 800-56Cr2 says that salts less than the block length (1024 bits) should be
     // padded and larger than the block length should be hashed.
     // However, the hardware only supports HMAC keys up to the HMAC length (384 or 512 bits),
@@ -53,7 +75,9 @@ pub fn hkdf_extract(
             padded_salt[..salt.len()].copy_from_slice(salt);
             let padded_salt = Array4x12::from(padded_salt);
             let mut hmac_op = hmac.hmac_init((&padded_salt).into(), trng, prk, mode)?;
-            hmac_op.update(ikm)?;
+            for slice in ikm {
+                hmac_op.update(slice.as_ref())?;
+            }
             hmac_op.finalize()
         }
         HmacMode::Hmac512 => {
@@ -64,7 +88,9 @@ pub fn hkdf_extract(
             padded_salt[..salt.len()].copy_from_slice(salt);
             let padded_salt = Array4x16::from(padded_salt);
             let mut hmac_op = hmac.hmac_init((&padded_salt).into(), trng, prk, mode)?;
-            hmac_op.update(ikm)?;
+            for slice in ikm {
+                hmac_op.update(slice.as_ref())?;
+            }
             hmac_op.finalize()
         }
     }
@@ -93,8 +119,31 @@ pub fn hkdf_expand(
     unsafe {
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
+    let labels = [label];
+    hkdf_expand_ext(hmac, prk, labels.iter(), trng, okm, mode)
+}
+
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn hkdf_expand_ext<I, T>(
+    hmac: &mut Hmac,
+    prk: HmacKey,
+    labels: I,
+    trng: &mut Trng,
+    okm: HmacTag,
+    mode: HmacMode,
+) -> CaliptraResult<()>
+where
+    I: Iterator<Item = T>,
+    T: AsRef<[u8]>,
+{
+    #[cfg(feature = "fips-test-hooks")]
+    unsafe {
+        crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
+    }
     let mut hmac_op = hmac.hmac_init(prk, trng, okm, mode)?;
-    hmac_op.update(label)?;
+    for label in labels {
+        hmac_op.update(label.as_ref())?;
+    }
     hmac_op.update(&[0x01])?;
     hmac_op.finalize()
 }

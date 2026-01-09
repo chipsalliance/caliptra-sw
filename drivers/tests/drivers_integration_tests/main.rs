@@ -1286,3 +1286,8 @@ fn test_ocp_lock_warm_reset() {
 fn test_dma_aes() {
     run_driver_test(&firmware::driver_tests::DMA_AES);
 }
+
+#[test]
+fn test_hpke() {
+    run_driver_test(&firmware::driver_tests::HPKE);
+}
