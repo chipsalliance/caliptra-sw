@@ -2397,6 +2397,16 @@ impl CaliptraError {
             "Driver Error: preconditioned key usage was invalid"
         ),
         (
+            RUNTIME_DRIVER_PRECONDITIONED_AES_ENCRYPT_ERROR,
+            0xa004_0021,
+            "Driver Error: preconditioned aes encrypt failed"
+        ),
+        (
+            RUNTIME_DRIVER_PRECONDITIONED_AES_DECRYPT_ERROR,
+            0xa004_0022,
+            "Driver Error: preconditioned aes decrypt failed"
+        ),
+        (
             RUNTIME_DRIVER_AES_WRITE_KV,
             0xa004_0012,
             "Driver Error: AES output KV is invalid"
