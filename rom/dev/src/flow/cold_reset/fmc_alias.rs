@@ -17,7 +17,7 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -47,7 +47,7 @@ impl FmcAliasLayer {
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         input: &DiceInput,
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
@@ -117,7 +117,7 @@ impl FmcAliasLayer {
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut RomEnvNonCrypto, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
         let result = Crypto::hmac_kdf(
@@ -153,7 +153,7 @@ impl FmcAliasLayer {
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         cdi: KeyId,
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
@@ -194,7 +194,7 @@ impl FmcAliasLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_ecc(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
         fw_proc_info: &FwProcInfo,
@@ -290,7 +290,7 @@ impl FmcAliasLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_mldsa(
-        env: &mut RomEnv,
+        env: &mut RomEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
         fw_proc_info: &FwProcInfo,

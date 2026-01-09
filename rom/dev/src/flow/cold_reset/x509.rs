@@ -46,19 +46,19 @@ pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u
         }
         X509KeyIdAlgo::Sha256 => {
             cprintln!("[idev] Sha256 KeyId Algorithm");
-            let digest = env.sha256.digest(data);
+            let digest = env.non_crypto.sha256.digest(data);
             let digest: [u8; 32] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }
         X509KeyIdAlgo::Sha384 => {
             cprintln!("[idev] Sha384 KeyId Algorithm");
-            let digest = env.sha2_512_384.sha384_digest(data);
+            let digest = env.non_crypto.sha2_512_384.sha384_digest(data);
             let digest: [u8; 48] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }
         X509KeyIdAlgo::Sha512 => {
             cprintln!("[idev] Sha512 KeyId Algorithm");
-            let digest = env.sha2_512_384.sha512_digest(data);
+            let digest = env.non_crypto.sha2_512_384.sha512_digest(data);
             let digest: [u8; 64] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }

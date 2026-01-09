@@ -16,7 +16,7 @@ use caliptra_drivers::{
     PersistentData, SocIfc,
 };
 
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 
 use zerocopy::IntoBytes;
 
@@ -25,7 +25,7 @@ use zerocopy::IntoBytes;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn ocp_lock_cold_reset_flow(env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn ocp_lock_cold_reset_flow(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     if cfi_launder(!env.soc_ifc.ocp_lock_enabled()) {
         return Ok(());
     } else {
@@ -43,7 +43,7 @@ pub fn ocp_lock_cold_reset_flow(env: &mut RomEnv) -> CaliptraResult<()> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
+fn derive_hek(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let hek_seed = env.soc_ifc.fuse_bank().ocp_hek_seed();
     Crypto::hmac_kdf(
         &mut env.hmac,
@@ -63,7 +63,7 @@ fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
+fn derive_mdk(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     Crypto::hmac_kdf(
         &mut env.hmac,
         &mut env.trng,
