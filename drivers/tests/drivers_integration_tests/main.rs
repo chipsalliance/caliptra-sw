@@ -1291,3 +1291,8 @@ fn test_dma_aes() {
 fn test_hpke() {
     run_driver_test(&firmware::driver_tests::HPKE);
 }
+
+#[test]
+fn test_preconditioned_aes() {
+    run_driver_test(&firmware::driver_tests::PRECONDITIONED_AES);
+}

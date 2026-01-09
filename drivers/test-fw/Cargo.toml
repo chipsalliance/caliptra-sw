@@ -245,3 +245,8 @@ required-features = ["riscv"]
 name = "hpke"
 path = "src/bin/hpke_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "preconditioned_aes"
+path = "src/bin/preconditioned_aes_tests.rs"
+required-features = ["riscv"]
