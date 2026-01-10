@@ -114,6 +114,24 @@ impl OpenOcdJtagTap {
         self.jtag_tap
     }
 
+    pub fn reexamine_cpu_target(&mut self) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let _ = self.openocd.execute("riscv.cpu arp_examine")?;
+        Ok(())
+    }
+
+    pub fn set_sysbus_access(&mut self) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let _ = self.openocd.execute("riscv set_mem_access sysbus")?;
+        Ok(())
+    }
+
     pub fn read_reg(&mut self, reg: &dyn JtagAccessibleReg) -> Result<u32> {
         ensure!(
             self.jtag_tap != JtagTap::NoTap,
