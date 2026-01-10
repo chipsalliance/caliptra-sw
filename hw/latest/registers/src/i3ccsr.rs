@@ -961,9 +961,11 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`i3ccsr::regs::StbyCrVirtualDeviceCharReadVal`]; Write value: [`i3ccsr::regs::StbyCrVirtualDeviceCharWriteVal`]
     #[inline(always)]
-    pub fn _rsvd_0(&self) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeRsvd0, &TMmio> {
+    pub fn stby_cr_virtual_device_char(
+        &self,
+    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDeviceChar, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -1021,7 +1023,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn _rsvd_1(&self) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeRsvd1, &TMmio> {
+    pub fn stby_cr_virtual_device_pid_lo(
+        &self,
+    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDevicePidLo, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
@@ -1362,11 +1366,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`i3ccsr::regs::RecIntfCfgReadVal`]; Write value: [`i3ccsr::regs::RecIntfCfgWriteVal`]
     #[inline(always)]
-    pub fn soc_mgmt_rsvd_0(
-        &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd0, &TMmio> {
+    pub fn rec_intf_cfg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfCfg, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -1374,11 +1376,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`i3ccsr::regs::RecIntfRegW1cAccessReadVal`]; Write value: [`i3ccsr::regs::RecIntfRegW1cAccessWriteVal`]
     #[inline(always)]
-    pub fn soc_mgmt_rsvd_1(
+    pub fn rec_intf_reg_w1_c_access(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd1, &TMmio> {
+    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfRegW1cAccess, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -3596,6 +3598,11 @@ pub mod regs {
         pub fn transfer_err_stat_en(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
+        /// Enables the corresponding interrupt bit `TX_DESC_COMPLETE_EN`
+        #[inline(always)]
+        pub fn tx_desc_complete_en(&self) -> bool {
+            ((self.0 >> 26) & 1) != 0
+        }
         /// Enables the corresponding interrupt bit `TRANSFER_ABORT_STAT`
         #[inline(always)]
         pub fn transfer_abort_stat_en(&self) -> bool {
@@ -3677,6 +3684,11 @@ pub mod regs {
         pub fn transfer_err_stat_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
+        /// Enables the corresponding interrupt bit `TX_DESC_COMPLETE_EN`
+        #[inline(always)]
+        pub fn tx_desc_complete_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
+        }
         /// Enables the corresponding interrupt bit `TRANSFER_ABORT_STAT`
         #[inline(always)]
         pub fn transfer_abort_stat_en(self, val: bool) -> Self {
@@ -3752,6 +3764,11 @@ pub mod regs {
         #[inline(always)]
         pub fn transfer_err_stat_force(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TX_DESC_COMPLETE_FORCE`
+        #[inline(always)]
+        pub fn tx_desc_complete_force(&self) -> bool {
+            ((self.0 >> 26) & 1) != 0
         }
         /// Enables the corresponding interrupt bit `TRANSFER_ABORT_STAT_FORCE`
         #[inline(always)]
@@ -3834,6 +3851,11 @@ pub mod regs {
         pub fn transfer_err_stat_force(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
+        /// Enables the corresponding interrupt bit `TX_DESC_COMPLETE_FORCE`
+        #[inline(always)]
+        pub fn tx_desc_complete_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
+        }
         /// Enables the corresponding interrupt bit `TRANSFER_ABORT_STAT_FORCE`
         #[inline(always)]
         pub fn transfer_abort_stat_force(self, val: bool) -> Self {
@@ -3909,6 +3931,11 @@ pub mod regs {
         #[inline(always)]
         pub fn transfer_err_stat(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
+        }
+        /// Read Transaction on the I3C Bus completede
+        #[inline(always)]
+        pub fn tx_desc_complete(&self) -> bool {
+            ((self.0 >> 26) & 1) != 0
         }
         /// Bus aborted transaction
         #[inline(always)]
@@ -3995,6 +4022,11 @@ pub mod regs {
         #[inline(always)]
         pub fn transfer_err_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
+        }
+        /// Read Transaction on the I3C Bus completede
+        #[inline(always)]
+        pub fn tx_desc_complete(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
         /// Bus aborted transaction
         #[inline(always)]
@@ -5347,6 +5379,138 @@ pub mod regs {
     impl From<RecoveryStatusWriteVal> for u32 {
         #[inline(always)]
         fn from(val: RecoveryStatusWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct RecIntfCfgReadVal(u32);
+    impl RecIntfCfgReadVal {
+        /// Choose Recovery Interface access type:
+        ///
+        /// * 0 - I3C Core
+        ///
+        /// * 1 - direct AXI
+        #[inline(always)]
+        pub fn rec_intf_bypass(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Inform Recovery Handler that payload transfer is finished.
+        #[inline(always)]
+        pub fn rec_payload_done(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> RecIntfCfgWriteVal {
+            RecIntfCfgWriteVal(self.0)
+        }
+    }
+    impl From<u32> for RecIntfCfgReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<RecIntfCfgReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: RecIntfCfgReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct RecIntfCfgWriteVal(u32);
+    impl RecIntfCfgWriteVal {
+        /// Choose Recovery Interface access type:
+        ///
+        /// * 0 - I3C Core
+        ///
+        /// * 1 - direct AXI
+        #[inline(always)]
+        pub fn rec_intf_bypass(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Inform Recovery Handler that payload transfer is finished.
+        #[inline(always)]
+        pub fn rec_payload_done(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+    }
+    impl From<u32> for RecIntfCfgWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<RecIntfCfgWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: RecIntfCfgWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct RecIntfRegW1cAccessReadVal(u32);
+    impl RecIntfRegW1cAccessReadVal {
+        /// Write to 'Reset control - Device Reset Control' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn device_reset_ctrl(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+        /// Write to 'Recovery Control - Activate Recovery Image' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn recovery_ctrl_activate_rec_img(&self) -> u32 {
+            (self.0 >> 8) & 0xff
+        }
+        /// Write to 'Indirect memory configuration - reset' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn indirect_fifo_ctrl_reset(&self) -> u32 {
+            (self.0 >> 16) & 0xff
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> RecIntfRegW1cAccessWriteVal {
+            RecIntfRegW1cAccessWriteVal(self.0)
+        }
+    }
+    impl From<u32> for RecIntfRegW1cAccessReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<RecIntfRegW1cAccessReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: RecIntfRegW1cAccessReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct RecIntfRegW1cAccessWriteVal(u32);
+    impl RecIntfRegW1cAccessWriteVal {
+        /// Write to 'Reset control - Device Reset Control' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn device_reset_ctrl(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
+        }
+        /// Write to 'Recovery Control - Activate Recovery Image' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn recovery_ctrl_activate_rec_img(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 8)) | ((val & 0xff) << 8))
+        }
+        /// Write to 'Indirect memory configuration - reset' register, mocking a hardware access (bypassing 'write 1 to clear' register property).
+        #[inline(always)]
+        pub fn indirect_fifo_ctrl_reset(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 16)) | ((val & 0xff) << 16))
+        }
+    }
+    impl From<u32> for RecIntfRegW1cAccessWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<RecIntfRegW1cAccessWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: RecIntfRegW1cAccessWriteVal) -> u32 {
             val.0
         }
     }
@@ -6874,6 +7038,115 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct StbyCrVirtualDeviceCharReadVal(u32);
+    impl StbyCrVirtualDeviceCharReadVal {
+        /// Bus Characteristics, Fixed Part.
+        ///
+        /// Reset value is set to 3'b001, because this device is an I3C Target,
+        /// which supports extended capabilities
+        #[inline(always)]
+        pub fn bcr_fixed(&self) -> u32 {
+            (self.0 >> 29) & 7
+        }
+        /// Bus Characteristics, Variable Part.
+        ///
+        /// Reset value is set to 5'b10110, because this device:
+        ///
+        ///
+        /// - [bit4] is a Virtual Target
+        ///
+        /// - [bit3] is not Offline Capable
+        ///
+        /// - [bit2] uses the MDB in the IBI Payload
+        ///
+        /// - [bit1] is capable of IBI requests
+        ///
+        /// - [bit0] has no speed limitation
+        #[inline(always)]
+        pub fn bcr_var(&self) -> u32 {
+            (self.0 >> 24) & 0x1f
+        }
+        /// Device Characteristics Register. Value represents an OCP Recovery Device.
+        #[inline(always)]
+        pub fn dcr(&self) -> u32 {
+            (self.0 >> 16) & 0xff
+        }
+        /// High part of the 48-bit Target Device Provisioned ID.
+        #[inline(always)]
+        pub fn pid_hi(&self) -> u32 {
+            (self.0 >> 1) & 0x7fff
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> StbyCrVirtualDeviceCharWriteVal {
+            StbyCrVirtualDeviceCharWriteVal(self.0)
+        }
+    }
+    impl From<u32> for StbyCrVirtualDeviceCharReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<StbyCrVirtualDeviceCharReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: StbyCrVirtualDeviceCharReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct StbyCrVirtualDeviceCharWriteVal(u32);
+    impl StbyCrVirtualDeviceCharWriteVal {
+        /// Bus Characteristics, Fixed Part.
+        ///
+        /// Reset value is set to 3'b001, because this device is an I3C Target,
+        /// which supports extended capabilities
+        #[inline(always)]
+        pub fn bcr_fixed(self, val: u32) -> Self {
+            Self((self.0 & !(7 << 29)) | ((val & 7) << 29))
+        }
+        /// Bus Characteristics, Variable Part.
+        ///
+        /// Reset value is set to 5'b10110, because this device:
+        ///
+        ///
+        /// - [bit4] is a Virtual Target
+        ///
+        /// - [bit3] is not Offline Capable
+        ///
+        /// - [bit2] uses the MDB in the IBI Payload
+        ///
+        /// - [bit1] is capable of IBI requests
+        ///
+        /// - [bit0] has no speed limitation
+        #[inline(always)]
+        pub fn bcr_var(self, val: u32) -> Self {
+            Self((self.0 & !(0x1f << 24)) | ((val & 0x1f) << 24))
+        }
+        /// Device Characteristics Register. Value represents an OCP Recovery Device.
+        #[inline(always)]
+        pub fn dcr(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 16)) | ((val & 0xff) << 16))
+        }
+        /// High part of the 48-bit Target Device Provisioned ID.
+        #[inline(always)]
+        pub fn pid_hi(self, val: u32) -> Self {
+            Self((self.0 & !(0x7fff << 1)) | ((val & 0x7fff) << 1))
+        }
+    }
+    impl From<u32> for StbyCrVirtualDeviceCharWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<StbyCrVirtualDeviceCharWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: StbyCrVirtualDeviceCharWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct StbyCrVirtDeviceAddrReadVal(u32);
     impl StbyCrVirtDeviceAddrReadVal {
         /// Indicates whether or not the value in the VIRT_DYNAMIC_ADDR field is valid.
@@ -7848,7 +8121,7 @@ pub mod meta {
     pub type SecfwrecoveryifIndirectFifoStatus3 = ureg::ReadOnlyReg32<u32>;
     pub type SecfwrecoveryifIndirectFifoStatus4 = ureg::ReadOnlyReg32<u32>;
     pub type SecfwrecoveryifIndirectFifoReserved = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoData = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifIndirectFifoData = ureg::ReadOnlyReg32<u32>;
     pub type StdbyctrlmodeExtcapHeader =
         ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type StdbyctrlmodeStbyCrControl = ureg::ReadWriteReg32<
@@ -7863,7 +8136,11 @@ pub mod meta {
     >;
     pub type StdbyctrlmodeStbyCrCapabilities =
         ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrCapabilitiesReadVal>;
-    pub type StdbyctrlmodeRsvd0 = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type StdbyctrlmodeStbyCrVirtualDeviceChar = ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::StbyCrVirtualDeviceCharReadVal,
+        crate::i3ccsr::regs::StbyCrVirtualDeviceCharWriteVal,
+    >;
     pub type StdbyctrlmodeStbyCrStatus = ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrStatusReadVal,
@@ -7880,7 +8157,7 @@ pub mod meta {
         crate::i3ccsr::regs::StbyCrIntrStatusReadVal,
         crate::i3ccsr::regs::StbyCrIntrStatusWriteVal,
     >;
-    pub type StdbyctrlmodeRsvd1 = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type StdbyctrlmodeStbyCrVirtualDevicePidLo = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeStbyCrIntrSignalEnable = ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrIntrSignalEnableReadVal,
@@ -7954,8 +8231,16 @@ pub mod meta {
     pub type SocmgmtifExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type SocmgmtifSocMgmtControl = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocMgmtStatus = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocMgmtRsvd0 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocMgmtRsvd1 = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifRecIntfCfg = ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::RecIntfCfgReadVal,
+        crate::i3ccsr::regs::RecIntfCfgWriteVal,
+    >;
+    pub type SocmgmtifRecIntfRegW1cAccess = ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::RecIntfRegW1cAccessReadVal,
+        crate::i3ccsr::regs::RecIntfRegW1cAccessWriteVal,
+    >;
     pub type SocmgmtifSocMgmtRsvd2 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocMgmtRsvd3 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocPadConf = ureg::ReadWriteReg32<

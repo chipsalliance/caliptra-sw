@@ -133,7 +133,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessRegwen, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -147,7 +147,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessCmd, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -161,7 +161,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessAddress, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -175,7 +175,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTriggerRegwen, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -187,7 +187,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn check_trigger(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTrigger, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x9c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -199,7 +199,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn check_regwen(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckRegwen, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xa0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -211,7 +211,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn check_timeout(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTimeout, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xa4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -225,7 +225,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::IntegrityCheckPeriod, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -239,7 +239,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::ConsistencyCheckPeriod, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x8c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xac / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -253,7 +253,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x90 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xb0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -267,7 +267,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::SvnPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x94 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xb4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -281,7 +281,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xb8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -295,7 +295,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x9c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xbc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -309,7 +309,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xa0 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xc0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -323,7 +323,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorRevocationsProdPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xa4 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xc4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -337,7 +337,119 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorNonSecretProdPartitionReadLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xc8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_0 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd0ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd0ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_0_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd0ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xcc / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_1 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd1ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd1ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_1_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd1ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xd0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_2 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd2ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd2ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_2_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd2ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xd4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_3 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd3ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd3ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_3_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd3ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xd8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_4 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd4ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd4ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_4_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd4ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xdc / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_5 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd5ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd5ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_5_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd5ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xe0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_6 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd6ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd6ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_6_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd6ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xe4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Runtime read lock for the CPTRA_SS_LOCK_HEK_PROD_7 partition.
+    ///
+    /// Read value: [`otp_ctrl::regs::CptraSsLockHekProd7ReadLockReadVal`]; Write value: [`otp_ctrl::regs::CptraSsLockHekProd7ReadLockWriteVal`]
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_7_read_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd7ReadLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xe8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -351,7 +463,21 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorPkHashVolatileLock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xac / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xec / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Volatile write lock for ratchet seed partitions.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn ratchet_seed_volatile_lock(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::RatchetSeedVolatileLock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xf0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -361,7 +487,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr0(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr0, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x120 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1a4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -371,7 +497,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr1(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr1, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x124 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1a8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -381,7 +507,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr2(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr2, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x128 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1ac / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -391,7 +517,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr3(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr3, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x12c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1b0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -401,7 +527,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr4(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr4, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x130 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1b4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -411,7 +537,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr5(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr5, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x134 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1b8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -421,7 +547,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr6(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr6, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x138 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1bc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -431,7 +557,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub fn csr7(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr7, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x13c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x1c0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -446,65 +572,63 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn dai_wdata_rf(&self) -> DaiWdataRfBlock<&TMmio> {
         DaiWdataRfBlock {
-            ptr: unsafe { self.ptr.add(0x68 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x88 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn dai_rdata_rf(&self) -> DaiRdataRfBlock<&TMmio> {
         DaiRdataRfBlock {
-            ptr: unsafe { self.ptr.add(0x70 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x90 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
-    pub fn secret_test_unlock_partition_digest(
-        &self,
-    ) -> SecretTestUnlockPartitionDigestBlock<&TMmio> {
-        SecretTestUnlockPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xb0 / core::mem::size_of::<u32>()) },
+    pub fn sw_test_unlock_partition_digest(&self) -> SwTestUnlockPartitionDigestBlock<&TMmio> {
+        SwTestUnlockPartitionDigestBlock {
+            ptr: unsafe { self.ptr.add(0xf4 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_manuf_partition_digest(&self) -> SecretManufPartitionDigestBlock<&TMmio> {
         SecretManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xb8 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0xfc / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_0_digest(&self) -> SecretProdPartition0DigestBlock<&TMmio> {
         SecretProdPartition0DigestBlock {
-            ptr: unsafe { self.ptr.add(0xc0 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x104 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_1_digest(&self) -> SecretProdPartition1DigestBlock<&TMmio> {
         SecretProdPartition1DigestBlock {
-            ptr: unsafe { self.ptr.add(0xc8 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x10c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_2_digest(&self) -> SecretProdPartition2DigestBlock<&TMmio> {
         SecretProdPartition2DigestBlock {
-            ptr: unsafe { self.ptr.add(0xd0 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x114 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_3_digest(&self) -> SecretProdPartition3DigestBlock<&TMmio> {
         SecretProdPartition3DigestBlock {
-            ptr: unsafe { self.ptr.add(0xd8 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x11c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn sw_manuf_partition_digest(&self) -> SwManufPartitionDigestBlock<&TMmio> {
         SwManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xe0 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x124 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -513,14 +637,14 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> SecretLcTransitionPartitionDigestBlock<&TMmio> {
         SecretLcTransitionPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xe8 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x12c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn vendor_test_partition_digest(&self) -> VendorTestPartitionDigestBlock<&TMmio> {
         VendorTestPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xf0 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x134 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -529,7 +653,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorHashesManufPartitionDigestBlock<&TMmio> {
         VendorHashesManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xf8 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x13c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -538,7 +662,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorHashesProdPartitionDigestBlock<&TMmio> {
         VendorHashesProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x100 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x144 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -547,7 +671,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorRevocationsProdPartitionDigestBlock<&TMmio> {
         VendorRevocationsProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x108 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x14c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -556,7 +680,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorSecretProdPartitionDigestBlock<&TMmio> {
         VendorSecretProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x110 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x154 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -565,7 +689,63 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorNonSecretProdPartitionDigestBlock<&TMmio> {
         VendorNonSecretProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x118 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x15c / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_0_digest(&self) -> CptraSsLockHekProd0DigestBlock<&TMmio> {
+        CptraSsLockHekProd0DigestBlock {
+            ptr: unsafe { self.ptr.add(0x164 / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_1_digest(&self) -> CptraSsLockHekProd1DigestBlock<&TMmio> {
+        CptraSsLockHekProd1DigestBlock {
+            ptr: unsafe { self.ptr.add(0x16c / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_2_digest(&self) -> CptraSsLockHekProd2DigestBlock<&TMmio> {
+        CptraSsLockHekProd2DigestBlock {
+            ptr: unsafe { self.ptr.add(0x174 / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_3_digest(&self) -> CptraSsLockHekProd3DigestBlock<&TMmio> {
+        CptraSsLockHekProd3DigestBlock {
+            ptr: unsafe { self.ptr.add(0x17c / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_4_digest(&self) -> CptraSsLockHekProd4DigestBlock<&TMmio> {
+        CptraSsLockHekProd4DigestBlock {
+            ptr: unsafe { self.ptr.add(0x184 / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_5_digest(&self) -> CptraSsLockHekProd5DigestBlock<&TMmio> {
+        CptraSsLockHekProd5DigestBlock {
+            ptr: unsafe { self.ptr.add(0x18c / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_6_digest(&self) -> CptraSsLockHekProd6DigestBlock<&TMmio> {
+        CptraSsLockHekProd6DigestBlock {
+            ptr: unsafe { self.ptr.add(0x194 / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+    #[inline(always)]
+    pub fn cptra_ss_lock_hek_prod_7_digest(&self) -> CptraSsLockHekProd7DigestBlock<&TMmio> {
+        CptraSsLockHekProd7DigestBlock {
+            ptr: unsafe { self.ptr.add(0x19c / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -882,6 +1062,142 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
             )
         }
     }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_18(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode18, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_19(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode19, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_20(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode20, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_21(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode21, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_22(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode22, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_23(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode23, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_24(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode24, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// This register holds information about error conditions that occurred in the agents
+    /// interacting with the OTP macr via the internal bus. The error codes should be checked
+    /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
+    /// !!INTR_STATE.otp_error has been triggered. Note that all errors trigger an otp_error
+    /// interrupt, and in addition some errors may trigger either an fatal_macr_error or an
+    /// fatal_check_error alert.
+    ///
+    /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
+    #[inline(always)]
+    pub fn err_code_25(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode25, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
 }
 #[derive(Clone, Copy)]
 pub struct DaiWdataRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
@@ -962,11 +1278,11 @@ impl<TMmio: ureg::Mmio> DaiRdataRfBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretTestUnlockPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SwTestUnlockPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
+impl<TMmio: ureg::Mmio> SwTestUnlockPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -976,7 +1292,7 @@ impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest0, &TMmio> {
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::SwTestUnlockPartitionDigestDigest0, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -993,7 +1309,7 @@ impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest1, &TMmio> {
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::SwTestUnlockPartitionDigestDigest1, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
@@ -1542,6 +1858,334 @@ impl<TMmio: ureg::Mmio> VendorNonSecretProdPartitionDigestBlock<TMmio> {
         }
     }
 }
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd0DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd0DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd0DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd0DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd1DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd1DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd1DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd1DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd2DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd2DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd2DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd2DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd3DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd3DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd3DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd3DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd4DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd4DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd4DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd4DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd5DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd5DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd5DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd5DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd6DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd6DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd6DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd6DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct CptraSsLockHekProd7DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> CptraSsLockHekProd7DigestBlock<TMmio> {
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_0(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd7DigestDigest0, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Integrity digest for partition.
+    /// The integrity digest is 0 by default. Software must write this
+    /// digest value via the direct access interface in order to lock the partition.
+    /// After a reset, write access to the VENDOR_TEST partition is locked and  the digest becomes visible in this CSR.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn digest_1(
+        &self,
+    ) -> ureg::RegRef<crate::otp_ctrl::meta::CptraSsLockHekProd7DigestDigest1, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+}
 /// A zero-sized type that represents ownership of this
 /// peripheral, used to get access to a Register lock. Most
 /// programs create one of these in unsafe code near the top of
@@ -1590,7 +2234,7 @@ pub struct DaiWdataRf {
     _priv: (),
 }
 impl DaiWdataRf {
-    pub const PTR: *mut u32 = 0x68 as *mut u32;
+    pub const PTR: *mut u32 = 0x88 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1629,7 +2273,7 @@ pub struct DaiRdataRf {
     _priv: (),
 }
 impl DaiRdataRf {
-    pub const PTR: *mut u32 = 0x70 as *mut u32;
+    pub const PTR: *mut u32 = 0x90 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1664,11 +2308,11 @@ impl DaiRdataRf {
 /// programs create one of these in unsafe code near the top of
 /// main(), and pass it to the driver responsible for managing
 /// all access to the hardware.
-pub struct SecretTestUnlockPartitionDigest {
+pub struct SwTestUnlockPartitionDigest {
     _priv: (),
 }
-impl SecretTestUnlockPartitionDigest {
-    pub const PTR: *mut u32 = 0xb0 as *mut u32;
+impl SwTestUnlockPartitionDigest {
+    pub const PTR: *mut u32 = 0xf4 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1707,7 +2351,7 @@ pub struct SecretManufPartitionDigest {
     _priv: (),
 }
 impl SecretManufPartitionDigest {
-    pub const PTR: *mut u32 = 0xb8 as *mut u32;
+    pub const PTR: *mut u32 = 0xfc as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1746,7 +2390,7 @@ pub struct SecretProdPartition0Digest {
     _priv: (),
 }
 impl SecretProdPartition0Digest {
-    pub const PTR: *mut u32 = 0xc0 as *mut u32;
+    pub const PTR: *mut u32 = 0x104 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1785,7 +2429,7 @@ pub struct SecretProdPartition1Digest {
     _priv: (),
 }
 impl SecretProdPartition1Digest {
-    pub const PTR: *mut u32 = 0xc8 as *mut u32;
+    pub const PTR: *mut u32 = 0x10c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1824,7 +2468,7 @@ pub struct SecretProdPartition2Digest {
     _priv: (),
 }
 impl SecretProdPartition2Digest {
-    pub const PTR: *mut u32 = 0xd0 as *mut u32;
+    pub const PTR: *mut u32 = 0x114 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1863,7 +2507,7 @@ pub struct SecretProdPartition3Digest {
     _priv: (),
 }
 impl SecretProdPartition3Digest {
-    pub const PTR: *mut u32 = 0xd8 as *mut u32;
+    pub const PTR: *mut u32 = 0x11c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1902,7 +2546,7 @@ pub struct SwManufPartitionDigest {
     _priv: (),
 }
 impl SwManufPartitionDigest {
-    pub const PTR: *mut u32 = 0xe0 as *mut u32;
+    pub const PTR: *mut u32 = 0x124 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1941,7 +2585,7 @@ pub struct SecretLcTransitionPartitionDigest {
     _priv: (),
 }
 impl SecretLcTransitionPartitionDigest {
-    pub const PTR: *mut u32 = 0xe8 as *mut u32;
+    pub const PTR: *mut u32 = 0x12c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -1980,7 +2624,7 @@ pub struct VendorTestPartitionDigest {
     _priv: (),
 }
 impl VendorTestPartitionDigest {
-    pub const PTR: *mut u32 = 0xf0 as *mut u32;
+    pub const PTR: *mut u32 = 0x134 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2019,7 +2663,7 @@ pub struct VendorHashesManufPartitionDigest {
     _priv: (),
 }
 impl VendorHashesManufPartitionDigest {
-    pub const PTR: *mut u32 = 0xf8 as *mut u32;
+    pub const PTR: *mut u32 = 0x13c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2058,7 +2702,7 @@ pub struct VendorHashesProdPartitionDigest {
     _priv: (),
 }
 impl VendorHashesProdPartitionDigest {
-    pub const PTR: *mut u32 = 0x100 as *mut u32;
+    pub const PTR: *mut u32 = 0x144 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2097,7 +2741,7 @@ pub struct VendorRevocationsProdPartitionDigest {
     _priv: (),
 }
 impl VendorRevocationsProdPartitionDigest {
-    pub const PTR: *mut u32 = 0x108 as *mut u32;
+    pub const PTR: *mut u32 = 0x14c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2136,7 +2780,7 @@ pub struct VendorSecretProdPartitionDigest {
     _priv: (),
 }
 impl VendorSecretProdPartitionDigest {
-    pub const PTR: *mut u32 = 0x110 as *mut u32;
+    pub const PTR: *mut u32 = 0x154 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2175,7 +2819,319 @@ pub struct VendorNonSecretProdPartitionDigest {
     _priv: (),
 }
 impl VendorNonSecretProdPartitionDigest {
-    pub const PTR: *mut u32 = 0x118 as *mut u32;
+    pub const PTR: *mut u32 = 0x15c as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd0Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd0Digest {
+    pub const PTR: *mut u32 = 0x164 as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd1Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd1Digest {
+    pub const PTR: *mut u32 = 0x16c as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd2Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd2Digest {
+    pub const PTR: *mut u32 = 0x174 as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd3Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd3Digest {
+    pub const PTR: *mut u32 = 0x17c as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd4Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd4Digest {
+    pub const PTR: *mut u32 = 0x184 as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd5Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd5Digest {
+    pub const PTR: *mut u32 = 0x18c as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd6Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd6Digest {
+    pub const PTR: *mut u32 = 0x194 as *mut u32;
+    /// # Safety
+    ///
+    /// Caller must ensure that all concurrent use of this
+    /// peripheral in the firmware is done so in a compatible
+    /// way. The simplest way to enforce this is to only call
+    /// this function once.
+    #[inline(always)]
+    pub unsafe fn new() -> Self {
+        Self { _priv: () }
+    }
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+        RegisterBlock {
+            ptr: Self::PTR,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+/// A zero-sized type that represents ownership of this
+/// peripheral, used to get access to a Register lock. Most
+/// programs create one of these in unsafe code near the top of
+/// main(), and pass it to the driver responsible for managing
+/// all access to the hardware.
+pub struct CptraSsLockHekProd7Digest {
+    _priv: (),
+}
+impl CptraSsLockHekProd7Digest {
+    pub const PTR: *mut u32 = 0x19c as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -2343,6 +3299,382 @@ pub mod regs {
     impl From<CheckTriggerRegwenWriteVal> for u32 {
         #[inline(always)]
         fn from(val: CheckTriggerRegwenWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd0ReadLockReadVal(u32);
+    impl CptraSsLockHekProd0ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_0 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd0ReadLockWriteVal {
+            CptraSsLockHekProd0ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd0ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd0ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd0ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd0ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd0ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_0 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd0ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd0ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd0ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd1ReadLockReadVal(u32);
+    impl CptraSsLockHekProd1ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_1 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd1ReadLockWriteVal {
+            CptraSsLockHekProd1ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd1ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd1ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd1ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd1ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd1ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_1 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd1ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd1ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd1ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd2ReadLockReadVal(u32);
+    impl CptraSsLockHekProd2ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_2 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd2ReadLockWriteVal {
+            CptraSsLockHekProd2ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd2ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd2ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd2ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd2ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd2ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_2 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd2ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd2ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd2ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd3ReadLockReadVal(u32);
+    impl CptraSsLockHekProd3ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_3 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd3ReadLockWriteVal {
+            CptraSsLockHekProd3ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd3ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd3ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd3ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd3ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd3ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_3 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd3ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd3ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd3ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd4ReadLockReadVal(u32);
+    impl CptraSsLockHekProd4ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_4 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd4ReadLockWriteVal {
+            CptraSsLockHekProd4ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd4ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd4ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd4ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd4ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd4ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_4 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd4ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd4ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd4ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd5ReadLockReadVal(u32);
+    impl CptraSsLockHekProd5ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_5 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd5ReadLockWriteVal {
+            CptraSsLockHekProd5ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd5ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd5ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd5ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd5ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd5ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_5 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd5ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd5ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd5ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd6ReadLockReadVal(u32);
+    impl CptraSsLockHekProd6ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_6 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd6ReadLockWriteVal {
+            CptraSsLockHekProd6ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd6ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd6ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd6ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd6ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd6ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_6 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd6ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd6ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd6ReadLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd7ReadLockReadVal(u32);
+    impl CptraSsLockHekProd7ReadLockReadVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_7 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CptraSsLockHekProd7ReadLockWriteVal {
+            CptraSsLockHekProd7ReadLockWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd7ReadLockReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd7ReadLockReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd7ReadLockReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CptraSsLockHekProd7ReadLockWriteVal(u32);
+    impl CptraSsLockHekProd7ReadLockWriteVal {
+        /// When cleared to 0, read access to the CPTRA_SS_LOCK_HEK_PROD_7 partition is locked.Write 0 to clear this bit.
+        #[inline(always)]
+        pub fn read_lock(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for CptraSsLockHekProd7ReadLockWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CptraSsLockHekProd7ReadLockWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CptraSsLockHekProd7ReadLockWriteVal) -> u32 {
             val.0
         }
     }
@@ -3147,7 +4479,7 @@ pub mod regs {
     impl StatusReadVal {
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
         #[inline(always)]
-        pub fn secret_test_unlock_partition_error(&self) -> bool {
+        pub fn sw_test_unlock_partition_error(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
@@ -3222,48 +4554,88 @@ pub mod regs {
         }
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
         #[inline(always)]
-        pub fn life_cycle_error(&self) -> bool {
+        pub fn cptra_ss_lock_hek_prod_0_error(&self) -> bool {
             ((self.0 >> 15) & 1) != 0
         }
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
         #[inline(always)]
-        pub fn dai_error(&self) -> bool {
+        pub fn cptra_ss_lock_hek_prod_1_error(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
         #[inline(always)]
-        pub fn lci_error(&self) -> bool {
+        pub fn cptra_ss_lock_hek_prod_2_error(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
         /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
         #[inline(always)]
-        pub fn timeout_error(&self) -> bool {
+        pub fn cptra_ss_lock_hek_prod_3_error(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn cptra_ss_lock_hek_prod_4_error(&self) -> bool {
+            ((self.0 >> 19) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn cptra_ss_lock_hek_prod_5_error(&self) -> bool {
+            ((self.0 >> 20) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn cptra_ss_lock_hek_prod_6_error(&self) -> bool {
+            ((self.0 >> 21) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn cptra_ss_lock_hek_prod_7_error(&self) -> bool {
+            ((self.0 >> 22) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn life_cycle_error(&self) -> bool {
+            ((self.0 >> 23) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn dai_error(&self) -> bool {
+            ((self.0 >> 24) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn lci_error(&self) -> bool {
+            ((self.0 >> 25) & 1) != 0
+        }
+        /// Set to 1 if an error occurred in this partition. If set to 1, SW should check the !!ERR_CODE register at the corresponding index.
+        #[inline(always)]
+        pub fn timeout_error(&self) -> bool {
+            ((self.0 >> 26) & 1) != 0
         }
         /// Set to 1 if the LFSR timer FSM has reached an invalid state. This raises an fatal_check_error alert and is an unrecoverable error condition.
         #[inline(always)]
         pub fn lfsr_fsm_error(&self) -> bool {
-            ((self.0 >> 19) & 1) != 0
+            ((self.0 >> 27) & 1) != 0
         }
         /// Set to 1 if the scrambling datapath FSM has reached an invalid state. This raises an fatal_check_error alert and is an unrecoverable error condition.
         #[inline(always)]
         pub fn scrambling_fsm_error(&self) -> bool {
-            ((self.0 >> 20) & 1) != 0
+            ((self.0 >> 28) & 1) != 0
         }
         /// This bit is set to 1 if a fatal bus integrity fault is detected. This error triggers a fatal_bus_integ_error alert.
         #[inline(always)]
         pub fn bus_integ_error(&self) -> bool {
-            ((self.0 >> 21) & 1) != 0
+            ((self.0 >> 29) & 1) != 0
         }
         /// Set to 1 if the DAI is idle and ready to accept commands.
         #[inline(always)]
         pub fn dai_idle(&self) -> bool {
-            ((self.0 >> 22) & 1) != 0
+            ((self.0 >> 30) & 1) != 0
         }
         /// Set to 1 if an integrity or consistency check triggered by the LFSR timer or via !!CHECK_TRIGGER is pending.
         #[inline(always)]
         pub fn check_pending(&self) -> bool {
-            ((self.0 >> 23) & 1) != 0
+            ((self.0 >> 31) & 1) != 0
         }
     }
     impl From<u32> for StatusReadVal {
@@ -3705,7 +5077,48 @@ pub mod meta {
         crate::otp_ctrl::regs::VendorNonSecretProdPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorNonSecretProdPartitionReadLockWriteVal,
     >;
+    pub type CptraSsLockHekProd0ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd0ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd0ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd1ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd1ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd1ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd2ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd2ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd2ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd3ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd3ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd3ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd4ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd4ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd4ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd5ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd5ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd5ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd6ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd6ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd6ReadLockWriteVal,
+    >;
+    pub type CptraSsLockHekProd7ReadLock = ureg::ReadWriteReg32<
+        0,
+        crate::otp_ctrl::regs::CptraSsLockHekProd7ReadLockReadVal,
+        crate::otp_ctrl::regs::CptraSsLockHekProd7ReadLockWriteVal,
+    >;
     pub type VendorPkHashVolatileLock = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type RatchetSeedVolatileLock = ureg::ReadWriteReg32<0, u32, u32>;
     pub type Csr0 = ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr0ReadVal,
@@ -3760,12 +5173,20 @@ pub mod meta {
     pub type ErrCodeRfErrCode15 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
     pub type ErrCodeRfErrCode16 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
     pub type ErrCodeRfErrCode17 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode18 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode19 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode20 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode21 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode22 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode23 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode24 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode25 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
     pub type DaiWdataRfDirectAccessWdata0 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type DaiWdataRfDirectAccessWdata1 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type DaiRdataRfDirectAccessRdata0 = ureg::ReadOnlyReg32<u32>;
     pub type DaiRdataRfDirectAccessRdata1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretTestUnlockPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretTestUnlockPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type SwTestUnlockPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type SwTestUnlockPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
     pub type SecretManufPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
     pub type SecretManufPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
     pub type SecretProdPartition0DigestDigest0 = ureg::ReadOnlyReg32<u32>;
@@ -3792,4 +5213,20 @@ pub mod meta {
     pub type VendorSecretProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
     pub type VendorNonSecretProdPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
     pub type VendorNonSecretProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd0DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd0DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd1DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd1DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd2DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd2DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd3DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd3DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd4DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd4DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd5DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd5DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd6DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd6DigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd7DigestDigest0 = ureg::ReadOnlyReg32<u32>;
+    pub type CptraSsLockHekProd7DigestDigest1 = ureg::ReadOnlyReg32<u32>;
 }

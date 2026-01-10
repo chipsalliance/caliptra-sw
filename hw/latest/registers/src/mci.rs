@@ -304,6 +304,17 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// mask register. After the output interrupt is asserted, clearing
     /// the bit in this register will not cause the interrupt to deassert.
     /// Only an MCI reset will clear the fatal error interrupt.
+    /// [br] 5:0 -- caliptra core fatal errors
+    /// [br] {5'b0, cptra_error_fatal}
+    /// [br] 11:6 - mcu fatal errors
+    /// [br] {5'b0, mcu_dccm_ecc_double_error}
+    /// [br] 17:12 -- lcc alerts
+    /// [br] {3'b0, fatal_bus_integ_error, fatal_state_error, fatal_prog_error}
+    /// [br] 23:18 -- otp fc alerts
+    /// [br] {1'b0, recov_prim_otp_alert, fatal_prim_otp_alert, fatal_bus_integ_error, fatal_check_error, fatal_macro_error}
+    /// [br] 29:24 -- I3C - masked by default, unmasked in non_fatal error register
+    /// [br] {4'b0, i3c_peripheral_reset, i3c_escalated_reset}
+    /// [br] 31:30 -- spare bits
     /// [br]AXI Access: RW1C
     /// [br]TAP Access [with debug intent set]: RO
     ///
@@ -356,14 +367,17 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// that firmware may cause the mci_error_non_fatal signal to deassert by
     /// writing to any of these registers, if the write results in all error
     /// bits being cleared or masked:
-    /// [br][list]
-    /// [br] [*] HW_ERROR_NON_FATAL
-    /// [br] [*] AGG_ERROR_NON_FATAL
-    /// [br] [*] FW_ERROR_NON_FATAL
-    /// [br] [*] hw_error_non_fatal_mask
-    /// [br] [*] agg_error_non_fatal_mask
-    /// [br] [*] fw_error_non_fatal_mask
-    /// [/list]
+    /// [br] 5:0 -- caliptra core non fatal errors
+    /// [br] {5'b0, cptra_error_non_fatal}
+    /// [br] 11:6 - mcu non fatal errors
+    /// [br] {5'b0, mcu_dccm_ecc_single_error}
+    /// [br] 17:12 -- lcc alerts - masked by default, unmasked in fatal error register
+    /// [br] {3'b0, fatal_bus_integ_error, fatal_state_error, fatal_prog_error}
+    /// [br] 23:18 -- otp fc alerts - masked by default, unmasked in fatal error register
+    /// [br] {1'b0, recov_prim_otp_alert, fatal_prim_otp_alert, fatal_bus_integ_error, fatal_check_error, fatal_macro_error}
+    /// [br] 29:24 -- I3C
+    /// [br] {4'b0, i3c_peripheral_reset, i3c_escalated_reset}
+    /// [br] 31:30 -- spare bits
     /// [br]AXI Access:      RW1C
     /// [br]TAP Access [with debug intent set]: RO
     ///
@@ -1019,6 +1033,20 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x318 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// FIPS Zeroization request status. This signal is sampled on every MCI reset deassertion. When set to 1 MCU ROM should initiate the FIPS Zeroization flow using FC_FIPS_ZEROZATION register.
+    ///
+    /// Read value: [`mci::regs::FcFipsZerozationStsReadVal`]; Write value: [`mci::regs::FcFipsZerozationStsWriteVal`]
+    #[inline(always)]
+    pub fn fc_fips_zerozation_sts(
+        &self,
+    ) -> ureg::RegRef<crate::mci::meta::FcFipsZerozationSts, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x31c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -2735,6 +2763,22 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2b4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn notif_otp_operation_done_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::mci::meta::IntrBlockRfNotifOtpOperationDoneIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x2b8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -4540,6 +4584,28 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
             )
         }
     }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    #[inline(always)]
+    pub fn notif_otp_operation_done_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::mci::meta::IntrBlockRfNotifOtpOperationDoneIntrCountIncrR, &TMmio>
+    {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x450 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
 }
 /// A zero-sized type that represents ownership of this
 /// peripheral, used to get access to a Register lock. Most
@@ -4586,131 +4652,131 @@ pub mod regs {
     pub struct AggErrorFatalReadVal(u32);
     impl AggErrorFatalReadVal {
         #[inline(always)]
-        pub fn agg_error_fatal31(&self) -> bool {
+        pub fn agg_error_fatal0(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal30(&self) -> bool {
+        pub fn agg_error_fatal1(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal29(&self) -> bool {
+        pub fn agg_error_fatal2(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal28(&self) -> bool {
+        pub fn agg_error_fatal3(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal27(&self) -> bool {
+        pub fn agg_error_fatal4(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal26(&self) -> bool {
+        pub fn agg_error_fatal5(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal25(&self) -> bool {
+        pub fn agg_error_fatal6(&self) -> bool {
             ((self.0 >> 6) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal24(&self) -> bool {
+        pub fn agg_error_fatal7(&self) -> bool {
             ((self.0 >> 7) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal23(&self) -> bool {
+        pub fn agg_error_fatal8(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal22(&self) -> bool {
+        pub fn agg_error_fatal9(&self) -> bool {
             ((self.0 >> 9) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal21(&self) -> bool {
+        pub fn agg_error_fatal10(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal20(&self) -> bool {
+        pub fn agg_error_fatal11(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal19(&self) -> bool {
+        pub fn agg_error_fatal12(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal18(&self) -> bool {
+        pub fn agg_error_fatal13(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal17(&self) -> bool {
+        pub fn agg_error_fatal14(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal16(&self) -> bool {
+        pub fn agg_error_fatal15(&self) -> bool {
             ((self.0 >> 15) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal15(&self) -> bool {
+        pub fn agg_error_fatal16(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal14(&self) -> bool {
+        pub fn agg_error_fatal17(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal13(&self) -> bool {
+        pub fn agg_error_fatal18(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal12(&self) -> bool {
+        pub fn agg_error_fatal19(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal11(&self) -> bool {
+        pub fn agg_error_fatal20(&self) -> bool {
             ((self.0 >> 20) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal10(&self) -> bool {
+        pub fn agg_error_fatal21(&self) -> bool {
             ((self.0 >> 21) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal9(&self) -> bool {
+        pub fn agg_error_fatal22(&self) -> bool {
             ((self.0 >> 22) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal8(&self) -> bool {
+        pub fn agg_error_fatal23(&self) -> bool {
             ((self.0 >> 23) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal7(&self) -> bool {
+        pub fn agg_error_fatal24(&self) -> bool {
             ((self.0 >> 24) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal6(&self) -> bool {
+        pub fn agg_error_fatal25(&self) -> bool {
             ((self.0 >> 25) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal5(&self) -> bool {
+        pub fn agg_error_fatal26(&self) -> bool {
             ((self.0 >> 26) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal4(&self) -> bool {
+        pub fn agg_error_fatal27(&self) -> bool {
             ((self.0 >> 27) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal3(&self) -> bool {
+        pub fn agg_error_fatal28(&self) -> bool {
             ((self.0 >> 28) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal2(&self) -> bool {
+        pub fn agg_error_fatal29(&self) -> bool {
             ((self.0 >> 29) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal1(&self) -> bool {
+        pub fn agg_error_fatal30(&self) -> bool {
             ((self.0 >> 30) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_fatal0(&self) -> bool {
+        pub fn agg_error_fatal31(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
@@ -4735,131 +4801,131 @@ pub mod regs {
     pub struct AggErrorFatalWriteVal(u32);
     impl AggErrorFatalWriteVal {
         #[inline(always)]
-        pub fn agg_error_fatal31(self, val: bool) -> Self {
+        pub fn agg_error_fatal0(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
         #[inline(always)]
-        pub fn agg_error_fatal30(self, val: bool) -> Self {
+        pub fn agg_error_fatal1(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
         #[inline(always)]
-        pub fn agg_error_fatal29(self, val: bool) -> Self {
+        pub fn agg_error_fatal2(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
         }
         #[inline(always)]
-        pub fn agg_error_fatal28(self, val: bool) -> Self {
+        pub fn agg_error_fatal3(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
         #[inline(always)]
-        pub fn agg_error_fatal27(self, val: bool) -> Self {
+        pub fn agg_error_fatal4(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
         #[inline(always)]
-        pub fn agg_error_fatal26(self, val: bool) -> Self {
+        pub fn agg_error_fatal5(self, val: bool) -> Self {
             Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
         }
         #[inline(always)]
-        pub fn agg_error_fatal25(self, val: bool) -> Self {
+        pub fn agg_error_fatal6(self, val: bool) -> Self {
             Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
         }
         #[inline(always)]
-        pub fn agg_error_fatal24(self, val: bool) -> Self {
+        pub fn agg_error_fatal7(self, val: bool) -> Self {
             Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
         }
         #[inline(always)]
-        pub fn agg_error_fatal23(self, val: bool) -> Self {
+        pub fn agg_error_fatal8(self, val: bool) -> Self {
             Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
         }
         #[inline(always)]
-        pub fn agg_error_fatal22(self, val: bool) -> Self {
+        pub fn agg_error_fatal9(self, val: bool) -> Self {
             Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
         #[inline(always)]
-        pub fn agg_error_fatal21(self, val: bool) -> Self {
+        pub fn agg_error_fatal10(self, val: bool) -> Self {
             Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
         }
         #[inline(always)]
-        pub fn agg_error_fatal20(self, val: bool) -> Self {
+        pub fn agg_error_fatal11(self, val: bool) -> Self {
             Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
         }
         #[inline(always)]
-        pub fn agg_error_fatal19(self, val: bool) -> Self {
+        pub fn agg_error_fatal12(self, val: bool) -> Self {
             Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
         }
         #[inline(always)]
-        pub fn agg_error_fatal18(self, val: bool) -> Self {
+        pub fn agg_error_fatal13(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
         #[inline(always)]
-        pub fn agg_error_fatal17(self, val: bool) -> Self {
+        pub fn agg_error_fatal14(self, val: bool) -> Self {
             Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
         }
         #[inline(always)]
-        pub fn agg_error_fatal16(self, val: bool) -> Self {
+        pub fn agg_error_fatal15(self, val: bool) -> Self {
             Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
         }
         #[inline(always)]
-        pub fn agg_error_fatal15(self, val: bool) -> Self {
+        pub fn agg_error_fatal16(self, val: bool) -> Self {
             Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
         }
         #[inline(always)]
-        pub fn agg_error_fatal14(self, val: bool) -> Self {
+        pub fn agg_error_fatal17(self, val: bool) -> Self {
             Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
         }
         #[inline(always)]
-        pub fn agg_error_fatal13(self, val: bool) -> Self {
+        pub fn agg_error_fatal18(self, val: bool) -> Self {
             Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
         }
         #[inline(always)]
-        pub fn agg_error_fatal12(self, val: bool) -> Self {
+        pub fn agg_error_fatal19(self, val: bool) -> Self {
             Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
         }
         #[inline(always)]
-        pub fn agg_error_fatal11(self, val: bool) -> Self {
+        pub fn agg_error_fatal20(self, val: bool) -> Self {
             Self((self.0 & !(1 << 20)) | (u32::from(val) << 20))
         }
         #[inline(always)]
-        pub fn agg_error_fatal10(self, val: bool) -> Self {
+        pub fn agg_error_fatal21(self, val: bool) -> Self {
             Self((self.0 & !(1 << 21)) | (u32::from(val) << 21))
         }
         #[inline(always)]
-        pub fn agg_error_fatal9(self, val: bool) -> Self {
+        pub fn agg_error_fatal22(self, val: bool) -> Self {
             Self((self.0 & !(1 << 22)) | (u32::from(val) << 22))
         }
         #[inline(always)]
-        pub fn agg_error_fatal8(self, val: bool) -> Self {
+        pub fn agg_error_fatal23(self, val: bool) -> Self {
             Self((self.0 & !(1 << 23)) | (u32::from(val) << 23))
         }
         #[inline(always)]
-        pub fn agg_error_fatal7(self, val: bool) -> Self {
+        pub fn agg_error_fatal24(self, val: bool) -> Self {
             Self((self.0 & !(1 << 24)) | (u32::from(val) << 24))
         }
         #[inline(always)]
-        pub fn agg_error_fatal6(self, val: bool) -> Self {
+        pub fn agg_error_fatal25(self, val: bool) -> Self {
             Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
         }
         #[inline(always)]
-        pub fn agg_error_fatal5(self, val: bool) -> Self {
+        pub fn agg_error_fatal26(self, val: bool) -> Self {
             Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
         #[inline(always)]
-        pub fn agg_error_fatal4(self, val: bool) -> Self {
+        pub fn agg_error_fatal27(self, val: bool) -> Self {
             Self((self.0 & !(1 << 27)) | (u32::from(val) << 27))
         }
         #[inline(always)]
-        pub fn agg_error_fatal3(self, val: bool) -> Self {
+        pub fn agg_error_fatal28(self, val: bool) -> Self {
             Self((self.0 & !(1 << 28)) | (u32::from(val) << 28))
         }
         #[inline(always)]
-        pub fn agg_error_fatal2(self, val: bool) -> Self {
+        pub fn agg_error_fatal29(self, val: bool) -> Self {
             Self((self.0 & !(1 << 29)) | (u32::from(val) << 29))
         }
         #[inline(always)]
-        pub fn agg_error_fatal1(self, val: bool) -> Self {
+        pub fn agg_error_fatal30(self, val: bool) -> Self {
             Self((self.0 & !(1 << 30)) | (u32::from(val) << 30))
         }
         #[inline(always)]
-        pub fn agg_error_fatal0(self, val: bool) -> Self {
+        pub fn agg_error_fatal31(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
     }
@@ -4879,131 +4945,131 @@ pub mod regs {
     pub struct AggErrorNonFatalReadVal(u32);
     impl AggErrorNonFatalReadVal {
         #[inline(always)]
-        pub fn agg_error_non_fatal31(&self) -> bool {
+        pub fn agg_error_non_fatal0(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal30(&self) -> bool {
+        pub fn agg_error_non_fatal1(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal29(&self) -> bool {
+        pub fn agg_error_non_fatal2(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal28(&self) -> bool {
+        pub fn agg_error_non_fatal3(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal27(&self) -> bool {
+        pub fn agg_error_non_fatal4(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal26(&self) -> bool {
+        pub fn agg_error_non_fatal5(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal25(&self) -> bool {
+        pub fn agg_error_non_fatal6(&self) -> bool {
             ((self.0 >> 6) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal24(&self) -> bool {
+        pub fn agg_error_non_fatal7(&self) -> bool {
             ((self.0 >> 7) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal23(&self) -> bool {
+        pub fn agg_error_non_fatal8(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal22(&self) -> bool {
+        pub fn agg_error_non_fatal9(&self) -> bool {
             ((self.0 >> 9) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal21(&self) -> bool {
+        pub fn agg_error_non_fatal10(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal20(&self) -> bool {
+        pub fn agg_error_non_fatal11(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal19(&self) -> bool {
+        pub fn agg_error_non_fatal12(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal18(&self) -> bool {
+        pub fn agg_error_non_fatal13(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal17(&self) -> bool {
+        pub fn agg_error_non_fatal14(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal16(&self) -> bool {
+        pub fn agg_error_non_fatal15(&self) -> bool {
             ((self.0 >> 15) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal15(&self) -> bool {
+        pub fn agg_error_non_fatal16(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal14(&self) -> bool {
+        pub fn agg_error_non_fatal17(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal13(&self) -> bool {
+        pub fn agg_error_non_fatal18(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal12(&self) -> bool {
+        pub fn agg_error_non_fatal19(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal11(&self) -> bool {
+        pub fn agg_error_non_fatal20(&self) -> bool {
             ((self.0 >> 20) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal10(&self) -> bool {
+        pub fn agg_error_non_fatal21(&self) -> bool {
             ((self.0 >> 21) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal9(&self) -> bool {
+        pub fn agg_error_non_fatal22(&self) -> bool {
             ((self.0 >> 22) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal8(&self) -> bool {
+        pub fn agg_error_non_fatal23(&self) -> bool {
             ((self.0 >> 23) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal7(&self) -> bool {
+        pub fn agg_error_non_fatal24(&self) -> bool {
             ((self.0 >> 24) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal6(&self) -> bool {
+        pub fn agg_error_non_fatal25(&self) -> bool {
             ((self.0 >> 25) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal5(&self) -> bool {
+        pub fn agg_error_non_fatal26(&self) -> bool {
             ((self.0 >> 26) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal4(&self) -> bool {
+        pub fn agg_error_non_fatal27(&self) -> bool {
             ((self.0 >> 27) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal3(&self) -> bool {
+        pub fn agg_error_non_fatal28(&self) -> bool {
             ((self.0 >> 28) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal2(&self) -> bool {
+        pub fn agg_error_non_fatal29(&self) -> bool {
             ((self.0 >> 29) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal1(&self) -> bool {
+        pub fn agg_error_non_fatal30(&self) -> bool {
             ((self.0 >> 30) & 1) != 0
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal0(&self) -> bool {
+        pub fn agg_error_non_fatal31(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
@@ -5028,131 +5094,131 @@ pub mod regs {
     pub struct AggErrorNonFatalWriteVal(u32);
     impl AggErrorNonFatalWriteVal {
         #[inline(always)]
-        pub fn agg_error_non_fatal31(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal0(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal30(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal1(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal29(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal2(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal28(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal3(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal27(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal4(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal26(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal5(self, val: bool) -> Self {
             Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal25(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal6(self, val: bool) -> Self {
             Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal24(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal7(self, val: bool) -> Self {
             Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal23(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal8(self, val: bool) -> Self {
             Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal22(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal9(self, val: bool) -> Self {
             Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal21(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal10(self, val: bool) -> Self {
             Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal20(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal11(self, val: bool) -> Self {
             Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal19(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal12(self, val: bool) -> Self {
             Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal18(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal13(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal17(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal14(self, val: bool) -> Self {
             Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal16(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal15(self, val: bool) -> Self {
             Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal15(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal16(self, val: bool) -> Self {
             Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal14(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal17(self, val: bool) -> Self {
             Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal13(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal18(self, val: bool) -> Self {
             Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal12(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal19(self, val: bool) -> Self {
             Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal11(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal20(self, val: bool) -> Self {
             Self((self.0 & !(1 << 20)) | (u32::from(val) << 20))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal10(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal21(self, val: bool) -> Self {
             Self((self.0 & !(1 << 21)) | (u32::from(val) << 21))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal9(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal22(self, val: bool) -> Self {
             Self((self.0 & !(1 << 22)) | (u32::from(val) << 22))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal8(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal23(self, val: bool) -> Self {
             Self((self.0 & !(1 << 23)) | (u32::from(val) << 23))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal7(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal24(self, val: bool) -> Self {
             Self((self.0 & !(1 << 24)) | (u32::from(val) << 24))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal6(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal25(self, val: bool) -> Self {
             Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal5(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal26(self, val: bool) -> Self {
             Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal4(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal27(self, val: bool) -> Self {
             Self((self.0 & !(1 << 27)) | (u32::from(val) << 27))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal3(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal28(self, val: bool) -> Self {
             Self((self.0 & !(1 << 28)) | (u32::from(val) << 28))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal2(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal29(self, val: bool) -> Self {
             Self((self.0 & !(1 << 29)) | (u32::from(val) << 29))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal1(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal30(self, val: bool) -> Self {
             Self((self.0 & !(1 << 30)) | (u32::from(val) << 30))
         }
         #[inline(always)]
-        pub fn agg_error_non_fatal0(self, val: bool) -> Self {
+        pub fn agg_error_non_fatal31(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
     }
@@ -5210,6 +5276,26 @@ pub mod regs {
     impl From<CapLockWriteVal> for u32 {
         #[inline(always)]
         fn from(val: CapLockWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct FcFipsZerozationStsReadVal(u32);
+    impl FcFipsZerozationStsReadVal {
+        #[inline(always)]
+        pub fn status(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+    }
+    impl From<u32> for FcFipsZerozationStsReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<FcFipsZerozationStsReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: FcFipsZerozationStsReadVal) -> u32 {
             val.0
         }
     }
@@ -7404,131 +7490,131 @@ pub mod regs {
     pub struct InternalAggErrorFatalMaskReadVal(u32);
     impl InternalAggErrorFatalMaskReadVal {
         #[inline(always)]
-        pub fn mask_agg_error_fatal31(&self) -> bool {
+        pub fn mask_agg_error_fatal0(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal30(&self) -> bool {
+        pub fn mask_agg_error_fatal1(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal29(&self) -> bool {
+        pub fn mask_agg_error_fatal2(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal28(&self) -> bool {
+        pub fn mask_agg_error_fatal3(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal27(&self) -> bool {
+        pub fn mask_agg_error_fatal4(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal26(&self) -> bool {
+        pub fn mask_agg_error_fatal5(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal25(&self) -> bool {
+        pub fn mask_agg_error_fatal6(&self) -> bool {
             ((self.0 >> 6) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal24(&self) -> bool {
+        pub fn mask_agg_error_fatal7(&self) -> bool {
             ((self.0 >> 7) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal23(&self) -> bool {
+        pub fn mask_agg_error_fatal8(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal22(&self) -> bool {
+        pub fn mask_agg_error_fatal9(&self) -> bool {
             ((self.0 >> 9) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal21(&self) -> bool {
+        pub fn mask_agg_error_fatal10(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal20(&self) -> bool {
+        pub fn mask_agg_error_fatal11(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal19(&self) -> bool {
+        pub fn mask_agg_error_fatal12(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal18(&self) -> bool {
+        pub fn mask_agg_error_fatal13(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal17(&self) -> bool {
+        pub fn mask_agg_error_fatal14(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal16(&self) -> bool {
+        pub fn mask_agg_error_fatal15(&self) -> bool {
             ((self.0 >> 15) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal15(&self) -> bool {
+        pub fn mask_agg_error_fatal16(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal14(&self) -> bool {
+        pub fn mask_agg_error_fatal17(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal13(&self) -> bool {
+        pub fn mask_agg_error_fatal18(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal12(&self) -> bool {
+        pub fn mask_agg_error_fatal19(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal11(&self) -> bool {
+        pub fn mask_agg_error_fatal20(&self) -> bool {
             ((self.0 >> 20) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal10(&self) -> bool {
+        pub fn mask_agg_error_fatal21(&self) -> bool {
             ((self.0 >> 21) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal9(&self) -> bool {
+        pub fn mask_agg_error_fatal22(&self) -> bool {
             ((self.0 >> 22) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal8(&self) -> bool {
+        pub fn mask_agg_error_fatal23(&self) -> bool {
             ((self.0 >> 23) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal7(&self) -> bool {
+        pub fn mask_agg_error_fatal24(&self) -> bool {
             ((self.0 >> 24) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal6(&self) -> bool {
+        pub fn mask_agg_error_fatal25(&self) -> bool {
             ((self.0 >> 25) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal5(&self) -> bool {
+        pub fn mask_agg_error_fatal26(&self) -> bool {
             ((self.0 >> 26) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal4(&self) -> bool {
+        pub fn mask_agg_error_fatal27(&self) -> bool {
             ((self.0 >> 27) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal3(&self) -> bool {
+        pub fn mask_agg_error_fatal28(&self) -> bool {
             ((self.0 >> 28) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal2(&self) -> bool {
+        pub fn mask_agg_error_fatal29(&self) -> bool {
             ((self.0 >> 29) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal1(&self) -> bool {
+        pub fn mask_agg_error_fatal30(&self) -> bool {
             ((self.0 >> 30) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal0(&self) -> bool {
+        pub fn mask_agg_error_fatal31(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
@@ -7553,131 +7639,131 @@ pub mod regs {
     pub struct InternalAggErrorFatalMaskWriteVal(u32);
     impl InternalAggErrorFatalMaskWriteVal {
         #[inline(always)]
-        pub fn mask_agg_error_fatal31(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal0(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal30(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal1(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal29(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal2(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal28(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal3(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal27(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal4(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal26(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal5(self, val: bool) -> Self {
             Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal25(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal6(self, val: bool) -> Self {
             Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal24(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal7(self, val: bool) -> Self {
             Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal23(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal8(self, val: bool) -> Self {
             Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal22(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal9(self, val: bool) -> Self {
             Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal21(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal10(self, val: bool) -> Self {
             Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal20(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal11(self, val: bool) -> Self {
             Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal19(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal12(self, val: bool) -> Self {
             Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal18(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal13(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal17(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal14(self, val: bool) -> Self {
             Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal16(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal15(self, val: bool) -> Self {
             Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal15(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal16(self, val: bool) -> Self {
             Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal14(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal17(self, val: bool) -> Self {
             Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal13(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal18(self, val: bool) -> Self {
             Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal12(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal19(self, val: bool) -> Self {
             Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal11(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal20(self, val: bool) -> Self {
             Self((self.0 & !(1 << 20)) | (u32::from(val) << 20))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal10(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal21(self, val: bool) -> Self {
             Self((self.0 & !(1 << 21)) | (u32::from(val) << 21))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal9(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal22(self, val: bool) -> Self {
             Self((self.0 & !(1 << 22)) | (u32::from(val) << 22))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal8(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal23(self, val: bool) -> Self {
             Self((self.0 & !(1 << 23)) | (u32::from(val) << 23))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal7(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal24(self, val: bool) -> Self {
             Self((self.0 & !(1 << 24)) | (u32::from(val) << 24))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal6(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal25(self, val: bool) -> Self {
             Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal5(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal26(self, val: bool) -> Self {
             Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal4(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal27(self, val: bool) -> Self {
             Self((self.0 & !(1 << 27)) | (u32::from(val) << 27))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal3(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal28(self, val: bool) -> Self {
             Self((self.0 & !(1 << 28)) | (u32::from(val) << 28))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal2(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal29(self, val: bool) -> Self {
             Self((self.0 & !(1 << 29)) | (u32::from(val) << 29))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal1(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal30(self, val: bool) -> Self {
             Self((self.0 & !(1 << 30)) | (u32::from(val) << 30))
         }
         #[inline(always)]
-        pub fn mask_agg_error_fatal0(self, val: bool) -> Self {
+        pub fn mask_agg_error_fatal31(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
     }
@@ -7697,131 +7783,131 @@ pub mod regs {
     pub struct InternalAggErrorNonFatalMaskReadVal(u32);
     impl InternalAggErrorNonFatalMaskReadVal {
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal31(&self) -> bool {
+        pub fn mask_agg_error_non_fatal0(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal30(&self) -> bool {
+        pub fn mask_agg_error_non_fatal1(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal29(&self) -> bool {
+        pub fn mask_agg_error_non_fatal2(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal28(&self) -> bool {
+        pub fn mask_agg_error_non_fatal3(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal27(&self) -> bool {
+        pub fn mask_agg_error_non_fatal4(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal26(&self) -> bool {
+        pub fn mask_agg_error_non_fatal5(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal25(&self) -> bool {
+        pub fn mask_agg_error_non_fatal6(&self) -> bool {
             ((self.0 >> 6) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal24(&self) -> bool {
+        pub fn mask_agg_error_non_fatal7(&self) -> bool {
             ((self.0 >> 7) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal23(&self) -> bool {
+        pub fn mask_agg_error_non_fatal8(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal22(&self) -> bool {
+        pub fn mask_agg_error_non_fatal9(&self) -> bool {
             ((self.0 >> 9) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal21(&self) -> bool {
+        pub fn mask_agg_error_non_fatal10(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal20(&self) -> bool {
+        pub fn mask_agg_error_non_fatal11(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal19(&self) -> bool {
+        pub fn mask_agg_error_non_fatal12(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal18(&self) -> bool {
+        pub fn mask_agg_error_non_fatal13(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal17(&self) -> bool {
+        pub fn mask_agg_error_non_fatal14(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal16(&self) -> bool {
+        pub fn mask_agg_error_non_fatal15(&self) -> bool {
             ((self.0 >> 15) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal15(&self) -> bool {
+        pub fn mask_agg_error_non_fatal16(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal14(&self) -> bool {
+        pub fn mask_agg_error_non_fatal17(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal13(&self) -> bool {
+        pub fn mask_agg_error_non_fatal18(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal12(&self) -> bool {
+        pub fn mask_agg_error_non_fatal19(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal11(&self) -> bool {
+        pub fn mask_agg_error_non_fatal20(&self) -> bool {
             ((self.0 >> 20) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal10(&self) -> bool {
+        pub fn mask_agg_error_non_fatal21(&self) -> bool {
             ((self.0 >> 21) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal9(&self) -> bool {
+        pub fn mask_agg_error_non_fatal22(&self) -> bool {
             ((self.0 >> 22) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal8(&self) -> bool {
+        pub fn mask_agg_error_non_fatal23(&self) -> bool {
             ((self.0 >> 23) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal7(&self) -> bool {
+        pub fn mask_agg_error_non_fatal24(&self) -> bool {
             ((self.0 >> 24) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal6(&self) -> bool {
+        pub fn mask_agg_error_non_fatal25(&self) -> bool {
             ((self.0 >> 25) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal5(&self) -> bool {
+        pub fn mask_agg_error_non_fatal26(&self) -> bool {
             ((self.0 >> 26) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal4(&self) -> bool {
+        pub fn mask_agg_error_non_fatal27(&self) -> bool {
             ((self.0 >> 27) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal3(&self) -> bool {
+        pub fn mask_agg_error_non_fatal28(&self) -> bool {
             ((self.0 >> 28) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal2(&self) -> bool {
+        pub fn mask_agg_error_non_fatal29(&self) -> bool {
             ((self.0 >> 29) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal1(&self) -> bool {
+        pub fn mask_agg_error_non_fatal30(&self) -> bool {
             ((self.0 >> 30) & 1) != 0
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal0(&self) -> bool {
+        pub fn mask_agg_error_non_fatal31(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
@@ -7846,131 +7932,131 @@ pub mod regs {
     pub struct InternalAggErrorNonFatalMaskWriteVal(u32);
     impl InternalAggErrorNonFatalMaskWriteVal {
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal31(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal0(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal30(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal1(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal29(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal2(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal28(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal3(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal27(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal4(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal26(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal5(self, val: bool) -> Self {
             Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal25(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal6(self, val: bool) -> Self {
             Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal24(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal7(self, val: bool) -> Self {
             Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal23(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal8(self, val: bool) -> Self {
             Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal22(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal9(self, val: bool) -> Self {
             Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal21(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal10(self, val: bool) -> Self {
             Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal20(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal11(self, val: bool) -> Self {
             Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal19(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal12(self, val: bool) -> Self {
             Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal18(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal13(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal17(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal14(self, val: bool) -> Self {
             Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal16(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal15(self, val: bool) -> Self {
             Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal15(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal16(self, val: bool) -> Self {
             Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal14(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal17(self, val: bool) -> Self {
             Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal13(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal18(self, val: bool) -> Self {
             Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal12(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal19(self, val: bool) -> Self {
             Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal11(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal20(self, val: bool) -> Self {
             Self((self.0 & !(1 << 20)) | (u32::from(val) << 20))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal10(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal21(self, val: bool) -> Self {
             Self((self.0 & !(1 << 21)) | (u32::from(val) << 21))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal9(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal22(self, val: bool) -> Self {
             Self((self.0 & !(1 << 22)) | (u32::from(val) << 22))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal8(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal23(self, val: bool) -> Self {
             Self((self.0 & !(1 << 23)) | (u32::from(val) << 23))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal7(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal24(self, val: bool) -> Self {
             Self((self.0 & !(1 << 24)) | (u32::from(val) << 24))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal6(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal25(self, val: bool) -> Self {
             Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal5(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal26(self, val: bool) -> Self {
             Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal4(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal27(self, val: bool) -> Self {
             Self((self.0 & !(1 << 27)) | (u32::from(val) << 27))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal3(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal28(self, val: bool) -> Self {
             Self((self.0 & !(1 << 28)) | (u32::from(val) << 28))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal2(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal29(self, val: bool) -> Self {
             Self((self.0 & !(1 << 29)) | (u32::from(val) << 29))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal1(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal30(self, val: bool) -> Self {
             Self((self.0 & !(1 << 30)) | (u32::from(val) << 30))
         }
         #[inline(always)]
-        pub fn mask_agg_error_non_fatal0(self, val: bool) -> Self {
+        pub fn mask_agg_error_non_fatal31(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
         }
     }
@@ -8173,6 +8259,11 @@ pub mod regs {
         pub fn notif_mbox1_soc_req_lock_en(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
+        /// Enable bit for OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts
+        #[inline(always)]
+        pub fn notif_otp_operation_done_en(&self) -> bool {
+            ((self.0 >> 14) & 1) != 0
+        }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
         pub fn modify(self) -> Notif0IntrEnTWriteVal {
@@ -8264,6 +8355,11 @@ pub mod regs {
         pub fn notif_mbox1_soc_req_lock_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
+        /// Enable bit for OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts
+        #[inline(always)]
+        pub fn notif_otp_operation_done_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
+        }
     }
     impl From<u32> for Notif0IntrEnTWriteVal {
         #[inline(always)]
@@ -8349,6 +8445,11 @@ pub mod regs {
         #[inline(always)]
         pub fn notif_mbox1_soc_req_lock_sts(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
+        }
+        /// OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts
+        #[inline(always)]
+        pub fn notif_otp_operation_done_sts(&self) -> bool {
+            ((self.0 >> 14) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -8441,6 +8542,11 @@ pub mod regs {
         pub fn notif_mbox1_soc_req_lock_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
+        /// OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts
+        #[inline(always)]
+        pub fn notif_otp_operation_done_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
+        }
     }
     impl From<u32> for Notif0IntrTWriteVal {
         #[inline(always)]
@@ -8526,6 +8632,11 @@ pub mod regs {
         #[inline(always)]
         pub fn notif_mbox1_soc_req_lock_trig(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
+        }
+        /// OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts trigger bit
+        #[inline(always)]
+        pub fn notif_otp_operation_done_trig(&self) -> bool {
+            ((self.0 >> 14) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -8617,6 +8728,11 @@ pub mod regs {
         #[inline(always)]
         pub fn notif_mbox1_soc_req_lock_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
+        }
+        /// OTP operation done interrupt https://github.com/lowRISC/opentitan/blob/backport-25674-to-earlgrey_1.0.0/hw/ip/otp_ctrl/doc/interfaces.md#interrupts trigger bit
+        #[inline(always)]
+        pub fn notif_otp_operation_done_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
         }
     }
     impl From<u32> for Notif0IntrTrigTWriteVal {
@@ -9823,7 +9939,7 @@ pub mod meta {
         crate::mci::regs::InternalHwErrorNonFatalMaskWriteVal,
     >;
     pub type InternalAggErrorFatalMask = ureg::ReadWriteReg32<
-        0,
+        0x3ffff000,
         crate::mci::regs::InternalAggErrorFatalMaskReadVal,
         crate::mci::regs::InternalAggErrorFatalMaskWriteVal,
     >;
@@ -9895,6 +10011,8 @@ pub mod meta {
     pub type SocHwDebugEn = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocProdDebugState = ureg::ReadWriteReg32<0, u32, u32>;
     pub type FcFipsZerozation = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FcFipsZerozationSts =
+        ureg::ReadOnlyReg32<crate::mci::regs::FcFipsZerozationStsReadVal>;
     pub type GenericInputWires = ureg::ReadOnlyReg32<u32>;
     pub type GenericOutputWires = ureg::ReadWriteReg32<0, u32, u32>;
     pub type DebugIn = ureg::ReadWriteReg32<0, u32, u32>;
@@ -10064,6 +10182,7 @@ pub mod meta {
     pub type IntrBlockRfNotifScanModeIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfNotifMbox0SocReqLockIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfNotifMbox1SocReqLockIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifOtpOperationDoneIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfErrorInternalIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorMbox0EccUncIntrCountIncrR =
@@ -10231,5 +10350,7 @@ pub mod meta {
     pub type IntrBlockRfNotifMbox0SocReqLockIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifMbox1SocReqLockIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfNotifOtpOperationDoneIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
 }
