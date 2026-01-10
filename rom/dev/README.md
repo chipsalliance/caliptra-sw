@@ -64,7 +64,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set       |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 12,13,14,15**: Manufacturer Serial Number |
 | FUSE_MANUF_DEBUG_UNLOCK_TOKEN    | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization |
-| FUSE_PQC_KEY_TYPE                | 2             | One-hot encoded selection of PQC key type for firmware validation. <br> **Bit 0**: MLDSA <br> **Bit 1**: LMS |
+| FUSE_PQC_KEY_TYPE                | 2             | Selection of PQC key type for firmware validation. <br><br> **0x1**: MLDSA <br> **0x3**: LMS <br><br> Other values are reserved. |
 
 ### Architectural Registers
 | Register                        | Width (bits) | Description                                             |
@@ -167,7 +167,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
 | Image Version | 4 | Firmware release number |
-| Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
+| Image SVN | 4 | Informational field only. Firmware rollback protection is enforced using the Firmware SVN (FW_SVN) from the manifest header compared against FUSE_FIRMWARE_SVN. FMC TOC entry's SVN field is ignored. |
 | Reserved | 4 | Reserved field |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
@@ -1142,9 +1142,9 @@ The following are the pre-conditions that should be satisfied:
 - Compute the SHA2-384 hash of the complete TOC data.
 - Compare the computed TOC hash with the hash embedded in the Header.
   - If the hashes match, the TOC data is validated.
-- Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
+- Ensure that the Firmware SVN (FW_SVN) from the manifest header is greater than or equal to FUSE_FIRMWARE_SVN.
 
-<br> *(Note: Same SVN Validation is done for the FMC and RT)
+<br> *(Note: SVN validation is performed once at the firmware bundle level.`)*
 
 <br>
 
