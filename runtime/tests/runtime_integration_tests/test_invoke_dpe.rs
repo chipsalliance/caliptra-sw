@@ -18,12 +18,13 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags,
-        GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignCmd, SignFlags,
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
+        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
+        RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
     },
     context::ContextHandle,
-    response::{DpeErrorCode, Response},
-    DPE_PROFILE,
+    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
+    DpeProfile,
 };
 use openssl::{
     bn::BigNum,
@@ -48,7 +49,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     let Some(Response::GetProfile(profile)) = resp else {
         panic!("Wrong response type!");
     };
-    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE);
+    assert_eq!(profile.resp_hdr.profile, DpeProfile::P384Sha384);
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
@@ -106,10 +107,10 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::Sign(&sign_cmd),
+        &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
-    let Some(Response::Sign(sign_resp)) = resp else {
+    let Some(Response::Sign(SignResp::P384(sign_resp))) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -117,14 +118,14 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -159,10 +160,10 @@ fn test_invoke_dpe_asymmetric_sign() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::Sign(&sign_cmd),
+        &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
-    let Some(Response::Sign(sign_resp)) = resp else {
+    let Some(Response::Sign(SignResp::P384(sign_resp))) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -206,11 +207,11 @@ fn test_invoke_dpe_certify_key_csr() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_CSR,
+        format: CertifyKeyCommand::FORMAT_CSR,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -221,10 +222,7 @@ fn test_invoke_dpe_certify_key_csr() {
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // parse CMS ContentInfo
-    let content_info = ContentInfo::from_der(
-        &certify_key_resp.cert[..certify_key_resp.cert_size.try_into().unwrap()],
-    )
-    .unwrap();
+    let content_info = ContentInfo::from_der(certify_key_resp.cert().unwrap()).unwrap();
     // parse SignedData
     let mut signed_data = SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
     assert_eq!(signed_data.version, CmsVersion::V3);
@@ -325,14 +323,14 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(resp))) = resp else {
         panic!("Wrong response type!");
     };
     check_dice_extension_criticality(&resp.cert[..resp.cert_size.try_into().unwrap()], false);
@@ -347,16 +345,12 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
     });
 
     let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
+        &mut Command::from(&derive_ctx_cmd),
         DpeResult::Success,
     );
 
@@ -381,14 +375,10 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
     });
 
     let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(
@@ -432,12 +422,8 @@ fn test_export_cdi_destroyed_root_context() {
     // This test case exercises that runtime cannot find the root context if the chain is
     // destroyed.
     let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(

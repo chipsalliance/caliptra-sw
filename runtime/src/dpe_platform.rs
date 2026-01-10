@@ -18,7 +18,10 @@ use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
-use dpe::x509::{CertWriter, DirectoryString, Name};
+use dpe::{
+    x509::{CertWriter, DirectoryString, Name},
+    DpeProfile,
+};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
@@ -106,7 +109,7 @@ impl Platform for DpePlatform<'_> {
         out: &mut [u8; MAX_ISSUER_NAME_SIZE],
     ) -> Result<usize, PlatformError> {
         const CALIPTRA_CN: &[u8] = b"Caliptra 2.1 Ecc384 Rt Alias";
-        let mut issuer_writer = CertWriter::new(out, true);
+        let mut issuer_writer = CertWriter::new(out, DpeProfile::P384Sha384, true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];

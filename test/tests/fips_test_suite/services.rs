@@ -16,7 +16,9 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_image_types::ImageManifest;
 use common::*;
-use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
+use dpe::response::{CertifyKeyResp, SignResp};
+use dpe::DpeProfile;
+use dpe::{commands::*, context::ContextHandle, response::Response};
 use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -470,7 +472,7 @@ pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
         panic!("Wrong response type!");
     };
 
-    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE);
+    assert_eq!(get_profile_resp.resp_hdr.profile, DpeProfile::P384Sha384);
 }
 
 pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
@@ -484,14 +486,10 @@ pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
 
 pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
     let derive_context_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0u8; 48],
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(&derive_context_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::from(&derive_context_cmd));
     let Response::DeriveContext(derive_ctx_resp) = resp else {
         panic!("Wrong response type!");
     };
@@ -505,15 +503,15 @@ pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
         25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     ];
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_CSR,
+        format: CertifyKeyCommand::FORMAT_CSR,
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::CertifyKey(&certify_key_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::from(&certify_key_cmd));
 
-    let Response::CertifyKey(certify_key_resp) = resp else {
+    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -536,16 +534,16 @@ pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
         26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
     ];
-    let sign_cmd = SignCmd {
+    let sign_cmd = SignP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: SignFlags::empty(),
         digest: TEST_DIGEST,
     };
 
-    let resp = execute_dpe_cmd(hw, &mut Command::Sign(&sign_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::from(&sign_cmd));
 
-    let Response::Sign(sign_resp) = resp else {
+    let Response::Sign(SignResp::P384(sign_resp)) = resp else {
         panic!("Wrong response type!");
     };
 
