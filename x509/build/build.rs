@@ -95,12 +95,20 @@ fn gen_fmc_alias_csr(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
-            /*device_fwids=*/
+            /*owner_fwids=*/
             &[FwidParam {
-                name: "TCB_INFO_DEVICE_INFO_HASH",
+                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
                 fwid: Fwid {
                     hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
                     digest: &[0xEF; 48],
+                },
+            }],
+            /*vendor_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xDE; 48],
                 },
             }],
             /*fmc_fwids=*/
@@ -120,12 +128,20 @@ fn gen_fmc_alias_csr(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
-            /*device_fwids=*/
+            /*owner_fwids=*/
             &[FwidParam {
-                name: "TCB_INFO_DEVICE_INFO_HASH",
+                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
                 fwid: Fwid {
                     hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
                     digest: &[0xEF; 48],
+                },
+            }],
+            /*vendor_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xDE; 48],
                 },
             }],
             /*fmc_fwids=*/
@@ -171,12 +187,20 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
-            /*device_fwids=*/
+            /*owner_fwids=*/
             &[FwidParam {
-                name: "TCB_INFO_DEVICE_INFO_HASH",
+                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
                 fwid: Fwid {
                     hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
                     digest: &[0xEF; 48],
+                },
+            }],
+            /*vendor_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xDE; 48],
                 },
             }],
             /*fmc_fwids=*/
@@ -196,12 +220,20 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
-            /*device_fwids=*/
+            /*owner_fwids=*/
             &[FwidParam {
-                name: "TCB_INFO_DEVICE_INFO_HASH",
+                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
                 fwid: Fwid {
                     hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
                     digest: &[0xEF; 48],
+                },
+            }],
+            /*vendor_fwids=*/
+            &[FwidParam {
+                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+                fwid: Fwid {
+                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: &[0xDE; 48],
                 },
             }],
             /*fmc_fwids=*/
