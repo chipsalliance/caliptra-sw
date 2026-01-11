@@ -20,7 +20,7 @@ use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::FmcEnvNonCrypto;
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cfi_check;
@@ -48,7 +48,7 @@ pub struct RtAliasLayer {}
 impl RtAliasLayer {
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &mut FmcEnvNonCrypto, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         if Self::kv_slot_collides(input.cdi) {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
         }
@@ -126,7 +126,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut FmcEnvNonCrypto) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
@@ -160,7 +160,7 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(env: &mut FmcEnvNonCrypto) -> CaliptraResult<DiceInput> {
         let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
         let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
         let ecc_auth_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
@@ -196,7 +196,7 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv) -> CaliptraResult<()> {
+    pub fn extend_pcrs(env: &mut FmcEnvNonCrypto) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             ResetReason::ColdReset => {
@@ -265,7 +265,7 @@ impl RtAliasLayer {
     /// * `fmc_cdi` - Key Slot that holds the current CDI
     /// * `rt_cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut FmcEnvNonCrypto, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
@@ -307,7 +307,7 @@ impl RtAliasLayer {
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvNonCrypto,
         cdi: KeyId,
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
@@ -348,7 +348,7 @@ impl RtAliasLayer {
     /// * `output` - DICE Output
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
@@ -364,7 +364,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_ecc_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
@@ -458,7 +458,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_mldsa_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvNonCrypto,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsMlDsa87Params::NOT_BEFORE_LEN],

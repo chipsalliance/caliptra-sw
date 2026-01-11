@@ -39,7 +39,7 @@ use caliptra_drivers::{
     pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
     Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
-    PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
+    PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_drivers::{Dma, DmaMmio};
@@ -136,8 +136,6 @@ pub struct Drivers {
 
     pub lms: Lms,
 
-    pub sha1: Sha1,
-
     pub pcr_bank: PcrBank,
 
     pub pic: Pic,
@@ -196,7 +194,6 @@ impl Drivers {
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             mldsa87: Mldsa87::new(AbrReg::new()),
-            sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
             persistent_data,

@@ -20,7 +20,7 @@ use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvNonCrypto;
 use caliptra_common::keyids::KEY_ID_ROM_FMC_CDI;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
@@ -46,7 +46,7 @@ impl FakeRomFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             // Cold Reset Flow
@@ -104,7 +104,7 @@ impl FakeRomFlow {
 }
 
 // Used to derive the firmware's key ladder.
-fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
+fn initialize_fake_ldevid_cdi(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let fake_key = Array4x16::from([0x1234_5678u32; 16]);
     env.hmac.hmac(
         HmacKey::Array4x16(&fake_key),
@@ -115,7 +115,7 @@ fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
     )
 }
 
-pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn copy_canned_ldev_cert(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
@@ -156,7 +156,7 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     Ok(())
 }
 
-pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn copy_canned_fmc_alias_cert(env: &mut RomEnvNonCrypto) -> CaliptraResult<()> {
     let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
 
     // Store signature
