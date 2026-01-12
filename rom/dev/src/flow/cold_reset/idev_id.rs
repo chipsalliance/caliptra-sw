@@ -40,6 +40,8 @@ use zeroize::Zeroize;
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
 const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
+use caliptra_drivers::IDEVID_CSR_ENVELOP_MARKER;
+
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
 
@@ -305,6 +307,10 @@ impl InitDevIdLayer {
 
         // Create a HMAC tag for the CSR Envelop.
         let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
+
+        // Explicitly initialize envelope metadata for marker and size.
+        csr_envelop.marker = IDEVID_CSR_ENVELOP_MARKER;
+        csr_envelop.size = core::mem::size_of::<InitDevIdCsrEnvelope>() as u32;
 
         // Data to be HMACed is everything before the CSR MAC.
         let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
