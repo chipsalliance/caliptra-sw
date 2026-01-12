@@ -5,6 +5,7 @@ mod helpers;
 mod rv32_unit_tests;
 mod test_capabilities;
 mod test_cfi;
+mod test_cm_sha;
 mod test_cpu_fault;
 mod test_debug_unlock;
 mod test_derive_stable_key;
