@@ -461,6 +461,12 @@ pub mod driver_tests {
         features: &["emu", "fpga_subsystem"],
         ..BASE_FWID
     };
+
+    pub const HPKE: FwId = FwId {
+        bin_name: "hpke",
+        features: &["emu", "fpga_subsystem"],
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -643,6 +649,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::OCP_LOCK_WARM_RESET,
     &driver_tests::DMA_AES,
     &driver_tests::AXI_BYPASS,
+    &driver_tests::HPKE,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,

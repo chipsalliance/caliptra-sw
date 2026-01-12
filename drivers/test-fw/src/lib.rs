@@ -4,12 +4,13 @@
 
 use caliptra_drivers::{
     Aes, Array4x16, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, SocIfc, Trng,
+    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024, Sha3, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
-    aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, kv::KvReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg,
+    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg,
+    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
@@ -86,6 +87,8 @@ pub struct TestRegisters {
     pub dma: Dma,
     pub doe: DeobfuscationEngine,
     pub kv: KeyVault,
+    pub ml_kem: MlKem1024,
+    pub sha3: Sha3,
 }
 
 impl Default for TestRegisters {
@@ -106,6 +109,8 @@ impl Default for TestRegisters {
         let dma = Dma::default();
         let doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
         let kv = unsafe { KeyVault::new(KvReg::new()) };
+        let ml_kem = unsafe { MlKem1024::new(AbrReg::new()) };
+        let sha3 = unsafe { Sha3::new(KmacReg::new()) };
 
         Self {
             soc,
@@ -115,6 +120,8 @@ impl Default for TestRegisters {
             dma,
             doe,
             kv,
+            ml_kem,
+            sha3,
         }
     }
 }
