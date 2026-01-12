@@ -336,6 +336,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const PRECONDITIONED_AES: FwId = FwId {
+        bin_name: "preconditioned_aes",
+        ..BASE_FWID
+    };
+
     pub const SHA1: FwId = FwId {
         bin_name: "sha1",
         ..BASE_FWID
@@ -625,6 +630,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::ML_KEM,
     &driver_tests::PCRBANK,
     &driver_tests::PRECONDITIONED_KEYS,
+    &driver_tests::PRECONDITIONED_AES,
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
