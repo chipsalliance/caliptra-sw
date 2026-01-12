@@ -39,7 +39,7 @@ on:
         type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}-${{ inputs.artifact-suffix }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
