@@ -29,6 +29,7 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
+pub mod encryption_engine;
 pub mod otp_fc;
 pub mod recovery;
 
