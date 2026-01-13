@@ -22,6 +22,8 @@ use crate::Pic;
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, Event, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use std::fs::File;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::mpsc;
 
@@ -56,11 +58,13 @@ impl CodeRange {
 pub struct ImageInfo {
     stack_range: StackRange,
     code_range: CodeRange,
+    stack_watermark: u32,
 }
 
 impl ImageInfo {
     pub fn new(stack_range: StackRange, code_range: CodeRange) -> Self {
         Self {
+            stack_watermark: stack_range.0,
             stack_range,
             code_range,
         }
@@ -79,7 +83,9 @@ impl ImageInfo {
     /// to the overflow amount.
     ///
     /// Returns `None` if no overflow has occurred.
-    fn check_overflow(&self, sp: u32) -> Option<u32> {
+    fn check_overflow(&mut self, sp: u32) -> Option<u32> {
+        self.stack_watermark = std::cmp::min(self.stack_watermark, sp);
+
         let stack_end = self.stack_range.1;
 
         // Stack grows to a lower address
@@ -134,7 +140,7 @@ impl StackInfo {
             return None;
         }
 
-        for image in self.images.iter() {
+        for image in self.images.iter_mut() {
             if image.contains_pc(pc) {
                 if let Some(overflow_amount) = image.check_overflow(stack_address) {
                     self.max_stack_overflow = self.max_stack_overflow.max(overflow_amount);
@@ -300,6 +306,17 @@ pub struct Cpu<TBus: Bus> {
 impl<TBus: Bus> Drop for Cpu<TBus> {
     fn drop(&mut self) {
         if let Some(stack_info) = &self.stack_info {
+            if let Ok(mut file) = File::create("/tmp/caliptra-stack-usage.txt") {
+                for image in stack_info.images.iter() {
+                    let _ = writeln!(
+                        file,
+                        "Image [0x{:08x}-0x{:08x}] used {} bytes",
+                        image.code_range.0,
+                        image.code_range.1,
+                        image.stack_range.0 - image.stack_watermark
+                    );
+                }
+            }
             if stack_info.has_overflowed {
                 panic!(
                     "[EMU] Fatal: Caliptra's stack overflowed by {} bytes!",

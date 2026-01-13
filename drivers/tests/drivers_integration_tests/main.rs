@@ -10,8 +10,8 @@ use caliptra_drivers_test_bin::{
     DoeTestResults, OCP_LOCK_WARM_RESET_MAGIC_BOOT_STATUS, PLAINTEXT_MEK,
 };
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
-    SecurityState, TrngMode,
+    BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
+    ModelError, SecurityState, StackInfo, StackRange, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -27,6 +27,9 @@ use openssl::{hash::MessageDigest, pkey::PKey};
 use ureg::ResettableReg;
 use zerocopy::{FromBytes, IntoBytes};
 
+const STACK_START: u32 = 0x50014F74;
+const STACK_END: u32 = STACK_START - (64 * 1024);
+
 fn default_init_params() -> InitParams<'static> {
     InitParams {
         // The test harness doesn't clear memory on startup.
@@ -37,10 +40,16 @@ fn default_init_params() -> InitParams<'static> {
 
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
+    let image_info = vec![ImageInfo::new(
+        StackRange::new(STACK_START, STACK_END),
+        // The whole binary is using the same stack.
+        CodeRange::new(0, u32::MAX),
+    )];
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             subsystem_mode: true,
+            stack_info: Some(StackInfo::new(image_info)),
             ..default_init_params()
         },
         BootParams::default(),
