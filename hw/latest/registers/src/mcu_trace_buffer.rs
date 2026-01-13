@@ -140,7 +140,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StatusReadVal(u32);
     impl StatusReadVal {
-        /// Indicates trace buffer has wrapped at least once. Meaning all entries in the trace buffer are valid.
+        /// Indicates WRITE_PTR has wrapped. Meaning all entries in the trace buffer are valid.
         #[inline(always)]
         pub fn wrapped(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
