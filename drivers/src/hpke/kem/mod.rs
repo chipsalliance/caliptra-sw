@@ -42,6 +42,7 @@ pub trait Kem<const NSK: usize, const NENC: usize, const NPK: usize, const NSECR
 }
 
 /// Shared Secret produced by `encap`.
+#[derive(ZeroizeOnDrop)]
 pub struct SharedSecret<const NSECRET: usize> {
     buf: [u8; NSECRET],
 }
