@@ -19,12 +19,12 @@ use caliptra_common::mailbox_api::populate_checksum;
 use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_common::mailbox_api::{FirmwareVerifyResp, FirmwareVerifyResult};
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, PersistentData, ResetReason};
+use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::ImageVerifier;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use core::mem::size_of;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 /// Source of the firmware image for verification
 pub enum VerifySrc {
@@ -43,10 +43,11 @@ pub struct FirmwareVerifyCmd;
 impl FirmwareVerifyCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, src: VerifySrc) -> CaliptraResult<MboxStatusE> {
+        let mut manifest = ImageManifest::new_zeroed();
         let (image_size, image_source) = match src {
             VerifySrc::Mbox => {
                 let raw_data = drivers.mbox.raw_mailbox_contents();
-                Self::load_manifest_from_mbox(drivers.persistent_data.get_mut(), raw_data)?;
+                Self::load_manifest_from_mbox(&mut manifest, raw_data)?;
                 (
                     drivers.mbox.dlen(),
                     caliptra_common::verifier::ImageSource::MboxMemory(raw_data),
@@ -56,11 +57,7 @@ impl FirmwareVerifyCmd {
                 axi_address,
                 image_size,
             } => {
-                Self::load_manifest_from_external(
-                    drivers.persistent_data.get_mut(),
-                    &mut drivers.dma,
-                    axi_address,
-                )?;
+                Self::load_manifest_from_external(&mut manifest, &mut drivers.dma, axi_address)?;
                 (
                     image_size,
                     caliptra_common::verifier::ImageSource::Axi {
@@ -85,7 +82,6 @@ impl FirmwareVerifyCmd {
         };
         let mut verifier = ImageVerifier::new(&mut venv);
 
-        let manifest = drivers.persistent_data.get().rom.manifest2;
         let resp = &mut [0u8; core::mem::size_of::<FirmwareVerifyResp>()][..];
         let resp = mutrefbytes::<FirmwareVerifyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -105,13 +101,6 @@ impl FirmwareVerifyCmd {
         drivers.mbox.write_response(resp.as_bytes())?;
         // zero the original resp buffer so as not to leak sensitive data
         resp.as_mut_bytes().fill(0);
-        drivers
-            .persistent_data
-            .get_mut()
-            .rom
-            .manifest2
-            .as_mut_bytes()
-            .fill(0);
 
         Ok(MboxStatusE::DataReady)
     }
@@ -119,15 +108,13 @@ impl FirmwareVerifyCmd {
     /// Load manifest from mailbox SRAM
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest_from_mbox(
-        persistent_data: &mut PersistentData,
+        manifest: &mut ImageManifest,
         fw_payload: &[u8],
     ) -> CaliptraResult<()> {
         if fw_payload.len() < size_of::<ImageManifest>() {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         }
-        persistent_data
-            .rom
-            .manifest2
+        manifest
             .as_mut_bytes()
             .copy_from_slice(fw_payload[..size_of::<ImageManifest>()].as_ref());
         Ok(())
@@ -136,11 +123,10 @@ impl FirmwareVerifyCmd {
     /// Load manifest from external memory (MCU SRAM) using DMA
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest_from_external(
-        persistent_data: &mut PersistentData,
+        manifest: &mut ImageManifest,
         dma: &mut caliptra_drivers::Dma,
         axi_address: AxiAddr,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.rom.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Read manifest from external memory using DMA directly into manifest buffer

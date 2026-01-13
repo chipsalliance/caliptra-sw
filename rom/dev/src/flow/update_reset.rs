@@ -22,12 +22,12 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{handle_fatal_error, RomBootStatus::*};
 use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason, RomPersistentData};
 use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
-use caliptra_drivers::{AxiAddr, DataVault, Dma, PersistentData};
+use caliptra_drivers::{AxiAddr, DataVault, Dma};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use core::mem::size_of;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -65,6 +65,7 @@ impl UpdateResetFlow {
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
+        let mut manifest = ImageManifest::new_zeroed();
         let mut process_txn = || -> CaliptraResult<()> {
             // Parse command, staging address, and image size
             let (actual_cmd, staging_addr, img_bundle_sz) = if recv_txn.cmd()
@@ -106,7 +107,7 @@ impl UpdateResetFlow {
 
             let mci_base = env.soc_ifc.mci_base_addr();
             Self::load_manifest(
-                env.persistent_data.get_mut(),
+                &mut manifest,
                 &mut recv_txn,
                 &mut env.soc_ifc,
                 &mut env.dma,
@@ -137,10 +138,7 @@ impl UpdateResetFlow {
                 persistent_data: env.persistent_data.get(),
             };
 
-            let info = {
-                let manifest = &env.persistent_data.get().rom.manifest2;
-                Self::verify_image(&mut venv, manifest, img_bundle_sz)
-            };
+            let info = Self::verify_image(&mut venv, &manifest, img_bundle_sz);
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
@@ -163,9 +161,8 @@ impl UpdateResetFlow {
                 info.vendor_ecc_pub_key_idx
             );
 
-            let manifest = &env.persistent_data.get().rom.manifest2;
             Self::load_image(
-                manifest,
+                &manifest,
                 &mut recv_txn,
                 &mut env.soc_ifc,
                 &mut env.dma,
@@ -187,7 +184,7 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetLoadImageComplete.into());
 
         let persistent_data = env.persistent_data.get_mut();
-        persistent_data.rom.manifest1 = persistent_data.rom.manifest2;
+        persistent_data.rom.manifest1 = manifest;
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
         // Set RT version. FMC does not change.
@@ -349,7 +346,7 @@ impl UpdateResetFlow {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest(
-        persistent_data: &mut PersistentData,
+        manifest: &mut ImageManifest,
         txn: &mut MailboxRecvTxn,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
@@ -358,19 +355,18 @@ impl UpdateResetFlow {
         if soc_ifc.subsystem_mode() {
             let addr =
                 staging_addr.ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM)?;
-            Self::load_manifest_from_mcu(persistent_data, dma, addr)
+            Self::load_manifest_from_mcu(manifest, dma, addr)
         } else {
-            Self::load_manifest_from_mbox(persistent_data, txn)
+            Self::load_manifest_from_mbox(manifest, txn)
         }
     }
 
     /// Load the manifest from mailbox SRAM
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest_from_mbox(
-        persistent_data: &mut PersistentData,
+        manifest: &mut ImageManifest,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.rom.manifest2;
         let mbox_sram = txn.raw_mailbox_contents();
         let manifest_buf = manifest.as_mut_bytes();
         if mbox_sram.len() < manifest_buf.len() {
@@ -383,11 +379,10 @@ impl UpdateResetFlow {
     /// Load the manifest from MCU SRAM using DMA
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest_from_mcu(
-        persistent_data: &mut PersistentData,
+        manifest: &mut ImageManifest,
         dma: &mut Dma,
         staging_addr: u64,
     ) -> CaliptraResult<()> {
-        let manifest = &mut persistent_data.rom.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
 
         // Read manifest from staging area using DMA directly into manifest buffer
