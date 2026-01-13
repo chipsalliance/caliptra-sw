@@ -1325,6 +1325,7 @@ Command Code: `0x4143_5446` ("ACTF")
 
 These commands are defined in the OCP LOCK v1.0 [specification](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf).
 
+### ENUMERATE_HPKE_HANDLES
 ### REPORT_HEK_METADATA
 ### GET_ALGORITHMS
 ### INITIALIZE_MEK_SECRET

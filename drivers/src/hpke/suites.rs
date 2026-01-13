@@ -1,5 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::mailbox::HpkeAlgorithms;
+use caliptra_error::CaliptraError;
+
 /// Describes a HPKE CipherSuite.
 pub struct CipherSuite {
     kem: KemId,
@@ -14,6 +17,18 @@ impl CipherSuite {
         kdf: KdfId::HKDF_SHA384,
         aead: AeadId::AES_256_GCM,
     };
+}
+
+impl TryFrom<CipherSuite> for HpkeAlgorithms {
+    type Error = CaliptraError;
+    fn try_from(value: CipherSuite) -> Result<Self, Self::Error> {
+        match value {
+            CipherSuite { kem, .. } if kem == KemId::ML_KEM_1024 => {
+                Ok(HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM)
+            }
+            _ => Err(CaliptraError::RUNTIME_DRIVER_HPKE_CONVERT_INVALID_CIPHER_SUITE),
+        }
+    }
 }
 
 impl From<&CipherSuite> for [u8; 6] {
@@ -38,7 +53,7 @@ impl AeadId {
     pub const AES_256_GCM: Self = Self(0x0002);
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct KemId(u16);
 impl KemId {
     pub const ML_KEM_1024: Self = Self(0x0042);

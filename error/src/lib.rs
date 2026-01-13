@@ -2437,6 +2437,11 @@ impl CaliptraError {
             "Driver Error: HPKE trng failed during encap"
         ),
         (
+            RUNTIME_DRIVER_HPKE_CONVERT_INVALID_CIPHER_SUITE,
+            0xa004_1003,
+            "Driver Error: HPKE attempted to convert an invalid ciphersuite"
+        ),
+        (
             RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,
             0xa004_1100,
             "Driver Error: HPKE ml-kem failed to generate a key pair due to trng failure"

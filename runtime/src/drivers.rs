@@ -170,7 +170,7 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
+        let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
@@ -182,7 +182,7 @@ impl Drivers {
         let persistent_data = PersistentDataAccessor::new();
 
         let hek_available = persistent_data.get().rom.ocp_lock_metadata.hek_available;
-        let ocp_lock_context = OcpLockContext::new(&soc_ifc, hek_available);
+        let ocp_lock_context = OcpLockContext::new(&soc_ifc, &mut trng, hek_available)?;
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),

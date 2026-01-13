@@ -4,15 +4,19 @@ use caliptra_api::mailbox::CommandId;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
-    cmac_kdf, hmac_kdf, Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag,
-    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
+    cmac_kdf, hmac_kdf,
+    hpke::{HpkeContext, HpkeContextIter},
+    Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
+    KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use enumerate_hpke_handles::EnumerateHpkeHandles;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
 mod derive_mek;
+mod enumerate_hpke_handles;
 mod get_algorithms;
 mod initialize_mek_secret;
 
@@ -196,16 +200,20 @@ pub struct OcpLockContext {
     /// Holds Intermediate Mek Secret, initialized by calling INITIALIZE_MEK_SECRET. Some commands do not work until
     /// `intermediate_secret` has a value.
     intermediate_secret: Option<IntermediateMekSecret>,
+
+    /// Manages HPKE Operations
+    hpke_context: HpkeContext,
 }
 
 impl OcpLockContext {
-    pub fn new(soc_ifc: &SocIfc, hek_available: bool) -> Self {
+    pub fn new(soc_ifc: &SocIfc, trng: &mut Trng, hek_available: bool) -> CaliptraResult<Self> {
         let available = cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled();
-        Self {
+        Ok(Self {
             available,
             intermediate_secret: None,
             hek_available,
-        }
+            hpke_context: HpkeContext::new(trng)?,
+        })
     }
 
     /// Checks if the OCP lock is available.
@@ -276,6 +284,11 @@ impl OcpLockContext {
 
         Ok(checksum)
     }
+
+    /// Returns an iterator over the available HPKE handles.
+    pub fn iterate_hpke_handles(&self) -> HpkeContextIter<'_> {
+        self.hpke_context.iter()
+    }
 }
 
 /// Entry point for OCP LOCK commands
@@ -296,6 +309,9 @@ pub fn command_handler(
             InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::OCP_LOCK_DERIVE_MEK => DeriveMekCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES => {
+            EnumerateHpkeHandles::execute(drivers, cmd_bytes, resp)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
