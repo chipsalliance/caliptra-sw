@@ -308,10 +308,9 @@ impl InitDevIdLayer {
 
         // Explicitly initialize envelope metadata for marker and size. use InitDevIdCsrEnvelope::default();
         // as it's already in ROM
-       let default = InitDevIdCsrEnvelope::default();
-csr_envelop.marker = default.marker;
-csr_envelop.size = default.size;
-
+        let default = InitDevIdCsrEnvelope::default();
+        csr_envelop.marker = default.marker;
+        csr_envelop.size = default.size;
 
         // Data to be HMACed is everything before the CSR MAC.
         let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
@@ -377,10 +376,8 @@ csr_envelop.size = default.size;
         let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
         let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
 
-
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-
 
         // Build the CSR with `To Be Signed` & `Signature`
         let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
