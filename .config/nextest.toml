@@ -34,7 +34,13 @@ default-filter = """
 (package(caliptra-test) &
     ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
     | test(services::)
-    | (test(self_tests::) - test(self_tests::fw_load_halt_check_no_output))))
+    | (test(self_tests::) - test(self_tests::fw_load_halt_check_no_output))
+    | (test(fw_load::)
+        - test(fw_load::fw_load_error_update_reset_vendor_ecc_pub_key_idx_mismatch)
+        - test(fw_load::fw_load_error_runtime_digest_failure)
+        - test(fw_load::fw_load_error_update_reset_fmc_digest_mismatch)
+        - test(fw_load::fw_load_error_update_reset_owner_digest_failure)
+        - test(fw_load::fw_load_error_update_reset_vendor_pqc_pub_key_idx_mismatch))))
 """
 failure-output = "immediate-final"
 fail-fast = false
