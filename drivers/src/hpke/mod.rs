@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_error::CaliptraResult;
+use caliptra_error::{CaliptraError, CaliptraResult};
 
 use encryption_context::{EncryptionContext, MlKemEncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
@@ -9,10 +9,10 @@ use kem::{
     MlKemEncapsulationKey,
 };
 use suites::CipherSuite;
-use zerocopy::transmute;
+use zerocopy::{transmute, FromBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::Trng;
+use crate::{LEArray4x392, Trng};
 
 mod aead;
 mod encryption_context;
@@ -195,6 +195,8 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         pkr: &MlKemEncapsulationKey,
         info: &[u8],
     ) -> CaliptraResult<(MlKemEncapsulatedSecret, MlKemEncryptionContext<Sender>)> {
+        let pkr = LEArray4x392::ref_from_bytes(pkr.as_ref())
+            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
         let (enc, shared_secret) = kem.encap(trng, pkr)?;
         let (key, base_nonce, _exporter_secret) =
             kdf.combine_secrets::<{ MlKem::NSECRET }>(trng, &Self::SUITE_ID, shared_secret, info)?;

@@ -124,21 +124,22 @@ impl<'a> MlKem<'a> {
 
 impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> for MlKem<'_> {
     const KEM_ID_EXT: KemIdExt = KemIdExt::ML_KEM_1024;
+    type EK = MlKem1024EncapsKey;
 
     fn derive_key_pair(
         &mut self,
         ikm: &[u8; MlKem::NSK],
-    ) -> CaliptraResult<(MlKemEncapsulationKey, MlKemDecapsulationKey)> {
+    ) -> CaliptraResult<(Self::EK, MlKemDecapsulationKey)> {
         let ikm =
             kdf::Shake256::labeled_derive(self.sha, Self::KEM_ID_EXT, ikm, b"DeriveKeyPair", b"")?;
         let (ek, _dk) = self.expand_decaps_key(&ikm)?;
-        Ok((ek.into(), ikm.into()))
+        Ok((ek, ikm.into()))
     }
 
     fn encap(
         &mut self,
         trng: &mut Trng,
-        encaps_key: &MlKemEncapsulationKey,
+        encaps_key: &Self::EK,
     ) -> CaliptraResult<(MlKemEncapsulatedSecret, MlKemSharedSecret)> {
         let message = {
             let mut message = MlKem1024Message::default();
@@ -152,7 +153,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         };
         let mut enc = MlKem1024SharedKey::default();
         let shared_secret = self.ml_kem.encapsulate(
-            encaps_key.into(),
+            encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut enc),
         )?;
@@ -171,7 +172,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         let enc = MlKem1024Ciphertext::ref_from_bytes(enc.buf.as_slice())
             .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
         self.ml_kem
-            .decapsulate(dk, enc, MlKem1024SharedKeyOut::Array(&mut shared_key))?;
+            .decapsulate(&dk, enc, MlKem1024SharedKeyOut::Array(&mut shared_key))?;
         Ok(SharedSecret::from(shared_key))
     }
 }

@@ -20,17 +20,19 @@ pub trait Kem<const NSK: usize, const NENC: usize, const NPK: usize, const NSECR
     /// The extended Kem id, fed into the labeled derive function to expand `ikm`.
     const KEM_ID_EXT: KemIdExt;
 
+    type EK;
+
     /// Derives a KEM keypair from the `ikm` seed.
     fn derive_key_pair(
         &mut self,
         ikm: &[u8; NSK],
-    ) -> CaliptraResult<(EncapsulationKey<NPK>, DecapsulationKey<NSK>)>;
+    ) -> CaliptraResult<(Self::EK, DecapsulationKey<NSK>)>;
 
     /// Generates a shared secret key and associated ciphertext
     fn encap(
         &mut self,
         trng: &mut Trng,
-        encaps_key: &EncapsulationKey<NPK>,
+        encaps_key: &Self::EK,
     ) -> CaliptraResult<(EncapsulatedSecret<NENC>, SharedSecret<NSECRET>)>;
 
     /// Uses the decapsulation key to produce a shared secret key from a ciphertext.
