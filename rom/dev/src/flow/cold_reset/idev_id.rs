@@ -373,12 +373,6 @@ impl InitDevIdLayer {
         );
         let sig = okmutref(&mut sig)?;
 
-        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-
-        let _sig_r: [u8; 48] = (&sig.r).into();
-        let _sig_s: [u8; 48] = (&sig.s).into();
-
         // Build the CSR with `To Be Signed` & `Signature`
         let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
         let ecdsa384_sig = sig.to_ecdsa();
