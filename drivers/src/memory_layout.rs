@@ -32,7 +32,7 @@ pub const ICCM_ORG: u32 = 0x40000000;
 /// | DCCM            |              | 0x5000_0000 | 0x5004_0000 | 0x4_0000             |
 /// | Stack           |              | 0x5000_0000 | 0x5002_3800 | 0x2_3800             |
 /// |                 | FW Stack     | 0x5000_0000 | 0x5002_3000 | 0x2_3000             |
-/// |                 | ROM Stack    | 0x5000_0000 | 0x5001_2c00 | 0x1_2c00             |
+/// |                 | ROM Stack    | 0x5000_0000 | 0x5001_8000 | 0x1_8000             |
 /// |                 | EStack       | 0x5002_3000 | 0x5002_3400 | 0x400                |
 /// |                 | NStack       | 0x5002_3400 | 0x5002_3800 | 0x400                |
 /// | Extra memory    |              | 0x5002_3800 | Extra end   | Extra memory size    |
@@ -79,7 +79,7 @@ pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 1024;
 pub const ROM_DATA_RESERVED_SIZE: u32 = 996;
 pub const STACK_SIZE: u32 = 140 * 1024;
-pub const ROM_STACK_SIZE: u32 = 80 * 1024;
+pub const ROM_STACK_SIZE: u32 = 96 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;

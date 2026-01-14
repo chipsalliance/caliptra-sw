@@ -36,7 +36,7 @@ ROM_SIZE          = 96K;
 ICCM_SIZE         = 256K;
 DCCM_SIZE         = 256K;
 DATA_SIZE         = 1024;
-STACK_SIZE        = 80K;
+STACK_SIZE        = 96K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
 

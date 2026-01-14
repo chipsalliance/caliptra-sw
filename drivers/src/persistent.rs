@@ -314,9 +314,6 @@ pub struct RomPersistentData {
     pub manifest1: ImageManifest,
     reserved0: [u8; MAN1_SIZE as usize - size_of::<ImageManifest>()],
 
-    pub manifest2: ImageManifest,
-    reserved1: [u8; MAN2_SIZE as usize - size_of::<ImageManifest>()],
-
     #[zeroize(skip)]
     pub data_vault: DataVault,
     reserved1_1: [u8; DATAVAULT_MAX_SIZE as usize - size_of::<DataVault>()],
@@ -378,12 +375,6 @@ impl RomPersistentData {
 
             assert_eq!(
                 addr_of!((*P).rom.manifest1) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-
-            persistent_data_offset += MAN1_SIZE;
-            assert_eq!(
-                addr_of!((*P).rom.manifest2) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
