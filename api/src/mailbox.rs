@@ -194,6 +194,7 @@ impl CommandId {
     pub const OCP_LOCK_INITIALIZE_MEK_SECRET: Self = Self(0x494D_4B53); // "IMKS"
     pub const OCP_LOCK_DERIVE_MEK: Self = Self(0x444D_454B); // "DMEK"
     pub const OCP_LOCK_ENUMERATE_HPKE_HANDLES: Self = Self(0x4548_444C); // "EHDL"
+    pub const OCP_LOCK_ROTATE_HPKE_KEY: Self = Self(0x5248_504B); // "RHPK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -581,6 +582,7 @@ pub enum MailboxReq {
     OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
     OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
     OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq),
+    OcpLockRotateHpkeKey(OcpLockRotateHpkeKeyReq),
     OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq),
     OcpLockDeriveMek(OcpLockDeriveMekReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
@@ -664,6 +666,7 @@ impl MailboxReq {
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockEnumerateHpkeHandles(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockRotateHpkeKey(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockDeriveMek(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
@@ -747,6 +750,7 @@ impl MailboxReq {
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockDeriveMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockEnumerateHpkeHandles(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockRotateHpkeKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -840,6 +844,7 @@ impl MailboxReq {
             MailboxReq::OcpLockEnumerateHpkeHandles(_) => {
                 CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES
             }
+            MailboxReq::OcpLockRotateHpkeKey(_) => CommandId::OCP_LOCK_ROTATE_HPKE_KEY,
         }
     }
 
@@ -4338,6 +4343,29 @@ pub struct OcpLockEnumerateHpkeHandlesResp {
     pub hpke_handles: [HpkeHandle; OCP_LOCK_MAX_HPKE_HANDLES],
 }
 impl Response for OcpLockEnumerateHpkeHandlesResp {}
+
+// OCP_LOCK_ROTATE_HPKE_KEY
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockRotateHpkeKeyReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub hpke_handle: u32,
+}
+impl Request for OcpLockRotateHpkeKeyReq {
+    const ID: CommandId = CommandId::OCP_LOCK_ROTATE_HPKE_KEY;
+    type Resp = OcpLockRotateHpkeKeyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockRotateHpkeKeyResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+    pub hpke_handle: u32,
+}
+impl Response for OcpLockRotateHpkeKeyResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

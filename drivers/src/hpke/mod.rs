@@ -43,6 +43,12 @@ impl From<HpkeHandle> for u32 {
     }
 }
 
+impl From<u32> for HpkeHandle {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
 /// HPKE trait - A high level interface to
 /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
 ///
@@ -133,6 +139,31 @@ impl HpkeContext {
             ctx: self,
             index: 0,
         }
+    }
+
+    /// Searches for a matching `HpkeHandle`. If it is found a new HPKE seed is generated and a new
+    /// handle is returned
+    ///
+    /// If `hpke_handle` does not match any existing `HpkeHandle`, `CaliptraError` is returned
+    pub fn rotate(
+        &mut self,
+        trng: &mut Trng,
+        hpke_handle: &HpkeHandle,
+    ) -> CaliptraResult<HpkeHandle> {
+        for handle in self.priv_keys.iter_mut() {
+            match handle {
+                HpkePrivateKey::MlKem {
+                    ref mut handle,
+                    ref mut context,
+                } if handle == hpke_handle => {
+                    *context = HpkeMlKemContext::generate(trng)?;
+                    *handle = self.handle_cursor.generate_handle();
+                    return Ok(handle.clone());
+                }
+                _ => (),
+            }
+        }
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
     }
 }
 
