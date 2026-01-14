@@ -34,7 +34,7 @@ jobs:
           TAG_PREFIX="release_v"
           TAG_BASE="${TAG_PREFIX}${DATE}_"
           INDEX=0
-          while git tag | grep ${TAG_BASE}${INDEX}-2-x; do
+          while git tag | grep ${TAG_BASE}${INDEX}-2.x; do
               ((INDEX+=1))
           done
           git submodule update --remote hw/latest/rtl
@@ -53,9 +53,9 @@ jobs:
                   echo "create_release=false" >> $GITHUB_OUTPUT
               fi
           fi
-          echo "new_release_tag=${TAG_BASE}${INDEX}-2-x" >> $GITHUB_OUTPUT
+          echo "new_release_tag=${TAG_BASE}${INDEX}-2.x" >> $GITHUB_OUTPUT
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX}-2-x after tests"
+          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX}-2.x after tests"
 
   sw-emulator:
     name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
