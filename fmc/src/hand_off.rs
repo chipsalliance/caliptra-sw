@@ -190,8 +190,10 @@ impl HandOff {
     pub fn update(env: &mut FmcEnv, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
         Self::fht_mut(env).rt_cdi_kv_hdl = Self::key_id_to_handle(out.cdi);
-        Self::fht_mut(env).rt_priv_key_kv_hdl =
+        Self::fht_mut(env).rt_ecc_priv_key_kv_hdl =
             Self::key_id_to_handle(out.ecc_subj_key_pair.priv_key);
+        Self::fht_mut(env).rt_mldsa_keypair_seed_kv_hdl =
+            Self::key_id_to_handle(out.mldsa_subj_key_pair.key_pair_seed);
         Self::fht_mut(env).rt_dice_ecc_pub_key = out.ecc_subj_key_pair.pub_key;
         Ok(())
     }
@@ -200,7 +202,10 @@ impl HandOff {
     /// private key handles are valid.
     pub fn is_ready_for_rt(env: &FmcEnv) -> CaliptraResult<()> {
         let fht = Self::fht(env);
-        if fht.rt_cdi_kv_hdl.is_valid() && fht.rt_priv_key_kv_hdl.is_valid() {
+        if fht.rt_cdi_kv_hdl.is_valid()
+            && fht.rt_ecc_priv_key_kv_hdl.is_valid()
+            && fht.rt_mldsa_keypair_seed_kv_hdl.is_valid()
+        {
             Ok(())
         } else {
             Err(CaliptraError::FMC_HANDOFF_NOT_READY_FOR_RT)

@@ -115,7 +115,7 @@ impl From<DataStore> for HandOffDataHandle {
     }
 }
 
-const FHT_RESERVED_SIZE: usize = 1664;
+const FHT_RESERVED_SIZE: usize = 1660;
 
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
@@ -154,8 +154,11 @@ pub struct FirmwareHandoffTable {
     /// Index of RT CDI value in the Key Vault.
     pub rt_cdi_kv_hdl: HandOffDataHandle,
 
-    /// Index of RT Private Alias Key in the Key Vault.
-    pub rt_priv_key_kv_hdl: HandOffDataHandle,
+    /// Index of RT ECC Private Alias Key in the Key Vault.
+    pub rt_ecc_priv_key_kv_hdl: HandOffDataHandle,
+
+    /// Index of RT Alias MLDSA key pair generation seed in the Key Vault.
+    pub rt_mldsa_keypair_seed_kv_hdl: HandOffDataHandle,
 
     /// ECC LdevId TBS Address
     pub ecc_ldevid_tbs_addr: u32,
@@ -236,7 +239,8 @@ impl Default for FirmwareHandoffTable {
             fmc_ecc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             fmc_mldsa_keypair_seed_kv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
-            rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            rt_ecc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            rt_mldsa_keypair_seed_kv_hdl: FHT_INVALID_HANDLE,
             ecc_ldevid_tbs_addr: 0,
             ecc_fmcalias_tbs_addr: 0,
             ecc_ldevid_tbs_size: 0,
@@ -286,8 +290,12 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     );
     crate::cprintln!("RT CDI KV Handle: 0x{:08x}", fht.rt_cdi_kv_hdl.0);
     crate::cprintln!(
-        "RT Private Key KV Handle: 0x{:08x}",
-        fht.rt_priv_key_kv_hdl.0
+        "RT ECC Private Key KV Handle: 0x{:08x}",
+        fht.rt_ecc_priv_key_kv_hdl.0
+    );
+    crate::cprintln!(
+        "RT MLDSA Key Pair Generation Seed KV Handle: 0x{:08x}",
+        fht.rt_mldsa_keypair_seed_kv_hdl.0
     );
 
     crate::cprintln!(

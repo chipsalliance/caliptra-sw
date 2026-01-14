@@ -66,7 +66,7 @@ impl SignWithExportedEcdsaCmd {
         }
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
 
         let mut crypto = DpeCrypto::new(

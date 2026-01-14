@@ -523,7 +523,7 @@ impl Drivers {
         digest_op.finalize(&mut valid_pauser_hash)?;
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
         let crypto = DpeCrypto::new(
             &mut drivers.sha2_512_384,
@@ -863,7 +863,7 @@ impl Drivers {
         }
     }
 
-    /// Get the KeyId for the RT Alias private key
+    /// Get the KeyId for the RT ECC Alias private key
     ///
     /// # Arguments
     ///
@@ -872,13 +872,38 @@ impl Drivers {
     /// # Returns
     ///
     /// * `KeyId` - RT Alias private key
-    pub fn get_key_id_rt_priv_key(drivers: &Drivers) -> CaliptraResult<KeyId> {
+    pub fn get_key_id_rt_ecc_priv_key(drivers: &Drivers) -> CaliptraResult<KeyId> {
         let ds: DataStore = drivers
             .persistent_data
             .get()
             .rom
             .fht
-            .rt_priv_key_kv_hdl
+            .rt_ecc_priv_key_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
+        }
+    }
+
+    /// Get the KeyId for the RT ML-DSA Alias key pair seed
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `KeyId` - RT Alias private key
+    pub fn get_key_id_rt_mldsa_keypair_seed(drivers: &Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .rom
+            .fht
+            .rt_mldsa_keypair_seed_kv_hdl
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
 
