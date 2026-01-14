@@ -139,10 +139,6 @@ fn handle_auth_debug_unlock_request(
     };
 
     if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ {
-        cprintln!(
-            "Invalid command: {:?}, was expecting PRODUCTION_AUTH_DEBUG_UNLOCK_REQ",
-            txn.cmd()
-        );
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
     }
 
@@ -193,10 +189,6 @@ fn handle_auth_debug_unlock_token(
     };
 
     if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN {
-        cprintln!(
-            "Invalid command: {:?}, was expecting PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN",
-            txn.cmd()
-        );
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
     }
 
