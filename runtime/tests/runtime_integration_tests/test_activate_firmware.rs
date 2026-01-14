@@ -189,9 +189,6 @@ fn send_activate_firmware_cmd(
                     .reset_request()
                     .modify(|r| r.mcu_req(true));
             };
-            // First interrupt is Caliptra requesting MCU reset
-            clear_interrupt(model);
-            // Second interrupt is Caliptra indicating FW is available
             clear_interrupt(model);
         }
     }
@@ -201,17 +198,9 @@ fn send_activate_firmware_cmd(
         not(feature = "fpga_subsystem")
     ))]
     {
-        if reset_expected {
-            // For sw-emulator, wait for the MCI interrupt to be set, then clear
-            // In a full subsystem, the MCU would do this
-            model.step_until(|m| m.mci.regs.borrow().intr_block_rf_notif0_internal_intr_r != 0);
-            const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
-            model
-                .mci
-                .regs
-                .borrow_mut()
-                .intr_block_rf_notif0_internal_intr_r &= !NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
-        }
+        let _ = reset_expected;
+        // In emulator mode, since FW_EXEC_CTRL bit is already cleared,
+        // the MCU will be already in reset state
     }
     model.finish_mailbox_execute()
 }
