@@ -2,10 +2,11 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
+
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCsrResp, GetIdevMldsaCsrResp, MailboxReqHeader,
 };
-use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
+use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags, IDEVID_CSR_ENVELOP_MARKER};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
 use core::mem::offset_of;
@@ -137,6 +138,12 @@ fn test_validate_csr_mac() {
         csr_envelop
     };
 
+    assert_eq!(csr_envelop.marker, IDEVID_CSR_ENVELOP_MARKER);
+    assert_eq!(
+        csr_envelop.size,
+        core::mem::size_of::<InitDevIdCsrEnvelope>() as u32
+    );
+
     let hmac = {
         let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
         let envelope_slice = csr_envelop.as_bytes().get(..offset).unwrap().to_vec();
@@ -169,6 +176,11 @@ fn test_get_mldsa_csr() {
 
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
+        assert_eq!(csr_envelop.marker, IDEVID_CSR_ENVELOP_MARKER);
+        assert_eq!(
+            csr_envelop.size,
+            core::mem::size_of::<InitDevIdCsrEnvelope>() as u32
+        );
         hw.step_until(|m| {
             m.soc_ifc()
                 .cptra_flow_status()
