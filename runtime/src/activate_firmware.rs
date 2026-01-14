@@ -23,12 +23,13 @@ use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
-use ureg::{Mmio, MmioMut};
+use ureg::Mmio;
 
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
-const NOTIF0_INTR_TRIG_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x34;
 const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
+const RESET_STATUS_R_OFFSET: u32 = 0x3c;
+const RESET_STATUS_MCU_RESET_MASK: u32 = 0x2;
 const MAX_EXEC_GO_BIT_INDEX: u8 = 127;
 
 pub struct ActivateFirmwareCmd;
@@ -105,7 +106,7 @@ impl ActivateFirmwareCmd {
             if exec_bit == 0 || exec_bit == 1 || exec_bit > MAX_EXEC_GO_BIT_INDEX {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            Self::set_bit(&mut images_to_activate_bitmap, fw_id as usize);
+            Self::set_bit(&mut images_to_activate_bitmap, exec_bit as usize);
         }
 
         Self::activate_fw(drivers, &images_to_activate_bitmap, mcu_image_size as u32)
@@ -135,12 +136,6 @@ impl ActivateFirmwareCmd {
             temp_bitmap[i] = go_bitmap[i] & !activate_bitmap[i];
         }
 
-        // Leave MCU image bit as is, we will set it later after the reset_reason is set to avoid race condition
-        // between Caliptra and MCU
-        if Self::is_bit_set(&go_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
-            Self::set_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
-        }
-
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
         if Self::is_bit_set(activate_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
@@ -155,15 +150,6 @@ impl ActivateFirmwareCmd {
 
             let dma = &drivers.dma;
             let mmio = &DmaMmio::new(mci_base_addr, dma);
-
-            // Trigger MCU reset request
-            unsafe {
-                mmio.write_volatile(
-                    NOTIF0_INTR_TRIG_R_OFFSET as *mut u32,
-                    NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK,
-                );
-            }
-
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
             while intr_status != 0 {
@@ -172,16 +158,11 @@ impl ActivateFirmwareCmd {
                         & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
             }
 
-            // Clear FW_EXEC_CTRL[2]
-            Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
-            drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
-
-            // Wait for MCU to clear interrupt
-            let mut intr_status: u32 = 1;
-            while intr_status != 0 {
-                intr_status =
-                    unsafe { mmio.read_volatile(NOTIF0_INTERNAL_INTR_R_OFFSET as *const u32) }
-                        & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
+            // Wait for MCI to assert reset
+            let mut reset_status: u32 = 0;
+            while reset_status == 0 {
+                reset_status = unsafe { mmio.read_volatile(RESET_STATUS_R_OFFSET as *const u32) }
+                    & RESET_STATUS_MCU_RESET_MASK;
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
@@ -247,14 +228,6 @@ impl ActivateFirmwareCmd {
             let idx = bit / 32;
             let offset = bit % 32;
             bitmap[idx] |= 1 << offset;
-        }
-    }
-
-    fn clear_bit(bitmap: &mut [u32; 4], bit: usize) {
-        if bit < core::mem::size_of_val(bitmap) * 8 {
-            let idx = bit / 32;
-            let offset = bit % 32;
-            bitmap[idx] &= !(1 << offset);
         }
     }
 
