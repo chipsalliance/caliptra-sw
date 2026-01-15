@@ -975,7 +975,7 @@ fn fw_load_error_update_reset_owner_digest_failure() {
 fn fw_load_error_update_reset_vendor_ecc_pub_key_idx_mismatch() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
-            ecc_key_idx: 3,
+            ecc_key_idx: 0, // This must match the auth manifest key on subsystem
             ..VENDOR_CONFIG_KEY_0
         };
         let image_options_cold_boot = ImageOptions {
