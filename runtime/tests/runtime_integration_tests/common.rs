@@ -198,7 +198,7 @@ pub fn start_rt_test_pqc_model(
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
     let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
-    let ocp_lock = cfg!(feature = "ocp-lock");
+    let ocp_lock = args.ocp_lock_en || cfg!(feature = "ocp-lock");
     let default_rt_fwid = match (fpga, ocp_lock) {
         (false, false) => &APP_WITH_UART,
         (true, false) => &APP_WITH_UART_FPGA,
@@ -252,7 +252,7 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
-        ocp_lock_en: args.ocp_lock_en || cfg!(feature = "ocp-lock"),
+        ocp_lock_en: ocp_lock,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()

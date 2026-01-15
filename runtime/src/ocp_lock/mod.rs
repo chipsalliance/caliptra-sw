@@ -1,11 +1,14 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::{CommandId, WrappedKey};
+use caliptra_api::mailbox::{CommandId, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MDK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
-    hpke::{suites::CipherSuite, HpkeContext, HpkeContextIter, HpkeHandle},
+    hpke::{
+        aead::Aes256GCM, suites::CipherSuite, EncryptionContext, HpkeContext, HpkeContextIter,
+        HpkeHandle, Receiver,
+    },
     preconditioned_aes::preconditioned_aes_encrypt,
     Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
     KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha3, SocIfc, Trng,
@@ -15,6 +18,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
 use generate_mek::GenerateMekCmd;
+use generate_mpk::GenerateMpkCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
@@ -23,6 +27,7 @@ mod derive_mek;
 mod endorse_hpke_pubkey;
 mod enumerate_hpke_handles;
 mod generate_mek;
+mod generate_mpk;
 mod get_algorithms;
 mod initialize_mek_secret;
 mod rotate_hpke_key;
@@ -41,6 +46,42 @@ pub struct Sek(pub [u8; 32]);
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Dpk(pub [u8; 32]);
 
+/// Represents the Access Key supplied by the drive firwmare.
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+pub struct AccessKey([u8; Self::KEY_LEN]);
+
+impl AccessKey {
+    const KEY_LEN: usize = 32;
+    pub fn from_ciphertext(
+        aes: &mut Aes,
+        trng: &mut Trng,
+        ctx: &mut EncryptionContext<Receiver>,
+        aad: &[u8],
+        tag: &[u8; Aes256GCM::NT],
+        ct: &[u8; Self::KEY_LEN],
+    ) -> CaliptraResult<Self> {
+        let mut key = [0; Self::KEY_LEN];
+        ctx.open(aes, trng, aad, tag, ct, &mut key)?;
+        Ok(Self(key))
+    }
+}
+
+/// Represents an MPK type from OCP LOCK.
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+pub struct Mpk([u8; 32]);
+
+impl Mpk {
+    fn generate(trng: &mut Trng) -> CaliptraResult<Self> {
+        let seed: [u8; 64] = {
+            let seed = trng.generate16()?;
+            transmute!(seed)
+        };
+        let mut key = [0; 32];
+        key.clone_from_slice(&seed[..32]);
+        Ok(Self(key))
+    }
+}
+
 /// Represents the Intermediate MEK Secret from OCP LOCK.
 /// This is constructed from the EPK + DPK.
 ///
@@ -54,7 +95,7 @@ pub struct WrappedMek {
     salt: [u8; 12],
     iv: [u8; 12],
     encrypted_key: [u8; Self::KEY_LEN],
-    tag: [u8; 16],
+    tag: [u8; Aes256GCM::NT],
 }
 
 #[derive(IntoBytes, KnownLayout, Immutable)]
@@ -77,8 +118,8 @@ impl TryFrom<WrappedMek> for WrappedKey {
     type Error = CaliptraError;
     fn try_from(value: WrappedMek) -> Result<Self, Self::Error> {
         let mut ciphertext_and_auth_tag = [0; 80];
-        ciphertext_and_auth_tag[..64].copy_from_slice(&value.encrypted_key);
-        ciphertext_and_auth_tag[64..].copy_from_slice(&value.tag);
+        ciphertext_and_auth_tag[..WrappedMek::KEY_LEN].copy_from_slice(&value.encrypted_key);
+        ciphertext_and_auth_tag[WrappedMek::KEY_LEN..].copy_from_slice(&value.tag);
 
         Ok(Self {
             key_type: WrappedMek::KEY_TYPE,
@@ -87,6 +128,73 @@ impl TryFrom<WrappedMek> for WrappedKey {
             key_len: WrappedMek::KEY_LEN as u32,
             iv: value.iv,
             cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            ..Default::default()
+        })
+    }
+}
+
+/// Represents a `LockedMpk`
+///
+/// OCP LOCK version 1.0 RC2, Section "Common mailbox types".
+pub struct LockedMpk {
+    salt: [u8; 12],
+    iv: [u8; 12],
+    encrypted_key: [u8; Self::KEY_LEN],
+    tag: [u8; Aes256GCM::NT],
+    metadata: [u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    metadata_len: u32,
+}
+
+impl LockedMpk {
+    const KEY_TYPE: u16 = 0x01;
+    const KEY_LEN: usize = 32;
+}
+
+#[derive(IntoBytes, KnownLayout, Immutable)]
+#[repr(C, packed)]
+pub struct LockedMpkAad {
+    key_type: u16,
+    metadata_len: u32,
+    metadata: [u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+}
+
+impl LockedMpkAad {
+    fn new(metadata: &[u8]) -> CaliptraResult<Self> {
+        let mut metadata_aad = [0; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+        metadata_aad
+            .get_mut(..metadata.len())
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?
+            .clone_from_slice(metadata);
+        Ok(Self {
+            key_type: LockedMpk::KEY_TYPE,
+            metadata_len: metadata.len() as u32,
+            metadata: metadata_aad,
+        })
+    }
+
+    fn serialize(&self) -> CaliptraResult<&[u8]> {
+        self.as_bytes()
+            .get(..size_of::<u16>() + size_of::<u32>() + self.metadata_len as usize)
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_SERIALIZE_METADATA_FAILURE)
+    }
+}
+
+impl TryFrom<LockedMpk> for WrappedKey {
+    type Error = CaliptraError;
+    fn try_from(value: LockedMpk) -> Result<Self, Self::Error> {
+        let mut ciphertext_and_auth_tag = [0; 80];
+        ciphertext_and_auth_tag[..LockedMpk::KEY_LEN].copy_from_slice(&value.encrypted_key);
+        ciphertext_and_auth_tag[LockedMpk::KEY_LEN..LockedMpk::KEY_LEN + Aes256GCM::NT]
+            .copy_from_slice(&value.tag);
+
+        Ok(Self {
+            key_type: LockedMpk::KEY_TYPE,
+            salt: value.salt,
+            metadata_len: value.metadata_len,
+            key_len: LockedMpk::KEY_LEN as u32,
+            iv: value.iv,
+            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            metadata: value.metadata,
             ..Default::default()
         })
     }
@@ -330,6 +438,54 @@ impl<'a> Epk<'a> {
         )?;
         Ok(IntermediateMekSecret)
     }
+
+    /// Consumes `Self` and `AccessKey` to produce a `LockedMpk`
+    fn generate_locked_mpk(
+        self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        access_key: AccessKey,
+        metadata: &[u8],
+    ) -> CaliptraResult<LockedMpk> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            b"ocp_lock_locked_mpk",
+            Some(access_key.as_bytes()),
+            trng,
+            // Re-use the `EPK` slot to store the Locked MPK key
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_EPK,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+        let aad = LockedMpkAad::new(metadata)?;
+        let aad = aad.serialize()?;
+        let mpk = Mpk::generate(trng)?;
+        let mut encrypted_key = [0; LockedMpk::KEY_LEN];
+        let res = preconditioned_aes_encrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            b"ocp_locked_mpk_key",
+            aad,
+            mpk.as_bytes(),
+            &mut encrypted_key,
+        )?;
+        let mut mpk_metadata = [0; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+        mpk_metadata[..metadata.len()].clone_from_slice(metadata);
+        Ok(LockedMpk {
+            salt: res.salt.into(),
+            iv: res.iv.into(),
+            tag: res.tag.into(),
+            encrypted_key,
+            metadata: mpk_metadata,
+            metadata_len: metadata.len() as u32,
+        })
+    }
 }
 
 impl Drop for Epk<'_> {
@@ -473,6 +629,50 @@ impl OcpLockContext {
         mek_secret.generate_mek(aes, trng, hmac)
     }
 
+    /// Generate a Locked MPK
+    #[allow(clippy::too_many_arguments)]
+    pub fn generate_mpk(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+        access_key: AccessKey,
+        sek: Sek,
+        metadata: &[u8],
+    ) -> CaliptraResult<LockedMpk> {
+        if !self.hek_available {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
+        } else {
+            cfi_assert!(self.hek_available);
+        }
+
+        let epk = Epk::new(hmac, trng, kv, sek)?;
+        epk.generate_locked_mpk(aes, hmac, trng, access_key, metadata)
+    }
+
+    /// Decrypt an encapsulated Access Key
+    #[allow(clippy::too_many_arguments)]
+    pub fn decapsulate_access_key(
+        &mut self,
+        sha: &mut Sha3,
+        ml_kem: &mut MlKem1024,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        aes: &mut Aes,
+        hpke_handle: &HpkeHandle,
+        enc: &[u8],
+        info: &[u8],
+        metadata: &[u8],
+        tag: &[u8; 16],
+        ct: &[u8; AccessKey::KEY_LEN],
+    ) -> CaliptraResult<AccessKey> {
+        let mut ctx = self
+            .hpke_context
+            .decap(sha, ml_kem, hmac, trng, hpke_handle, enc, info)?;
+        AccessKey::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
+    }
+
     /// Retrieve the public key for the HPKE handle
     pub fn get_hpke_public_key(
         &mut self,
@@ -520,6 +720,7 @@ pub fn command_handler(
         }
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY => RotateHpkeKeyCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_GENERATE_MPK => GenerateMpkCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
