@@ -2,7 +2,7 @@
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use encryption_context::{EncryptionContext, MlKemEncryptionContext, Receiver, Sender};
+use encryption_context::{EncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
 use kem::{
     EncapsulatedSecret, EncapsulationKey, Kem, MlKem, MlKemEncapsulatedSecret,
@@ -81,10 +81,7 @@ pub trait Hpke<
         trng: &mut Trng,
         pkr: &EncapsulationKey<NPK>,
         info: &[u8],
-    ) -> CaliptraResult<(
-        EncapsulatedSecret<NENC>,
-        EncryptionContext<Sender, NSK, NENC, NPK, NSECRET>,
-    )>;
+    ) -> CaliptraResult<(EncapsulatedSecret<NENC>, EncryptionContext<Sender>)>;
 
     /// Establish a `Receiver` `EncryptionContext`.
     /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-5.1.1
@@ -93,9 +90,9 @@ pub trait Hpke<
         kem: &mut Self::K<'_>,
         kdf: &mut Hmac384,
         trng: &mut Trng,
-        enc: &EncapsulatedSecret<{ MlKem::NENC }>,
+        enc: &EncapsulatedSecret<{ NENC }>,
         info: &[u8],
-    ) -> CaliptraResult<EncryptionContext<Receiver, NSK, NENC, NPK, NSECRET>>;
+    ) -> CaliptraResult<EncryptionContext<Receiver>>;
 
     /// Serialize the encapsulation key
     fn serialize_public_key(
@@ -266,13 +263,13 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         trng: &mut Trng,
         pkr: &MlKemEncapsulationKey,
         info: &[u8],
-    ) -> CaliptraResult<(MlKemEncapsulatedSecret, MlKemEncryptionContext<Sender>)> {
+    ) -> CaliptraResult<(MlKemEncapsulatedSecret, EncryptionContext<Sender>)> {
         let pkr = LEArray4x392::ref_from_bytes(pkr.as_ref())
             .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
         let (enc, shared_secret) = kem.encap(trng, pkr)?;
         let (key, base_nonce, _exporter_secret) =
             kdf.combine_secrets::<{ MlKem::NSECRET }>(trng, &Self::SUITE_ID, shared_secret, info)?;
-        let ctx = MlKemEncryptionContext::<Sender>::new_sender(key, base_nonce);
+        let ctx = EncryptionContext::<Sender>::new_sender(key, base_nonce);
         Ok((enc, ctx))
     }
 
@@ -283,12 +280,12 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         trng: &mut Trng,
         enc: &MlKemEncapsulatedSecret,
         info: &[u8],
-    ) -> CaliptraResult<MlKemEncryptionContext<Receiver>> {
+    ) -> CaliptraResult<EncryptionContext<Receiver>> {
         let (_ek, dk) = kem.derive_key_pair(&self.ikm)?;
         let shared_secret = kem.decap(enc, &kem::MlKemDecapsulationKey::from(dk))?;
         let (key, base_nonce, _exporter_secret) =
             kdf.combine_secrets::<{ MlKem::NSECRET }>(trng, &Self::SUITE_ID, shared_secret, info)?;
-        let ctx = MlKemEncryptionContext::<Receiver>::new_receiver(key, base_nonce);
+        let ctx = EncryptionContext::<Receiver>::new_receiver(key, base_nonce);
         Ok(ctx)
     }
 
