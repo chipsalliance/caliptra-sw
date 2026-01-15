@@ -1655,6 +1655,16 @@ impl CaliptraError {
             "OCP LOCK Error: received an unknown hpke handle"
         ),
         (
+            RUNTIME_OCP_LOCK_FAILED_TO_CONVERT_WRAPPED_KEY,
+            0x000E0080,
+            "OCP LOCK Error: failed to convert wrapped key"
+        ),
+        (
+            RUNTIME_OCP_LOCK_FAILED_TO_GENERATE_MEK,
+            0x000E0081,
+            "OCP LOCK Error: failed to generate MEK"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
