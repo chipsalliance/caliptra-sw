@@ -459,6 +459,7 @@ impl Dma {
     // Returns true if this completed immediately.
     fn fifo_to_axi(&mut self) -> bool {
         let xfer = self.write_xfer();
+
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = match self.fifo.pop_front() {
