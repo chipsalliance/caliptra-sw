@@ -93,13 +93,13 @@ pub extern "C" fn rom_entry() -> ! {
         lock_cold_reset_reg(&mut env);
     }
 
-    let lifecyle = match env.soc_ifc.lifecycle() {
+    let lifecycle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
-    cprintln!("[state] LifecycleState = {}", lifecyle);
+    cprintln!("[state] LifecycleState = {}", lifecycle);
 
     if let Err(err) = crate::flow::debug_unlock::debug_unlock(&mut env) {
         handle_fatal_error(err.into());
