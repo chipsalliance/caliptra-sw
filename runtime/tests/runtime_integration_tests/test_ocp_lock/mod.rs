@@ -2,8 +2,11 @@
 
 use caliptra_api::{
     mailbox::{
-        CapabilitiesResp, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
-        OcpLockInitializeMekSecretReq, OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
+        CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, MailboxReq,
+        MailboxReqHeader, MailboxRespHeader, OcpLockEndorseHpkePubKeyReq,
+        OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
+        OcpLockEnumerateHpkeHandlesResp, OcpLockInitializeMekSecretReq,
+        OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
         OcpLockReportHekMetadataRespFlags,
     },
     Capabilities,
@@ -18,9 +21,14 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use openssl::x509::X509;
+use x509_parser::nom::Parser;
+use x509_parser::prelude::*;
+
+use crate::common::{get_rt_alias_ecc384_cert, run_rt_test, RuntimeTestArgs};
 
 mod test_derive_mek;
+mod test_endorse_hpke_pubkey;
 mod test_enumerate_hpke_handles;
 mod test_generate_mek;
 mod test_get_algorithms;
@@ -171,14 +179,14 @@ fn ocp_lock_supported(model: &mut DefaultHwModel) -> bool {
     caps.contains(Capabilities::RT_OCP_LOCK)
 }
 
-fn validate_ocp_lock_response(
+fn validate_ocp_lock_response<T>(
     model: &mut DefaultHwModel,
     response: std::result::Result<Option<Vec<u8>>, ModelError>,
-    check_callback: impl FnOnce(std::result::Result<Option<Vec<u8>>, ModelError>, OcpLockState),
-) {
+    check_callback: impl FnOnce(std::result::Result<Option<Vec<u8>>, ModelError>, OcpLockState) -> T,
+) -> Option<T> {
     if ocp_lock_supported(model) {
         let state = model.ocp_lock_state().unwrap();
-        check_callback(response, state);
+        return Some(check_callback(response, state));
     } else {
         assert_eq!(
             response.unwrap_err(),
@@ -187,4 +195,116 @@ fn validate_ocp_lock_response(
             )
         );
     }
+    None
+}
+
+#[derive(Debug, PartialEq)]
+struct ValidatedHpkeHandle {
+    hpke_handle: u32,
+    pub_key: Vec<u8>,
+}
+
+fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<u32> {
+    let mut cmd =
+        MailboxReq::OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let hpke_handle = validate_ocp_lock_response(model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let enumerate_resp =
+            OcpLockEnumerateHpkeHandlesResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let hpke_handle = enumerate_resp
+            .hpke_handles
+            .iter()
+            .find(|entry| entry.hpke_algorithm == suite)
+            .unwrap()
+            .clone();
+        hpke_handle
+    })?;
+
+    Some(hpke_handle.handle)
+}
+
+fn get_validated_hpke_handle(
+    model: &mut DefaultHwModel,
+    suite: HpkeAlgorithms,
+) -> Option<ValidatedHpkeHandle> {
+    let hpke_handle = get_hpke_handle(model, suite)?;
+    verify_hpke_pub_key(model, hpke_handle)
+}
+
+fn verify_hpke_pub_key(
+    model: &mut DefaultHwModel,
+    hpke_handle: u32,
+) -> Option<ValidatedHpkeHandle> {
+    // TODO(clundin): Update for ML-DSA endorsement after https://github.com/chipsalliance/caliptra-sw/issues/3106.
+    let mut cmd = MailboxReq::OcpLockEndorseHpkePubKey(OcpLockEndorseHpkePubKeyReq {
+        hpke_handle,
+        endorsement_algorithm: EndorsementAlgorithms::ECDSA_P384_SHA384,
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let endorse_resp = validate_ocp_lock_response(model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let endorse_resp =
+            OcpLockEndorseHpkePubKeyResp::read_from_bytes(response.as_bytes()).unwrap();
+
+        // Verify response checksum
+        assert!(caliptra_common::checksum::verify_checksum(
+            endorse_resp.hdr.chksum,
+            0x0,
+            &endorse_resp.as_bytes()[core::mem::size_of_val(&endorse_resp.hdr.chksum)..],
+        ));
+        // Verify FIPS status
+        assert_eq!(
+            endorse_resp.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+        endorse_resp
+    })?;
+    verify_endorsement_certificate(model, &endorse_resp);
+    Some(ValidatedHpkeHandle {
+        hpke_handle,
+        pub_key: endorse_resp.pub_key[..endorse_resp.pub_key_len as usize].to_vec(),
+    })
+}
+
+fn verify_endorsement_certificate(
+    model: &mut DefaultHwModel,
+    endorse_resp: &OcpLockEndorseHpkePubKeyResp,
+) {
+    // Get RT Alias Cert
+    let rt_alias_cert_resp = get_rt_alias_ecc384_cert(model);
+    let rt_alias_cert =
+        X509::from_der(&rt_alias_cert_resp.data[..rt_alias_cert_resp.data_size as usize]).unwrap();
+
+    // Verify Endorsement Certificate Signature
+    let endorsement_cert_der = &endorse_resp.endorsement[..endorse_resp.endorsement_len as usize];
+    let endorsement_cert = X509::from_der(endorsement_cert_der).unwrap();
+    assert!(endorsement_cert
+        .verify(&rt_alias_cert.public_key().unwrap())
+        .unwrap());
+
+    // Verify Subject Public Key in Certificate matches Response Public Key
+    let pub_key_resp = &endorse_resp.pub_key[..endorse_resp.pub_key_len as usize];
+
+    // Parse with x509_parser to extract Subject Public Key bytes
+    let (_, cert_parsed) = X509CertificateParser::new()
+        .parse(endorsement_cert_der)
+        .unwrap();
+    let spki = cert_parsed.tbs_certificate.subject_pki;
+
+    // Ensure the public key in response is contained in the certificate's SPKI
+    assert_eq!(spki.subject_public_key.data, pub_key_resp);
 }

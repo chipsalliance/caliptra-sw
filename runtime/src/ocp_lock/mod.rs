@@ -5,13 +5,14 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MDK, KEY_ID_MEK_SECRETS};
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
-    hpke::{HpkeContext, HpkeContextIter, HpkeHandle},
+    hpke::{suites::CipherSuite, HpkeContext, HpkeContextIter, HpkeHandle},
     preconditioned_aes::preconditioned_aes_encrypt,
     Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
-    KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, SocIfc, Trng,
+    KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha3, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
 use generate_mek::GenerateMekCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
@@ -19,6 +20,7 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
 mod derive_mek;
+mod endorse_hpke_pubkey;
 mod enumerate_hpke_handles;
 mod generate_mek;
 mod get_algorithms;
@@ -470,6 +472,26 @@ impl OcpLockContext {
         let mek_secret = intermediate_secret.wrapping_mek_secret(hmac, trng, kv)?;
         mek_secret.generate_mek(aes, trng, hmac)
     }
+
+    /// Retrieve the public key for the HPKE handle
+    pub fn get_hpke_public_key(
+        &mut self,
+        sha: &mut Sha3,
+        ml_kem: &mut MlKem1024,
+        hpke_handle: &HpkeHandle,
+        pub_out: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        self.hpke_context
+            .get_pub_key(sha, ml_kem, hpke_handle, pub_out)
+    }
+
+    /// Retrieve the Ciphersuite for an HPKE handle
+    pub fn get_hpke_cipher_suite(
+        &mut self,
+        hpke_handle: &HpkeHandle,
+    ) -> CaliptraResult<CipherSuite> {
+        self.hpke_context.get_cipher_suite(hpke_handle)
+    }
 }
 
 /// Entry point for OCP LOCK commands
@@ -492,6 +514,9 @@ pub fn command_handler(
         CommandId::OCP_LOCK_DERIVE_MEK => DeriveMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES => {
             EnumerateHpkeHandles::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY => {
+            EndorseHpkePubkeyCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY => RotateHpkeKeyCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),

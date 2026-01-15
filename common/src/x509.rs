@@ -35,7 +35,7 @@ pub fn ueid(soc_ifc: &SocIfc) -> CaliptraResult<[u8; 17]> {
 ///
 /// # Arguments
 ///
-/// * `pub_key` - ECC or MLDSA Public Key
+/// * `pub_key` - ECC, MLDSA or ML-KEM Public Key
 /// * `pub_key_bytes` - Buffer to hold the public key bytes
 ///
 /// # Returns
@@ -53,6 +53,11 @@ pub fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
         PubKey::Mldsa(pub_key) => {
             let mldsa_pubkey: &[u8; 2592] = &(*pub_key).into();
             pub_key_bytes.copy_from_slice(mldsa_pubkey);
+            pub_key_bytes.len()
+        }
+        PubKey::MlKem(pub_key) => {
+            let ml_kem_pubkey: &[u8; 1568] = pub_key.as_ref();
+            pub_key_bytes[..ml_kem_pubkey.len()].copy_from_slice(ml_kem_pubkey);
             pub_key_bytes.len()
         }
     }

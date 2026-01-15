@@ -65,6 +65,12 @@ impl From<MlKem1024EncapsKey> for MlKemEncapsulationKey {
     }
 }
 
+impl From<[u8; MlKem::NPK]> for MlKemEncapsulationKey {
+    fn from(value: [u8; MlKem::NPK]) -> Self {
+        Self { buf: value }
+    }
+}
+
 impl From<&MlKemEncapsulationKey> for MlKem1024EncapsKey {
     fn from(value: &MlKemEncapsulationKey) -> Self {
         value.buf.into()

@@ -1665,6 +1665,21 @@ impl CaliptraError {
             "OCP LOCK Error: failed to generate MEK"
         ),
         (
+            RUNTIME_OCP_LOCK_UNKNOWN_ENDORSEMENT_ALGORITHM,
+            0x000E0082,
+            "OCP LOCK Error: received an unknown endorsement algorithm"
+        ),
+        (
+            RUNTIME_OCP_LOCK_UNKNOWN_KEM_ALGORITHM,
+            0x000E0083,
+            "OCP LOCK Error: received an unknown KEM algorithm"
+        ),
+        (
+            RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR,
+            0x000E0084,
+            "OCP LOCK Error: endorsement certificate encoding error"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -2457,6 +2472,11 @@ impl CaliptraError {
             "Driver Error: HPKE attempted to convert an invalid ciphersuite"
         ),
         (
+            RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE,
+            0xa004_1004,
+            "Driver Error: HPKE the pub key buffer was too small"
+        ),
+        (
             RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,
             0xa004_1100,
             "Driver Error: HPKE ml-kem failed to generate a key pair due to trng failure"
@@ -2470,6 +2490,11 @@ impl CaliptraError {
             RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_SECRET_DESERIALIZATION_FAIL,
             0xa004_1102,
             "Driver Error: HPKE ml-kem failed to deseriliaze the encapsulated secret"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_KEY_SERIALIZATION_FAIL,
+            0xa004_1103,
+            "Driver Error: HPKE ml-kem failed to seriliaze the encap key"
         ),
         (
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,

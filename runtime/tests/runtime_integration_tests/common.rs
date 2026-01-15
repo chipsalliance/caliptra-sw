@@ -252,7 +252,7 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
-        ocp_lock_en: args.ocp_lock_en,
+        ocp_lock_en: args.ocp_lock_en || cfg!(feature = "ocp-lock"),
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()
