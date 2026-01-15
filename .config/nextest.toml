@@ -40,15 +40,15 @@ fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
 retries = 3 # the fpga subsystem is a bit flaky with typically 1 test randomly failing out of 100-200
 
-[[profile.fpga-subystem.overrides]]
+[[profile.fpga-subsystem.overrides]]
 filter = 'test(test_generate_csr_envelop_stress)'
 slow-timeout = { period = "30s", terminate-after = 180 }
 
-[[profile.fpga-subystem.overrides]]
+[[profile.fpga-subsystem.overrides]]
 filter = 'test(test_binaries_are_identical)'
 slow-timeout = { period = "30s", terminate-after = 30 }
 
-[[profile.fpga-subystem.overrides]]
+[[profile.fpga-subsystem.overrides]]
 filter = 'test(test_stress_update)'
 slow-timeout = { period = "30s", terminate-after = 100 }
 
