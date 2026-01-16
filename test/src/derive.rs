@@ -20,7 +20,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use crate::{
     crypto::{
         self, aes256_ecb_decrypt, aes256_ecb_encrypt, cmac_kdf, derive_ecdsa_key, derive_mldsa_key,
-        hmac384_drbg_keygen, hmac512, hmac512_kdf,
+        hmac384_drbg_keygen, hmac512, hmac512_kdf, preconditioned_aes_decrypt,
     },
     swap_word_bytes, swap_word_bytes_inplace,
 };
@@ -251,6 +251,15 @@ impl IDevId {
     }
 }
 
+#[derive(Debug)]
+pub struct EncryptedMpk {
+    pub ct: Vec<u8>,
+    pub tag: Vec<u8>,
+    pub salt: Vec<u8>,
+    pub iv: Vec<u8>,
+    pub metadata: Vec<u8>,
+}
+
 pub struct Mek {
     pub mek: [u8; 64],
     pub checksum: [u8; 16],
@@ -333,6 +342,40 @@ impl OcpLockKeyLadderBuilder {
         }
     }
 
+    pub fn decrypt_mpk(
+        &self,
+        sek: [u8; 32],
+        access_key: [u8; 32],
+        aad: &[u8],
+        encrypted_mpk: EncryptedMpk,
+    ) -> [u8; 32] {
+        let mut epk: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&self.hek.unwrap()).as_bytes(),
+            b"ocp_lock_epk",
+            Some(sek.as_bytes())
+        ));
+        swap_word_bytes_inplace(&mut epk);
+
+        let mut mpk_encryption_key: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&epk).as_bytes(),
+            b"ocp_lock_locked_mpk_encryption_key",
+            Some(access_key.as_bytes()),
+        ));
+        swap_word_bytes_inplace(&mut mpk_encryption_key);
+
+        preconditioned_aes_decrypt(
+            swap_word_bytes(&mpk_encryption_key).as_bytes(),
+            b"ocp_lock_locked_mpk",
+            &aad,
+            &encrypted_mpk.salt,
+            &encrypted_mpk.iv,
+            &encrypted_mpk.tag,
+            &encrypted_mpk.ct,
+        )
+        .try_into()
+        .unwrap()
+    }
+
     pub fn derive_mek(self) -> Mek {
         let ims = self.intermediate_mek_secret.unwrap();
         let mut mek_secret: [u32; 16] = transmute!(hmac512_kdf(
@@ -398,6 +441,43 @@ fn test_golden_ocp_lock_keyladder() {
             18, 56, 249, 187, 171, 151, 33, 80, 177, 43, 88, 170, 232, 206, 234, 175, 214, 95, 181,
             46, 96, 36, 178, 8, 146, 11, 219, 238, 52, 72, 59, 214, 205, 102, 183, 43, 144, 0, 226,
             80, 160, 212, 180, 219, 171
+        ]
+    );
+
+    let mpk = OcpLockKeyLadderBuilder::from(generated_idevid)
+        .add_mdk()
+        .add_hek([0xABDEu32; 8])
+        .decrypt_mpk(
+            [0xAB; 32],
+            [0xAE; 32],
+            &[
+                0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+                0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+                0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+            ],
+            EncryptedMpk {
+                salt: vec![145, 5, 237, 110, 91, 178, 185, 132, 46, 126, 182, 200],
+                iv: vec![162, 109, 182, 43, 151, 203, 138, 52, 56, 114, 103, 188],
+                metadata: vec![
+                    254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254,
+                    254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254,
+                ],
+                ct: vec![
+                    218, 219, 239, 125, 175, 23, 17, 207, 15, 19, 221, 63, 30, 192, 234, 45, 254,
+                    19, 63, 27, 63, 108, 28, 203, 11, 102, 222, 203, 23, 224, 168, 152,
+                ],
+                tag: vec![
+                    226, 113, 183, 232, 106, 130, 197, 42, 62, 30, 165, 176, 39, 85, 213, 122,
+                ],
+            },
+        );
+
+    assert_eq!(
+        mpk,
+        [
+            0x6C, 0x25, 0x5D, 0xB1, 0x8F, 0x26, 0x01, 0x98, 0xF4, 0xDD, 0x33, 0x3D, 0xB6, 0x53,
+            0x2F, 0x14, 0xEA, 0xDA, 0x9D, 0x3A, 0x63, 0xFE, 0xA4, 0x9E, 0x29, 0xEE, 0xA6, 0x20,
+            0x76, 0x87, 0xAA, 0xE8
         ]
     );
 }
