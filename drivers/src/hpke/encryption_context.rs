@@ -10,7 +10,6 @@ use crate::{Aes, AesGcmIv, AesKey, Array4x12, LEArray4x4, Trng};
 use super::{
     aead::{Aes256GCM, EncryptionKey, Nonce},
     kdf::Hmac384,
-    kem::MlKem,
 };
 
 /// The Encryption Context role
@@ -26,9 +25,6 @@ pub struct Receiver;
 
 impl Role for Sender {}
 impl Role for Receiver {}
-
-pub type MlKemEncryptionContext<R> =
-    EncryptionContext<R, { MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>;
 
 #[derive(ZeroizeOnDrop)]
 pub struct ExporterSecret {
@@ -48,13 +44,8 @@ impl From<[u8; Hmac384::NH]> for ExporterSecret {
 }
 
 /// Implements Encryption Context from https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-5
-pub struct EncryptionContext<
-    R,
-    const NSK: usize,
-    const NENC: usize,
-    const NPK: usize,
-    const NSECRET: usize,
-> where
+pub struct EncryptionContext<R>
+where
     R: Role,
 {
     key: EncryptionKey,
@@ -63,8 +54,7 @@ pub struct EncryptionContext<
     _role: PhantomData<R>,
 }
 
-impl<R, const NSK: usize, const NENC: usize, const NPK: usize, const NSECRET: usize>
-    EncryptionContext<R, NSK, NENC, NPK, NSECRET>
+impl<R> EncryptionContext<R>
 where
     R: Role,
 {
@@ -94,9 +84,7 @@ where
     }
 }
 
-impl<const NSK: usize, const NENC: usize, const NPK: usize, const NSECRET: usize>
-    EncryptionContext<Sender, NSK, NENC, NPK, NSECRET>
-{
+impl EncryptionContext<Sender> {
     /// Create a new `Sender` `EncryptionContext`
     pub fn new_sender(key: EncryptionKey, base_nonce: Nonce) -> Self {
         Self {
@@ -132,9 +120,7 @@ impl<const NSK: usize, const NENC: usize, const NPK: usize, const NSECRET: usize
     }
 }
 
-impl<const NSK: usize, const NENC: usize, const NPK: usize, const NSECRET: usize>
-    EncryptionContext<Receiver, NSK, NENC, NPK, NSECRET>
-{
+impl EncryptionContext<Receiver> {
     /// Create a new `Receiver` `EncryptionContext`
     pub fn new_receiver(key: EncryptionKey, base_nonce: Nonce) -> Self {
         Self {
