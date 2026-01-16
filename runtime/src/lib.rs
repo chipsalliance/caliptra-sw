@@ -505,6 +505,7 @@ fn execute_command(
         | ocp_lock_command_id @ CommandId::OCP_LOCK_ROTATE_HPKE_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_GENERATE_MEK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_GENERATE_MPK
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_REWRAP_MPK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK => {
             ocp_lock::command_handler(ocp_lock_command_id, drivers, cmd_bytes, resp)

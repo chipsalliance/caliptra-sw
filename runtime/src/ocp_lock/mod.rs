@@ -2,14 +2,16 @@
 
 use caliptra_api::mailbox::{CommandId, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
-use caliptra_common::keyids::ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MDK, KEY_ID_MEK_SECRETS};
+use caliptra_common::keyids::ocp_lock::{
+    KEY_ID_EPK, KEY_ID_HEK, KEY_ID_LOCKED_MPK_ENCRYPTION_KEY, KEY_ID_MDK, KEY_ID_MEK_SECRETS,
+};
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
     hpke::{
         aead::Aes256GCM, suites::CipherSuite, EncryptionContext, HpkeContext, HpkeContextIter,
         HpkeHandle, Receiver,
     },
-    preconditioned_aes::preconditioned_aes_encrypt,
+    preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
     Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
     KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha3, SocIfc, Trng,
 };
@@ -19,6 +21,7 @@ use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
 use generate_mek::GenerateMekCmd;
 use generate_mpk::GenerateMpkCmd;
+use rewrap_mpk::RewrapMpkCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
@@ -30,6 +33,7 @@ mod generate_mek;
 mod generate_mpk;
 mod get_algorithms;
 mod initialize_mek_secret;
+mod rewrap_mpk;
 mod rotate_hpke_key;
 
 pub use derive_mek::DeriveMekCmd;
@@ -38,31 +42,83 @@ pub use initialize_mek_secret::InitializeMekSecretCmd;
 
 use crate::Drivers;
 
+const ACCESS_KEY_LEN: usize = 32;
+
 /// Represents the SEK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Sek(pub [u8; 32]);
+
+use core::marker::PhantomData;
 
 /// Represents the DPK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Dpk(pub [u8; 32]);
 
-/// Represents the Access Key supplied by the drive firwmare.
-#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
-pub struct AccessKey([u8; Self::KEY_LEN]);
+/// This trait is used to statically prevent mixing access keys.
+pub trait AccessKeyState {}
 
-impl AccessKey {
-    const KEY_LEN: usize = 32;
+/// The current access key
+pub struct Current;
+
+/// The new access key
+pub struct New;
+
+impl AccessKeyState for Current {}
+impl AccessKeyState for New {}
+
+/// Represents an encrypted Access Key
+pub struct EncryptedAccessKey<K>
+where
+    K: AccessKeyState,
+{
+    pub tag: [u8; Aes256GCM::NT],
+    pub ciphertext: [u8; ACCESS_KEY_LEN],
+    _state: PhantomData<K>,
+}
+
+impl<K> EncryptedAccessKey<K>
+where
+    K: AccessKeyState,
+{
+    pub fn new(tag: [u8; Aes256GCM::NT], ciphertext: [u8; ACCESS_KEY_LEN]) -> Self {
+        Self {
+            tag,
+            ciphertext,
+            _state: PhantomData,
+        }
+    }
+}
+
+/// Represents the Access Key supplied by the drive firwmare.
+#[repr(transparent)]
+#[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
+pub struct AccessKey<K>
+where
+    K: AccessKeyState,
+{
+    key: [u8; ACCESS_KEY_LEN],
+    _kind: PhantomData<K>,
+}
+
+impl<K> AccessKey<K>
+where
+    K: AccessKeyState,
+{
+    const KEY_LEN: usize = ACCESS_KEY_LEN;
     pub fn from_ciphertext(
         aes: &mut Aes,
         trng: &mut Trng,
         ctx: &mut EncryptionContext<Receiver>,
         aad: &[u8],
         tag: &[u8; Aes256GCM::NT],
-        ct: &[u8; Self::KEY_LEN],
+        ct: &[u8; ACCESS_KEY_LEN],
     ) -> CaliptraResult<Self> {
-        let mut key = [0; Self::KEY_LEN];
+        let mut key = [0; ACCESS_KEY_LEN];
         ctx.open(aes, trng, aad, tag, ct, &mut key)?;
-        Ok(Self(key))
+        Ok(Self {
+            key,
+            _kind: PhantomData,
+        })
     }
 }
 
@@ -79,6 +135,12 @@ impl Mpk {
         let mut key = [0; 32];
         key.clone_from_slice(&seed[..32]);
         Ok(Self(key))
+    }
+}
+
+impl AsMut<[u8; 32]> for Mpk {
+    fn as_mut(&mut self) -> &mut [u8; 32] {
+        &mut self.0
     }
 }
 
@@ -196,6 +258,30 @@ impl TryFrom<LockedMpk> for WrappedKey {
             cipher_text_and_auth_tag: ciphertext_and_auth_tag,
             metadata: value.metadata,
             ..Default::default()
+        })
+    }
+}
+
+impl TryFrom<&WrappedKey> for LockedMpk {
+    type Error = CaliptraError;
+    fn try_from(value: &WrappedKey) -> Result<Self, Self::Error> {
+        if value.key_type != LockedMpk::KEY_TYPE {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_INVALID_WRAPPED_KEY_TYPE);
+        }
+        let mut encrypted_key = [0; LockedMpk::KEY_LEN];
+        encrypted_key.copy_from_slice(&value.cipher_text_and_auth_tag[..LockedMpk::KEY_LEN]);
+        let mut tag = [0; Aes256GCM::NT];
+        tag.copy_from_slice(
+            &value.cipher_text_and_auth_tag[LockedMpk::KEY_LEN..LockedMpk::KEY_LEN + Aes256GCM::NT],
+        );
+
+        Ok(Self {
+            salt: value.salt,
+            iv: value.iv,
+            encrypted_key,
+            tag,
+            metadata: value.metadata,
+            metadata_len: value.metadata_len,
         })
     }
 }
@@ -395,6 +481,11 @@ struct Epk<'a> {
 }
 
 impl<'a> Epk<'a> {
+    const EPK_LABEL: &'static [u8] = b"ocp_lock_epk";
+    const INTERMEDIATE_MEK_SECRET_LABEL: &'static [u8] = b"ocp_lock_intermediate_mek_secret";
+    const LOCKED_MPK_ENCRYPTION_KEY_LABEL: &'static [u8] = b"ocp_lock_locked_mpk_encryption_key";
+    const LOCKED_MPK_LABEL: &'static [u8] = b"ocp_lock_locked_mpk";
+
     /// Derive EPK. The EPK is only valid for the lifetime of `Self`.
     fn new(
         hmac: &mut Hmac,
@@ -405,7 +496,7 @@ impl<'a> Epk<'a> {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_HEK)),
-            b"ocp_lock_epk",
+            Self::EPK_LABEL,
             Some(sek.as_bytes()),
             trng,
             HmacTag::Key(KeyWriteArgs::new(
@@ -427,7 +518,7 @@ impl<'a> Epk<'a> {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
-            b"ocp_lock_intermediate_mek_secret",
+            Self::INTERMEDIATE_MEK_SECRET_LABEL,
             Some(dpk.as_bytes()),
             trng,
             HmacTag::Key(KeyWriteArgs::new(
@@ -445,18 +536,17 @@ impl<'a> Epk<'a> {
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
-        access_key: AccessKey,
+        access_key: AccessKey<Current>,
         metadata: &[u8],
     ) -> CaliptraResult<LockedMpk> {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
-            b"ocp_lock_locked_mpk",
+            Self::LOCKED_MPK_ENCRYPTION_KEY_LABEL,
             Some(access_key.as_bytes()),
             trng,
-            // Re-use the `EPK` slot to store the Locked MPK key
             HmacTag::Key(KeyWriteArgs::new(
-                KEY_ID_EPK,
+                KEY_ID_LOCKED_MPK_ENCRYPTION_KEY,
                 KeyUsage::default().set_hmac_key_en(),
             )),
             HmacMode::Hmac512,
@@ -469,8 +559,8 @@ impl<'a> Epk<'a> {
             aes,
             hmac,
             trng,
-            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
-            b"ocp_locked_mpk_key",
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            Self::LOCKED_MPK_LABEL,
             aad,
             mpk.as_bytes(),
             &mut encrypted_key,
@@ -486,6 +576,89 @@ impl<'a> Epk<'a> {
             metadata_len: metadata.len() as u32,
         })
     }
+
+    /// Consumes `Self`, `AccessKey<Current>` and `AccessKey<New>` to re-encrypt the MPK to the new
+    /// access key.
+    fn rewrap_mpk(
+        self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        current_access_key: AccessKey<Current>,
+        new_access_key: AccessKey<New>,
+        current_locked_mpk: &LockedMpk,
+    ) -> CaliptraResult<LockedMpk> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            Self::LOCKED_MPK_ENCRYPTION_KEY_LABEL,
+            Some(current_access_key.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_LOCKED_MPK_ENCRYPTION_KEY,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // Decrypt the MPK using the current access key
+        let aad = LockedMpkAad::new(
+            current_locked_mpk
+                .metadata
+                .get(..current_locked_mpk.metadata_len as usize)
+                .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?,
+        )?;
+        let aad = aad.serialize()?;
+        let mut mpk = Mpk::generate(trng)?;
+        preconditioned_aes_decrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            Self::LOCKED_MPK_LABEL,
+            aad,
+            &current_locked_mpk.salt.into(),
+            &current_locked_mpk.iv.into(),
+            &current_locked_mpk.tag.into(),
+            &current_locked_mpk.encrypted_key,
+            mpk.as_mut(),
+        )?;
+
+        // Now derive the new MPK Encryption Key from the new access key
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            Self::LOCKED_MPK_ENCRYPTION_KEY_LABEL,
+            Some(new_access_key.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_LOCKED_MPK_ENCRYPTION_KEY,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        let mut encrypted_key = [0; LockedMpk::KEY_LEN];
+        let res = preconditioned_aes_encrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            Self::LOCKED_MPK_LABEL,
+            aad,
+            mpk.as_bytes(),
+            &mut encrypted_key,
+        )?;
+
+        Ok(LockedMpk {
+            salt: res.salt.into(),
+            iv: res.iv.into(),
+            tag: res.tag.into(),
+            encrypted_key,
+            metadata: current_locked_mpk.metadata,
+            metadata_len: current_locked_mpk.metadata_len,
+        })
+    }
 }
 
 impl Drop for Epk<'_> {
@@ -494,6 +667,7 @@ impl Drop for Epk<'_> {
     fn drop(&mut self) {
         // We don't set a write or use lock so this should never fail.
         let _ = self.kv.erase_key(KEY_ID_EPK);
+        let _ = self.kv.erase_key(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY);
     }
 }
 
@@ -637,7 +811,7 @@ impl OcpLockContext {
         hmac: &mut Hmac,
         trng: &mut Trng,
         kv: &mut KeyVault,
-        access_key: AccessKey,
+        access_key: AccessKey<Current>,
         sek: Sek,
         metadata: &[u8],
     ) -> CaliptraResult<LockedMpk> {
@@ -665,12 +839,80 @@ impl OcpLockContext {
         info: &[u8],
         metadata: &[u8],
         tag: &[u8; 16],
-        ct: &[u8; AccessKey::KEY_LEN],
-    ) -> CaliptraResult<AccessKey> {
+        ct: &[u8; AccessKey::<Current>::KEY_LEN],
+    ) -> CaliptraResult<AccessKey<Current>> {
         let mut ctx = self
             .hpke_context
             .decap(sha, ml_kem, hmac, trng, hpke_handle, enc, info)?;
-        AccessKey::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
+        AccessKey::<Current>::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
+    }
+
+    /// Decapsulate two access keys from the same HPKE context
+    #[allow(clippy::too_many_arguments)]
+    pub fn decapsulate_rotation_access_keys(
+        &mut self,
+        sha: &mut Sha3,
+        ml_kem: &mut MlKem1024,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        aes: &mut Aes,
+        hpke_handle: &HpkeHandle,
+        enc: &[u8],
+        info: &[u8],
+        metadata: &[u8],
+        current: &EncryptedAccessKey<Current>,
+        new: &EncryptedAccessKey<New>,
+    ) -> CaliptraResult<(AccessKey<Current>, AccessKey<New>)> {
+        let mut ctx = self
+            .hpke_context
+            .decap(sha, ml_kem, hmac, trng, hpke_handle, enc, info)?;
+        let current = AccessKey::<Current>::from_ciphertext(
+            aes,
+            trng,
+            &mut ctx,
+            metadata,
+            &current.tag,
+            &current.ciphertext,
+        )?;
+        let new = AccessKey::<New>::from_ciphertext(
+            aes,
+            trng,
+            &mut ctx,
+            metadata,
+            &new.tag,
+            &new.ciphertext,
+        )?;
+        Ok((current, new))
+    }
+
+    /// Rewraps an MPK with a new access key
+    #[allow(clippy::too_many_arguments)]
+    pub fn rewrap_mpk(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+        current_access_key: AccessKey<Current>,
+        new_access_key: AccessKey<New>,
+        sek: Sek,
+        current_locked_mpk: &LockedMpk,
+    ) -> CaliptraResult<LockedMpk> {
+        if !self.hek_available {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
+        } else {
+            cfi_assert!(self.hek_available);
+        }
+
+        let epk = Epk::new(hmac, trng, kv, sek)?;
+        epk.rewrap_mpk(
+            aes,
+            hmac,
+            trng,
+            current_access_key,
+            new_access_key,
+            current_locked_mpk,
+        )
     }
 
     /// Retrieve the public key for the HPKE handle
@@ -721,6 +963,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY => RotateHpkeKeyCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MPK => GenerateMpkCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_REWRAP_MPK => RewrapMpkCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

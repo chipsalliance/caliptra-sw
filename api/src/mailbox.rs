@@ -213,6 +213,7 @@ impl CommandId {
     pub const OCP_LOCK_GENERATE_MEK: Self = Self(0x474D_454B); // "GMEK"
     pub const OCP_LOCK_ENDORSE_HPKE_PUB_KEY: Self = Self(0x4548_504B); // "EHPK"
     pub const OCP_LOCK_GENERATE_MPK: Self = Self(0x474D_504B); // "GMPK"
+    pub const OCP_LOCK_REWRAP_MPK: Self = Self(0x5245_5750); // "REWP"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -360,6 +361,9 @@ pub enum MailboxResp {
     OcpLockEndorseHpkePubKey(OcpLockEndorseHpkePubKeyResp),
     OcpLockInitializeMekSecret(OcpLockInitializeMekSecretResp),
     OcpLockDeriveMek(OcpLockDeriveMekResp),
+    OcpLockGenerateMek(OcpLockGenerateMekResp),
+    OcpLockGenerateMpk(OcpLockGenerateMpkResp),
+    OcpLockRewrapMpk(OcpLockRewrapMpkResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -429,6 +433,9 @@ impl MailboxResp {
             MailboxResp::OcpLockEndorseHpkePubKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockInitializeMekSecret(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockDeriveMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockGenerateMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockGenerateMpk(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockRewrapMpk(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -496,6 +503,9 @@ impl MailboxResp {
             MailboxResp::OcpLockEndorseHpkePubKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockInitializeMekSecret(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockDeriveMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockGenerateMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockGenerateMpk(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockRewrapMpk(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -627,6 +637,7 @@ pub enum MailboxReq {
     OcpLockDeriveMek(OcpLockDeriveMekReq),
     OcpLockGenerateMek(OcpLockGenerateMekReq),
     OcpLockGenerateMpk(OcpLockGenerateMpkReq),
+    OcpLockRewrapMpk(OcpLockRewrapMpkReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -714,6 +725,7 @@ impl MailboxReq {
             MailboxReq::OcpLockDeriveMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGenerateMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockRewrapMpk(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -799,6 +811,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGenerateMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockEndorseHpkePubKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockRewrapMpk(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -896,6 +909,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGenerateMek(_) => CommandId::OCP_LOCK_GENERATE_MEK,
             MailboxReq::OcpLockEndorseHpkePubKey(_) => CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY,
             MailboxReq::OcpLockGenerateMpk(_) => CommandId::OCP_LOCK_GENERATE_MPK,
+            MailboxReq::OcpLockRewrapMpk(_) => CommandId::OCP_LOCK_REWRAP_MPK,
         }
     }
 
@@ -4421,7 +4435,7 @@ impl Response for OcpLockRotateHpkeKeyResp {}
 // OCP_LOCK_GENERATE_MEK
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, Clone, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct WrappedKey {
     pub key_type: u16,
     pub reserved: u16,
@@ -4562,6 +4576,46 @@ pub struct OcpLockGenerateMpkResp {
     pub wrapped_mek: WrappedKey,
 }
 impl Response for OcpLockGenerateMpkResp {}
+
+// OCP_LOCK_REWRAP_MPK
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockRewrapMpkReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub sek: [u8; 32],
+    pub current_locked_mpk: WrappedKey,
+    pub sealed_access_key: SealedAccessKey,
+    pub new_ak_ciphertext: [u8; 48],
+}
+
+impl Default for OcpLockRewrapMpkReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            reserved: 0,
+            sek: [0; 32],
+            current_locked_mpk: WrappedKey::default(),
+            sealed_access_key: SealedAccessKey::default(),
+            new_ak_ciphertext: [0; 48],
+        }
+    }
+}
+
+impl Request for OcpLockRewrapMpkReq {
+    const ID: CommandId = CommandId::OCP_LOCK_REWRAP_MPK;
+    type Resp = OcpLockRewrapMpkResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockRewrapMpkResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+    pub wrapped_mek: WrappedKey,
+}
+impl Response for OcpLockRewrapMpkResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

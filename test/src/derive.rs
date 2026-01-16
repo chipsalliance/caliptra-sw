@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::mailbox::WrappedKey;
 /// Caliptra key derivation logic implemented independently from the hardware /
 /// firmware, for use in end-to-end test-cases.
 ///
@@ -260,6 +261,18 @@ pub struct EncryptedMpk {
     pub metadata: Vec<u8>,
 }
 
+impl From<&WrappedKey> for EncryptedMpk {
+    fn from(value: &WrappedKey) -> Self {
+        Self {
+            ct: value.cipher_text_and_auth_tag[..32].to_vec(),
+            tag: value.cipher_text_and_auth_tag[32..48].to_vec(),
+            salt: value.salt.to_vec(),
+            iv: value.iv.to_vec(),
+            metadata: value.metadata[..value.metadata_len as usize].to_vec(),
+        }
+    }
+}
+
 pub struct Mek {
     pub mek: [u8; 64],
     pub checksum: [u8; 16],
@@ -345,9 +358,9 @@ impl OcpLockKeyLadderBuilder {
     pub fn decrypt_mpk(
         &self,
         sek: [u8; 32],
-        access_key: [u8; 32],
+        access_key: &[u8; 32],
         aad: &[u8],
-        encrypted_mpk: EncryptedMpk,
+        encrypted_mpk: &EncryptedMpk,
     ) -> [u8; 32] {
         let mut epk: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&self.hek.unwrap()).as_bytes(),
@@ -449,13 +462,13 @@ fn test_golden_ocp_lock_keyladder() {
         .add_hek([0xABDEu32; 8])
         .decrypt_mpk(
             [0xAB; 32],
-            [0xAE; 32],
+            &[0xAE; 32],
             &[
                 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
                 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
                 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
             ],
-            EncryptedMpk {
+            &EncryptedMpk {
                 salt: vec![145, 5, 237, 110, 91, 178, 185, 132, 46, 126, 182, 200],
                 iv: vec![162, 109, 182, 43, 151, 203, 138, 52, 56, 114, 103, 188],
                 metadata: vec![

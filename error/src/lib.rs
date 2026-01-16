@@ -1695,6 +1695,11 @@ impl CaliptraError {
             "OCP LOCK Error: failed to serialize the metadata param"
         ),
         (
+            RUNTIME_OCP_LOCK_INVALID_WRAPPED_KEY_TYPE,
+            0x000E0088,
+            "OCP LOCK Error: received invalid wrapped key type"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
