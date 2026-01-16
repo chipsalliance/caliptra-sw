@@ -23,12 +23,27 @@ const SHA1_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 pub type Sha1Digest<'a> = &'a mut Array4x5;
 
-#[derive(Default)]
 pub struct Sha1 {
     compressor: Sha1Compressor,
+    _private: (), // prevent instantiation from outside drivers/ package
 }
 
 impl Sha1 {
+    /// Create a new, initialized and KATted SHA1 driver.
+    pub fn new() -> CaliptraResult<Self> {
+        let mut sha1 = Self::raw_new();
+        let kat = crate::kats::Sha1Kat {};
+        kat.execute(&mut sha1)?;
+        Ok(sha1)
+    }
+
+    fn raw_new() -> Self {
+        Self {
+            compressor: Sha1Compressor::default(),
+            _private: (),
+        }
+    }
+
     /// Initialize multi step digest operation
     ///
     /// # Returns

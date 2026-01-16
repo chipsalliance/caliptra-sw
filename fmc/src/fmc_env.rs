@@ -26,10 +26,8 @@ use caliptra_registers::{
 };
 
 /// Hardware Context
+/// Contains only the non-cryptographic drivers and those needed before KAT execution
 pub struct FmcEnv {
-    // SHA1 Engine
-    pub sha1: Sha1,
-
     // SHA2-256 Engine
     pub sha256: Sha256,
 
@@ -84,7 +82,6 @@ impl FmcEnv {
         )?;
 
         Ok(Self {
-            sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
@@ -98,5 +95,53 @@ impl FmcEnv {
             persistent_data: PersistentDataAccessor::new(),
             mldsa: Mldsa87::new(AbrReg::new()),
         })
+    }
+}
+
+/// Full Hardware Context
+/// Contains all drivers needed after KAT execution
+pub struct FmcEnvFips {
+    /// Non-crypto environment (embedded)
+    pub non_crypto: FmcEnv,
+
+    // SHA1 Engine (initialized by KATs)
+    pub sha1: Sha1,
+}
+
+impl FmcEnvFips {
+    /// Create FmcEnvFips from non-crypto environment and initialized drivers
+    pub fn from_non_crypto(
+        non_crypto: FmcEnv,
+        initialized: caliptra_kat::InitializedDrivers,
+    ) -> Self {
+        Self {
+            non_crypto,
+            sha1: initialized.sha1,
+        }
+    }
+
+    /// Get a mutable reference to the non-crypto environment
+    pub fn non_crypto_mut(&mut self) -> &mut FmcEnv {
+        &mut self.non_crypto
+    }
+
+    /// Get an immutable reference to the non-crypto environment
+    pub fn non_crypto(&self) -> &FmcEnv {
+        &self.non_crypto
+    }
+}
+
+// Provide transparent access to non-crypto fields via Deref
+impl core::ops::Deref for FmcEnvFips {
+    type Target = FmcEnv;
+
+    fn deref(&self) -> &Self::Target {
+        &self.non_crypto
+    }
+}
+
+impl core::ops::DerefMut for FmcEnvFips {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.non_crypto
     }
 }

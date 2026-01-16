@@ -21,10 +21,11 @@ use caliptra_common::{
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED},
 };
 use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_kat::InitializedDrivers;
 
 use caliptra_drivers::{
     hand_off::{DataStore, HandOffDataHandle},
-    FwPersistentData, ResetReason, RomPersistentData,
+    FwPersistentData, ResetReason, RomPersistentData, Sha1,
 };
 
 mod boot_status;
@@ -35,6 +36,7 @@ mod hand_off;
 pub use boot_status::FmcBootStatus;
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
+use fmc_env::FmcEnvFips;
 use hand_off::HandOff;
 
 #[cfg(feature = "std")]
@@ -46,7 +48,7 @@ Running Caliptra FMC ...
 
 // Upon cold reset, fills the reserved field with 0xFFs. Any newly-allocated fields will
 // therefore be marked as implicitly invalid.
-fn fix_fht(env: &mut fmc_env::FmcEnv) {
+fn fix_fht(env: &mut fmc_env::FmcEnvFips) {
     if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
         cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
         env.persistent_data.get_mut().rom.fht.reserved.fill(0xFF);
@@ -78,6 +80,16 @@ pub extern "C" fn entry_point() -> ! {
     if pdata.rom.major_version != RomPersistentData::MAJOR_VERSION {
         handle_fatal_error(CaliptraError::FMC_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
     }
+
+    let initialized = InitializedDrivers {
+        sha1: match Sha1::new() {
+            Ok(initialized) => initialized,
+            Err(e) => handle_fatal_error(e.into()),
+        },
+    };
+
+    let mut env = FmcEnvFips::from_non_crypto(env, initialized);
+
     fix_fht(&mut env);
 
     if env.persistent_data.get().rom.fht.is_valid() {
