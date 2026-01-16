@@ -366,7 +366,7 @@ impl OcpLockKeyLadderBuilder {
         preconditioned_aes_decrypt(
             swap_word_bytes(&mpk_encryption_key).as_bytes(),
             b"ocp_lock_locked_mpk",
-            &aad,
+            aad,
             &encrypted_mpk.salt,
             &encrypted_mpk.iv,
             &encrypted_mpk.tag,
