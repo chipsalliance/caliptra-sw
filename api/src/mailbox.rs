@@ -50,6 +50,13 @@ pub const OCP_LOCK_MAX_ENDORSEMENT_CERT_SIZE: usize = 8192;
 /// The metadata length of an OCP LOCK WRAPPED KEY
 pub const OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN: usize = 32;
 
+/// The max length of the info bound to a Access Key
+pub const OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN: usize = 256;
+
+/// The largest HPKE encapsulated secret of the algorithms supported by OCP LOCK.
+/// Currently the largest algorithm is the hybrid ML-KEM + P-384.
+pub const OCP_LOCK_MAX_ENC_LEN: usize = 1665;
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 
@@ -205,6 +212,7 @@ impl CommandId {
     pub const OCP_LOCK_ROTATE_HPKE_KEY: Self = Self(0x5248_504B); // "RHPK"
     pub const OCP_LOCK_GENERATE_MEK: Self = Self(0x474D_454B); // "GMEK"
     pub const OCP_LOCK_ENDORSE_HPKE_PUB_KEY: Self = Self(0x4548_504B); // "EHPK"
+    pub const OCP_LOCK_GENERATE_MPK: Self = Self(0x474D_504B); // "GMPK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -618,6 +626,7 @@ pub enum MailboxReq {
     OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq),
     OcpLockDeriveMek(OcpLockDeriveMekReq),
     OcpLockGenerateMek(OcpLockGenerateMekReq),
+    OcpLockGenerateMpk(OcpLockGenerateMpkReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -704,6 +713,7 @@ impl MailboxReq {
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockDeriveMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGenerateMek(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -788,6 +798,7 @@ impl MailboxReq {
             MailboxReq::OcpLockRotateHpkeKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGenerateMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockEndorseHpkePubKey(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -884,6 +895,7 @@ impl MailboxReq {
             MailboxReq::OcpLockRotateHpkeKey(_) => CommandId::OCP_LOCK_ROTATE_HPKE_KEY,
             MailboxReq::OcpLockGenerateMek(_) => CommandId::OCP_LOCK_GENERATE_MEK,
             MailboxReq::OcpLockEndorseHpkePubKey(_) => CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY,
+            MailboxReq::OcpLockGenerateMpk(_) => CommandId::OCP_LOCK_GENERATE_MPK,
         }
     }
 
@@ -4497,6 +4509,59 @@ impl Default for OcpLockEndorseHpkePubKeyResp {
 }
 
 impl Response for OcpLockEndorseHpkePubKeyResp {}
+
+// OCP_LOCK_GENERATE_MPK
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct SealedAccessKey {
+    pub hpke_handle: HpkeHandle,
+    pub access_key_len: u32,
+    pub info_len: u32,
+    pub info: [u8; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+    pub kem_ciphertext: [u8; OCP_LOCK_MAX_ENC_LEN],
+    pub _padding: [u8; 3],
+    pub ak_ciphertext: [u8; 48],
+}
+
+impl Default for SealedAccessKey {
+    fn default() -> Self {
+        Self {
+            hpke_handle: HpkeHandle::default(),
+            access_key_len: 0,
+            info_len: 0,
+            info: [0; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+            kem_ciphertext: [0; OCP_LOCK_MAX_ENC_LEN],
+            _padding: [0; 3],
+            ak_ciphertext: [0; 48],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockGenerateMpkReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub sek: [u8; 32],
+    pub metadata_len: u32,
+    pub metadata: [u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    pub sealed_access_key: SealedAccessKey,
+}
+
+impl Request for OcpLockGenerateMpkReq {
+    const ID: CommandId = CommandId::OCP_LOCK_GENERATE_MPK;
+    type Resp = OcpLockGenerateMpkResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockGenerateMpkResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+    pub wrapped_mek: WrappedKey,
+}
+impl Response for OcpLockGenerateMpkResp {}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]

@@ -11,8 +11,8 @@ use aes_gcm::{
     Aes256Gcm, KeyInit,
 };
 use ml_kem::{
-    kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey},
-    EncapsulateDeterministic, KemCore, MlKem1024, MlKem1024Params, B32,
+    kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey, Kem},
+    EncapsulateDeterministic, Encoded, EncodedSizeUser, KemCore, MlKem1024, MlKem1024Params, B32,
 };
 use openssl::{
     hash::MessageDigest,
@@ -207,7 +207,11 @@ impl Hpke for HpkeMlKem1024 {
 
     fn encap(&self, pk_r: &[u8]) -> (Vec<u8>, Vec<u8>) {
         let mut rng = rand::thread_rng();
-        let (enc, shared_secret) = self.ek.encapsulate(&mut rng).unwrap();
+        let ek_bytes =
+            Encoded::<<Kem<MlKem1024Params> as KemCore>::EncapsulationKey>::try_from(pk_r).unwrap();
+        let ek = <<Kem<MlKem1024Params> as KemCore>::EncapsulationKey>::from_bytes(&ek_bytes);
+
+        let (enc, shared_secret) = ek.encapsulate(&mut rng).unwrap();
         (shared_secret.to_vec(), enc.to_vec())
     }
 

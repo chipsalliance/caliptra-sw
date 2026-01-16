@@ -1,8 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, MailboxReq, MailboxRespHeader, OcpLockEnumerateHpkeHandlesReq,
-    OcpLockEnumerateHpkeHandlesResp, OcpLockRotateHpkeKeyReq, OcpLockRotateHpkeKeyResp,
+    CommandId, HpkeAlgorithms, HpkeHandle, MailboxReq, MailboxRespHeader,
+    OcpLockEnumerateHpkeHandlesReq, OcpLockEnumerateHpkeHandlesResp, OcpLockRotateHpkeKeyReq,
+    OcpLockRotateHpkeKeyResp,
 };
 use caliptra_hw_model::{HwModel, ModelError};
 
@@ -50,7 +51,13 @@ fn test_rotate_ml_kem_hpke_handle() {
         return;
     };
 
-    let first_endorsement = verify_hpke_pub_key(&mut model, handle);
+    let first_endorsement = verify_hpke_pub_key(
+        &mut model,
+        HpkeHandle {
+            handle,
+            hpke_algorithm: HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
+        },
+    );
 
     let mut cmd = MailboxReq::OcpLockRotateHpkeKey(OcpLockRotateHpkeKeyReq {
         hpke_handle: handle,
@@ -84,7 +91,13 @@ fn test_rotate_ml_kem_hpke_handle() {
         return;
     };
 
-    let second_endorsement = verify_hpke_pub_key(&mut model, handle);
+    let second_endorsement = verify_hpke_pub_key(
+        &mut model,
+        HpkeHandle {
+            handle,
+            hpke_algorithm: HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
+        },
+    );
 
     // Don't need this check but let's make sure this test doesn't fail open.
     if ocp_lock_supported(&mut model) {
