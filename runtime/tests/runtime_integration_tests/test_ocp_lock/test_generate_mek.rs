@@ -16,7 +16,6 @@ use zerocopy::{FromBytes, IntoBytes};
 const WRAPPED_MEK_TYPE: u16 = 0x3;
 const WRAPPED_KEY_LEN: u32 = 64;
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -44,7 +43,6 @@ fn test_generate_mek() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_missing_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -71,7 +69,6 @@ fn test_generate_missing_secret_seed() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_consumed_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -113,7 +110,6 @@ fn test_generate_consumed_secret_seed() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_mek_missing_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

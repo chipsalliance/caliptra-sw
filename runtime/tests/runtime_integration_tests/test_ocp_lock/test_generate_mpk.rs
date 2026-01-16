@@ -17,8 +17,8 @@ use zerocopy::{FromBytes, IntoBytes};
 const WRAPPED_MEK_TYPE: u16 = 0x1;
 const WRAPPED_KEY_LEN: u32 = 32;
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 fn test_generate_mpk() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
         hek_available: true,
@@ -49,6 +49,7 @@ fn test_generate_mpk() {
     });
 }
 
+// TODO(clundin): Update default HEK / pass in explicitly to make pass on emu.
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_mpk_invalid_hpke_key() {
@@ -85,6 +86,7 @@ fn test_generate_mpk_invalid_hpke_key() {
     });
 }
 
+// TODO(clundin): Update default HEK / pass in explicitly to make pass on emu.
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_generate_mpk_missing_hek() {

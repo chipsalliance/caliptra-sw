@@ -39,7 +39,9 @@ use crate::bus_logger::LogFile;
 use crate::trace_path_or_env;
 use crate::HwModel;
 use crate::InitParams;
+use crate::ModelCallback;
 use crate::ModelError;
+use crate::OcpLockState;
 use crate::Output;
 use crate::TrngMode;
 
@@ -87,6 +89,12 @@ pub struct ModelEmulated {
     collected_events_from_caliptra: Vec<Event>,
 
     pub mci: Mci,
+
+    // Things get funky with the `DefaultHwModel`. There is no way to get a generic that works with
+    // all models & this model is always enabled. Rather then feature gating the model, feature gate
+    // this one feature to prevent compiler errors when using other models.
+    #[allow(dead_code)]
+    rom_callback: Option<ModelCallback>,
 }
 
 #[cfg(feature = "coverage")]
@@ -213,6 +221,7 @@ impl HwModel for ModelEmulated {
             hw_config
         };
         root_bus.soc_reg.set_hw_config(hw_config.into());
+        root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
 
         let input_wires = (!params.uds_fuse_row_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
@@ -266,6 +275,7 @@ impl HwModel for ModelEmulated {
             events_from_caliptra,
             collected_events_from_caliptra: vec![],
             mci: mci_regs,
+            rom_callback: params.rom_callback,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -291,6 +301,18 @@ impl HwModel for ModelEmulated {
     fn step(&mut self) {
         if self.cpu_enabled.get() {
             self.cpu.step(self.trace_fn.as_deref_mut());
+        }
+
+        if self.ready_for_fw.get() {
+            // Call ROM callback before informing MCU ROM it can load firmware
+            #[cfg(all(
+                not(feature = "verilator"),
+                not(feature = "fpga_realtime"),
+                not(feature = "fpga_subsystem")
+            ))]
+            if let Some(cb) = self.rom_callback.take() {
+                cb(self);
+            }
         }
 
         // do the bare minimum for the recovery flow: activating the recovery image
@@ -462,5 +484,14 @@ impl HwModel for ModelEmulated {
 
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
+    }
+
+    /// Get OCP LOCK Info
+    fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
+        if let Ok(mek) = self.cpu.bus.bus.aes_clp.latest_mek().try_into() {
+            Some(OcpLockState { mek })
+        } else {
+            None
+        }
     }
 }

@@ -1123,7 +1123,6 @@ impl SocRegistersImpl {
         self.fuse_uds_seed = [0u32; 16];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key = [0u32; 8];
-        self.fuse_hek_seed = [0u32; 8];
     }
 
     fn write_disabled(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {

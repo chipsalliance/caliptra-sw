@@ -492,11 +492,10 @@ mod tests {
         let expected_uds = [0u8; 64];
         let expected_doe_key = [0u8; 32];
         let expected_fe = [0u8; 32];
-        let expected_hek_seed = [0u8; 32];
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
         let mci = Mci::new(vec![]);
-        let mut soc_reg = SocRegistersInternal::new(
+        let soc_reg = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             mci.clone(),
@@ -506,12 +505,10 @@ mod tests {
                 ..CaliptraRootBusArgs::default()
             },
         );
-        soc_reg.set_hek_seed(&[0xABAB_ABAB; 8]);
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
         assert_ne!(soc_reg.doe_key(), expected_doe_key);
         assert_ne!(soc_reg.field_entropy(), expected_fe);
-        assert_ne!(soc_reg.doe_hek_seed(), expected_hek_seed);
 
         assert_eq!(
             doe.write(
@@ -538,6 +535,5 @@ mod tests {
         assert_eq!(soc_reg.uds(), expected_uds);
         assert_eq!(soc_reg.doe_key(), expected_doe_key);
         assert_eq!(soc_reg.field_entropy(), expected_fe);
-        assert_eq!(soc_reg.doe_hek_seed(), expected_hek_seed);
     }
 }

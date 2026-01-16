@@ -64,6 +64,7 @@ fn test_derive_mek() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
         assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
     });
@@ -99,6 +100,7 @@ fn test_derive_mek_warm_reset() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
         assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
     });
@@ -130,6 +132,7 @@ fn test_derive_mek_warm_reset() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
         assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
     });
@@ -213,6 +216,7 @@ fn test_derive_mek_debug_unlocked() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_eq!(response.mek_checksum, expected_debug_unlocked_mek.checksum);
         assert_eq!(actual_mek.mek, expected_debug_unlocked_mek.mek);
 
@@ -283,6 +287,7 @@ fn test_derive_corrupted_sek_no_checksum() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_ne!(response.mek_checksum, EXPECTED_MEK.checksum);
         assert_ne!(actual_mek.mek, EXPECTED_MEK.mek);
     });
@@ -350,6 +355,7 @@ fn test_derive_consumed_secret_seed() {
     validate_ocp_lock_response(&mut model, response, |response, actual_mek| {
         let response = response.unwrap().unwrap();
         let response = OcpLockDeriveMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let actual_mek = actual_mek.unwrap();
         assert_eq!(response.mek_checksum, EXPECTED_MEK.checksum);
         assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
     });
