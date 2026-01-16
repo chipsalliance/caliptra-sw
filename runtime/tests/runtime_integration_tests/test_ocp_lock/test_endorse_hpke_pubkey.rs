@@ -23,8 +23,7 @@ fn test_endorse_hpke_pubkey() {
     let _ = get_validated_hpke_handle(
         &mut model,
         HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    );
 }
 
 #[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
