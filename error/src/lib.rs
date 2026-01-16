@@ -1934,6 +1934,11 @@ impl CaliptraError {
             "Firmware Processor Error: OCP LOCK is not supported"
         ),
         (
+            FW_PROC_MAILBOX_INVALID_PARAMS,
+            0x0102000E,
+            "Firmware Processor Error: Mailbox invalid parameters"
+        ),
+        (
             FMC_ALIAS_CERT_VERIFY_FAILURE,
             0x01030001,
             "FMC Alias Layer Error: Certificate verification failure"
