@@ -2100,7 +2100,7 @@ impl HwModel for ModelFpgaSubsystem {
     fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
         let mut mek = [0; 64];
         for (idx, word) in mek.chunks_exact_mut(4).enumerate() {
-            let mut word = u32::mut_from_bytes(word).unwrap();
+            let word = u32::mut_from_bytes(word).unwrap();
             *word = self
                 .wrapper
                 .regs()
