@@ -601,3 +601,104 @@ fn hpke_mlkem_1024() {
         assert_eq!(encryption.pt, reader_ctx.open(&encryption.aad, &ct));
     }
 }
+
+pub struct PreconditionedAesEncryptionResult {
+    pub salt: [u8; 12],
+    pub iv: [u8; 12],
+    pub tag: [u8; 16],
+    pub ciphertext: Vec<u8>,
+}
+
+pub fn aes256_gcm_encrypt(
+    key: &[u8],
+    iv: &[u8],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> (Vec<u8>, [u8; 16]) {
+    use openssl::symm::{encrypt_aead, Cipher};
+    let mut tag = [0u8; 16];
+    let ciphertext = encrypt_aead(
+        Cipher::aes_256_gcm(),
+        key,
+        Some(iv),
+        aad,
+        plaintext,
+        &mut tag,
+    )
+    .unwrap();
+    (ciphertext, tag)
+}
+
+pub fn aes256_gcm_decrypt(
+    key: &[u8],
+    iv: &[u8],
+    aad: &[u8],
+    ciphertext: &[u8],
+    tag: &[u8],
+) -> Option<Vec<u8>> {
+    use openssl::symm::{decrypt_aead, Cipher};
+    decrypt_aead(Cipher::aes_256_gcm(), key, Some(iv), aad, ciphertext, tag).ok()
+}
+
+pub fn preconditioned_aes_encrypt(
+    key: &[u8],
+    label: &[u8],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> PreconditionedAesEncryptionResult {
+    use openssl::rand::rand_bytes;
+
+    let mut salt = [0u8; 12];
+    rand_bytes(&mut salt).unwrap();
+
+    let kdf_output = hmac512_kdf(key, label, Some(&salt));
+    let subkey = &kdf_output[..32];
+
+    let mut iv = [0u8; 12];
+    rand_bytes(&mut iv).unwrap();
+
+    let (ciphertext, tag) = aes256_gcm_encrypt(subkey, &iv, aad, plaintext);
+    PreconditionedAesEncryptionResult {
+        salt,
+        iv,
+        tag,
+        ciphertext,
+    }
+}
+
+pub fn preconditioned_aes_decrypt(
+    key: &[u8],
+    label: &[u8],
+    aad: &[u8],
+    salt: &[u8],
+    iv: &[u8],
+    tag: &[u8],
+    ciphertext: &[u8],
+) -> Option<Vec<u8>> {
+    let kdf_output = hmac512_kdf(key, label, Some(salt));
+    let subkey = &kdf_output[..32];
+    aes256_gcm_decrypt(subkey, iv, aad, ciphertext, tag)
+}
+
+#[test]
+fn test_preconditioned_aes() {
+    let key = [0u8; 32];
+    let label = b"test label";
+    let aad = b"test aad";
+    let plaintext = b"this is a secret message";
+
+    let result = preconditioned_aes_encrypt(&key, label, aad, plaintext);
+    assert_eq!(result.ciphertext.len(), plaintext.len());
+
+    let decrypted = preconditioned_aes_decrypt(
+        &key,
+        label,
+        aad,
+        &result.salt,
+        &result.iv,
+        &result.tag,
+        &result.ciphertext,
+    )
+    .unwrap();
+    assert_eq!(decrypted, plaintext.to_vec());
+}
