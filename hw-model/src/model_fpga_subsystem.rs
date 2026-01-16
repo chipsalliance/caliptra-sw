@@ -2082,6 +2082,16 @@ impl HwModel for ModelFpgaSubsystem {
             .lock()
             .unwrap()
             .set_i3c_not_ready();
+
+        // Reset recovery-related state since the I3C device is being reset
+        // and will no longer have a valid address until re-initialized
+        self.recovery_started = false;
+        self.recovery_fifo_blocks.clear();
+        self.recovery_ctrl_len = 0;
+        self.recovery_ctrl_written = false;
+        self.bmc_step_counter = 0;
+        self.blocks_sent = 0;
+
         self.set_subsystem_reset(true);
         std::thread::sleep(std::time::Duration::from_micros(1));
         self.init_otp(None)

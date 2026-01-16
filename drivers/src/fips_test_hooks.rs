@@ -45,7 +45,7 @@ impl FipsTestHook {
     pub const FW_LOAD_VENDOR_ECC_VERIFY_FAILURE: u8 = 0x53;
     pub const FW_LOAD_OWNER_ECC_VERIFY_FAILURE: u8 = 0x54;
     pub const FW_LOAD_OWNER_TOC_DIGEST_FAILURE: u8 = 0x55;
-    pub const FW_LOAD_FMC_DIGEST_FAILURE: u8 = 0x56;
+    pub const FW_LOAD_FMC_DIGEST_FAILURE: u8 = 0xB7;
     pub const FW_LOAD_RUNTIME_DIGEST_FAILURE: u8 = 0x57;
     pub const FW_LOAD_VENDOR_LMS_VERIFY_FAILURE: u8 = 0x58;
     pub const FW_LOAD_OWNER_LMS_VERIFY_FAILURE: u8 = 0x59;

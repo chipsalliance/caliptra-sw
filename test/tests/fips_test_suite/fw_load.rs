@@ -329,15 +329,15 @@ fn fw_load_error_flow_base(
         }
         Some(update_image) => {
             if hw.subsystem_mode() {
-                hw.step_until_output_contains("RT listening for mailbox commands...")
-                    .unwrap();
+                hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
             } else {
                 // Verify initial FW load was successful
                 fw_load_result.unwrap();
             }
 
             // Update FW
-            fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&update_image));
+            fw_load_result =
+                hw.upload_firmware_to_mbox(&image_to_bytes_no_error_check(&update_image));
             // Verify the correct error was returned from FW load
             assert_eq!(
                 fw_load_result.unwrap_err(),
@@ -975,7 +975,7 @@ fn fw_load_error_update_reset_owner_digest_failure() {
 fn fw_load_error_update_reset_vendor_ecc_pub_key_idx_mismatch() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
-            ecc_key_idx: 3,
+            ecc_key_idx: 0, // This must match the auth manifest key on subsystem
             ..VENDOR_CONFIG_KEY_0
         };
         let image_options_cold_boot = ImageOptions {

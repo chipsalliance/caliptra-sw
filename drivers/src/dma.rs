@@ -947,6 +947,11 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x12> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
         // the hardware does not support hashing an empty stream
         if length == 0 {
             return Ok(SHA384_EMPTY);
@@ -993,6 +998,15 @@ impl<'a> DmaRecovery<'a> {
 
             // we have to release the SHA accelerator lock over DMA for it to take effect
             dma_sha.lock().write(|w| w.lock(true));
+
+            #[cfg(feature = "fips-test-hooks")]
+            let digest = unsafe {
+                crate::FipsTestHook::corrupt_data_if_hook_set(
+                    crate::FipsTestHook::SHA384_CORRUPT_DIGEST,
+                    &digest,
+                )
+            };
+
             Ok(digest)
         })?
     }
@@ -1004,6 +1018,13 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x16> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+            )?
+        }
+
         // This is tricky, because we need to lock and write to several registers over DMA
         // so that the AXI user is set correctly, but we want the guarantees of the
         // Sha2_512_384Acc without making that too generic.
@@ -1049,6 +1070,15 @@ impl<'a> DmaRecovery<'a> {
 
             // we have to release the SHA accelerator lock over DMA for it to take effect
             dma_sha.lock().write(|w| w.lock(true));
+
+            #[cfg(feature = "fips-test-hooks")]
+            let digest = unsafe {
+                crate::FipsTestHook::corrupt_data_if_hook_set(
+                    crate::FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                    &digest,
+                )
+            };
+
             Ok(digest)
         })?
     }
