@@ -14,14 +14,16 @@ Abstract:
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs_ecc_384.rs"));
+include!(concat!(env!("OUT_DIR"), "/fmc_alias_tbs_ml_dsa_87.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/fmc_alias_csr_tbs_ecc_384.rs"}
+include! {"../build/fmc_alias_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
-    use openssl::sha::Sha384;
-    use openssl::{ecdsa::EcdsaSig, x509::X509Req};
+    use openssl::pkey_ctx::PkeyCtx;
+    use openssl::pkey_ml_dsa::Variant;
+    use openssl::signature::Signature;
+    use openssl::x509::X509Req;
 
     use x509_parser::cri_attributes::ParsedCriAttribute;
     use x509_parser::extensions::ParsedExtension;
@@ -30,20 +32,24 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; FmcAliasCsrTbsEcc384::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; FmcAliasTbsMlDsa87::UEID_LEN];
     const TEST_OWNER_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN];
+        &[0xCDu8; FmcAliasTbsMlDsa87Params::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN];
     const TEST_VENDOR_INFO_HASH: &[u8] =
-        &[0xEFu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasCsrTbsEcc384Params::TCB_INFO_FMC_TCI_LEN];
+        &[0xEFu8; FmcAliasTbsMlDsa87Params::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
+    const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasTbsMlDsa87Params::TCB_INFO_FMC_TCI_LEN];
     const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
 
-    fn make_test_csr(subject_key: &Ecc384AsymKey) -> FmcAliasCsrTbsEcc384 {
-        let params = FmcAliasCsrTbsEcc384Params {
+    fn make_test_csr(subject_key: &MlDsa87AsymKey) -> FmcAliasTbsMlDsa87 {
+        let params = FmcAliasTbsMlDsa87Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
-            subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
+            subject_sn: &subject_key
+                .hex_str()
+                .into_bytes()
+                .as_slice()
+                .try_into()
+                .unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
             tcb_info_owner_device_info_hash: &TEST_OWNER_INFO_HASH.try_into().unwrap(),
             tcb_info_vendor_device_info_hash: &TEST_VENDOR_INFO_HASH.try_into().unwrap(),
@@ -51,70 +57,72 @@ mod tests {
             tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
         };
 
-        FmcAliasCsrTbsEcc384::new(&params)
+        FmcAliasTbsMlDsa87::new(&params)
     }
 
     #[test]
     fn test_csr_signing() {
-        let key = Ecc384AsymKey::default();
-        let ec_key = key.priv_key().ec_key().unwrap();
+        let key = MlDsa87AsymKey::default();
+        let mldsa_key = key.priv_key();
         let csr = make_test_csr(&key);
 
-        let sig: EcdsaSig = csr
+        let sig = csr
             .sign(|b| {
-                let mut sha = Sha384::new();
-                sha.update(b);
-                EcdsaSig::sign(&sha.finish(), &ec_key)
+                let mut signature = vec![];
+                let mut ctx = PkeyCtx::new(mldsa_key)?;
+                let mut algo = Signature::for_ml_dsa(Variant::MlDsa87)?;
+                ctx.sign_message_init(&mut algo)?;
+                ctx.sign_to_vec(b, &mut signature)?;
+                Ok::<Vec<u8>, openssl::error::ErrorStack>(signature)
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), FmcAliasCsrTbsEcc384::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), FmcAliasTbsMlDsa87::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET
-                ..FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET + FmcAliasCsrTbsEcc384::PUBLIC_KEY_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::PUBLIC_KEY_OFFSET
+                ..FmcAliasTbsMlDsa87::PUBLIC_KEY_OFFSET + FmcAliasTbsMlDsa87::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET
-                ..FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET + FmcAliasCsrTbsEcc384::SUBJECT_SN_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::SUBJECT_SN_OFFSET
+                ..FmcAliasTbsMlDsa87::SUBJECT_SN_OFFSET + FmcAliasTbsMlDsa87::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::UEID_OFFSET
-                ..FmcAliasCsrTbsEcc384::UEID_OFFSET + FmcAliasCsrTbsEcc384::UEID_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::UEID_OFFSET
+                ..FmcAliasTbsMlDsa87::UEID_OFFSET + FmcAliasTbsMlDsa87::UEID_LEN],
             TEST_UEID,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasTbsMlDsa87::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN],
             TEST_OWNER_INFO_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasTbsMlDsa87::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN],
             TEST_VENDOR_INFO_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::TCB_INFO_FMC_TCI_OFFSET
+                ..FmcAliasTbsMlDsa87::TCB_INFO_FMC_TCI_OFFSET
+                    + FmcAliasTbsMlDsa87::TCB_INFO_FMC_TCI_LEN],
             TEST_FMC_HASH,
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_LEN],
+            &csr.tbs()[FmcAliasTbsMlDsa87::TCB_INFO_FW_SVN_OFFSET
+                ..FmcAliasTbsMlDsa87::TCB_INFO_FW_SVN_OFFSET
+                    + FmcAliasTbsMlDsa87::TCB_INFO_FW_SVN_LEN],
             TEST_TCB_INFO_FW_SVN,
         );
 
-        let ecdsa_sig = crate::Ecdsa384Signature {
-            r: sig.r().to_vec_padded(48).unwrap().try_into().unwrap(),
-            s: sig.s().to_vec_padded(48).unwrap().try_into().unwrap(),
+        let mldsa_sig = crate::MlDsa87Signature {
+            sig: sig.try_into().unwrap(),
         };
 
-        let builder = crate::Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
+        let builder = crate::MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
         builder.build(&mut buf).unwrap();
 
@@ -125,24 +133,26 @@ mod tests {
 
     #[test]
     fn test_extensions() {
-        let key = Ecc384AsymKey::default();
-        let ec_key = key.priv_key().ec_key().unwrap();
+        let key = MlDsa87AsymKey::default();
+        let mldsa_key = key.priv_key();
         let csr = make_test_csr(&key);
 
-        let sig: EcdsaSig = csr
+        let sig = csr
             .sign(|b| {
-                let mut sha = Sha384::new();
-                sha.update(b);
-                EcdsaSig::sign(&sha.finish(), &ec_key)
+                let mut signature = vec![];
+                let mut ctx = PkeyCtx::new(mldsa_key)?;
+                let mut algo = Signature::for_ml_dsa(Variant::MlDsa87)?;
+                ctx.sign_message_init(&mut algo)?;
+                ctx.sign_to_vec(b, &mut signature)?;
+                Ok::<Vec<u8>, openssl::error::ErrorStack>(signature)
             })
             .unwrap();
 
-        let ecdsa_sig = Ecdsa384Signature {
-            r: sig.r().to_vec_padded(48).unwrap().try_into().unwrap(),
-            s: sig.s().to_vec_padded(48).unwrap().try_into().unwrap(),
+        let mldsa_sig = crate::MlDsa87Signature {
+            sig: sig.try_into().unwrap(),
         };
 
-        let builder = Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
+        let builder = crate::MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
         builder.build(&mut buf).unwrap();
 
@@ -211,14 +221,16 @@ mod tests {
     #[cfg(feature = "generate_templates")]
     fn test_fmc_alias_csr_template() {
         let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_csr_tbs.rs")).unwrap();
+            std::fs::read(std::path::Path::new("./build/fmc_alias_tbs_ml_dsa_87.rs")).unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/fmc_alias_csr_tbs.rs"
+            "/fmc_alias_tbs_ml_dsa_87.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
-            panic!("Auto-generated FMC Alias CSR template is not equal to the manual template.")
+            panic!(
+                "Auto-generated FMC Alias CSR MLDSA template is not equal to the manual template."
+            )
         }
     }
 }
