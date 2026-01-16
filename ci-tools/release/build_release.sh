@@ -33,7 +33,8 @@ cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORK
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
 
 # Generate fake ROM and Image Bundle Binary
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fake-fw $WORKSPACE_DIR/fake-image-bundle.bin
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fake-fw $WORKSPACE_DIR/fake-image-bundle-lms.bin --pqc-key-type 3
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fake-fw $WORKSPACE_DIR/fake-image-bundle-mldsa.bin --pqc-key-type 1
 # Copy fake ROM ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
 # Copy fake FMC ELF
