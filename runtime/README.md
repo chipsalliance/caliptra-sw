@@ -41,6 +41,19 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 * Initialize any SRAM structures used by Runtime Firmware
 * Upload the firwmare to the Manufacturer Control Unit (2.0, susbystem mode only)
 
+#### Encrypted Firmware Support (2.0, subsystem mode only)
+
+When ROM receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command instead of `RI_DOWNLOAD_FIRMWARE`, it sets the boot mode to `EncryptedFirmware`. In this mode:
+
+1. Runtime downloads the encrypted MCU firmware to MCU SRAM via the recovery interface
+2. Runtime does **not** activate the MCU firmware immediately
+3. The MCU ROM can then:
+   - Import an AES key using `CM_IMPORT`
+   - Decrypt the firmware in-place using `CM_AES_GCM_DECRYPT_DMA`
+   - Send `CM_ACTIVATE_FIRMWARE` to activate the decrypted MCU firmware
+
+The `CM_AES_GCM_DECRYPT_DMA` command is restricted to the `EncryptedFirmware` boot mode and performs a SHA384 integrity check of the ciphertext before decryption.
+
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
 If Runtime Firmware detects that Caliptra was reset during the execution of an operation, Runtime Firmware calls `DISABLE_ATTESTATION` because the internal state of Caliptra may be corrupted.
@@ -2133,6 +2146,41 @@ Command Code: `0x434D_4446` ("CMDF")
 | tag verified   | u32                | 1 if tags matched, 0 if they did not |
 | plaintext size | u32                | MAY be 0                             |
 | plaintext      | u8[plaintext size] |                                      |
+
+### CM_AES_GCM_DECRYPT_DMA
+
+Performs in-place AES-256-GCM decryption of data at an AXI address using DMA. This command is specifically designed for decrypting MCU firmware that was downloaded via the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command.
+
+**Important restrictions:**
+- This command is only available when the boot mode is `EncryptedFirmware`, which is set by ROM when it receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command.
+- The command performs a two-pass operation:
+  1. First pass: Verifies the SHA384 hash of the encrypted data at the AXI address
+  2. Second pass: Performs in-place AES-GCM decryption via DMA
+
+The CMK must be an AES key (key usage = 3) that was previously imported using `CM_IMPORT`.
+
+Command Code: `0x434D_4744` ("CMGD")
+
+*Table: `CM_AES_GCM_DECRYPT_DMA` input arguments*
+| **Name**              | **Type**  | **Description**                                      |
+| --------------------- | --------- | ---------------------------------------------------- |
+| chksum                | u32       | Checksum over other input arguments                  |
+| cmk                   | CMK       | Encrypted CMK containing the AES-256 key             |
+| iv                    | u32[3]    | AES-GCM initialization vector (12 bytes)             |
+| tag                   | u32[4]    | AES-GCM authentication tag (16 bytes)                |
+| encrypted_data_sha384 | u8[48]    | SHA384 hash of the encrypted data for verification   |
+| axi_addr_lo           | u32       | Lower 32 bits of the AXI address                     |
+| axi_addr_hi           | u32       | Upper 32 bits of the AXI address                     |
+| length                | u32       | Length of data to decrypt in bytes                   |
+| aad_length            | u32       | Length of AAD in bytes (0-4095)                      |
+| aad                   | u8[...]   | Additional authenticated data                        |
+
+*Table: `CM_AES_GCM_DECRYPT_DMA` output arguments*
+| **Name**     | **Type** | **Description**                                       |
+| ------------ | -------- | ----------------------------------------------------- |
+| chksum       | u32      | Checksum over other output arguments                  |
+| fips_status  | u32      | FIPS approved or an error                             |
+| tag_verified | u32      | 1 if GCM tag verification succeeded, 0 if it failed   |
 
 ### CM_ECDH_GENERATE
 

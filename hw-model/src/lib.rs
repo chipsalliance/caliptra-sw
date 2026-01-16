@@ -393,6 +393,9 @@ pub struct BootParams<'a> {
     pub soc_manifest: Option<&'a [u8]>,
     // MCU firmware image passed via the recovery interface
     pub mcu_fw_image: Option<&'a [u8]>,
+    /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
+    pub encrypted_boot: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -406,6 +409,7 @@ impl Default for BootParams<'_> {
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
+            encrypted_boot: false,
         }
     }
 }
@@ -646,6 +650,9 @@ const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 /// The download firmware from recovery interface Opcode
 const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
 
+/// The download encrypted firmware from recovery interface Opcode
+const RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE: u32 = 0x5249_4645;
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -758,11 +765,19 @@ pub trait HwModel: SocManager {
                 }
             )?;
             if subsystem_mode {
-                self.upload_firmware_rri(
-                    fw_image,
-                    boot_params.soc_manifest,
-                    boot_params.mcu_fw_image,
-                )?;
+                if boot_params.encrypted_boot {
+                    self.upload_firmware_rri_encrypted(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                } else {
+                    self.upload_firmware_rri(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                }
             } else {
                 self.upload_firmware(fw_image)?;
             }
@@ -1192,6 +1207,9 @@ pub trait HwModel: SocManager {
     /// Upload payload to external MCU SRAM
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError>;
 
+    /// Read payload from external MCU SRAM
+    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError>;
+
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         self.upload_firmware_to_mbox(firmware)
@@ -1222,6 +1240,22 @@ pub trait HwModel: SocManager {
     ) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
         let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
+        Ok(())
+    }
+
+    /// Upload encrypted fw image to RRI using RI_DOWNLOAD_ENCRYPTED_FIRMWARE command.
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
+    fn upload_firmware_rri_encrypted(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
+        let response = self.mailbox_execute(RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE, &[])?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }

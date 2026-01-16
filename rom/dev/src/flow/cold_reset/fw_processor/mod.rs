@@ -323,8 +323,11 @@ impl FirmwareProcessor {
                     return Ok((Some(txn), image_size_bytes));
                 }
 
-                // Handle RI_DOWNLOAD_FIRMWARE as a separate case since it needs mutable access to mbox
-                if txn.cmd() == CommandId::RI_DOWNLOAD_FIRMWARE.into() {
+                // Handle RI_DOWNLOAD_FIRMWARE and RI_DOWNLOAD_ENCRYPTED_FIRMWARE
+                // Both commands download firmware from recovery interface, but encrypted variant
+                // sets boot_mode so runtime knows not to activate MCU firmware after downloading
+                let encrypted = txn.cmd() == CommandId::RI_DOWNLOAD_ENCRYPTED_FIRMWARE.into();
+                if txn.cmd() == CommandId::RI_DOWNLOAD_FIRMWARE.into() || encrypted {
                     if !subsystem_mode {
                         cprintln!(
                             "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
@@ -338,6 +341,11 @@ impl FirmwareProcessor {
                         Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
                     }
                     cfi_assert_bool(subsystem_mode);
+
+                    // Set boot mode based on command type
+                    if encrypted {
+                        persistent_data.rom.boot_mode = BootMode::EncryptedFirmware;
+                    }
 
                     // Complete the command indicating success
                     cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");

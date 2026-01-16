@@ -2019,6 +2019,24 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(mci_base_addr + 0xc00000)
     }
 
+    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError> {
+        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
+
+        let mut result = Vec::with_capacity(len);
+        let num_words = (len + 3) / 4;
+
+        for i in 0..num_words {
+            let u32_value = unsafe { staging_ptr.add(i).read_volatile() };
+            let bytes = u32_value.to_le_bytes();
+            let remaining = len - result.len();
+            let take = remaining.min(4);
+            result.extend_from_slice(&bytes[..take]);
+        }
+
+        Ok(result)
+    }
+
     /// Trigger a warm reset and advance the boot
     fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
     where
