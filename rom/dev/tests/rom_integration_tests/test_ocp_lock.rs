@@ -11,11 +11,14 @@ use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError, SecuritySta
 use zerocopy::{FromBytes, IntoBytes};
 
 const ALL_HEK_SEED_STATES: &[HekSeedState] = &[
-    HekSeedState::Empty,
-    HekSeedState::Zeroized,
-    HekSeedState::Corrupted,
+    HekSeedState::Unused,
     HekSeedState::Programmed,
-    HekSeedState::Unerasable,
+    HekSeedState::ProgrammedPendingReset,
+    HekSeedState::ProgrammedCorrupted,
+    HekSeedState::Permanent,
+    HekSeedState::Sanitized,
+    HekSeedState::SanitizedPendingReset,
+    HekSeedState::SanitizedCorrupted,
 ];
 
 /// NOTE: These tests assume that `ss_ocp_lock_en` is set to true in the Caliptra bitstream.
@@ -26,7 +29,7 @@ fn test_hek_seed_states() {
     // Test PROD HEK seed states that allow HEK usage
     hek_seed_state_helper(
         DeviceLifecycle::Production,
-        &[HekSeedState::Programmed, HekSeedState::Unerasable],
+        &[HekSeedState::Programmed, HekSeedState::Permanent],
         true,
         [0xABDEu32; 8],
     );
@@ -34,9 +37,12 @@ fn test_hek_seed_states() {
     hek_seed_state_helper(
         DeviceLifecycle::Production,
         &[
-            HekSeedState::Empty,
-            HekSeedState::Zeroized,
-            HekSeedState::Corrupted,
+            HekSeedState::Unused,
+            HekSeedState::ProgrammedPendingReset,
+            HekSeedState::ProgrammedCorrupted,
+            HekSeedState::Sanitized,
+            HekSeedState::SanitizedPendingReset,
+            HekSeedState::SanitizedCorrupted,
         ],
         false,
         [0xABDEu32; 8],
@@ -87,7 +93,7 @@ fn test_invalid_hek_seed_state() {
         return;
     }
 
-    let first_invalid_hek_seed_state: u16 = u16::from(HekSeedState::Unerasable) + 1;
+    let first_invalid_hek_seed_state: u16 = u16::from(HekSeedState::SanitizedCorrupted) + 1;
     // Check that an unknown HEK Seed state returns an error
     for seed_state in first_invalid_hek_seed_state..first_invalid_hek_seed_state + 3 {
         let mut cmd = MailboxReq::OcpLockReportHekMetadata(OcpLockReportHekMetadataReq {
