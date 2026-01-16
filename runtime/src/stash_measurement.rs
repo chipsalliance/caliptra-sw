@@ -53,7 +53,7 @@ impl StashMeasurementCmd {
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
             let pdata = drivers.persistent_data.get_mut();
             let crypto = DpeCrypto::new(
                 &mut drivers.sha2_512_384,

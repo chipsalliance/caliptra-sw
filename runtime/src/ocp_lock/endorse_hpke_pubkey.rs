@@ -86,7 +86,7 @@ impl EndorseHpkePubkeyCmd {
     ) -> CaliptraResult<usize> {
         let not_before = NotBefore::default();
         let not_after = NotAfter::default();
-        let rt_ecc_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let rt_ecc_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let rt_ecc_pub_key = &drivers.persistent_data.get().rom.fht.rt_dice_ecc_pub_key;
         let issuer_sn: [u8; 64] = x509::subj_sn(&mut drivers.sha256, &PubKey::Ecc(rt_ecc_pub_key))?;
         let authority_key_id: [u8; 20] =

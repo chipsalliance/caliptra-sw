@@ -18,7 +18,7 @@ use core::hint::black_box;
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::{
     cprintln, handle_fatal_error,
-    keyids::{KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY},
+    keyids::{KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED},
 };
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
@@ -90,8 +90,10 @@ pub extern "C" fn entry_point() -> ! {
 
             pdata.rom.fht.rt_cdi_kv_hdl =
                 HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_CDI));
-            pdata.rom.fht.rt_priv_key_kv_hdl =
+            pdata.rom.fht.rt_ecc_priv_key_kv_hdl =
                 HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_ECDSA_PRIV_KEY));
+            pdata.rom.fht.rt_mldsa_keypair_seed_kv_hdl =
+                HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_MLDSA_KEYPAIR_SEED));
             HandOff::to_rt(&env);
         }
         match flow::run(&mut env) {

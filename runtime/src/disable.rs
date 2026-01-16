@@ -48,9 +48,11 @@ impl DisableAttestationCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn erase_keys(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let key_id_rt_ecc_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
+        let key_id_rt_mldsa_keypair_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
         drivers.key_vault.erase_key(key_id_rt_cdi)?;
-        drivers.key_vault.erase_key(key_id_rt_priv_key)
+        drivers.key_vault.erase_key(key_id_rt_ecc_priv_key)?;
+        drivers.key_vault.erase_key(key_id_rt_mldsa_keypair_seed)
     }
 
     /// Set CDI key vault slot to a KDF of a buffer of 0s.
@@ -91,7 +93,9 @@ impl DisableAttestationCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_dice_key(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+
+        // Derive the ECC Key Pair.
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pub_key = drivers.ecc384.key_pair(
             Ecc384Seed::Key(KeyReadArgs::new(key_id_rt_cdi)),
             &Array4x12::default(),
@@ -108,6 +112,23 @@ impl DisableAttestationCmd {
             .rom
             .fht
             .rt_dice_ecc_pub_key = pub_key;
+
+        // TODO(#3140): Derive the MLDSA Key Pair. This is causing a stack overflow and
+        // needs to be investigated.
+        // let key_id_rt_mldsa_keypair_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+        // Crypto::hmac_kdf(
+        //     &mut drivers.hmac,
+        //     &mut drivers.trng,
+        //     key_id_rt_cdi,
+        //     b"",
+        //     None,
+        //     key_id_rt_mldsa_keypair_seed,
+        //     HmacMode::Hmac512,
+        //     KeyUsage::default().set_mldsa_key_gen_seed_en(),
+        // )?;
+
+        // The MLDSA public key is not stored in the persistent data so it is
+        // not updated as part of this function.
 
         Ok(())
     }
