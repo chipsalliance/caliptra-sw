@@ -6,11 +6,14 @@ use crate::{Array4x8, Lifecycle};
 
 #[derive(Debug)]
 pub enum HekSeedState {
-    Empty,
-    Zeroized,
-    Corrupted,
+    Unused,
     Programmed,
-    Unerasable,
+    ProgrammedPendingReset,
+    ProgrammedCorrupted,
+    Permanent,
+    Sanitized,
+    SanitizedPendingReset,
+    SanitizedCorrupted,
 }
 
 impl TryFrom<u16> for HekSeedState {
@@ -19,11 +22,14 @@ impl TryFrom<u16> for HekSeedState {
         // Values defined in OCP LOCK spec v1.0
         // Table 15
         match value {
-            0x0 => Ok(HekSeedState::Empty),
-            0x1 => Ok(HekSeedState::Zeroized),
-            0x2 => Ok(HekSeedState::Corrupted),
-            0x3 => Ok(HekSeedState::Programmed),
-            0x4 => Ok(HekSeedState::Unerasable),
+            0x0 => Ok(HekSeedState::Unused),
+            0x1 => Ok(HekSeedState::Programmed),
+            0x2 => Ok(HekSeedState::ProgrammedPendingReset),
+            0x3 => Ok(HekSeedState::ProgrammedCorrupted),
+            0x4 => Ok(HekSeedState::Permanent),
+            0x5 => Ok(HekSeedState::Sanitized),
+            0x6 => Ok(HekSeedState::SanitizedPendingReset),
+            0x7 => Ok(HekSeedState::SanitizedCorrupted),
             _ => Err(CaliptraError::DRIVER_OCP_LOCK_COLD_RESET_INVALID_HEK_SEED),
         }
     }
@@ -32,11 +38,14 @@ impl TryFrom<u16> for HekSeedState {
 impl From<HekSeedState> for u16 {
     fn from(value: HekSeedState) -> Self {
         match value {
-            HekSeedState::Empty => 0x0,
-            HekSeedState::Zeroized => 0x1,
-            HekSeedState::Corrupted => 0x2,
-            HekSeedState::Programmed => 0x3,
-            HekSeedState::Unerasable => 0x4,
+            HekSeedState::Unused => 0x0,
+            HekSeedState::Programmed => 0x1,
+            HekSeedState::ProgrammedPendingReset => 0x2,
+            HekSeedState::ProgrammedCorrupted => 0x3,
+            HekSeedState::Permanent => 0x4,
+            HekSeedState::Sanitized => 0x5,
+            HekSeedState::SanitizedPendingReset => 0x6,
+            HekSeedState::SanitizedCorrupted => 0x7,
         }
     }
 }
@@ -44,11 +53,14 @@ impl From<HekSeedState> for u16 {
 impl From<&HekSeedState> for u16 {
     fn from(value: &HekSeedState) -> Self {
         match value {
-            HekSeedState::Empty => 0x0,
-            HekSeedState::Zeroized => 0x1,
-            HekSeedState::Corrupted => 0x2,
-            HekSeedState::Programmed => 0x3,
-            HekSeedState::Unerasable => 0x4,
+            HekSeedState::Unused => 0x0,
+            HekSeedState::Programmed => 0x1,
+            HekSeedState::ProgrammedPendingReset => 0x2,
+            HekSeedState::ProgrammedCorrupted => 0x3,
+            HekSeedState::Permanent => 0x4,
+            HekSeedState::Sanitized => 0x5,
+            HekSeedState::SanitizedPendingReset => 0x6,
+            HekSeedState::SanitizedCorrupted => 0x7,
         }
     }
 }
@@ -66,7 +78,7 @@ impl HekSeedState {
             // Actual seed must not be zeroized when drive declares seed state is programmed.
             (Self::Programmed, Lifecycle::Production, false) => true,
             // HEK is Unerasable so it's okay if the actual seed is zeroized.
-            (Self::Unerasable, Lifecycle::Production, _) => true,
+            (Self::Permanent, Lifecycle::Production, _) => true,
             _ => false,
         }
     }
