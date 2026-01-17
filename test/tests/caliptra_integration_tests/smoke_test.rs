@@ -302,9 +302,10 @@ fn smoke_test() {
             )
             .unwrap();
 
+            hw.step_until_output_contains("[rt] RT listening for mailbox commands...\n")
+                .unwrap();
+
             if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-                hw.step_until_output_contains("[rt] RT listening for mailbox commands...\n")
-                    .unwrap();
                 let output = hw.output().take(usize::MAX);
                 assert_output_contains(&output, "Running Caliptra ROM");
                 assert_output_contains(&output, "[cold-reset]");
