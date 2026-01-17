@@ -7,9 +7,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
-    context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
 };
 
 use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
@@ -22,17 +20,13 @@ fn test_revoke_exported_cdi_handle() {
     });
 
     let export_cdi_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&export_cdi_cmd),
+        &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
         panic!("expected derive context resp!")
@@ -60,17 +54,13 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
     });
 
     let export_cdi_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&export_cdi_cmd),
+        &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
         panic!("expected derive context resp!")
@@ -148,19 +138,15 @@ fn test_export_cdi_after_revoke() {
     });
 
     let export_cdi_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
-        target_locality: 0,
-        svn: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(resp)) = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&export_cdi_cmd),
+        &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
         panic!("expected derive context resp!")
@@ -181,7 +167,7 @@ fn test_export_cdi_after_revoke() {
 
     let Some(Response::DeriveContextExportedCdi(_)) = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&export_cdi_cmd),
+        &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
         panic!("expected derive context resp!")

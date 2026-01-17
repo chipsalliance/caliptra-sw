@@ -8,9 +8,9 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags},
+    commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd},
     context::ContextHandle,
-    response::CertifyKeyResp,
+    response::CertifyKeyP384Resp,
 };
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
@@ -83,7 +83,7 @@ fn test_dmtf_other_name_extension_present() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -102,7 +102,7 @@ fn test_dmtf_other_name_extension_present() {
     let certify_key_extended_resp =
         CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
+        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
 
     let (_, cert) =
@@ -135,7 +135,7 @@ fn test_dmtf_other_name_extension_not_present() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
 
     // Check that otherName extension is not present if not provided by ADD_SUBJECT_ALT_NAME
@@ -156,7 +156,7 @@ fn test_dmtf_other_name_extension_not_present() {
     let certify_key_extended_resp =
         CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
+        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
@@ -201,7 +201,7 @@ fn test_dmtf_other_name_extension_not_present() {
     let certify_key_extended_resp =
         CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
+        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
