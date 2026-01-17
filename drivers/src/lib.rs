@@ -54,6 +54,7 @@ pub mod pic;
 pub mod preconditioned_aes;
 pub mod preconditioned_key;
 pub mod printer;
+pub mod riscv;
 mod sha1;
 mod sha256;
 pub mod sha2_512_384;
