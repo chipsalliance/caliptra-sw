@@ -26,6 +26,7 @@ use crate::flow::cold_reset::fmc_alias::FmcAliasLayer;
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
+use crate::rom_env::RomEnvFips;
 use crate::{cprintln, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
@@ -51,7 +52,7 @@ impl ColdResetFlow {
     /// * `env` - ROM Environment
     #[inline(never)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut RomEnvFips) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
 

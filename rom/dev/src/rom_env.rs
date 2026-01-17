@@ -27,13 +27,11 @@ use caliptra_registers::{
     soc_ifc_trng::SocIfcTrngReg,
 };
 
-/// Rom Context
+/// Non-Crypto ROM Context
+/// Contains only the non-cryptographic drivers and those needed before KAT execution
 pub struct RomEnv {
     /// Deobfuscation engine
     pub doe: DeobfuscationEngine,
-
-    // SHA1 Engine
-    pub sha1: Sha1,
 
     // SHA2-256 Engine
     pub sha256: Sha256,
@@ -95,7 +93,6 @@ impl RomEnv {
 
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
-            sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
@@ -113,5 +110,54 @@ impl RomEnv {
             dma: Dma::default(),
             aes: Aes::new(AesReg::new(), AesClpReg::new()),
         })
+    }
+}
+
+/// Full ROM Context
+/// Contains all drivers needed after KAT execution
+pub struct RomEnvFips {
+    /// Non-crypto environment (embedded)
+    pub non_crypto: RomEnv,
+
+    // SHA1 Engine (initialized by KATs)
+    pub sha1: Sha1,
+}
+
+impl RomEnvFips {
+    /// Create RomEnvFips from non-crypto environment and initialized drivers
+    pub fn from_non_crypto(
+        non_crypto: RomEnv,
+        initialized: caliptra_kat::InitializedDrivers,
+    ) -> Self {
+        Self {
+            non_crypto,
+            sha1: initialized.sha1,
+        }
+    }
+
+    /// Get a mutable reference to the non-crypto environment
+    pub fn non_crypto_mut(&mut self) -> &mut RomEnv {
+        &mut self.non_crypto
+    }
+
+    /// Get an immutable reference to the non-crypto environment
+    #[allow(dead_code)]
+    pub fn non_crypto(&self) -> &RomEnv {
+        &self.non_crypto
+    }
+}
+
+// Provide transparent access to non-crypto fields via Deref
+impl core::ops::Deref for RomEnvFips {
+    type Target = RomEnv;
+
+    fn deref(&self) -> &Self::Target {
+        &self.non_crypto
+    }
+}
+
+impl core::ops::DerefMut for RomEnvFips {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.non_crypto
     }
 }

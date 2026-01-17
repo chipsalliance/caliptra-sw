@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use crate::cprintln;
-use crate::rom_env::RomEnv;
+use crate::rom_env::RomEnvFips;
 use caliptra_common::{crypto::PubKey, x509};
 use caliptra_drivers::*;
 use core::mem::size_of;
@@ -27,7 +27,7 @@ use core::mem::size_of;
 /// # Returns
 ///
 /// `[u8; 20]` - X509 Subject Key Identifier
-pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u8; 20]> {
+pub fn idev_subj_key_id(env: &mut RomEnvFips, pub_key: &PubKey) -> CaliptraResult<[u8; 20]> {
     let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
     let pub_key_size = x509::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
     let data: &[u8] = &pub_key_bytes[..pub_key_size];
@@ -46,19 +46,19 @@ pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u
         }
         X509KeyIdAlgo::Sha256 => {
             cprintln!("[idev] Sha256 KeyId Algorithm");
-            let digest = env.sha256.digest(data);
+            let digest = env.non_crypto.sha256.digest(data);
             let digest: [u8; 32] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }
         X509KeyIdAlgo::Sha384 => {
             cprintln!("[idev] Sha384 KeyId Algorithm");
-            let digest = env.sha2_512_384.sha384_digest(data);
+            let digest = env.non_crypto.sha2_512_384.sha384_digest(data);
             let digest: [u8; 48] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }
         X509KeyIdAlgo::Sha512 => {
             cprintln!("[idev] Sha512 KeyId Algorithm");
-            let digest = env.sha2_512_384.sha512_digest(data);
+            let digest = env.non_crypto.sha2_512_384.sha512_digest(data);
             let digest: [u8; 64] = okref(&digest)?.into();
             digest[..20].try_into().unwrap()
         }

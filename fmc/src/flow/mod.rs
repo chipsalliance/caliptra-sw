@@ -20,7 +20,7 @@ mod tci;
 
 use crate::flow::rt_alias::RtAliasLayer;
 
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::FmcEnvFips;
 use caliptra_cfi_lib::cfi_assert_ne;
 use caliptra_drivers::{CaliptraResult, FwPersistentData, RomPersistentData};
 use caliptra_error::CaliptraError;
@@ -30,7 +30,7 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
     {
         use caliptra_cfi_lib::cfi_assert_eq;
         use caliptra_drivers::ResetReason;

@@ -16,6 +16,7 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
+use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
@@ -26,7 +27,7 @@ use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason,
+    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason, Sha1,
     ShaAccLockState, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -143,11 +144,12 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "fake-rom") {
+    let initialized = if cfg!(feature = "fake-rom") {
+        InitializedDrivers {
+            sha1: Sha1::new().unwrap(),
+        }
+    } else {
         let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
             // sha256
             sha256: &mut env.sha256,
 
@@ -188,11 +190,13 @@ pub extern "C" fn rom_entry() -> ! {
                 ShaAccLockState::AssumedLocked
             },
         };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
+        match run_fips_tests(&mut kats_env) {
+            Err(err) => handle_fatal_error(err.into()),
+            Ok(initialized) => initialized,
         }
-    }
+    };
+
+    let mut env = RomEnvFips::from_non_crypto(env, initialized);
 
     if let Err(err) = flow::run(&mut env) {
         //
@@ -226,7 +230,7 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
@@ -243,11 +247,11 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
 
-    caliptra_kat::execute_kat(env)?;
+    let initialized_drivers = caliptra_kat::execute_kat(env)?;
 
     report_boot_status(KatComplete.into());
 
-    Ok(())
+    Ok(initialized_drivers)
 }
 
 fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {

@@ -175,7 +175,7 @@ run: build-emu build-fw-test-image build-rom
 		--pqc-key-type $(PQC_KEY_TYPE) \
 		$(if $(filter production manufacturing,$(DEVICE_LIFECYCLE)),--mfg-pk-hash \
 			$$(dd if=$(TARGET_DIR)/caliptra-rom-test-fw bs=1 skip=12 count=1736 status=none | sha384sum | cut -d' ' -f1),)
-# See image/types/src/lib.rs ImageManifest for offsets and lenghts of vendor_pub_key_info
+# See image/types/src/lib.rs ImageManifest for offsets and lengths of vendor_pub_key_info
 
 run-active: build-emu build-fw-image build-rom
 	cargo \

@@ -102,9 +102,6 @@ pub struct FirmwareProcessor {}
 impl FirmwareProcessor {
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
         let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
             // sha256
             sha256: &mut env.sha256,
 
