@@ -2,12 +2,13 @@
 
 use caliptra_api::{
     mailbox::{
-        CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, MailboxReq,
+        CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
         MailboxReqHeader, MailboxRespHeader, OcpLockEndorseHpkePubKeyReq,
         OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
-        OcpLockEnumerateHpkeHandlesResp, OcpLockInitializeMekSecretReq,
+        OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockInitializeMekSecretReq,
         OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
-        OcpLockReportHekMetadataRespFlags,
+        OcpLockReportHekMetadataRespFlags, SealedAccessKey, OCP_LOCK_MAX_ENC_LEN,
+        OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
     },
     Capabilities,
 };
@@ -18,6 +19,7 @@ use caliptra_hw_model::{
     DefaultHwModel, HwModel, ModelCallback, ModelError, OcpLockState, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_test::crypto::hpke::{self, Hpke};
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -31,6 +33,7 @@ mod test_derive_mek;
 mod test_endorse_hpke_pubkey;
 mod test_enumerate_hpke_handles;
 mod test_generate_mek;
+mod test_generate_mpk;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
 mod test_rotate_hpke_key;
@@ -200,11 +203,11 @@ fn validate_ocp_lock_response<T>(
 
 #[derive(Debug, PartialEq)]
 struct ValidatedHpkeHandle {
-    hpke_handle: u32,
+    hpke_handle: HpkeHandle,
     pub_key: Vec<u8>,
 }
 
-fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<u32> {
+fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<HpkeHandle> {
     let mut cmd =
         MailboxReq::OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq::default());
     cmd.populate_chksum().unwrap();
@@ -227,7 +230,7 @@ fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<
         hpke_handle
     })?;
 
-    Some(hpke_handle.handle)
+    Some(hpke_handle)
 }
 
 fn get_validated_hpke_handle(
@@ -240,11 +243,11 @@ fn get_validated_hpke_handle(
 
 fn verify_hpke_pub_key(
     model: &mut DefaultHwModel,
-    hpke_handle: u32,
+    hpke_handle: HpkeHandle,
 ) -> Option<ValidatedHpkeHandle> {
     // TODO(clundin): Update for ML-DSA endorsement after https://github.com/chipsalliance/caliptra-sw/issues/3106.
     let mut cmd = MailboxReq::OcpLockEndorseHpkePubKey(OcpLockEndorseHpkePubKeyReq {
-        hpke_handle,
+        hpke_handle: hpke_handle.handle,
         endorsement_algorithm: EndorsementAlgorithms::ECDSA_P384_SHA384,
         ..Default::default()
     });
@@ -307,4 +310,49 @@ fn verify_endorsement_certificate(
 
     // Ensure the public key in response is contained in the certificate's SPKI
     assert_eq!(spki.subject_public_key.data, pub_key_resp);
+}
+
+fn encrypt_message_to_hpke_pub_key(
+    endorsed_key: &ValidatedHpkeHandle,
+    info: &[u8],
+    aad: &[u8],
+    pt: &[u8],
+) -> (Vec<u8>, Vec<u8>) {
+    let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+    let (enc, mut sender_ctx) = hpke.setup_base_s(&endorsed_key.pub_key, info);
+    let ct = sender_ctx.seal(aad, pt);
+    (enc, ct)
+}
+
+fn create_generate_mpk_req(
+    endorsed_key: &ValidatedHpkeHandle,
+    info: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+    metadata: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    access_key: &[u8; 32],
+) -> MailboxReq {
+    let (enc, ct) = encrypt_message_to_hpke_pub_key(endorsed_key, info, metadata, access_key);
+
+    let mut kem_ciphertext = [0; OCP_LOCK_MAX_ENC_LEN];
+    kem_ciphertext[..enc.len()].clone_from_slice(&enc);
+
+    let mut ak_ciphertext = [0; 48];
+    ak_ciphertext.clone_from_slice(&ct);
+
+    let mut cmd = MailboxReq::OcpLockGenerateMpk(OcpLockGenerateMpkReq {
+        sek: [0xAB; 32],
+        metadata_len: metadata.len() as u32,
+        metadata: *metadata,
+        sealed_access_key: SealedAccessKey {
+            hpke_handle: endorsed_key.hpke_handle.clone(),
+            access_key_len: access_key.len() as u32,
+            info_len: info.len() as u32,
+            info: *info,
+            kem_ciphertext,
+            ak_ciphertext,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+    cmd
 }

@@ -2,7 +2,7 @@
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use encryption_context::{EncryptionContext, Receiver, Sender};
+pub use encryption_context::{EncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
 use kem::{
     EncapsulatedSecret, EncapsulationKey, Kem, MlKem, MlKemEncapsulatedSecret,
@@ -12,9 +12,9 @@ use suites::CipherSuite;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{LEArray4x392, MlKem1024, Sha3, Trng};
+use crate::{Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
 
-mod aead;
+pub mod aead;
 mod encryption_context;
 pub mod kdf;
 pub mod kem;
@@ -197,6 +197,37 @@ impl HpkeContext {
             match key {
                 HpkePrivateKey::MlKem { handle, .. } if handle == hpke_handle => {
                     return Ok(CipherSuite::ML_KEM_1024);
+                }
+                _ => (),
+            }
+        }
+        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+    }
+
+    /// Decap encapsulated data
+    ///
+    /// Performs a `decap` operation and returns a context that can open encrypted messages
+    #[allow(clippy::too_many_arguments)]
+    pub fn decap(
+        &mut self,
+        sha: &mut Sha3,
+        ml_kem: &mut MlKem1024,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        hpke_handle: &HpkeHandle,
+        enc: &[u8],
+        info: &[u8],
+    ) -> CaliptraResult<EncryptionContext<Receiver>> {
+        for key in self.priv_keys.iter() {
+            match key {
+                HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
+                    let mut kdf = Hmac384::new(hmac);
+                    let mut ml_kem = MlKem::new(sha, ml_kem);
+                    let enc = enc
+                        .get(..MlKem::NENC)
+                        .and_then(|enc| MlKemEncapsulatedSecret::ref_from_bytes(enc).ok())
+                        .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_ENC_FAILURE)?;
+                    return context.setup_base_r(&mut ml_kem, &mut kdf, trng, enc, info);
                 }
                 _ => (),
             }

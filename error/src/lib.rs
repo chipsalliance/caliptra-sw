@@ -1680,6 +1680,21 @@ impl CaliptraError {
             "OCP LOCK Error: endorsement certificate encoding error"
         ),
         (
+            RUNTIME_OCP_LOCK_DESERIALIZE_ENC_FAILURE,
+            0x000E0085,
+            "OCP LOCK Error: failed to deserialize the enc param"
+        ),
+        (
+            RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE,
+            0x000E0086,
+            "OCP LOCK Error: failed to deserialize the metadata param"
+        ),
+        (
+            RUNTIME_OCP_LOCK_SERIALIZE_METADATA_FAILURE,
+            0x000E0087,
+            "OCP LOCK Error: failed to serialize the metadata param"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
