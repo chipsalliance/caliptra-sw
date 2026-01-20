@@ -178,8 +178,6 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
             .ready_for_mb_processing()
     });
 
-    // Verify we reach load FW, we don't care about success here
-    //    hw.upload_firmware_to_mbox(&fw_image).unwrap();
     match hw.upload_firmware_to_mbox(&fw_image) {
         Ok(_) => {
             if hw.subsystem_mode() {
