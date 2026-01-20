@@ -91,7 +91,7 @@ impl Default for Pic {
 }
 
 fn irq_id_from_addr(addr: u32) -> u8 {
-    u8::try_from((addr & 0x7f) / 4).unwrap()
+    u8::try_from((addr & 0x3ff) / 4).unwrap()
 }
 pub struct PicMmioRegisters {
     pic: Rc<PicImpl>,
@@ -508,7 +508,7 @@ impl PicImpl {
         self.priority_xor.set(priority_xor);
         self.priority_order.set(priorities);
         self.id_to_order.set(id_to_order);
-        for i in 0..32u8 {
+        for i in 0..=255u8 {
             self.refresh_enabled(&regs, i);
         }
     }
@@ -618,5 +618,262 @@ mod tests {
 
         irq2.set_level(false);
         assert_eq!(pic.highest_priority_irq(0), None);
+    }
+
+    #[test]
+    fn test_interrupt_255_can_fire() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        // Register IRQ 255 (the highest valid interrupt id)
+        let irq255 = pic.register_irq(255);
+
+        assert_eq!(pic.highest_priority_irq(0), None);
+
+        // Drive irq255 line high
+        irq255.set_level(true);
+
+        // Enable irq255
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 255 * 4, 1)
+            .unwrap();
+
+        // Set the priority of irq255 to 1
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 255 * 4, 1)
+            .unwrap();
+
+        // irq255 should be the highest priority firing interrupt
+        assert_eq!(pic.highest_priority_irq(0), Some(255));
+
+        irq255.set_level(false);
+        assert_eq!(pic.highest_priority_irq(0), None);
+    }
+
+    #[test]
+    fn test_interrupt_128_can_fire() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        // Register IRQ 128 (in the second half of interrupt ids)
+        let irq128 = pic.register_irq(128);
+
+        assert_eq!(pic.highest_priority_irq(0), None);
+
+        // Drive irq128 line high
+        irq128.set_level(true);
+
+        // Enable irq128
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 128 * 4, 1)
+            .unwrap();
+
+        // Set the priority of irq128 to 1
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 128 * 4, 1)
+            .unwrap();
+
+        // irq128 should be the highest priority firing interrupt
+        assert_eq!(pic.highest_priority_irq(0), Some(128));
+
+        irq128.set_level(false);
+        assert_eq!(pic.highest_priority_irq(0), None);
+    }
+
+    #[test]
+    fn test_high_interrupt_beats_low_with_same_priority() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        let irq1 = pic.register_irq(1);
+        let irq200 = pic.register_irq(200);
+
+        // Drive both lines high
+        irq1.set_level(true);
+        irq200.set_level(true);
+
+        // Enable both
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 4, 1)
+            .unwrap();
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 200 * 4, 1)
+            .unwrap();
+
+        // Set both to priority 5
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 4, 5)
+            .unwrap();
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 200 * 4, 5)
+            .unwrap();
+
+        // irq1 should win (lower id wins with same priority)
+        assert_eq!(pic.highest_priority_irq(0), Some(1));
+
+        // Raise priority of irq200 to 10
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 200 * 4, 10)
+            .unwrap();
+
+        // Now irq200 should win
+        assert_eq!(pic.highest_priority_irq(0), Some(200));
+    }
+
+    #[test]
+    fn test_all_256_interrupts_can_be_enabled() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        // Test that all 256 interrupt IDs (1-255) can be registered, enabled,
+        // set to a priority, fired, and detected
+        for id in 1u8..=255 {
+            let irq = pic.register_irq(id);
+
+            // Set priority
+            regs.write(
+                RvSize::Word,
+                PicMmioRegisters::MEIPL_OFFSET + u32::from(id) * 4,
+                1,
+            )
+            .unwrap();
+
+            // Enable
+            regs.write(
+                RvSize::Word,
+                PicMmioRegisters::MEIE_OFFSET + u32::from(id) * 4,
+                1,
+            )
+            .unwrap();
+
+            // Fire
+            irq.set_level(true);
+
+            // Verify it's the highest priority (it's the only one firing)
+            assert_eq!(
+                pic.highest_priority_irq(0),
+                Some(id),
+                "IRQ {} should be detected as highest priority",
+                id
+            );
+
+            // Clear
+            irq.set_level(false);
+            assert_eq!(
+                pic.highest_priority_irq(0),
+                None,
+                "No IRQ should be pending after clearing IRQ {}",
+                id
+            );
+
+            // Disable for next iteration
+            regs.write(
+                RvSize::Word,
+                PicMmioRegisters::MEIE_OFFSET + u32::from(id) * 4,
+                0,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_irq_id_from_addr() {
+        // Test that irq_id_from_addr correctly extracts IRQ IDs for all 256 interrupts
+        for id in 0u8..=255 {
+            let addr = u32::from(id) * 4;
+            assert_eq!(
+                irq_id_from_addr(addr),
+                id,
+                "irq_id_from_addr(0x{:x}) should return {}",
+                addr,
+                id
+            );
+        }
+    }
+
+    #[test]
+    fn test_edge_triggered_gateway_clear_high_irq() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        // Test edge-triggered interrupt with a high IRQ ID (200)
+        let irq200 = pic.register_irq(200);
+
+        // Configure IRQ 200 as edge-triggered
+        regs.write(
+            RvSize::Word,
+            PicMmioRegisters::MEIGWCTRL_OFFSET + 200 * 4,
+            0b10, // TYPE=EdgeTriggered, POLARITY=ActiveHigh
+        )
+        .unwrap();
+
+        // Enable and set priority
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 200 * 4, 1)
+            .unwrap();
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 200 * 4, 5)
+            .unwrap();
+
+        // Trigger edge (low -> high)
+        irq200.set_level(false);
+        irq200.set_level(true);
+
+        // Should be pending
+        assert_eq!(pic.highest_priority_irq(0), Some(200));
+
+        // Lower the line before clearing gateway (typical edge-triggered usage)
+        irq200.set_level(false);
+
+        // Clear the gateway - this uses irq_id_from_addr internally
+        regs.write(RvSize::Word, PicMmioRegisters::MEIGWCLR_OFFSET + 200 * 4, 0)
+            .unwrap();
+
+        // Should no longer be pending after gateway clear
+        assert_eq!(
+            pic.highest_priority_irq(0),
+            None,
+            "IRQ 200 should not be pending after gateway clear"
+        );
+
+        // Trigger another edge - should fire again
+        irq200.set_level(true);
+        assert_eq!(
+            pic.highest_priority_irq(0),
+            Some(200),
+            "IRQ 200 should fire on new edge"
+        );
+    }
+
+    #[test]
+    fn test_meigwctrl_write_high_irq() {
+        let pic = Pic::new();
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
+
+        // Test that writing to MEIGWCTRL for high IRQ IDs works correctly
+        let irq250 = pic.register_irq(250);
+
+        // Enable and set priority first
+        regs.write(RvSize::Word, PicMmioRegisters::MEIE_OFFSET + 250 * 4, 1)
+            .unwrap();
+        regs.write(RvSize::Word, PicMmioRegisters::MEIPL_OFFSET + 250 * 4, 5)
+            .unwrap();
+
+        // Set level high with default active-high polarity
+        irq250.set_level(true);
+        assert_eq!(pic.highest_priority_irq(0), Some(250));
+
+        // Change polarity to active-low - this should refresh the gateway
+        // and since level is high but polarity is now active-low, interrupt should clear
+        regs.write(
+            RvSize::Word,
+            PicMmioRegisters::MEIGWCTRL_OFFSET + 250 * 4,
+            0b01, // TYPE=LevelTriggered, POLARITY=ActiveLow
+        )
+        .unwrap();
+
+        // With active-low polarity and high level, interrupt should not fire
+        assert_eq!(
+            pic.highest_priority_irq(0),
+            None,
+            "IRQ 250 should not fire with active-low polarity and high level"
+        );
+
+        // Set level low - now it should fire with active-low polarity
+        irq250.set_level(false);
+        assert_eq!(
+            pic.highest_priority_irq(0),
+            Some(250),
+            "IRQ 250 should fire with active-low polarity and low level"
+        );
     }
 }
