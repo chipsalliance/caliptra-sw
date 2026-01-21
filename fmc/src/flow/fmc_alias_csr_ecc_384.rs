@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::flow::dice::DiceOutput;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::{FmcEnv, FmcEnvFips};
 use crate::HandOff;
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
@@ -42,7 +42,7 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 /// # Returns
 ///
 /// * `DiceInput` - DICE Layer Input
-fn dice_output_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceOutput> {
+fn dice_output_from_hand_off(env: &mut FmcEnvFips) -> CaliptraResult<DiceOutput> {
     let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
     let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
     let ecc_subj_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
@@ -72,7 +72,7 @@ fn dice_output_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceOutput> {
 }
 
 #[inline(always)]
-pub fn generate_csr(env: &mut FmcEnv) -> CaliptraResult<()> {
+pub fn generate_csr(env: &mut FmcEnvFips) -> CaliptraResult<()> {
     dice_output_from_hand_off(env).and_then(|output| make_csr(env, &output))
 }
 

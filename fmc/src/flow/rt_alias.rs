@@ -20,7 +20,7 @@ use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
-use crate::fmc_env::FmcEnv;
+use crate::fmc_env::{FmcEnv, FmcEnvFips};
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cfi_check;
@@ -48,7 +48,7 @@ pub struct RtAliasLayer {}
 impl RtAliasLayer {
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &mut FmcEnvFips, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         if Self::kv_slot_collides(input.cdi) {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
         }
@@ -126,7 +126,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
@@ -160,7 +160,7 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(env: &mut FmcEnvFips) -> CaliptraResult<DiceInput> {
         let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
         let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
         let ecc_auth_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
@@ -348,7 +348,7 @@ impl RtAliasLayer {
     /// * `output` - DICE Output
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
@@ -364,7 +364,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_ecc_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
@@ -407,9 +407,9 @@ impl RtAliasLayer {
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         let sig = Crypto::ecdsa384_sign(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
-            &mut env.trng,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
+            &mut env.non_crypto.trng,
             auth_priv_key,
             auth_pub_key,
             tbs.tbs(),
@@ -437,8 +437,8 @@ impl RtAliasLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
             auth_pub_key,
             tbs.tbs(),
             sig,
@@ -458,7 +458,7 @@ impl RtAliasLayer {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_mldsa_cert_sig(
-        env: &mut FmcEnv,
+        env: &mut FmcEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsMlDsa87Params::NOT_BEFORE_LEN],
@@ -502,8 +502,8 @@ impl RtAliasLayer {
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         let sig = Crypto::mldsa87_sign(
-            &mut env.mldsa,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa,
+            &mut env.non_crypto.trng,
             key_pair_seed,
             auth_pub_key,
             tbs.tbs(),

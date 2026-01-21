@@ -72,7 +72,7 @@ fn test_coefficient() {
 }
 
 fn test_hash_message_24() {
-    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()).unwrap() };
     let message: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -97,7 +97,7 @@ fn test_hash_message_24() {
 }
 
 fn test_lms_24_height_15() {
-    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()).unwrap() };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,

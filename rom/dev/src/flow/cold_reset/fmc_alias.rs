@@ -17,7 +17,7 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::rom_env::RomEnv;
+use crate::rom_env::{RomEnv, RomEnvFips};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -47,14 +47,14 @@ impl FmcAliasLayer {
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(
-        env: &mut RomEnv,
+        env: &mut RomEnvFips,
         input: &DiceInput,
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
-        let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
+        let mut measurement = env.non_crypto.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
         // Derive the DICE CDI from the measurement
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
@@ -194,7 +194,7 @@ impl FmcAliasLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_ecc(
-        env: &mut RomEnv,
+        env: &mut RomEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
         fw_proc_info: &FwProcInfo,
@@ -202,16 +202,19 @@ impl FmcAliasLayer {
         let auth_priv_key = input.ecc_auth_key_pair.priv_key;
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
-        let data_vault = &env.persistent_data.get().rom.data_vault;
-        let soc_ifc = &env.soc_ifc;
+        let data_vault = &env.non_crypto.persistent_data.get().rom.data_vault;
+        let soc_ifc = &env.non_crypto.soc_ifc;
 
-        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let flags = dice::make_flags(
+            env.non_crypto.soc_ifc.lifecycle(),
+            env.non_crypto.soc_ifc.debug_locked(),
+        );
 
         let svn = data_vault.cold_boot_fw_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
-        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
+        let mut hasher = env.non_crypto.sha2_512_384.sha384_digest_init()?;
         hasher.update(&[
             soc_ifc.lifecycle() as u8,
             soc_ifc.debug_locked() as u8,
@@ -254,9 +257,9 @@ impl FmcAliasLayer {
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
-            &mut env.trng,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
+            &mut env.non_crypto.trng,
             auth_priv_key,
             auth_pub_key,
             tbs.tbs(),
@@ -290,7 +293,7 @@ impl FmcAliasLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_mldsa(
-        env: &mut RomEnv,
+        env: &mut RomEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
         fw_proc_info: &FwProcInfo,
@@ -298,16 +301,19 @@ impl FmcAliasLayer {
         let auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
         let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
         let pub_key = output.mldsa_subj_key_pair.pub_key;
-        let data_vault = &env.persistent_data.get().rom.data_vault;
-        let soc_ifc = &env.soc_ifc;
+        let data_vault = &env.non_crypto.persistent_data.get().rom.data_vault;
+        let soc_ifc = &env.non_crypto.soc_ifc;
 
-        let flags = dice::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+        let flags = dice::make_flags(
+            env.non_crypto.soc_ifc.lifecycle(),
+            env.non_crypto.soc_ifc.debug_locked(),
+        );
 
         let svn = data_vault.fw_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
-        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
+        let mut hasher = env.non_crypto.sha2_512_384.sha384_digest_init()?;
         hasher.update(&[
             soc_ifc.lifecycle() as u8,
             soc_ifc.debug_locked() as u8,
@@ -350,8 +356,8 @@ impl FmcAliasLayer {
             auth_priv_key as u8
         );
         let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa87,
+            &mut env.non_crypto.trng,
             auth_priv_key,
             auth_pub_key,
             tbs.tbs(),
@@ -363,12 +369,15 @@ impl FmcAliasLayer {
             "[afmc] MLDSA Erase AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        env.key_vault.erase_key(auth_priv_key).inspect_err(|_err| {
-            sig.zeroize();
-        })?;
+        env.non_crypto
+            .key_vault
+            .erase_key(auth_priv_key)
+            .inspect_err(|_err| {
+                sig.zeroize();
+            })?;
 
         // Set the FMC Certificate Signature in data vault.
-        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+        let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
         data_vault.set_fmc_dice_mldsa_signature(sig);
         sig.zeroize();
 

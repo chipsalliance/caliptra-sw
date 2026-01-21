@@ -190,7 +190,7 @@ impl Drivers {
             sha_acc: Sha512AccCsr::new(),
             key_vault: KeyVault::new(KvReg::new()),
             soc_ifc,
-            sha256: Sha256::new(Sha256Reg::new()),
+            sha256: Sha256::new(Sha256Reg::new())?,
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             sha3: Sha3::new(KmacReg::new()),

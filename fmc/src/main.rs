@@ -25,7 +25,7 @@ use caliptra_kat::InitializedDrivers;
 
 use caliptra_drivers::{
     hand_off::{DataStore, HandOffDataHandle},
-    FwPersistentData, ResetReason, RomPersistentData, Sha1,
+    FwPersistentData, ResetReason, RomPersistentData,
 };
 
 mod boot_status;
@@ -81,11 +81,9 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(CaliptraError::FMC_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
     }
 
-    let initialized = InitializedDrivers {
-        sha1: match Sha1::new() {
-            Ok(initialized) => initialized,
-            Err(e) => handle_fatal_error(e.into()),
-        },
+    let initialized = match unsafe { InitializedDrivers::new() } {
+        Ok(initialized) => initialized,
+        Err(e) => handle_fatal_error(e.into()),
     };
 
     let mut env = FmcEnvFips::from_non_crypto(env, initialized);

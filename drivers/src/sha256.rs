@@ -48,11 +48,18 @@ pub trait Sha256Alg {
 
 pub struct Sha256 {
     sha256: Sha256Reg,
+    _private: (), // prevent instantiation from outside drivers / package
 }
 
 impl Sha256 {
-    pub fn new(sha256: Sha256Reg) -> Self {
-        Self { sha256 }
+    pub fn new(sha256: Sha256Reg) -> CaliptraResult<Self> {
+        let mut sha256 = Sha256 {
+            sha256,
+            _private: (),
+        };
+        let kat = crate::kats::Sha256Kat {};
+        kat.execute(&mut sha256)?;
+        Ok(sha256)
     }
 }
 

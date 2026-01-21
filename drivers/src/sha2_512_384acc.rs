@@ -11,6 +11,7 @@ Abstract:
     File contains API for SHA2 512/384 accelerator operations
 
 --*/
+use crate::cprintln;
 use crate::wait;
 use crate::CaliptraResult;
 use crate::Mailbox;
@@ -110,6 +111,7 @@ impl Sha2_512_384Acc {
                         sha512_acc: &mut self.sha512_acc,
                     }))
                 } else {
+                    cprintln!("don't have lock");
                     // Caller expected uC to already have the lock, but uC actually didn't (bug)
                     Err(CaliptraError::DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
                 }

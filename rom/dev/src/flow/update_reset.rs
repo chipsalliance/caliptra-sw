@@ -14,7 +14,7 @@ Abstract:
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::key_ladder;
-use crate::{cprintln, pcr, rom_env::RomEnv};
+use crate::{cprintln, pcr, rom_env::RomEnvFips};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
@@ -39,12 +39,12 @@ impl UpdateResetFlow {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut RomEnvFips) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
         // Check persistent data is valid
-        let pdata = env.persistent_data.get();
+        let pdata = env.non_crypto.persistent_data.get();
         if pdata.rom.marker != RomPersistentData::MAGIC {
             handle_fatal_error(CaliptraError::ROM_INVALID_ROM_PERSISTENT_DATA_MARKER.into())
         }
@@ -53,14 +53,14 @@ impl UpdateResetFlow {
             handle_fatal_error(CaliptraError::ROM_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
         }
 
-        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+        let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
 
         // Indicate that Update-Reset flow has started.
         // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
         // Success status is set at the end of the flow.
         data_vault.set_rom_update_reset_status(UpdateResetStarted.into());
 
-        let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
+        let Some(mut recv_txn) = env.non_crypto.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Txn");
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
@@ -70,7 +70,7 @@ impl UpdateResetFlow {
             // Parse command, staging address, and image size
             let (actual_cmd, staging_addr, img_bundle_sz) = if recv_txn.cmd()
                 == CommandId::EXTERNAL_MAILBOX_CMD.into()
-                && env.soc_ifc.subsystem_mode()
+                && env.non_crypto.soc_ifc.subsystem_mode()
             {
                 // Parse ExternalMailboxCmdReq to get actual command and staging address
                 let mbox_contents = recv_txn.raw_mailbox_contents();
@@ -105,21 +105,21 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
-            let mci_base = env.soc_ifc.mci_base_addr();
+            let mci_base = env.non_crypto.soc_ifc.mci_base_addr();
             Self::load_manifest(
                 &mut manifest,
                 &mut recv_txn,
-                &mut env.soc_ifc,
-                &mut env.dma,
+                &mut env.non_crypto.soc_ifc,
+                &mut env.non_crypto.dma,
                 staging_addr,
             )?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
-            let image_source = if env.soc_ifc.subsystem_mode() {
+            let image_source = if env.non_crypto.soc_ifc.subsystem_mode() {
                 let axi_addr = staging_addr
                     .unwrap_or_else(|| mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET);
                 caliptra_common::verifier::ImageSource::Axi {
-                    dma: &env.dma,
+                    dma: &env.non_crypto.dma,
                     axi_start: AxiAddr::from(axi_addr),
                 }
             } else {
@@ -127,15 +127,15 @@ impl UpdateResetFlow {
             };
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
-                sha2_512_384: &mut env.sha2_512_384,
-                sha2_512_384_acc: &mut env.sha2_512_384_acc,
-                soc_ifc: &mut env.soc_ifc,
-                ecc384: &mut env.ecc384,
-                mldsa87: &mut env.mldsa87,
-                data_vault: &env.persistent_data.get().rom.data_vault,
-                pcr_bank: &mut env.pcr_bank,
+                sha2_512_384: &mut env.non_crypto.sha2_512_384,
+                sha2_512_384_acc: &mut env.non_crypto.sha2_512_384_acc,
+                soc_ifc: &mut env.non_crypto.soc_ifc,
+                ecc384: &mut env.non_crypto.ecc384,
+                mldsa87: &mut env.non_crypto.mldsa87,
+                data_vault: &env.non_crypto.persistent_data.get().rom.data_vault,
+                pcr_bank: &mut env.non_crypto.pcr_bank,
                 image_source,
-                persistent_data: env.persistent_data.get(),
+                persistent_data: env.non_crypto.persistent_data.get(),
             };
 
             let info = Self::verify_image(&mut venv, &manifest, img_bundle_sz);
@@ -143,15 +143,20 @@ impl UpdateResetFlow {
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
             // Populate data vault
-            let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
-            Self::populate_data_vault(data_vault, info, &mut env.hmac, &mut env.trng)?;
+            let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
+            Self::populate_data_vault(
+                data_vault,
+                info,
+                &mut env.non_crypto.hmac,
+                &mut env.non_crypto.trng,
+            )?;
 
             // Extend PCR0 and PCR1
             pcr::extend_pcrs(
-                env.persistent_data.get_mut(),
-                &env.soc_ifc,
-                &mut env.pcr_bank,
-                &mut env.sha2_512_384,
+                env.non_crypto.persistent_data.get_mut(),
+                &env.non_crypto.soc_ifc,
+                &mut env.non_crypto.pcr_bank,
+                &mut env.non_crypto.sha2_512_384,
                 info,
             )?;
             report_boot_status(UpdateResetExtendPcrComplete.into());
@@ -164,8 +169,8 @@ impl UpdateResetFlow {
             Self::load_image(
                 &manifest,
                 &mut recv_txn,
-                &mut env.soc_ifc,
-                &mut env.dma,
+                &mut env.non_crypto.soc_ifc,
+                &mut env.non_crypto.dma,
                 staging_addr,
             )?;
             Ok(())
@@ -183,15 +188,16 @@ impl UpdateResetFlow {
         drop(recv_txn);
         report_boot_status(UpdateResetLoadImageComplete.into());
 
-        let persistent_data = env.persistent_data.get_mut();
+        let persistent_data = env.non_crypto.persistent_data.get_mut();
         persistent_data.rom.manifest1 = manifest;
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
         // Set RT version. FMC does not change.
-        env.soc_ifc
+        env.non_crypto
+            .soc_ifc
             .set_rt_fw_rev_id(persistent_data.rom.manifest1.runtime.version);
 
-        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+        let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
         data_vault.set_rom_update_reset_status(UpdateResetComplete.into());
 
         cprintln!("[update-reset Success] --");

@@ -21,16 +21,13 @@ use caliptra_drivers::{
 };
 use caliptra_registers::{
     abr::AbrReg, csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
-    kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
-    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    kv::KvReg, mbox::MboxCsr, pv::PvReg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Hardware Context
 /// Contains only the non-cryptographic drivers and those needed before KAT execution
 pub struct FmcEnv {
-    // SHA2-256 Engine
-    pub sha256: Sha256,
-
     // SHA2-512/384 Engine
     pub sha2_512_384: Sha2_512_384,
 
@@ -82,7 +79,6 @@ impl FmcEnv {
         )?;
 
         Ok(Self {
-            sha256: Sha256::new(Sha256Reg::new()),
             sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             hmac: Hmac::new(HmacReg::new()),
@@ -104,8 +100,12 @@ pub struct FmcEnvFips {
     /// Non-crypto environment (embedded)
     pub non_crypto: FmcEnv,
 
-    // SHA1 Engine (initialized by KATs)
+    // Crypto engines initialized by KATs
+    // SHA1 Engine
     pub sha1: Sha1,
+
+    // SHA2-256 Engine
+    pub sha256: Sha256,
 }
 
 impl FmcEnvFips {
@@ -117,6 +117,7 @@ impl FmcEnvFips {
         Self {
             non_crypto,
             sha1: initialized.sha1,
+            sha256: initialized.sha256,
         }
     }
 

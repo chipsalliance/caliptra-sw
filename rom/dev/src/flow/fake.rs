@@ -20,7 +20,7 @@ use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
-use crate::rom_env::RomEnv;
+use crate::rom_env::{RomEnv, RomEnvFips};
 use caliptra_common::keyids::KEY_ID_ROM_FMC_CDI;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
@@ -46,7 +46,7 @@ impl FakeRomFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub fn run(env: &mut RomEnvFips) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             // Cold Reset Flow
@@ -54,14 +54,18 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
-                env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
-                env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
-                env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+                env.non_crypto.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
+                env.non_crypto.persistent_data.get_mut().rom.major_version =
+                    RomPersistentData::MAJOR_VERSION;
+                env.non_crypto.persistent_data.get_mut().rom.minor_version =
+                    RomPersistentData::MINOR_VERSION;
 
                 // Zeroize the key vault in the fake ROM flow
                 unsafe { KeyVault::zeroize() };
 
-                env.soc_ifc.flow_status_set_ready_for_mb_processing();
+                env.non_crypto
+                    .soc_ifc
+                    .flow_status_set_ready_for_mb_processing();
 
                 fht::initialize_fht(env);
 
@@ -74,6 +78,7 @@ impl FakeRomFlow {
                 // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
                 let sha_op = env
+                    .non_crypto
                     .sha2_512_384_acc
                     .try_start_operation(ShaAccLockState::AssumedLocked)
                     .unwrap();

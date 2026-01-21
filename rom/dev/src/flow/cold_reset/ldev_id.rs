@@ -16,7 +16,7 @@ Abstract:
 use super::dice::*;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::rom_env::RomEnv;
+use crate::rom_env::{RomEnv, RomEnvFips};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -51,7 +51,7 @@ impl LocalDevIdLayer {
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &mut RomEnvFips, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!(
@@ -281,7 +281,7 @@ impl LocalDevIdLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_ecc(
-        env: &mut RomEnv,
+        env: &mut RomEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
     ) -> CaliptraResult<()> {
@@ -294,7 +294,7 @@ impl LocalDevIdLayer {
 
         // CSR `To Be Signed` Parameters
         let ecc_tbs_params = LocalDevIdCertTbsEcc384Params {
-            ueid: &x509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.non_crypto.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
@@ -314,9 +314,9 @@ impl LocalDevIdLayer {
             ecc_auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
-            &mut env.trng,
+            &mut env.non_crypto.sha2_512_384,
+            &mut env.non_crypto.ecc384,
+            &mut env.non_crypto.trng,
             ecc_auth_priv_key,
             ecc_auth_pub_key,
             ecc_tbs.tbs(),
@@ -324,13 +324,14 @@ impl LocalDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        env.key_vault
+        env.non_crypto
+            .key_vault
             .erase_key(ecc_auth_priv_key)
             .inspect_err(|_err| {
                 sig.zeroize();
             })?;
 
-        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+        let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
 
         // Save the Local Device ID cert signature in data vault.
         data_vault.set_ldev_dice_ecc_signature(sig);
@@ -352,7 +353,7 @@ impl LocalDevIdLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig_mldsa(
-        env: &mut RomEnv,
+        env: &mut RomEnvFips,
         input: &DiceInput,
         output: &DiceOutput,
     ) -> CaliptraResult<()> {
@@ -365,7 +366,7 @@ impl LocalDevIdLayer {
 
         // CSR `To Be Signed` Parameters
         let mldsa_tbs_params = LocalDevIdCertTbsMlDsa87Params {
-            ueid: &x509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.non_crypto.soc_ifc)?,
             subject_sn: &output.mldsa_subj_sn,
             subject_key_id: &output.mldsa_subj_key_id,
             issuer_sn: input.mldsa_auth_sn,
@@ -385,8 +386,8 @@ impl LocalDevIdLayer {
             mldsa_auth_priv_key as u8
         );
         let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa87,
+            &mut env.non_crypto.trng,
             mldsa_auth_priv_key,
             mldsa_auth_pub_key,
             mldsa_tbs.tbs(),
@@ -394,13 +395,14 @@ impl LocalDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        env.key_vault
+        env.non_crypto
+            .key_vault
             .erase_key(mldsa_auth_priv_key)
             .inspect_err(|_err| {
                 sig.zeroize();
             })?;
 
-        let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+        let data_vault = &mut env.non_crypto.persistent_data.get_mut().rom.data_vault;
 
         // Save the Local Device ID cert signature in data vault.
         data_vault.set_ldev_dice_mldsa_signature(sig);
