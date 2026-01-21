@@ -679,18 +679,10 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
         {
-            // FPGA implementation: wait for FIFO to be not empty and read dword by dword
+            // FPGA implementation: wait payload available and read dword by dword
             let len = (image_size_bytes as usize / 4).min(buffer.len());
             for i in 0..len {
-                // Wait for FIFO to not be empty before each read_dword.
-                self.with_regs(|r| {
-                    while r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .empty()
-                    {}
-                })?;
+                while !self.dma.payload_available() {}
                 buffer[i] = self.dma.read_dword(addr);
             }
         }
@@ -865,19 +857,12 @@ impl<'a> DmaRecovery<'a> {
         self.dma.flush();
 
         for i in (0..read_transaction.length).step_by(4) {
-            // if this is an I3C transfer, wait for the FIFO to be not empty
+            // if this is an I3C transfer, wait for payload available
             if matches!(
                 read_transaction.block_mode,
                 BlockMode::RecoveryIndirectFifoData
             ) {
-                self.with_regs(|r| {
-                    while r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .empty()
-                    {}
-                })?;
+                while !self.dma.payload_available() {}
             }
 
             // translate to single dword transfer

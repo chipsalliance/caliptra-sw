@@ -5,7 +5,10 @@
 
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
-use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
+use crate::fpga_regs::{
+    Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
+    ItrngFifoStatus, WrapperRegs,
+};
 use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
@@ -46,6 +49,9 @@ const MCU_ROM_MAPPING: (usize, usize) = (1, 1);
 const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
+
+// Default flash size: 16MB each, initialized to 0xFF
+const DEFAULT_FLASH_SIZE: usize = 16 * 1024 * 1024;
 
 // TODO(timothytrippel): autogenerate these from the OTP memory map definition
 // Offsets in the OTP for all partitions.
@@ -100,6 +106,9 @@ const EMULATOR_I3C_END_ADDR: usize = EMULATOR_I3C_ADDR + EMULATOR_I3C_ADDR_RANGE
 const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
 const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
 const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
+
+// page size of simulated flash
+const FLASH_PAGE_SIZE: usize = 256;
 
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -437,6 +446,11 @@ pub struct ModelFpgaSubsystem {
     pub enable_mcu_uart_log: bool,
     pub bootfsm_break: bool,
     pub rom_callback: Option<ModelCallback>,
+    // Flash storage buffers for the flash controllers
+    pub primary_flash: Vec<u8>,
+    pub secondary_flash: Vec<u8>,
+    // whether or not to attempt flash boot instead of streaming boot
+    pub flash_boot: bool,
 }
 
 impl ModelFpgaSubsystem {
@@ -531,6 +545,116 @@ impl ModelFpgaSubsystem {
         )
     }
 
+    /// Get a reference to the flash controller registers at the specified offset
+    pub fn flash_ctrl_regs(&self, is_primary: bool) -> &FlashCtrlRegs {
+        let offset = if is_primary { 0x2000 } else { 0x3000 };
+        // Safety: These are at fixed, known addresses relative to the wrapper.
+        unsafe {
+            let wrapper_base = self.wrapper.ptr as *const u8;
+            let flash_ctrl_ptr = wrapper_base.add(offset) as *const FlashCtrlRegs;
+            &*flash_ctrl_ptr
+        }
+    }
+
+    /// Implement a pair of simulated flash controllers, backed by data
+    /// stored in the host memory.
+    pub fn handle_flash(&mut self) {
+        // TODO: re-enable when new bitstreams are available
+        // self.handle_flash_ctrl(true);
+        // self.handle_flash_ctrl(false);
+    }
+
+    /// Handle operations for a single flash controller
+    pub fn handle_flash_ctrl(&mut self, is_primary: bool) {
+        // check if we are in reset, in which case we don't need to worry about servicing flash
+        if !self.mmio.enabled() {
+            return;
+        }
+        let (start, page_num, op) = {
+            let regs = self.flash_ctrl_regs(is_primary);
+            (
+                regs.fl_control.read(FlashControl::START),
+                regs.page_num.get() as usize,
+                regs.fl_control.read(FlashControl::OP),
+            )
+        };
+
+        // Check if START bit is set
+        if start == 0 {
+            return;
+        }
+
+        let flash = if is_primary {
+            &mut self.primary_flash
+        } else {
+            &mut self.secondary_flash
+        };
+        let flash_len = flash.len();
+        let flash_offset = page_num * FLASH_PAGE_SIZE;
+
+        // Ensure flash buffer is large enough
+        let required_size = flash_offset + FLASH_PAGE_SIZE;
+        if flash_len < required_size {
+            flash.resize(required_size, 0xFF);
+        }
+
+        let mut error = 0u32;
+        if flash_offset + FLASH_PAGE_SIZE > flash.len() {
+            error = 1;
+            println!("[flash-ctrl] Flash operation FAILED: Flash offset 0x{:x} + size {} exceeds flash length {}",
+                        flash_offset, FLASH_PAGE_SIZE, flash.len());
+        } else {
+            match op {
+                1 => {
+                    // Read page: copy from flash buffer to memory at page_addr
+                    let page_data = flash[flash_offset..flash_offset + FLASH_PAGE_SIZE].to_vec();
+                    let word_count = FLASH_PAGE_SIZE / 4;
+                    // re-borrow to avoid borrow checker
+                    let flash_ctrl = self.flash_ctrl_regs(is_primary);
+                    for i in 0..word_count {
+                        let byte_offset = i * 4;
+                        let value = u32::from_le_bytes(
+                            page_data[byte_offset..byte_offset + 4].try_into().unwrap(),
+                        );
+                        flash_ctrl.buffer[i].set(value);
+                    }
+                }
+                2 => {
+                    // Write page: copy from memory at page_addr to flash buffer
+                    let word_count = FLASH_PAGE_SIZE / 4;
+
+                    let flash_ctrl = self.flash_ctrl_regs(is_primary);
+                    let buffer: Vec<u8> = (0..word_count)
+                        .into_iter()
+                        .flat_map(|i| flash_ctrl.buffer[i].get().to_le_bytes())
+                        .collect();
+
+                    // re-borrow to avoid borrow checker conflicts
+                    let flash = if is_primary {
+                        &mut self.primary_flash
+                    } else {
+                        &mut self.secondary_flash
+                    };
+                    flash[flash_offset..flash_offset + FLASH_PAGE_SIZE].copy_from_slice(&buffer);
+                }
+                3 => {
+                    // Erase page: fill with 0xFF
+                    flash[flash_offset..flash_offset + FLASH_PAGE_SIZE].fill(0xFF);
+                }
+                _ => {
+                    error = 1; // Treat invalid operation as read error
+                    println!("[flash-ctrl] FAILED: Invalid operation code {}", op);
+                }
+            }
+        }
+
+        // Clear START bit and set DONE
+        let regs = self.flash_ctrl_regs(is_primary);
+        regs.fl_control.modify(FlashControl::START::CLEAR);
+        regs.op_status
+            .modify(FlashOpStatus::DONE::SET + FlashOpStatus::ERR.val(error));
+    }
+
     fn clear_logs(&mut self) {
         println!("Clearing Caliptra logs");
         loop {
@@ -574,7 +698,9 @@ impl ModelFpgaSubsystem {
     }
 
     fn handle_log(&mut self) {
-        loop {
+        // limit steps so that we don't starve the flash controller and BMC
+        const MAX_STEPS: i32 = 1000;
+        for _ in 0..MAX_STEPS {
             // Check if the FIFO is full (which probably means there was an overrun)
             if self
                 .wrapper
@@ -602,7 +728,7 @@ impl ModelFpgaSubsystem {
         }
 
         if self.enable_mcu_uart_log {
-            loop {
+            for _ in 0..MAX_STEPS {
                 // Check if the FIFO is full (which probably means there was an overrun)
                 if self
                     .wrapper
@@ -856,6 +982,16 @@ impl ModelFpgaSubsystem {
             EventData::RecoveryImageAvailable { image_id: _, image } => {
                 // do the indirect fifo thing
                 println!("Recovery image available; writing blocks");
+
+                // Recovery images must be padded to a multiple of 256 bytes
+                // or the last chunk will not finish.
+                let image = if image.len() % 256 == 0 {
+                    image
+                } else {
+                    let mut image = image.clone();
+                    image.resize(image.len().next_multiple_of(256), 0);
+                    image
+                };
 
                 self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
@@ -1535,6 +1671,7 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn step(&mut self) {
         self.handle_log();
+        self.handle_flash();
         self.bmc_step();
     }
 
@@ -1668,6 +1805,23 @@ impl HwModel for ModelFpgaSubsystem {
             enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
             bootfsm_break: params.bootfsm_break,
             rom_callback: params.rom_callback,
+            primary_flash: params
+                .ss_init_params
+                .primary_flash_initial_contents
+                .map(|c| {
+                    let mut flash = c.to_vec();
+                    // Ensure flash is at least DEFAULT_FLASH_SIZE, pad with 0xFF
+                    if flash.len() < DEFAULT_FLASH_SIZE {
+                        flash.resize(DEFAULT_FLASH_SIZE, 0xFF);
+                    }
+                    flash
+                })
+                .unwrap_or_else(|| vec![0xFF; DEFAULT_FLASH_SIZE]),
+            secondary_flash: vec![0xFF; DEFAULT_FLASH_SIZE],
+            flash_boot: params
+                .ss_init_params
+                .primary_flash_initial_contents
+                .is_some(),
         };
 
         println!("AXI reset");
@@ -1788,10 +1942,17 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
-        // Notify MCU ROM it can start loading the fuse registers
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
-        gpio.set(current | 1 << 30);
+        // Notify MCU ROM it can start loading the fuse registers
+        let val = current | 1 << 30;
+        // Notify MCU ROM whether or not we are going to flash boot
+        let val = if self.flash_boot {
+            val | 1 << 29
+        } else {
+            val & !(1 << 29)
+        };
+        gpio.set(val);
 
         // Set soc_ifc settings before MCU ROM sets fuses
         self.soc_ifc()
@@ -2246,6 +2407,10 @@ mod sensitive_mmio {
                 otp_mmio: args.otp_mmio,
                 lc_mmio: args.lc_mmio,
             }
+        }
+
+        pub fn enabled(&self) -> bool {
+            self.enabled
         }
 
         pub fn enable(&mut self) {
