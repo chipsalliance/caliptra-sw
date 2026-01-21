@@ -178,6 +178,7 @@ impl CommandId {
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
+    pub const CM_SHA: Self = Self(0x434D_5348); // "CMSH"
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
 
@@ -290,6 +291,7 @@ pub enum MailboxResp {
     CmStatus(CmStatusResp),
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
+    CmSha(CmShaResp),
     CmRandomGenerate(CmRandomGenerateResp),
     CmAesEncryptInit(CmAesEncryptInitResp),
     CmAesEncryptUpdate(CmAesResp),
@@ -352,6 +354,7 @@ impl MailboxResp {
             MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmSha(resp) => resp.as_bytes_partial(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesEncryptInit(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesEncryptUpdate(resp) => resp.as_bytes_partial(),
@@ -412,6 +415,7 @@ impl MailboxResp {
             MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmSha(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesEncryptInit(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
@@ -515,6 +519,7 @@ pub enum MailboxReq {
     CmShaInit(CmShaInitReq),
     CmShaUpdate(CmShaUpdateReq),
     CmShaFinal(CmShaFinalReq),
+    CmSha(CmShaReq),
     CmRandomGenerate(CmRandomGenerateReq),
     CmRandomStir(CmRandomStirReq),
     CmAesEncryptInit(CmAesEncryptInitReq),
@@ -592,6 +597,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
+            MailboxReq::CmSha(req) => req.as_bytes_partial(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial(),
             MailboxReq::CmAesEncryptInit(req) => req.as_bytes_partial(),
@@ -667,6 +673,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmSha(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesEncryptInit(req) => req.as_bytes_partial_mut(),
@@ -742,6 +749,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
+            MailboxReq::CmSha(_) => CommandId::CM_SHA,
             MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
             MailboxReq::CmRandomStir(_) => CommandId::CM_RANDOM_STIR,
             MailboxReq::CmAesEncryptInit(_) => CommandId::CM_AES_ENCRYPT_INIT,
@@ -2421,6 +2429,68 @@ impl Default for CmShaFinalResp {
 }
 
 impl ResponseVarSize for CmShaFinalResp {}
+
+// CM_SHA (one-shot SHA384/SHA512 hash)
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaReq {
+    pub hdr: MailboxReqHeader,
+    pub hash_algorithm: u32,
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShaReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            hash_algorithm: 0,
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShaReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShaReq {
+    const ID: CommandId = CommandId::CM_SHA;
+    type Resp = CmShaResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaResp {
+    pub hdr: MailboxRespHeaderVarSize,
+    pub hash: [u8; SHA512_DIGEST_BYTE_SIZE],
+}
+
+impl Default for CmShaResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeaderVarSize::default(),
+            hash: [0u8; SHA512_DIGEST_BYTE_SIZE],
+        }
+    }
+}
+
+impl ResponseVarSize for CmShaResp {}
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]

@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::flow::cold_reset::cm_sha::CmShaCmd;
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
@@ -19,6 +20,8 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::CmShaReq;
+use caliptra_api::mailbox::CmShaResp;
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
@@ -558,6 +561,18 @@ impl FirmwareProcessor {
                             },
                             cmk: transmute!(encrypted_cmk),
                         };
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::CM_SHA => {
+                        let mut request = CmShaReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), true)?;
+                        let mut resp = CmShaResp::default();
+                        CmShaCmd::execute(
+                            request.as_bytes(),
+                            env.sha2_512_384,
+                            resp.as_mut_bytes(),
+                        )?;
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
