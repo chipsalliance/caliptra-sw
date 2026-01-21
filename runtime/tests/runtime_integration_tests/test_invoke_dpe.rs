@@ -19,8 +19,8 @@ use cms::{
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
-        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
-        RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
+        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd,
+        RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
     },
     context::ContextHandle,
     response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
@@ -45,7 +45,8 @@ fn test_invoke_dpe_get_profile_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let resp = execute_dpe_cmd(&mut model, &mut Command::GetProfile, DpeResult::Success);
+    let mut cmd = Command::GetProfile(&GetProfileCmd);
+    let resp = execute_dpe_cmd(&mut model, &mut cmd, DpeResult::Success);
     let Some(Response::GetProfile(profile)) = resp else {
         panic!("Wrong response type!");
     };

@@ -13,7 +13,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
 use crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
-use crypto::{Crypto, Digest, PubKey, Signature};
+use crypto::{Crypto, Digest, PubKey, SignData, Signature};
 use dpe::MAX_EXPORTED_CDI_SIZE;
 use zerocopy::FromBytes;
 
@@ -25,12 +25,12 @@ impl SignWithExportedEcdsaCmd {
     /// # Arguments
     ///
     /// * `env` - DPE environment containing Crypto and Platform implementations
-    /// * `digest` - The data to be signed
+    /// * `data` - The data to be signed
     /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn ecdsa_sign(
         env: &mut DpeCrypto,
-        digest: &Digest,
+        data: &SignData,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> CaliptraResult<(Signature, PubKey)> {
         let key_pair =
@@ -41,7 +41,7 @@ impl SignWithExportedEcdsaCmd {
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
 
         let sig = env
-            .sign_with_derived(digest, &priv_key, &pub_key)
+            .sign_with_derived(data, &priv_key, &pub_key)
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED)?;
 
         Ok((sig, pub_key))
@@ -81,11 +81,11 @@ impl SignWithExportedEcdsaCmd {
             &mut pdata.fw.dpe.exported_cdi_slots,
         );
 
-        let digest = Digest::Sha384(crypto::Sha384(cmd.tbs));
+        let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
         let (
             Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
-            PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { r: x, s: y })),
-        ) = Self::ecdsa_sign(&mut crypto, &digest, &cmd.exported_cdi_handle)?
+            PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),
+        ) = Self::ecdsa_sign(&mut crypto, &data, &cmd.exported_cdi_handle)?
         else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         };

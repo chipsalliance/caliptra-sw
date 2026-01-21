@@ -19,7 +19,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{Response, ResponseHdr},
+    response::ResponseHdr,
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
 use zerocopy::IntoBytes;
@@ -65,10 +65,7 @@ impl InvokeDpeCmd {
 
             let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
             let resp = match command {
-                Command::GetProfile => Ok(Response::GetProfile(
-                    dpe.get_profile(&mut env.platform, env.state.support)
-                        .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
-                )),
+                Command::GetProfile(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(cmd) {
@@ -133,7 +130,11 @@ impl InvokeDpeCmd {
                 Ok(ref r) => {
                     let resp_bytes = r.as_bytes();
                     let data_size = resp_bytes.len();
-                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+                    let buf = invoke_resp
+                        .data
+                        .get_mut(..data_size)
+                        .ok_or(CaliptraError::RUNTIME_INVOKE_DPE_RESPONSE_TOO_LARGE)?;
+                    buf.copy_from_slice(resp_bytes);
                     invoke_resp.data_size = data_size as u32;
                 }
                 Err(ref e) => {
