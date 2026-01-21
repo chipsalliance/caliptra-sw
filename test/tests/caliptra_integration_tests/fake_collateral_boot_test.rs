@@ -17,9 +17,11 @@ use caliptra_builder::{
 use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::{
+    default_soc_manifest_bytes,
     derive::{DoeInput, DoeOutput, LDevId},
     image_pk_desc_hash,
     x509::{DiceFwid, DiceTcbInfo},
+    DEFAULT_MCU_FW,
 };
 use std::io::Write;
 
@@ -102,6 +104,8 @@ fn fake_boot_test() {
                 .set_debug_locked(true)
                 .set_device_lifecycle(DeviceLifecycle::Production);
 
+            let soc_manifest = default_soc_manifest_bytes(*pqc_key_type, 9);
+
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     fuses: Fuses {
@@ -118,6 +122,8 @@ fn fake_boot_test() {
                 BootParams {
                     fw_image: Some(&image.to_bytes().unwrap()),
                     initial_dbg_manuf_service_reg: (1 << 30),
+                    soc_manifest: Some(&soc_manifest),
+                    mcu_fw_image: Some(&DEFAULT_MCU_FW),
                     ..Default::default()
                 },
             )
