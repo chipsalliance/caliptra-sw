@@ -3,7 +3,7 @@
 use caliptra_api::{
     mailbox::{
         CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
-        MailboxReqHeader, MailboxRespHeader, OcpLockEndorseHpkePubKeyReq,
+        MailboxReqHeader, MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEndorseHpkePubKeyReq,
         OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
         OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockInitializeMekSecretReq,
         OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
@@ -31,6 +31,7 @@ use x509_parser::prelude::*;
 use crate::common::{get_rt_alias_ecc384_cert, run_rt_test, RuntimeTestArgs};
 
 mod test_derive_mek;
+mod test_enable_mpk;
 mod test_endorse_hpke_pubkey;
 mod test_enumerate_hpke_handles;
 mod test_generate_mek;
@@ -409,6 +410,39 @@ fn create_rewrap_mpk_req(
             ..Default::default()
         },
         new_ak_ciphertext,
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+    cmd
+}
+
+fn create_enable_mpk_req(
+    endorsed_key: &ValidatedHpkeHandle,
+    info: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+    metadata: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    access_key: &[u8; 32],
+    locked_mpk: &WrappedKey,
+) -> MailboxReq {
+    let (enc, ct) = encrypt_message_to_hpke_pub_key(endorsed_key, info, metadata, access_key);
+
+    let mut kem_ciphertext = [0; OCP_LOCK_MAX_ENC_LEN];
+    kem_ciphertext[..enc.len()].clone_from_slice(&enc);
+
+    let mut ak_ciphertext = [0; 48];
+    ak_ciphertext.clone_from_slice(&ct);
+
+    let mut cmd = MailboxReq::OcpLockEnableMpk(OcpLockEnableMpkReq {
+        sek: [0xAB; 32],
+        locked_mpk: locked_mpk.clone(),
+        sealed_access_key: SealedAccessKey {
+            hpke_handle: endorsed_key.hpke_handle.clone(),
+            access_key_len: access_key.len() as u32,
+            info_len: info.len() as u32,
+            info: *info,
+            kem_ciphertext,
+            ak_ciphertext,
+            ..Default::default()
+        },
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();

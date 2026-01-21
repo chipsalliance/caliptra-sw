@@ -4,6 +4,7 @@ use caliptra_api::mailbox::{CommandId, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_META
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 use caliptra_common::keyids::ocp_lock::{
     KEY_ID_EPK, KEY_ID_HEK, KEY_ID_LOCKED_MPK_ENCRYPTION_KEY, KEY_ID_MDK, KEY_ID_MEK_SECRETS,
+    KEY_ID_VEK,
 };
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
@@ -17,6 +18,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use enable_mpk::EnableMpkCmd;
 use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
 use generate_mek::GenerateMekCmd;
@@ -27,6 +29,7 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
 mod derive_mek;
+mod enable_mpk;
 mod endorse_hpke_pubkey;
 mod enumerate_hpke_handles;
 mod generate_mek;
@@ -43,6 +46,17 @@ pub use initialize_mek_secret::InitializeMekSecretCmd;
 use crate::Drivers;
 
 const ACCESS_KEY_LEN: usize = 32;
+
+/// Represents the VEK type from OCP LOCK.
+/// The VEK is used to encrypt an MPK. This transitions the MPK to the "enabled" state and it can
+/// be mixed into an MEK.
+///
+/// The VEK is erased on cold reset
+pub struct Vek;
+
+impl Vek {
+    const KDF_LABEL: &'static [u8] = b"ocp_lock_vek";
+}
 
 /// Represents the SEK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
@@ -282,6 +296,45 @@ impl TryFrom<&WrappedKey> for LockedMpk {
             tag,
             metadata: value.metadata,
             metadata_len: value.metadata_len,
+        })
+    }
+}
+
+/// Represents an `EnabledMpk`
+///
+/// OCP LOCK version 1.0 RC2, Section "Common mailbox types".
+pub struct EnabledMpk {
+    salt: [u8; 12],
+    iv: [u8; 12],
+    encrypted_key: [u8; Self::KEY_LEN],
+    tag: [u8; Aes256GCM::NT],
+    metadata: [u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    metadata_len: u32,
+}
+
+impl EnabledMpk {
+    const KEY_TYPE: u16 = 0x02;
+    const KEY_LEN: usize = 32;
+    const KDF_LABEL: &'static [u8] = b"ocp_lock_enabled_mpk";
+}
+
+impl TryFrom<EnabledMpk> for WrappedKey {
+    type Error = CaliptraError;
+    fn try_from(value: EnabledMpk) -> Result<Self, Self::Error> {
+        let mut ciphertext_and_auth_tag = [0; 80];
+        ciphertext_and_auth_tag[..EnabledMpk::KEY_LEN].copy_from_slice(&value.encrypted_key);
+        ciphertext_and_auth_tag[EnabledMpk::KEY_LEN..EnabledMpk::KEY_LEN + Aes256GCM::NT]
+            .copy_from_slice(&value.tag);
+
+        Ok(Self {
+            key_type: EnabledMpk::KEY_TYPE,
+            salt: value.salt,
+            metadata_len: value.metadata_len,
+            key_len: EnabledMpk::KEY_LEN as u32,
+            iv: value.iv,
+            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            metadata: value.metadata,
+            ..Default::default()
         })
     }
 }
@@ -588,41 +641,9 @@ impl<'a> Epk<'a> {
         new_access_key: AccessKey<New>,
         current_locked_mpk: &LockedMpk,
     ) -> CaliptraResult<LockedMpk> {
-        hmac_kdf(
-            hmac,
-            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
-            Self::LOCKED_MPK_ENCRYPTION_KEY_LABEL,
-            Some(current_access_key.as_bytes()),
-            trng,
-            HmacTag::Key(KeyWriteArgs::new(
-                KEY_ID_LOCKED_MPK_ENCRYPTION_KEY,
-                KeyUsage::default().set_hmac_key_en(),
-            )),
-            HmacMode::Hmac512,
-        )?;
-
-        // Decrypt the MPK using the current access key
-        let aad = LockedMpkAad::new(
-            current_locked_mpk
-                .metadata
-                .get(..current_locked_mpk.metadata_len as usize)
-                .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?,
-        )?;
+        let (mpk, aad) =
+            self.decrypt_mpk(aes, hmac, trng, current_access_key, current_locked_mpk)?;
         let aad = aad.serialize()?;
-        let mut mpk = Mpk::generate(trng)?;
-        preconditioned_aes_decrypt(
-            aes,
-            hmac,
-            trng,
-            HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
-            Self::LOCKED_MPK_LABEL,
-            aad,
-            &current_locked_mpk.salt.into(),
-            &current_locked_mpk.iv.into(),
-            &current_locked_mpk.tag.into(),
-            &current_locked_mpk.encrypted_key,
-            mpk.as_mut(),
-        )?;
 
         // Now derive the new MPK Encryption Key from the new access key
         hmac_kdf(
@@ -659,6 +680,53 @@ impl<'a> Epk<'a> {
             metadata_len: current_locked_mpk.metadata_len,
         })
     }
+
+    /// Consumes `AccessKey<Current>` to decrypt the MPK
+    fn decrypt_mpk(
+        &self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        access_key: AccessKey<Current>,
+        locked_mpk: &LockedMpk,
+    ) -> CaliptraResult<(Mpk, LockedMpkAad)> {
+        // Derive current access key's MPK Encryption Key and place in MPK Encryption KV.
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+            Self::LOCKED_MPK_ENCRYPTION_KEY_LABEL,
+            Some(access_key.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_LOCKED_MPK_ENCRYPTION_KEY,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // Decrypt the MPK using the current access key
+        let aad = LockedMpkAad::new(
+            locked_mpk
+                .metadata
+                .get(..locked_mpk.metadata_len as usize)
+                .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?,
+        )?;
+        let mut mpk = Mpk::generate(trng)?;
+        preconditioned_aes_decrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            Self::LOCKED_MPK_LABEL,
+            aad.serialize()?,
+            &locked_mpk.salt.into(),
+            &locked_mpk.iv.into(),
+            &locked_mpk.tag.into(),
+            &locked_mpk.encrypted_key,
+            mpk.as_mut(),
+        )?;
+        Ok((mpk, aad))
+    }
 }
 
 impl Drop for Epk<'_> {
@@ -685,6 +753,9 @@ pub struct OcpLockContext {
 
     /// Manages HPKE Operations
     hpke_context: HpkeContext,
+
+    /// Tracks if the VEK has been initialized
+    vek: Option<Vek>,
 }
 
 impl OcpLockContext {
@@ -695,6 +766,7 @@ impl OcpLockContext {
             intermediate_secret: None,
             hek_available,
             hpke_context: HpkeContext::new(trng)?,
+            vek: None,
         })
     }
 
@@ -915,6 +987,53 @@ impl OcpLockContext {
         )
     }
 
+    /// Enables a Locked MPK and returns an `EnabledMpk`
+    /// The decrypted `Mpk` is encrypted to the `Vek`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn enable_mpk(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        kv: &mut KeyVault,
+        access_key: AccessKey<Current>,
+        sek: Sek,
+        locked_mpk: &LockedMpk,
+    ) -> CaliptraResult<EnabledMpk> {
+        if !self.hek_available {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
+        } else {
+            cfi_assert!(self.hek_available);
+        }
+
+        if self.vek.is_none() {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
+        }
+
+        let epk = Epk::new(hmac, trng, kv, sek)?;
+        let (mpk, aad) = epk.decrypt_mpk(aes, hmac, trng, access_key, locked_mpk)?;
+        let mut encrypted_key = [0; EnabledMpk::KEY_LEN];
+        let res = preconditioned_aes_encrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_VEK)),
+            EnabledMpk::KDF_LABEL,
+            aad.serialize()?,
+            mpk.as_bytes(),
+            &mut encrypted_key,
+        )?;
+
+        Ok(EnabledMpk {
+            salt: res.salt.into(),
+            iv: res.iv.into(),
+            tag: res.tag.into(),
+            encrypted_key,
+            metadata: locked_mpk.metadata,
+            metadata_len: locked_mpk.metadata_len,
+        })
+    }
+
     /// Retrieve the public key for the HPKE handle
     pub fn get_hpke_public_key(
         &mut self,
@@ -964,6 +1083,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MPK => GenerateMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_REWRAP_MPK => RewrapMpkCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_ENABLE_MPK => EnableMpkCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

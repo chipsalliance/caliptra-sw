@@ -1700,6 +1700,11 @@ impl CaliptraError {
             "OCP LOCK Error: received invalid wrapped key type"
         ),
         (
+            RUNTIME_OCP_LOCK_VEK_UNAVAILABLE,
+            0x000E0089,
+            "OCP LOCK Error: VEK is not available"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
