@@ -227,8 +227,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
-    let mut cmd_bytes = req_packet.as_bytes()?;
-    let mut cmd_id = req_packet.cmd;
+    let cmd_bytes = req_packet.as_bytes()?;
+    let cmd_id = req_packet.cmd;
 
     if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
         cprintln!(
@@ -245,14 +245,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
-    let mut external_cmd_buffer =
-        [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
-
     // Check for EXTERNAL_MAILBOX_CMD and handle FIRMWARE_VERIFY specially
     if drivers.soc_ifc.subsystem_mode()
         && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
     {
-        let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
+        let external_cmd = ExternalMailboxCmdReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
         if external_cmd.command_id == CommandId::FIRMWARE_VERIFY.into() {
@@ -268,18 +265,17 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 },
             );
         }
+        return handle_external_mailbox_cmd(external_cmd, drivers);
     }
 
-    if let Some(ext) =
-        handle_external_mailbox_cmd(cmd_id, cmd_bytes, drivers, &mut external_cmd_buffer)?
-    {
-        cmd_id = ext.cmd_id;
-        cmd_bytes = external_cmd_buffer
-            .as_bytes()
-            .get(..ext.cmd_size)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-    }
+    execute_command(drivers, cmd_id, cmd_bytes)
+}
 
+fn execute_command(
+    drivers: &mut Drivers,
+    cmd_id: u32,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
     // stage the response once on the stack
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
@@ -533,27 +529,16 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
-struct ExternalCommand {
-    cmd_id: u32,
-    cmd_size: usize,
-}
-
 /// Handles an external mailbox command. If a valid external command was parsed,
 /// then Some is returned and the external mailbox command will be copied into
 /// the external_cmd_buffer argument.
+#[inline(never)]
 fn handle_external_mailbox_cmd(
-    cmd_id: u32,
-    cmd_bytes: &[u8],
+    external_cmd: &ExternalMailboxCmdReq,
     drivers: &mut Drivers,
-    external_cmd_buffer: &mut [u32],
-) -> CaliptraResult<Option<ExternalCommand>> {
-    if !drivers.soc_ifc.subsystem_mode()
-        || CommandId::from(cmd_id) != CommandId::EXTERNAL_MAILBOX_CMD
-    {
-        return Ok(None);
-    }
-    let external_cmd = ExternalMailboxCmdReq::read_from_bytes(cmd_bytes)
-        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+) -> CaliptraResult<MboxStatusE> {
+    let mut external_cmd_buffer =
+        [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
 
     let cmd_id = external_cmd.command_id;
 
@@ -636,10 +621,7 @@ fn handle_external_mailbox_cmd(
         );
     }
 
-    Ok(Some(ExternalCommand {
-        cmd_id,
-        cmd_size: cmd_bytes.len(),
-    }))
+    execute_command(drivers, cmd_id, cmd_bytes)
 }
 
 #[cfg(feature = "riscv")]
