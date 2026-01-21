@@ -114,6 +114,24 @@ impl OpenOcdJtagTap {
         self.jtag_tap
     }
 
+    pub fn reexamine_cpu_target(&mut self) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let _ = self.openocd.execute("riscv.cpu arp_examine")?;
+        Ok(())
+    }
+
+    pub fn set_sysbus_access(&mut self) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let _ = self.openocd.execute("riscv set_mem_access sysbus")?;
+        Ok(())
+    }
+
     pub fn read_reg(&mut self, reg: &dyn JtagAccessibleReg) -> Result<u32> {
         ensure!(
             self.jtag_tap != JtagTap::NoTap,
@@ -149,6 +167,39 @@ impl OpenOcdJtagTap {
             bail!("unexpected response: '{response}'");
         }
 
+        Ok(())
+    }
+
+    pub fn read_memory_32(&mut self, addr: u32) -> Result<u32> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let cmd = format!("read_memory 0x{addr:x} 32 1 phys");
+        let response = self.openocd.execute(cmd.as_str())?;
+        let response_hexstr = response.trim();
+        let value = u32::from_str_radix(
+            response_hexstr
+                .strip_prefix("0x")
+                .unwrap_or(response_hexstr),
+            16,
+        )
+        .context(format!(
+            "expected response to be hexadecimal word, got '{response}'"
+        ))?;
+        Ok(value)
+    }
+
+    pub fn write_memory_32(&mut self, addr: u32, value: u32) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let cmd = format!("write_memory 0x{addr:x} 32 {{ 0x{value:x} }} phys");
+        let response = self.openocd.execute(cmd.as_str())?;
+        if !response.is_empty() {
+            bail!("unexpected response: '{response}'");
+        }
         Ok(())
     }
 }
