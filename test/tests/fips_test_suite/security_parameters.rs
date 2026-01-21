@@ -3,17 +3,18 @@
 
 use crate::common;
 
-use caliptra_builder::firmware::ROM_WITH_FIPS_TEST_HOOKS;
+use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DEFAULT_MCU_FW};
+use caliptra_builder::firmware::{ROM_WITH_FIPS_TEST_HOOKS, ROM_WITH_FIPS_TEST_HOOKS_FPGA};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::{CaliptraError, FipsTestHook};
 use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::ImageManifest;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest};
 use ureg::{Mmio, MmioMut};
 
 use common::*;
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 // TODO: This may differ per environment (0s vs Fs)
 const INACCESSIBLE_READ_VALUE: u32 = 0x0;
@@ -136,6 +137,13 @@ pub fn attempt_ssp_access_rom() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
+    let soc_manifest = default_test_soc_manifest(
+        &DEFAULT_MCU_FW,
+        FwVerificationPqcKeyType::MLDSA,
+        1,
+        Crypto::default(),
+    );
+
     let mut hw = fips_test_init_to_rom(
         Some(InitParams {
             fuses,
@@ -143,6 +151,8 @@ pub fn attempt_ssp_access_rom() {
             ..Default::default()
         }),
         Some(BootParams {
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
             ..Default::default()
         }),
     );
@@ -154,7 +164,12 @@ pub fn attempt_ssp_access_rom() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn attempt_ssp_access_fw_load() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&if cfg!(feature = "fpga_subsystem") {
+        ROM_WITH_FIPS_TEST_HOOKS_FPGA
+    } else {
+        ROM_WITH_FIPS_TEST_HOOKS
+    })
+    .unwrap();
 
     let fw_image = fips_fw_image();
     let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
@@ -185,9 +200,25 @@ pub fn attempt_ssp_access_fw_load() {
         }),
     );
 
+    let soc_manifest = default_test_soc_manifest(
+        &DEFAULT_MCU_FW,
+        FwVerificationPqcKeyType::MLDSA,
+        1,
+        Crypto::default(),
+    );
+
     // Start the FW load (don't wait for a result)
-    hw.start_mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &fw_image)
+    if hw.subsystem_mode() {
+        hw.upload_firmware_rri(
+            &fw_image,
+            Some(soc_manifest.as_bytes()),
+            Some(&DEFAULT_MCU_FW),
+        )
         .unwrap();
+    } else {
+        hw.start_mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &fw_image)
+            .unwrap();
+    }
 
     // Wait for ACK that ROM reached halt point
     hook_wait_for_complete(&mut hw);
@@ -202,7 +233,9 @@ pub fn attempt_ssp_access_fw_load() {
     hook_wait_for_complete(&mut hw);
 
     // Wait for the FW load to report success
-    hw.finish_mailbox_execute().unwrap();
+    if !hw.subsystem_mode() {
+        hw.finish_mailbox_execute().unwrap();
+    }
 }
 
 #[test]
@@ -223,6 +256,13 @@ pub fn attempt_ssp_access_rt() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
+    let soc_manifest = default_test_soc_manifest(
+        &DEFAULT_MCU_FW,
+        FwVerificationPqcKeyType::MLDSA,
+        1,
+        Crypto::default(),
+    );
+
     let mut hw = fips_test_init_to_rt(
         Some(InitParams {
             fuses,
@@ -231,6 +271,8 @@ pub fn attempt_ssp_access_rt() {
         }),
         Some(BootParams {
             fw_image: Some(&fw_image),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
             ..Default::default()
         }),
     );
