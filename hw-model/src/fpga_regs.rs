@@ -58,6 +58,17 @@ register_bitfields! {
         NextChar OFFSET(0) NUMBITS(8) [],
         CharValid OFFSET(8) NUMBITS(1) [],
     ],
+    pub FlashControl [
+        START OFFSET(0) NUMBITS(1) [],
+        OP OFFSET(1) NUMBITS(2) [],
+    ],
+    pub FlashOpStatus [
+        DONE OFFSET(0) NUMBITS(1) [],
+        ERR OFFSET(1) NUMBITS(3) [],
+    ],
+    pub FlashCtrlRegwen [
+        EN OFFSET(0) NUMBITS(1) [],
+    ],
 }
 
 register_structs! {
@@ -70,6 +81,20 @@ register_structs! {
         (0x14 => pub dbg_fifo_data_push: WriteOnly<u32, FifoData::Register>),
         (0x18 => pub dbg_fifo_status: ReadOnly<u32, FifoStatus::Register>),
         (0x1c => @END),
+    },
+    pub FlashCtrlRegs {
+        (0x00 => pub fl_interrupt_state: ReadWrite<u32>),
+        (0x04 => pub fl_interrupt_enable: ReadWrite<u32>),
+        (0x08 => pub page_size: ReadWrite<u32>),
+        (0x0c => pub page_num: ReadWrite<u32>),
+        (0x10 => pub page_addr: ReadWrite<u32>),
+        (0x14 => pub fl_control: ReadWrite<u32, FlashControl::Register>),
+        (0x18 => pub op_status: ReadWrite<u32, FlashOpStatus::Register>),
+        (0x1c => pub ctrl_regwen: ReadWrite<u32, FlashCtrlRegwen::Register>),
+        (0x20 => pub flash_size: ReadWrite<u32>),
+        (0x24 => _reserved0),
+        (0x100 => pub buffer: [ReadWrite<u32>; 64]),
+        (0x200 => @END),
     },
     pub WrapperRegs {
         (0x0 => pub fpga_magic: ReadOnly<u32>),
