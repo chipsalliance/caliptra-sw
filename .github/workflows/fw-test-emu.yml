@@ -17,12 +17,15 @@ on:
         default: "latest"
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   build_and_test:
     runs-on: ubuntu-22.04
 
     env:
-      NEXTEST_VERSION: 0.9.63
+      NEXTEST_VERSION: 0.9.72
       CACHE_BUSTER: f7c64774f17c
 
     steps:
@@ -46,11 +49,9 @@ jobs:
           key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
 
       - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          submodules: recursive
 
       - name: Build firmware
         run: |
@@ -73,9 +74,6 @@ jobs:
             exit 1
           fi
 
-          # Workaround https://github.com/nextest-rs/nextest/issues/267
-          export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
-
           cargo-nextest nextest list \
             --features="${{ inputs.extra-features }}" \
             --message-format json \
@@ -94,4 +92,3 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
-
