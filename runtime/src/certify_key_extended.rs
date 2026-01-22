@@ -12,9 +12,8 @@ Abstract:
 
 --*/
 
-use crate::{
-    mutrefbytes, CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges,
-};
+use crate::{mutrefbytes, with_dpe_env, Drivers, PauserPrivileges};
+use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxRespHeader,
 };
@@ -45,51 +44,24 @@ impl CertifyKeyExtendedCmd {
             }
         }
 
-        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
-        let pdata = drivers.persistent_data.get_mut();
-        let crypto = DpeCrypto::new(
-            &mut drivers.sha2_512_384,
-            &mut drivers.trng,
-            &mut drivers.ecc384,
-            &mut drivers.hmac,
-            &mut drivers.key_vault,
-            &mut pdata.rom.fht.rt_dice_ecc_pub_key,
-            key_id_rt_cdi,
-            key_id_rt_priv_key,
-            &mut pdata.fw.dpe.exported_cdi_slots,
-        );
-        let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
-        let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
         // Populate the otherName only if requested and provided by ADD_SUBJECT_ALT_NAME
         let dmtf_device_info = if cmd.flags.contains(CertifyKeyExtendedFlags::DMTF_OTHER_NAME) {
-            drivers
-                .dmtf_device_info
-                .as_ref()
-                .map(|dmtf_device_info| dmtf_device_info.as_bytes())
+            drivers.dmtf_device_info.as_ref().and_then(|info| {
+                let mut dmtf_device_info = ArrayVec::new();
+                dmtf_device_info.try_extend_from_slice(info).ok()?;
+                Some(dmtf_device_info)
+            })
         } else {
             None
         };
-        let mut env = DpeEnv::<CptraDpeTypes> {
-            crypto,
-            platform: DpePlatform::new(
-                pl0_pauser,
-                &hashed_rt_pub_key,
-                &drivers.ecc_cert_chain,
-                &nb,
-                &nf,
-                dmtf_device_info,
-                None,
-            ),
-            state: &mut pdata.fw.dpe.state,
-        };
+        let locality = drivers.mbox.id();
 
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
-        let locality = drivers.mbox.id();
-        let resp = certify_key_cmd.execute(&mut DpeInstance::initialized(), &mut env, locality);
+        let resp = with_dpe_env(drivers, dmtf_device_info, None, |env| {
+            Ok(certify_key_cmd.execute(&mut DpeInstance::initialized(), env, locality))
+        })?;
 
         let certify_key_resp = match resp {
             Ok(Response::CertifyKey(certify_key_resp)) => certify_key_resp,

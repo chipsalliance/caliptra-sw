@@ -21,19 +21,19 @@ use crypto::Digest;
 use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
-    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
+    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
 
 use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_ECC_CERT_CHAIN_SIZE};
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,
-    hashed_rt_pub_key: &'a Digest,
+    hashed_rt_pub_key: Digest,
     cert_chain: &'a ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
-    not_before: &'a NotBefore,
-    not_after: &'a NotAfter,
-    dmtf_device_info: Option<&'a [u8]>,
-    ueid: Option<&'a [u8; 17]>,
+    not_before: NotBefore,
+    not_after: NotAfter,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
@@ -42,12 +42,12 @@ pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
 impl<'a> DpePlatform<'a> {
     pub fn new(
         auto_init_locality: u32,
-        hashed_rt_pub_key: &'a Digest,
+        hashed_rt_pub_key: Digest,
         cert_chain: &'a ArrayVec<u8, 4096>,
-        not_before: &'a NotBefore,
-        not_after: &'a NotAfter,
-        dmtf_device_info: Option<&'a [u8]>,
-        ueid: Option<&'a [u8; 17]>,
+        not_before: NotBefore,
+        not_after: NotAfter,
+        dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+        ueid: Option<[u8; 17]>,
     ) -> Self {
         Self {
             auto_init_locality,
@@ -205,7 +205,7 @@ impl Platform for DpePlatform<'_> {
     }
 
     fn get_ueid(&mut self) -> Result<Ueid, PlatformError> {
-        let buf = *self.ueid.ok_or(PlatformError::MissingUeidError)?;
+        let buf = self.ueid.ok_or(PlatformError::MissingUeidError)?;
         let buf_size = buf.len() as u32;
 
         let mut ueid = Ueid::default();

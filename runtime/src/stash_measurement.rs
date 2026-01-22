@@ -12,16 +12,13 @@ Abstract:
 
 --*/
 
-use crate::{
-    dpe_crypto::DpeCrypto, mutrefbytes, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges,
-};
+use crate::{mutrefbytes, with_dpe_env, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    dpe_instance::DpeEnv,
     response::DpeErrorCode,
     DpeInstance,
 };
@@ -51,39 +48,9 @@ impl StashMeasurementCmd {
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
 
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
-            let pdata = drivers.persistent_data.get_mut();
-            let crypto = DpeCrypto::new(
-                &mut drivers.sha2_512_384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac,
-                &mut drivers.key_vault,
-                &mut pdata.rom.fht.rt_dice_ecc_pub_key,
-                key_id_rt_cdi,
-                key_id_rt_priv_key,
-                &mut pdata.fw.dpe.exported_cdi_slots,
-            );
-            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pdata.rom.manifest1.header.pl0_pauser,
-                    &hashed_rt_pub_key,
-                    &drivers.ecc_cert_chain,
-                    &nb,
-                    &nf,
-                    None,
-                    None,
-                ),
-                state: &mut pdata.fw.dpe.state,
-            };
-
             let locality = drivers.mbox.id();
 
-            let derive_context_resp = DeriveContextCmd {
+            let cmd = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: *measurement,
                 flags: DeriveContextFlags::MAKE_DEFAULT
@@ -93,8 +60,11 @@ impl StashMeasurementCmd {
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
                 svn,
-            }
-            .execute(&mut DpeInstance::initialized(), &mut env, locality);
+            };
+
+            let derive_context_resp = with_dpe_env(drivers, None, None, |env| {
+                Ok(cmd.execute(&mut DpeInstance::initialized(), env, locality))
+            })?;
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,

@@ -52,6 +52,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
@@ -59,6 +60,7 @@ use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
+use platform::MAX_OTHER_NAME_SIZE;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
@@ -740,4 +742,54 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         }
     }
     //    Ok(())
+}
+
+fn dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<DpeEnv<CptraDpeTypes>> {
+    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeCrypto::new(
+        &mut drivers.sha2_512_384,
+        &mut drivers.trng,
+        &mut drivers.ecc384,
+        &mut drivers.hmac,
+        &mut drivers.key_vault,
+        &mut pdata.rom.fht.rt_dice_ecc_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_priv_key,
+        &mut pdata.fw.dpe.exported_cdi_slots,
+    );
+    let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
+    Ok(DpeEnv::<CptraDpeTypes> {
+        crypto,
+        platform: DpePlatform::new(
+            pl0_pauser,
+            hashed_rt_pub_key,
+            &drivers.ecc_cert_chain,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.fw.dpe.state,
+    })
+}
+
+fn with_dpe_env<F, R>(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+    f: F,
+) -> CaliptraResult<R>
+where
+    F: FnOnce(&mut DpeEnv<CptraDpeTypes>) -> CaliptraResult<R>,
+{
+    let mut dpe_env = dpe_env(drivers, dmtf_device_info, ueid)?;
+    f(&mut dpe_env)
 }
