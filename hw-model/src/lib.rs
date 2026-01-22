@@ -188,6 +188,9 @@ pub struct SubsystemInitParams<'a> {
 
     // Offset of public key hashes in PROD_DEBUG_UNLOCK_PK_HASH_REG register bank for production debug unlock.
     pub prod_dbg_unlock_pk_hashes_offset: u32,
+
+    // Initial contents of the primary flash memory (for flash-based boot testing)
+    pub primary_flash_initial_contents: Option<&'a [u8]>,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -199,6 +202,7 @@ impl Default for SubsystemInitParams<'_> {
             raw_unlock_token_hash: [0xf0930a4d, 0xde8a30e6, 0xd1c8cbba, 0x896e4a11],
             num_prod_dbg_unlock_pk_hashes: Default::default(),
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
+            primary_flash_initial_contents: None,
         }
     }
 }

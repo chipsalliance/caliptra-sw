@@ -1273,8 +1273,9 @@ fn fw_load_error_image_len_more_than_bundle_size() {
             ..Default::default()
         };
         let mut fw_image = build_fw_image(image_options);
-        // Change runtime size to exceed bundle
-        fw_image.manifest.runtime.size += 4;
+        // Change runtime size to exceed bundle by more than 256 bytes to trigger the correct
+        // error on FPGA
+        fw_image.manifest.runtime.size += 260;
         update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
         fw_load_error_flow(
