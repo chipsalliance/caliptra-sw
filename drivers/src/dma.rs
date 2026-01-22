@@ -25,6 +25,7 @@ use caliptra_registers::sha512_acc::RegisterBlock as ShaAccRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 
+const INDIRECT_FIFO_SIZE: u32 = 256;
 const I3C_BLOCK_SIZE: u32 = 64;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 // SHA384 of empty stream
@@ -679,18 +680,19 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
         {
-            // FPGA implementation: wait for FIFO to be not empty and read dword by dword
+            // FPGA implementation: wait for FIFO to be full every 256 bytes
             let len = (image_size_bytes as usize / 4).min(buffer.len());
             for i in 0..len {
-                // Wait for FIFO to not be empty before each read_dword.
-                self.with_regs(|r| {
-                    while r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .empty()
-                    {}
-                })?;
+                if i % (INDIRECT_FIFO_SIZE as usize / 4) == 0 {
+                    self.with_regs(|r| {
+                        while !r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .full()
+                        {}
+                    })?;
+                }
                 buffer[i] = self.dma.read_dword(addr);
             }
         }
@@ -865,19 +867,21 @@ impl<'a> DmaRecovery<'a> {
         self.dma.flush();
 
         for i in (0..read_transaction.length).step_by(4) {
-            // if this is an I3C transfer, wait for the FIFO to be not empty
+            // if this is an I3C transfer, wait for the FIFO to be full every 256 bytes
             if matches!(
                 read_transaction.block_mode,
                 BlockMode::RecoveryIndirectFifoData
             ) {
-                self.with_regs(|r| {
-                    while r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .empty()
-                    {}
-                })?;
+                if i % INDIRECT_FIFO_SIZE == 0 {
+                    self.with_regs(|r| {
+                        while !r
+                            .sec_fw_recovery_if()
+                            .indirect_fifo_status_0()
+                            .read()
+                            .full()
+                        {}
+                    })?;
+                }
             }
 
             // translate to single dword transfer
