@@ -36,16 +36,20 @@ mod generate_mek;
 mod generate_mpk;
 mod get_algorithms;
 mod initialize_mek_secret;
+mod mix_mpk;
 mod rewrap_mpk;
 mod rotate_hpke_key;
 
 pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
+pub use mix_mpk::MixMpkCmd;
 
 use crate::Drivers;
 
 const ACCESS_KEY_LEN: usize = 32;
+
+// TODO(clundin): Use a shared generic base for the WrappedKey types?
 
 /// Represents the VEK type from OCP LOCK.
 /// The VEK is used to encrypt an MPK. This transitions the MPK to the "enabled" state and it can
@@ -203,7 +207,7 @@ impl TryFrom<WrappedMek> for WrappedKey {
             metadata_len: 0,
             key_len: WrappedMek::KEY_LEN as u32,
             iv: value.iv,
-            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            ciphertext_and_auth_tag,
             ..Default::default()
         })
     }
@@ -269,7 +273,7 @@ impl TryFrom<LockedMpk> for WrappedKey {
             metadata_len: value.metadata_len,
             key_len: LockedMpk::KEY_LEN as u32,
             iv: value.iv,
-            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            ciphertext_and_auth_tag,
             metadata: value.metadata,
             ..Default::default()
         })
@@ -283,10 +287,10 @@ impl TryFrom<&WrappedKey> for LockedMpk {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_INVALID_WRAPPED_KEY_TYPE);
         }
         let mut encrypted_key = [0; LockedMpk::KEY_LEN];
-        encrypted_key.copy_from_slice(&value.cipher_text_and_auth_tag[..LockedMpk::KEY_LEN]);
+        encrypted_key.copy_from_slice(&value.ciphertext_and_auth_tag[..LockedMpk::KEY_LEN]);
         let mut tag = [0; Aes256GCM::NT];
         tag.copy_from_slice(
-            &value.cipher_text_and_auth_tag[LockedMpk::KEY_LEN..LockedMpk::KEY_LEN + Aes256GCM::NT],
+            &value.ciphertext_and_auth_tag[LockedMpk::KEY_LEN..LockedMpk::KEY_LEN + Aes256GCM::NT],
         );
 
         Ok(Self {
@@ -318,6 +322,19 @@ impl EnabledMpk {
     const KDF_LABEL: &'static [u8] = b"ocp_lock_enabled_mpk";
 }
 
+impl From<&LockedMpk> for EnabledMpk {
+    fn from(value: &LockedMpk) -> Self {
+        Self {
+            salt: value.salt,
+            iv: value.iv,
+            encrypted_key: value.encrypted_key,
+            tag: value.tag,
+            metadata: value.metadata,
+            metadata_len: value.metadata_len,
+        }
+    }
+}
+
 impl TryFrom<EnabledMpk> for WrappedKey {
     type Error = CaliptraError;
     fn try_from(value: EnabledMpk) -> Result<Self, Self::Error> {
@@ -332,10 +349,74 @@ impl TryFrom<EnabledMpk> for WrappedKey {
             metadata_len: value.metadata_len,
             key_len: EnabledMpk::KEY_LEN as u32,
             iv: value.iv,
-            cipher_text_and_auth_tag: ciphertext_and_auth_tag,
+            ciphertext_and_auth_tag,
             metadata: value.metadata,
             ..Default::default()
         })
+    }
+}
+
+impl TryFrom<&WrappedKey> for EnabledMpk {
+    type Error = CaliptraError;
+    fn try_from(value: &WrappedKey) -> Result<Self, Self::Error> {
+        if value.key_type != EnabledMpk::KEY_TYPE {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_INVALID_WRAPPED_KEY_TYPE);
+        }
+        let mut encrypted_key = [0; EnabledMpk::KEY_LEN];
+        encrypted_key.copy_from_slice(&value.ciphertext_and_auth_tag[..EnabledMpk::KEY_LEN]);
+        let mut tag = [0; Aes256GCM::NT];
+        tag.copy_from_slice(
+            &value.ciphertext_and_auth_tag
+                [EnabledMpk::KEY_LEN..EnabledMpk::KEY_LEN + Aes256GCM::NT],
+        );
+
+        Ok(Self {
+            salt: value.salt,
+            iv: value.iv,
+            encrypted_key,
+            tag,
+            metadata: value.metadata,
+            metadata_len: value.metadata_len,
+        })
+    }
+}
+
+#[derive(IntoBytes, KnownLayout, Immutable)]
+#[repr(C, packed)]
+pub struct EnabledMpkAad {
+    key_type: u16,
+    metadata_len: u32,
+    metadata: [u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+}
+
+impl EnabledMpkAad {
+    fn new(metadata: &[u8]) -> CaliptraResult<Self> {
+        let mut metadata_aad = [0; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+        metadata_aad
+            .get_mut(..metadata.len())
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?
+            .clone_from_slice(metadata);
+        Ok(Self {
+            key_type: EnabledMpk::KEY_TYPE,
+            metadata_len: metadata.len() as u32,
+            metadata: metadata_aad,
+        })
+    }
+
+    fn serialize(&self) -> CaliptraResult<&[u8]> {
+        self.as_bytes()
+            .get(..size_of::<u16>() + size_of::<u32>() + self.metadata_len as usize)
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_SERIALIZE_METADATA_FAILURE)
+    }
+}
+
+impl From<LockedMpkAad> for EnabledMpkAad {
+    fn from(value: LockedMpkAad) -> Self {
+        Self {
+            key_type: EnabledMpk::KEY_TYPE,
+            metadata: value.metadata,
+            metadata_len: value.metadata_len,
+        }
     }
 }
 
@@ -402,6 +483,7 @@ impl IntermediateMekSecret {
         )?;
         Ok(MekSecret { kv })
     }
+
     /// Consumes `Self` to produce a `MekSecret`
     /// The `MekSecret` will be used encrypt other secrets
     fn wrapping_mek_secret<'a>(
@@ -423,6 +505,23 @@ impl IntermediateMekSecret {
             HmacMode::Hmac512,
         )?;
         Ok(MekSecret { kv })
+    }
+
+    /// Mixes `mpk` into `Self`
+    fn mix_mpk(&mut self, hmac: &mut Hmac, trng: &mut Trng, mpk: Mpk) -> CaliptraResult<()> {
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"ocp_lock_mix_mpk",
+            Some(mpk.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                KEY_ID_MEK_SECRETS,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+        Ok(())
     }
 }
 
@@ -468,6 +567,7 @@ impl MekSecret<'_> {
             hmac,
             trng,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
             b"wrapped_mek",
             aad,
             mek.as_ref(),
@@ -604,8 +704,10 @@ impl<'a> Epk<'a> {
             )),
             HmacMode::Hmac512,
         )?;
+
         let aad = LockedMpkAad::new(metadata)?;
         let aad = aad.serialize()?;
+
         let mpk = Mpk::generate(trng)?;
         let mut encrypted_key = [0; LockedMpk::KEY_LEN];
         let res = preconditioned_aes_encrypt(
@@ -613,13 +715,16 @@ impl<'a> Epk<'a> {
             hmac,
             trng,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
             aad,
             mpk.as_bytes(),
             &mut encrypted_key,
         )?;
+
         let mut mpk_metadata = [0; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
         mpk_metadata[..metadata.len()].clone_from_slice(metadata);
+
         Ok(LockedMpk {
             salt: res.salt.into(),
             iv: res.iv.into(),
@@ -665,6 +770,7 @@ impl<'a> Epk<'a> {
             hmac,
             trng,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
             aad,
             mpk.as_bytes(),
@@ -717,6 +823,7 @@ impl<'a> Epk<'a> {
             hmac,
             trng,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
             aad.serialize()?,
             &locked_mpk.salt.into(),
@@ -1012,12 +1119,18 @@ impl OcpLockContext {
 
         let epk = Epk::new(hmac, trng, kv, sek)?;
         let (mpk, aad) = epk.decrypt_mpk(aes, hmac, trng, access_key, locked_mpk)?;
+        let aad = EnabledMpkAad::from(aad);
+
         let mut encrypted_key = [0; EnabledMpk::KEY_LEN];
         let res = preconditioned_aes_encrypt(
             aes,
             hmac,
             trng,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_VEK)),
+            // We do not want to erase the `VEK` KV slot so use the MPK Encryption key slot to
+            // store the encryption subkey. This is safe because this slot is always erased on use,
+            // so we can't overwrite any data.
+            AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             EnabledMpk::KDF_LABEL,
             aad.serialize()?,
             mpk.as_bytes(),
@@ -1032,6 +1145,54 @@ impl OcpLockContext {
             metadata: locked_mpk.metadata,
             metadata_len: locked_mpk.metadata_len,
         })
+    }
+
+    /// Mixes an `EnabledMpk` into the MEK Secret Seed
+    pub fn mix_mpk(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        enabled_mpk: &EnabledMpk,
+    ) -> CaliptraResult<()> {
+        if self.vek.is_none() {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
+        }
+
+        let Some(ref mut intermediate_secret) = self.intermediate_secret else {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED);
+        };
+
+        let aad = EnabledMpkAad::new(
+            enabled_mpk
+                .metadata
+                .get(..enabled_mpk.metadata_len as usize)
+                .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_METADATA_FAILURE)?,
+        )?;
+        let aad = aad.serialize()?;
+
+        let mut mpk = Mpk::generate(trng)?;
+        preconditioned_aes_decrypt(
+            aes,
+            hmac,
+            trng,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_VEK)),
+            // We do not want to erase the `VEK` KV slot so use the MPK Encryption key slot to
+            // store the encryption subkey. This is safe because this slot is always erased on use,
+            // so we can't overwrite any data.
+            AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
+            EnabledMpk::KDF_LABEL,
+            aad,
+            &enabled_mpk.salt.into(),
+            &enabled_mpk.iv.into(),
+            &enabled_mpk.tag.into(),
+            &enabled_mpk.encrypted_key,
+            mpk.as_mut(),
+        )?;
+
+        intermediate_secret.mix_mpk(hmac, trng, mpk)?;
+
+        Ok(())
     }
 
     /// Retrieve the public key for the HPKE handle
@@ -1072,6 +1233,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
             InitializeMekSecretCmd::execute(drivers, cmd_bytes, resp)
         }
+        CommandId::OCP_LOCK_MIX_MPK => MixMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_DERIVE_MEK => DeriveMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES => {
             EnumerateHpkeHandles::execute(drivers, cmd_bytes, resp)
