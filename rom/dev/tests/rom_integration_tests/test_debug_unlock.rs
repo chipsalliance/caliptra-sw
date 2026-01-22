@@ -2,6 +2,7 @@
 
 use std::mem::size_of;
 
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::mailbox::{
     CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
@@ -376,6 +377,12 @@ fn test_dbg_unlock_prod_success() {
         .unwrap();
 
     let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        challenge.length,
+        ((size_of::<ProductionAuthDebugUnlockChallenge>() - size_of::<MailboxRespHeader>())
+            / size_of::<u32>()) as u32
+    );
+
     let reserved = [0u8; 3];
 
     let mut sha384 = sha2::Sha384::new();

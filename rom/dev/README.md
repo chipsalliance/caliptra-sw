@@ -327,7 +327,7 @@ The following flows are conducted when the ROM is operating in the production mo
 
 | Field                    | Size (bytes) | Description                                        |
 |--------------------------|--------------|----------------------------------------------------|
-| Length                   | 4            | Reserved.                                          |
+| Length                   | 4            | Length of the message in DWORDs. This should be 21.                                         |
 | Unique Device Identifier | 32           | Device identifier of the Caliptra Device.          |
 | Challenge                | 48           | Random number.                                     |
 
