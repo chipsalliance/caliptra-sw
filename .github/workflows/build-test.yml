@@ -157,6 +157,7 @@ jobs:
         run: |
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" run --manifest-path ./coverage/Cargo.toml
+          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test -p caliptra-runtime --features ocp-lock test_ocp_lock --locked
 
           CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
 

@@ -18,7 +18,6 @@ use super::{
 // TODO(clundin): Verify that the public key from endorsement changes.
 // TODO(clundin): When multiple algs are supported verify different orders of rotations will work.
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_rotate_ml_kem_hpke_handle() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
@@ -108,7 +107,6 @@ fn test_rotate_ml_kem_hpke_handle() {
     }
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_rotate_unknown_hpke_handle() {
     // This command should have no dependency on the HEK's availability, so don't include it here.

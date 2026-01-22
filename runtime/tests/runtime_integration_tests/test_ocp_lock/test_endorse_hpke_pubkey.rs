@@ -14,7 +14,6 @@ use super::{
 //
 // TODO(clundin): Add tests ML-DSA endorsement after https://github.com/chipsalliance/caliptra-sw/issues/3106.
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_endorse_hpke_pubkey() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
@@ -26,7 +25,6 @@ fn test_endorse_hpke_pubkey() {
     );
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_endorse_unknown_hpke_handle() {
     // This command should have no dependency on the HEK's availability, so don't include it here.

@@ -8,7 +8,6 @@ use caliptra_kat::CaliptraError;
 
 use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams};
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_valid_mek_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -35,7 +34,6 @@ fn test_valid_mek_secret_seed() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_initialize_mek_secret_no_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams::default());

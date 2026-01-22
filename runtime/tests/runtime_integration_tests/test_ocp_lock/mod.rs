@@ -38,13 +38,18 @@ mod test_get_algorithms;
 mod test_initialize_mek_secret;
 mod test_rotate_hpke_key;
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_hek_metadata_never_reported() {
+    let fw_id = if cfg!(feature = "fpga_subsystem") {
+        &runtime_tests::MBOX_FPGA
+    } else {
+        &runtime_tests::MBOX
+    };
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
         // This test assumes OCP LOCK is always enabled.
         force_ocp_lock_en: true,
-        rt_fw_id: Some(&runtime_tests::MBOX_FPGA),
+        rt_fw_id: Some(fw_id),
         ..Default::default()
     });
 
@@ -54,13 +59,18 @@ fn test_hek_metadata_never_reported() {
     assert_eq!(resp.as_bytes(), expected_val.as_bytes());
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_hek_available() {
+    let fw_id = if cfg!(feature = "fpga_subsystem") {
+        &runtime_tests::MBOX_FPGA
+    } else {
+        &runtime_tests::MBOX
+    };
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
         hek_available: true,
         force_ocp_lock_en: true,
-        rt_fw_id: Some(&runtime_tests::MBOX_FPGA),
+        rt_fw_id: Some(fw_id),
         ..Default::default()
     });
 
@@ -130,6 +140,7 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
         key_type: Some(FwVerificationPqcKeyType::MLDSA),
         rom_callback,
         security_state: Some(security_state),
+        subsystem_mode: true,
         ..Default::default()
     });
 
@@ -185,10 +196,13 @@ fn ocp_lock_supported(model: &mut DefaultHwModel) -> bool {
 fn validate_ocp_lock_response<T>(
     model: &mut DefaultHwModel,
     response: std::result::Result<Option<Vec<u8>>, ModelError>,
-    check_callback: impl FnOnce(std::result::Result<Option<Vec<u8>>, ModelError>, OcpLockState) -> T,
+    check_callback: impl FnOnce(
+        std::result::Result<Option<Vec<u8>>, ModelError>,
+        Option<OcpLockState>,
+    ) -> T,
 ) -> Option<T> {
     if ocp_lock_supported(model) {
-        let state = model.ocp_lock_state().unwrap();
+        let state = model.ocp_lock_state();
         return Some(check_callback(response, state));
     } else {
         assert_eq!(

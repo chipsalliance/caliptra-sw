@@ -114,6 +114,8 @@ pub struct AesClp {
     op_key_write_complete_action: Option<ActionHandle>,
 
     key: Rc<RefCell<Option<[u8; 32]>>>,
+    /// A copy of the latest released MEK for an easy backdoor to the MEK.
+    latest_mek: Vec<u8>,
     key_destination: Rc<RefCell<AesKeyReleaseOp>>,
 }
 
@@ -140,6 +142,7 @@ impl AesClp {
             aes_kv_wr_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             op_key_read_complete_action: None,
             op_key_write_complete_action: None,
+            latest_mek: Vec::new(),
             key,
             key_destination,
         }
@@ -263,6 +266,7 @@ impl AesClp {
             .key_vault
             .write_key(key_id, &key_op.output, key_usage.into());
 
+        self.latest_mek = Vec::from(&key_op.output);
         key_op.clear();
 
         // TODO(clundin): Check Key here?
@@ -304,6 +308,12 @@ impl AesClp {
     /// Register for outgoing events
     pub fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
         // No events to register for now
+    }
+
+    /// Returns the latest MEK that was released to the key vault
+    /// NOTE: This may be empty.
+    pub fn latest_mek(&self) -> Vec<u8> {
+        self.latest_mek.clone()
     }
 }
 

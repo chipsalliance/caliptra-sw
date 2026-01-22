@@ -14,7 +14,6 @@ use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams
 // * https://github.com/chipsalliance/caliptra-sw/issues/3033
 // * https://github.com/chipsalliance/caliptra-sw/issues/3034
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_enumerate_hpke_handles() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
