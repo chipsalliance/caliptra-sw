@@ -7,8 +7,9 @@ use caliptra_api::{
         OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
         OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockInitializeMekSecretReq,
         OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
-        OcpLockReportHekMetadataRespFlags, SealedAccessKey, OCP_LOCK_MAX_ENC_LEN,
-        OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
+        OcpLockReportHekMetadataRespFlags, OcpLockRewrapMpkReq, SealedAccessKey, WrappedKey,
+        OCP_LOCK_MAX_ENC_LEN, OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN,
+        OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
     },
     Capabilities,
 };
@@ -36,6 +37,7 @@ mod test_generate_mek;
 mod test_generate_mpk;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
+mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
@@ -365,6 +367,48 @@ fn create_generate_mpk_req(
             ak_ciphertext,
             ..Default::default()
         },
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+    cmd
+}
+
+fn create_rewrap_mpk_req(
+    endorsed_key: &ValidatedHpkeHandle,
+    info: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+    metadata: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    current_access_key: &[u8; 32],
+    new_access_key: &[u8; 32],
+    current_locked_mpk: &WrappedKey,
+) -> MailboxReq {
+    let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+    let (enc, mut sender_ctx) = hpke.setup_base_s(&endorsed_key.pub_key, info);
+
+    let current_ct = sender_ctx.seal(metadata, current_access_key);
+    let new_ct = sender_ctx.seal(metadata, new_access_key);
+
+    let mut kem_ciphertext = [0; OCP_LOCK_MAX_ENC_LEN];
+    kem_ciphertext[..enc.len()].clone_from_slice(&enc);
+
+    let mut current_ak_ciphertext = [0; 48];
+    current_ak_ciphertext.clone_from_slice(&current_ct);
+
+    let mut new_ak_ciphertext = [0; 48];
+    new_ak_ciphertext.clone_from_slice(&new_ct);
+
+    let mut cmd = MailboxReq::OcpLockRewrapMpk(OcpLockRewrapMpkReq {
+        sek: [0xAB; 32],
+        current_locked_mpk: current_locked_mpk.clone(),
+        sealed_access_key: SealedAccessKey {
+            hpke_handle: endorsed_key.hpke_handle.clone(),
+            access_key_len: current_access_key.len() as u32,
+            info_len: info.len() as u32,
+            info: *info,
+            kem_ciphertext,
+            ak_ciphertext: current_ak_ciphertext,
+            ..Default::default()
+        },
+        new_ak_ciphertext,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
