@@ -713,7 +713,7 @@ impl ModelFpgaSubsystem {
                 }
 
                 let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
-                let mut ctrl = vec![0, 1]; // CMS = 0, reset FIFO
+                let mut ctrl = vec![0, 0]; // CMS = 0, don't reset FIFO
                 ctrl.extend_from_slice(&len);
 
                 println!("Writing Indirect fifo ctrl: {:x?}", ctrl);
@@ -828,6 +828,16 @@ impl ModelFpgaSubsystem {
             EventData::RecoveryImageAvailable { image_id: _, image } => {
                 // do the indirect fifo thing
                 println!("Recovery image available; writing blocks");
+
+                // Recovery images must be padded to a multiple of 256 bytes
+                // or the last chunk will not finish.
+                let image = if image.len() % 256 == 0 {
+                    image
+                } else {
+                    let mut image = image.clone();
+                    image.resize(image.len().next_multiple_of(256), 0);
+                    image
+                };
 
                 self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
