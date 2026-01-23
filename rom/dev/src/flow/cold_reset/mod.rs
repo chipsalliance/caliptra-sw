@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+mod cm_sha;
 mod dice;
 mod fmc_alias;
 pub mod fw_processor;
