@@ -4314,7 +4314,7 @@ impl Request for OcpLockGetAlgorithmsReq {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct EndorsementAlgorithms(u32);
 
 bitflags! {
