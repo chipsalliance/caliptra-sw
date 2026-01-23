@@ -1319,6 +1319,8 @@ These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-com
 
 This starts the computation of a SHA hash of data, which may be larger than a single mailbox command allows. It also supports additional algorithms.
 
+**Note:** ROM provides a simpler one-shot `CM_SHA` command for hashing data in a single operation. However, that command is ROM-only and is not available in runtime. For runtime, use these streaming commands (CM_SHA_INIT, CM_SHA_UPDATE, CM_SHA_FINAL) which support contexts and incremental hashing of large data.
+
 The sequence to use these are:
 * 1 `CM_SHA_INIT` command
 * 0 or more `CM_SHA_UPDATE` commands
