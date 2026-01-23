@@ -361,16 +361,6 @@ impl InitDevIdLayer {
         );
         let sig = okmutref(&mut sig)?;
 
-        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        cprintln!("[idev] ECC PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[idev] ECC PUB.Y = {}", HexBytes(&_pub_y));
-
-        let _sig_r: [u8; 48] = (&sig.r).into();
-        let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[idev] ECC SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[idev] ECC SIG.S = {}", HexBytes(&_sig_s));
-
         // Build the CSR with `To Be Signed` & `Signature`
         let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
         let ecdsa384_sig = sig.to_ecdsa();

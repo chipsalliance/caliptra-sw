@@ -16,7 +16,6 @@ Abstract:
 use super::dice::*;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -330,16 +329,6 @@ impl LocalDevIdLayer {
             .inspect_err(|_err| {
                 sig.zeroize();
             })?;
-
-        let _pub_x: [u8; 48] = (&ecc_pub_key.x).into();
-        let _pub_y: [u8; 48] = (&ecc_pub_key.y).into();
-        cprintln!("[ldev] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[ldev] PUB.Y = {}", HexBytes(&_pub_y));
-
-        let _sig_r: [u8; 48] = (&sig.r).into();
-        let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 
         let data_vault = &mut env.persistent_data.get_mut().data_vault;
 
