@@ -695,8 +695,8 @@ Command Code: `0x434D_5348` ("CMSH")
 | -------------- | ------------- | ---------------
 | chksum         | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | hash_algorithm | u32           | Hash algorithm: 1 = SHA-384, 2 = SHA-512. Value 0 is reserved and will return an error.
-| input_size     | u32           | Size of input data in bytes. Maximum 4096 bytes.
-| input          | u8[4096]      | Input data to hash. Only the first `input_size` bytes are used.
+| input_size     | u32           | Size of input data in bytes. Maximum 262,132 bytes (256 KB minus 12-byte header overhead).
+| input          | u8[input_size]| Input data to hash. Variable size up to the mailbox capacity.
 
 *Table: `CM_SHA` output arguments*
 

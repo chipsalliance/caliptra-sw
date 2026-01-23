@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_api::mailbox::{CmHashAlgorithm, CmShaReq, CmShaResp};
+use caliptra_api::mailbox::{CmHashAlgorithm, CmShaResp};
 use caliptra_common::mailbox_api::ResponseVarSize;
 use caliptra_drivers::{CaliptraError, CaliptraResult, Sha2_512_384};
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -20,16 +20,23 @@ use zerocopy::FromBytes;
 
 pub struct CmShaCmd;
 impl CmShaCmd {
+    /// Execute the CM_SHA command.
+    ///
+    /// # Arguments
+    /// * `hash_algorithm` - The hash algorithm selector (from CmShaReqHdr)
+    /// * `input` - The input data slice (read directly from mailbox memory)
+    /// * `sha2_512_384` - The SHA2-512/384 hardware driver
+    /// * `resp` - The response buffer to populate
+    ///
+    /// # Returns
+    /// The size of the response in bytes, or an error.
     #[inline(always)]
     pub(crate) fn execute(
-        cmd_bytes: &[u8],
+        hash_algorithm: u32,
+        input: &[u8],
         sha2_512_384: &mut Sha2_512_384,
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let req = CmShaReq::ref_from_prefix(cmd_bytes)
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?
-            .0;
-
         // Use the response buffer directly as CmShaResp.
         let resp_buffer_size = core::mem::size_of::<CmShaResp>();
         let resp = resp
@@ -38,13 +45,7 @@ impl CmShaCmd {
         let sha_resp = CmShaResp::mut_from_bytes(resp)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
-        let input_size = req.input_size as usize;
-        if input_size > req.input.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        let input = &req.input[..input_size];
-        let hash_algorithm = CmHashAlgorithm::from(req.hash_algorithm);
+        let hash_algorithm = CmHashAlgorithm::from(hash_algorithm);
 
         match hash_algorithm {
             CmHashAlgorithm::Sha384 => {
