@@ -52,7 +52,7 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
-pub const OCP_LOCK_METADATA_SIZE: u32 = 8;
+pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
@@ -64,6 +64,7 @@ mod fw {
     pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
     pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
     pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
+    pub const FIRMWARE_OCP_LOCK_METADATA_SIZE: u32 = 4;
 }
 
 #[cfg(feature = "runtime")]
@@ -282,12 +283,27 @@ pub struct DOT_OWNER_PK_HASH {
 
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
-pub struct OcpLockMetadata {
+pub struct OcpLockMetadataRom {
     pub total_hek_seed_slots: u16,
     pub active_hek_seed_slots: u16,
     pub hek_seed_state: u16,
     pub hek_available: bool,
     reserved: [u8; 1],
+}
+
+#[derive(Default, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+pub struct OcpLockFlags(u32);
+
+bitflags::bitflags! {
+    impl OcpLockFlags : u32 {
+        const VEK_AVAILABLE = 0b1 << 0;
+    }
+}
+
+#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
+pub struct OcpLockMetadataFirmware {
+    pub flags: OcpLockFlags,
 }
 
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
@@ -348,8 +364,7 @@ pub struct RomPersistentData {
 
     pub cleared_non_fatal_fw_error: u32,
 
-    // TODO(clundin): For runtime we may want to gate this behind a feature flag.
-    pub ocp_lock_metadata: OcpLockMetadata,
+    pub ocp_lock_metadata: OcpLockMetadataRom,
 
     /// Major version.
     pub major_version: u16,
@@ -474,7 +489,7 @@ impl RomPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += OCP_LOCK_METADATA_SIZE;
+            persistent_data_offset += ROM_OCP_LOCK_METADATA_SIZE;
             assert_eq!(
                 addr_of!((*P).rom.major_version) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -540,6 +555,9 @@ pub struct FwPersistentData {
     reserved4: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
     pub mcu_firmware_loaded: u32,
+
+    pub ocp_lock_metadata: OcpLockMetadataFirmware,
+
     pub version: u32,
     /// Keep this as the bottom of the struct
     pub marker: u32,
@@ -606,6 +624,12 @@ impl FwPersistentData {
             persistent_data_offset += FMC_ALIAS_CSR_SIZE;
             assert_eq!(
                 addr_of!((*P).fw.mcu_firmware_loaded) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FIRMWARE_OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).fw.ocp_lock_metadata) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
