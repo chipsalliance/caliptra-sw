@@ -30,6 +30,7 @@ use x509_parser::prelude::*;
 
 use crate::common::{get_rt_alias_ecc384_cert, run_rt_test, RuntimeTestArgs};
 
+mod test_access_key;
 mod test_derive_mek;
 mod test_enable_mpk;
 mod test_endorse_hpke_pubkey;

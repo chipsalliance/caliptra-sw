@@ -13,8 +13,10 @@ use caliptra_drivers::{
         HpkeHandle, Receiver,
     },
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
-    Aes, AesKey, AesOperation, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
-    KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha3, SocIfc, Trng,
+    sha2_512_384::Sha2DigestOpTrait,
+    Aes, AesKey, AesOperation, Array4x12, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
+    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha2_512_384, Sha3,
+    SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -25,6 +27,7 @@ use generate_mek::GenerateMekCmd;
 use generate_mpk::GenerateMpkCmd;
 use rewrap_mpk::RewrapMpkCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
+use test_access_key::TestAccessKeyCmd;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
@@ -39,6 +42,7 @@ mod initialize_mek_secret;
 mod mix_mpk;
 mod rewrap_mpk;
 mod rotate_hpke_key;
+mod test_access_key;
 
 pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
@@ -747,7 +751,7 @@ impl<'a> Epk<'a> {
         current_locked_mpk: &LockedMpk,
     ) -> CaliptraResult<LockedMpk> {
         let (mpk, aad) =
-            self.decrypt_mpk(aes, hmac, trng, current_access_key, current_locked_mpk)?;
+            self.decrypt_mpk(aes, hmac, trng, &current_access_key, current_locked_mpk)?;
         let aad = aad.serialize()?;
 
         // Now derive the new MPK Encryption Key from the new access key
@@ -787,13 +791,13 @@ impl<'a> Epk<'a> {
         })
     }
 
-    /// Consumes `AccessKey<Current>` to decrypt the MPK
+    /// Uses `AccessKey<Current>` to decrypt the Locked MPK
     fn decrypt_mpk(
         &self,
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
-        access_key: AccessKey<Current>,
+        access_key: &AccessKey<Current>,
         locked_mpk: &LockedMpk,
     ) -> CaliptraResult<(Mpk, LockedMpkAad)> {
         // Derive current access key's MPK Encryption Key and place in MPK Encryption KV.
@@ -1118,7 +1122,7 @@ impl OcpLockContext {
         }
 
         let epk = Epk::new(hmac, trng, kv, sek)?;
-        let (mpk, aad) = epk.decrypt_mpk(aes, hmac, trng, access_key, locked_mpk)?;
+        let (mpk, aad) = epk.decrypt_mpk(aes, hmac, trng, &access_key, locked_mpk)?;
         let aad = EnabledMpkAad::from(aad);
 
         let mut encrypted_key = [0; EnabledMpk::KEY_LEN];
@@ -1145,6 +1149,42 @@ impl OcpLockContext {
             metadata: locked_mpk.metadata,
             metadata_len: locked_mpk.metadata_len,
         })
+    }
+
+    /// Tests an access key and returns `SHA2-384(metadata || decrypted access key || nonce)` to
+    /// provide proof
+    #[allow(clippy::too_many_arguments)]
+    pub fn test_access_key(
+        &mut self,
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        sha2: &mut Sha2_512_384,
+        kv: &mut KeyVault,
+        access_key: AccessKey<Current>,
+        locked_mpk: &LockedMpk,
+        sek: Sek,
+        metadata: &[u8],
+        nonce: &[u8],
+    ) -> CaliptraResult<[u8; 48]> {
+        if !self.hek_available {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
+        } else {
+            cfi_assert!(self.hek_available);
+        }
+
+        let epk = Epk::new(hmac, trng, kv, sek)?;
+        // Check that access key can decrypt the locked mpk.
+        let _ = epk.decrypt_mpk(aes, hmac, trng, &access_key, locked_mpk)?;
+
+        let mut op = sha2.sha384_digest_init()?;
+        op.update(metadata)?;
+        op.update(access_key.as_bytes())?;
+        op.update(nonce)?;
+
+        let mut digest = Array4x12::default();
+        op.finalize(&mut digest)?;
+        Ok(digest.into())
     }
 
     /// Mixes an `EnabledMpk` into the MEK Secret Seed
@@ -1246,6 +1286,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_GENERATE_MPK => GenerateMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_REWRAP_MPK => RewrapMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ENABLE_MPK => EnableMpkCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_TEST_ACCESS_KEY => TestAccessKeyCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
