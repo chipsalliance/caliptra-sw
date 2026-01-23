@@ -16,6 +16,14 @@ use zip::result::ZipError;
 
 mod html;
 mod junit;
+use log;
+
+const ORG: &str = "chipsalliance";
+const REPO: &str = "caliptra-sw";
+const NUM_RUNS: usize = 6;
+
+// const WORKFLOW_FILE: &str = "nightly-release-1.x.yml";
+const WORKFLOW_FILE: &str = "nightly-release.yml";
 
 async fn all_items<T: for<'de> serde::de::Deserialize<'de>>(
     octocrab: &Octocrab,
@@ -155,14 +163,52 @@ struct TestRun {
     // The results of the tests that were run (doesn't include ignored tests)
     junit_suites: junit::TestSuites,
 }
+
 impl TestRun {
     fn from_zip_bytes(name: String, bytes: &[u8]) -> Result<TestRun, Box<dyn Error>> {
         let mut archive = zip::ZipArchive::new(Cursor::new(bytes))?;
-        let json = zip_extract_file(&mut archive, "nextest-list.json")?;
+
+        // .github/workflows/{fpga, fpga-subsystem}.yml do not adhere to the naming convention here,
+        // since they need to take the matrix partition into account:
+        // cargo-nextest [...] \
+        //     --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
+        let json_filename = archive
+            .file_names()
+            .find(|f| f.starts_with("nextest-list") && f.ends_with(".json"))
+            .ok_or("No nextest-list*.json file found in zip archive")?
+            .to_string();
+
+        let json = zip_extract_file(&mut archive, &json_filename)
+            .map_err(|e| format!("Failed to extract {}: {}", json_filename, e))?;
+
         let json = String::from_utf8(json)?;
-        let test_list = nextest_metadata::TestListSummary::parse_json(json)?;
-        let junit_xml = String::from_utf8(zip_extract_file(&mut archive, "junit.xml")?)?;
-        let junit_suites = junit::TestSuites::from_xml(&junit_xml)?;
+        let test_list = nextest_metadata::TestListSummary::parse_json(json)
+            .map_err(|e| format!("Failed to parse {}: {}", json_filename, e))?;
+        log::info!(
+            "{}/{}: {} suites",
+            name,
+            json_filename,
+            test_list.test_count
+        );
+
+        let xml_name = archive
+            .file_names()
+            .find(|f| f.starts_with("junit") && f.ends_with(".xml"))
+            .ok_or("No junit.xml file found in zip archive")?
+            .to_string();
+
+        let junit_xml = String::from_utf8(
+            zip_extract_file(&mut archive, &xml_name)
+                .map_err(|e| format!("Failed to extract {}: {}", xml_name, e))?,
+        )?;
+        let junit_suites = junit::TestSuites::from_xml(&junit_xml)
+            .map_err(|e| format!("Failed to parse {}: {}", xml_name, e))?;
+        log::info!(
+            "{}/{}: {} suites",
+            name,
+            xml_name,
+            junit_suites.test_suites.len()
+        );
 
         Ok(TestRun {
             name,
@@ -188,21 +234,19 @@ impl RunInfo {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
     let www_out = std::env::var("CPTRA_WWW_OUT")
         .expect("CPTRA_WWW_OUT env variable is required (directory to write html)");
     let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
-    const ORG: &str = "chipsalliance";
-    const REPO: &str = "caliptra-sw";
 
     let octocrab = Octocrab::builder().personal_token(token).build()?;
     let release_runs = octocrab
         .workflows(ORG, REPO)
-        .list_runs("nightly-release.yml")
+        .list_runs(WORKFLOW_FILE)
         .branch("main")
         .send()
         .await?;
-
-    const NUM_RUNS: usize = 6;
+    log::info!("{}/{}:{}", ORG, REPO, WORKFLOW_FILE);
 
     let run_infos: Vec<RunInfo> = release_runs
         .items
@@ -229,8 +273,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .actions()
                     .download_artifact(ORG, REPO, artifact.id, ArchiveFormat::Zip)
                     .await?;
-                test_runs
-                    .push(TestRun::from_zip_bytes(test_run_name.into(), &artifact_zip).unwrap());
+
+                let t = TestRun::from_zip_bytes(test_run_name.into(), &artifact_zip);
+                match t {
+                    Ok(test_run) => test_runs.push(test_run),
+                    Err(e) => log::error!(
+                        "Error processing test results for run {} artifact {}: {}",
+                        run.id,
+                        artifact.name,
+                        e
+                    ),
+                }
             }
         }
         let matrix = TestMatrix::new(test_runs).unwrap();
@@ -240,6 +293,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &html,
         )
         .unwrap();
+        log::info!("{}/run-{}.html", www_out, RunInfo::from_run(&run).id);
+
         if index == 0 {
             std::fs::write(Path::new(&www_out).join("index.html"), &html).unwrap();
         }

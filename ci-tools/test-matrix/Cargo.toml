@@ -4,15 +4,24 @@
 name = "test-matrix"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.93"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 bytes = "1.5.0"
-nextest-metadata = "0.9"
-octocrab = { version = "0.32.0", default-features = false, features = ["rustls", "follow-redirect"] }
+env_logger = "0.11.8"
+log = "0.4.29"
+nextest-metadata = "0.12"
+octocrab = { version = "0.32.0", default-features = false, features = [
+    "rustls",
+    "follow-redirect",
+] }
 serde = "1.0.193"
 serde-xml-rs = "0.6.0"
 tinytemplate = { version = "1.1" }
-tokio = { version = "1.34.0", default-features = false, features = ["macros", "rt"] }
+tokio = { version = "1.34.0", default-features = false, features = [
+    "macros",
+    "rt",
+] }
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
