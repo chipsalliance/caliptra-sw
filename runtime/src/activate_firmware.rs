@@ -133,6 +133,14 @@ impl ActivateFirmwareCmd {
 
         let mut temp_bitmap: [u32; 4] = [0; 4];
 
+        if Self::is_bit_set(activate_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+            // If MCU image is being activated, set the RESET_REASON first before clearing the FW_EXEC_CTRL
+            // to ensure the correct reset reason is captured after the reset.
+            drivers.persistent_data.get_mut().fw.mcu_firmware_loaded =
+                McuFwStatus::HitlessUpdateStarted.into();
+            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpd);
+        }
+
         // Caliptra clears FW_EXEC_CTRL for all affected images
         for i in 0..4 {
             temp_bitmap[i] = go_bitmap[i] & !activate_bitmap[i];
@@ -145,10 +153,6 @@ impl ActivateFirmwareCmd {
             // MCU sets RESET_REQUEST.mcu_req in MCI to request a reset.
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
-
-            drivers.persistent_data.get_mut().fw.mcu_firmware_loaded =
-                McuFwStatus::HitlessUpdateStarted.into();
-            Drivers::set_mcu_reset_reason(drivers, McuResetReason::FwHitlessUpd);
 
             let dma = &drivers.dma;
             let mmio = &DmaMmio::new(mci_base_addr, dma);
