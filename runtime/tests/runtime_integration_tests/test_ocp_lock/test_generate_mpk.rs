@@ -196,7 +196,7 @@ fn validate_wrapped_key(key: &WrappedKey, access_key: &[u8; 32], metadata: &[u8]
         aad
     };
     // Make sure that we can decrypt the MPK, so the AAD & Encryption Key is what we expect.
-    let mpk = KEY_LADDER.decrypt_mpk([0xAB; 32], access_key, &aad, &key.into());
+    let mpk = KEY_LADDER.decrypt_locked_mpk([0xAB; 32], access_key, &aad, &key.into());
     assert_eq!(key.key_type, WRAPPED_MEK_TYPE);
     assert_ne!(key.salt, [0; 12]);
     assert_ne!(key.iv, [0; 12]);

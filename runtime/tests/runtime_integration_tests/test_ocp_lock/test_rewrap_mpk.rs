@@ -68,7 +68,7 @@ fn test_rewrap_mpk() {
         aad
     };
 
-    let mpk1 = KEY_LADDER.decrypt_mpk([0xAB; 32], &access_key, &aad, &(&wrapped_key).into());
+    let mpk1 = KEY_LADDER.decrypt_locked_mpk([0xAB; 32], &access_key, &aad, &(&wrapped_key).into());
 
     let new_access_key = [0xCD; 32];
     let cmd = create_rewrap_mpk_req(
@@ -90,7 +90,8 @@ fn test_rewrap_mpk() {
         response.wrapped_mek.clone()
     })
     .unwrap();
-    let mpk2 = KEY_LADDER.decrypt_mpk([0xAB; 32], &new_access_key, &aad, &(&wrapped_key).into());
+    let mpk2 =
+        KEY_LADDER.decrypt_locked_mpk([0xAB; 32], &new_access_key, &aad, &(&wrapped_key).into());
     assert_eq!(mpk1, mpk2);
 }
 

@@ -355,7 +355,7 @@ impl OcpLockKeyLadderBuilder {
         }
     }
 
-    pub fn decrypt_mpk(
+    pub fn decrypt_locked_mpk(
         &self,
         sek: [u8; 32],
         access_key: &[u8; 32],
@@ -460,7 +460,7 @@ fn test_golden_ocp_lock_keyladder() {
     let mpk = OcpLockKeyLadderBuilder::from(generated_idevid)
         .add_mdk()
         .add_hek([0xABDEu32; 8])
-        .decrypt_mpk(
+        .decrypt_locked_mpk(
             [0xAB; 32],
             &[0xAE; 32],
             &[
