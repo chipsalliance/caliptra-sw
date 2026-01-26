@@ -44,6 +44,7 @@ impl From<[u8; Hmac384::NH]> for ExporterSecret {
 }
 
 /// Implements Encryption Context from https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-5
+#[derive(ZeroizeOnDrop)]
 pub struct EncryptionContext<R>
 where
     R: Role,
