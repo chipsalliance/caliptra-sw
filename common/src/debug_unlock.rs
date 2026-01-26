@@ -137,13 +137,9 @@ pub fn validate_debug_unlock_token(
         .len();
 
         let mut request_digest = Array4x12::default();
-        let lock_state = if cfg!(feature = "rom") {
-            ShaAccLockState::AssumedLocked
-        } else {
-            ShaAccLockState::NotAcquired
-        };
+
         let mut acc_op = sha2_512_384_acc
-            .try_start_operation(lock_state)?
+            .try_start_operation(ShaAccLockState::NotAcquired)?
             .ok_or(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
 
         acc_op.digest_384(
