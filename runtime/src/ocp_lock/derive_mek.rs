@@ -20,7 +20,6 @@ impl DeriveMekCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        // TODO(clundin): Add a PauserPrivileges check?
         let cmd = OcpLockDeriveMekReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 

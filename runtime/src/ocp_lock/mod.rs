@@ -43,7 +43,7 @@ pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
 
-use crate::Drivers;
+use crate::{Drivers, PauserPrivileges};
 
 const ACCESS_KEY_LEN: usize = 32;
 
@@ -1067,6 +1067,15 @@ pub fn command_handler(
     if !cfg!(feature = "ocp-lock") || !drivers.ocp_lock_context.available() {
         Err(CaliptraError::RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND)?;
     }
+
+    match drivers.caller_privilege_level() {
+        // Only PL0 can call OCP_LOCK
+        PauserPrivileges::PL0 => (),
+        PauserPrivileges::PL1 => {
+            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+        }
+    }
+
     match cmd_id {
         CommandId::OCP_LOCK_GET_ALGORITHMS => GetAlgorithmsCmd::execute(resp),
         CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET => {
