@@ -415,6 +415,7 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-image-types",
  "caliptra-lms-types",
+ "caliptra-okref",
  "caliptra-registers",
  "caliptra-test",
  "cfg-if",
@@ -798,6 +799,10 @@ dependencies = [
  "zerocopy",
  "zeroize",
 ]
+
+[[package]]
+name = "caliptra-okref"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-registers"

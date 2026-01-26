@@ -45,7 +45,6 @@ pub mod memory_layout;
 mod ml_kem;
 mod mldsa87;
 pub mod ocp_lock;
-mod okref;
 mod pcr_bank;
 pub mod pcr_log;
 pub mod pcr_reset;
@@ -74,6 +73,8 @@ pub use array::{
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
+pub use caliptra_okref::okmutref;
+pub use caliptra_okref::okref;
 pub use cmac_kdf::cmac_kdf;
 pub use csrng::{
     Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed, MAX_SEED_WORDS,
@@ -119,8 +120,6 @@ pub use mldsa87::{
     Mldsa87Signature,
 };
 pub use ocp_lock::HekSeedState;
-pub use okref::okmutref;
-pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsrs;
