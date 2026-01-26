@@ -2175,6 +2175,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocp-eat"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "ecdsa",
+ "p384",
+ "rand",
+ "sha2",
+]
+
+[[package]]
 name = "oid-registry"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
