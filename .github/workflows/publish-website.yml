@@ -3,6 +3,14 @@ name: Publish website
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      # github workflow file to get the artifacts for to generate the website matrix
+      workflow_file:
+        required: true
+        type: string
+      www_out:
+        type: string
+        default: /tmp/www
 
 jobs:
   build:
@@ -19,14 +27,14 @@ jobs:
   
       - name: Generate HTML
         run: |
+          mkdir -p ${{inputs.www_out}}
           cd ci-tools/test-matrix
-          mkdir /tmp/www
-          CPTRA_WWW_OUT=/tmp/www cargo run --release 
+          RUST_LOG=info CPTRA_WWW_OUT=${{inputs.www_out}} cargo run --release -- ${{inputs.workflow_file}}
 
       - name: Generate GitHub Pages artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: /tmp/www
+          path: ${{inputs.www_out}}
 
   deploy:
     runs-on: ubuntu-22.04

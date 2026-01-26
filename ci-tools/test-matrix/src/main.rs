@@ -1,10 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::{
-    collections::BTreeMap,
-    error::Error,
-    io::{Cursor, Read},
-    path::Path,
+    collections::BTreeMap, env, error::Error, io::{Cursor, Read}, path::Path
 };
 
 use nextest_metadata::TestListSummary;
@@ -235,14 +232,18 @@ impl RunInfo {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+
+    let args: Vec<String> = env::args().collect();
+    let workflow_file = args.get(1).unwrap_or_else(|| panic!("usage: {} <workflow_file> (e.g nightly-release.yml)", args.first().unwrap()));
+    
     let www_out = std::env::var("CPTRA_WWW_OUT")
         .expect("CPTRA_WWW_OUT env variable is required (directory to write html)");
     let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
-
+    
     let octocrab = Octocrab::builder().personal_token(token).build()?;
     let release_runs = octocrab
         .workflows(ORG, REPO)
-        .list_runs(WORKFLOW_FILE)
+        .list_runs(workflow_file)
         .branch("main")
         .send()
         .await?;
