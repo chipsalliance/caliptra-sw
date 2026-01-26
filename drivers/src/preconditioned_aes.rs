@@ -20,13 +20,14 @@ pub struct PreconditionedAesEncryptionResult {
 /// https://github.com/chipsalliance/Caliptra/issues/603 will align the specification with this
 /// implementation.
 ///
-/// NOTE: This function will overwrite `key`'s keyvault contents.
+/// NOTE: The `aes_key` parameter will be overwitten, if it is a key vault.
 #[allow(clippy::too_many_arguments)]
 pub fn preconditioned_aes_encrypt(
     aes: &mut Aes,
     hmac: &mut Hmac,
     trng: &mut Trng,
     key: HmacKey,
+    aes_key: AesKey,
     label: &[u8],
     aad: &[u8],
     plaintext: &[u8],
@@ -44,15 +45,12 @@ pub fn preconditioned_aes_encrypt(
     };
 
     let mut output_array = Array4x16::default();
-    let tag = match key {
-        HmacKey::Key(kv) => HmacTag::Key(KeyWriteArgs {
+    let tag = match aes_key {
+        AesKey::KV(kv) => HmacTag::Key(KeyWriteArgs {
             id: kv.id,
             usage: KeyUsage::default().set_aes_key_en(),
         }),
-        HmacKey::Array4x12(_) | HmacKey::Array4x16(_) => HmacTag::Array4x16(&mut output_array),
-        HmacKey::CsrMode() => {
-            Err(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_ENCRYPT_INVALID_PARAM)?
-        }
+        AesKey::Split(_, _) | AesKey::Array(_) => HmacTag::Array4x16(&mut output_array),
     };
 
     hmac_kdf(
@@ -65,9 +63,9 @@ pub fn preconditioned_aes_encrypt(
         HmacMode::Hmac512,
     )?;
 
-    let subkey = match key {
-        HmacKey::Key(kv) => AesKey::KV(KeyReadArgs { id: kv.id }),
-        HmacKey::Array4x16(_) => {
+    let subkey = match aes_key {
+        AesKey::KV(kv) => AesKey::KV(KeyReadArgs { id: kv.id }),
+        AesKey::Split(_, _) | AesKey::Array(_) => {
             AesKey::Array(
                 // Truncate the 64 byte HmacTag to 32 bytes so we can use it as an AES-256 key
                 output_array
@@ -76,9 +74,6 @@ pub fn preconditioned_aes_encrypt(
                     .and_then(|arr| <LEArray4x8>::ref_from_bytes(arr).ok())
                     .ok_or(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_ENCRYPT_ERROR)?,
             )
-        }
-        HmacKey::Array4x12(_) | HmacKey::CsrMode() => {
-            Err(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_ENCRYPT_INVALID_PARAM)?
         }
     };
 
@@ -101,13 +96,14 @@ pub fn preconditioned_aes_encrypt(
 /// https://github.com/chipsalliance/Caliptra/issues/603 will align the specification with this
 /// implementation.
 ///
-/// NOTE: This function will overwrite `key`'s keyvault contents.
+/// NOTE: The `aes_key` parameter will be overwitten, if it is a key vault.
 #[allow(clippy::too_many_arguments)]
 pub fn preconditioned_aes_decrypt(
     aes: &mut Aes,
     hmac: &mut Hmac,
     trng: &mut Trng,
     key: HmacKey,
+    aes_key: AesKey,
     label: &[u8],
     aad: &[u8],
     salt: &LEArray4x3,
@@ -117,15 +113,12 @@ pub fn preconditioned_aes_decrypt(
     plaintext: &mut [u8],
 ) -> CaliptraResult<()> {
     let mut output_array = Array4x16::default();
-    let hmac_tag = match key {
-        HmacKey::Key(kv) => HmacTag::Key(KeyWriteArgs {
+    let hmac_tag = match aes_key {
+        AesKey::KV(kv) => HmacTag::Key(KeyWriteArgs {
             id: kv.id,
             usage: KeyUsage::default().set_aes_key_en(),
         }),
-        HmacKey::Array4x12(_) | HmacKey::Array4x16(_) => HmacTag::Array4x16(&mut output_array),
-        HmacKey::CsrMode() => {
-            Err(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_DECRYPT_INVALID_PARAM)?
-        }
+        AesKey::Split(_, _) | AesKey::Array(_) => HmacTag::Array4x16(&mut output_array),
     };
 
     hmac_kdf(
@@ -138,9 +131,9 @@ pub fn preconditioned_aes_decrypt(
         HmacMode::Hmac512,
     )?;
 
-    let subkey = match key {
-        HmacKey::Key(kv) => AesKey::KV(KeyReadArgs { id: kv.id }),
-        HmacKey::Array4x16(_) => {
+    let subkey = match aes_key {
+        AesKey::KV(kv) => AesKey::KV(KeyReadArgs { id: kv.id }),
+        AesKey::Split(_, _) | AesKey::Array(_) => {
             AesKey::Array(
                 // Truncate the 64 byte HmacTag to 32 bytes so we can use it as an AES-256 key
                 output_array
@@ -149,9 +142,6 @@ pub fn preconditioned_aes_decrypt(
                     .and_then(|arr| <LEArray4x8>::ref_from_bytes(arr).ok())
                     .ok_or(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_DECRYPT_ERROR)?,
             )
-        }
-        HmacKey::Array4x12(_) | HmacKey::CsrMode() => {
-            Err(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_AES_DECRYPT_INVALID_PARAM)?
         }
     };
 

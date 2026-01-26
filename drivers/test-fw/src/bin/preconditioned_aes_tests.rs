@@ -6,7 +6,7 @@
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
-    Array4x16, HmacKey, KeyId, KeyReadArgs, KeyUsage,
+    AesKey, Array4x16, HmacKey, KeyId, KeyReadArgs, KeyUsage, LEArray4x8,
 };
 use caliptra_drivers_test_bin::{populate_slot, TestRegisters};
 use caliptra_test_harness::test_suite;
@@ -22,6 +22,8 @@ fn test_preconditioned_key_aes() {
 
     let key = Array4x16::default();
     let key = HmacKey::Array4x16(&key);
+    let aes_key = LEArray4x8::default();
+    let aes_key = AesKey::Array(&aes_key);
 
     let pt = [0xAB; 32];
     let mut ct = [0; 32];
@@ -30,6 +32,7 @@ fn test_preconditioned_key_aes() {
         &mut regs.hmac,
         &mut regs.trng,
         key,
+        aes_key,
         b"hello world",
         b"aad",
         &pt,
@@ -43,6 +46,7 @@ fn test_preconditioned_key_aes() {
         &mut regs.hmac,
         &mut regs.trng,
         key,
+        aes_key,
         b"hello world",
         b"aad",
         &result.salt,
@@ -69,6 +73,7 @@ fn test_preconditioned_key_aes_kv() {
     .unwrap();
 
     let key = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId0));
+    let aes_key = AesKey::KV(KeyReadArgs::new(KeyId::KeyId0));
 
     let pt = [0xAB; 32];
     let mut ct = [0; 32];
@@ -77,6 +82,7 @@ fn test_preconditioned_key_aes_kv() {
         &mut regs.hmac,
         &mut regs.trng,
         key,
+        aes_key,
         b"hello world",
         b"aad",
         &pt,
@@ -98,6 +104,7 @@ fn test_preconditioned_key_aes_kv() {
         &mut regs.hmac,
         &mut regs.trng,
         key,
+        aes_key,
         b"hello world",
         b"aad",
         &result.salt,

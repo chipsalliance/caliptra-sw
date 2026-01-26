@@ -5,8 +5,8 @@ use caliptra_api::{
         CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
         MailboxReqHeader, MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEndorseHpkePubKeyReq,
         OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
-        OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockInitializeMekSecretReq,
-        OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
+        OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockGenerateMpkResp,
+        OcpLockInitializeMekSecretReq, OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
         OcpLockReportHekMetadataRespFlags, OcpLockRewrapMpkReq, SealedAccessKey, WrappedKey,
         OCP_LOCK_MAX_ENC_LEN, OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN,
         OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
@@ -38,6 +38,7 @@ mod test_generate_mek;
 mod test_generate_mpk;
 mod test_get_algorithms;
 mod test_initialize_mek_secret;
+mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
 
@@ -447,4 +448,46 @@ fn create_enable_mpk_req(
     });
     cmd.populate_chksum().unwrap();
     cmd
+}
+
+/// Creates an enabled MPK
+///
+/// Returns tuple (enabled_mpk, locked_mpk) where both point to the same MPK.
+fn get_enabled_mpk(
+    model: &mut DefaultHwModel,
+    endorsed_key: &ValidatedHpkeHandle,
+    info: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN],
+    metadata: &[u8; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN],
+    access_key: &[u8; 32],
+    locked_mpk_cb: Option<impl FnOnce(&WrappedKey)>,
+) -> (WrappedKey, WrappedKey) {
+    let cmd = create_generate_mpk_req(endorsed_key, info, metadata, access_key);
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_GENERATE_MPK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let locked_mpk = validate_ocp_lock_response(model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockGenerateMpkResp::ref_from_bytes(response.as_bytes()).unwrap();
+        response.wrapped_mek.clone()
+    })
+    .unwrap();
+
+    if let Some(cb) = locked_mpk_cb {
+        cb(&locked_mpk);
+    }
+
+    let cmd = create_enable_mpk_req(endorsed_key, info, metadata, access_key, &locked_mpk);
+
+    let response = model
+        .mailbox_execute(
+            CommandId::OCP_LOCK_ENABLE_MPK.into(),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let response = OcpLockGenerateMpkResp::read_from_bytes(response.as_bytes()).unwrap();
+    (response.wrapped_mek, locked_mpk)
 }
