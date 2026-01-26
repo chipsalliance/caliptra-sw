@@ -1,13 +1,13 @@
 ## SOC Manifest
 
-The Caliptra SOC manifest has two main components:
+The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Image Metadata Collection](#image-metadata-collection)
 
-- ### **Preamble**
+### **Preamble**
 
-  The Preamble section contains the authorization manifest **ECC** and **PQC (LMS or MLDSA)** public keys of the vendor and the owner.  
-  These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section.  
-  Those signatures are also stored in the Preamble.  
-  The Caliptra firmware’s ECC and PQC private keys endorse the manifest’s public keys, and these endorsements (signatures) are part of the Preamble as well.
+  The Preamble section contains the authorization manifest **ECC** and **PQC (LMS or MLDSA)** public keys of the vendor and the owner.
+  These public keys correspond to the private keys that sign the [Image Metadata Collection (IMC)](#image-metadata-collection) section.
+  Those signatures are also stored in the Preamble.
+  The Caliptra firmware's ECC and PQC private keys endorse the manifest's public keys, and these endorsements (signatures) are part of the Preamble as well.
 
   *Note: All fields are little endian unless specified*
 
@@ -31,7 +31,20 @@ The Caliptra SOC manifest has two main components:
 | **IMC Owner ECC Signature**       | 96           | Owner ECDSA P-384 signature over the **IMC**, hashed using SHA2-384.<br/>**R-Coordinate:** 48 bytes<br/>**S-Coordinate:** 48 bytes. |
 | **IMC Owner PQC Signature (LMS or MLDSA)** | 4628         | Owner PQC signature over the **IMC**.<br/>Same encoding rules as the other PQC signature fields (LMS or MLDSA; unused bytes zero-padded).<br/>If PQC validation is not required, this field **must be zeroed**. |
 
-- ### **Image Metadata Entry**
+### **Image Metadata Collection**
+
+The Image Metadata Collection (IMC) is a collection of Image Metadata Entries (IMEs).
+Each IME has a hash that matches a SOC image.
+The manifest vendor and owner private keys sign the IMC.
+The Preamble holds the IMC signatures.
+The manifest IMC vendor signatures are optional and are validated only if the **Flags Bit 0 = 1**.
+Up to 127 image hashes are supported.
+
+| Field                            | Size (bytes) | Description                             |
+| -------------------------------- | ------------ | --------------------------------------- |
+| **Image Metadata Entry (IME) Count** | 4        | Number of IME(s) in the IMC.            |
+| **Image Metadata Entry (N)**     | Variable     | List of Image Metadata Entry structures |
+#### **Image Metadata Entry**
 
 | Field                   | Size (bytes) | Description |
 | ----------------------- | ------------ | ----------- |
@@ -43,19 +56,3 @@ The Caliptra SOC manifest has two main components:
 | **Image Load Address Low**  | 4       | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Staging Address High**   | 4       | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Staging Address Low**    | 4       | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
-
-
-- ### **Image Metadata Collection**
-
-The Image Metadata Collection (IMC) is a collection of Image Metadata Entries (IMEs).  
-Each IME has a hash that matches a SOC image.  
-The manifest vendor and owner private keys sign the IMC.  
-The Preamble holds the IMC signatures.  
-The manifest IMC vendor signatures are optional and are validated only if the **Flags Bit 0 = 1**.  
-Up to 127 image hashes are supported.
-
-| Field                            | Size (bytes) | Description                             |
-| -------------------------------- | ------------ | --------------------------------------- |
-| **Image Metadata Entry (IME) Count** | 4        | Number of IME(s) in the IMC.            |
-| **Image Metadata Entry (N)**     | Variable     | List of Image Metadata Entry structures |
-
