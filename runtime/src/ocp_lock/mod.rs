@@ -9,7 +9,7 @@ use caliptra_common::keyids::ocp_lock::{
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
     hpke::{
-        aead::Aes256GCM, suites::CipherSuite, EncryptionContext, HpkeContext, HpkeContextIter,
+        aead::Aes256GCM, suites::HpkeCipherSuite, EncryptionContext, HpkeContext, HpkeContextIter,
         HpkeHandle, Receiver,
     },
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
@@ -1285,18 +1285,20 @@ impl OcpLockContext {
         &mut self,
         sha: &mut Sha3,
         ml_kem: &mut MlKem1024,
+        trng: &mut Trng,
+        hmac: &mut Hmac,
         hpke_handle: &HpkeHandle,
         pub_out: &mut [u8],
     ) -> CaliptraResult<usize> {
         self.hpke_context
-            .get_pub_key(sha, ml_kem, hpke_handle, pub_out)
+            .get_pub_key(sha, ml_kem, trng, hmac, hpke_handle, pub_out)
     }
 
     /// Retrieve the Ciphersuite for an HPKE handle
     pub fn get_hpke_cipher_suite(
         &mut self,
         hpke_handle: &HpkeHandle,
-    ) -> CaliptraResult<CipherSuite> {
+    ) -> CaliptraResult<HpkeCipherSuite> {
         self.hpke_context.get_cipher_suite(hpke_handle)
     }
 }

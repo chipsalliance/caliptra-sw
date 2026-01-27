@@ -26,7 +26,7 @@ impl EnumerateHpkeHandles {
             .zip(drivers.ocp_lock_context.iterate_hpke_handles())
         {
             returned_handle.handle = handle.into();
-            returned_handle.hpke_algorithm = cipher.try_into()?;
+            returned_handle.hpke_algorithm = cipher.into();
             resp.hpke_handle_count += 1;
         }
         Ok(core::mem::size_of::<OcpLockEnumerateHpkeHandlesResp>())

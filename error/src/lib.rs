@@ -2587,22 +2587,22 @@ impl CaliptraError {
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,
-            0xa004_1100,
+            0xa004_1010,
             "Driver Error: HPKE ml-kem failed to generate a key pair due to trng failure"
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL,
-            0xa004_1101,
+            0xa004_1011,
             "Driver Error: HPKE ml-kem failed to deseriliaze the PKR in setup base s"
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_SECRET_DESERIALIZATION_FAIL,
-            0xa004_1102,
+            0xa004_1012,
             "Driver Error: HPKE ml-kem failed to deseriliaze the encapsulated secret"
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_KEY_SERIALIZATION_FAIL,
-            0xa004_1103,
+            0xa004_1013,
             "Driver Error: HPKE ml-kem failed to seriliaze the encap key"
         ),
         (

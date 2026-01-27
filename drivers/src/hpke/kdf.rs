@@ -11,8 +11,7 @@ use super::{
     aead::{Aes256GCM, EncryptionKey, Nonce},
     encryption_context::ExporterSecret,
     kem::{MlKem, SharedSecret},
-    suites::KemIdExt,
-    CipherSuite,
+    suites::{CipherSuite, HpkeCipherSuite},
 };
 
 use zerocopy::{Immutable, IntoBytes, KnownLayout};
@@ -49,7 +48,7 @@ impl Mode {
 pub struct L(u16);
 
 impl L {
-    const fn new<const T: usize>() -> Self {
+    pub const fn new<const T: usize>() -> Self {
         const {
             assert!(T.div_ceil(Hmac384::NH) == 1, "The HKDF expand implementation assumes that N is 1. Either your L value is too large or you need to update the implementation")
         };
@@ -73,7 +72,7 @@ impl Hmac384<'_> {
     pub const NH: usize = 48;
 
     /// Implements labeled extract as described in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-4
-    fn labeled_extract(
+    pub fn labeled_extract(
         &mut self,
         trng: &mut Trng,
         suite_id: &CipherSuite,
@@ -83,8 +82,8 @@ impl Hmac384<'_> {
     ) -> CaliptraResult<[u8; Hmac384::NH]> {
         let labeled_ikm = [
             &b"HPKE-v1"[..],
-            &b"HPKE"[..],
-            &<[u8; 6]>::from(suite_id),
+            suite_id.ikm_prefix(),
+            suite_id.as_ref(),
             label,
             ikm,
         ];
@@ -102,7 +101,7 @@ impl Hmac384<'_> {
 
     /// Implements labeled expand as described in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-4
     #[allow(clippy::too_many_arguments)]
-    fn labeled_expand(
+    pub fn labeled_expand(
         &mut self,
         trng: &mut Trng,
         suite_id: &CipherSuite,
@@ -115,8 +114,8 @@ impl Hmac384<'_> {
         let labeled_info = [
             &l.0.to_be_bytes(),
             &b"HPKE-v1"[..],
-            &b"HPKE"[..],
-            &<[u8; 6]>::from(suite_id),
+            suite_id.ikm_prefix(),
+            suite_id.as_ref(),
             label,
             info,
         ];
@@ -134,12 +133,14 @@ impl Hmac384<'_> {
     pub fn combine_secrets<const NSECRET: usize>(
         &mut self,
         trng: &mut Trng,
-        suite_id: &CipherSuite,
+        suite_id: HpkeCipherSuite,
         shared_secret: SharedSecret<NSECRET>,
         info: &[u8],
     ) -> CaliptraResult<(EncryptionKey, Nonce, ExporterSecret)> {
-        let psk_id_hash = self.labeled_extract(trng, suite_id, b"", b"psk_id_hash", &[])?;
-        let info_id_hash = self.labeled_extract(trng, suite_id, b"", b"info_hash", info)?;
+        let suite_id = CipherSuite::Hpke(suite_id);
+
+        let psk_id_hash = self.labeled_extract(trng, &suite_id, b"", b"psk_id_hash", &[])?;
+        let info_id_hash = self.labeled_extract(trng, &suite_id, b"", b"info_hash", info)?;
         let key_schedule_context = KeyScheduleContext {
             mode: Mode::BASE.0,
             psk_id_hash,
@@ -148,14 +149,14 @@ impl Hmac384<'_> {
         let key_schedule_context = key_schedule_context.as_bytes();
 
         let secret =
-            self.labeled_extract(trng, suite_id, shared_secret.as_ref(), b"secret", &[])?;
+            self.labeled_extract(trng, &suite_id, shared_secret.as_ref(), b"secret", &[])?;
         let secret = Array4x12::from(secret);
 
         let prk = HmacKey::Array4x12(&secret);
         let mut key = Array4x12::default();
         self.labeled_expand(
             trng,
-            suite_id,
+            &suite_id,
             prk,
             b"key",
             key_schedule_context,
@@ -166,7 +167,7 @@ impl Hmac384<'_> {
         let mut base_nonce = Array4x12::default();
         self.labeled_expand(
             trng,
-            suite_id,
+            &suite_id,
             prk,
             b"base_nonce",
             key_schedule_context,
@@ -177,7 +178,7 @@ impl Hmac384<'_> {
         let mut exporter_secret = Array4x12::default();
         self.labeled_expand(
             trng,
-            suite_id,
+            &suite_id,
             prk,
             b"exp",
             key_schedule_context,
@@ -199,7 +200,7 @@ impl Shake256<{ MlKem::NSK }> {
     /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#name-cryptographic-dependencies.
     pub fn labeled_derive(
         shake: &mut Sha3,
-        suite_id: KemIdExt,
+        suite_id: CipherSuite,
         ikm: &[u8],
         label: &[u8],
         context: &[u8],
@@ -216,6 +217,7 @@ impl Shake256<{ MlKem::NSK }> {
             let mut digest_op = shake.shake256_digest_init()?;
             digest_op.update(ikm)?;
             digest_op.update(b"HPKE-v1")?;
+            digest_op.update(suite_id.ikm_prefix())?;
             digest_op.update(suite_id.as_ref())?;
             digest_op.update(&label_len)?;
             digest_op.update(label)?;
