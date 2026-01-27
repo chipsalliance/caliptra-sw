@@ -6,9 +6,14 @@ use std::marker::PhantomData;
 ///
 /// Implements:
 /// * ML-KEM-1024-HKDF-SHA-384-AES-256-GCM
+/// * DH(P-384,SHA-384)-HKDF-SHA-384-AES-256-GCM
 use aes_gcm::{
     aead::{Aead, Payload},
     Aes256Gcm, KeyInit,
+};
+use hpke::{
+    kem::{DhP384HkdfSha384, Kem as HpkeKem},
+    Deserializable, Serializable,
 };
 use ml_kem::{
     kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey, Kem},
@@ -21,7 +26,10 @@ use openssl::{
     sign::Signer,
 };
 use rand::Rng;
+use test_vector::HpkeTestArgs;
 use zerocopy::IntoBytes;
+
+use super::P384_KEM_ID;
 
 pub mod kdf;
 pub mod test_vector;
@@ -237,5 +245,82 @@ impl Hpke for HpkeMlKem1024 {
         let mut dz = vec![0; 64];
         rng.fill(&mut dz[..]);
         Self::derive_key_pair(dz)
+    }
+}
+
+pub struct HpkeP384 {
+    pub sk: <DhP384HkdfSha384 as HpkeKem>::PrivateKey,
+    pub pk: <DhP384HkdfSha384 as HpkeKem>::PublicKey,
+}
+
+impl Hpke for HpkeP384 {
+    // DHKEM(P-384, HKDF-SHA384): KEM ID 0x0011
+    const LABEL_DERIVE_SUITE_ID: &'static [u8] = &[0x4b, 0x45, 0x4d, 0x00, 0x11];
+    // KEM (0x0011) + KDF (0x0002) + AEAD (0x0002)
+    const ALG_ID: &'static [u8] = &[0x0, 0x11, 0x0, 0x02, 0x0, 0x02];
+    const NK: usize = 32;
+    const NT: usize = 16;
+    const NH: usize = 48;
+
+    fn decap(&self, enc: &[u8], sk_r: &[u8]) -> Vec<u8> {
+        let sk = <DhP384HkdfSha384 as HpkeKem>::PrivateKey::from_bytes(sk_r).unwrap();
+        let enc = <DhP384HkdfSha384 as HpkeKem>::EncappedKey::from_bytes(enc).unwrap();
+        DhP384HkdfSha384::decap(&sk, None, &enc).unwrap().0.to_vec()
+    }
+
+    fn encap(&self, pk_r: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let pk = <DhP384HkdfSha384 as HpkeKem>::PublicKey::from_bytes(pk_r).unwrap();
+        let mut rng = rand::thread_rng();
+        let (shared_secret, enc) = DhP384HkdfSha384::encap(&pk, None, &mut rng).unwrap();
+        (shared_secret.0.to_vec(), enc.to_bytes().to_vec())
+    }
+
+    fn derive_key_pair(ikm: Vec<u8>) -> Self {
+        let (sk, pk) = DhP384HkdfSha384::derive_keypair(&ikm);
+        Self { sk, pk }
+    }
+
+    fn generate_key_pair() -> Self {
+        let mut rng = rand::thread_rng();
+        let (sk, pk) = DhP384HkdfSha384::gen_keypair(&mut rng);
+        Self { sk, pk }
+    }
+}
+
+#[test]
+fn test_hpke_p384_self_talk() {
+    let hpke_receiver = HpkeP384::generate_key_pair();
+    let pk_r = hpke_receiver.pk.to_bytes().to_vec();
+    let sk_r = hpke_receiver.sk.to_bytes().to_vec();
+
+    let info = b"HPKE P-384 Info";
+    let aad = b"HPKE P-384 AAD";
+    let pt = b"Not all those who wander are lost";
+
+    let (enc, mut sender_ctx) = hpke_receiver.setup_base_s(&pk_r, info);
+    let ct = sender_ctx.seal(aad, pt);
+
+    let mut receiver_ctx = hpke_receiver.setup_base_r(&enc, &sk_r, info);
+    let decrypted_pt = receiver_ctx.open(aad, &ct);
+
+    assert_eq!(pt, decrypted_pt.as_slice());
+}
+
+#[test]
+fn test_hpke_p384_vectors() {
+    let args = HpkeTestArgs::new(P384_KEM_ID);
+    assert_eq!(args.kem_id, 17);
+    let hpke = HpkeP384::derive_key_pair(args.ikm_r.clone());
+    assert_eq!(hpke.pk.to_bytes().as_slice(), args.pk_rm.as_slice(),);
+    assert_eq!(hpke.sk.to_bytes().as_slice(), args.sk_rm.as_slice(),);
+
+    let mut recipient_ctx = hpke.setup_base_r(&args.enc, &args.sk_rm, &args.info);
+    assert_eq!(recipient_ctx.key, args.key);
+    assert_eq!(recipient_ctx.base_nonce, args.base_nonce,);
+    assert_eq!(recipient_ctx.exporter_secret, args.exporter_secret,);
+
+    for enc_test in &args.encryptions {
+        let pt = recipient_ctx.open(&enc_test.aad, &enc_test.ct);
+        assert_eq!(pt, enc_test.pt);
     }
 }

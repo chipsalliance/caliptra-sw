@@ -43,6 +43,7 @@ sha2.workspace = true
 sha3.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
+hpke = { version = "0.12.0", features = ["p384"] }
 
 [dev-dependencies]
 caliptra-builder.workspace = true

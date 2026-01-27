@@ -30,7 +30,8 @@ use hpke::Hpke;
 
 use crate::{swap_word_bytes, swap_word_bytes_inplace};
 
-const ML_KEM_ID: u16 = 66;
+const ML_KEM_ID: u16 = 0x42;
+const P384_KEM_ID: u16 = 0x11;
 
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
 pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
