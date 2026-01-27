@@ -264,8 +264,8 @@ pub struct EncryptedMpk {
 impl From<&WrappedKey> for EncryptedMpk {
     fn from(value: &WrappedKey) -> Self {
         Self {
-            ct: value.cipher_text_and_auth_tag[..32].to_vec(),
-            tag: value.cipher_text_and_auth_tag[32..48].to_vec(),
+            ct: value.ciphertext_and_auth_tag[..32].to_vec(),
+            tag: value.ciphertext_and_auth_tag[32..48].to_vec(),
             salt: value.salt.to_vec(),
             iv: value.iv.to_vec(),
             metadata: value.metadata[..value.metadata_len as usize].to_vec(),
@@ -353,6 +353,19 @@ impl OcpLockKeyLadderBuilder {
             intermediate_mek_secret: Some(intermediate_mek_secret),
             ..self
         }
+    }
+
+    pub fn mix_mpk(&mut self, mpk: &[u8; 32]) {
+        let intermediate_mek_secret = self.intermediate_mek_secret.as_ref().unwrap();
+        let mut mixed_secret: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(intermediate_mek_secret).as_bytes(),
+            b"ocp_lock_mix_mpk",
+            Some(mpk),
+        ));
+        swap_word_bytes_inplace(&mut mixed_secret);
+
+        let intermediate_mek_secret = self.intermediate_mek_secret.as_mut().unwrap();
+        *intermediate_mek_secret = mixed_secret;
     }
 
     pub fn decrypt_locked_mpk(

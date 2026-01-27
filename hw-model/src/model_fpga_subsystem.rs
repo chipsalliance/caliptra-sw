@@ -2144,6 +2144,23 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn warm_reset(&mut self) {
+        // Mark I3C as not ready since warm reset clears the dynamic address assignment
+        self.i3c_controller()
+            .unwrap()
+            .controller
+            .lock()
+            .unwrap()
+            .set_i3c_not_ready();
+
+        // Reset recovery-related state since the I3C device is being reset
+        // and will no longer have a valid address until re-initialized
+        self.recovery_started = false;
+        self.recovery_fifo_blocks.clear();
+        self.recovery_ctrl_len = 0;
+        self.recovery_ctrl_written = false;
+        self.bmc_step_counter = 0;
+        self.blocks_sent = 0;
+
         // Toggle reset pin
         self.set_cptra_ss_rst_b(false);
         std::thread::sleep(std::time::Duration::from_micros(1));

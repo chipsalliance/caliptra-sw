@@ -1,4 +1,5 @@
 // Licensed under the Apache-2.0 license
+#![cfg_attr(not(test), no_std)]
 
 /// This function makes it easier to efficiently deal with Result types with
 /// large `Ok` variants.
@@ -6,8 +7,6 @@
 /// Consider this code:
 ///
 /// ```
-/// use caliptra_drivers::okref;
-///
 /// fn some_function() -> Result<[u32; 64], u32> {
 ///     Ok([0u32; 64])
 /// }
@@ -26,7 +25,7 @@
 /// original stack location, eliminating the memcpy:
 ///
 /// ```
-/// use caliptra_drivers::okref;
+/// use caliptra_okref::okref;
 ///
 /// fn some_function() -> Result<[u32; 64], u32> {
 ///     Ok([0u32; 64])

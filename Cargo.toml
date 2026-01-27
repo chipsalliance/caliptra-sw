@@ -40,6 +40,7 @@ members = [
   "ci-tools/size-history",
   "common",
   "common/eat",
+  "common/okref",
   "coverage",
   "cpu",
   "drivers",
@@ -133,6 +134,7 @@ caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
+caliptra-okref = { path = "common/okref" }
 caliptra-registers = { path = "registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }

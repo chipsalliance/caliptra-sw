@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::rom_env::RomEnv;
+use crate::{cprintln, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
@@ -30,6 +30,7 @@ use core::mem::size_of;
 /// * `reset_reason` - Reset reason
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
+    cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
         lock_common_reg_set(env);

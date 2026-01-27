@@ -10,7 +10,7 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_test::{default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware};
+use caliptra_test::{default_soc_manifest_bytes, image_pk_desc_hash};
 
 #[test]
 fn warm_reset_basic() {
@@ -21,6 +21,7 @@ fn warm_reset_basic() {
 
     let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
         .unwrap();
+    let fw_svn = 9;
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &if cfg!(feature = "fpga_subsystem") {
@@ -29,7 +30,7 @@ fn warm_reset_basic() {
             APP_WITH_UART
         },
         ImageOptions {
-            fw_svn: 9,
+            fw_svn,
             pqc_key_type,
             ..Default::default()
         },
@@ -37,6 +38,9 @@ fn warm_reset_basic() {
     .unwrap();
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let fw_image = image.to_bytes().unwrap();
+    let soc_manifest = default_soc_manifest_bytes(pqc_key_type, fw_svn);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -52,13 +56,13 @@ fn warm_reset_basic() {
             ..Default::default()
         },
         BootParams {
+            fw_image: Some(&fw_image),
+            soc_manifest: Some(&soc_manifest),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
             ..Default::default()
         },
     )
     .unwrap();
-
-    // Upload firmware using the helper function that handles subsystem mode
-    test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), pqc_key_type);
 
     // Wait for boot
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {

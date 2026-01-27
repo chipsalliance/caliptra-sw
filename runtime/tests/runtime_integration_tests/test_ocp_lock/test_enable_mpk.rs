@@ -79,7 +79,7 @@ fn validate_wrapped_key(key: &WrappedKey, metadata: &[u8]) {
     assert_eq!(key.key_type, WRAPPED_MEK_TYPE);
     assert_ne!(key.salt, [0; 12]);
     assert_ne!(key.iv, [0; 12]);
-    assert_ne!(key.cipher_text_and_auth_tag, [0; 80]);
+    assert_ne!(key.ciphertext_and_auth_tag, [0; 80]);
     assert_eq!(key.metadata_len, metadata.len() as u32);
     assert_eq!(key.key_len, WRAPPED_KEY_LEN);
     assert_eq!(&key.metadata, &metadata);

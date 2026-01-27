@@ -142,9 +142,6 @@ pub mod fips_self_test_cmd {
     /// Execute KAT for cryptographic algorithms implemented in H/W.
     fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
         let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
             // sha256
             sha256: &mut env.sha256,
 
