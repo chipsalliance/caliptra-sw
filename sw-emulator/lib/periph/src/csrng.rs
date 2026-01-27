@@ -46,10 +46,20 @@ pub struct Csrng {
     err_code: ReadOnlyRegister<u32>,
 
     // Entropy Source registers
+    // ME_REGWEN: Module enable register write enable (W0C - write-0-clear)
+    // When cleared (false), MODULE_ENABLE becomes read-only
+    #[register(offset = 0x1010, write_fn = me_regwen_write)]
+    me_regwen: u32,
+
+    // SW_REGUPD: Software update enable (W0C - write-0-clear)
+    // When cleared (false), configuration registers become read-only
+    #[register(offset = 0x1014, write_fn = sw_regupd_write)]
+    sw_regupd: u32,
+
     #[register(offset = 0x1020, write_fn = module_enable_write)]
     module_enable: u32,
 
-    #[register(offset = 0x1024)]
+    #[register(offset = 0x1024, write_fn = conf_write)]
     conf: u32,
 
     #[register(offset = 0x1030)]
@@ -91,6 +101,8 @@ impl Csrng {
             genbits_vld: ReadOnlyRegister::new(0b01),
             genbits: ReadOnlyRegister::new(0),
             err_code: ReadOnlyRegister::new(0),
+            me_regwen: 1, // Reset value: enabled (writable)
+            sw_regupd: 1, // Reset value: enabled (writable)
             module_enable: 0x9,
             conf: 0x909099,
             health_test_windows: ReadOnlyRegister::new(0x600200),
@@ -159,7 +171,33 @@ impl Csrng {
         Ok(self.words.next().unwrap_or(0xCAFE_F00D))
     }
 
+    /// ME_REGWEN write handler - W0C (write-0-clear) behavior.
+    /// When cleared to 0, MODULE_ENABLE becomes read-only.
+    fn me_regwen_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        // W0C: writing 0 clears the bit, writing 1 has no effect
+        // Once cleared, cannot be set back to 1 (until reset)
+        if data & 1 == 0 {
+            self.me_regwen = 0;
+        }
+        Ok(())
+    }
+
+    /// SW_REGUPD write handler - W0C (write-0-clear) behavior.
+    /// When cleared to 0, configuration registers become read-only.
+    fn sw_regupd_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        // W0C: writing 0 clears the bit, writing 1 has no effect
+        // Once cleared, cannot be set back to 1 (until reset)
+        if data & 1 == 0 {
+            self.sw_regupd = 0;
+        }
+        Ok(())
+    }
+
     fn module_enable_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        // If ME_REGWEN is cleared, MODULE_ENABLE is read-only
+        if self.me_regwen == 0 {
+            return Ok(()); // Silently ignore writes when locked
+        }
         self.module_enable = data;
 
         if data == MultiBitBool::False as u32 {
@@ -172,6 +210,15 @@ impl Csrng {
 
         self.health_tester.test_boot_window();
 
+        Ok(())
+    }
+
+    fn conf_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        // CONF is protected by SW_REGUPD - if cleared, CONF is read-only
+        if self.sw_regupd == 0 {
+            return Ok(()); // Silently ignore writes when locked
+        }
+        self.conf = data;
         Ok(())
     }
 

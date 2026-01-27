@@ -1079,6 +1079,79 @@ fn test_csrng_adaptive_proportion() {
     test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1225_ones_823_zeros"));
 }
 
+/// Test that entropy_src configuration registers are locked in production mode (debug_locked=true).
+/// After CSRNG initialization, SW_REGUPD and ME_REGWEN should be cleared to prevent
+/// RT firmware from reconfiguring entropy_src.
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_csrng_config_locked_in_production() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_CONFIG_LOCK_TESTS)
+            .unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            trng_mode: Some(TrngMode::Internal),
+            security_state: *SecurityState::from(0)
+                .set_debug_locked(true)
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
+
+/// Test that entropy_src configuration registers remain unlocked in debug mode (debug_locked=false).
+/// This allows characterization and debugging of the entropy source.
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_csrng_config_unlocked_in_debug() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_CONFIG_UNLOCK_TESTS)
+            .unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            trng_mode: Some(TrngMode::Internal),
+            security_state: *SecurityState::from(0)
+                .set_debug_locked(false)
+                .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
+
 #[test]
 #[cfg_attr(
     all(
