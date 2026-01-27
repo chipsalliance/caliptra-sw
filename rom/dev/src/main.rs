@@ -101,10 +101,6 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", lifecycle);
 
-    if let Err(err) = crate::flow::debug_unlock::debug_unlock(&mut env) {
-        handle_fatal_error(err.into());
-    }
-
     // UDS programming.
     if let Err(err) = crate::flow::UdsProgrammingFlow::program_uds(&mut env) {
         handle_fatal_error(err.into());
@@ -192,6 +188,11 @@ pub extern "C" fn rom_entry() -> ! {
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
+    }
+
+    // Only run DBG unlock after KAT succeed since we use the sha acc peripherals
+    if let Err(err) = crate::flow::debug_unlock::debug_unlock(&mut env) {
+        handle_fatal_error(err.into());
     }
 
     if let Err(err) = flow::run(&mut env) {
