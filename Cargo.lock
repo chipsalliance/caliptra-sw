@@ -566,6 +566,7 @@ dependencies = [
  "caliptra-hw-model",
  "caliptra-image-crypto",
  "caliptra-image-types",
+ "caliptra-kat",
  "caliptra-registers",
  "caliptra-test",
  "caliptra-x509",
