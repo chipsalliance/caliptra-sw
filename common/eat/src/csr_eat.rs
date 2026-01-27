@@ -426,7 +426,7 @@ mod tests {
         let mut encoder = CborEncoder::new(&mut buffer);
 
         assert!(claims.encode(&mut encoder).is_ok());
-        assert!(encoder.len() > 0);
+        assert!(!encoder.is_empty());
     }
 
     #[test]
@@ -471,15 +471,6 @@ mod tests {
 
     #[test]
     fn test_all_oid_constants() {
-        // Verify all OID constants have reasonable lengths
-        assert!(oids::OCP_SECURITY.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_EAT_PROFILE.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_KDA.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_KDA_OWNER_ENTROPY_FUSE.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_KDA_FIRST_MUTABLE_CODE.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_KDA_NON_FIRST_MUTABLE_CODE.len() > 0);
-        assert!(oids::OCP_SECURITY_OID_KDA_OWNER_PROVISIONED_KEY.len() > 0);
-
         // Verify all start with OCP Security prefix (0x2B 0x06 0x01 0x04 0x01 0x82 0xCD 0x1F 0x01)
         let prefix = &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01];
         assert!(oids::OCP_SECURITY.starts_with(prefix));
@@ -494,9 +485,8 @@ mod tests {
     #[test]
     fn test_cbor_claim_keys() {
         // Verify CSR claim keys are negative and < -65536
-        assert!(ENV_SIGNED_CSR_CLAIM_KEY_CSR < -65536);
-        assert!(ENV_SIGNED_CSR_CLAIM_KEY_ATTRIB < -65536);
-
+        assert_eq!(ENV_SIGNED_CSR_CLAIM_KEY_CSR, -70001);
+        assert_eq!(ENV_SIGNED_CSR_CLAIM_KEY_ATTRIB, -70002);
         // Verify standard nonce claim key
         assert_eq!(CLAIM_KEY_NONCE, 10);
     }
