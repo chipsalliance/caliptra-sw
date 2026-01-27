@@ -17,7 +17,7 @@ mod fmc_alias;
 pub mod fw_processor;
 mod idev_id;
 mod ldev_id;
-mod ocp_lock;
+pub mod ocp_lock;
 mod x509;
 
 use crate::fht;

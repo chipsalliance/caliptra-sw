@@ -11,10 +11,12 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
+use crate::flow::cold_reset::ocp_lock;
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::key_ladder;
 use crate::{cprintln, pcr, rom_env::RomEnv};
+
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
@@ -42,6 +44,8 @@ impl UpdateResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
+
+        ocp_lock::wr_lock_keyvault(&mut env.key_vault);
 
         // Check persistent data is valid
         let pdata = env.persistent_data.get();
