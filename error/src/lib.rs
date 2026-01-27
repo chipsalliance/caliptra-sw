@@ -1734,7 +1734,7 @@ impl CaliptraError {
             0x000E008A,
             "Runtime Error: Auth manifest invalid PQC key type in fuse"
         ),
-               (
+        (
              RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
             0x000E008B,
             "Runtime Error: Auth manifest invalid PQC key type"
