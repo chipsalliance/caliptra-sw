@@ -6,13 +6,13 @@ pub use encryption_context::{EncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
 use kem::{
     EncapsulatedSecret, EncapsulationKey, Kem, MlKem, MlKemContext, MlKemEncapsulatedSecret,
-    MlKemEncapsulationKey,
+    MlKemEncapsulationKey, P384KemContext, P384,
 };
 use suites::HpkeCipherSuite;
 use zerocopy::{transmute, FromBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
+use crate::{Ecc384, Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
 
 pub mod aead;
 mod encryption_context;
@@ -112,12 +112,16 @@ enum HpkePrivateKey {
         handle: HpkeHandle,
         context: HpkeMlKemContext,
     },
+    P384 {
+        handle: HpkeHandle,
+        context: HpkeP384Context,
+    },
 }
 
 // High level struct for https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
 pub struct HpkeContext {
     /// HPKE Private Keys
-    priv_keys: [HpkePrivateKey; 1],
+    priv_keys: [HpkePrivateKey; 2],
     /// Tracks the next unique HPKE handle
     /// Used by the rotate command to create new HPKE handles on rotation.
     handle_cursor: HpkeCursor,
@@ -130,8 +134,12 @@ impl HpkeContext {
             handle: handle_cursor.generate_handle(),
             context: HpkeMlKemContext::generate(trng)?,
         };
+        let p384_key = HpkePrivateKey::P384 {
+            handle: handle_cursor.generate_handle(),
+            context: HpkeP384Context::generate(trng)?,
+        };
 
-        let priv_keys = [ml_kem_key];
+        let priv_keys = [ml_kem_key, p384_key];
         Ok(Self {
             priv_keys,
             handle_cursor,
@@ -164,6 +172,14 @@ impl HpkeContext {
                     *handle = self.handle_cursor.generate_handle();
                     return Ok(handle.clone());
                 }
+                HpkePrivateKey::P384 {
+                    ref mut handle,
+                    ref mut context,
+                } if handle == hpke_handle => {
+                    *context = HpkeP384Context::generate(trng)?;
+                    *handle = self.handle_cursor.generate_handle();
+                    return Ok(handle.clone());
+                }
                 _ => (),
             }
         }
@@ -171,10 +187,12 @@ impl HpkeContext {
     }
 
     /// Get HPKE public key
+    #[allow(clippy::too_many_arguments)]
     pub fn get_pub_key(
         &mut self,
         sha: &mut Sha3,
         ml_kem: &mut MlKem1024,
+        ecc: &mut crate::Ecc384,
         trng: &mut Trng,
         hmac: &mut Hmac,
         hpke_handle: &HpkeHandle,
@@ -190,6 +208,16 @@ impl HpkeContext {
                         .and_then(|pub_out| <[u8; MlKem::NPK]>::mut_from_bytes(pub_out).ok())
                         .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE)?;
                     let mut ctx = HpkeMlKemDrivers::new(trng, sha, hmac, ml_kem);
+                    return context.serialize_public_key(&mut kem, &mut ctx, pub_out);
+                }
+                HpkePrivateKey::P384 { handle, context } if handle == hpke_handle => {
+                    let mut ctx = P384KemContext::new(trng, ecc, hmac);
+                    let mut kem = P384::derive_key_pair(&mut ctx, context.as_ref())?;
+                    let pub_out = pub_out
+                        .get_mut(..kem::P384::NPK)
+                        .and_then(|pub_out| <[u8; kem::P384::NPK]>::mut_from_bytes(pub_out).ok())
+                        .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE)?;
+                    let mut ctx = HpkeP384DriverContext::new(trng, ecc, hmac);
                     return context.serialize_public_key(&mut kem, &mut ctx, pub_out);
                 }
                 _ => (),
@@ -208,6 +236,9 @@ impl HpkeContext {
                 HpkePrivateKey::MlKem { handle, .. } if handle == hpke_handle => {
                     return Ok(HpkeCipherSuite::ML_KEM_1024);
                 }
+                HpkePrivateKey::P384 { handle, .. } if handle == hpke_handle => {
+                    return Ok(HpkeCipherSuite::P_384);
+                }
                 _ => (),
             }
         }
@@ -222,6 +253,7 @@ impl HpkeContext {
         &mut self,
         sha: &mut Sha3,
         ml_kem: &mut MlKem1024,
+        ecc: &mut Ecc384,
         hmac: &mut Hmac,
         trng: &mut Trng,
         hpke_handle: &HpkeHandle,
@@ -240,6 +272,17 @@ impl HpkeContext {
                     let mut kem = MlKem::derive_key_pair(&mut ctx, context.as_ref())?;
 
                     let mut ctx = HpkeMlKemDrivers::new(trng, sha, hmac, ml_kem);
+                    return context.setup_base_r(&mut kem, &mut ctx, enc, info);
+                }
+                HpkePrivateKey::P384 { handle, context } if handle == hpke_handle => {
+                    let enc = enc
+                        .get(..kem::P384::NENC)
+                        .and_then(|enc| kem::P384EncapsulatedSecret::ref_from_bytes(enc).ok())
+                        .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_ENC_FAILURE)?;
+                    let mut ctx = P384KemContext::new(trng, ecc, hmac);
+                    let mut kem = P384::derive_key_pair(&mut ctx, context.as_ref())?;
+
+                    let mut ctx = HpkeP384DriverContext::new(trng, ecc, hmac);
                     return context.setup_base_r(&mut kem, &mut ctx, enc, info);
                 }
                 _ => (),
@@ -262,6 +305,9 @@ impl Iterator for HpkeContextIter<'_> {
         let item = match key {
             Some(HpkePrivateKey::MlKem { handle, .. }) => {
                 Some((handle.clone(), HpkeCipherSuite::ML_KEM_1024))
+            }
+            Some(HpkePrivateKey::P384 { handle, .. }) => {
+                Some((handle.clone(), HpkeCipherSuite::P_384))
             }
             _ => None,
         };
@@ -385,5 +431,103 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         let ek = kem.serialize_public_key(&mut ctx)?;
         out_key.clone_from_slice(ek.as_ref());
         Ok(MlKem::NPK)
+    }
+}
+
+/// P-384 HPKE Context
+#[derive(ZeroizeOnDrop)]
+pub struct HpkeP384Context {
+    /// Secret string used to derive the P-384 key pair.
+    ikm: [u8; P384::NSK],
+}
+
+impl AsRef<[u8; P384::NSK]> for HpkeP384Context {
+    fn as_ref(&self) -> &[u8; P384::NSK] {
+        &self.ikm
+    }
+}
+
+impl HpkeP384Context {
+    /// Create a new `HpkeP384Context` context. Seeds the `ikm` secret using `trng`.
+    pub fn generate(trng: &mut Trng) -> CaliptraResult<Self> {
+        let rnd = trng.generate()?;
+        Ok(Self {
+            ikm: transmute!(rnd),
+        })
+    }
+}
+
+pub struct HpkeP384DriverContext<'a> {
+    trng: &'a mut Trng,
+    ecc: &'a mut Ecc384,
+    hmac: &'a mut Hmac,
+}
+
+impl<'a> HpkeP384DriverContext<'a> {
+    /// Create a new instance of `HpkeP384DriverContext`
+    pub fn new(trng: &'a mut Trng, ecc: &'a mut Ecc384, hmac: &'a mut Hmac) -> Self {
+        Self { trng, ecc, hmac }
+    }
+}
+
+impl Hpke<{ kem::P384::NSK }, { kem::P384::NENC }, { kem::P384::NPK }, { kem::P384::NSECRET }>
+    for HpkeP384Context
+{
+    type K = kem::P384;
+    type DriverContext<'a> = HpkeP384DriverContext<'a>;
+    const SUITE_ID: HpkeCipherSuite = HpkeCipherSuite::P_384;
+
+    fn setup_base_s(
+        &self,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
+        pkr: &kem::P384EncapsulationKey,
+        info: &[u8],
+    ) -> CaliptraResult<(kem::P384EncapsulatedSecret, EncryptionContext<Sender>)> {
+        let mut kem_ctx = P384KemContext::new(ctx.trng, ctx.ecc, ctx.hmac);
+        let (enc, shared_secret) = kem.encap(&mut kem_ctx, pkr)?;
+
+        let mut kdf = Hmac384::new(ctx.hmac);
+        let (key, base_nonce, _exporter_secret) = kdf.combine_secrets::<{ kem::P384::NSECRET }>(
+            ctx.trng,
+            Self::SUITE_ID,
+            shared_secret,
+            info,
+        )?;
+        let ctx = EncryptionContext::<Sender>::new_sender(key, base_nonce);
+        Ok((enc, ctx))
+    }
+
+    fn setup_base_r(
+        &self,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
+        enc: &kem::P384EncapsulatedSecret,
+        info: &[u8],
+    ) -> CaliptraResult<EncryptionContext<Receiver>> {
+        let mut kem_ctx = P384KemContext::new(ctx.trng, ctx.ecc, ctx.hmac);
+        let shared_secret = kem.decap(&mut kem_ctx, enc)?;
+
+        let mut kdf = Hmac384::new(ctx.hmac);
+        let (key, base_nonce, _exporter_secret) = kdf.combine_secrets::<{ kem::P384::NSECRET }>(
+            ctx.trng,
+            Self::SUITE_ID,
+            shared_secret,
+            info,
+        )?;
+        let ctx = EncryptionContext::<Receiver>::new_receiver(key, base_nonce);
+        Ok(ctx)
+    }
+
+    fn serialize_public_key(
+        &self,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
+        out_key: &mut [u8; kem::P384::NPK],
+    ) -> CaliptraResult<usize> {
+        let mut kem_ctx = P384KemContext::new(ctx.trng, ctx.ecc, ctx.hmac);
+        let ek = kem.serialize_public_key(&mut kem_ctx)?;
+        out_key.clone_from_slice(ek.as_ref());
+        Ok(kem::P384::NPK)
     }
 }

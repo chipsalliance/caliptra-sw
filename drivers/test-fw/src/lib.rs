@@ -3,13 +3,13 @@
 #![no_std]
 
 use caliptra_drivers::{
-    Aes, Array4x16, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024, PersistentDataAccessor, Sha3,
-    SocIfc, Trng,
+    Aes, Array4x16, DeobfuscationEngine, Dma, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
+    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024,
+    PersistentDataAccessor, Sha3, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
-    abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg,
+    abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
     entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
@@ -90,6 +90,7 @@ pub struct TestRegisters {
     pub kv: KeyVault,
     pub ml_kem: MlKem1024,
     pub sha3: Sha3,
+    pub ecc: Ecc384,
 }
 
 impl Default for TestRegisters {
@@ -113,6 +114,7 @@ impl Default for TestRegisters {
         let kv = unsafe { KeyVault::new(KvReg::new()) };
         let ml_kem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
         let sha3 = unsafe { Sha3::new(KmacReg::new()) };
+        let ecc = unsafe { Ecc384::new(EccReg::new()) };
 
         Self {
             soc,
@@ -124,6 +126,7 @@ impl Default for TestRegisters {
             kv,
             ml_kem,
             sha3,
+            ecc,
         }
     }
 }

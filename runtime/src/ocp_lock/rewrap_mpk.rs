@@ -29,7 +29,7 @@ impl RewrapMpkCmd {
         let sek = Sek(cmd.sek);
         let hpke_handle = HpkeHandle::from(cmd.sealed_access_key.hpke_handle.handle);
         let current_locked_mpk = LockedMpk::try_from(&cmd.current_locked_mpk)?;
-        let enc = &cmd.sealed_access_key.kem_ciphertext;
+        let enc = &cmd.sealed_access_key.kem_ciphertext.clone();
 
         let info = cmd
             .sealed_access_key
@@ -71,6 +71,7 @@ impl RewrapMpkCmd {
         let (current_ak, new_ak) = drivers.ocp_lock_context.decapsulate_rotation_access_keys(
             &mut drivers.sha3,
             &mut drivers.ml_kem,
+            &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.aes,

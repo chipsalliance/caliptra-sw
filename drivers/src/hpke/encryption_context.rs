@@ -55,6 +55,15 @@ where
     _role: PhantomData<R>,
 }
 
+impl<R> core::fmt::Debug for EncryptionContext<R>
+where
+    R: Role,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "EncryptionContext<R>")
+    }
+}
+
 impl<R> EncryptionContext<R>
 where
     R: Role,

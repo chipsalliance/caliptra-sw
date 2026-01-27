@@ -24,7 +24,7 @@ impl TestAccessKeyCmd {
         let cmd = OcpLockTestAccessKeyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let hpke_handle = HpkeHandle::from(cmd.sealed_access_key.hpke_handle.handle);
-        let enc = &cmd.sealed_access_key.kem_ciphertext;
+        let enc = &cmd.sealed_access_key.kem_ciphertext.clone();
         let info = cmd
             .sealed_access_key
             .info
@@ -55,6 +55,7 @@ impl TestAccessKeyCmd {
         let access_key = drivers.ocp_lock_context.decapsulate_access_key(
             &mut drivers.sha3,
             &mut drivers.ml_kem,
+            &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.aes,

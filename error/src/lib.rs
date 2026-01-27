@@ -2606,6 +2606,11 @@ impl CaliptraError {
             "Driver Error: HPKE ml-kem failed to seriliaze the encap key"
         ),
         (
+            RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DEERIALIZATION_FAIL,
+            0xa004_1020,
+            "Driver Error: HPKE p-384 failed to deseriliaze the encap key"
+        ),
+        (
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
             0xa005_0000,
             "Runtime Error: Signaure mismatch"

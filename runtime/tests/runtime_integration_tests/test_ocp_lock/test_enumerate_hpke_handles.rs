@@ -8,6 +8,8 @@ use caliptra_hw_model::HwModel;
 
 use zerocopy::{FromBytes, IntoBytes};
 
+use crate::test_ocp_lock::ALL_HPKE_ALGS;
+
 use super::{boot_ocp_lock_runtime, validate_ocp_lock_response, OcpLockBootParams};
 
 // TODO(clundin): Add tests for hybrid and ECDH KEMs once implemented
@@ -45,8 +47,7 @@ fn test_enumerate_hpke_handles() {
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
 
-        // Currently only ML-KEM is implemented.
-        assert_eq!(enumerate_resp.hpke_handle_count, 1);
+        assert_eq!(enumerate_resp.hpke_handle_count, ALL_HPKE_ALGS.len() as u32);
 
         let ml_kem = enumerate_resp
             .hpke_handles

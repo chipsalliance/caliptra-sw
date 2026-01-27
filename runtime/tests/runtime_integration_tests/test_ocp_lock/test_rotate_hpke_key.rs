@@ -84,7 +84,7 @@ fn test_rotate_ml_kem_hpke_handle() {
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
 
-        assert_eq!(response.hpke_handle, handle + 1);
+        assert_ne!(response.hpke_handle, handle);
         response.hpke_handle
     }) else {
         return;
