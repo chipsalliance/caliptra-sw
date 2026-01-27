@@ -908,6 +908,10 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
+    /// Maximum number of ticks that can be scheduled for a timer action.
+    /// This is `u64::MAX >> 1` minus 1 to ensure the timer scheduling assertion never fails.
+    const MAX_TIMER_TICKS: u64 = (u64::MAX >> 1) - 1;
+
     const CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE: u32 = 1 << 5;
 
     pub fn new(
@@ -1236,8 +1240,9 @@ impl SocRegistersImpl {
 
         // If timer is enabled, schedule a callback on expiry.
         if self.cptra_wdt_timer1_en.reg.is_set(WdtEnable::TIMER_EN) {
-            let timer_period: u64 = ((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
-                | self.cptra_wdt_timer1_timeout_period[0] as u64;
+            let timer_period: u64 = (((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
+                | self.cptra_wdt_timer1_timeout_period[0] as u64)
+                .min(Self::MAX_TIMER_TICKS);
 
             self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
         } else {
@@ -1259,8 +1264,9 @@ impl SocRegistersImpl {
                 .reg
                 .modify(WdtStatus::T1_TIMEOUT::CLEAR);
 
-            let timer_period: u64 = ((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
-                | self.cptra_wdt_timer1_timeout_period[0] as u64;
+            let timer_period: u64 = (((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
+                | self.cptra_wdt_timer1_timeout_period[0] as u64)
+                .min(Self::MAX_TIMER_TICKS);
 
             self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
         }
@@ -1276,8 +1282,9 @@ impl SocRegistersImpl {
 
         // If timer is enabled, schedule a callback on expiry.
         if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
-            let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
-                | self.cptra_wdt_timer2_timeout_period[0] as u64;
+            let timer_period: u64 = (((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
+                | self.cptra_wdt_timer2_timeout_period[0] as u64)
+                .min(Self::MAX_TIMER_TICKS);
 
             self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
         } else {
@@ -1299,8 +1306,9 @@ impl SocRegistersImpl {
                 .reg
                 .modify(WdtStatus::T2_TIMEOUT::CLEAR);
 
-            let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
-                | self.cptra_wdt_timer2_timeout_period[0] as u64;
+            let timer_period: u64 = (((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
+                | self.cptra_wdt_timer2_timeout_period[0] as u64)
+                .min(Self::MAX_TIMER_TICKS);
 
             self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
         }
@@ -1443,8 +1451,9 @@ impl SocRegistersImpl {
                     .reg
                     .modify(ErrorIntrT::ERROR_WDT_TIMER2_TIMEOUT_STS::CLEAR);
 
-                let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
-                    | self.cptra_wdt_timer2_timeout_period[0] as u64;
+                let timer_period: u64 = (((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
+                    | self.cptra_wdt_timer2_timeout_period[0] as u64)
+                    .min(Self::MAX_TIMER_TICKS);
 
                 self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
             }
@@ -1875,5 +1884,257 @@ mod tests {
                 mcause: 0x0000_0000,
             })
         );
+    }
+
+    /// Test that WDT timer 1 does not panic when configured with a very large timeout period.
+    /// Without the MAX_TIMER_TICKS clamping fix, this would cause an assertion failure in the
+    /// timer scheduling code which limits scheduled actions to (u64::MAX >> 1) ticks.
+    #[test]
+    fn test_wdt_timer1_large_period_no_panic() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        // Set timer 1 timeout period to u64::MAX (low 32 bits)
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+        // Set timer 1 timeout period to u64::MAX (high 32 bits)
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START + 4,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+
+        // Enable timer 1 - this would panic without the MAX_TIMER_TICKS fix
+        // because the timer scheduling code has an assertion that prevents
+        // scheduling actions more than (u64::MAX >> 1) ticks into the future.
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_EN_START, 1)
+            .unwrap();
+
+        // Verify timer is enabled and didn't panic
+        let timer1_en = soc_reg
+            .read(RvSize::Word, CPTRA_WDT_TIMER1_EN_START)
+            .unwrap();
+        assert_eq!(timer1_en, 1);
+    }
+
+    /// Test that WDT timer 2 does not panic when configured with a very large timeout period.
+    #[test]
+    fn test_wdt_timer2_large_period_no_panic() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        // Set timer 2 timeout period to u64::MAX
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START + 4,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+
+        // Enable timer 2 - this would panic without the MAX_TIMER_TICKS fix
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER2_EN_START, 1)
+            .unwrap();
+
+        // Verify timer is enabled
+        let timer2_en = soc_reg
+            .read(RvSize::Word, CPTRA_WDT_TIMER2_EN_START)
+            .unwrap();
+        assert_eq!(timer2_en, 1);
+    }
+
+    /// Test that restarting WDT timer 1 via control register doesn't panic with large period.
+    #[test]
+    fn test_wdt_timer1_restart_large_period_no_panic() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        // Set timer 1 timeout period to u64::MAX
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START + 4,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+
+        // Enable timer 1
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_EN_START, 1)
+            .unwrap();
+
+        // Restart timer 1 via control register - this exercises a different code path
+        // that also needs the MAX_TIMER_TICKS fix
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_CTRL_START, 1)
+            .unwrap();
+
+        // Verify timer is still enabled
+        let timer1_en = soc_reg
+            .read(RvSize::Word, CPTRA_WDT_TIMER1_EN_START)
+            .unwrap();
+        assert_eq!(timer1_en, 1);
+    }
+
+    /// Test that restarting WDT timer 2 via control register doesn't panic with large period.
+    #[test]
+    fn test_wdt_timer2_restart_large_period_no_panic() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        // Set timer 2 timeout period to u64::MAX
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START + 4,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+
+        // Enable timer 2
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER2_EN_START, 1)
+            .unwrap();
+
+        // Restart timer 2 via control register
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER2_CTRL_START, 1)
+            .unwrap();
+
+        // Verify timer is still enabled
+        let timer2_en = soc_reg
+            .read(RvSize::Word, CPTRA_WDT_TIMER2_EN_START)
+            .unwrap();
+        assert_eq!(timer2_en, 1);
+    }
+
+    /// Test that the cascade path (timer2 triggered by timer1 timeout) also works with large periods.
+    /// This exercises the error_intr handling code path that also needs the MAX_TIMER_TICKS fix.
+    #[test]
+    fn test_wdt_cascade_large_period_no_panic() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        // Set timer 1 with a small period (will expire quickly)
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START, 4)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START + 4, 0)
+            .unwrap();
+
+        // Set timer 2 with a very large period - this tests the cascade restart path
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+        soc_reg
+            .write(
+                RvSize::Word,
+                CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START + 4,
+                0xFFFF_FFFF,
+            )
+            .unwrap();
+
+        // Enable timer 1 (timer 2 will be enabled automatically on timer 1 timeout)
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_EN_START, 1)
+            .unwrap();
+
+        // Advance clock until timer 1 expires - this will trigger timer 2 to start
+        // which exercises the error_intr code path that reschedules timer 2
+        loop {
+            let status = InMemoryRegister::<u32, WdtStatus::Register>::new(
+                soc_reg.read(RvSize::Word, CPTRA_WDT_STATUS_START).unwrap(),
+            );
+            if status.is_set(WdtStatus::T1_TIMEOUT) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut soc_reg);
+        }
+
+        // If we got here without panicking, the fix works
+        let status = InMemoryRegister::<u32, WdtStatus::Register>::new(
+            soc_reg.read(RvSize::Word, CPTRA_WDT_STATUS_START).unwrap(),
+        );
+        assert!(status.is_set(WdtStatus::T1_TIMEOUT));
     }
 }
