@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::{
-    collections::BTreeMap, env, error::Error, io::{Cursor, Read}, path::Path
+    collections::BTreeMap, error::Error, io::{Cursor, Read}, path::Path
 };
 
 use nextest_metadata::TestListSummary;
@@ -10,17 +10,13 @@ use octocrab::{
 };
 use serde::Serialize;
 use zip::result::ZipError;
+use clap::Parser;
 
 mod html;
 mod junit;
-use log;
+mod cli;
 
-const ORG: &str = "chipsalliance";
-const REPO: &str = "caliptra-sw";
 const NUM_RUNS: usize = 6;
-
-// const WORKFLOW_FILE: &str = "nightly-release-1.x.yml";
-const WORKFLOW_FILE: &str = "nightly-release.yml";
 
 async fn all_items<T: for<'de> serde::de::Deserialize<'de>>(
     octocrab: &Octocrab,
@@ -232,22 +228,20 @@ impl RunInfo {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+    let cli = cli::Cli::parse();
 
-    let args: Vec<String> = env::args().collect();
-    let workflow_file = args.get(1).unwrap_or_else(|| panic!("usage: {} <workflow_file> (e.g nightly-release.yml)", args.first().unwrap()));
-    
-    let www_out = std::env::var("CPTRA_WWW_OUT")
-        .expect("CPTRA_WWW_OUT env variable is required (directory to write html)");
-    let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
-    
-    let octocrab = Octocrab::builder().personal_token(token).build()?;
+    let org = cli.gh_org.clone();
+    let repo = cli.gh_repo.clone();
+    let workflow = cli.gh_workflow.clone();
+   
+    let octocrab = Octocrab::builder().personal_token(cli.gh_token).build()?;
     let release_runs = octocrab
-        .workflows(ORG, REPO)
-        .list_runs(workflow_file)
+        .workflows(&org, &repo)
+        .list_runs(&workflow)
         .branch("main")
         .send()
         .await?;
-    log::info!("{}/{}:{}", ORG, REPO, WORKFLOW_FILE);
+    log::info!("{}/{}:{}", org, repo, workflow);
 
     let run_infos: Vec<RunInfo> = release_runs
         .items
@@ -261,7 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &octocrab,
             octocrab
                 .actions()
-                .list_workflow_run_artifacts(ORG, REPO, run.id)
+                .list_workflow_run_artifacts(&org, &repo, run.id)
                 .send()
                 .await?,
         )
@@ -272,7 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let test_run_name = &artifact.name["caliptra-test-results-".len()..];
                 let artifact_zip = octocrab
                     .actions()
-                    .download_artifact(ORG, REPO, artifact.id, ArchiveFormat::Zip)
+                    .download_artifact(&org, &repo, artifact.id, ArchiveFormat::Zip)
                     .await?;
 
                 let t = TestRun::from_zip_bytes(test_run_name.into(), &artifact_zip);
@@ -290,14 +284,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let matrix = TestMatrix::new(test_runs).unwrap();
         let html = html::format(&run, &run_infos, &matrix);
         std::fs::write(
-            Path::new(&www_out).join(format!("run-{}.html", RunInfo::from_run(&run).id)),
+            Path::new(&cli.www_out).join(format!("run-{}.html", RunInfo::from_run(&run).id)),
             &html,
         )
         .unwrap();
-        log::info!("{}/run-{}.html", www_out, RunInfo::from_run(&run).id);
+        log::info!("{}/run-{}.html", cli.www_out, RunInfo::from_run(&run).id);
 
         if index == 0 {
-            std::fs::write(Path::new(&www_out).join("index.html"), &html).unwrap();
+            std::fs::write(Path::new(&cli.www_out).join("index.html"), &html).unwrap();
         }
     }
 

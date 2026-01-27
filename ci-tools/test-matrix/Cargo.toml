@@ -10,6 +10,7 @@ rust-version = "1.93"
 
 [dependencies]
 bytes = "1.5.0"
+clap = { version = "4.5.54", features = ["derive"] }
 env_logger = "0.11.8"
 log = "0.4.29"
 nextest-metadata = "0.12"

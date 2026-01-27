@@ -20,6 +20,7 @@ jobs:
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUST_LOG: "info"
   
     steps:
       - name: Checkout repo
@@ -29,8 +30,12 @@ jobs:
         run: |
           mkdir -p ${{inputs.www_out}}
           cd ci-tools/test-matrix
-          RUST_LOG=info CPTRA_WWW_OUT=${{inputs.www_out}} cargo run --release -- ${{inputs.workflow_file}}
 
+          cargo run --release -- \
+            --token ${{GITHUB_TOKEN}} \
+            --workflow ${{iputs.workflow_file}} \
+            --out ${{inputs.www_out}}
+      
       - name: Generate GitHub Pages artifacts
         uses: actions/upload-pages-artifact@v3
         with:
