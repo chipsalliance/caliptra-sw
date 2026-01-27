@@ -24,6 +24,7 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
+mod envelope_signed_csr;
 mod fe_programming;
 pub mod fips;
 mod firmware_verify;
@@ -224,11 +225,16 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     } else {
         cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_VERIFY);
     }
+    cprintln!("[rt] Handling mailbox command...{}", line!());
 
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
-    let cmd_bytes = req_packet.as_bytes()?;
-    let cmd_id = req_packet.cmd;
+    cprintln!(
+        "[rt] Handling mailbox command...{:x}",
+        u32::from(drivers.mbox.cmd())
+    );
+    let mut cmd_bytes = req_packet.as_bytes()?;
+    let mut cmd_id = req_packet.cmd;
 
     if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
         cprintln!(
@@ -378,6 +384,13 @@ fn execute_command(
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_MLDSA87_CSR => {
             get_fmc_alias_csr::GetFmcAliasMldsaCsrCmd::execute(drivers, resp)
+        }
+        CommandId::GET_ENVELOPE_SIGNED_ECC384_CSR => {
+            cprintln!("[rt] Handling GET_ENVELOPE_SIGNED_ECC384_CSR command");
+            envelope_signed_csr::EnvelopeSignedEccCsrCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::GET_ENVELOPE_SIGNED_MLDSA87_CSR => {
+            envelope_signed_csr::EnvelopeSignedMldsaCsrCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {

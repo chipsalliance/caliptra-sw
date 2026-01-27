@@ -140,6 +140,8 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         let cmd = drivers.mbox.cmd();
 
+        cprintln!("[rt] Received mailbox command: 0x{:08x}", cmd);
+
         // Handle external mailbox command if in subsystem mode
         if drivers.soc_ifc.subsystem_mode() && cmd == CommandId::EXTERNAL_MAILBOX_CMD {
             let input_bytes = read_request(&drivers.mbox);

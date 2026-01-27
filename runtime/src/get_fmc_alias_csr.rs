@@ -9,30 +9,67 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::FmcAliasCsrs;
 
+/// Retrieves the FMC Alias ECC CSR data from persistent memory and copies it into the provided buffer.
+/// Returns the number of bytes written to the buffer.
+pub(crate) fn get_fmc_alias_ecc_csr_data(
+    drivers: &Drivers,
+    buffer: &mut [u8],
+) -> CaliptraResult<usize> {
+    let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
+
+    match csr_persistent_mem.get_ecc_csr_len() {
+        FmcAliasCsrs::UNPROVISIONED_CSR => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED),
+        0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
+        _ => {
+            let csr = csr_persistent_mem
+                .get_ecc_csr()
+                .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
+
+            if buffer.len() < csr.len() {
+                return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+            }
+
+            buffer[..csr.len()].copy_from_slice(csr);
+            Ok(csr.len())
+        }
+    }
+}
+
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
-        let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
+        let resp = mutrefbytes::<GetFmcAliasCsrResp>(mbox_resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        let data_len = get_fmc_alias_ecc_csr_data(drivers, &mut resp.data)?;
+        resp.data_size = data_len as u32;
+        Ok(resp.partial_len()?)
+    }
+}
 
-        match csr_persistent_mem.get_ecc_csr_len() {
-            FmcAliasCsrs::UNPROVISIONED_CSR => {
-                Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)
+/// Retrieves the FMC Alias ML-DSA CSR data from persistent memory and copies it into the provided buffer.
+/// Returns the number of bytes written to the buffer.
+pub(crate) fn get_fmc_alias_mldsa_csr_data(
+    drivers: &Drivers,
+    buffer: &mut [u8],
+) -> CaliptraResult<usize> {
+    let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
+
+    match csr_persistent_mem.get_mldsa_csr_len() {
+        FmcAliasCsrs::UNPROVISIONED_CSR => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED),
+        0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
+        _ => {
+            let csr = csr_persistent_mem
+                .get_mldsa_csr()
+                .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
+
+            if buffer.len() < csr.len() {
+                return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
             }
-            0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
-            _ => {
-                // the compiler has trouble understanding that csr.len() is the same
-                // as csr_persistent_mem.get_csr_len()
-                let csr = csr_persistent_mem
-                    .get_ecc_csr()
-                    .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
-                let resp = mutrefbytes::<GetFmcAliasCsrResp>(mbox_resp)?;
-                resp.hdr = MailboxRespHeader::default();
-                resp.data_size = csr.len() as u32;
-                resp.data[..csr.len()].copy_from_slice(csr);
-                Ok(resp.partial_len()?)
-            }
+
+            buffer[..csr.len()].copy_from_slice(csr);
+            Ok(csr.len())
         }
     }
 }
@@ -42,25 +79,10 @@ impl GetFmcAliasMldsaCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
-        let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
-
-        match csr_persistent_mem.get_mldsa_csr_len() {
-            FmcAliasCsrs::UNPROVISIONED_CSR => {
-                Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)
-            }
-            0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
-            _ => {
-                // the compiler has trouble understanding that csr.len() is the same
-                // as csr_persistent_mem.get_csr_len()
-                let csr = csr_persistent_mem
-                    .get_mldsa_csr()
-                    .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
-                let resp = mutrefbytes::<GetFmcAliasCsrResp>(mbox_resp)?;
-                resp.hdr = MailboxRespHeader::default();
-                resp.data_size = csr.len() as u32;
-                resp.data[..csr.len()].copy_from_slice(csr);
-                Ok(resp.partial_len()?)
-            }
-        }
+        let resp = mutrefbytes::<GetFmcAliasCsrResp>(mbox_resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        let data_len = get_fmc_alias_mldsa_csr_data(drivers, &mut resp.data)?;
+        resp.data_size = data_len as u32;
+        Ok(resp.partial_len()?)
     }
 }

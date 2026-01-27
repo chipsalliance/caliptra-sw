@@ -1127,7 +1127,11 @@ pub trait HwModel: SocManager {
             self.soc_mbox().cmd().write(|_| cmd);
             mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
         }
-
+        writeln!(
+            self.output().logger(),
+            ">>> mbox cmd sent, Asking microcontroller to execute..."
+        )
+        .unwrap();
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
 

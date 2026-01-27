@@ -2422,6 +2422,46 @@ Command Code: `0x464d_4452` ("FMDR")
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded MLDSA87 FMC Alias certificate signing request.                 |
 
+### GET_ENVELOPE_SIGNED_ECC384_CSR
+
+Generates an envelope-signed ECC384 certificate signing request (CSR) in Entity Attestation Token (EAT) format as per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification, signed by the `RT Alias` key for the requested Device Identity Key.
+
+Command Code: `0x4545_4352` ("EECR")
+
+*Table: `GET_ENVELOPE_SIGNED_ECC384_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
+| nonce         | u8[32]   | Nonce to be included in the CSR EAT.|
+
+*Table: `GET_ENVELOPE_SIGNED_ECC384_CSR` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size     | u32      | Length in bytes of the valid data in the data field.                      |
+| data          | u8[...]  | DER-encoded ECC384 Envelope-signed certificate signing request.            |
+
+### GET_ENVELOPE_SIGNED_MLDSA87_CSR
+
+Command Code: `0x454D_4352` ("EMCR")
+
+*Table: `GET_ENVELOPE_SIGNED_MLDSA87_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
+| nonce         | u8[32]   | Nonce to be included in the CSR EAT. | 
+
+*Table: `GET_ENVELOPE_SIGNED_MLDSA87_CSR` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+
+
 ### SIGN\_WITH\_EXPORTED\_ECDSA
 
 Command Code: `0x5357_4545` ("SWEE")
