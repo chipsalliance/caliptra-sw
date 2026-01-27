@@ -188,6 +188,43 @@ impl Hmac384<'_> {
 
         Ok((key.into(), base_nonce.into(), exporter_secret.into()))
     }
+
+    /// Implements "ExtractAndExpand_TwoStage" from https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-4.1.
+    pub fn extract_and_expand(
+        &mut self,
+        trng: &mut Trng,
+        suite_id: CipherSuite,
+        dh: &[u8],
+        enc: &[u8],
+        pk_rm: &[u8],
+        l: L,
+    ) -> CaliptraResult<SharedSecret<{ Hmac384::NH }>> {
+        let eae_prk = self.labeled_extract(trng, &suite_id, b"", b"eae_prk", dh)?;
+        let eae_prk = Array4x12::from(eae_prk);
+
+        // Instead of calling labeled expand, we re-implement it here to avoid any allocations.
+        let labeled_info = [
+            &l.0.to_be_bytes(),
+            &b"HPKE-v1"[..],
+            suite_id.ikm_prefix(),
+            suite_id.as_ref(),
+            &b"shared_secret"[..],
+            enc,
+            pk_rm,
+        ];
+
+        let mut okm = Array4x12::default();
+        hkdf_expand_ext(
+            self.hmac,
+            HmacKey::Array4x12(&eae_prk),
+            labeled_info.iter(),
+            trng,
+            HmacTag::Array4x12(&mut okm),
+            HmacMode::Hmac384,
+        )?;
+
+        Ok(SharedSecret::<{ Hmac384::NH }>::from(okm))
+    }
 }
 
 /// HPKE `DeriveKeyPair` uses a SHAKE256 KDF to derive a 64 byte seed for ML-KEM.

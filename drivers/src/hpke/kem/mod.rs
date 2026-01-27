@@ -10,6 +10,9 @@ pub use mlkem::*;
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use super::suites::KemId;
+use crate::Array4x12;
+
+use super::kdf::Hmac384;
 
 // TODO(clundin): Leaving the trait in for now but I am not sure we really need it.
 // TODO(clundin): Clean up copies & serialization + deserialize by making EK & DK internal or
@@ -62,6 +65,12 @@ pub struct SharedSecret<const NSECRET: usize> {
 impl<const NSECRET: usize> AsRef<[u8]> for SharedSecret<NSECRET> {
     fn as_ref(&self) -> &[u8] {
         &self.buf
+    }
+}
+
+impl From<Array4x12> for SharedSecret<{ Hmac384::NH }> {
+    fn from(value: Array4x12) -> Self {
+        Self { buf: value.into() }
     }
 }
 
