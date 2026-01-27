@@ -473,6 +473,14 @@ fn test_dbg_unlock_prod_success() {
     }
     soc_debug_level += 1;
     assert!(soc_debug_level == unlock_level);
+
+    // Step till we are ready for mailbox processing
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 }
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
