@@ -12,9 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{
-    mutrefbytes, CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges,
-};
+use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
@@ -39,10 +37,6 @@ impl InvokeDpeCmd {
             let mut cmd = InvokeDpeReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
-
             let caller_privilege_level = drivers.caller_privilege_level();
 
             // Validate data length
@@ -64,38 +58,12 @@ impl InvokeDpeCmd {
                 drivers.is_dpe_context_threshold_exceeded(new_context_privilege_level);
 
             let pdata = drivers.persistent_data.get_mut();
-            let crypto = DpeCrypto::new(
-                &mut drivers.sha2_512_384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac,
-                &mut drivers.key_vault,
-                &mut pdata.rom.fht.rt_dice_ecc_pub_key,
-                key_id_rt_cdi,
-                key_id_rt_priv_key,
-                &mut pdata.fw.dpe.exported_cdi_slots,
-            );
             let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
-            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
-            let ueid = &drivers.soc_ifc.fuse_bank().ueid();
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pl0_pauser,
-                    &hashed_rt_pub_key,
-                    &drivers.ecc_cert_chain,
-                    &nb,
-                    &nf,
-                    None,
-                    Some(ueid),
-                ),
-                state: &mut pdata.fw.dpe.state,
-            };
-
+            let ueid = drivers.soc_ifc.fuse_bank().ueid();
             let locality = drivers.mbox.id();
+            let mut env = dpe_env(drivers, None, Some(ueid))?;
+
             let dpe = &mut DpeInstance::initialized();
-            let context_has_tag = &mut pdata.fw.dpe.context_has_tag;
-            let context_tags = &mut pdata.fw.dpe.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform, env.state.support)
@@ -140,20 +108,23 @@ impl InvokeDpeCmd {
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
-                Command::DestroyCtx(cmd) => {
-                    let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
-                    // clear tags for destroyed contexts
-                    Self::clear_tags_for_inactive_contexts(
-                        env.state,
-                        context_has_tag,
-                        context_tags,
-                    );
-                    destroy_ctx_resp
-                }
+                Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
+
+            // Drop env so we can use the drivers again.
+            drop(env);
+
+            if let Command::DestroyCtx(_) = command {
+                // clear tags for destroyed contexts
+                let pdata = drivers.persistent_data.get_mut();
+                let state = &mut pdata.fw.dpe.state;
+                let context_has_tag = &mut pdata.fw.dpe.context_has_tag;
+                let context_tags = &mut pdata.fw.dpe.context_tags;
+                Self::clear_tags_for_inactive_contexts(state, context_has_tag, context_tags);
+            }
 
             // If DPE command failed, populate header with error code, but
             // don't fail the mailbox command.

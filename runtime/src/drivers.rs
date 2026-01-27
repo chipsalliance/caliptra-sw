@@ -540,10 +540,10 @@ impl Drivers {
             crypto,
             platform: DpePlatform::new(
                 CALIPTRA_LOCALITY,
-                &hashed_rt_pub_key,
+                hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
-                &nb,
-                &nf,
+                nb,
+                nf,
                 None,
                 None,
             ),
