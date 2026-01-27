@@ -14,7 +14,9 @@ Abstract:
 
 use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 use crate::{HashSha512, KeyUsage, KeyVault};
-use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
+use caliptra_emu_bus::{
+    ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
+};
 use caliptra_emu_crypto::{Ecc384, Ecc384PubKey, Ecc384Signature};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
@@ -215,7 +217,7 @@ pub struct AsymEcc384 {
 
     /// Error Internal Intr register
     #[register(offset = 0x0000_0814)]
-    error_internal_intr: ReadOnlyRegister<u32>,
+    error_internal_intr: ReadWriteRegister<u32>,
 
     /// Tracks whether priv_key_in was set internally
     priv_key_in_set_internally: bool,
@@ -290,7 +292,7 @@ impl AsymEcc384 {
             op_seed_read_complete_action: None,
             op_key_write_complete_action: None,
             error_global_intr: ReadOnlyRegister::new(0),
-            error_internal_intr: ReadOnlyRegister::new(0),
+            error_internal_intr: ReadWriteRegister::new(0),
             priv_key_in_set_internally: false,
         }
     }
@@ -529,7 +531,14 @@ impl AsymEcc384 {
         }
 
         if self.control.reg.is_set(Control::DH_SHAREDKEY) {
-            self.generate_dh_shared_key();
+            // If the public key used with DH is invalid, set an error and READY + INVALID status.
+            if self.generate_dh_shared_key().is_err() {
+                self.status.reg.modify(Status::READY::SET);
+                self.error_internal_intr
+                    .write(RvSize::Word, 0x1u32)
+                    .unwrap();
+                return;
+            }
         }
 
         self.status
@@ -730,14 +739,14 @@ impl AsymEcc384 {
     }
 
     /// Generate Diffie-Hellman shared key
-    fn generate_dh_shared_key(&mut self) {
+    fn generate_dh_shared_key(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let shared_key = Ecc384::compute_shared_secret(
             &bytes_from_words_le(&self.priv_key_in),
             &Ecc384PubKey {
                 x: bytes_from_words_le(&self.pub_key_x),
                 y: bytes_from_words_le(&self.pub_key_y),
             },
-        );
+        )?;
         // Handle the shared key based on control register settings
         if self
             .key_write_ctrl
@@ -761,6 +770,8 @@ impl AsymEcc384 {
             // Normal case: store in dh_shared_key register
             self.dh_shared_key = words_from_bytes_le(&shared_key);
         }
+
+        Ok(())
     }
 }
 

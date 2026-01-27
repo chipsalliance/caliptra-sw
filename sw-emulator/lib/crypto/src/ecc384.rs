@@ -147,7 +147,10 @@ impl Ecc384 {
     /// # Result
     ///
     /// * Ecc384Scalar - Shared secret
-    pub fn compute_shared_secret(priv_key: &Ecc384PrivKey, pub_key: &Ecc384PubKey) -> Ecc384Scalar {
+    pub fn compute_shared_secret(
+        priv_key: &Ecc384PrivKey,
+        pub_key: &Ecc384PubKey,
+    ) -> Result<Ecc384Scalar, Box<dyn std::error::Error>> {
         // Private key and public key are received as a list of big-endian DWORDs. Changing them to little-endian.
         let mut priv_key_reversed = *priv_key;
         let mut pub_key_reversed = *pub_key;
@@ -156,9 +159,9 @@ impl Ecc384 {
         pub_key_reversed.y.to_little_endian();
 
         // Convert to p384 types
-        let secret_key = SecretKey::from_slice(&priv_key_reversed).unwrap();
+        let secret_key = SecretKey::from_slice(&priv_key_reversed)?;
         let verifying_key =
-            VerifyingKey::from_encoded_point(&EncodedPoint::from(pub_key_reversed)).unwrap();
+            VerifyingKey::from_encoded_point(&EncodedPoint::from(pub_key_reversed))?;
 
         // Compute shared secret using ECDH
         // We use the public key point and multiply it by our private key scalar
@@ -170,7 +173,7 @@ impl Ecc384 {
         result.copy_from_slice(shared_secret.raw_secret_bytes().as_slice());
         result.to_big_endian();
 
-        result
+        Ok(result)
     }
 
     /// Generate a deterministic ECC private & public key pair based on the seed
@@ -442,6 +445,6 @@ mod tests {
         let shared2 = Ecc384::compute_shared_secret(&priv_key2, &pub_key1);
 
         // Both sides should compute the same shared secret
-        assert_eq!(shared1, shared2);
+        assert_eq!(shared1.unwrap(), shared2.unwrap());
     }
 }
