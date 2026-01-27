@@ -18,7 +18,7 @@ use crate::cprintln;
 use crate::crypto::Ecdsa384SignatureAdapter;
 use crate::flow::{cold_reset, cold_reset::ocp_lock};
 use crate::print::HexBytes;
-use crate::rom_env::RomEnv;
+use crate::rom_env::{RomEnv, RomEnvFips};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -54,7 +54,7 @@ impl InitDevIdLayer {
     ///
     /// * `DiceOutput` - DICE layer output
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &mut RomEnvFips) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!(
@@ -149,7 +149,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
+    fn decrypt_uds(env: &mut RomEnvFips, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_uds(&DOE_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
@@ -163,7 +163,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
+    fn decrypt_field_entropy(env: &mut RomEnvFips, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
@@ -276,7 +276,7 @@ impl InitDevIdLayer {
     /// * `output` - DICE Output
     // Inlined to reduce ROM size
     #[inline(always)]
-    fn generate_csrs(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn generate_csrs(env: &mut RomEnvFips, output: &DiceOutput) -> CaliptraResult<()> {
         //
         // Generate the CSR if requested via Manufacturing Service Register
         //
@@ -296,13 +296,14 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    fn make_csr_envelop(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn make_csr_envelop(env: &mut RomEnvFips, output: &DiceOutput) -> CaliptraResult<()> {
         // Generate ECC CSR.
         Self::make_ecc_csr(env, output)?;
 
         // Generate MLDSA CSR.
         Self::make_mldsa_csr(env, output)?;
 
+        let env = env.non_crypto_mut();
         // Create a HMAC tag for the CSR Envelop.
         let csr_envelop = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
 
@@ -339,7 +340,8 @@ impl InitDevIdLayer {
         Ok(())
     }
 
-    fn make_ecc_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn make_ecc_csr(env: &mut RomEnvFips, output: &DiceOutput) -> CaliptraResult<()> {
+        let env = env.non_crypto_mut();
         let key_pair = &output.ecc_subj_key_pair;
 
         // CSR `To Be Signed` Parameters
@@ -398,7 +400,7 @@ impl InitDevIdLayer {
         Ok(())
     }
 
-    fn make_mldsa_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn make_mldsa_csr(env: &mut RomEnvFips, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.mldsa_subj_key_pair;
 
         let params = InitDevIdCsrTbsMlDsa87Params {
@@ -422,8 +424,8 @@ impl InitDevIdLayer {
 
         // Sign the `To Be Signed` portion
         let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
+            &mut env.non_crypto.mldsa87,
+            &mut env.non_crypto.trng,
             key_pair.key_pair_seed,
             &key_pair.pub_key,
             tbs.tbs(),
@@ -451,7 +453,7 @@ impl InitDevIdLayer {
         Ok(())
     }
 
-    fn reset_persistent_storage_csrs(env: &mut RomEnv) -> CaliptraResult<()> {
+    fn reset_persistent_storage_csrs(env: &mut RomEnvFips) -> CaliptraResult<()> {
         let csr_envelop_persistent_mem = &mut env.persistent_data.get_mut().rom.idevid_csr_envelop;
         *csr_envelop_persistent_mem = InitDevIdCsrEnvelope::default();
 
