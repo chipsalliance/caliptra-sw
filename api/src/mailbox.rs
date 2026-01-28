@@ -216,6 +216,7 @@ impl CommandId {
     pub const OCP_LOCK_GENERATE_MPK: Self = Self(0x474D_504B); // "GMPK"
     pub const OCP_LOCK_REWRAP_MPK: Self = Self(0x5245_5750); // "REWP"
     pub const OCP_LOCK_ENABLE_MPK: Self = Self(0x524D_504B); // "RMPK"
+    pub const OCP_LOCK_TEST_ACCESS_KEY: Self = Self(0x5441_434B); // "TACK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -368,6 +369,7 @@ pub enum MailboxResp {
     OcpLockGenerateMpk(OcpLockGenerateMpkResp),
     OcpLockRewrapMpk(OcpLockRewrapMpkResp),
     OcpLockEnableMpk(OcpLockEnableMpkResp),
+    OcpLockTestAccessKey(OcpLockTestAccessKeyResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -442,6 +444,7 @@ impl MailboxResp {
             MailboxResp::OcpLockGenerateMpk(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockRewrapMpk(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockEnableMpk(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockTestAccessKey(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -514,6 +517,7 @@ impl MailboxResp {
             MailboxResp::OcpLockGenerateMpk(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockRewrapMpk(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockEnableMpk(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockTestAccessKey(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -648,6 +652,7 @@ pub enum MailboxReq {
     OcpLockGenerateMpk(OcpLockGenerateMpkReq),
     OcpLockRewrapMpk(OcpLockRewrapMpkReq),
     OcpLockEnableMpk(OcpLockEnableMpkReq),
+    OcpLockTestAccessKey(OcpLockTestAccessKeyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
@@ -738,6 +743,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockRewrapMpk(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockEnableMpk(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -826,6 +832,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGenerateMpk(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockRewrapMpk(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockEnableMpk(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -926,6 +933,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGenerateMpk(_) => CommandId::OCP_LOCK_GENERATE_MPK,
             MailboxReq::OcpLockRewrapMpk(_) => CommandId::OCP_LOCK_REWRAP_MPK,
             MailboxReq::OcpLockEnableMpk(_) => CommandId::OCP_LOCK_ENABLE_MPK,
+            MailboxReq::OcpLockTestAccessKey(_) => CommandId::OCP_LOCK_TEST_ACCESS_KEY,
         }
     }
 
@@ -4680,6 +4688,43 @@ pub struct OcpLockEnableMpkResp {
     pub enabled_mpk: WrappedKey,
 }
 impl Response for OcpLockEnableMpkResp {}
+
+// OCP_LOCK_TEST_ACCESS_KEY
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockTestAccessKeyReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub sek: [u8; 32],
+    pub nonce: [u8; 32],
+    pub locked_mpk: WrappedKey,
+    pub sealed_access_key: SealedAccessKey,
+}
+
+impl Request for OcpLockTestAccessKeyReq {
+    const ID: CommandId = CommandId::OCP_LOCK_ENABLE_MPK;
+    type Resp = OcpLockTestAccessKeyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockTestAccessKeyResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+    pub digest: [u8; 48],
+}
+impl Response for OcpLockTestAccessKeyResp {}
+
+impl Default for OcpLockTestAccessKeyResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            reserved: 0,
+            digest: [0; 48],
+        }
+    }
+}
 
 // INSTALL_OWNER_PK_HASH
 #[repr(C)]
