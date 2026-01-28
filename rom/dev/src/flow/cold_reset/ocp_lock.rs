@@ -119,6 +119,14 @@ fn zeroize_hek_if_needed(pdata: &mut PersistentData, kv: &mut KeyVault) -> Calip
     kv.erase_key(KEY_ID_HEK)
 }
 
+/// Write locks OCP LOCK HEK & MDK Key Vault slots
+///
+/// This should be called on reset to prevent later stages from writing to the HEK & MDK slots.
+pub fn wr_lock_keyvault(kv: &mut KeyVault) {
+    kv.set_key_write_lock(KEY_ID_HEK);
+    kv.set_key_write_lock(KEY_ID_MDK);
+}
+
 /// Completes the OCP LOCK flow after a cold reset.
 ///
 /// Checks the HEK seed state. Sets LOCK in Progress.
@@ -130,6 +138,8 @@ pub fn complete_ocp_lock_flow(
     // Check that ROM has reported the HEK seed's state.
     // We must always do this on a cold reset after processing FW commands.
     zeroize_hek_if_needed(pdata, kv)?;
+    wr_lock_keyvault(kv);
+
     // We have completed the OCP LOCK ROM cold reset flow. Set LOCK in progress to enable OCP
     // LOCK mode in hardware.
     soc_ifc.ocp_lock_set_lock_in_progress();

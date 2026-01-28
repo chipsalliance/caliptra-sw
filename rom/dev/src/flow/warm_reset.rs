@@ -11,7 +11,7 @@ Abstract:
     File contains the implementation of warm reset flow.
 
 --*/
-use crate::{cprintln, rom_env::RomEnv};
+use crate::{cprintln, flow::cold_reset::ocp_lock, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
@@ -32,6 +32,8 @@ impl WarmResetFlow {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
+
+        ocp_lock::wr_lock_keyvault(&mut env.key_vault);
 
         // Check persistent data is valid
         let pdata = env.persistent_data.get();
