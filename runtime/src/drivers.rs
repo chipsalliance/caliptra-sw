@@ -31,6 +31,7 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::cfi_check;
+use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::{
@@ -42,7 +43,7 @@ use caliptra_drivers::{
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{Dma, DmaMmio, MlKem1024};
+use caliptra_drivers::{Dma, DmaMmio, MlKem1024, Mldsa87PubKey};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -908,6 +909,29 @@ impl Drivers {
             DataStore::KeyVaultSlot(key_id) => Ok(key_id),
             _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
         }
+    }
+
+    /// Get the Public Key for the RT ML-DSA Alias key pair seed
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa87PubKey` - RT Alias pub key
+    pub fn get_key_id_rt_mldsa_pub_key(drivers: &mut Drivers) -> CaliptraResult<Mldsa87PubKey> {
+        let rt_cdi = Self::get_key_id_rt_cdi(drivers)?;
+        let rt_mldsa_key = Self::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+        let mldsa_key_pair = Crypto::mldsa87_key_gen(
+            &mut drivers.mldsa87,
+            &mut drivers.hmac,
+            &mut drivers.trng,
+            rt_cdi,
+            b"alias_rt_mldsa_key",
+            rt_mldsa_key,
+        )?;
+        Ok(mldsa_key_pair.pub_key)
     }
 
     /// Process the certificate validity info

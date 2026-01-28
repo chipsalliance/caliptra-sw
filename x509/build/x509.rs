@@ -498,17 +498,17 @@ pub struct AeadId(u16);
 /// Section 4.2.2.1.3.1
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
 pub struct HPKEIdentifiers {
-    kem_id: KemId,
-    kdf_id: KdfId,
-    aead_id: AeadId,
+    kem_id: u16,
+    kdf_id: u16,
+    aead_id: u16,
 }
 
 impl HPKEIdentifiers {
     pub fn new(kem_id: KemId, kdf_id: KdfId, aead_id: AeadId) -> Self {
         Self {
-            kem_id,
-            kdf_id,
-            aead_id,
+            kem_id: kem_id.0,
+            kdf_id: kdf_id.0,
+            aead_id: aead_id.0,
         }
     }
 }

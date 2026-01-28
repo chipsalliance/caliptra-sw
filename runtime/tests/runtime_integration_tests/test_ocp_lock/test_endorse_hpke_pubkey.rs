@@ -11,8 +11,6 @@ use super::{
 // TODO(clundin): Add tests for hybrid and ECDH KEMs once implemented
 // * https://github.com/chipsalliance/caliptra-sw/issues/3033
 // * https://github.com/chipsalliance/caliptra-sw/issues/3034
-//
-// TODO(clundin): Add tests ML-DSA endorsement after https://github.com/chipsalliance/caliptra-sw/issues/3106.
 
 #[test]
 fn test_endorse_hpke_pubkey() {
