@@ -526,6 +526,8 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(
             Control::CptraSsRstB.val((!reset) as u32) + Control::CptraPwrgood.val((!reset) as u32),
         );
+        // wait a little bit after resetting or releasing reset
+        std::thread::sleep(Duration::from_micros(1));
         if !reset {
             self.mmio.enable();
         }
@@ -1942,6 +1944,13 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
+        // Set soc_ifc settings before MCU ROM sets fuses
+        if boot_params.initial_dbg_manuf_service_reg != 0 {
+            self.soc_ifc()
+                .cptra_dbg_manuf_service_reg()
+                .write(|_| boot_params.initial_dbg_manuf_service_reg);
+        }
+
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
         // Notify MCU ROM it can start loading the fuse registers
@@ -1954,16 +1963,20 @@ impl HwModel for ModelFpgaSubsystem {
         };
         gpio.set(val);
 
-        // Set soc_ifc settings before MCU ROM sets fuses
-        self.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| boot_params.initial_dbg_manuf_service_reg);
+        const MAX_WAIT_FOR_CPTRA_BOOT_GO_CYCLES: u64 = 100_000_000;
+        let start_cycle = self.cycle_count();
 
         while !self
             .mci_boot_milestones()
             .contains(McuBootMilestones::CPTRA_BOOT_GO_ASSERTED)
         {
             self.step();
+            if self.cycle_count().wrapping_sub(start_cycle) >= MAX_WAIT_FOR_CPTRA_BOOT_GO_CYCLES {
+                panic!(
+                    "Timeout waiting for CPTRA_BOOT_GO to be asserted after {} cycles",
+                    self.cycle_count()
+                );
+            }
         }
 
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
@@ -2270,10 +2283,13 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
+        println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
-        std::thread::sleep(std::time::Duration::from_micros(1));
+        // reset the MCU input wires that let it know to load fuses or flash
+        self.wrapper.regs().mci_generic_input_wires[1].set(0);
         self.init_otp(None)
             .expect("Failed to initialize OTP after cold reset");
+        println!("Taking subsystem out of reset");
         self.set_subsystem_reset(false);
     }
 
