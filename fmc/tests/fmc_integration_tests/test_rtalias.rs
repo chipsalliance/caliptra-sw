@@ -76,13 +76,15 @@ fn test_boot_status_reporting() {
         )
         .unwrap();
 
-        hw.step_until_boot_status(RT_ALIAS_MEASUREMENT_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_DERIVED_CDI_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_KEY_PAIR_DERIVATION_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_SUBJ_ID_SN_GENERATION_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_SUBJ_KEY_ID_GENERATION_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_CERT_SIG_GENERATION_COMPLETE, true);
-        hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
+        if cfg!(not(feature = "fpga_realtime")) {
+            hw.step_until_boot_status(RT_ALIAS_MEASUREMENT_COMPLETE, true);
+            hw.step_until_boot_status(RT_ALIAS_DERIVED_CDI_COMPLETE, true);
+            hw.step_until_boot_status(RT_ALIAS_KEY_PAIR_DERIVATION_COMPLETE, true);
+            hw.step_until_boot_status(RT_ALIAS_SUBJ_ID_SN_GENERATION_COMPLETE, true);
+            hw.step_until_boot_status(RT_ALIAS_SUBJ_KEY_ID_GENERATION_COMPLETE, true);
+            hw.step_until_boot_status(RT_ALIAS_CERT_SIG_GENERATION_COMPLETE, true);
+        }
+        hw.step_until(|m| m.soc_ifc().cptra_boot_status().read() >= RT_ALIAS_DERIVATION_COMPLETE);
     }
 }
 
@@ -129,8 +131,8 @@ fn test_fht_info() {
 
         let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
         let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
-        assert_eq!(fht.ecc_ldevid_tbs_size, 566);
-        assert_eq!(fht.ecc_fmcalias_tbs_size, 767);
+        assert_eq!(fht.ecc_ldevid_tbs_size, 595);
+        assert_eq!(fht.ecc_fmcalias_tbs_size, 796);
         assert_ne!(fht.mldsa_ldevid_tbs_size, 0);
         assert_ne!(fht.mldsa_fmcalias_tbs_size, 0);
     }

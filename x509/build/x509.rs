@@ -26,6 +26,7 @@ use openssl::pkey_ml_kem::{PKeyMlKemBuilder, PKeyMlKemParams, Variant as MlKemVa
 use openssl::sha::Sha1;
 use openssl::sha::Sha256;
 use openssl::x509::extension::BasicConstraints;
+use openssl::x509::extension::ExtendedKeyUsage;
 use openssl::x509::extension::KeyUsage as Usage;
 use openssl::x509::extension::SubjectKeyIdentifier;
 use openssl::x509::X509Extension;
@@ -44,6 +45,12 @@ const AUTH_KEY_ID_OID: &str = "2.5.29.35";
 const TCG_UEID_OID: &str = "2.23.133.5.4.4";
 const TCG_TCB_INFO_OID: &str = "2.23.133.5.4.1";
 const TCG_MULTI_TCB_INFO_OID: &str = "2.23.133.5.4.5";
+
+// TCG DICE Key Purpose OIDs (2.23.133.5.4.100.X)
+pub const TCG_DICE_KP_IDENTITY_INIT: &str = "2.23.133.5.4.100.6";
+pub const TCG_DICE_KP_IDENTITY_LOC: &str = "2.23.133.5.4.100.7";
+pub const TCG_DICE_KP_ATTEST_LOC: &str = "2.23.133.5.4.100.9";
+pub const TCG_DICE_KP_ECA: &str = "2.23.133.5.4.100.12";
 
 #[derive(asn1::Asn1Write)]
 struct TcbInfo<'a> {
@@ -355,6 +362,17 @@ pub fn make_basic_constraints_ext(ca: bool, path_len: u32) -> X509Extension {
 pub fn make_key_usage_ext(key_usage: KeyUsage) -> X509Extension {
     let mut usage: Usage = key_usage.into();
     usage.critical().build().unwrap()
+}
+
+/// Make Extended Key Usage Extension with custom OIDs
+pub fn make_extended_key_usage_ext(oids: &[&str]) -> X509Extension {
+    let mut ext = ExtendedKeyUsage::new();
+    // Not marking as critical to allow compatibility with standard libraries
+    // that don't recognize custom TCG DICE EKU OIDs for various operations
+    for oid in oids {
+        ext.other(oid);
+    }
+    ext.build().unwrap()
 }
 
 /// Make TCG UEID extension

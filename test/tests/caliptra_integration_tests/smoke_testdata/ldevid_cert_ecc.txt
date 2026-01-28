@@ -29,15 +29,17 @@ Certificate:
                 Certificate Sign
             2.23.133.5.4.4: 
                 0....................
+            X509v3 Extended Key Usage: 
+                2.23.133.5.4.100.7, 2.23.133.5.4.100.12
             X509v3 Subject Key Identifier: 
                 DE:96:A4:50:F2:3A:8E:4A:53:33:00:5E:60:BF:CF:4D:3D:A8:FA:16
             X509v3 Authority Key Identifier: 
                 34:81:C7:4A:AB:11:71:5C:08:03:D8:78:92:AB:8A:2B:7E:B2:2A:90
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
-        30:65:02:31:00:e5:73:11:cb:4b:1a:35:2b:55:0a:6f:85:1c:
-        e4:d1:41:cc:7c:01:25:05:dd:b5:43:75:73:cd:ff:4f:4e:2c:
-        15:a5:d9:7d:8e:a6:f3:ae:e9:a9:3f:ef:33:eb:31:1d:f5:02:
-        30:59:1b:f0:74:1b:1e:78:ab:84:85:f5:03:32:b5:e0:ad:3d:
-        15:5e:1a:24:f6:51:f3:b6:48:e1:d7:f1:5e:5b:9f:a9:52:ba:
-        51:02:70:14:25:73:02:7c:00:e9:ec:7b:35
+        30:65:02:31:00:de:6d:f6:8d:fb:97:a6:65:52:17:43:f2:77:
+        36:1f:6e:86:26:13:65:0a:5c:ad:7b:6d:3e:07:e6:e2:1f:83:
+        14:97:74:6f:f2:12:be:8d:f3:99:98:4a:cf:8e:26:22:98:02:
+        30:11:f7:e2:3c:a6:8d:67:b7:66:d9:09:1f:96:bd:81:1b:4c:
+        02:42:9a:a3:16:b3:c5:da:22:62:d8:06:7b:a1:91:1e:ea:7e:
+        d7:34:d0:1b:b0:bd:18:70:27:d9:a3:a7:85

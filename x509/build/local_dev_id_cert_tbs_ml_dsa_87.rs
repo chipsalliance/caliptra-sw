@@ -38,8 +38,8 @@ impl LocalDevIdCertTbsMlDsa87 {
     const SUBJECT_SN_OFFSET: usize = 246usize;
     const ISSUER_SN_OFFSET: usize = 95usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 3010usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 3043usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 3039usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3072usize;
     const UEID_OFFSET: usize = 2982usize;
     const NOT_BEFORE_OFFSET: usize = 163usize;
     const NOT_AFTER_OFFSET: usize = 180usize;
@@ -52,9 +52,9 @@ impl LocalDevIdCertTbsMlDsa87 {
     const UEID_LEN: usize = 17usize;
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
-    pub const TBS_TEMPLATE_LEN: usize = 3063usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3092usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 11u8, 243u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 12u8, 16u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
         113u8, 49u8, 36u8, 48u8, 34u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 27u8, 67u8, 97u8, 108u8,
@@ -249,16 +249,17 @@ impl LocalDevIdCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        163u8, 129u8, 136u8, 48u8, 129u8, 133u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8,
+        163u8, 129u8, 165u8, 48u8, 129u8, 162u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8,
         255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 6u8, 48u8, 14u8, 6u8, 3u8, 85u8,
         29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 31u8, 6u8, 6u8, 103u8,
         129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 29u8, 6u8,
-        3u8, 85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8,
-        6u8, 3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 27u8, 6u8,
+        3u8, 85u8, 29u8, 37u8, 4u8, 20u8, 48u8, 18u8, 6u8, 7u8, 103u8, 129u8, 5u8, 5u8, 4u8, 100u8,
+        7u8, 6u8, 7u8, 103u8, 129u8, 5u8, 5u8, 4u8, 100u8, 12u8, 48u8, 29u8, 6u8, 3u8, 85u8, 29u8,
+        14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8, 85u8,
+        29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
     pub fn new(params: &LocalDevIdCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -279,7 +280,7 @@ impl LocalDevIdCertTbsMlDsa87 {
     fn apply(&mut self, params: &LocalDevIdCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 3063usize],
+            buf: &mut [u8; 3092usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
