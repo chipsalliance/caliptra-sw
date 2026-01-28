@@ -101,7 +101,7 @@ impl CmStorage {
     pub fn init(&mut self, pdata: &PersistentDataAccessor, trng: &mut Trng) -> CaliptraResult<()> {
         let kek_random_iv = trng.generate4()?;
         // we mask off the top bit so that we always have at least 2^95 usages left.
-        self.context_next_iv = (((kek_random_iv.0 & 0x7fff_ffff) as u128) << 64)
+        self.kek_next_iv = (((kek_random_iv.0 & 0x7fff_ffff) as u128) << 64)
             | ((kek_random_iv.1 as u128) << 32)
             | (kek_random_iv.2 as u128);
         self.kek = Crypto::get_cmb_aes_key(pdata.get());
