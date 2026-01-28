@@ -189,6 +189,12 @@ impl<'a> CborEncoder<'a> {
         self.encode_type_value(MajorType::Tag, tag)
     }
 
+    // Major type 7: Simple value (boolean)
+    pub fn encode_bool(&mut self, value: bool) -> Result<(), EatError> {
+        let value = if value { 21 } else { 20 };
+        self.encode_type_value(MajorType::Simple, value)
+    }
+
     // Encode with self-described CBOR tag (55799)
     pub fn encode_self_described_cbor(&mut self) -> Result<(), EatError> {
         self.encode_tag(tag::SELF_DESCRIBED_CBOR)
@@ -452,5 +458,21 @@ mod tests {
             CborEncoder::estimate_text_string_size("application/cbor-diagnostic".len()),
             29
         ); // "application/cbor-diagnostic" = 27 chars (requires 2-byte header)
+    }
+
+    #[test]
+    fn test_encode_bool() {
+        let mut buffer = [0u8; 1];
+        let mut encoder = CborEncoder::new(&mut buffer);
+
+        encoder.encode_bool(true).unwrap();
+        assert_eq!(encoder.len(), 1);
+        assert_eq!(encoder.buffer[0], 0xF5);
+
+        let mut buffer = [0u8; 8];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        encoder.encode_bool(false).unwrap();
+        assert_eq!(encoder.len(), 1);
+        assert_eq!(encoder.buffer[0], 0xF4);
     }
 }
