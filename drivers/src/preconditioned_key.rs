@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{
     hmac_kdf, Aes, AesKey, AesOperation, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, LEArray4x8, Trng,
+    KeyUsage, KeyWriteArgs, Trng,
 };
 
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -32,17 +32,11 @@ pub fn preconditioned_key_extract(
         Err(CaliptraError::RUNTIME_DRIVER_PRECONDITIONED_KEY_INVALID_INPUT)?
     };
 
-    let aes_key;
+    let mut aes_key = [0; 32];
     let aes_key = match salt {
         HmacKey::Array4x16(arr) => {
-            let mut aes_arr: [u32; 8] = [0; 8];
-            // Truncate HMAC Key from 64 bytes to 32 bytes.
-            aes_arr.clone_from_slice(&arr.0[..8]);
-            // Swap bytes before converting to LEArray4x8.
-            for byte in aes_arr.iter_mut() {
-                *byte = byte.swap_bytes();
-            }
-            aes_key = LEArray4x8::from(&aes_arr);
+            let arr: [u8; 64] = arr.into();
+            aes_key.clone_from_slice(&arr[0..32]);
             AesKey::Array(&aes_key)
         }
         HmacKey::Key(kv) => AesKey::KV(kv),
