@@ -7,7 +7,7 @@
 /drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson @zhalvorsen @timothytrippel
 /image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel
 /sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel
-/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @timothytrippel
+/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @zhalvorsen @timothytrippel
 /fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel
 /runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel
 /hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims @zhalvorsen @timothytrippel
