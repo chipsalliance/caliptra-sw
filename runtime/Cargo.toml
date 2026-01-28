@@ -26,7 +26,7 @@ caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe = { workspace = true, features = ["arbitrary_max_handles"] }
+dpe = { workspace = true }
 constant_time_eq.workspace = true
 crypto.workspace = true
 platform.workspace = true
