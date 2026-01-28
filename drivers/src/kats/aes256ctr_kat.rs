@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // From NIST SP800-38A, F.5.5
 // CTR-AES256.Encrypt
@@ -96,14 +96,14 @@ impl Aes256CtrKat {
 
     fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
         let mut ciphertext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
+        aes.aes_256_ctr_impl(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
         }
 
         let mut plaintext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &CT[..], &mut plaintext)?;
+        aes.aes_256_ctr_impl(&KEY, &IV, 0, &CT[..], &mut plaintext)?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }

@@ -141,42 +141,54 @@ pub mod fips_self_test_cmd {
 
     /// Execute KAT for cryptographic algorithms implemented in H/W.
     fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // sha256
-            sha256: &mut env.sha256,
+        // Run the main KATs via caliptra_kat
+        {
+            let mut kats_env = caliptra_kat::KatsEnv {
+                // sha256
+                sha256: &mut env.sha256,
 
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
+                // SHA2-512/384 Engine
+                sha2_512_384: &mut env.sha2_512_384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+                // SHA2-512/384 Accelerator
+                sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // SHA3/SHAKE
-            sha3: &mut env.sha3,
+                // SHA3/SHAKE
+                sha3: &mut env.sha3,
 
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
+                // Hmac-512/384 Engine
+                hmac: &mut env.hmac,
 
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
+                // Cryptographically Secure Random Number Generator
+                trng: &mut env.trng,
 
-            // LMS Engine
-            lms: &mut env.lms,
+                // LMS Engine
+                lms: &mut env.lms,
 
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
+                // MLDSA87 Engine
+                mldsa87: &mut env.mldsa87,
 
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
+                // Ecc384 Engine
+                ecc384: &mut env.ecc384,
 
-            // AES Engine,
-            aes: &mut env.aes,
+                // AES Engine,
+                aes: &mut env.aes,
 
-            // SHA Acc Lock State
-            sha_acc_lock_state: ShaAccLockState::NotAcquired,
-        };
+                // SHA Acc Lock State
+                sha_acc_lock_state: ShaAccLockState::NotAcquired,
+            };
 
-        caliptra_kat::execute_kat(&mut kats_env)?;
+            caliptra_kat::execute_kat(&mut kats_env)?;
+        }
+
+        // Run AES KATs unconditionally (these are normally run lazily on first use,
+        // but FIPS self-test requires running all KATs explicitly)
+        caliptra_drivers::kats::Aes256EcbKat::default().execute(&mut env.aes)?;
+        caliptra_drivers::kats::Aes256CbcKat::default().execute(&mut env.aes)?;
+        caliptra_drivers::kats::Aes256CtrKat::default().execute(&mut env.aes)?;
+        caliptra_drivers::kats::Aes256CmacKat::default().execute(&mut env.aes)?;
+        caliptra_drivers::kats::Aes256GcmKat::default().execute(&mut env.aes, &mut env.trng)?;
+
         Ok(())
     }
 

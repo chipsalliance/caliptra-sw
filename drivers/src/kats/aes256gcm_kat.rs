@@ -12,9 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{
-    Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng,
-};
+use crate::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng};
 
 // Taken from NIST test vectors: https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program/cavp-testing-block-cipher-modes#GCMVS
 
@@ -68,7 +66,7 @@ impl Aes256GcmKat {
         let key = AesKey::Array(&KEY);
         let mut ciphertext = [0u8; 32];
         let (_, tag) =
-            aes.aes_256_gcm_encrypt(trng, iv, key, &AAD[..], &PT[..], &mut ciphertext, 16)?;
+            aes.aes_256_gcm_encrypt_impl(trng, iv, key, &AAD[..], &PT[..], &mut ciphertext, 16)?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
@@ -78,7 +76,7 @@ impl Aes256GcmKat {
         }
 
         let mut plaintext = [0u8; 32];
-        aes.aes_256_gcm_decrypt(trng, &IV, key, &AAD[..], &CT[..], &mut plaintext, &TAG)?;
+        aes.aes_256_gcm_decrypt_impl(trng, &IV, key, &AAD[..], &CT[..], &mut plaintext, &TAG)?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }

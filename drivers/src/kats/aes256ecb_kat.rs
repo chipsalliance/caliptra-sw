@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
+use crate::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
 
 // Generated from Python code:
 // >>> from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -51,14 +51,14 @@ impl Aes256EcbKat {
 
     fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
         let mut ciphertext: [u8; 48] = [0u8; 48];
-        aes.aes_256_ecb(KEY, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
+        aes.aes_256_ecb_impl(KEY, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
         }
 
         let mut plaintext: [u8; 48] = [0u8; 48];
-        aes.aes_256_ecb(KEY, AesOperation::Decrypt, &CT[..], &mut plaintext)?;
+        aes.aes_256_ecb_impl(KEY, AesOperation::Decrypt, &CT[..], &mut plaintext)?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }

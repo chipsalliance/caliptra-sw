@@ -30,6 +30,58 @@ use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use core::cmp::Ordering;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
+/// Bitflags to track which AES KATs have been executed
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AesKatState(u8);
+
+impl AesKatState {
+    const ECB_KAT_DONE: u8 = 1 << 0;
+    const CBC_KAT_DONE: u8 = 1 << 1;
+    const CTR_KAT_DONE: u8 = 1 << 2;
+    const CMAC_KAT_DONE: u8 = 1 << 3;
+    const GCM_KAT_DONE: u8 = 1 << 4;
+
+    pub fn ecb_done(&self) -> bool {
+        self.0 & Self::ECB_KAT_DONE != 0
+    }
+
+    pub fn set_ecb_done(&mut self) {
+        self.0 |= Self::ECB_KAT_DONE;
+    }
+
+    pub fn cbc_done(&self) -> bool {
+        self.0 & Self::CBC_KAT_DONE != 0
+    }
+
+    pub fn set_cbc_done(&mut self) {
+        self.0 |= Self::CBC_KAT_DONE;
+    }
+
+    pub fn ctr_done(&self) -> bool {
+        self.0 & Self::CTR_KAT_DONE != 0
+    }
+
+    pub fn set_ctr_done(&mut self) {
+        self.0 |= Self::CTR_KAT_DONE;
+    }
+
+    pub fn cmac_done(&self) -> bool {
+        self.0 & Self::CMAC_KAT_DONE != 0
+    }
+
+    pub fn set_cmac_done(&mut self) {
+        self.0 |= Self::CMAC_KAT_DONE;
+    }
+
+    pub fn gcm_done(&self) -> bool {
+        self.0 & Self::GCM_KAT_DONE != 0
+    }
+
+    pub fn set_gcm_done(&mut self) {
+        self.0 |= Self::GCM_KAT_DONE;
+    }
+}
+
 type AesKeyBlock = LEArray4x8;
 type AesBlock = LEArray4x4;
 type AesGcmIvBlock = LEArray4x3;
@@ -174,6 +226,8 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 pub struct Aes {
     aes: AesReg,
     aes_clp: AesClpReg,
+    /// Tracks which KATs have been executed
+    kat_state: AesKatState,
 }
 
 // the value of this mask is not important, but the AES engine must be programmed
@@ -189,7 +243,16 @@ fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<
 #[allow(clippy::too_many_arguments)]
 impl Aes {
     pub fn new(aes: AesReg, aes_clp: AesClpReg) -> Self {
-        Self { aes, aes_clp }
+        Self {
+            aes,
+            aes_clp,
+            kat_state: AesKatState::default(),
+        }
+    }
+
+    /// Returns a copy of the current KAT state
+    pub fn kat_state(&self) -> AesKatState {
+        self.kat_state
     }
 
     // Ensures that only one copy of the AES registers are used
@@ -583,10 +646,35 @@ impl Aes {
         })
     }
 
+    /// Run GCM KAT if not already done
+    fn ensure_gcm_kat(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        if !self.kat_state.gcm_done() {
+            crate::kats::Aes256GcmKat::default().execute(self, trng)?;
+            self.kat_state.set_gcm_done();
+        }
+        Ok(())
+    }
+
     /// Calculate the AES-256-GCM encrypted ciphertext for the given plaintext.
     /// Returns the IV and the tag.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_gcm_encrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: AesGcmIv,
+        key: AesKey,
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag_size: usize,
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
+        self.ensure_gcm_kat(trng)?;
+        self.aes_256_gcm_encrypt_impl(trng, iv, key, aad, plaintext, ciphertext, tag_size)
+    }
+
+    /// Internal implementation of AES-256-GCM encrypt (called by KAT and public method)
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub(crate) fn aes_256_gcm_encrypt_impl(
         &mut self,
         trng: &mut Trng,
         iv: AesGcmIv,
@@ -617,6 +705,22 @@ impl Aes {
     /// Returns the IV and the tag.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_gcm_decrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: &LEArray4x3,
+        key: AesKey,
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &LEArray4x4,
+    ) -> CaliptraResult<()> {
+        self.ensure_gcm_kat(trng)?;
+        self.aes_256_gcm_decrypt_impl(trng, iv, key, aad, ciphertext, plaintext, tag)
+    }
+
+    /// Internal implementation of AES-256-GCM decrypt (called by KAT and public method)
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub(crate) fn aes_256_gcm_decrypt_impl(
         &mut self,
         trng: &mut Trng,
         iv: &LEArray4x3,
@@ -1003,8 +1107,30 @@ impl Aes {
         Ok(())
     }
 
+    /// Run ECB KAT if not already done
+    fn ensure_ecb_kat(&mut self) -> CaliptraResult<()> {
+        if !self.kat_state.ecb_done() {
+            crate::kats::Aes256EcbKat::default().execute(self)?;
+            self.kat_state.set_ecb_done();
+        }
+        Ok(())
+    }
+
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_ecb(
+        &mut self,
+        key: AesKey,
+        op: AesOperation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<()> {
+        self.ensure_ecb_kat()?;
+        self.aes_256_ecb_impl(key, op, input, output)
+    }
+
+    /// Internal implementation of AES-256-ECB (called by KAT and public method)
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub(crate) fn aes_256_ecb_impl(
         &mut self,
         key: AesKey,
         op: AesOperation,
@@ -1052,7 +1178,29 @@ impl Aes {
         Ok(())
     }
 
+    /// Run CBC KAT if not already done
+    fn ensure_cbc_kat(&mut self) -> CaliptraResult<()> {
+        if !self.kat_state.cbc_done() {
+            crate::kats::Aes256CbcKat::default().execute(self)?;
+            self.kat_state.set_cbc_done();
+        }
+        Ok(())
+    }
+
     pub fn aes_256_cbc(
+        &mut self,
+        key: &AesKeyBlock,
+        iv: &AesBlock,
+        op: AesOperation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<AesContext> {
+        self.ensure_cbc_kat()?;
+        self.aes_256_cbc_impl(key, iv, op, input, output)
+    }
+
+    /// Internal implementation of AES-256-CBC (called by KAT and public method)
+    pub(crate) fn aes_256_cbc_impl(
         &mut self,
         key: &AesKeyBlock,
         iv: &AesBlock,
@@ -1137,7 +1285,29 @@ impl Aes {
         transmute!(iv)
     }
 
+    /// Run CTR KAT if not already done
+    fn ensure_ctr_kat(&mut self) -> CaliptraResult<()> {
+        if !self.kat_state.ctr_done() {
+            crate::kats::Aes256CtrKat::default().execute(self)?;
+            self.kat_state.set_ctr_done();
+        }
+        Ok(())
+    }
+
     pub fn aes_256_ctr(
+        &mut self,
+        key: &AesKeyBlock,
+        iv: &AesBlock,
+        block_index: usize,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<AesContext> {
+        self.ensure_ctr_kat()?;
+        self.aes_256_ctr_impl(key, iv, block_index, input, output)
+    }
+
+    /// Internal implementation of AES-256-CTR (called by KAT and public method)
+    pub(crate) fn aes_256_ctr_impl(
         &mut self,
         key: &AesKeyBlock,
         iv: &AesBlock,
@@ -1302,8 +1472,23 @@ impl Aes {
         Ok((transmute!(k1), transmute!(k2)))
     }
 
+    /// Run CMAC KAT if not already done
+    fn ensure_cmac_kat(&mut self) -> CaliptraResult<()> {
+        if !self.kat_state.cmac_done() {
+            crate::kats::Aes256CmacKat::default().execute(self)?;
+            self.kat_state.set_cmac_done();
+        }
+        Ok(())
+    }
+
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
     pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<AesBlock> {
+        self.ensure_cmac_kat()?;
+        self.cmac_impl(key, message)
+    }
+
+    /// Internal implementation of CMAC (called by KAT and public method)
+    pub(crate) fn cmac_impl(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<AesBlock> {
         if message.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesOperation, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{Aes, AesOperation, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // Generated from Python code:
 // >>> import os
@@ -56,14 +56,14 @@ impl Aes256CbcKat {
 
     fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
         let mut ciphertext: [u8; 48] = [0u8; 48];
-        aes.aes_256_cbc(&KEY, &IV, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
+        aes.aes_256_cbc_impl(&KEY, &IV, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
 
         if ciphertext != CT {
             Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
         }
 
         let mut plaintext: [u8; 48] = [0u8; 48];
-        aes.aes_256_cbc(&KEY, &IV, AesOperation::Decrypt, &CT[..], &mut plaintext)?;
+        aes.aes_256_cbc_impl(&KEY, &IV, AesOperation::Decrypt, &CT[..], &mut plaintext)?;
         if plaintext != PT {
             Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
         }
