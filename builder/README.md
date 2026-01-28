@@ -6,7 +6,7 @@
 
 ## Building
 
-Run `cargo build` from the `builder` directory. The binary will be created as `target/debug/image`.
+Run `cargo build -p caliptra-builder --bin image` from the root repository directory. The binary will be created as `target/debug/image`.
 
 ## Options
 
