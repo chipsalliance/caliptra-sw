@@ -22,6 +22,8 @@ pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
 pub const MAX_RESP_DATA_SIZE: usize = 9216; // 9K
+/// Maximum response data size for envelope signed CSR (supports MLDSA CSR)
+pub const MAX_ENVELOPE_SIGNED_CSR_RESP_DATA_SIZE: usize = 12800; // 12.5K, 32-bit aligned
 /// Unencrypted context size for the CMB AES generic commands.
 pub const _CMB_AES_CONTEXT_SIZE: usize = 128;
 /// Encrypted context size for the CMB AES generic commands.
@@ -137,6 +139,12 @@ impl CommandId {
 
     // The get FMC Alias MLDSA CSR command.
     pub const GET_FMC_ALIAS_MLDSA87_CSR: Self = Self(0x464d_4452); // "FMDR"
+
+    // Envelope signed ECC CSR command
+    pub const GET_ENVELOPE_SIGNED_ECC384_CSR: Self = Self(0x4545_4352); // "EECR"
+
+    // Envelope signed MLDSA CSR command
+    pub const GET_ENVELOPE_SIGNED_MLDSA87_CSR: Self = Self(0x454D_4352); // "EMCR"
 
     // The sign with exported ecdsa command.
     pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
@@ -323,6 +331,7 @@ pub enum MailboxResp {
     GetIdevEccCsr(GetIdevCsrResp),
     GetIdevMldsaCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
+    GetEnvelopeSignedCsr(EnvelopeSignedCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
     GetImageInfo(GetImageInfoResp),
@@ -398,6 +407,7 @@ impl MailboxResp {
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetEnvelopeSignedCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_bytes()),
@@ -471,6 +481,7 @@ impl MailboxResp {
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetEnvelopeSignedCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_mut_bytes()),
@@ -597,6 +608,8 @@ pub enum MailboxReq {
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrsEcc384(QuotePcrsEcc384Req),
     QuotePcrsMldsa87(QuotePcrsMldsa87Req),
+    GetEnvelopeSignedEcc384Csr(GetEnvelopeSignedEccCsrReq),
+    GetEnvelopeSignedMldsa87Csr(GetEnvelopeSignedMldsaCsrReq),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
@@ -688,6 +701,8 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_bytes()),
+            MailboxReq::GetEnvelopeSignedEcc384Csr(req) => Ok(req.as_bytes()),
+            MailboxReq::GetEnvelopeSignedMldsa87Csr(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
@@ -777,6 +792,8 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetEnvelopeSignedEcc384Csr(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetEnvelopeSignedMldsa87Csr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
@@ -866,6 +883,10 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrsEcc384(_) => CommandId::QUOTE_PCRS_ECC384,
             MailboxReq::QuotePcrsMldsa87(_) => CommandId::QUOTE_PCRS_MLDSA87,
+            MailboxReq::GetEnvelopeSignedEcc384Csr(_) => CommandId::GET_ENVELOPE_SIGNED_ECC384_CSR,
+            MailboxReq::GetEnvelopeSignedMldsa87Csr(_) => {
+                CommandId::GET_ENVELOPE_SIGNED_MLDSA87_CSR
+            }
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
@@ -1005,6 +1026,34 @@ impl VarSizeDataResp {
 impl ResponseVarSize for VarSizeDataResp {}
 
 impl Default for VarSizeDataResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
+pub struct EnvelopeSignedCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; EnvelopeSignedCsrResp::DATA_MAX_SIZE],
+}
+
+impl EnvelopeSignedCsrResp {
+    pub const DATA_MAX_SIZE: usize = MAX_ENVELOPE_SIGNED_CSR_RESP_DATA_SIZE;
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
+}
+
+impl ResponseVarSize for EnvelopeSignedCsrResp {}
+
+impl Default for EnvelopeSignedCsrResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),
@@ -1933,6 +1982,34 @@ impl Request for GetFmcAliasMldsaCsrReq {
 }
 
 pub type GetFmcAliasCsrResp = VarSizeDataResp;
+
+// GET_ENVELOPE_SIGNED_ECC384_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetEnvelopeSignedEccCsrReq {
+    pub hdr: MailboxReqHeader,
+    pub key_id: u32,
+    pub nonce: [u8; 32],
+}
+
+impl Request for GetEnvelopeSignedEccCsrReq {
+    const ID: CommandId = CommandId::GET_ENVELOPE_SIGNED_ECC384_CSR;
+    type Resp = EnvelopeSignedCsrResp;
+}
+
+// GET_ENVELOPE_SIGNED_MLDSA87_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetEnvelopeSignedMldsaCsrReq {
+    pub hdr: MailboxReqHeader,
+    pub key_id: u32,
+    pub nonce: [u8; 32],
+}
+
+impl Request for GetEnvelopeSignedMldsaCsrReq {
+    const ID: CommandId = CommandId::GET_ENVELOPE_SIGNED_MLDSA87_CSR;
+    type Resp = EnvelopeSignedCsrResp;
+}
 
 // SIGN_WITH_EXPORTED_ECDSA
 #[repr(C)]

@@ -1729,6 +1729,16 @@ impl CaliptraError {
             0x000E007E,
             "Runtime Error: RT current PCR validation failed"
         ),
+        (
+            RUNTIME_ENVELOPE_SIGNED_CSR_EAT_ENCODING_ERROR,
+            0x000E0080,
+            "Runtime Error: Envelope Signed CSR EAT encoding error" 
+        ),
+        (
+            RUNTIME_ENVELOPE_SIGNED_CSR_COSE_SIGN1_ENCODING_ERROR,
+            0x000E0081,
+            "Runtime Error: Envelope Signed CSR COSE Sign1 encoding error"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

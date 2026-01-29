@@ -16,6 +16,7 @@ mod test_ecdsa;
 mod test_fe_programming;
 mod test_fips;
 mod test_firmware_verify;
+mod test_get_envelope_signed_csr;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 mod test_get_image_info;
