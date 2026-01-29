@@ -1363,14 +1363,14 @@ impl SocRegistersImpl {
         if index >= self.ss_generic_fw_exec_ctrl.len() {
             return Err(BusError::StoreAccessFault);
         }
-        if index == MCU_FW_EXEC_CTRL_INDEX
+        let is_mcu_exec_ctrl_cleared = index == MCU_FW_EXEC_CTRL_INDEX
             && ((val & MCU_FW_EXEC_CTRL_MASK) == 0)
-            && (self.ss_generic_fw_exec_ctrl[index] & MCU_FW_EXEC_CTRL_MASK) != 0
-        {
+            && (self.ss_generic_fw_exec_ctrl[index] & MCU_FW_EXEC_CTRL_MASK) != 0;
+        self.ss_generic_fw_exec_ctrl[index] = val;
+        if is_mcu_exec_ctrl_cleared {
             // If the MCU FW execute bit is cleared, request a reset.
             self.mci.cptra_request_mcu_reset();
         }
-        self.ss_generic_fw_exec_ctrl[index] = val;
         Ok(())
     }
 
