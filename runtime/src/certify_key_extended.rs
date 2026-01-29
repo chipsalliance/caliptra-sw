@@ -12,11 +12,12 @@ Abstract:
 
 --*/
 
-use crate::{mutrefbytes, with_dpe_env, Drivers, PauserPrivileges};
+use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxRespHeader,
 };
+use caliptra_drivers::okmutref;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyP384Cmd as CertifyKeyCmd, CommandExecution},
@@ -59,10 +60,13 @@ impl CertifyKeyExtendedCmd {
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
-        let resp = with_dpe_env(drivers, dmtf_device_info, None, |env| {
+        let resp = &{
+            let mut env = dpe_env(drivers, dmtf_device_info, None);
+            let env = okmutref(&mut env)?;
+
             let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-            Ok(certify_key_cmd.execute(dpe, env, locality))
-        })?;
+            certify_key_cmd.execute(dpe, env, locality)
+        };
 
         let certify_key_resp = match resp {
             Ok(Response::CertifyKey(certify_key_resp)) => certify_key_resp,

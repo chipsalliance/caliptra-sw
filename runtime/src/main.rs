@@ -20,7 +20,7 @@ core::arch::global_asm!(include_str!("ext_intr.S"));
 use caliptra_cfi_lib_git::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
-use caliptra_drivers::{FwPersistentData, RomPersistentData};
+use caliptra_drivers::{okmutref, FwPersistentData, RomPersistentData};
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
@@ -49,12 +49,11 @@ pub extern "C" fn entry_point() -> ! {
         );
     }
 
-    let mut drivers = unsafe {
-        Drivers::new_from_registers().unwrap_or_else(|e| {
-            cprintln!("[rt] RT can't load drivers");
-            handle_fatal_error(e.into());
-        })
-    };
+    let mut drivers = unsafe { Drivers::new_from_registers() };
+    let drivers = okmutref(&mut drivers).unwrap_or_else(|e| {
+        cprintln!("[rt] RT can't load drivers");
+        handle_fatal_error(e.into());
+    });
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
@@ -104,7 +103,7 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
     cprintln!("[rt] RT listening for mailbox commands...");
-    if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
+    if let Err(e) = caliptra_runtime::handle_mailbox_commands(drivers) {
         handle_fatal_error(e.into());
     }
     caliptra_drivers::ExitCtrl::exit(0xff);

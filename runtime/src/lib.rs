@@ -787,16 +787,3 @@ fn dpe_env(
         state: &mut pdata.fw.dpe.state,
     })
 }
-
-fn with_dpe_env<F, R>(
-    drivers: &mut Drivers,
-    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
-    ueid: Option<[u8; 17]>,
-    f: F,
-) -> CaliptraResult<R>
-where
-    F: FnOnce(&mut DpeEnv<CptraDpeTypes>) -> CaliptraResult<R>,
-{
-    let mut dpe_env = dpe_env(drivers, dmtf_device_info, ueid)?;
-    f(&mut dpe_env)
-}

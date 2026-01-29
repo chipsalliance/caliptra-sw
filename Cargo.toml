@@ -221,12 +221,15 @@ itertools = { version = "0.12.0", default-features = false }
 riscv = "0.13.0"
 
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false, features = ["p384"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false }
+# TODO(zhalvorsen): this commit is temporary; update to a proper release once
+#                   multi-part responses are supported. This currently points to
+#                   https://github.com/chipsalliance/caliptra-dpe/tree/zhalvorsen/reduce-cert-size-patch
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false, features = ["hybrid"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false }
 
 # local DPE dependency; useful when developing
-# dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["p384"] }
+# dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }
 # crypto = { path = "../caliptra-dpe/crypto", default-features = false }
 # platform = { path = "../caliptra-dpe/platform", default-features = false }
 
