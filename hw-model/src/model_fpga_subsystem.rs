@@ -1840,10 +1840,11 @@ impl HwModel for ModelFpgaSubsystem {
         }));
 
         // Set generic input wires.
-        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
-        m.set_generic_input_wires(&input_wires);
-
+        m.set_generic_input_wires(&[0, 0]);
         m.set_mci_generic_input_wires(&[0, 0]);
+
+        // TODO(mtimkovich): uds_fuse_row_granularity_64 should be written to cptra_hw_config
+        // here but that register is readonly.
 
         println!("Set itrng divider");
         // Set divisor for ITRNG throttling

@@ -2800,8 +2800,8 @@ pub mod regs {
         }
         /// Fuse row granularity. 0: 64-bits 1: 32-bits
         #[inline(always)]
-        pub fn fuse_granularity(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
+        pub fn fuse_granularity(&self) -> u32 {
+            (self.0 >> 1) & 1
         }
         /// RESERVED
         #[inline(always)]
