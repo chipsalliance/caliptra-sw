@@ -31,6 +31,7 @@ use test_access_key::TestAccessKeyCmd;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
+mod clear_key_cache;
 mod derive_mek;
 mod enable_mpk;
 mod endorse_hpke_pubkey;
@@ -38,16 +39,21 @@ mod enumerate_hpke_handles;
 mod generate_mek;
 mod generate_mpk;
 mod get_algorithms;
+mod get_status;
 mod initialize_mek_secret;
 mod mix_mpk;
 mod rewrap_mpk;
 mod rotate_hpke_key;
 mod test_access_key;
+mod unload_mek;
 
+pub use clear_key_cache::ClearKeyCacheCmd;
 pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
+pub use get_status::GetStatusCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
 pub use mix_mpk::MixMpkCmd;
+pub use unload_mek::UnloadMekCmd;
 
 use crate::{Drivers, PauserPrivileges};
 
@@ -904,7 +910,8 @@ pub struct OcpLockContext {
 
 impl OcpLockContext {
     pub fn new(soc_ifc: &SocIfc, trng: &mut Trng, hek_available: bool) -> CaliptraResult<Self> {
-        let available = cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled();
+        let available =
+            cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled() && soc_ifc.subsystem_mode();
         Ok(Self {
             available,
             intermediate_secret: None,
@@ -1294,6 +1301,34 @@ impl OcpLockContext {
     }
 }
 
+type Millisecond = u32;
+type Picosecond = u64;
+
+fn timeout_to_mtime(command_timeout: Millisecond, clock_period: Picosecond) -> u64 {
+    // MAX_TIMEOUT is one hour. The actual value is TBD
+    const MAX_TIMEOUT: Millisecond = 60 * 60 * 1000;
+    const ONE_MS_IN_PS: Picosecond = 1_000_000_000u64;
+
+    fn ms_to_ps(time_in_ms: Millisecond) -> Picosecond {
+        (time_in_ms as u64) * ONE_MS_IN_PS
+    }
+
+    fn walltime_to_mtime(walltime: Millisecond, period: Picosecond) -> Picosecond {
+        ms_to_ps(walltime).div_ceil(period)
+    }
+
+    let bounded_command_timeout: Millisecond = command_timeout.min(MAX_TIMEOUT);
+
+    // To avoid division by 0, 0 will be replaced by 2500.
+    // 2500 is computed from Caliptra's validated frequency 400MHz.
+    let period = match clock_period {
+        0 => 2500u64,
+        non_zero => non_zero,
+    };
+
+    walltime_to_mtime(bounded_command_timeout, period)
+}
+
 /// Entry point for OCP LOCK commands
 pub fn command_handler(
     cmd_id: CommandId,
@@ -1334,6 +1369,9 @@ pub fn command_handler(
         CommandId::OCP_LOCK_REWRAP_MPK => RewrapMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ENABLE_MPK => EnableMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_TEST_ACCESS_KEY => TestAccessKeyCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_GET_STATUS => GetStatusCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_CLEAR_KEY_CACHE => ClearKeyCacheCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_UNLOAD_MEK => UnloadMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

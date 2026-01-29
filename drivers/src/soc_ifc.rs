@@ -651,6 +651,16 @@ impl SocIfc {
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
         self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
     }
+
+    pub fn get_timestamp(&self) -> u64 {
+        let low = self.soc_ifc.regs().internal_rv_mtime_l().read();
+        let high = self.soc_ifc.regs().internal_rv_mtime_h().read();
+        ((high as u64) << 32) | low as u64
+    }
+
+    pub fn get_clock_period(&self) -> u32 {
+        self.soc_ifc.regs().cptra_timer_config().read()
+    }
 }
 
 bitfield::bitfield! {

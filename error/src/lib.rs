@@ -888,6 +888,21 @@ impl CaliptraError {
             "Image Verifier Error: DOT owner public key digest mismatch"
         ),
         (
+            OCP_LOCK_ENGINE_TIMEOUT,
+            0x000b005f,
+            "OCP LOCK Encryption Engine Timeout"
+        ),
+        (
+            OCP_LOCK_ENGINE_ERR,
+            0x000b0060,
+            "OCP LOCK Encryption Engine Command Error"
+        ),
+        (
+            OCP_LOCK_ENGINE_NOT_READY,
+            0x000b0061,
+            "OCP LOCK Encryption Engine Not Ready"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -2614,7 +2629,7 @@ impl CaliptraError {
             UDS_FE_PROGRAMMING_ZEROIZATION_FAILED,
             0xa006_0005,
             "UDS FE Zeroization Failed"
-        )
+        ),
     ];
 }
 
