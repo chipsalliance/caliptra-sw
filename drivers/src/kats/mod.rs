@@ -13,3 +13,17 @@ pub use aes256ctr_kat::Aes256CtrKat;
 pub use aes256ecb_kat::Aes256EcbKat;
 pub use aes256gcm_kat::Aes256GcmKat;
 pub use sha1_kat::Sha1Kat;
+
+use crate::{Aes, CaliptraResult, Trng};
+
+/// Execute all AES KATs unconditionally.
+/// This is used by FIPS self-test to ensure all KATs are run.
+#[inline(never)]
+pub fn execute_all_aes_kats(aes: &mut Aes, trng: &mut Trng) -> CaliptraResult<()> {
+    Aes256EcbKat::default().execute(aes)?;
+    Aes256CbcKat::default().execute(aes)?;
+    Aes256CtrKat::default().execute(aes)?;
+    Aes256CmacKat::default().execute(aes)?;
+    Aes256GcmKat::default().execute(aes, trng)?;
+    Ok(())
+}

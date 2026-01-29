@@ -183,11 +183,7 @@ pub mod fips_self_test_cmd {
 
         // Run AES KATs unconditionally (these are normally run lazily on first use,
         // but FIPS self-test requires running all KATs explicitly)
-        caliptra_drivers::kats::Aes256EcbKat::default().execute(&mut env.aes)?;
-        caliptra_drivers::kats::Aes256CbcKat::default().execute(&mut env.aes)?;
-        caliptra_drivers::kats::Aes256CtrKat::default().execute(&mut env.aes)?;
-        caliptra_drivers::kats::Aes256CmacKat::default().execute(&mut env.aes)?;
-        caliptra_drivers::kats::Aes256GcmKat::default().execute(&mut env.aes, &mut env.trng)?;
+        caliptra_drivers::kats::execute_all_aes_kats(&mut env.aes, &mut env.trng)?;
 
         Ok(())
     }
