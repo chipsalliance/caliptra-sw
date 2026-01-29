@@ -71,6 +71,8 @@ impl RecoveryFlow {
             );
             // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
             dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
+            // Reset the Indirect FIFO control so that payload_available is reset.
+            dma_recovery.reset_indirect_fifo_ctrl()?;
 
             // need to make sure the device status is correct to load the next image
             dma_recovery.set_device_status(
