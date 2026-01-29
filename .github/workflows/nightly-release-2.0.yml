@@ -65,6 +65,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
+          - { name: "2.0", rom: "2.0", suffix: "rom-2.0", base_features: "slow_tests" }
           - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
         rng:
           - { name: "etrng", extra: "" }
@@ -76,6 +77,7 @@ jobs:
       artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
+      rom-version: ${{ matrix.config.rom }}
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
@@ -88,6 +90,7 @@ jobs:
       fail-fast: false
       matrix:
         hw_config:
+          - { name: "rom-2.0", hw: "latest", rom: "2.0", suffix_prefix: "rom-2.0" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
@@ -100,6 +103,7 @@ jobs:
       hw-version: ${{ matrix.hw_config.hw }}
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
+      rom-version: ${{ matrix.hw_config.rom }}
 
   fpga-subsystem:
     name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}
@@ -112,6 +116,7 @@ jobs:
       fail-fast: false
       matrix:
         hw_config:
+          - { name: "rom-2.0", hw: "latest", rom: "2.0", suffix_prefix: "rom-2.0" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
@@ -124,6 +129,7 @@ jobs:
       hw-version: ${{ matrix.hw_config.hw }}
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
+      rom-version: ${{ matrix.hw_config.rom }}
       branch: "caliptra-2.0"
 
 
