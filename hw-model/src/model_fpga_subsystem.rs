@@ -839,7 +839,7 @@ impl ModelFpgaSubsystem {
                 }
 
                 let len = ((self.recovery_ctrl_len / 4) as u32).to_le_bytes();
-                let mut ctrl = vec![0, 1]; // CMS = 0, reset FIFO
+                let mut ctrl = vec![0, 0]; // CMS = 0, don't reset FIFO
                 ctrl.extend_from_slice(&len);
 
                 println!("Writing Indirect fifo ctrl: {:x?}", ctrl);

@@ -3534,3 +3534,34 @@ fn test_stable_key_aes_cbc_fips_status() {
         );
     }
 }
+
+/// Test that kek_next_iv is properly initialized to a random value.
+/// This is a regression test for https://github.com/chipsalliance/caliptra-sw/issues/3203
+/// The EncryptedCmk structure contains the IV used for encryption, which should be random
+/// and not start at zero.
+#[test]
+fn test_kek_iv_initialized() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Import a key and check that the IV in the encrypted CMK is not zero
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
+
+    // The EncryptedCmk structure layout is:
+    //   domain: u32 (4 bytes)
+    //   domain_metadata: [u8; 16] (16 bytes)
+    //   iv: LEArray4x3 (12 bytes) - this is at offset 20
+    //   ciphertext: [u8; UNENCRYPTED_CMK_SIZE_BYTES]
+    //   gcm_tag: LEArray4x4
+    let iv_offset = 4 + 16; // domain (4) + domain_metadata (16)
+    let iv_bytes = &cmk.0[iv_offset..iv_offset + 12];
+
+    // The IV should not be all zeros (since it should be randomized from TRNG)
+    assert_ne!(
+        iv_bytes, &[0u8; 12],
+        "kek_next_iv was not initialized - IV should be random, not zero"
+    );
+}
