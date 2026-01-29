@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_api::{
     mailbox::{
         CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
@@ -17,9 +18,11 @@ use caliptra_builder::{firmware::runtime_tests, FwId};
 use caliptra_drivers::HekSeedState;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    DefaultHwModel, HwModel, ModelCallback, ModelError, OcpLockState, SecurityState,
+    DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelCallback, ModelError, OcpLockState,
+    SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::RtBootStatus;
 use caliptra_test::crypto::hpke::{self, Hpke};
 use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
@@ -35,6 +38,7 @@ use crate::common::{
 };
 
 mod test_access_key;
+mod test_clear_key_cache;
 mod test_derive_mek;
 mod test_enable_mpk;
 mod test_endorse_hpke_pubkey;
@@ -42,10 +46,12 @@ mod test_enumerate_hpke_handles;
 mod test_generate_mek;
 mod test_generate_mpk;
 mod test_get_algorithms;
+mod test_get_status;
 mod test_initialize_mek_secret;
 mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
+mod test_unload_mek;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
@@ -572,4 +578,35 @@ fn get_enabled_mpk(
         .unwrap();
     let response = OcpLockGenerateMpkResp::read_from_bytes(response.as_bytes()).unwrap();
     (response.wrapped_mek, locked_mpk)
+}
+
+#[cfg(test)]
+struct TestConfig {
+    subsystem_mode: bool,
+    ocp_lock_en: bool,
+}
+
+#[cfg(test)]
+fn init_model(config: TestConfig) -> DefaultHwModel {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        subsystem_mode: config.subsystem_mode,
+        ocp_lock_en: config.ocp_lock_en,
+        ..Default::default()
+    };
+
+    let args = RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode: config.subsystem_mode,
+        ocp_lock_en: config.ocp_lock_en,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    model
 }

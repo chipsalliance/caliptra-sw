@@ -1705,6 +1705,11 @@ impl CaliptraError {
             "OCP LOCK Error: VEK is not available"
         ),
         (
+            RUNTIME_INVALID_REQUEST_LENGTH,
+            0x000E008A,
+            "Runtime Error: Invalid request length"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -2590,7 +2595,17 @@ impl CaliptraError {
             UDS_FE_PROGRAMMING_ZEROIZATION_FAILED,
             0xa006_0005,
             "UDS FE Zeroization Failed"
-        )
+        ),
+        (
+            OCP_LOCK_ENGINE_TIMEOUT,
+            0x4C45_544F,
+            "OCP LOCK Encryption Engine Timeout"
+        ),
+        (
+            OCP_LOCK_ENGINE_ERR,
+            0x4C45_5200,
+            "OCP LOCK Encryption Engine Command Error"
+        ),
     ];
 }
 
