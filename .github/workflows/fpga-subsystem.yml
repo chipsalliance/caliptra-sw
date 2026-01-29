@@ -87,7 +87,7 @@ jobs:
         run: |
           git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch main-2.1
           pushd caliptra-mcu-sw
-          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then 
+          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then
             echo 'CALIPTRA_MCU_COMMIT is not in the `main-2.1` branch! Are you sure this is the correct commit?'
             exit 1
           fi
@@ -106,7 +106,6 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
           ref: ${{ inputs.branch }}
-          submodules: recursive
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -278,7 +277,6 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
           ref: ${{ inputs.branch }}
-          submodules: recursive
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -350,7 +348,7 @@ jobs:
               --profile=fpga-subsystem
           )
 
-          
+
           cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \

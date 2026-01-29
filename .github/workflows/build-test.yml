@@ -31,8 +31,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Test commit name
         run: |
@@ -69,8 +67,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Test commit name
         run: |
@@ -146,8 +142,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Install required packages
         run: |
@@ -167,8 +161,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Run emulator conformance tests
         run: |
@@ -182,8 +174,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Install required packages
         run: |

@@ -2,6 +2,12 @@ cloud.google.com/go/compute/metadata v0.2.0/go.mod h1:zFmK7XCadkQkj6TtorcaGlCW1h
 github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8/go.mod h1:I0gYDMZ6Z5GRU7l58bNFSkPTFN6Yl12dsUlAZ8xy98g=
 github.com/bwesterb/go-ristretto v1.2.0/go.mod h1:fUIoIZaG73pV5biE2Blr2xEzDoMj7NFEuV9ekS419A0=
 github.com/certifi/gocertifi v0.0.0-20180118203423-deb3ae2ef261/go.mod h1:GJKEexRPVJrBSOjoqN5VNOIKJ5Q3RViH6eu3puDRwx4=
+github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260109182302-2729a0d49257 h1:58GBa6yrGCSZqvsPj3UEnZQO1v5b05dhzSdJMy7npVE=
+github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260109182302-2729a0d49257/go.mod h1:HTEbUOJXYocmlvNJ8i0arjW/XQA7QYnCGQHi/8kwnAg=
+github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260109182302-2729a0d49257 h1:kGJ4LjXSq7GfKmXjoEUMT8DkSstoqBTaO0NhD2OwRe8=
+github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260109182302-2729a0d49257/go.mod h1:tCF7Q+jyiox85doSbjd2pFsdlFbzhdYQngIAJa85iHU=
+github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260109182302-2729a0d49257 h1:Rfn2O1RCfmoRn0xjaZ5dxvrnPxvIbuAspyD+De+2EPQ=
+github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260109182302-2729a0d49257/go.mod h1:PNGOLt6iqbL0ERMh6W6G5L2MdNlVl7RV5hFQpP6Lt/Q=
 github.com/cloudflare/circl v1.1.0/go.mod h1:prBCrKB9DV4poKZY1l9zBXg2QJY7mvgRvtMxxK7fi4I=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
