@@ -7,6 +7,7 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::HwModel;
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, SignFlags,
@@ -42,6 +43,7 @@ fn test_disable_attestation_cmd() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
@@ -77,6 +79,7 @@ fn test_disable_attestation_cmd() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -161,6 +164,7 @@ fn test_attestation_disabled_flag_after_update_reset() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );

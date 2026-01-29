@@ -9,7 +9,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, SecurityState};
-use caliptra_runtime::{RtBootStatus, TciMeasurement};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, TciMeasurement};
 use crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
@@ -81,6 +81,7 @@ fn test_sign_with_exported_cdi() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_ctx_cmd),
         DpeResult::Success,
     );
@@ -121,6 +122,7 @@ fn test_sign_with_exported_incorrect_cdi_handle() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&get_cert_chain_cmd),
         DpeResult::Success,
     );
@@ -201,6 +203,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -232,12 +235,14 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&measurement_cmd),
         DpeResult::Success,
     );
 
     let Some(Response::Error(e)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::DpeCmdFailure,
     ) else {
@@ -293,6 +298,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -308,6 +314,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&measurement_cmd),
         DpeResult::Success,
     );
@@ -328,6 +335,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let Some(Response::DeriveContextExportedCdi(updated_cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -383,6 +391,7 @@ fn test_sign_with_revoked_exported_cdi() {
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -453,6 +462,7 @@ fn test_sign_with_disabled_attestation() {
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -531,6 +541,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
     );
@@ -612,6 +623,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
 
     let Some(Response::RotateCtx(NewHandleResp { handle, .. })) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     ) else {
@@ -627,6 +639,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
     );
@@ -643,6 +656,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
     );

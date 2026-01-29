@@ -10,7 +10,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, SecurityState};
-use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -24,7 +24,6 @@ use dpe::{
     },
     context::ContextHandle,
     response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
-    DpeProfile,
 };
 use openssl::{
     bn::BigNum,
@@ -45,22 +44,24 @@ fn test_invoke_dpe_get_profile_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let mut cmd = Command::GetProfile(&GetProfileCmd);
-    let resp = execute_dpe_cmd(&mut model, &mut cmd, DpeResult::Success);
-    let Some(Response::GetProfile(profile)) = resp else {
-        panic!("Wrong response type!");
-    };
-    assert_eq!(profile.resp_hdr.profile, DpeProfile::P384Sha384);
-    assert_eq!(profile.vendor_id, VENDOR_ID);
-    assert_eq!(profile.vendor_sku, VENDOR_SKU);
-    assert_eq!(profile.flags, DPE_SUPPORT.bits());
-    assert_eq!(profile.max_tci_nodes, 64);
+    for p in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let mut cmd = Command::GetProfile(&GetProfileCmd);
+        let resp = execute_dpe_cmd(&mut model, p, &mut cmd, DpeResult::Success);
+        let Some(Response::GetProfile(profile)) = resp else {
+            panic!("Wrong response type!");
+        };
+        assert_eq!(profile.resp_hdr.profile, p.into());
+        assert_eq!(profile.vendor_id, VENDOR_ID);
+        assert_eq!(profile.vendor_sku, VENDOR_SKU);
+        assert_eq!(profile.flags, DPE_SUPPORT.bits());
+        assert_eq!(profile.max_tci_nodes, 64);
+    }
 }
 
 #[test]
 fn test_invoke_dpe_size_too_big() {
     // Test with data_size too big.
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
@@ -85,6 +86,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::GetCertificateChain(&get_cert_chain_cmd),
         DpeResult::Success,
     );
@@ -108,6 +110,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
@@ -123,6 +126,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -161,6 +165,7 @@ fn test_invoke_dpe_asymmetric_sign() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
@@ -184,6 +189,7 @@ fn test_dpe_header_error_code() {
     let init_ctx_cmd = InitCtxCmd::new_use_default();
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::InitCtx(&init_ctx_cmd),
         DpeResult::DpeCmdFailure,
     );
@@ -212,6 +218,7 @@ fn test_invoke_dpe_certify_key_csr() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -276,6 +283,7 @@ fn test_invoke_dpe_rotate_context() {
 
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     );
@@ -292,6 +300,7 @@ fn test_invoke_dpe_rotate_context() {
 
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     );
@@ -328,6 +337,7 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -351,6 +361,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_ctx_cmd),
         DpeResult::Success,
     );
@@ -384,6 +395,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
     );
@@ -429,6 +441,7 @@ fn test_export_cdi_destroyed_root_context() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
     );

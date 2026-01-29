@@ -237,7 +237,7 @@ void dump_caliptra_error_codes()
     printf("Caliptra FW error fatal code is 0x%x\n", caliptra_read_fw_fatal_error());
 }
 
-static int derive_context(struct dpe_derive_context_response *out, int flags) 
+static int derive_context(struct dpe_derive_context_response *out, int flags)
 {
     struct caliptra_invoke_dpe_req dpe_req = { 0 };
     struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
@@ -266,7 +266,7 @@ static int derive_context(struct dpe_derive_context_response *out, int flags)
     return 0;
 }
 
-static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_response *out, int flags) 
+static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_response *out, int flags)
 {
     struct caliptra_invoke_dpe_req dpe_req = { 0 };
     struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
@@ -861,7 +861,7 @@ int rt_test_all_commands(const test_info *info)
         printf("Stash Measurement: OK\n");
     }
 
-    // INVOKE_DPE_COMMAND
+    // INVOKE_DPE_ECC384
     // Using GET_PROFILE as an example command
     // TODO: Coverage of other DPE commands should be added
     struct caliptra_invoke_dpe_req dpe_req = {};
@@ -876,13 +876,35 @@ int rt_test_all_commands(const test_info *info)
 
     if (status)
     {
-        printf("DPE Command failed: 0x%x\n", status);
+        printf("DPE ECC384 Command failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     }
     else
     {
-        printf("DPE Command: OK\n");
+        printf("DPE ECC384 Command: OK\n");
+    }
+
+    // INVOKE_DPE_MLDSA87
+    // Using GET_PROFILE as an example command
+    // TODO: Coverage of other DPE commands should be added
+
+    dpe_req.data_size = sizeof(struct dpe_get_profile_cmd);
+    dpe_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
+    dpe_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
+    dpe_req.get_profile_cmd.cmd_hdr.profile = 0x2;
+
+    status = caliptra_invoke_dpe_mldsa87_command(&dpe_req, &dpe_resp, false);
+
+    if (status)
+    {
+        printf("DPE MLDSA87 Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("DPE MLDSA87 Command: OK\n");
     }
 
     // FW_INFO
@@ -1360,7 +1382,7 @@ int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
     }
 
     // Create first export cdi and certificate
-    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | 
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI |
                 DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE | DPE_DERIVE_CONTEXT_FLAG_RETAIN_PARENT_CONTEXT)) {
         printf("Failed to export first CDI\n");
         return 1;
@@ -1379,7 +1401,7 @@ int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
         return 1;
     }
 
-    // Revoke existing exported CDI 
+    // Revoke existing exported CDI
     memcpy(&revoke_req.exported_cdi_handle, exported_resp.exported_cdi_handle, sizeof(revoke_req.exported_cdi_handle));
 
     if (caliptra_revoke_exported_cdi_handle(&revoke_req, false)) {

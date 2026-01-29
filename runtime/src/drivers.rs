@@ -62,12 +62,12 @@ use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
-use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
 };
+use dpe::{okref, MAX_HANDLES};
 use dpe::{DpeFlags, DpeProfile};
 use ureg::MmioMut;
 
@@ -476,7 +476,7 @@ impl Drivers {
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+    pub fn compute_ecc_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self
             .persistent_data
             .get()
@@ -486,6 +486,18 @@ impl Drivers {
             .to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
+        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+
+        Ok(token)
+    }
+
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn compute_mldsa_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+        let key = Self::get_key_id_rt_mldsa_pub_key(self);
+        let key = okref(&key)?;
+
+        let rt_digest = self.sha256.digest(key.as_bytes())?;
         let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
 
         Ok(token)
@@ -501,7 +513,7 @@ impl Drivers {
             .manifest1
             .header
             .pl0_pauser;
-        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+        let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE

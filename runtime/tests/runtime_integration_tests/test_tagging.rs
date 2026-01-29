@@ -5,6 +5,7 @@ use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::HwModel;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{Command, DeriveContextCmd, DestroyCtxCmd},
     context::ContextHandle,
@@ -181,6 +182,7 @@ fn test_tagging_destroyed_context() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DestroyCtx(&destroy_ctx_cmd),
         DpeResult::Success,
     );
@@ -215,6 +217,7 @@ fn test_tagging_retired_context() {
     let derive_context_cmd = DeriveContextCmd::default();
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_context_cmd),
         DpeResult::Success,
     );
@@ -258,6 +261,7 @@ fn test_tagging_retired_context() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_context_cmd),
         DpeResult::Success,
     );

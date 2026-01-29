@@ -9,7 +9,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::RtBootStatus;
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 use dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
@@ -31,6 +31,7 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     };
     let resp = execute_dpe_cmd(
         model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::GetCertificateChain(&get_cert_chain_cmd),
         DpeResult::Success,
     );
@@ -47,6 +48,7 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     };
     let resp = execute_dpe_cmd(
         model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::GetCertificateChain(&get_cert_chain_cmd),
         DpeResult::Success,
     );

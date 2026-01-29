@@ -101,7 +101,8 @@ impl CommandId {
     pub const LMS_SIGNATURE_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
     pub const MLDSA87_SIGNATURE_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
-    pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+    pub const INVOKE_DPE_ECC384: Self = Self(0x44504543); // "DPEC"
+    pub const INVOKE_DPE_MLDSA87: Self = Self(0x4450454D); // "DPEM"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
@@ -614,7 +615,8 @@ pub enum MailboxReq {
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
     GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
-    InvokeDpeCommand(InvokeDpeReq),
+    InvokeDpeEcc384Command(InvokeDpeReq),
+    InvokeDpeMldsa87Command(InvokeDpeReq),
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq),
@@ -706,7 +708,8 @@ impl MailboxReq {
             MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
             MailboxReq::MldsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
+            MailboxReq::InvokeDpeEcc384Command(req) => req.as_bytes_partial(),
+            MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_bytes()),
@@ -800,7 +803,8 @@ impl MailboxReq {
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
+            MailboxReq::InvokeDpeEcc384Command(req) => req.as_bytes_partial_mut(),
+            MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial_mut(),
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
@@ -892,7 +896,8 @@ impl MailboxReq {
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
             MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
-            MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
+            MailboxReq::InvokeDpeEcc384Command(_) => CommandId::INVOKE_DPE_ECC384,
+            MailboxReq::InvokeDpeMldsa87Command(_) => CommandId::INVOKE_DPE_MLDSA87,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_ECC384_CERT,
@@ -1480,7 +1485,7 @@ impl CertifyKeyExtendedResp {
 }
 impl Response for CertifyKeyExtendedResp {}
 
-// INVOKE_DPE_COMMAND
+// INVOKE_DPE_ECC384
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeReq {
@@ -1518,7 +1523,49 @@ impl Default for InvokeDpeReq {
     }
 }
 impl Request for InvokeDpeReq {
-    const ID: CommandId = CommandId::INVOKE_DPE;
+    const ID: CommandId = CommandId::INVOKE_DPE_ECC384;
+    type Resp = InvokeDpeResp;
+}
+
+// INVOKE_DPE_MLDSA87
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeMldsa87Req {
+    pub hdr: MailboxReqHeader,
+    pub data_size: u32,
+    pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE], // variable length
+}
+
+impl InvokeDpeMldsa87Req {
+    pub const DATA_MAX_SIZE: usize = InvokeDpeReq::DATA_MAX_SIZE;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for InvokeDpeMldsa87Req {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            data_size: 0,
+            data: [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE],
+        }
+    }
+}
+impl Request for InvokeDpeMldsa87Req {
+    const ID: CommandId = CommandId::INVOKE_DPE_MLDSA87;
     type Resp = InvokeDpeResp;
 }
 

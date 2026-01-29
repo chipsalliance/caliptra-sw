@@ -18,7 +18,7 @@ use caliptra_common::x509::get_tbs;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::TciMeasurement;
+use caliptra_runtime::{CaliptraDpeProfile, TciMeasurement};
 use dpe::commands::{CertifyKeyCommand, DeriveContextCmd};
 use dpe::{
     commands::{CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, DeriveContextFlags},
@@ -447,6 +447,7 @@ fn test_dpe_leaf_cert() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -546,6 +547,7 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
     };
     let resp = execute_dpe_cmd(
         model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
@@ -713,6 +715,7 @@ pub fn test_all_measurement_apis() {
         };
         let resp = execute_dpe_cmd(
             &mut hw,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::from(&derive_context_cmd),
             DpeResult::Success,
         );
