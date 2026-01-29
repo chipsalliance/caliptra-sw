@@ -724,10 +724,33 @@ impl SetAuthManifestCmd {
         // Verify SVN
         Self::verify_svn(&drivers.soc_ifc, auth_manifest_preamble.svn)?;
 
-        let pqc_key_type =
-            FwVerificationPqcKeyType::from_u8(drivers.soc_ifc.fuse_bank().pqc_key_type() as u8)
-                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+        // ---------------------------------------------------------------------
+        // 1. Determine PQC key type
+        //
+        // Rule:
+        //  - Unprovisioned  -> trust the auth manifest (image bundle)
+        //  - Provisioned    -> trust the fuse
+        // ---------------------------------------------------------------------
 
+        let persistent_data = drivers.persistent_data.get_mut();
+
+        let manifest_pqc_key_type =
+            FwVerificationPqcKeyType::from_u8(persistent_data.rom.manifest1.pqc_key_type)
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE)?;
+
+        let pqc_key_type = if drivers.soc_ifc.lifecycle() == Lifecycle::Unprovisioned {
+            manifest_pqc_key_type
+        } else {
+            let fuse_pqc_key_type =
+                FwVerificationPqcKeyType::from_u8(drivers.soc_ifc.fuse_bank().pqc_key_type() as u8)
+                    .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+
+            if fuse_pqc_key_type != manifest_pqc_key_type {
+                return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PQC_KEY_TYPE_MISMATCH);
+            }
+
+            fuse_pqc_key_type
+        };
         let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(

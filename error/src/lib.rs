@@ -1729,6 +1729,21 @@ impl CaliptraError {
             0x000E007E,
             "Runtime Error: RT current PCR validation failed"
         ),
+        (
+             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
+            0x000E008A,
+            "Runtime Error: Auth manifest invalid PQC key type in fuse"
+        ),
+        (
+             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
+            0x000E008B,
+            "Runtime Error: Auth manifest invalid PQC key type"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_PQC_KEY_TYPE_MISMATCH,
+            0x000E008C,
+            "Runtime Error: Auth manifest PQC key type mismatch"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
