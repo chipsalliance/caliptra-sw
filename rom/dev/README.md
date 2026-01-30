@@ -662,7 +662,7 @@ During this phase, the ROM executes specific mailbox commands. Based on the oper
 
 #### Handling commands from mailbox
 
-ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in SUBSYSTEM mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
+ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE/RI_DOWNLOAD_ENCRYPTED_FIRMWARE command in SUBSYSTEM mode. Once the FW_DOWNLOAD, RI_DOWNLOAD_FIRMWARE, or RI_DOWNLOAD_ENCRYPTED_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#stash_measurement).
 2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#version).
@@ -736,7 +736,11 @@ There are two modes in which the ROM executes: PASSIVE mode or SUBSYSTEM mode. F
 
 Following is the sequence of steps that are performed to download the firmware image into the mailbox in SUBSYSTEM mode.
 
-1. On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register version to 1.1 and the `Agent Capability` field bits:
+ROM supports two commands for firmware download in SUBSYSTEM mode:
+- **RI_DOWNLOAD_FIRMWARE** (Command Code: `0x5249_4644` / "RIFD"): Standard firmware download. After downloading and validating the firmware, the runtime will activate the MCU firmware immediately.
+- **RI_DOWNLOAD_ENCRYPTED_FIRMWARE** (Command Code: `0x5249_4645` / "RIFE"): Encrypted firmware download. Sets the boot mode to `EncryptedFirmware`, which signals to the runtime that the MCU firmware is encrypted and should not be activated until it has been decrypted using the `CM_AES_GCM_DECRYPT_DMA` command.
+
+1. On receiving the RI_DOWNLOAD_FIRMWARE or RI_DOWNLOAD_ENCRYPTED_FIRMWARE mailbox command, set the RI PROT_CAP2 register version to 1.1 and the `Agent Capability` field bits:
     - `Device ID`
     - `Device Status`
     - `Push C-image support`

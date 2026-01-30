@@ -19,8 +19,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        with:
-          submodules: 'true'
 
       - name: Restore seed corpus
         uses: actions/cache/restore@v3

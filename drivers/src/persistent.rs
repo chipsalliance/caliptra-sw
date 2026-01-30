@@ -54,6 +54,39 @@ pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
+pub const BOOT_MODE_SIZE: u32 = 4;
+
+/// Boot mode indicating how the firmware was loaded by ROM.
+/// This is used by runtime to determine appropriate behavior during recovery flow.
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    TryFromBytes,
+    IntoBytes,
+    KnownLayout,
+    Immutable,
+    Zeroize,
+    Default,
+)]
+#[repr(u32)]
+pub enum BootMode {
+    /// Normal boot mode (firmware loaded unencrypted)
+    #[default]
+    Normal = 0,
+    /// Encrypted firmware boot mode (firmware loaded via RI_DOWNLOAD_ENCRYPTED_FIRMWARE)
+    /// In this mode, runtime should not activate MCU firmware after downloading,
+    /// allowing MCU ROM to decrypt firmware first.
+    EncryptedFirmware = 1,
+}
+
+impl From<BootMode> for u32 {
+    fn from(mode: BootMode) -> Self {
+        mode as u32
+    }
+}
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
 mod fw {
@@ -366,6 +399,10 @@ pub struct RomPersistentData {
 
     pub ocp_lock_metadata: OcpLockMetadataRom,
 
+    /// Boot mode indicating how firmware was loaded by ROM.
+    /// Used by runtime to determine behavior during recovery flow.
+    pub boot_mode: BootMode,
+
     /// Major version.
     pub major_version: u16,
     /// Minor version. Initially written by ROM but may be changed to a higher version by FMC.
@@ -490,6 +527,12 @@ impl RomPersistentData {
             );
 
             persistent_data_offset += ROM_OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.boot_mode) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += BOOT_MODE_SIZE;
             assert_eq!(
                 addr_of!((*P).rom.major_version) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

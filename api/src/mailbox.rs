@@ -126,6 +126,9 @@ impl CommandId {
     // The download firmware from recovery interface command.
     pub const RI_DOWNLOAD_FIRMWARE: Self = Self(0x5249_4644); // "RIFD"
 
+    // The download encrypted firmware from recovery interface command.
+    pub const RI_DOWNLOAD_ENCRYPTED_FIRMWARE: Self = Self(0x5249_4645); // "RIFE"
+
     // The get IDevID ECC CSR command.
     pub const GET_IDEV_ECC384_CSR: Self = Self(0x4944_4352); // "IDCR"
 
