@@ -67,6 +67,13 @@ if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
       chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAING7nHmIo6v/jHTFuLGlALBM9bJ+p8WI4H6NZCREkxxc miguelosorio@google.com >> ~/.ssh/authorized_keys\""
       # ttrippel
       chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com >> ~/.ssh/authorized_keys\""
+
+      # sileno-rocco-soc
+      chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFdco7xfZ3kPkSYrVWZsGWYB8VuRPTT8FupUXegAj2+n sileno@sileno-caliptra.c.googlers.com >> ~/.ssh/authorized_keys\""
+      
+      # jose-cipriano-soc
+      chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOqxIT54u8MjPlfrEbBNI01f1irf27GfeZF9uCjPdkaI josecipriano@josecipriano.c.googlers.com >> ~/.ssh/authorized_keys\""
+
       # zhalvorsen
       chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com >> ~/.ssh/authorized_keys\""
 
