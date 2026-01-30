@@ -265,3 +265,35 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
     }
 }
+
+/// Test that Caliptra boots to runtime when using RI_DOWNLOAD_ENCRYPTED_FIRMWARE command
+/// instead of RI_DOWNLOAD_FIRMWARE command.
+#[cfg_attr(feature = "fpga_realtime", ignore)] // core FPGA does not support any RI command
+#[test]
+fn test_boot_encrypted_firmware_rri() {
+    use crate::common::{default_soc_manifest_bytes, start_rt_test_pqc_model, DEFAULT_MCU_FW};
+    use caliptra_image_types::FwVerificationPqcKeyType;
+
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    // Create args with stop_at_rom and subsystem_mode enabled
+    let args = RuntimeTestArgs {
+        stop_at_rom: true,
+        subsystem_mode: true,
+        ..Default::default()
+    };
+
+    let (mut model, image) = start_rt_test_pqc_model(args, pqc_key_type);
+
+    // Wait for ROM to be ready for firmware
+    model.step_until(|m| m.ready_for_fw());
+
+    // Upload firmware using encrypted firmware command
+    let soc_manifest = default_soc_manifest_bytes(pqc_key_type, 0);
+    model
+        .upload_firmware_rri_encrypted(&image, Some(&soc_manifest), Some(&DEFAULT_MCU_FW))
+        .unwrap();
+
+    // Verify Caliptra boots to runtime
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+}
