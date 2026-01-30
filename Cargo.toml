@@ -41,6 +41,8 @@ members = [
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
+  "common/okref",
+  "common/eat",
   "coverage",
   "cpu",
   "drivers",
@@ -176,6 +178,7 @@ libusb1-sys = "0.6.4"
 memoffset = "0.8.0"
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
+ocp-eat = { path = "common/eat", default-features = false }
 p384 = "0.13.0"
 proc-macro2 = "1.0.66"
 quote = "1.0"
