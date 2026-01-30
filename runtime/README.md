@@ -85,6 +85,16 @@ Caliptra Runtime Firmware will share driver code with ROM and FMC where
 possible; however, it will have its own copies of all of these drivers linked into
 the Runtime Firmware binary.
 
+**Production Debug Unlock
+
+Some security- and lifecycle-critical flows are implemented and owned by
+Caliptra ROM and are intentionally not duplicated in Runtime documentation.
+
+See ROM documentation:
+
+https://github.com/chipsalliance/caliptra-sw/blob/vmhatre/staging-2.1/rom/dev/README.md#debug-unlock
+
+
 ## Cryptographic Mailbox Commands (new in 2.0)
 
 Cryptographic mailbox (CM) commands are a flexible set of mailbox commands that provide access to Caliptra's cryptographic cabilities.
