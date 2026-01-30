@@ -25,23 +25,6 @@ cargo run --features std,crypto -- my_token.cbor
 ls -la output/
 ```
 
-### Decode Tokens
-```bash
-# Decode an existing token (works with or without crypto features)
-cargo run --features std,crypto -- --decode output/my_token.cbor
-cargo run --no-default-features --features std -- --decode output/my_token.cbor
-
-# Decode tokens from any path
-cargo run -- --decode /path/to/external_token.cbor
-```
-
-### Help
-```bash
-# Show usage help
-cargo run --features std,crypto
-cargo run -- --decode
-```
-
 ## Directory Structure
 ```
 runtime/userspace/api/eat/
@@ -54,10 +37,6 @@ runtime/userspace/api/eat/
 │   └── error.rs           # Error handling modules
 │   └── ocp_profile/       # OCP profile-specific EAT claims encoding modules for attestation
 │   └── csr_eat.rs         # Envelope Signed CSR EAT claims encoding module
-├── decoder/               # Python decoder scripts
-│   ├── decode.py          # Main decoder script
-│   ├── signature_analysis.py
-│   └── signature_validation.py
 ├── output/                # Auto-created output directory for tokens
 │   └── *.cbor            # Generated CBOR token files
 ├── Cargo.toml            # Rust package manifest
@@ -69,48 +48,3 @@ runtime/userspace/api/eat/
 ### For Token Generation
 - **Rust Features**: Requires `std` and `crypto` features
 - **Output folder**: Automatically created if it doesn't exist
-
-### For Token Decoding
-- **Rust Features**: Requires `std` feature
-- **Python Environment**: Python 3.7+ with cryptography library
-
-#### Python Virtual Environment Setup
-```bash
-# Create a virtual environment
-python3 -m venv venv
-
-# Activate the virtual environment
-source venv/bin/activate  # On Linux/macOS
-# or
-venv\Scripts\activate     # On Windows
-
-# Install required dependencies
-pip install cryptography cbor2 pycose
-
-# Verify installation
-python -c "import cryptography, cbor2, cose; print('All dependencies installed successfully')"
-```
-
-#### Using the Decoder
-Once the virtual environment is set up and activated, the decode functionality will work automatically:
-```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
-
-# Now decode tokens (the binary will use the activated Python environment)
-cargo run --features std,crypto -- --decode output/my_token.cbor
-```
-
-#### Troubleshooting Python Dependencies
-If you encounter import errors during decoding:
-```bash
-# Check if dependencies are installed
-pip list | grep -E "(cryptography|cbor2|cose)"
-
-# Install missing dependencies
-pip install cryptography cbor2 pycose
-
-# For development/debugging, you can run the decoder directly
-cd decoder
-python decode.py ../output/my_token.cbor
-```
