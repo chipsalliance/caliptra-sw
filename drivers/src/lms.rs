@@ -438,7 +438,7 @@ impl Lms {
         lms_sig: &LmsSignature<6, 51, 15>,
     ) -> CaliptraResult<LmsResult> {
         #[cfg(feature = "fips-test-hooks")]
-        let input_string = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::LMS_CORRUPT_INPUT,
                 &input_string,

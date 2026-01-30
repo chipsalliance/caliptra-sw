@@ -275,14 +275,12 @@ impl Sha2_512_384AccOp<'_> {
         *digest = Array4x16::read_from_reg(sha_acc.digest());
 
         #[cfg(feature = "fips-test-hooks")]
-        {
-            *digest = unsafe {
-                crate::FipsTestHook::corrupt_data_if_hook_set(
-                    crate::FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
-                    digest,
-                )
-            };
-        }
+        unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                digest,
+            )
+        };
 
         // Zeroize the hardware registers.
         self.sha512_acc

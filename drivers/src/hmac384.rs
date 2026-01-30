@@ -555,7 +555,7 @@ impl<'a> Hmac384Op<'a> {
         let buf = &self.buf[..self.buf_idx];
 
         #[cfg(feature = "fips-test-hooks")]
-        let buf = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::HMAC384_CORRUPT_TAG,
                 &buf,

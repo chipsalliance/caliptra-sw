@@ -367,7 +367,7 @@ impl Ecc384 {
         let digest = Array4x12::new([0u32; 12]);
 
         #[cfg(feature = "fips-test-hooks")]
-        let pub_key = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_PAIRWISE_CONSISTENCY_ERROR,
                 &pub_key,
@@ -391,7 +391,7 @@ impl Ecc384 {
         self.zeroize_internal();
 
         #[cfg(feature = "fips-test-hooks")]
-        let pub_key = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
                 &pub_key,
@@ -522,12 +522,12 @@ impl Ecc384 {
         caliptra_cfi_lib::cfi_assert_eq_12_words(&_r.0, &sig.r.0);
 
         #[cfg(feature = "fips-test-hooks")]
-        let sig_result = Ok(unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_CORRUPT_SIGNATURE,
                 sig,
             )
-        });
+        };
 
         sig_result
     }

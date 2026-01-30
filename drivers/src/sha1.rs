@@ -97,14 +97,12 @@ impl Sha1 {
         }
 
         #[cfg(feature = "fips-test-hooks")]
-        {
-            self.compressor.hash = unsafe {
-                crate::FipsTestHook::corrupt_data_if_hook_set(
-                    crate::FipsTestHook::SHA1_CORRUPT_DIGEST,
-                    &self.compressor.hash,
-                )
-            };
-        }
+        unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::SHA1_CORRUPT_DIGEST,
+                &self.compressor.hash,
+            )
+        };
 
         Ok(self.compressor.hash().into())
     }
