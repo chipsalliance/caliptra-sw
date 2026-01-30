@@ -40,6 +40,7 @@ members = [
   "ci-tools/size-history",
   "common",
   "common/okref",
+  "common/eat",
   "coverage",
   "cpu",
   "drivers",
@@ -176,6 +177,7 @@ memoffset = "0.8.0"
 ml-kem = { version = "0.2.1", features = ["deterministic"] }
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
+ocp-eat = { path = "common/eat", default-features = false }
 p384 = "0.13.0"
 proc-macro2 = "1.0.66"
 quote = "1.0"
