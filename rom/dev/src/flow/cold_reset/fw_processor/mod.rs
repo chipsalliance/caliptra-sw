@@ -327,7 +327,7 @@ impl FirmwareProcessor {
                 if txn.cmd() == CommandId::RI_DOWNLOAD_FIRMWARE.into() || encrypted {
                     if !subsystem_mode {
                         cprintln!(
-                            "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
+                            "[fwproc] RI_DOWNLOAD_FIRMWARE / RI_DOWNLOAD_ENCRYPTED_FIRMWARE cmds not supported in passive mode"
                         );
                         // Start and complete the transaction with error
                         let txn = mbox
@@ -342,10 +342,12 @@ impl FirmwareProcessor {
                     // Set boot mode based on command type
                     if encrypted {
                         persistent_data.rom.boot_mode = BootMode::EncryptedFirmware;
+                        cprintln!("[fwproc] Completing RI_DOWNLOAD_ENCRYPTED_FIRMWARE command");
+                    } else {
+                        // Complete the command indicating success
+                        cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
                     }
 
-                    // Complete the command indicating success
-                    cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
                     let txn = mbox
                         .peek_recv()
                         .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;

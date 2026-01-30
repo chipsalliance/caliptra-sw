@@ -650,6 +650,9 @@ const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 /// The download firmware from recovery interface Opcode
 const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
 
+/// The download encrypted firmware from recovery interface Opcode
+const RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE: u32 = 0x5249_4645;
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -1226,6 +1229,21 @@ pub trait HwModel: SocManager {
     ) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
         let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
+        Ok(())
+    }
+
+    /// Upload encrypted fw image to RRI.
+    fn upload_firmware_rri_encrypted(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
+        let response = self.mailbox_execute(RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE, &[])?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }

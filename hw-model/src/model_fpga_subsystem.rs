@@ -2152,6 +2152,46 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(())
     }
 
+    fn upload_firmware_rri_encrypted(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        println!("Setting recovery images to BMC");
+        // First add image to BMC
+        self.bmc.push_recovery_image(firmware.to_vec());
+        self.bmc
+            .push_recovery_image(soc_manifest.unwrap_or_default().to_vec());
+        self.bmc
+            .push_recovery_image(mcu_firmware.unwrap_or_default().to_vec());
+
+        while !self.i3c_target_configured() {
+            self.step();
+        }
+        println!("Done starting MCU");
+
+        self.i3c_controller().unwrap().configure();
+        println!("Starting recovery flow (BMC)");
+        self.start_recovery_bmc();
+        self.step();
+        println!("Finished booting");
+
+        // Call ROM callback before informing MCU ROM it can load firmware
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+        }
+
+        // TODO: when MCU ROM supports a generic wire to indicate which command to send, we
+        // can re-enable it. But for now, we send the mailbox command ourselves and leave
+        // MCU ROM waiting.
+        let response = self.mailbox_execute(crate::RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE, &[])?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
+        Ok(())
+    }
+
     fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         Ok(())
     }
