@@ -87,8 +87,10 @@ impl Csrng {
         let mut result = Self { csrng, entropy_src };
         let e = result.entropy_src.regs_mut();
 
-        // Configure and enable entropy_src if needed.
+        // Configure and enable entropy_src if not already enabled.
+        // If already enabled, assume it was configured correctly by a previous call.
         if e.module_enable().read().module_enable() == FALSE {
+            // Configure entropy_src
             set_health_check_thresholds(e, soc_ifc.regs());
 
             e.conf().write(|w| {
@@ -99,6 +101,17 @@ impl Csrng {
             });
             e.module_enable().write(|w| w.module_enable(TRUE));
             check_for_alert_state(result.entropy_src.regs())?;
+
+            // Lock entropy_src configuration if not in debug mode.
+            // Per security model: ROM programs once, then locks permanently.
+            // - SW_REGUPD: When cleared, configuration registers become read-only
+            // - ME_REGWEN: When cleared, MODULE_ENABLE becomes read-only
+            // In debug mode (debug_locked == false), leave unlocked for characterization.
+            if soc_ifc.regs().cptra_security_state().read().debug_locked() {
+                let e = result.entropy_src.regs_mut();
+                e.sw_regupd().write(|w| w.sw_regupd(false));
+                e.me_regwen().write(|w| w.me_regwen(false));
+            }
         }
 
         let c = result.csrng.regs_mut();
