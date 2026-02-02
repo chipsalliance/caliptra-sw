@@ -570,6 +570,7 @@ impl MekSecret<'_> {
             aes,
             hmac,
             trng,
+            self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
             b"wrapped_mek",
@@ -718,6 +719,7 @@ impl<'a> Epk<'a> {
             aes,
             hmac,
             trng,
+            self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
@@ -742,7 +744,7 @@ impl<'a> Epk<'a> {
     /// Consumes `Self`, `AccessKey<Current>` and `AccessKey<New>` to re-encrypt the MPK to the new
     /// access key.
     fn rewrap_mpk(
-        self,
+        mut self,
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -773,6 +775,7 @@ impl<'a> Epk<'a> {
             aes,
             hmac,
             trng,
+            self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
@@ -793,7 +796,7 @@ impl<'a> Epk<'a> {
 
     /// Uses `AccessKey<Current>` to decrypt the Locked MPK
     fn decrypt_mpk(
-        &self,
+        &mut self,
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -826,6 +829,7 @@ impl<'a> Epk<'a> {
             aes,
             hmac,
             trng,
+            self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_LOCKED_MPK_ENCRYPTION_KEY)),
             Self::LOCKED_MPK_LABEL,
@@ -1121,8 +1125,11 @@ impl OcpLockContext {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
         }
 
-        let epk = Epk::new(hmac, trng, kv, sek)?;
-        let (mpk, aad) = epk.decrypt_mpk(aes, hmac, trng, &access_key, locked_mpk)?;
+        let (mpk, aad) = {
+            let mut epk = Epk::new(hmac, trng, kv, sek)?;
+            epk.decrypt_mpk(aes, hmac, trng, &access_key, locked_mpk)?
+        };
+
         let aad = EnabledMpkAad::from(aad);
 
         let mut encrypted_key = [0; EnabledMpk::KEY_LEN];
@@ -1130,6 +1137,7 @@ impl OcpLockContext {
             aes,
             hmac,
             trng,
+            kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_VEK)),
             // We do not want to erase the `VEK` KV slot so use the MPK Encryption key slot to
             // store the encryption subkey. This is safe because this slot is always erased on use,
@@ -1173,7 +1181,7 @@ impl OcpLockContext {
             cfi_assert!(self.hek_available);
         }
 
-        let epk = Epk::new(hmac, trng, kv, sek)?;
+        let mut epk = Epk::new(hmac, trng, kv, sek)?;
         // Check that access key can decrypt the locked mpk.
         let _ = epk.decrypt_mpk(aes, hmac, trng, &access_key, locked_mpk)?;
 
@@ -1193,6 +1201,7 @@ impl OcpLockContext {
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
+        kv: &mut KeyVault,
         enabled_mpk: &EnabledMpk,
     ) -> CaliptraResult<()> {
         if self.vek.is_none() {
@@ -1216,6 +1225,7 @@ impl OcpLockContext {
             aes,
             hmac,
             trng,
+            kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_VEK)),
             // We do not want to erase the `VEK` KV slot so use the MPK Encryption key slot to
             // store the encryption subkey. This is safe because this slot is always erased on use,
