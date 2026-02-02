@@ -25,6 +25,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          submodules: 'true'
 
       - name: Find latest release
         id: find
