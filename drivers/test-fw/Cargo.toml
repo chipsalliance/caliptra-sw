@@ -245,3 +245,13 @@ required-features = ["riscv"]
 name = "preconditioned_aes"
 path = "src/bin/preconditioned_aes_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_config_lock_tests"
+path = "src/bin/csrng_config_lock_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_config_unlock_tests"
+path = "src/bin/csrng_config_unlock_tests.rs"
+required-features = ["riscv"]

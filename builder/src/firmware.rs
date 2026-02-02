@@ -416,6 +416,16 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const CSRNG_CONFIG_LOCK_TESTS: FwId = FwId {
+        bin_name: "csrng_config_lock_tests",
+        ..BASE_FWID
+    };
+
+    pub const CSRNG_CONFIG_UNLOCK_TESTS: FwId = FwId {
+        bin_name: "csrng_config_unlock_tests",
+        ..BASE_FWID
+    };
+
     pub const TRNG_DRIVER_RESPONDER: FwId = FwId {
         bin_name: "trng_driver_responder",
         ..BASE_FWID
@@ -641,6 +651,8 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_PASS_HEALTH_TESTS,
     &driver_tests::CSRNG_FAIL_REPCNT_TESTS,
     &driver_tests::CSRNG_FAIL_ADAPTP_TESTS,
+    &driver_tests::CSRNG_CONFIG_LOCK_TESTS,
+    &driver_tests::CSRNG_CONFIG_UNLOCK_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,

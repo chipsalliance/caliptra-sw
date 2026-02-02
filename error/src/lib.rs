@@ -981,6 +981,11 @@ impl CaliptraError {
             "CSRNG Error: AdaptP health check failed"
         ),
         (
+            DRIVER_CSRNG_MODULE_ALREADY_ENABLED,
+            0x000d0009,
+            "CSRNG Error: entropy_src MODULE_ENABLE already set before ROM configuration"
+        ),
+        (
             DRIVER_HANDOFF_INVALID_VAULT,
             0x000D100,
             "Driver Handoff Error: Invalid vault"
