@@ -127,7 +127,9 @@ pub use persistent::fmc_alias_csr::FmcAliasCsrs;
 pub use persistent::FwPersistentData;
 pub use persistent::IDEVID_CSR_ENVELOP_MARKER;
 #[cfg(feature = "runtime")]
-pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
+pub use persistent::{
+    AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles, OcpLockMetadataFirmware,
+};
 pub use persistent::{
     BootMode, Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, OcpLockFlags,
     PcrLogArray, PersistentData, PersistentDataAccessor, RomPersistentData, StashMeasurementArray,

@@ -7,17 +7,12 @@ use caliptra_api::mailbox::{
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 
-use caliptra_common::keyids::ocp_lock::{KEY_ID_HEK, KEY_ID_VEK};
-use caliptra_drivers::{
-    hmac_kdf,
-    hpke::{aead::Aes256GCM, HpkeHandle},
-    HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage, KeyWriteArgs, OcpLockFlags,
-};
+use caliptra_drivers::hpke::{aead::Aes256GCM, HpkeHandle};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
-use super::{AccessKey, Current, LockedMpk, Sek, Vek};
+use super::{AccessKey, Current, LockedMpk, Sek};
 
 pub struct EnableMpkCmd;
 impl EnableMpkCmd {
@@ -75,19 +70,7 @@ impl EnableMpkCmd {
             ct,
         )?;
 
-        if !drivers
-            .persistent_data
-            .get()
-            .fw
-            .ocp_lock_metadata
-            .flags
-            .contains(OcpLockFlags::VEK_AVAILABLE)
-        {
-            Self::generate_vek(drivers)?;
-        } else {
-            // Mark the VEK as available to the OCP LOCK context.
-            drivers.ocp_lock_context.vek = Some(Vek);
-        }
+        let state = &mut drivers.persistent_data.get_mut().fw.ocp_lock_metadata;
 
         let enabled_mpk = drivers.ocp_lock_context.enable_mpk(
             &mut drivers.aes,
@@ -97,40 +80,12 @@ impl EnableMpkCmd {
             access_key,
             sek,
             &locked_mpk,
+            state,
         )?;
 
         let resp = mutrefbytes::<OcpLockEnableMpkResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
         resp.enabled_mpk = WrappedKey::try_from(enabled_mpk)?;
         Ok(core::mem::size_of::<OcpLockEnableMpkResp>())
-    }
-
-    /// Generate VEK per OCP LOCK v1.0rc2 figure 5.
-    ///
-    /// If we are successful, make a note in persistent storage that the VEK is available.
-    fn generate_vek(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let context = &mut drivers.trng.generate()?;
-        hmac_kdf(
-            &mut drivers.hmac,
-            HmacKey::Key(KeyReadArgs::new(KEY_ID_HEK)),
-            Vek::KDF_LABEL,
-            Some(context.as_bytes()),
-            &mut drivers.trng,
-            HmacTag::Key(KeyWriteArgs {
-                id: KEY_ID_VEK,
-                usage: KeyUsage::default().set_hmac_key_en(),
-            }),
-            HmacMode::Hmac512,
-        )?;
-        drivers
-            .persistent_data
-            .get_mut()
-            .fw
-            .ocp_lock_metadata
-            .flags
-            .set(OcpLockFlags::VEK_AVAILABLE, true);
-        // Mark the VEK as available to the OCP LOCK context.
-        drivers.ocp_lock_context.vek = Some(Vek);
-        Ok(())
     }
 }

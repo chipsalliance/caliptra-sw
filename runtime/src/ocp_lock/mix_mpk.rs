@@ -24,12 +24,14 @@ impl MixMpkCmd {
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let enabled_mpk = EnabledMpk::try_from(&cmd.enabled_mpk)?;
+        let state = &drivers.persistent_data.get().fw.ocp_lock_metadata;
 
         drivers.ocp_lock_context.mix_mpk(
             &mut drivers.aes,
             &mut drivers.hmac,
             &mut drivers.trng,
             &enabled_mpk,
+            state,
         )?;
 
         let resp = mutrefbytes::<OcpLockMixMpkResp>(resp)?;
