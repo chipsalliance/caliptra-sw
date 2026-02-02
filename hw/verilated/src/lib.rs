@@ -11,57 +11,7 @@ pub use bindings::caliptra_verilated_sig_in as SigIn;
 pub use bindings::caliptra_verilated_sig_out as SigOut;
 use rand::Rng;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum AhbTxnType {
-    ReadU8,
-    ReadU16,
-    ReadU32,
-    ReadU64,
-
-    WriteU8,
-    WriteU16,
-    WriteU32,
-    WriteU64,
-}
-impl AhbTxnType {
-    pub fn is_write(&self) -> bool {
-        matches!(self, Self::WriteU8 | Self::WriteU16 | Self::WriteU32)
-    }
-    fn from_signals(hsize: u8, hwrite: bool) -> Self {
-        match (hsize, hwrite) {
-            (0, false) => Self::ReadU8,
-            (1, false) => Self::ReadU16,
-            (2, false) => Self::ReadU32,
-            (3, false) => Self::ReadU64,
-
-            (0, true) => Self::WriteU8,
-            (1, true) => Self::WriteU16,
-            (2, true) => Self::WriteU32,
-            (3, true) => Self::WriteU64,
-
-            _ => panic!("Unsupported hsize value 0b{hsize:b}"),
-        }
-    }
-}
-
 pub type GenericOutputWiresChangedCallbackFn = dyn Fn(&CaliptraVerilated, u64);
-pub type AhbCallbackFn = dyn Fn(&CaliptraVerilated, AhbTxnType, u32, u64);
-
-struct AhbPendingTxn {
-    ty: AhbTxnType,
-    addr: u32,
-}
-impl AhbPendingTxn {
-    fn transform_data(&self, data64: u64) -> u64 {
-        if matches!(self.ty, AhbTxnType::ReadU64 | AhbTxnType::WriteU64) {
-            data64
-        } else if (self.addr & 4) == 0 {
-            data64 & 0xffff_ffff
-        } else {
-            (data64 >> 32) & 0xffff_ffff
-        }
-    }
-}
 
 pub struct CaliptraVerilated {
     v: *mut bindings::caliptra_verilated,
@@ -69,15 +19,13 @@ pub struct CaliptraVerilated {
     pub output: SigOut,
     prev_generic_output_wires: Option<u64>,
     generic_output_wires_changed_cb: Box<GenericOutputWiresChangedCallbackFn>,
-    ahb_cb: Box<AhbCallbackFn>,
     total_cycles: u64,
-    ahb_txn: Option<AhbPendingTxn>,
 }
 
 impl CaliptraVerilated {
     /// Constructs a new model.
     pub fn new(args: InitArgs) -> Self {
-        Self::with_callbacks(args, Box::new(|_, _| {}), Box::new(|_, _, _, _| {}))
+        Self::with_callbacks(args, Box::new(|_, _| {}))
     }
 
     /// Creates a model that calls `generic_load_cb` whenever the
@@ -86,7 +34,6 @@ impl CaliptraVerilated {
     pub fn with_callbacks(
         mut args: InitArgs,
         generic_output_wires_changed_cb: Box<GenericOutputWiresChangedCallbackFn>,
-        ahb_cb: Box<AhbCallbackFn>,
     ) -> Self {
         unsafe {
             Self {
@@ -95,9 +42,7 @@ impl CaliptraVerilated {
                 output: Default::default(),
                 generic_output_wires_changed_cb,
                 prev_generic_output_wires: None,
-                ahb_cb,
                 total_cycles: 0,
-                ahb_txn: None,
             }
         }
     }
@@ -172,39 +117,6 @@ impl CaliptraVerilated {
             self.prev_generic_output_wires = Some(self.output.generic_output_wires);
             (self.generic_output_wires_changed_cb)(self, self.output.generic_output_wires);
         }
-        if let Some(ahb_txn) = &self.ahb_txn {
-            if self.output.uc_hready {
-                if ahb_txn.ty.is_write() {
-                    (self.ahb_cb)(
-                        self,
-                        ahb_txn.ty,
-                        ahb_txn.addr,
-                        ahb_txn.transform_data(self.output.uc_hwdata),
-                    );
-                } else {
-                    (self.ahb_cb)(
-                        self,
-                        ahb_txn.ty,
-                        ahb_txn.addr,
-                        ahb_txn.transform_data(self.output.uc_hrdata),
-                    );
-                }
-                self.ahb_txn = None;
-            }
-        }
-        match self.output.uc_htrans {
-            0b00 => {}
-            0b10 => {
-                // Ignore ROM accesses
-                if self.output.uc_haddr >= 0x1000_0000 {
-                    self.ahb_txn = Some(AhbPendingTxn {
-                        ty: AhbTxnType::from_signals(self.output.uc_hsize, self.output.uc_hwrite),
-                        addr: self.output.uc_haddr,
-                    })
-                }
-            }
-            other => panic!("Unsupport htrans value 0b{:b}", other),
-        }
     }
 
     /// Toggles core_clk until there have been `n_cycles` rising edges.
@@ -234,56 +146,93 @@ impl CaliptraVerilated {
     }
 
     /// Initiates a read transaction on the SoC->Caliptra AXI bus with user
-    /// `pauser` and `addr`, and returns the word read from the bus.
-    pub fn axi_read_u32(&mut self, pauser: u32, addr: u32) -> u32 {
-        self.input.paddr = addr;
-        self.input.psel = true;
-        self.input.penable = false;
-        self.input.pwrite = false;
-        self.input.pauser = pauser;
+    /// `user` and `addr`, and returns the word read from the bus.
+    pub fn axi_read_u32(&mut self, user: u32, addr: u32) -> u32 {
+        // AXI Read Address phase
+        self.input.s_axi_araddr = addr;
+        self.input.s_axi_aruser = user;
+        self.input.s_axi_arid = 0;
+        self.input.s_axi_arlen = 0; // Single beat
+        self.input.s_axi_arsize = 2; // 4 bytes
+        self.input.s_axi_arburst = 1; // INCR
+        self.input.s_axi_arlock = false;
+        self.input.s_axi_arvalid = true;
+        self.input.s_axi_rready = true;
 
-        self.next_cycle_high(1);
-
-        self.input.penable = true;
-
+        // Wait for arready
         loop {
             self.next_cycle_high(1);
-            if self.output.pready {
+            if self.output.s_axi_arready {
                 break;
             }
         }
 
-        self.input.psel = false;
-        self.input.penable = false;
+        self.input.s_axi_arvalid = false;
 
-        self.output.prdata
+        // Wait for rvalid
+        loop {
+            self.next_cycle_high(1);
+            if self.output.s_axi_rvalid {
+                break;
+            }
+        }
+
+        let result = self.output.s_axi_rdata;
+
+        self.input.s_axi_rready = false;
+
+        result
     }
 
     /// Initiates a write transaction on the SoC->Caliptra AXI bus with user
-    /// `pauser`, `addr` and `data`.
-    pub fn axi_write_u32(&mut self, pauser: u32, addr: u32, data: u32) {
-        self.input.paddr = addr;
-        self.input.psel = true;
-        self.input.penable = false;
-        self.input.pwrite = true;
-        self.input.pwdata = data;
-        self.input.pauser = pauser;
+    /// `user`, `addr` and `data`.
+    pub fn axi_write_u32(&mut self, user: u32, addr: u32, data: u32) {
+        // AXI Write Address phase
+        self.input.s_axi_awaddr = addr;
+        self.input.s_axi_awuser = user;
+        self.input.s_axi_awid = 0;
+        self.input.s_axi_awlen = 0; // Single beat
+        self.input.s_axi_awsize = 2; // 4 bytes
+        self.input.s_axi_awburst = 1; // INCR
+        self.input.s_axi_awlock = false;
+        self.input.s_axi_awvalid = true;
 
-        self.next_cycle_high(1);
+        // AXI Write Data phase (can be concurrent with address)
+        self.input.s_axi_wdata = data;
+        self.input.s_axi_wstrb = 0xf; // All bytes valid
+        self.input.s_axi_wvalid = true;
+        self.input.s_axi_wlast = true;
 
-        self.input.penable = true;
+        // Ready to accept write response
+        self.input.s_axi_bready = true;
 
+        // Wait for both awready and wready
+        let mut aw_done = false;
+        let mut w_done = false;
         loop {
             self.next_cycle_high(1);
-            if self.output.pready {
+            if self.output.s_axi_awready {
+                aw_done = true;
+                self.input.s_axi_awvalid = false;
+            }
+            if self.output.s_axi_wready {
+                w_done = true;
+                self.input.s_axi_wvalid = false;
+            }
+            if aw_done && w_done {
                 break;
             }
         }
 
-        self.input.psel = false;
-        self.input.penable = false;
-        self.input.pwrite = false;
-        self.input.pwdata = 0;
+        // Wait for bvalid (write response)
+        loop {
+            self.next_cycle_high(1);
+            if self.output.s_axi_bvalid {
+                break;
+            }
+        }
+
+        self.input.s_axi_bready = false;
     }
 
     fn write_rom_u64(&mut self, addr: u32, data: u64) {
@@ -316,6 +265,7 @@ mod tests {
         let mut v = CaliptraVerilated::new(InitArgs {
             security_state: 0,
             cptra_obf_key: [0u32; 8],
+            cptra_csr_hmac_key: [0u32; 16],
         });
 
         std::fs::remove_file("/tmp/caliptra_verilated_test.vcd").ok();
