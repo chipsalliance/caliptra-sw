@@ -391,7 +391,8 @@ jobs:
 
       - name: Print results
         run: |
+          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           for xml in /tmp/junit/junit-*.xml; do
-            cargo r --manifest-path ci-tools/test-printer/Cargo.toml -- --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
+            /tmp/test-printer/bin/test-printer --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
           done
