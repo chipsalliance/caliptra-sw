@@ -844,6 +844,10 @@ impl<TBus: Bus> Cpu<TBus> {
             return returned_action;
         }
 
+        // handle incoming events for this CPU that might be necessary even if we are halted,
+        // such as writes to our memory
+        self.handle_incoming_events();
+
         // We are in a halted state. Don't continue executing but poll the bus for interrupts
         if self.halted {
             self.set_next_pc(self.pc);
