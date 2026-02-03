@@ -466,7 +466,7 @@ pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
-    let resp = execute_dpe_cmd(hw, &mut Command::GetProfile);
+    let resp = execute_dpe_cmd(hw, &mut Command::GetProfile(&GetProfileCmd));
 
     let Response::GetProfile(get_profile_resp) = resp else {
         panic!("Wrong response type!");

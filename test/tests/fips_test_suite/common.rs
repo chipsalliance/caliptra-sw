@@ -9,16 +9,9 @@ use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::response::{CertifyKeyP384Resp, DeriveContextExportedCdiResp, SignP384Resp};
 use dpe::DpeProfile;
-use dpe::{
-    commands::*,
-    response::{
-        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
-        Response, ResponseHdr, SignResp,
-    },
-};
-use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
+use dpe::{commands::*, response::Response};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -294,59 +287,9 @@ pub fn mbx_send_and_check_resp_hdr<T: HwModel, U: FromBytes + IntoBytes>(
     //Ok(U::read_from_bytes(resp_bytes.as_bytes()).unwrap())
 }
 
-fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
-    match dpe_cmd {
-        Command::GetProfile => Command::GET_PROFILE,
-        Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
-        Command::CertifyKey(_) => Command::CERTIFY_KEY,
-        Command::Sign(_) => Command::SIGN,
-        Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
-        Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
-    }
-}
-
-pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
-    match dpe_cmd {
-        Command::CertifyKey(CertifyKeyCommand::P384(_)) => Response::CertifyKey(
-            CertifyKeyResp::P384(CertifyKeyP384Resp::try_read_from_bytes(resp_bytes).unwrap()),
-        ),
-        Command::DeriveContext(DeriveContextCmd { flags, .. })
-            if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
-        {
-            Response::DeriveContextExportedCdi(
-                DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap(),
-            )
-        }
-        Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::try_read_from_bytes(resp_bytes).unwrap(),
-        ),
-        Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetProfile => {
-            Response::GetProfile(GetProfileResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::Sign(SignCommand::P384(_)) => Response::Sign(SignResp::P384(
-            SignP384Resp::try_read_from_bytes(resp_bytes).unwrap(),
-        )),
-    }
-}
-
 pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Response {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
-    let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = dpe_cmd.as_bytes();
@@ -367,7 +310,7 @@ pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Respons
     .unwrap();
 
     let resp_bytes = &resp.data[..resp.data_size as usize];
-    parse_dpe_response(dpe_cmd, resp_bytes)
+    Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
 }
 
 pub fn fips_fw_image() -> Vec<u8> {

@@ -31,7 +31,7 @@ use crypto::{
         EcdsaPubKey, EcdsaSignature,
     },
     Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, PubKey,
-    Signature, SignatureAlgorithm, SignatureType,
+    SignData, Signature, SignatureAlgorithm, SignatureType,
 };
 use dpe::{ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 
@@ -318,24 +318,24 @@ impl Crypto for DpeCrypto<'_> {
         self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)
     }
 
-    fn sign_with_alias(&mut self, digest: &Digest) -> Result<Signature, CryptoError> {
+    fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
         let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
             &self.rt_pub_key.x.into(),
             &self.rt_pub_key.y.into(),
         )));
-        self.sign_with_derived(digest, &self.key_id_rt_priv_key.clone(), &pub_key)
+        self.sign_with_derived(data, &self.key_id_rt_priv_key.clone(), &pub_key)
     }
 
     fn sign_with_derived(
         &mut self,
-        digest: &Digest,
+        data: &SignData,
         priv_key: &Self::PrivKey,
         pub_key: &PubKey,
     ) -> Result<Signature, CryptoError> {
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let ecc_priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
 
-        let PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { r: x, s: y })) = pub_key else {
+        let PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })) = pub_key else {
             return Err(CryptoError::MismatchedAlgorithm);
         };
         let ecc_pub_key = Ecc384PubKey {
@@ -343,18 +343,18 @@ impl Crypto for DpeCrypto<'_> {
             y: Ecc384Scalar::from(y),
         };
 
-        let Digest::Sha384(crypto::Sha384(digest)) = digest else {
-            return Err(CryptoError::MismatchedAlgorithm);
+        let digest = match data {
+            SignData::Digest(Digest::Sha384(crypto::Sha384(digest))) => Ecc384Scalar::from(digest),
+            SignData::Raw(msg) => self
+                .sha2_512_384
+                .sha384_digest(msg)
+                .map_err(|_| CryptoError::HashError(0))?,
+            _ => return Err(CryptoError::MismatchedAlgorithm),
         };
 
         let sig = self
             .ecc384
-            .sign(
-                ecc_priv_key,
-                &ecc_pub_key,
-                &Ecc384Scalar::from(digest),
-                self.trng,
-            )
+            .sign(ecc_priv_key, &ecc_pub_key, &digest, self.trng)
             .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
         Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
