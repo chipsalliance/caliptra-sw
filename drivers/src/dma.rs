@@ -1110,3 +1110,103 @@ impl<'a> DmaOtpCtrl<'a> {
         mmio.check_error(t)
     }
 }
+
+pub struct DmaEncryptionEngine<'a> {
+    key_release_base: AxiAddr, // AxiAddr of MEK register
+    dma: &'a Dma,
+    mek_size: Option<u32>,
+}
+
+impl<'a> DmaEncryptionEngine<'a> {
+    const OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET: usize = 0x0;
+    const OCP_LOCK_ENCRYPTION_ENGINE_METD_OFFSET: usize = 0x40;
+    const OCP_LOCK_ENCRYPTION_ENGINE_AUX_OFFSET: usize = 0x60;
+    const OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET: usize = 0x80;
+
+    pub const OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE: u32 = 20;
+    pub const OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE: u32 = 32;
+
+    #[inline(always)]
+    pub fn new(key_release_base: AxiAddr, dma: &'a Dma, mek_size: Option<u32>) -> Self {
+        Self {
+            key_release_base,
+            dma,
+            mek_size,
+        }
+    }
+
+    fn write_array_fifo(&self, transaction: DmaWriteTransaction, data: &[u8]) {
+        self.dma.flush();
+        self.dma.setup_dma_write(transaction);
+        let iterator = data
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()));
+        for v in iterator {
+            self.dma.dma_write_fifo(v);
+        }
+        self.dma.wait_for_dma_complete();
+    }
+
+    pub fn read_ctrl(&self) -> u32 {
+        let read_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET;
+        self.dma.read_dword(read_addr)
+    }
+
+    pub fn write_ctrl(&self, ctrl: &[u8]) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: core::mem::size_of::<u32>() as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.write_array_fifo(write_transaction, ctrl);
+    }
+
+    pub fn write_metadata(&self, metadata: &[u8]) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_METD_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: Self::OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.write_array_fifo(write_transaction, metadata);
+    }
+
+    pub fn write_aux(&self, aux: &[u8]) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_AUX_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: Self::OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.write_array_fifo(write_transaction, aux);
+    }
+
+    pub fn write_mek(&self, mek: &[u8]) {
+        match self.mek_size {
+            Some(size) => {
+                let write_addr =
+                    self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET;
+                let write_transaction = DmaWriteTransaction {
+                    write_addr,
+                    fixed_addr: false,
+                    length: size,
+                    origin: DmaWriteOrigin::AhbFifo,
+                    aes_mode: false,
+                    aes_gcm: false,
+                };
+                self.write_array_fifo(write_transaction, mek);
+            }
+            None => panic!("MEK size is \"None\""),
+        }
+    }
+}

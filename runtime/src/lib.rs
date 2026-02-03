@@ -512,6 +512,9 @@ fn execute_command(
         | ocp_lock_command_id @ CommandId::OCP_LOCK_MIX_MPK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_TEST_ACCESS_KEY
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_GET_STATUS
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_CLEAR_KEY_CACHE
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_UNLOAD_MEK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK => {
             ocp_lock::command_handler(ocp_lock_command_id, drivers, cmd_bytes, resp)
         }

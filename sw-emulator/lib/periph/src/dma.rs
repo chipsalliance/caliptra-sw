@@ -501,7 +501,6 @@ impl Dma {
             let data = match self.fifo.pop_front() {
                 Some(b) => b,
                 None => {
-                    self.status0.reg.write(Status0::ERROR::SET);
                     // TODO set interrupt bits
                     return true;
                 }

@@ -6,6 +6,7 @@ use caliptra_common::keyids::ocp_lock::{
     KEY_ID_EPK, KEY_ID_HEK, KEY_ID_LOCKED_MPK_ENCRYPTION_KEY, KEY_ID_MDK, KEY_ID_MEK_SECRETS,
     KEY_ID_VEK,
 };
+use caliptra_drivers::DmaEncryptionEngine;
 use caliptra_drivers::{
     cmac_kdf, hmac_kdf,
     hpke::{
@@ -20,6 +21,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use bitfield::bitfield;
 use enable_mpk::EnableMpkCmd;
 use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
@@ -31,6 +33,7 @@ use test_access_key::TestAccessKeyCmd;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
+mod clear_key_cache;
 mod derive_mek;
 mod enable_mpk;
 mod endorse_hpke_pubkey;
@@ -38,16 +41,21 @@ mod enumerate_hpke_handles;
 mod generate_mek;
 mod generate_mpk;
 mod get_algorithms;
+mod get_status;
 mod initialize_mek_secret;
 mod mix_mpk;
 mod rewrap_mpk;
 mod rotate_hpke_key;
 mod test_access_key;
+mod unload_mek;
 
+pub use clear_key_cache::ClearKeyCacheCmd;
 pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
+pub use get_status::GetStatusCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
 pub use mix_mpk::MixMpkCmd;
+pub use unload_mek::UnloadMekCmd;
 
 use crate::{Drivers, PauserPrivileges};
 
@@ -871,7 +879,8 @@ pub struct OcpLockContext {
 
 impl OcpLockContext {
     pub fn new(soc_ifc: &SocIfc, trng: &mut Trng, hek_available: bool) -> CaliptraResult<Self> {
-        let available = cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled();
+        let available =
+            cfg!(feature = "ocp-lock") && soc_ifc.ocp_lock_enabled() && soc_ifc.subsystem_mode();
         Ok(Self {
             available,
             intermediate_secret: None,
@@ -1256,6 +1265,118 @@ impl OcpLockContext {
     }
 }
 
+// OCP LOCK Encryption engine CTRL command codes
+bitfield! {
+    struct EncryptionEngineCtrl(u32);
+    u8;
+    execute_bit, set_execute_bit: 0;
+    done_bit, set_done_bit: 1;
+    command_code, set_command_code: 5, 2;
+    error_code, _: 19, 16;
+    ready_bit, _: 31;
+}
+
+// OCP LOCK Encryption engine error result codes
+bitfield! {
+    struct EncryptionEngineError(u8);
+    ready_bit, set_ready_bit: 0;
+    error_code, set_error_code: 7, 4;
+}
+
+#[allow(dead_code)]
+enum EncryptionEngineCommandCode {
+    LoadMek = 1,
+    UnloadMek = 2,
+    Zeroize = 3,
+}
+impl From<EncryptionEngineCommandCode> for u8 {
+    fn from(val: EncryptionEngineCommandCode) -> Self {
+        match val {
+            EncryptionEngineCommandCode::LoadMek => 1u8,
+            EncryptionEngineCommandCode::UnloadMek => 2u8,
+            EncryptionEngineCommandCode::Zeroize => 3u8,
+        }
+    }
+}
+
+fn timeout_to_mtime(ready_timeout: u32, command_timeout: u32, clock_period: u32) -> (u64, u64) {
+    macro_rules! ms_to_ps {
+        ($time_ms:expr) => {
+            $time_ms * 1_000_000_000u64
+        };
+    }
+
+    macro_rules! walltime_to_mtime {
+        ($walltime_ms:expr, $period_ps:expr) => {
+            ms_to_ps!($walltime_ms as u64).div_ceil($period_ps as u64)
+        };
+    }
+
+    let period = match clock_period {
+        0 => 2500u64,
+        non_zero => non_zero as u64,
+    };
+
+    let ready_mtimeout = walltime_to_mtime!(ready_timeout as u64, period);
+    let command_mtimeout = walltime_to_mtime!(command_timeout as u64, period);
+
+    (ready_mtimeout, command_mtimeout)
+}
+
+fn create_error_code_from_ctrl(value: u32) -> CaliptraError {
+    let ctrl = EncryptionEngineCtrl(value);
+    let mut error_byte = EncryptionEngineError(0);
+
+    error_byte.set_ready_bit(ctrl.ready_bit());
+    error_byte.set_error_code(ctrl.error_code());
+
+    CaliptraError(CaliptraError::OCP_LOCK_ENGINE_ERR.0 | (error_byte.0 as u32))
+}
+
+// Wait until the encryption engine to be ready
+fn wait_encryption_engine_ready(
+    dma: &DmaEncryptionEngine,
+    soc_ifc: &SocIfc,
+    start_mtime: u64,
+    timeout_mtime: u64,
+) -> CaliptraResult<()> {
+    loop {
+        let current_mtime = soc_ifc.get_timestamp();
+        let elapsed_mtime = current_mtime - start_mtime;
+
+        if elapsed_mtime > timeout_mtime {
+            Err(CaliptraError::OCP_LOCK_ENGINE_TIMEOUT)?
+        }
+
+        let ctrl = EncryptionEngineCtrl(dma.read_ctrl());
+        if ctrl.ready_bit() {
+            return Ok(());
+        }
+    }
+}
+
+// Wait the execution to be done and return the resulting CTRL register value
+fn wait_encryption_engine_done(
+    dma: &DmaEncryptionEngine,
+    soc_ifc: &SocIfc,
+    start_mtime: u64,
+    timeout_mtime: u64,
+) -> CaliptraResult<EncryptionEngineCtrl> {
+    loop {
+        let current_mtime = soc_ifc.get_timestamp();
+        let elapsed_mtime = current_mtime - start_mtime;
+
+        if elapsed_mtime > timeout_mtime {
+            Err(CaliptraError::OCP_LOCK_ENGINE_TIMEOUT)?
+        }
+
+        let ctrl = EncryptionEngineCtrl(dma.read_ctrl());
+        if ctrl.done_bit() {
+            return Ok(ctrl);
+        }
+    }
+}
+
 /// Entry point for OCP LOCK commands
 pub fn command_handler(
     cmd_id: CommandId,
@@ -1296,6 +1417,9 @@ pub fn command_handler(
         CommandId::OCP_LOCK_REWRAP_MPK => RewrapMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ENABLE_MPK => EnableMpkCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_TEST_ACCESS_KEY => TestAccessKeyCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_GET_STATUS => GetStatusCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_CLEAR_KEY_CACHE => ClearKeyCacheCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_UNLOAD_MEK => UnloadMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
