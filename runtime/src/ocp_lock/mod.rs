@@ -15,8 +15,8 @@ use caliptra_drivers::{
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
     sha2_512_384::Sha2DigestOpTrait,
     Aes, AesKey, AesOperation, Array4x12, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, Sha2_512_384, Sha3,
-    SocIfc, Trng,
+    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, OcpLockFlags,
+    OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -61,6 +61,38 @@ const ACCESS_KEY_LEN: usize = 32;
 ///
 /// The VEK is erased on cold reset
 pub struct Vek;
+
+impl Vek {
+    /// Generate `Vek` per OCP LOCK v1.0rc2 figure 5 if `Vek` has not yet been generated.
+    ///
+    /// On success updates `OcpLockMetadataFirmware` to store VEK state
+    /// in persistent_data.
+    fn generate(
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        state: &mut OcpLockMetadataFirmware,
+    ) -> CaliptraResult<()> {
+        if state.flags.contains(OcpLockFlags::VEK_AVAILABLE) {
+            return Ok(());
+        }
+
+        let context = trng.generate()?;
+        hmac_kdf(
+            hmac,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_HEK)),
+            Vek::KDF_LABEL,
+            Some(context.as_bytes()),
+            trng,
+            HmacTag::Key(KeyWriteArgs {
+                id: KEY_ID_VEK,
+                usage: KeyUsage::default().set_hmac_key_en(),
+            }),
+            HmacMode::Hmac512,
+        )?;
+        state.flags.set(OcpLockFlags::VEK_AVAILABLE, true);
+        Ok(())
+    }
+}
 
 impl Vek {
     const KDF_LABEL: &'static [u8] = b"ocp_lock_vek";
@@ -868,9 +900,6 @@ pub struct OcpLockContext {
 
     /// Manages HPKE Operations
     hpke_context: HpkeContext,
-
-    /// Tracks if the VEK has been initialized
-    vek: Option<Vek>,
 }
 
 impl OcpLockContext {
@@ -881,7 +910,6 @@ impl OcpLockContext {
             intermediate_secret: None,
             hek_available,
             hpke_context: HpkeContext::new(trng)?,
-            vek: None,
         })
     }
 
@@ -1114,6 +1142,7 @@ impl OcpLockContext {
         access_key: AccessKey<Current>,
         sek: Sek,
         locked_mpk: &LockedMpk,
+        state: &mut OcpLockMetadataFirmware,
     ) -> CaliptraResult<EnabledMpk> {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
@@ -1121,9 +1150,7 @@ impl OcpLockContext {
             cfi_assert!(self.hek_available);
         }
 
-        if self.vek.is_none() {
-            return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
-        }
+        Vek::generate(hmac, trng, state)?;
 
         let (mpk, aad) = {
             let mut epk = Epk::new(hmac, trng, kv, sek)?;
@@ -1203,8 +1230,9 @@ impl OcpLockContext {
         trng: &mut Trng,
         kv: &mut KeyVault,
         enabled_mpk: &EnabledMpk,
+        state: &OcpLockMetadataFirmware,
     ) -> CaliptraResult<()> {
-        if self.vek.is_none() {
+        if !state.flags.contains(OcpLockFlags::VEK_AVAILABLE) {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
         }
 
