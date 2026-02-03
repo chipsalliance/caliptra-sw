@@ -74,14 +74,16 @@ fn gen_init_devid_csr(out_dir: &str) {
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
         .add_basic_constraints_ext(true, 7)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_INIT, x509::TCG_DICE_KP_ECA]);
     let template = bldr.tbs_template(IDEVID_ECC384);
     CodeGen::gen_code("InitDevIdCsrTbsEcc384", template, out_dir);
 
     let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 7)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_INIT, x509::TCG_DICE_KP_ECA]);
     let template = bldr.tbs_template(IDEVID_MLDSA87);
     CodeGen::gen_code("InitDevIdCsrTbsMlDsa87", template, out_dir);
 }
@@ -94,6 +96,7 @@ fn gen_fmc_alias_csr(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
         .add_fmc_dice_tcb_info_ext(
             /*device_fwids=*/
             &[FwidParam {
@@ -119,6 +122,7 @@ fn gen_fmc_alias_csr(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
         .add_fmc_dice_tcb_info_ext(
             /*device_fwids=*/
             &[FwidParam {
@@ -149,14 +153,16 @@ fn gen_local_devid_cert(out_dir: &str) {
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo, EcdsaSha384Algo>::new()
         .add_basic_constraints_ext(true, 6)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_LOC, x509::TCG_DICE_KP_ECA]);
     let template = bldr.tbs_template(LDEVID_ECC384, IDEVID_ECC384);
     CodeGen::gen_code("LocalDevIdCertTbsEcc384", template, out_dir);
 
     let bldr = cert::CertTemplateBuilder::<MlDsa87Algo, MlDsa87Algo>::new()
         .add_basic_constraints_ext(true, 6)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_LOC, x509::TCG_DICE_KP_ECA]);
     let template = bldr.tbs_template(LDEVID_MLDSA87, IDEVID_MLDSA87);
     CodeGen::gen_code("LocalDevIdCertTbsMlDsa87", template, out_dir);
 }
@@ -170,6 +176,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
         .add_fmc_dice_tcb_info_ext(
             /*device_fwids=*/
             &[FwidParam {
@@ -195,6 +202,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
         .add_fmc_dice_tcb_info_ext(
             /*device_fwids=*/
             &[FwidParam {
@@ -230,6 +238,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
             name: "TCB_INFO_RT_TCI",
             fwid: Fwid {
@@ -245,6 +254,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
             name: "TCB_INFO_RT_TCI",
             fwid: Fwid {

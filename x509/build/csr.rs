@@ -66,6 +66,14 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         self
     }
 
+    /// Add X509 Extended Key Usage Extension with custom OIDs
+    pub fn add_extended_key_usage_ext(mut self, oids: &[&str]) -> Self {
+        self.exts
+            .push(x509::make_extended_key_usage_ext(oids))
+            .unwrap();
+        self
+    }
+
     /// Add TCG UEID extension
     ///
     /// # Arguments

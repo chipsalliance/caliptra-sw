@@ -29,6 +29,8 @@ Certificate:
                 Certificate Sign
             2.23.133.5.4.4: 
                 0....................
+            X509v3 Extended Key Usage: 
+                2.23.133.5.4.100.12, 2.23.133.5.4.100.9
             2.23.133.5.4.5: 
                 DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
             X509v3 Subject Key Identifier: 
