@@ -25,6 +25,7 @@ const BITS_PER_NIBBLE: usize = 4;
 const WORD_SIZE_BYTES: usize = mem::size_of::<Word>();
 
 #[derive(Bus)]
+#[warm_reset_fn(warm_reset)]
 pub struct Csrng {
     // CSRNG registers
     #[register(offset = 0x14)]
@@ -276,6 +277,11 @@ impl Csrng {
         Ok(state)
     }
 
+    fn warm_reset(&mut self) {
+        // disable on reset
+        self.module_enable = MultiBitBool::False as u32;
+    }
+
     fn process_new_cmd(&mut self, data: RvData) {
         const INSTANTIATE: u32 = 1;
         const GENERATE: u32 = 3;
@@ -430,4 +436,57 @@ enum CmdReqState {
 enum MultiBitBool {
     False = 9,
     True = 6,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use caliptra_emu_bus::Bus;
+
+    const OFFSET_CONF: caliptra_emu_types::RvAddr = 0x1024;
+    const OFFSET_MODULE_ENABLE: caliptra_emu_types::RvAddr = 0x1020;
+
+    fn make_itrng_nibbles() -> Box<dyn Iterator<Item = u8>> {
+        Box::new(std::iter::repeat_with(|| 0xAu8))
+    }
+
+    #[test]
+    fn test_warm_reset_sets_module_enable_to_false() {
+        let mut csrng = Csrng::new(make_itrng_nibbles());
+
+        // Verify initial state: module_enable should be 0x9 (MultiBitBool::False)
+        let initial = csrng.read(RvSize::Word, OFFSET_MODULE_ENABLE).unwrap();
+        assert_eq!(initial, MultiBitBool::False as u32);
+
+        // Configure FIPS mode (fips_enable in bits [3:0] = 6 for TRUE)
+        // Use the default conf value but with fips_enable set to TRUE
+        let conf_with_fips = 0x909096; // Replace low nibble 9 with 6
+        csrng
+            .write(RvSize::Word, OFFSET_CONF, conf_with_fips)
+            .unwrap();
+
+        // Enable the module by writing MultiBitBool::True
+        csrng
+            .write(
+                RvSize::Word,
+                OFFSET_MODULE_ENABLE,
+                MultiBitBool::True as u32,
+            )
+            .unwrap();
+
+        // Verify module is enabled
+        let enabled = csrng.read(RvSize::Word, OFFSET_MODULE_ENABLE).unwrap();
+        assert_eq!(enabled, MultiBitBool::True as u32);
+
+        // Perform warm reset
+        csrng.warm_reset();
+
+        // After warm reset, module_enable should be back to 0x9 (MultiBitBool::False)
+        let after_reset = csrng.read(RvSize::Word, OFFSET_MODULE_ENABLE).unwrap();
+        assert_eq!(
+            after_reset,
+            MultiBitBool::False as u32,
+            "After warm reset, module_enable should be MultiBitBool::False (0x9)"
+        );
+    }
 }
