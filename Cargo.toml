@@ -42,6 +42,7 @@ members = [
   "ci-tools/size-history",
   "common",
   "common/okref",
+  "common/eat",
   "coverage",
   "cpu",
   "drivers",
