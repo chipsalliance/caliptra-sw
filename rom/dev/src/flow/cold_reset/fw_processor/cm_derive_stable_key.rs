@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_api::mailbox::{CmDeriveStableKeyReq, CmDeriveStableKeyResp};
 
-use caliptra_drivers::{Aes, CaliptraResult, Hmac, PersistentData, Trng};
+use caliptra_drivers::{AesCmacOp, AesGcmOp, CaliptraResult, Hmac, PersistentData, Trng};
 use zerocopy::{transmute, FromBytes, IntoBytes};
 
 use super::FirmwareProcessor;
@@ -22,9 +22,9 @@ use super::FirmwareProcessor;
 pub struct CmDeriveStableKeyCmd;
 impl CmDeriveStableKeyCmd {
     #[inline(always)]
-    pub(crate) fn execute(
+    pub(crate) fn execute<A: AesCmacOp + AesGcmOp>(
         cmd_bytes: &[u8],
-        aes: &mut Aes,
+        aes: &mut A,
         hmac: &mut Hmac,
         trng: &mut Trng,
         persistent_data: &mut PersistentData,

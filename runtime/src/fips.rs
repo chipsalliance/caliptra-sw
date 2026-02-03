@@ -177,6 +177,7 @@ pub mod fips_self_test_cmd {
         };
 
         caliptra_kat::execute_kat(&mut kats_env)?;
+
         Ok(())
     }
 

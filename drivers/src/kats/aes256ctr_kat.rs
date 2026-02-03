@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    aes256gcm_kat.rs
+    aes256ctr_kat.rs
 
 Abstract:
 
@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // From NIST SP800-38A, F.5.5
 // CTR-AES256.Encrypt
@@ -74,40 +74,31 @@ const CT: [u8; 64] = [
     0xdf, 0xc9, 0xc5, 0x8d, 0xb6, 0x7a, 0xad, 0xa6, 0x13, 0xc2, 0xdd, 0x08, 0x45, 0x79, 0x41, 0xa6,
 ];
 
-#[derive(Default, Debug)]
-pub struct Aes256CtrKat {}
+/// Execute the Known Answer Tests (aka KAT) for AES-256-CTR.
+///
+/// Test vector source:
+/// NIST test vectors
+///
+/// # Arguments
+///
+/// * `aes` - AES driver
+///
+/// # Returns
+///
+/// * `CaliptraResult` - Result denoting the KAT outcome.
+pub fn execute_ctr_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    let mut ciphertext: [u8; 64] = [0u8; 64];
+    aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
 
-impl Aes256CtrKat {
-    /// This function executes the Known Answer Tests (aka KAT) for AES-256-CBC.
-    ///
-    /// Test vector source:
-    /// NIST test vectors
-    ///
-    /// # Arguments
-    ///
-    /// * `aes` - AES driver
-    ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, aes: &mut Aes) -> CaliptraResult<()> {
-        self.encrypt_decrypt(aes)
+    if ciphertext != CT {
+        Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
     }
 
-    fn encrypt_decrypt(&self, aes: &mut Aes) -> CaliptraResult<()> {
-        let mut ciphertext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
-
-        if ciphertext != CT {
-            Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
-        }
-
-        let mut plaintext: [u8; 64] = [0u8; 64];
-        aes.aes_256_ctr(&KEY, &IV, 0, &CT[..], &mut plaintext)?;
-        if plaintext != PT {
-            Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
-        }
-
-        Ok(())
+    let mut plaintext: [u8; 64] = [0u8; 64];
+    aes.aes_256_ctr(&KEY, &IV, 0, &CT[..], &mut plaintext)?;
+    if plaintext != PT {
+        Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
     }
+
+    Ok(())
 }

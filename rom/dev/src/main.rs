@@ -70,22 +70,33 @@ extern "C" {
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
-        Ok(env) => env,
+    // Create TRNG first for CFI initialization
+    let mut trng = match unsafe { rom_env::RomEnv::create_trng() } {
+        Ok(trng) => trng,
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    // Initialize CFI before creating the rest of the environment
+    // (AesGcm::new runs KATs which have CFI annotations)
     if !cfg!(feature = "no-cfi") {
-        let mut entropy_gen = || env.trng.generate4();
+        let mut entropy_gen = || trng.generate4();
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
     }
 
+    // Report CFI initialized immediately after CFI counters are reset,
+    // before any code that might use memcpy/memset (like AES KATs).
+    report_boot_status(RomBootStatus::CfiInitialized.into());
+
+    // Now create the rest of the environment (includes WDT start and AES KATs)
+    let mut env = match unsafe { rom_env::RomEnv::new_from_registers(trng) } {
+        Ok(env) => env,
+        Err(e) => handle_fatal_error(e.into()),
+    };
+
     // Check if TRNG is correctly sourced as per hw config.
     validate_trng_config(&mut env);
-
-    report_boot_status(RomBootStatus::CfiInitialized.into());
 
     let reset_reason = env.soc_ifc.reset_reason();
 
@@ -173,9 +184,6 @@ pub extern "C" fn rom_entry() -> ! {
             // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            // AES Engine
-            aes: &mut env.aes,
-
             // SHA Acc lock state.
             // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
             // On an Update Reset, it is expected to be unlocked.
@@ -185,6 +193,9 @@ pub extern "C" fn rom_entry() -> ! {
             } else {
                 ShaAccLockState::AssumedLocked
             },
+
+            // AES-GCM Engine (for GCM and CMAC-KDF KATs)
+            aes_gcm: &mut env.aes_gcm,
         };
         match run_fips_tests(&mut kats_env) {
             Err(err) => handle_fatal_error(err.into()),

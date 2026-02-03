@@ -14,7 +14,7 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesKey, LEArray4x16, AES_BLOCK_SIZE_WORDS};
+use crate::{AesCmacOp, AesKey, LEArray4x16, AES_BLOCK_SIZE_WORDS};
 use arrayvec::ArrayVec;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
@@ -26,7 +26,7 @@ const MAX_KMAC_INPUT_SIZE: usize = 4096;
 ///
 /// # Arguments
 ///
-/// * `aes` - AES driver
+/// * `aes` - AES driver (implements `AesCmacOp`)
 /// * `key`- AES key
 /// * `label` - Label for the KDF. If `context` is omitted, this is considered
 ///   the fixed input data.
@@ -38,8 +38,8 @@ const MAX_KMAC_INPUT_SIZE: usize = 4096;
 /// The output key as an array of bytes. The number of valid bytes is
 /// `rounds` * 16.`
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn cmac_kdf(
-    aes: &mut Aes,
+pub fn cmac_kdf<A: AesCmacOp>(
+    aes: &mut A,
     key: AesKey,
     label: &[u8],
     context: Option<&[u8]>,

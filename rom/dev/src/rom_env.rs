@@ -16,7 +16,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Aes, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
+    AesGcm, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -78,18 +78,33 @@ pub struct RomEnv {
     /// Dma engine
     pub dma: Dma,
 
-    /// AES engine
-    pub aes: Aes,
+    /// AES-GCM engine (KATs run at construction after WDT starts)
+    pub aes_gcm: AesGcm,
 }
 
 impl RomEnv {
-    pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
+    /// Create TRNG early for CFI initialization.
+    /// This must be called before `new_from_registers` so CFI can be initialized first.
+    pub unsafe fn create_trng() -> CaliptraResult<Trng> {
+        Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
-        )?;
+        )
+    }
+
+    /// Create the ROM environment. CFI must be initialized before calling this.
+    /// Takes ownership of the pre-created TRNG.
+    pub unsafe fn new_from_registers(mut trng: Trng) -> CaliptraResult<Self> {
+        // Create SocIfc early so we can start the WDT before running AES KATs
+        let mut soc_ifc = SocIfc::new(SocIfcReg::new());
+
+        // Start the Watchdog Timer before running KATs
+        crate::wdt::start_wdt(&mut soc_ifc);
+
+        // Create AesGcm which runs the GCM and CMAC-KDF KATs at construction time
+        let aes_gcm = AesGcm::new(AesReg::new(), AesClpReg::new(), &mut trng)?;
 
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
@@ -101,14 +116,14 @@ impl RomEnv {
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            soc_ifc,
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
             persistent_data: PersistentDataAccessor::new(),
             mldsa87: Mldsa87::new(AbrReg::new()),
             dma: Dma::default(),
-            aes: Aes::new(AesReg::new(), AesClpReg::new()),
+            aes_gcm,
         })
     }
 }

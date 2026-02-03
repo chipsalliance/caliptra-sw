@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    aes256gcm_kat.rs
+    aes256cmac_kat.rs
 
 Abstract:
 
@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // FROM ACVP test vector:
 // {
@@ -44,28 +44,23 @@ const KEY: LEArray4x8 = LEArray4x8::new([
 const EXPECTED_MAC: LEArray4x4 =
     LEArray4x4::new([0x80811043u32, 0x4dfdc4c8u32, 0xfe11c594u32, 0x2946080bu32]);
 
-#[derive(Default, Debug)]
-pub struct Aes256CmacKat {}
-
-impl Aes256CmacKat {
-    /// This function executes the Known Answer Tests (aka KAT) for AES-256-CMAC.
-    ///
-    /// Test vector source:
-    /// NIST test vectors
-    ///
-    /// # Arguments
-    ///
-    /// * `aes` - AES driver
-    ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, aes: &mut Aes) -> CaliptraResult<()> {
-        let mac = aes.cmac(AesKey::Array(&KEY), &[])?;
-        if mac != EXPECTED_MAC {
-            Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
-        }
-
-        Ok(())
+/// Execute the Known Answer Tests (aka KAT) for AES-256-CMAC.
+///
+/// Test vector source:
+/// NIST test vectors
+///
+/// # Arguments
+///
+/// * `aes` - AES driver
+///
+/// # Returns
+///
+/// * `CaliptraResult` - Result denoting the KAT outcome.
+pub fn execute_cmac_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    let mac = aes.cmac(AesKey::Array(&KEY), &[])?;
+    if mac != EXPECTED_MAC {
+        Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
     }
+
+    Ok(())
 }
