@@ -410,6 +410,9 @@ fn set_health_check_thresholds(
 
         // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
         // respectively.
+        //
+        // This window value of 2048 comes from the OpenTitan documentation, since two noise
+        // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
         const WINDOW_SIZE_BITS: u32 = 2048;
         const DEFAULT_HI: u32 = 3 * (WINDOW_SIZE_BITS / 4);
         const DEFAULT_LO: u32 = WINDOW_SIZE_BITS / 4;
