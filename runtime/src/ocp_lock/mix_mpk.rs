@@ -29,6 +29,7 @@ impl MixMpkCmd {
             &mut drivers.aes,
             &mut drivers.hmac,
             &mut drivers.trng,
+            &mut drivers.key_vault,
             &enabled_mpk,
         )?;
 

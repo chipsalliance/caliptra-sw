@@ -4,10 +4,11 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crate::{
     hmac_kdf, Aes, AesGcmIv, AesKey, Array4x16, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Trng,
+    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Trng,
 };
 
 use zerocopy::{FromBytes, IntoBytes};
+use zeroize::Zeroize;
 
 pub struct PreconditionedAesEncryptionResult {
     pub salt: LEArray4x3,
@@ -20,12 +21,13 @@ pub struct PreconditionedAesEncryptionResult {
 /// https://github.com/chipsalliance/Caliptra/issues/603 will align the specification with this
 /// implementation.
 ///
-/// NOTE: The `aes_key` parameter will be overwitten, if it is a key vault.
+/// NOTE: The `aes_key` parameter will be erased.
 #[allow(clippy::too_many_arguments)]
 pub fn preconditioned_aes_encrypt(
     aes: &mut Aes,
     hmac: &mut Hmac,
     trng: &mut Trng,
+    kv: &mut KeyVault,
     key: HmacKey,
     aes_key: AesKey,
     label: &[u8],
@@ -78,7 +80,7 @@ pub fn preconditioned_aes_encrypt(
     };
 
     let tag_size = 16;
-    let (iv, tag) = aes.aes_256_gcm_encrypt(
+    let res = aes.aes_256_gcm_encrypt(
         trng,
         AesGcmIv::Random,
         subkey,
@@ -86,7 +88,14 @@ pub fn preconditioned_aes_encrypt(
         plaintext,
         ciphertext,
         tag_size,
-    )?;
+    );
+
+    if let AesKey::KV(KeyReadArgs { id }) = aes_key {
+        kv.erase_key(id)?;
+    }
+    output_array.zeroize();
+
+    let (iv, tag) = res?;
 
     Ok(PreconditionedAesEncryptionResult { salt, iv, tag })
 }
@@ -96,12 +105,13 @@ pub fn preconditioned_aes_encrypt(
 /// https://github.com/chipsalliance/Caliptra/issues/603 will align the specification with this
 /// implementation.
 ///
-/// NOTE: The `aes_key` parameter will be overwitten, if it is a key vault.
+/// NOTE: The `aes_key` parameter will be erased.
 #[allow(clippy::too_many_arguments)]
 pub fn preconditioned_aes_decrypt(
     aes: &mut Aes,
     hmac: &mut Hmac,
     trng: &mut Trng,
+    kv: &mut KeyVault,
     key: HmacKey,
     aes_key: AesKey,
     label: &[u8],
@@ -145,5 +155,10 @@ pub fn preconditioned_aes_decrypt(
         }
     };
 
-    aes.aes_256_gcm_decrypt(trng, iv, subkey, aad, ciphertext, plaintext, tag)
+    let res = aes.aes_256_gcm_decrypt(trng, iv, subkey, aad, ciphertext, plaintext, tag);
+    if let AesKey::KV(KeyReadArgs { id }) = aes_key {
+        kv.erase_key(id)?;
+    }
+    output_array.zeroize();
+    res
 }
