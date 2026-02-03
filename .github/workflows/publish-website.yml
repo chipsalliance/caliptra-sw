@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      # github workflow file to get the artifacts for to generate the website matrix
+      # Github workflow file to get the artifacts for to generate the website matrix
+      # For example, "nightly-release.yml".
+      # Note: This parameter does not denote the absolute path in this repositories
+      # tree, but is the base name of it, which internally identifies the results of a CI run.
       workflow_file:
         required: true
         type: string
