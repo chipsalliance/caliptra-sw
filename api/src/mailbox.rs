@@ -4554,7 +4554,7 @@ pub struct OcpLockEndorseHpkePubKeyResp {
     pub endorsement_len: u32,
     pub pub_key: [u8; OCP_LOCK_MAX_HPKE_PUBKEY_LEN],
     pub endorsement: [u8; OCP_LOCK_MAX_ENDORSEMENT_CERT_SIZE],
-    pub padding: [u8; 7],
+    pub padding: [u8; 3],
 }
 
 impl Default for OcpLockEndorseHpkePubKeyResp {
@@ -4566,7 +4566,7 @@ impl Default for OcpLockEndorseHpkePubKeyResp {
             endorsement_len: 0,
             pub_key: [0; OCP_LOCK_MAX_HPKE_PUBKEY_LEN],
             endorsement: [0; OCP_LOCK_MAX_ENDORSEMENT_CERT_SIZE],
-            padding: [0; 7],
+            padding: [0; 3],
         }
     }
 }
