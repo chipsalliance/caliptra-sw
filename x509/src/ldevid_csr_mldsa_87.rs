@@ -4,24 +4,28 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    idevid_csr.rs
+    ldevid_csr_mldsa_87.rs
 
 Abstract:
 
-    ECC384 Initial Device ID Certificate Signing Request related code.
+    Local Device ID Certificate Signing Request related code.
 
 --*/
 
-// Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr_tbs_ecc_384.rs"));
+include!(concat!(
+    env!("OUT_DIR"),
+    "/local_dev_id_csr_tbs_ml_dsa_87.rs"
+));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/init_dev_id_csr_tbs_ecc_384.rs"}
+include! {"../build/local_dev_id_csr_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
-    use openssl::sha::Sha384;
-    use openssl::{ecdsa::EcdsaSig, x509::X509Req};
+    use openssl::pkey_ctx::PkeyCtx;
+    use openssl::pkey_ml_dsa::Variant;
+    use openssl::signature::Signature;
+    use openssl::x509::X509Req;
 
     use x509_parser::cri_attributes::ParsedCriAttribute;
     use x509_parser::extensions::ParsedExtension;
@@ -30,57 +34,61 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
+    use crate::{MlDsa87CsrBuilder, MlDsa87Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; InitDevIdCsrTbsEcc384::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; LocalDevIdCsrTbsMlDsa87::UEID_LEN];
 
-    fn make_test_csr(subject_key: &Ecc384AsymKey) -> InitDevIdCsrTbsEcc384 {
-        let params = InitDevIdCsrTbsEcc384Params {
+    fn make_test_csr(subject_key: &MlDsa87AsymKey) -> LocalDevIdCsrTbsMlDsa87 {
+        let params = LocalDevIdCsrTbsMlDsa87Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
         };
 
-        InitDevIdCsrTbsEcc384::new(&params)
+        LocalDevIdCsrTbsMlDsa87::new(&params)
     }
 
     #[test]
     fn test_csr_signing() {
-        let key = Ecc384AsymKey::default();
-        let ec_key = key.priv_key().ec_key().unwrap();
+        let key = MlDsa87AsymKey::default();
+        let mldsa_key = key.priv_key();
         let csr = make_test_csr(&key);
 
-        let sig: EcdsaSig = csr
+        let sig = csr
             .sign(|b| {
-                let mut sha = Sha384::new();
-                sha.update(b);
-                EcdsaSig::sign(&sha.finish(), &ec_key)
+                let mut signature = vec![];
+                let mut ctx = PkeyCtx::new(mldsa_key)?;
+                let mut algo = Signature::for_ml_dsa(Variant::MlDsa87)?;
+                ctx.sign_message_init(&mut algo)?;
+                ctx.sign_to_vec(b, &mut signature)?;
+                Ok::<Vec<u8>, openssl::error::ErrorStack>(signature)
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), InitDevIdCsrTbsEcc384::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), LocalDevIdCsrTbsMlDsa87::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET
-                ..InitDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET + InitDevIdCsrTbsEcc384::PUBLIC_KEY_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET
+                ..LocalDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET
+                    + LocalDevIdCsrTbsMlDsa87::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET
-                ..InitDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET + InitDevIdCsrTbsEcc384::SUBJECT_SN_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET
+                ..LocalDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET
+                    + LocalDevIdCsrTbsMlDsa87::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsEcc384::UEID_OFFSET
-                ..InitDevIdCsrTbsEcc384::UEID_OFFSET + InitDevIdCsrTbsEcc384::UEID_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsMlDsa87::UEID_OFFSET
+                ..LocalDevIdCsrTbsMlDsa87::UEID_OFFSET + LocalDevIdCsrTbsMlDsa87::UEID_LEN],
             TEST_UEID,
         );
 
-        let ecdsa_sig = crate::Ecdsa384Signature {
-            r: sig.r().to_vec_padded(48).unwrap().try_into().unwrap(),
-            s: sig.s().to_vec_padded(48).unwrap().try_into().unwrap(),
+        let mldsa_sig = MlDsa87Signature {
+            sig: sig.try_into().unwrap(),
         };
 
-        let builder = crate::Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
+        let builder = crate::MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
         builder.build(&mut buf).unwrap();
 
@@ -91,24 +99,26 @@ mod tests {
 
     #[test]
     fn test_extensions() {
-        let key = Ecc384AsymKey::default();
-        let ec_key = key.priv_key().ec_key().unwrap();
+        let key = MlDsa87AsymKey::default();
+        let mldsa_key = key.priv_key();
         let csr = make_test_csr(&key);
 
-        let sig: EcdsaSig = csr
+        let sig = csr
             .sign(|b| {
-                let mut sha = Sha384::new();
-                sha.update(b);
-                EcdsaSig::sign(&sha.finish(), &ec_key)
+                let mut signature = vec![];
+                let mut ctx = PkeyCtx::new(mldsa_key)?;
+                let mut algo = Signature::for_ml_dsa(Variant::MlDsa87)?;
+                ctx.sign_message_init(&mut algo)?;
+                ctx.sign_to_vec(b, &mut signature)?;
+                Ok::<Vec<u8>, openssl::error::ErrorStack>(signature)
             })
             .unwrap();
 
-        let ecdsa_sig = Ecdsa384Signature {
-            r: sig.r().to_vec_padded(48).unwrap().try_into().unwrap(),
-            s: sig.s().to_vec_padded(48).unwrap().try_into().unwrap(),
+        let mldsa_sig = MlDsa87Signature {
+            sig: sig.try_into().unwrap(),
         };
 
-        let builder = Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
+        let builder = MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
         builder.build(&mut buf).unwrap();
 
@@ -156,8 +166,8 @@ mod tests {
         };
 
         assert!(!eku_ext.critical);
-        // Should contain TCG_DICE_KP_IDENTITY_INIT (2.23.133.5.4.100.6) and TCG_DICE_KP_ECA (2.23.133.5.4.100.12)
-        assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .6)));
+        // Should contain TCG_DICE_KP_IDENTITY_LOC (2.23.133.5.4.100.7) and TCG_DICE_KP_ECA (2.23.133.5.4.100.12)
+        assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .7)));
         assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .12)));
 
         // UEID
@@ -176,18 +186,18 @@ mod tests {
 
     #[test]
     #[cfg(feature = "generate_templates")]
-    fn test_idevid_template() {
+    fn test_ldevid_template() {
         let manual_template = std::fs::read(std::path::Path::new(
-            "./build/init_dev_id_csr_tbs_ecc_384.rs",
+            "./build/local_dev_id_csr_tbs_ml_dsa_87.rs",
         ))
         .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/init_dev_id_csr_tbs_ecc_384.rs"
+            "/local_dev_id_csr_tbs_ml_dsa_87.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
-            panic!("Auto-generated IDevID CSR template is not equal to the manual template.")
+            panic!("Auto-generated LDevID CSR template is not equal to the manual template.")
         }
     }
 }
