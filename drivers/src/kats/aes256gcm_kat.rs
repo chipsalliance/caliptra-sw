@@ -12,9 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{
-    Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng,
-};
+use crate::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng};
 
 // Taken from NIST test vectors: https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program/cavp-testing-block-cipher-modes#GCMVS
 
@@ -42,47 +40,38 @@ const PT: [u8; 32] = [
     0x50, 0xc8, 0xd8, 0x6b, 0xbf, 0x93, 0x51, 0xfa, 0x72, 0xe7, 0xda, 0x51, 0x71, 0xdf, 0x38, 0xf9,
 ];
 
-#[derive(Default, Debug)]
-pub struct Aes256GcmKat {}
+/// Execute the Known Answer Tests (aka KAT) for AES-256-GCM.
+///
+/// Test vector source:
+/// NIST test vectors
+///
+/// # Arguments
+///
+/// * `aes` - AES driver
+/// * `trng` - TRNG driver
+///
+/// # Returns
+///
+/// * `CaliptraResult` - Result denoting the KAT outcome.
+pub fn execute_gcm_kat(aes: &mut Aes, trng: &mut Trng) -> CaliptraResult<()> {
+    let iv = (&IV).into();
+    let key = AesKey::Array(&KEY);
+    let mut ciphertext = [0u8; 32];
+    let (_, tag) =
+        aes.aes_256_gcm_encrypt(trng, iv, key, &AAD[..], &PT[..], &mut ciphertext, 16)?;
 
-impl Aes256GcmKat {
-    /// This function executes the Known Answer Tests (aka KAT) for AES-256-GCM.
-    ///
-    /// Test vector source:
-    /// NIST test vectors
-    ///
-    /// # Arguments
-    ///
-    /// * `aes` - AES driver
-    /// * `trng` - TRNG driver
-    ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, aes: &mut Aes, trng: &mut Trng) -> CaliptraResult<()> {
-        self.encrypt_decrypt(aes, trng)
+    if ciphertext != CT {
+        Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
+    }
+    if tag != TAG {
+        Err(CaliptraError::KAT_AES_TAG_MISMATCH)?;
     }
 
-    fn encrypt_decrypt(&self, aes: &mut Aes, trng: &mut Trng) -> CaliptraResult<()> {
-        let iv = (&IV).into();
-        let key = AesKey::Array(&KEY);
-        let mut ciphertext = [0u8; 32];
-        let (_, tag) =
-            aes.aes_256_gcm_encrypt(trng, iv, key, &AAD[..], &PT[..], &mut ciphertext, 16)?;
-
-        if ciphertext != CT {
-            Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;
-        }
-        if tag != TAG {
-            Err(CaliptraError::KAT_AES_TAG_MISMATCH)?;
-        }
-
-        let mut plaintext = [0u8; 32];
-        aes.aes_256_gcm_decrypt(trng, &IV, key, &AAD[..], &CT[..], &mut plaintext, &TAG)?;
-        if plaintext != PT {
-            Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
-        }
-
-        Ok(())
+    let mut plaintext = [0u8; 32];
+    aes.aes_256_gcm_decrypt(trng, &IV, key, &AAD[..], &CT[..], &mut plaintext, &TAG)?;
+    if plaintext != PT {
+        Err(CaliptraError::KAT_AES_PLAINTEXT_MISMATCH)?;
     }
+
+    Ok(())
 }

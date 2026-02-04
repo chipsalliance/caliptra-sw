@@ -9,6 +9,11 @@ edition = "2021"
 test = false
 doctest = false
 
+[features]
+default = []
+# When building for ROM, skip AES KATs since ROM uses AesGcm::new() which runs its own KAT
+rom = ["caliptra-drivers/rom"]
+
 [dependencies]
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true

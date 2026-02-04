@@ -17,7 +17,9 @@ use caliptra_api::mailbox::{
     CmHashAlgorithm, CmHmacReq, CmHmacResp, CmKeyUsage, Cmk, MailboxRespHeaderVarSize,
     ResponseVarSize,
 };
-use caliptra_drivers::{Aes, Array4x12, Array4x16, Hmac, HmacData, HmacMode, LEArray4x8, Trng};
+use caliptra_drivers::{
+    AesGcmOp, Array4x12, Array4x16, Hmac, HmacData, HmacMode, LEArray4x8, Trng,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -31,8 +33,8 @@ pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
     Ok(resp)
 }
 
-pub fn decrypt_hmac_key(
-    aes: &mut Aes,
+pub fn decrypt_hmac_key<G: AesGcmOp>(
+    aes: &mut G,
     trng: &mut Trng,
     kek: (LEArray4x8, LEArray4x8),
     cmk: &Cmk,
@@ -49,9 +51,9 @@ pub fn decrypt_hmac_key(
 }
 
 #[inline(always)]
-pub fn hmac(
+pub fn hmac<G: AesGcmOp>(
     hmac: &mut Hmac,
-    aes: &mut Aes,
+    aes: &mut G,
     trng: &mut Trng,
     kek: (LEArray4x8, LEArray4x8),
     cmd_bytes: &[u8],

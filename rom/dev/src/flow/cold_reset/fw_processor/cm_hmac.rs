@@ -16,15 +16,15 @@ use caliptra_api::mailbox::CmHmacResp;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::hmac_cm::hmac;
 use caliptra_common::mailbox_api::ResponseVarSize;
-use caliptra_drivers::{Aes, CaliptraError, CaliptraResult, Hmac, PersistentData, Trng};
+use caliptra_drivers::{AesGcmOp, CaliptraError, CaliptraResult, Hmac, PersistentData, Trng};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub struct CmHmacCmd;
 impl CmHmacCmd {
     #[inline(always)]
-    pub(crate) fn execute(
+    pub(crate) fn execute<A: AesGcmOp>(
         cmd_bytes: &[u8],
-        aes: &mut Aes,
+        aes: &mut A,
         hmac_engine: &mut Hmac,
         trng: &mut Trng,
         persistent_data: &mut PersistentData,

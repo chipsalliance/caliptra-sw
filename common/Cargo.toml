@@ -33,7 +33,7 @@ caliptra-x509 = { workspace = true, default-features = false }
 default = ["std"]
 emu = ["caliptra-drivers/emu"]
 std = []
-rom = []
+rom = ["caliptra-drivers/rom"]
 fmc = []
 runtime = []
 no-cfi = []

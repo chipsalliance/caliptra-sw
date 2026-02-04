@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    hmac_kdf_kat.rs
+    cmackdf_kat.rs
 
 Abstract:
 
@@ -28,7 +28,7 @@ Abstract:
 // "fixedData": "CD9B9791F5EEE211918BA1E2B01B4E29",
 // "keyOut": "C303887FB0ACA8E78DEBB8A008E75C88C26E927F0FA8A1DF1614C97E1B6F78B35C8F8A1CB9CD9F18DC30D06C73B75FDEA5A636ACB92F690FC6CB060F0A3DB66E759E30097C297E56C59DB8E17FF2656A8520D7309307B8E161B091FDDAF375B34E2EB8084D2832621C37BB67F09AAB29F3E467F422270B237D9B5AEBAD2D1F05"
 
-use caliptra_drivers::{cmac_kdf, Aes, CaliptraError, CaliptraResult, LEArray4x16, LEArray4x8};
+use crate::{aes::Aes, cmac_kdf, AesKey, CaliptraError, CaliptraResult, LEArray4x16, LEArray4x8};
 
 const KEY_IN: LEArray4x8 = LEArray4x8::new([
     0x6a9cb9bf, 0x989a85ab, 0x88c9ac73, 0xbb75d80b, 0x4ab2a883, 0x6a570793, 0x90164205, 0x5bbe5687,
@@ -43,24 +43,13 @@ const KEY_OUT: LEArray4x16 = LEArray4x16::new([
     0x1c8a8f5c, 0x189fcdb9, 0x6cd030dc, 0xde5fb773, 0xac36a6a5, 0x0f692fb9, 0x0f06cbc6, 0x6eb63d0a,
 ]);
 
-#[derive(Default, Debug)]
-pub struct CmacKdfKat {}
+/// Execute the CMAC-KDF Known Answer Test.
+pub fn execute_cmackdf_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    let output = cmac_kdf(aes, AesKey::Array(&KEY_IN), &FIXED_DATA, None, 4)?;
 
-impl CmacKdfKat {
-    /// This function executes the Known Answer Tests (aka KAT) for CMAC KDF.
-    pub fn execute(&self, aes: &mut Aes) -> CaliptraResult<()> {
-        let output = cmac_kdf(
-            aes,
-            caliptra_drivers::AesKey::Array(&KEY_IN),
-            &FIXED_DATA,
-            None,
-            4,
-        )?;
-
-        if KEY_OUT != output {
-            Err(CaliptraError::KAT_CMAC_KDF_OUTPUT_MISMATCH)?;
-        }
-
-        Ok(())
+    if KEY_OUT != output {
+        Err(CaliptraError::KAT_CMAC_KDF_OUTPUT_MISMATCH)?;
     }
+
+    Ok(())
 }

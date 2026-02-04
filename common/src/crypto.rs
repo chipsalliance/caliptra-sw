@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::keyids::KEY_ID_TMP;
 use caliptra_drivers::{
-    hpke::kem::MlKemEncapsulationKey, okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12,
+    hpke::kem::MlKemEncapsulationKey, okmutref, okref, AesGcmIv, AesGcmOp, AesKey, Array4x12,
     CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result,
     Ecc384Signature, Hmac, HmacData, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault,
     KeyWriteArgs, LEArray4x3, LEArray4x4, LEArray4x8, Mldsa87, Mldsa87PubKey, Mldsa87Result,
@@ -438,7 +438,7 @@ impl Crypto {
     /// Encrypt the Cryptographic Mailbox Key (CML) using the Key Encryption Key (KEK)
     ///
     /// # Arguments
-    /// * `aes` - AES driver
+    /// * `aes` - AES-GCM driver (implements `AesGcmOp`)
     /// * `trng` - TRNG driver
     /// * `unencrypted_cmk` - Unencrypted CMK to encrypt
     /// * `kek_iv` - Initialization vector for the KEK
@@ -448,8 +448,8 @@ impl Crypto {
     /// * `EncryptedCmk` - Encrypted CMK
     ///
     #[inline(always)]
-    pub fn encrypt_cmk(
-        aes: &mut Aes,
+    pub fn encrypt_cmk<G: AesGcmOp>(
+        aes: &mut G,
         trng: &mut Trng,
         unencrypted_cmk: &UnencryptedCmk,
         kek_iv: LEArray4x3,
@@ -458,7 +458,7 @@ impl Crypto {
         let plaintext = unencrypted_cmk.as_bytes();
         let mut ciphertext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
         // Encrypt the CMK using the KEK
-        let (iv, gcm_tag) = aes.aes_256_gcm_encrypt(
+        let (iv, gcm_tag) = aes.gcm_encrypt(
             trng,
             AesGcmIv::Array(&kek_iv),
             AesKey::Split(&kek.0, &kek.1),
@@ -479,7 +479,7 @@ impl Crypto {
     /// Decrypt the Cryptographic Mailbox Key (CMK) using the Key Encryption Key (KEK)
     ///
     /// # Arguments
-    /// * `aes` - AES driver
+    /// * `aes` - AES-GCM driver (implements `AesGcmOp`)
     /// * `trng` - TRNG driver
     /// * `kek` - Key Encryption Key (AES key)
     /// * `encrypted_cmk` - Encrypted CMK to decrypt
@@ -488,15 +488,15 @@ impl Crypto {
     /// * `UnencryptedCmk` - Decrypted CMK
     ///
     #[inline(always)]
-    pub fn decrypt_cmk(
-        aes: &mut Aes,
+    pub fn decrypt_cmk<G: AesGcmOp>(
+        aes: &mut G,
         trng: &mut Trng,
         kek: (LEArray4x8, LEArray4x8),
         encrypted_cmk: &EncryptedCmk,
     ) -> CaliptraResult<UnencryptedCmk> {
         let ciphertext = &encrypted_cmk.ciphertext;
         let mut plaintext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
-        aes.aes_256_gcm_decrypt(
+        aes.gcm_decrypt(
             trng,
             &encrypted_cmk.iv,
             AesKey::Split(&kek.0, &kek.1),

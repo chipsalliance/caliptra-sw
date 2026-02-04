@@ -32,8 +32,10 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
 type AesKeyBlock = LEArray4x8;
 type AesBlock = LEArray4x4;
-type AesGcmIvBlock = LEArray4x3;
-type AesGcmTag = LEArray4x4;
+/// AES-GCM IV block (96 bits)
+pub type AesGcmIvBlock = LEArray4x3;
+/// AES-GCM authentication tag (128 bits)
+pub type AesGcmTag = LEArray4x4;
 
 pub const AES_BLOCK_SIZE_BYTES: usize = 16;
 const _: () = assert!(AES_BLOCK_SIZE_BYTES == core::mem::size_of::<AesBlock>());
@@ -188,7 +190,15 @@ fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<
 
 #[allow(clippy::too_many_arguments)]
 impl Aes {
+    /// Create a new AES driver.
     pub fn new(aes: AesReg, aes_clp: AesClpReg) -> Self {
+        if cfg!(feature = "rom") {
+            panic!("Do not use in ROM!");
+        }
+        Self { aes, aes_clp }
+    }
+
+    fn new_gcm(aes: AesReg, aes_clp: AesClpReg) -> Self {
         Self { aes, aes_clp }
     }
 
@@ -614,7 +624,6 @@ impl Aes {
     }
 
     /// Calculate the AES-256-GCM decrypted plaintext for the given ciphertext.
-    /// Returns the IV and the tag.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_gcm_decrypt(
         &mut self,
@@ -1416,6 +1425,205 @@ impl Aes {
     pub unsafe fn zeroize() {
         let aes = AesReg::new();
         let aes_clp = AesClpReg::new();
-        Aes::new(aes, aes_clp).zeroize_internal();
+        Aes::new_gcm(aes, aes_clp).zeroize_internal();
+    }
+}
+
+/// AES-GCM driver with compile-time KAT guarantee.
+///
+/// This struct wraps an `Aes` driver and ensures that the GCM KAT
+/// is executed before any GCM operations can be performed.
+/// This provides compile-time guarantees similar to the `Sha1` driver.
+pub struct AesGcm {
+    aes: Aes,
+}
+
+#[allow(clippy::too_many_arguments)]
+impl AesGcm {
+    /// Create a new AesGcm driver after running the GCM KAT.
+    ///
+    /// # Arguments
+    ///
+    /// * `aes` - AES register block
+    /// * `aes_clp` - AES CLP register block
+    /// * `trng` - TRNG driver (used for KAT only)
+    ///
+    /// # Returns
+    ///
+    /// * `CaliptraResult<Self>` - The AesGcm driver if KATs pass
+    pub fn new(aes: AesReg, aes_clp: AesClpReg, trng: &mut Trng) -> CaliptraResult<Self> {
+        let mut aes = Aes::new_gcm(aes, aes_clp);
+        crate::kats::execute_gcm_kat(&mut aes, trng)?;
+        crate::kats::execute_cmackdf_kat(&mut aes)?;
+        Ok(Self { aes })
+    }
+
+    /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
+    pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
+        self.aes.cmac(key, message)
+    }
+
+    /// Calculate the AES-256-GCM encrypted ciphertext for the given plaintext.
+    /// Returns the IV and the tag.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn encrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: AesGcmIv,
+        key: AesKey,
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag_size: usize,
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
+        self.aes
+            .aes_256_gcm_encrypt(trng, iv, key, aad, plaintext, ciphertext, tag_size)
+    }
+
+    /// Calculate the AES-256-GCM decrypted plaintext for the given ciphertext.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn decrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: &LEArray4x3,
+        key: AesKey,
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &LEArray4x4,
+    ) -> CaliptraResult<()> {
+        self.aes
+            .aes_256_gcm_decrypt(trng, iv, key, aad, ciphertext, plaintext, tag)
+    }
+
+    /// Run the GCM and CMAC-KDF KATs.
+    ///
+    /// This is used by FIPS SELF_TEST command to re-run the KATs on demand.
+    /// The KATs are also run at `AesGcm::new()` construction time.
+    pub fn run_kats(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        crate::kats::execute_gcm_kat(&mut self.aes, trng)?;
+        crate::kats::execute_cmackdf_kat(&mut self.aes)?;
+        Ok(())
+    }
+
+    /// Zeroize the hardware crypto block state.
+    ///
+    /// # Safety
+    ///
+    /// This function may corrupt the state of the driver, and should only be
+    /// used in contexts where the caller is certain that the cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        Aes::zeroize();
+    }
+}
+
+/// Trait for AES-GCM operations.
+///
+/// This trait provides a common interface for GCM encryption/decryption
+/// that can be implemented by `Aes`, `AesGcm`, etc.
+#[allow(clippy::too_many_arguments)]
+pub trait AesGcmOp {
+    /// Encrypt using AES-256-GCM.
+    fn gcm_encrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: AesGcmIv,
+        key: AesKey,
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag_size: usize,
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)>;
+
+    /// Decrypt using AES-256-GCM.
+    fn gcm_decrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: &LEArray4x3,
+        key: AesKey,
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &LEArray4x4,
+    ) -> CaliptraResult<()>;
+}
+
+impl AesGcmOp for Aes {
+    fn gcm_encrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: AesGcmIv,
+        key: AesKey,
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag_size: usize,
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
+        self.aes_256_gcm_encrypt(trng, iv, key, aad, plaintext, ciphertext, tag_size)
+    }
+
+    fn gcm_decrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: &LEArray4x3,
+        key: AesKey,
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &LEArray4x4,
+    ) -> CaliptraResult<()> {
+        self.aes_256_gcm_decrypt(trng, iv, key, aad, ciphertext, plaintext, tag)
+    }
+}
+
+impl AesGcmOp for AesGcm {
+    fn gcm_encrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: AesGcmIv,
+        key: AesKey,
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag_size: usize,
+    ) -> CaliptraResult<(AesGcmIvBlock, AesGcmTag)> {
+        self.encrypt(trng, iv, key, aad, plaintext, ciphertext, tag_size)
+    }
+
+    fn gcm_decrypt(
+        &mut self,
+        trng: &mut Trng,
+        iv: &LEArray4x3,
+        key: AesKey,
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &LEArray4x4,
+    ) -> CaliptraResult<()> {
+        self.decrypt(trng, iv, key, aad, ciphertext, plaintext, tag)
+    }
+}
+
+/// Trait for AES-CMAC operations.
+///
+/// This trait provides a common interface for CMAC operations
+/// that can be implemented by `Aes`, `AesGcm`, etc.
+pub trait AesCmacOp {
+    /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
+    fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4>;
+}
+
+impl AesCmacOp for Aes {
+    fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
+        Aes::cmac(self, key, message)
+    }
+}
+
+impl AesCmacOp for AesGcm {
+    fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
+        AesGcm::cmac(self, key, message)
     }
 }
