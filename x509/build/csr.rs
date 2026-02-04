@@ -129,6 +129,29 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         self
     }
 
+    /// Add Runtime DICE TCB Info Extension
+    pub fn add_rt_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+        let svn: u8 = 0xC1;
+
+        self.exts
+            .push(x509::make_rt_dice_tcb_info_ext(svn, fwids))
+            .unwrap();
+
+        self.params.push(CsrTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_fw_svn", 0, std::mem::size_of_val(&svn)),
+            needle: svn.to_be_bytes().to_vec(),
+        });
+
+        for fwid in fwids.iter() {
+            self.params.push(CsrTemplateParam {
+                tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
+                needle: fwid.fwid.digest.to_vec(),
+            });
+        }
+
+        self
+    }
+
     /// Generate To Be Signed (TBS) Template
     pub fn tbs_template(mut self, subject_cn: &str) -> TbsTemplate {
         // Generate key pair
