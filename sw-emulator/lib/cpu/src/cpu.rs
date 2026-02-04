@@ -754,6 +754,9 @@ impl<TBus: Bus> Cpu<TBus> {
         self.halted = false;
         self.priv_mode = RvPrivMode::M;
         self.csrs.reset();
+        // Disarm internal timers to prevent interrupts scheduled before reset from firing
+        self.csrs.internal_timers.disarm(0);
+        self.csrs.internal_timers.disarm(1);
         self.reset_pc();
     }
 
