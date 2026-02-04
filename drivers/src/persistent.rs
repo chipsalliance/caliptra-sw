@@ -53,6 +53,7 @@ pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
+pub const ROM_ENTROPY_CFG_SIZE: u32 = 24;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 pub const BOOT_MODE_SIZE: u32 = 4;
 
@@ -339,6 +340,17 @@ pub struct OcpLockMetadataFirmware {
     pub flags: OcpLockFlags,
 }
 
+#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
+pub struct EntropyConfiguration {
+    pub configured: u32, // true if non-zero
+    pub alert_threshold: u32,
+    pub health_test_window: u32,
+    pub repcnt_threshold: u32,
+    pub adaptp_hi_threshold: u32,
+    pub adaptp_lo_threshold: u32,
+}
+
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
@@ -398,6 +410,8 @@ pub struct RomPersistentData {
     pub cleared_non_fatal_fw_error: u32,
 
     pub ocp_lock_metadata: OcpLockMetadataRom,
+
+    pub entropy_cfg: EntropyConfiguration,
 
     /// Boot mode indicating how firmware was loaded by ROM.
     /// Used by runtime to determine behavior during recovery flow.
@@ -527,6 +541,12 @@ impl RomPersistentData {
             );
 
             persistent_data_offset += ROM_OCP_LOCK_METADATA_SIZE;
+            assert_eq!(
+                addr_of!((*P).rom.entropy_cfg) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += ROM_ENTROPY_CFG_SIZE;
             assert_eq!(
                 addr_of!((*P).rom.boot_mode) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

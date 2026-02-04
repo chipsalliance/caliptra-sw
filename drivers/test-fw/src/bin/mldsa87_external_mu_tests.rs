@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
-    Mldsa87Signature, Trng,
+    Mldsa87Signature, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
@@ -497,6 +497,7 @@ pub fn test_sign_external_mu() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

@@ -28,6 +28,7 @@ default-filter = """
 (package(caliptra-drivers)
     - test(test_csrng_adaptive_proportion)
     - test(test_csrng_repetition_count)
+    - test(test_csrng_runtime_health_failure)
     - test(test_doe_when_debug_locked)
     - test(test_doe_when_debug_not_locked)) |
 (package(caliptra-fmc)) |
@@ -68,6 +69,7 @@ store-failure-output = true
 # TODO add the remaining caliptra core integration tests temporarily disabled
 # test(test_version::test_version), test(test_warm_reset::test_warm_reset_version), test(test_fips::test_fips_version) needs bitstream update
 # test(test_uds_fe::test_uds_programming_granularity_64bit), test(test_uds_fe::test_uds_programming_granularity_32bit) needs jtag for dbg_manuf_service
+# test(test_csrng_runtime_health_failure): entropy on FPGA seems to be behaving a bit differently and does not fail the test immediately, as expected
 [profile.fpga-core]
 default-filter = """
 not (package(/caliptra-emu-.*/) |
@@ -75,6 +77,7 @@ not (package(/caliptra-emu-.*/) |
        package(caliptra-cfi-derive) |
        package(caliptra-file-header-fix) |
        package(compliance-test) |
+       test(test_csrng_runtime_health_failure) |
        test(test_doe_when_debug_not_locked) |
        test(test_sign_validation_failure) |
        test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |

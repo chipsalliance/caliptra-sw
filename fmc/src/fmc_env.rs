@@ -79,6 +79,7 @@ impl FmcEnv {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )?;
 
         Ok(Self {

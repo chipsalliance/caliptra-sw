@@ -6,7 +6,7 @@
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, Trng,
+    KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -82,6 +82,7 @@ fn test_cmac() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -106,6 +107,7 @@ fn test_cmac_kv() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

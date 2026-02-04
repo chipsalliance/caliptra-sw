@@ -3,6 +3,7 @@
 use super::BITS_PER_NIBBLE;
 use caliptra_registers::entropy_src::regs::{
     AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, RepcntThresholdsReadVal,
+    RepcntsThresholdsReadVal,
 };
 
 const HEALTH_TEST_WINDOW_BITS: usize = 2048;
@@ -10,6 +11,7 @@ const HEALTH_TEST_WINDOW_BITS: usize = 2048;
 pub struct HealthTester {
     itrng_nibbles: Box<dyn Iterator<Item = u8>>,
     pub repcnt: RepetitionCountTester,
+    pub repcnts: RepetitionCountSymbolTester,
     pub adaptp: AdaptiveProportionTester,
     boot_time_nibbles: Vec<u8>,
 }
@@ -19,13 +21,18 @@ impl HealthTester {
         Self {
             itrng_nibbles,
             repcnt: RepetitionCountTester::new(),
+            repcnts: RepetitionCountSymbolTester::new(),
             adaptp: AdaptiveProportionTester::new(),
             boot_time_nibbles: Vec::new(),
         }
     }
 
     pub fn test_boot_window(&mut self) {
-        const NUM_NIBBLES: usize = HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
+        // The RTL tests TWO consecutive windows during boot-time health testing.
+        // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
+        // Only after both windows pass does boot complete.
+        const NUM_BOOT_WINDOWS: usize = 2;
+        const NUM_NIBBLES: usize = NUM_BOOT_WINDOWS * HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
 
         self.boot_time_nibbles = self
             .itrng_nibbles
@@ -33,6 +40,7 @@ impl HealthTester {
             .take(NUM_NIBBLES)
             .inspect(|nibble| {
                 self.repcnt.feed(*nibble);
+                self.repcnts.feed(*nibble);
                 self.adaptp.feed(*nibble);
             })
             .collect();
@@ -44,7 +52,10 @@ impl HealthTester {
     }
 
     pub fn failures(&self) -> u32 {
-        self.repcnt.failures() + self.adaptp.lo_failures() + self.adaptp.hi_failures()
+        self.repcnt.failures()
+            + self.repcnts.failures()
+            + self.adaptp.lo_failures()
+            + self.adaptp.hi_failures()
     }
 }
 
@@ -60,6 +71,7 @@ impl Iterator for HealthTester {
             // for continuous testing.
             let nibble = self.itrng_nibbles.next()?;
             self.repcnt.feed(nibble);
+            self.repcnts.feed(nibble);
             self.adaptp.feed(nibble);
             Some(nibble)
         }
@@ -184,6 +196,58 @@ impl AdaptiveProportionTester {
             // The test windows are not sliding. Reset for the next window.
             self.num_ones_seen = 0;
             self.num_bits_seen = 0;
+        }
+    }
+}
+
+/// Repetition Count Symbol Tester (repcnts)
+///
+/// Unlike the per-wire repcnt test, this tests if the entire 4-bit symbol (nibble)
+/// repeats consecutively. If the same nibble value appears N times in a row where
+/// N >= threshold, a failure is counted.
+///
+/// See NIST.SP.800-90B section 4.4.1 and entropy_src_repcnts_ht.sv in OpenTitan.
+pub struct RepetitionCountSymbolTester {
+    threshold: u32,
+    prev_nibble: Option<u8>,
+    repetition_count: u32,
+    failures: u32,
+}
+
+impl RepetitionCountSymbolTester {
+    pub fn new() -> Self {
+        Self {
+            threshold: 0xffff,
+            prev_nibble: None,
+            repetition_count: 1, // the hardware starts the counter at 1
+            failures: 0,
+        }
+    }
+
+    pub fn set_threshold(&mut self, threshold: RepcntsThresholdsReadVal) {
+        self.threshold = threshold.fips_thresh();
+    }
+
+    pub fn failures(&self) -> u32 {
+        self.failures
+    }
+
+    pub fn feed(&mut self, nibble: u8) {
+        // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_repcnts_ht.sv.
+        // If the entire 4-bit symbol repeats, increment the repetition counter.
+        // If the counter reaches the threshold, increment failures.
+
+        let is_repeat = self.prev_nibble == Some(nibble);
+
+        if is_repeat {
+            self.repetition_count += 1;
+
+            if self.repetition_count >= self.threshold {
+                self.failures += 1;
+            }
+        } else {
+            self.repetition_count = 1;
+            self.prev_nibble = Some(nibble);
         }
     }
 }

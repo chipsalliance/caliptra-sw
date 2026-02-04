@@ -91,6 +91,7 @@ impl RomEnv {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
     }
 
@@ -105,7 +106,6 @@ impl RomEnv {
 
         // Create AesGcm which runs the GCM and CMAC-KDF KATs at construction time
         let aes_gcm = AesGcm::new(AesReg::new(), AesClpReg::new(), &mut trng)?;
-
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),

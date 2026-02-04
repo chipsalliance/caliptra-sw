@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     hmac_kdf, Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac,
-    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
 };
 use caliptra_kat::{Hmac384KdfKat, Hmac512KdfKat};
 use caliptra_registers::csrng::CsrngReg;
@@ -38,6 +38,7 @@ fn test_hmac0() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -79,6 +80,7 @@ fn test_hmac1() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -123,6 +125,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -316,6 +319,7 @@ fn test_hmac5() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -422,6 +426,7 @@ fn test_kdf_hmac384(
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -555,6 +560,7 @@ fn test_kdf2_hmac384() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -601,6 +607,7 @@ fn test_hmac_multi_block() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -651,6 +658,7 @@ fn test_hmac_exact_single_block() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -701,6 +709,7 @@ fn test_hmac_multi_block_two_step() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -754,6 +763,7 @@ fn test_kat_384() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -775,6 +785,7 @@ fn test_kat_512() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -792,6 +803,7 @@ fn test_hmac0_512() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -835,6 +847,7 @@ fn test_hmac1_512() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -881,6 +894,7 @@ fn test_hmac2_512() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -929,6 +943,7 @@ fn test_hmac3_512() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -977,6 +992,7 @@ fn test_hmac512_multi_block() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
 };
 use caliptra_error::CaliptraError;
 use caliptra_kat::{Ecc384Kat, EcdhKat};
@@ -67,6 +67,7 @@ fn test_gen_key_pair() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -99,6 +100,7 @@ fn test_gen_key_pair_with_iv() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -157,6 +159,7 @@ fn test_sign() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -184,6 +187,7 @@ fn test_verify() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -216,6 +220,7 @@ fn test_verify_r() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -248,6 +253,7 @@ fn test_verify_failure() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -281,6 +287,7 @@ fn test_kv_seed_from_input_msg_from_input() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -335,6 +342,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -461,6 +469,7 @@ fn test_no_private_key_usage() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -487,6 +496,7 @@ fn test_kat() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -519,6 +529,7 @@ fn test_ecdh() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -555,6 +566,7 @@ fn test_ecdh_with_key_vault() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

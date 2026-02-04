@@ -19,7 +19,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seeds,
-    MlKem1024SharedKey, MlKem1024SharedKeyOut, Trng,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
@@ -52,6 +52,7 @@ fn test_mlkem_name() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -271,6 +272,7 @@ fn test_key_pair_generation_from_kv() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -411,6 +413,7 @@ fn test_encapsulate_with_kv_message() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

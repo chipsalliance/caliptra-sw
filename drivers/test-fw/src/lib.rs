@@ -4,7 +4,8 @@
 
 use caliptra_drivers::{
     Aes, Array4x16, DeobfuscationEngine, Dma, Ecc384PubKey, Hmac, HmacData, HmacKey, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024, Sha3, SocIfc, Trng,
+    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024, PersistentDataAccessor, Sha3,
+    SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
@@ -103,6 +104,7 @@ impl Default for TestRegisters {
                 EntropySrcReg::new(),
                 SocIfcTrngReg::new(),
                 &SocIfcReg::new(),
+                PersistentDataAccessor::new(),
             )
             .unwrap()
         };

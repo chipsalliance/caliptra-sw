@@ -19,7 +19,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Array4x16, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, LEArray4x16, LEArray4x8, Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, Trng,
+    Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
@@ -674,6 +674,7 @@ fn test_mldsa_name() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -698,6 +699,7 @@ fn test_gen_key_pair() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -733,6 +735,7 @@ fn test_sign() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -760,6 +763,7 @@ fn test_sign_caller_provided_private_key() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -796,6 +800,7 @@ fn test_sign_and_verify_var() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -843,6 +848,7 @@ fn test_sign_caller_provided_private_key_var_msg() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -873,6 +879,7 @@ fn test_keygen_caller_provided_seed() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -902,6 +909,7 @@ fn test_keygen_caller_provided_seed_var_msg() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
