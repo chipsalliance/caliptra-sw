@@ -5,7 +5,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use caliptra_registers::entropy_src::regs::{
     AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, ConfReadVal, HealthTestWindowsReadVal,
-    RepcntThresholdsReadVal,
+    RepcntThresholdsReadVal, RepcntsThresholdsReadVal,
 };
 use sha3::{Digest, Sha3_384};
 use std::mem;
@@ -69,11 +69,17 @@ pub struct Csrng {
     #[register(offset = 0x1034, write_fn = repcnt_thresholds_write)]
     repcnt_thresholds: u32,
 
+    #[register(offset = 0x1038, write_fn = repcnts_thresholds_write)]
+    repcnts_thresholds: u32,
+
     #[register(offset = 0x103c, write_fn = adaptp_hi_thresholds_write)]
     adaptp_hi_thresholds: u32,
 
     #[register(offset = 0x1040, write_fn = adaptp_lo_thresholds_write)]
     adaptp_lo_thresholds: u32,
+
+    #[register(offset = 0x10a0)]
+    alert_thresholds: u32, // TODO: implement this
 
     #[register(offset = 0x10a4, read_fn = alert_summary_fail_counts_read)]
     alert_summary_fail_counts: ReadOnlyRegister<u32>,
@@ -90,6 +96,10 @@ pub struct Csrng {
     ctr_drbg: CtrDrbg,
     words: Words,
     health_tester: HealthTester,
+    /// Tracks whether the first instantiate has completed (boot is done).
+    /// Only after boot is complete should continuous health testing consume entropy,
+    /// to avoid interfering with seed conditioning that requires specific entropy amounts.
+    boot_instantiate_complete: bool,
 }
 
 impl Csrng {
@@ -108,8 +118,10 @@ impl Csrng {
             conf: 0x909099,
             health_test_windows: ReadOnlyRegister::new(0x600200),
             repcnt_thresholds: 0xffffffff,
+            repcnts_thresholds: 0xffffffff,
             adaptp_hi_thresholds: 0xffffffff,
             adaptp_lo_thresholds: 0,
+            alert_thresholds: 2,
             alert_summary_fail_counts: ReadOnlyRegister::new(0),
             alert_fail_counts: ReadOnlyRegister::new(0),
             main_sm_state: ReadOnlyRegister::new(0x2c), // StartupHTStart, entropy_src_main_sm_pkg.sv
@@ -120,6 +132,7 @@ impl Csrng {
             ctr_drbg: CtrDrbg::new(),
             words: Words::default(),
             health_tester: HealthTester::new(itrng_nibbles),
+            boot_instantiate_complete: false,
         }
     }
 
@@ -230,6 +243,13 @@ impl Csrng {
         Ok(())
     }
 
+    fn repcnts_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        self.health_tester
+            .repcnts
+            .set_threshold(RepcntsThresholdsReadVal::from(data));
+        Ok(())
+    }
+
     fn adaptp_hi_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         self.health_tester
             .adaptp
@@ -251,11 +271,17 @@ impl Csrng {
     }
 
     fn alert_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        // Don't have a `AlertFailCountsWriteVal` from ureg, so let's  pack counts manually.
-        let adapt_lo = self.health_tester.adaptp.lo_failures().min(0xf) & 0xf;
-        let adapt_hi = self.health_tester.adaptp.hi_failures().min(0xf) & 0xf;
+        // Don't have a `AlertFailCountsWriteVal` from ureg, so let's pack counts manually.
+        // Bit positions from entropy_src register definitions:
+        // - repcnt_fail_count: bits [7:4]
+        // - adaptp_hi_fail_count: bits [11:8]
+        // - adaptp_lo_fail_count: bits [15:12]
+        // - repcnts_fail_count: bits [31:28]
         let repcnt = self.health_tester.repcnt.failures().min(0xf) & 0xf;
-        let fail_counts = (adapt_lo << 12) | (adapt_hi << 8) | (repcnt << 4);
+        let repcnts = self.health_tester.repcnts.failures().min(0xf) & 0xf;
+        let adapt_hi = self.health_tester.adaptp.hi_failures().min(0xf) & 0xf;
+        let adapt_lo = self.health_tester.adaptp.lo_failures().min(0xf) & 0xf;
+        let fail_counts = (repcnts << 28) | (adapt_lo << 12) | (adapt_hi << 8) | (repcnt << 4);
 
         self.alert_fail_counts = ReadOnlyRegister::new(fail_counts);
         Ok(fail_counts)
@@ -264,10 +290,28 @@ impl Csrng {
     fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
+        // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_core.sv
+        //
+        // From entropy_src_core.sv (lines 2185-2191):
+        //   assign alert_threshold = reg2hw.alert_threshold.alert_threshold.q;
+        //   assign any_fail_count_q >= alert_threshold -> alert_threshold_fail
+        //
+        // The state machine only transitions to AlertHang when alert_threshold_fail is true,
+        // meaning the total failure count must meet or exceed the configured alert threshold.
         const ALERT_HANG: u32 = 0x1fb;
         const CONT_HT_RUNNING: u32 = 0x1a2;
 
-        let state = if self.health_tester.failures() > 0 {
+        // In real hardware, entropy_src continuously pulls entropy from the TRNG and runs
+        // health tests. The state machine state reflects the ongoing health test results.
+        // To simulate this behavior, we consume a health test window worth of entropy
+        // when the state is read, running it through the health testers.
+        self.simulate_continuous_health_testing();
+
+        // Extract alert_threshold from the alert_thresholds register (bits [15:0])
+        let alert_threshold = self.alert_thresholds & 0xffff;
+        let failures = self.health_tester.failures();
+
+        let state = if failures >= alert_threshold {
             ALERT_HANG
         } else {
             CONT_HT_RUNNING
@@ -275,6 +319,38 @@ impl Csrng {
 
         self.main_sm_state = ReadOnlyRegister::new(state);
         Ok(state)
+    }
+
+    /// Simulate the continuous health testing that happens in real hardware.
+    /// In the RTL, entropy_src continuously pulls entropy from the TRNG and runs health tests.
+    /// We simulate this by consuming a health test window worth of entropy when state is queried.
+    ///
+    /// This is only done AFTER boot/instantiate is complete to avoid consuming entropy that's
+    /// needed for seed conditioning in tests with limited entropy.
+    fn simulate_continuous_health_testing(&mut self) {
+        const HEALTH_TEST_WINDOW_BITS: usize = 2048;
+        const NUM_NIBBLES: usize = HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
+
+        // Only run continuous testing if:
+        // 1. The module is enabled
+        // 2. Boot/instantiate has completed (so we don't consume entropy needed for seed conditioning)
+        if self.module_enable != MultiBitBool::True as u32 {
+            return;
+        }
+        if !self.boot_instantiate_complete {
+            return;
+        }
+
+        // Consume a window's worth of entropy through the health testers
+        for _ in 0..NUM_NIBBLES {
+            if let Some(nibble) = self.health_tester.next() {
+                // The nibble was already fed through health testers in HealthTester::next()
+                let _ = nibble;
+            } else {
+                // No more entropy available
+                break;
+            }
+        }
     }
 
     fn warm_reset(&mut self) {
@@ -304,6 +380,8 @@ impl Csrng {
                         // Seed from entropy_src.
                         let seed = self.get_conditioned_seed();
                         self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
+                        // Mark boot as complete - continuous health testing can now run
+                        self.boot_instantiate_complete = true;
                     }
 
                     [FALSE, _] => unimplemented!("seed: entropy_src XOR constant"),

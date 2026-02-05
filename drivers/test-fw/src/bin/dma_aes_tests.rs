@@ -19,7 +19,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::{
     cprintln, Aes, AesGcmIv, AesKey, AesOperation, Array4x12, Dma, DmaReadTarget,
-    DmaReadTransaction, LEArray4x8, Sha2_512_384, SocIfc, Trng,
+    DmaReadTransaction, LEArray4x8, PersistentDataAccessor, Sha2_512_384, SocIfc, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -253,6 +253,7 @@ fn test_dma_aes_mcu_sram_inplace() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -295,6 +296,7 @@ fn test_dma_aes_mcu_sram() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };
@@ -349,6 +351,7 @@ fn test_dma_aes_mcu_sram_256kb() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

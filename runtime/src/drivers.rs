@@ -178,6 +178,7 @@ impl Drivers {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )?;
 
         let aes = Aes::new(AesReg::new(), AesClpReg::new());

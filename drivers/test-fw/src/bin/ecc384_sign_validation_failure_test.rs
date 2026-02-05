@@ -4,7 +4,9 @@
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Trng};
+use caliptra_drivers::{
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, PersistentDataAccessor, Trng,
+};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -26,6 +28,7 @@ fn test_sign_validation_failure() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

@@ -255,3 +255,18 @@ required-features = ["riscv"]
 name = "csrng_config_unlock_tests"
 path = "src/bin/csrng_config_unlock_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_fail_repcnts_tests"
+path = "src/bin/csrng_fail_repcnts_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_runtime_health_fail_tests"
+path = "src/bin/csrng_runtime_health_fail_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_entropy_config_warm_reset_tests"
+path = "src/bin/csrng_entropy_config_warm_reset_tests.rs"
+required-features = ["riscv"]

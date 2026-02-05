@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
-    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
+    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, PersistentDataAccessor, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
@@ -53,6 +53,7 @@ fn test_decrypt() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
         )
         .unwrap()
     };

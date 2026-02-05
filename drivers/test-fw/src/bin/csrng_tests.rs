@@ -14,8 +14,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, CsrngSeed};
-
+use caliptra_drivers::{Csrng, CsrngSeed, PersistentDataAccessor};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
@@ -25,6 +24,7 @@ fn test_ctr_drbg_ctr0_smoke() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
 
     const SEED: CsrngSeed = CsrngSeed::Constant(&[
         0x73bec010, 0x9262474c, 0x16a30f76, 0x531b51de, 0x2ee494e5, 0xdfec9db3, 0xcb7a879d,
@@ -36,8 +36,14 @@ fn test_ctr_drbg_ctr0_smoke() {
         0x2708cbef, 0x89eb63a9, 0x70cdc6bc, 0x710daba1, 0xed39808c,
     ];
 
-    let mut csrng =
-        Csrng::with_seed(csrng_reg, entropy_src_reg, &soc_ifc_reg, SEED).expect("construct CSRNG");
+    let mut csrng = Csrng::with_seed(
+        csrng_reg,
+        entropy_src_reg,
+        &soc_ifc_reg,
+        SEED,
+        persistent_data,
+    )
+    .expect("construct CSRNG");
 
     // The original OpenTitan test tosses the first call to generate.
     let _ = csrng
@@ -57,9 +63,11 @@ fn test_entropy_src_seed() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
 
     const EXPECTED_OUTPUT: [u32; 4] = [0xca3d3c2f, 0x552adb53, 0xa9749c5d, 0xdabbe4c3];
-    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg).expect("construct CSRSNG");
+    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+        .expect("construct CSRSNG");
 
     assert_eq!(
         csrng
@@ -73,8 +81,10 @@ fn test_zero_health_fails() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
 
-    let csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg).expect("construct CSRNG");
+    let csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+        .expect("construct CSRNG");
     let counts = csrng.health_fail_counts();
     assert_eq!(counts.total, 0, "Expected zero total health check fails");
     assert_eq!(
