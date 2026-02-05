@@ -52,6 +52,7 @@ mod capabilities;
 mod cm_derive_stable_key;
 mod cm_hmac;
 mod cm_random_generate;
+mod cm_sha;
 mod ecdsa_verify;
 mod get_idev_csr;
 mod get_ldev_cert;
@@ -69,6 +70,7 @@ use capabilities::CapabilitiesCmd;
 use cm_derive_stable_key::CmDeriveStableKeyCmd;
 use cm_hmac::CmHmacCmd;
 use cm_random_generate::CmRandomGenerateCmd;
+use cm_sha::CmShaCmd;
 use ecdsa_verify::EcdsaVerifyCmd;
 use get_idev_csr::{GetIdevEcc384CsrCmd, GetIdevMldsa87CsrCmd};
 use get_ldev_cert::GetLdevCertCmd;
@@ -439,6 +441,7 @@ impl FirmwareProcessor {
                         persistent_data,
                         resp,
                     )?,
+                    CommandId::CM_SHA => CmShaCmd::execute(cmd_bytes, env.sha2_512_384, resp)?,
                     CommandId::OCP_LOCK_REPORT_HEK_METADATA => {
                         OcpLockReportHekMetadataCmd::execute(
                             cmd_bytes,

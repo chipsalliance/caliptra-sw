@@ -676,11 +676,12 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
 11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)
 12. **CM_RANDOM_GENERATE**: This command returns random numbers from Caliptra's RNG for Device Ownership Transfer or other flows. [CM_RANDOM_GENERATE](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_random_generate)
-13. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 IDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_ecc384_cert)
-14. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
-15. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
+13. **CM_SHA**: This ROM-only command (ROM 2.0.1+ only) computes a SHA-384 or SHA-512 hash of input data in a single operation. This is useful for MCU ROM to verify signatures and hashes against Vendor PK hash without needing its own hash implementation. Unlike the runtime CM_SHA_INIT/CM_SHA_UPDATE/CM_SHA_FINAL commands, this is a one-shot operation that does not support streaming or contexts. See [CM_SHA](#cm_sha) below for details.
+14. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 IDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_ecc384_cert)
+15. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
+16. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
 
-16. **ZEROIZE_UDS_FE**
+17. **ZEROIZE_UDS_FE**
 
 Zeroizes (sets to 0xFFFFFFFF) the UDS (Unique Device Secret) and/or FE (Field Entropy) partitions in the OTP fuse controller. This command is typically used during device decommissioning or ownership transfer flows.
 
@@ -718,6 +719,32 @@ Command Code: `0x5A45_5546` ("ZEUF")
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | dpe_result    | u32      | Result code, 0 on success.
+
+#### CM_SHA
+
+This ROM-only command computes a SHA-384 or SHA-512 hash of input data in a single one-shot operation. This command is designed for MCU ROM to verify signatures and hashes (e.g., against Vendor PK hash) without requiring its own hash implementation.
+
+**Note:** This command is only available in ROM. Runtime firmware should use the streaming CM_SHA_INIT, CM_SHA_UPDATE, and CM_SHA_FINAL commands instead, which support contexts and incremental hashing.
+
+Command Code: `0x434D_5348` ("CMSH")
+
+*Table: `CM_SHA` input arguments*
+
+| **Name**       | **Type**      | **Description**
+| -------------- | ------------- | ---------------
+| chksum         | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| hash_algorithm | u32           | Hash algorithm: 1 = SHA-384, 2 = SHA-512. Value 0 is reserved and will return an error.
+| input_size     | u32           | Size of input data in bytes. Maximum 262,132 bytes (256 KB minus 12-byte header overhead) in passive mode, and 16,372 bytes in subsystem mode for 2.1 (16 KB minus overhead).
+| input          | u8[input_size]| Input data to hash. Variable size up to the mailbox capacity.
+
+*Table: `CM_SHA` output arguments*
+
+| **Name**      | **Type**      | **Description**
+| ------------- | ------------- | ---------------
+| chksum        | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status   | u32           | FIPS status. 0 = approved mode.
+| data_len      | u32           | Length of hash output in bytes. 48 for SHA-384, 64 for SHA-512.
+| hash          | u8[data_len]  | The computed hash value. Variable size based on algorithm.
 
 #### Downloading firmware image from mailbox
 
