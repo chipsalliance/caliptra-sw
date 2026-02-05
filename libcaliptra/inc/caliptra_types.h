@@ -190,6 +190,25 @@ struct caliptra_increment_pcr_reset_counter_req
     uint32_t index;
 };
 
+struct caliptra_get_pcr_log_req
+{
+    struct caliptra_req_header hdr;
+};
+
+struct caliptra_get_pcr_log_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[952];
+};
+
+struct pcr_log_entry {
+    uint16_t id;
+    uint16_t reserved;
+	uint32_t pcr_ids;
+	uint8_t pcr_data[48];
+};
+
 struct caliptra_quote_pcrs_req
 {
     struct caliptra_req_header hdr;

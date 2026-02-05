@@ -64,6 +64,9 @@ impl CommandId {
     // The revoke exported CDI handle command.
     pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
 
+    // Get PCR log command.
+    pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
+
     // The reallocate DPE context limits command.
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -169,6 +172,7 @@ pub enum MailboxResp {
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
+    GetPcrLog(GetPcrLogResp),
 }
 
 impl MailboxResp {
@@ -194,6 +198,7 @@ impl MailboxResp {
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -219,6 +224,7 @@ impl MailboxResp {
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -280,6 +286,7 @@ pub enum MailboxReq {
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq),
+    GetPcrLog(MailboxReqHeader),
 }
 
 impl MailboxReq {
@@ -308,6 +315,7 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_bytes()),
+            MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -336,6 +344,7 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -364,6 +373,7 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
+            MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
         }
     }
 
@@ -1270,6 +1280,33 @@ pub struct ReallocateDpeContextLimitsResp {
     pub new_pl1_context_limit: u32,
 }
 impl Response for ReallocateDpeContextLimitsResp {}
+
+// GET_PCR_LOG
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetPcrLogResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; GetPcrLogResp::DATA_MAX_SIZE], // variable length
+}
+impl GetPcrLogResp {
+    pub const DATA_MAX_SIZE: usize = 952; // max 17 pcr log entries
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
+}
+impl ResponseVarSize for GetPcrLogResp {}
+
+impl Default for GetPcrLogResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
