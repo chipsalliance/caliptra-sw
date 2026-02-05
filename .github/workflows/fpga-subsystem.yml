@@ -6,6 +6,9 @@ on:
   merge_group:
   workflow_call:
     inputs:
+      mcu-commit:
+        type: string
+        required: false
       artifact-suffix:
         type: string
         required: false
@@ -34,6 +37,9 @@ on:
 
   workflow_dispatch:
     inputs:
+      mcu-commit:
+        type: string
+        required: false
       fpga-itrng:
         default: true
         type: boolean
@@ -76,7 +82,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: e362d273e0775f63bf54414fb1cc5a365d687895
+      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || 'e362d273e0775f63bf54414fb1cc5a365d687895' }}
 
     steps:
       - name: Checkout repo
