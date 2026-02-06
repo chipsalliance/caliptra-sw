@@ -130,7 +130,7 @@ jobs:
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
       rom-version: ${{ matrix.hw_config.rom }}
-      branch: "caliptra-2.0.0"
+      branch: "caliptra-2.0"
 
 
   create-release-2-0:
