@@ -552,9 +552,11 @@ impl HwModel for ModelFpgaRealtime {
         println!("AXI reset");
         m.axi_reset();
 
+        // TODO(mtimkovich): uds_fuse_row_granularity_64 should be written to cptra_hw_config
+        // here but that register is readonly.
+
         // Set generic input wires.
-        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
-        m.set_generic_input_wires(&input_wires);
+        m.set_generic_input_wires(&[0, 0]);
 
         // Set Security State signal wires
         m.set_security_state(params.security_state);

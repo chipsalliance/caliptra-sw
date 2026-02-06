@@ -1840,7 +1840,13 @@ impl HwModel for ModelFpgaSubsystem {
         }));
 
         // Set generic input wires.
-        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 31, 0];
+        // The FPGA has generic input wire bit 0, word 0 set to HW_CONFIG fuse granularity,
+        // where 0 = 64, 1 = 32
+        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 0, 0];
+        println!(
+            "Setting input wires {:x} {:x}",
+            input_wires[0], input_wires[1]
+        );
         m.set_generic_input_wires(&input_wires);
 
         m.set_mci_generic_input_wires(&[0, 0]);

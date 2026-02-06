@@ -218,13 +218,18 @@ impl HwModel for ModelEmulated {
             if params.ocp_lock_en {
                 hw_config |= 1 << 6
             }
+            // 0: 64-bits, 1: 32-bits
+            if params.uds_fuse_row_granularity_64 {
+                hw_config &= !(1 << 1);
+            } else {
+                hw_config |= 1 << 1;
+            }
             hw_config
         };
         root_bus.soc_reg.set_hw_config(hw_config.into());
         root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
 
-        let input_wires = (!params.uds_fuse_row_granularity_64 as u32) << 31;
-        root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
+        root_bus.soc_reg.set_generic_input_wires(&[0, 0]);
 
         let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
         let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
