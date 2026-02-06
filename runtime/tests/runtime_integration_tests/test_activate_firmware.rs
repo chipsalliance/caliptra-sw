@@ -335,6 +335,7 @@ fn test_activate_invalid_fw_id() {
 
     let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
 
+    // Just adding a comment to test CI on a clean branch
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
         hdr: MailboxReqHeader { chksum: 0 },
