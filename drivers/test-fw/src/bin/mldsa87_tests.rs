@@ -703,7 +703,8 @@ fn test_gen_key_pair() {
         )
         .unwrap()
     };
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
@@ -727,7 +728,8 @@ fn test_gen_key_pair() {
 }
 
 fn test_sign() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -755,7 +757,8 @@ fn test_sign() {
 }
 
 fn test_sign_caller_provided_private_key() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -792,7 +795,8 @@ fn generate_msg<const N: usize>() -> [u8; N] {
 }
 
 fn test_sign_and_verify_var() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -840,7 +844,8 @@ fn test_sign_and_verify_var() {
 
 #[allow(dead_code)]
 fn test_sign_caller_provided_private_key_var_msg() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -871,7 +876,8 @@ fn test_sign_caller_provided_private_key_var_msg() {
 }
 
 fn test_keygen_caller_provided_seed() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -901,7 +907,8 @@ fn test_keygen_caller_provided_seed() {
 
 #[allow(dead_code)]
 fn test_keygen_caller_provided_seed_var_msg() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let mut trng = unsafe {
         Trng::new(
@@ -932,7 +939,8 @@ fn test_keygen_caller_provided_seed_var_msg() {
 }
 
 fn test_verify() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     assert_eq!(
         ml_dsa87
@@ -947,7 +955,8 @@ fn test_verify() {
 }
 
 fn test_verify_failure() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let msg = Mldsa87Msg::from([0xff; 64]);
 

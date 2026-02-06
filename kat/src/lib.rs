@@ -53,7 +53,7 @@ pub struct InitializedDrivers {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
+pub fn execute_kat(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrivers> {
     cprintln!("[kat] ++");
 
     cprintln!("[kat] sha1");

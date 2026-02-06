@@ -85,7 +85,7 @@ impl From<[u8; 64]> for MlKemDecapsulationKey {
 
 pub struct MlKem<'a> {
     sha: &'a mut Sha3,
-    ml_kem: &'a mut MlKem1024,
+    ml_kem: &'a mut MlKem1024<'a>,
 }
 
 impl MlKem<'_> {
@@ -97,7 +97,7 @@ impl MlKem<'_> {
 
 impl<'a> MlKem<'a> {
     /// Create a new instance of `MlKem`
-    pub fn new(sha: &'a mut Sha3, ml_kem: &'a mut MlKem1024) -> Self {
+    pub fn new(sha: &'a mut Sha3, ml_kem: &'a mut MlKem1024<'a>) -> Self {
         Self { sha, ml_kem }
     }
 

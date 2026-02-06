@@ -16,8 +16,8 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    CaliptraResult, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, PcrBank, PersistentDataAccessor,
-    Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    Abr, CaliptraResult, Ecc384, Hmac, KeyVault, Mailbox, PcrBank, PersistentDataAccessor, Sha1,
+    Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
     abr::AbrReg, csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
@@ -61,8 +61,8 @@ pub struct FmcEnv {
     /// Persistent Data
     pub persistent_data: PersistentDataAccessor,
 
-    /// Mldsa87 Engine
-    pub mldsa: Mldsa87,
+    /// ABR Engine (ML-DSA)
+    pub abr: Abr,
 }
 
 impl FmcEnv {
@@ -94,7 +94,7 @@ impl FmcEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa: Mldsa87::new(AbrReg::new()),
+            abr: Abr::new(AbrReg::new()),
         })
     }
 }

@@ -12,7 +12,7 @@ use suites::CipherSuite;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
+use crate::{Abr, Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
 
 pub mod aead;
 mod encryption_context;
@@ -171,14 +171,15 @@ impl HpkeContext {
     pub fn get_pub_key(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         hpke_handle: &HpkeHandle,
         pub_out: &mut [u8],
     ) -> CaliptraResult<usize> {
         for key in self.priv_keys.iter() {
             match key {
                 HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
-                    let mut ml_kem = MlKem::new(sha, ml_kem);
+                    let mut ml_kem_driver = MlKem1024::new(abr.abr_reg());
+                    let mut ml_kem = MlKem::new(sha, &mut ml_kem_driver);
                     let pub_out = pub_out
                         .get_mut(..MlKem::NPK)
                         .and_then(|pub_out| <[u8; MlKem::NPK]>::mut_from_bytes(pub_out).ok())
@@ -211,7 +212,7 @@ impl HpkeContext {
     pub fn decap(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         hmac: &mut Hmac,
         trng: &mut Trng,
         hpke_handle: &HpkeHandle,
@@ -222,7 +223,8 @@ impl HpkeContext {
             match key {
                 HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
                     let mut kdf = Hmac384::new(hmac);
-                    let mut ml_kem = MlKem::new(sha, ml_kem);
+                    let mut ml_kem_driver = MlKem1024::new(abr.abr_reg());
+                    let mut ml_kem = MlKem::new(sha, &mut ml_kem_driver);
                     let enc = enc
                         .get(..MlKem::NENC)
                         .and_then(|enc| MlKemEncapsulatedSecret::ref_from_bytes(enc).ok())
@@ -289,7 +291,7 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
 
     fn setup_base_s(
         &self,
-        kem: &mut MlKem,
+        kem: &mut Self::K<'_>,
         kdf: &mut Hmac384,
         trng: &mut Trng,
         pkr: &MlKemEncapsulationKey,
