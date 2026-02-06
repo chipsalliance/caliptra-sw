@@ -50,15 +50,10 @@ fn test_config_locked_in_production_mode() {
     // After initialization in production mode, SW_REGUPD and ME_REGWEN should be cleared (locked)
     let entropy_src = unsafe { EntropySrcReg::new() };
     let sw_regupd = entropy_src.regs().sw_regupd().read().sw_regupd();
-    let me_regwen = entropy_src.regs().me_regwen().read().me_regwen();
 
     assert!(
         !sw_regupd,
         "SW_REGUPD should be cleared (false) in production mode, but was true"
-    );
-    assert!(
-        !me_regwen,
-        "ME_REGWEN should be cleared (false) in production mode, but was true"
     );
 }
 

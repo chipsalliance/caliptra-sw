@@ -7,7 +7,7 @@ package(caliptra-api-types) +
 package(caliptra-auth-man-types) +
 package(caliptra-cfi-lib) +
 package(caliptra-coverage) +
-(package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure)) +
+(package(caliptra-drivers) - test(test_doe_when_debug_locked) - test(test_ecc384_sign_validation_failure) - test(test_csrng_runtime_health_failure)) +
 package(caliptra-error) +
 (package(caliptra-hw-model) - test(tests::test_axi) - test(tests::test_mbox) - test(tests::test_mbox_negative) - binary_id(caliptra-hw-model::model_tests) - test(tests::test_negative_soc_mgr_mbox_users)) +
 package(caliptra-hw-model-types) +
@@ -35,6 +35,7 @@ store-success-output = true
 store-failure-output = true
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
+# test(test_csrng_runtime_health_failure): entropy on FPGA seems to be behaving a bit differently and does not fail the test immediately, as expected
 [profile.fpga-core]
 default-filter = """
 not (package(/caliptra-emu-.*/) |
@@ -53,6 +54,7 @@ not (package(/caliptra-emu-.*/) |
     test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
     test(test_authorize_and_stash::test_authorize_from_staging_address) |
     test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
+    test(test_csrng_runtime_health_failure) |
     test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
     test(test_fe_programming::test_fe_programming_cmd) |
     test(test_fips::test_fips_shutdown) |

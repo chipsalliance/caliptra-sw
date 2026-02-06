@@ -71,6 +71,25 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
 
+### Entropy Source Configuration Registers
+
+The ROM configures the entropy source (CSRNG) during initialization using the following registers:
+
+| Register                         | Field/Bits    | Description                                             |
+| :------------------------------- | :------------ | :------------------------------------------------------ |
+| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 512). This is the window size for all health tests when entropy is tested in FIPS mode. |
+| SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 1536). The test fails if any window has more than this threshold of 1's. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 512). The test fails if any window has less than this threshold of 1's. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [15:0]  | Repetition Count test threshold (default: 41). The test fails if an RNG wire repeats the same bit this many times in a row. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [31:16] | Alert threshold (default: 2). Number of health check failures before an alert is triggered. |
+
+**Notes:**
+- If any threshold value is set to 0, the ROM uses the default value specified above.
+- These configuration values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset).
+- In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
+- In production mode, ROM locks the entropy source configuration after programming to prevent modification.
+
 For a comprehensive overview of the SOC interface registers, please refer to the following link::
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
@@ -1223,3 +1242,23 @@ Fake ROM reduces boot time by doing the following:
 - The image builder exposes the argument "fake" that can be used to generate the fake versions
 
 To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
+
+## Optional UART via Generic Output Wires
+
+For debugging and development purposes, the ROM (when built with the `emu` feature) can output log messages using the `CPTRA_GENERIC_OUTPUT_WIRES[0]` register as an optional UART interface. This provides a simple mechanism for observing ROM execution without requiring a dedicated UART peripheral.
+
+### Protocol
+
+The UART output uses the following encoding in `CPTRA_GENERIC_OUTPUT_WIRES[0]`:
+
+| Bits    | Description                                                                 |
+| :------ | :-------------------------------------------------------------------------- |
+| [7:0]   | Character data (ASCII printable characters 0x20-0x7E, newline 0x0A, tab 0x09). Non-printable characters are replaced with 0xFE. |
+| [8]     | Toggle bit. This bit is toggled every time a new character is written, allowing external observers to detect new characters without introspecting internal signals. |
+| [31:9]  | Reserved |
+
+### Usage
+
+- The SOC or testbench can monitor `CPTRA_GENERIC_OUTPUT_WIRES[0]` and detect new characters by observing changes to bit 8.
+- When bit 8 changes, the new character is available in bits [7:0].
+- If desired, this can be wired to a FIFO or other mechanism for output.
