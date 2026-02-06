@@ -32,7 +32,7 @@ use crate::{pcr_reset::PcrResetCounter, KeyId};
 pub use fw::*;
 
 pub const ECC384_MAX_IDEVID_CSR_SIZE: usize = 512;
-pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
+pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 896;
 pub const MAN1_SIZE: u32 = 17 * 1024;
 pub const MAN2_SIZE: u32 = 17 * 1024;
 pub const DATAVAULT_MAX_SIZE: u32 = 15 * 1024;
@@ -46,7 +46,7 @@ pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
-pub const MLDSA87_MAX_CSR_SIZE: usize = 7716;
+pub const MLDSA87_MAX_CSR_SIZE: usize = 8192;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;

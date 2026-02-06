@@ -212,7 +212,6 @@ impl FirmwareProcessor {
             &env.soc_ifc,
             &mut env.pcr_bank,
             &mut env.sha2_512_384,
-            info,
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 

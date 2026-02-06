@@ -353,7 +353,7 @@ struct caliptra_get_fmc_alias_ecc384_csr_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
-    uint8_t data[768];
+    uint8_t data[896];
 };
 
 struct caliptra_get_fmc_alias_mldsa87_csr_resp

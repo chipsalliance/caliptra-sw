@@ -33,14 +33,6 @@ use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
 use rand::Rng;
 
-const FLAG_BIT_NOT_CONFIGURED: u32 = 1 << 0;
-const FLAG_BIT_NOT_SECURE: u32 = 1 << 1;
-const FLAG_BIT_DEBUG: u32 = 1 << 3;
-const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
-
-const FLAG_MASK: u32 =
-    FLAG_BIT_NOT_CONFIGURED | FLAG_BIT_NOT_SECURE | FLAG_BIT_DEBUG | FLAG_BIT_FIXED_WIDTH;
-
 const AUTH_KEY_ID_OID: &str = "2.5.29.35";
 const TCG_UEID_OID: &str = "2.23.133.5.4.4";
 const TCG_TCB_INFO_OID: &str = "2.23.133.5.4.1";
@@ -429,31 +421,42 @@ fn fixed_width_svn(svn: u8) -> u16 {
 
 // Make a tcg-dice-MultiTcbInfo extension
 pub fn make_fmc_dice_tcb_info_ext(
-    flags: u32,
     svn: u8,
-    svn_fuses: u8,
-    device_fwids: &[FwidParam],
+    owner_device_fwids: &[FwidParam],
+    vendor_device_fwids: &[FwidParam],
     fmc_fwids: &[FwidParam],
 ) -> X509Extension {
     let wide_svn = fixed_width_svn(svn);
-    let wide_svn_fuses = fixed_width_svn(svn_fuses);
 
-    let be_flags = flags.to_be_bytes();
-    let be_flags_mask = FLAG_MASK.reverse_bits().to_be_bytes();
-
-    let device_asn1_fwids: Vec<&Fwid> = device_fwids.iter().map(|f| &f.fwid).collect();
-    let device_info = TcbInfo {
+    let owner_device_asn1_fwids: Vec<&Fwid> = owner_device_fwids.iter().map(|f| &f.fwid).collect();
+    let owner_device_info = TcbInfo {
         vendor: None,
         model: None,
         version: None,
-        svn: Some(wide_svn_fuses.into()),
+        svn: None,
         layer: None,
         index: None,
-        fwids: Some(asn1::SequenceOfWriter::new(&device_asn1_fwids)),
-        flags: asn1::BitString::new(be_flags.as_ref(), 0),
+        fwids: Some(asn1::SequenceOfWriter::new(&owner_device_asn1_fwids)),
+        flags: None,
         vendor_info: None,
-        tcb_type: Some(b"DEVICE_INFO"),
-        flags_mask: asn1::BitString::new(be_flags_mask.as_ref(), 0),
+        tcb_type: Some(b"CALIPTRA_2_X_FUSE_OWNER_INFO"),
+        flags_mask: None,
+    };
+
+    let vendor_device_asn1_fwids: Vec<&Fwid> =
+        vendor_device_fwids.iter().map(|f| &f.fwid).collect();
+    let vendor_device_info = TcbInfo {
+        vendor: None,
+        model: None,
+        version: None,
+        svn: None,
+        layer: None,
+        index: None,
+        fwids: Some(asn1::SequenceOfWriter::new(&vendor_device_asn1_fwids)),
+        flags: None,
+        vendor_info: None,
+        tcb_type: Some(b"CALIPTRA_2_X_FUSE_VENDOR_INFO"),
+        flags_mask: None,
     };
 
     let fmc_asn1_fwids: Vec<&Fwid> = fmc_fwids.iter().map(|f| &f.fwid).collect();
@@ -467,11 +470,12 @@ pub fn make_fmc_dice_tcb_info_ext(
         fwids: Some(asn1::SequenceOfWriter::new(&fmc_asn1_fwids)),
         flags: None,
         vendor_info: None,
-        tcb_type: Some(b"FMC_INFO"),
+        tcb_type: Some(b"CALIPTRA_2_X_FMC_FIRMWARE_INFO"),
         flags_mask: None,
     };
 
-    let tcb_infos = asn1::SequenceOfWriter::new(vec![&device_info, &fmc_info]);
+    let tcb_infos =
+        asn1::SequenceOfWriter::new(vec![&owner_device_info, &vendor_device_info, &fmc_info]);
 
     let der = asn1::write_single(&tcb_infos).unwrap();
     let der = Asn1OctetString::new_from_bytes(&der).unwrap();
@@ -494,7 +498,7 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
         fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
         flags: None,
         vendor_info: None,
-        tcb_type: Some(b"RT_INFO"),
+        tcb_type: Some(b"CALIPTRA_2_X_RT_FIRMWARE_INFO"),
         flags_mask: None,
     };
 
