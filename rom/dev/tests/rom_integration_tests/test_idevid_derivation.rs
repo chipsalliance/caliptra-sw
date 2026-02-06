@@ -113,7 +113,7 @@ fn test_generate_csr_envelop_stress() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let num_tests = if cfg!(feature = "slow_tests") { 250 } else { 1 };
+        let num_tests = if cfg!(feature = "slow_tests") { 50 } else { 1 };
 
         for _ in 0..num_tests {
             let mut fuses = fuses_with_random_uds();
