@@ -108,9 +108,6 @@ fn fuses_with_random_uds() -> Fuses {
 
 #[test]
 fn test_generate_csr_envelop_stress() {
-    if true {
-        return; // ignore for now so we can debug other tests
-    }
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
