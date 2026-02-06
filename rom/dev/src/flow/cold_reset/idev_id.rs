@@ -300,6 +300,11 @@ impl InitDevIdLayer {
         // Create a HMAC tag for the CSR Envelop.
         let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
 
+        // Explicitly initialize envelope metadata for marker and size.
+        let default = InitDevIdCsrEnvelope::default();
+        csr_envelop.marker = default.marker;
+        csr_envelop.size = default.size;
+
         // Data to be HMACed is everything before the CSR MAC.
         let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
         let envlope_slice = csr_envelop

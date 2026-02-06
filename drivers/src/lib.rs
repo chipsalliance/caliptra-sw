@@ -110,6 +110,7 @@ pub use mldsa87::{
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsrs;
+pub use persistent::IDEVID_CSR_ENVELOP_MARKER;
 #[cfg(feature = "runtime")]
 pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 pub use persistent::{
