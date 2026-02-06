@@ -101,7 +101,7 @@ impl SetAuthManifestCmd {
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::vendor_signed_data_range();
@@ -203,7 +203,7 @@ impl SetAuthManifestCmd {
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::owner_pub_keys_range();
@@ -303,7 +303,7 @@ impl SetAuthManifestCmd {
         image_metadata_col_digest: &ImageDigest384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
@@ -415,7 +415,7 @@ impl SetAuthManifestCmd {
         image_metadata_col_digest: &ImageDigest384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
@@ -557,7 +557,7 @@ impl SetAuthManifestCmd {
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
         verify_only: bool,
     ) -> CaliptraResult<()> {
@@ -752,41 +752,43 @@ impl SetAuthManifestCmd {
             fuse_pqc_key_type
         };
         let persistent_data = drivers.persistent_data.get_mut();
-        // Verify the vendor signed data (vendor public keys + flags).
-        Self::verify_vendor_signed_data(
-            auth_manifest_preamble,
-            &persistent_data.rom.manifest1.preamble,
-            &mut drivers.sha2_512_384,
-            &mut drivers.ecc384,
-            &mut drivers.sha256,
-            &mut drivers.mldsa87,
-            pqc_key_type,
-        )?;
+        drivers.abr.with_mldsa87(|mut mldsa87| {
+            // Verify the vendor signed data (vendor public keys + flags).
+            Self::verify_vendor_signed_data(
+                auth_manifest_preamble,
+                &persistent_data.rom.manifest1.preamble,
+                &mut drivers.sha2_512_384,
+                &mut drivers.ecc384,
+                &mut drivers.sha256,
+                &mut mldsa87,
+                pqc_key_type,
+            )?;
 
-        // Verify the owner public keys.
-        Self::verify_owner_pub_keys(
-            auth_manifest_preamble,
-            &persistent_data.rom.manifest1.preamble,
-            &mut drivers.sha2_512_384,
-            &mut drivers.ecc384,
-            &mut drivers.sha256,
-            &mut drivers.mldsa87,
-            pqc_key_type,
-        )?;
+            // Verify the owner public keys.
+            Self::verify_owner_pub_keys(
+                auth_manifest_preamble,
+                &persistent_data.rom.manifest1.preamble,
+                &mut drivers.sha2_512_384,
+                &mut drivers.ecc384,
+                &mut drivers.sha256,
+                &mut mldsa87,
+                pqc_key_type,
+            )?;
 
-        Self::process_image_metadata_col(
-            manifest_buf
-                .get(preamble_size..)
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
-            auth_manifest_preamble,
-            &mut persistent_data.fw.auth_manifest_image_metadata_col,
-            &mut drivers.sha2_512_384,
-            &mut drivers.ecc384,
-            &mut drivers.sha256,
-            &mut drivers.mldsa87,
-            pqc_key_type,
-            verify_only,
-        )?;
+            Self::process_image_metadata_col(
+                manifest_buf
+                    .get(preamble_size..)
+                    .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
+                auth_manifest_preamble,
+                &mut persistent_data.fw.auth_manifest_image_metadata_col,
+                &mut drivers.sha2_512_384,
+                &mut drivers.ecc384,
+                &mut drivers.sha256,
+                &mut mldsa87,
+                pqc_key_type,
+                verify_only,
+            )
+        })?;
 
         if !verify_only {
             persistent_data.fw.auth_manifest_digest =

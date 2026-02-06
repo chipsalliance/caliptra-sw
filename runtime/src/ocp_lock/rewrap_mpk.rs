@@ -70,7 +70,7 @@ impl RewrapMpkCmd {
 
         let (current_ak, new_ak) = drivers.ocp_lock_context.decapsulate_rotation_access_keys(
             &mut drivers.sha3,
-            &mut drivers.ml_kem,
+            &mut drivers.abr,
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.aes,

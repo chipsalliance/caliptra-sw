@@ -16,6 +16,7 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::hpke::{self, kem::MlKemEncapsulationKey, Hpke, HpkeMlKemContext};
+use caliptra_drivers::MlKem1024;
 use caliptra_drivers_test_bin::TestRegisters;
 use caliptra_test_harness::test_suite;
 
@@ -602,23 +603,23 @@ fn test_ml_kem_1024_test_vector() {
     // SAFETY: This API is unsafe to discourage usage in firmware. It's used here to verify the
     // HPKE implementation against a known test vector.
     let hpke = unsafe { HpkeMlKemContext::from_seed(*TEST_VECTOR.ikm_r) };
-    let mut ml_kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut regs.ml_kem);
     let mut hkdf = hpke::kdf::Hmac384::new(&mut regs.hmac);
 
     let mut pk_rm = [0; hpke::kem::MlKem::NPK];
-    hpke.serialize_public_key(&mut ml_kem, &mut pk_rm).unwrap();
+    {
+        let mut ml_kem = MlKem1024::new(regs.abr.abr_reg());
+        let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut ml_kem);
+        hpke.serialize_public_key(&mut kem, &mut pk_rm).unwrap();
+    }
     assert_eq!(pk_rm.as_ref(), TEST_VECTOR.pk_rm);
 
     let enc = TEST_VECTOR.enc.into();
-    let mut reader = hpke
-        .setup_base_r(
-            &mut ml_kem,
-            &mut hkdf,
-            &mut regs.trng,
-            &enc,
-            &TEST_VECTOR.info,
-        )
-        .unwrap();
+    let mut reader = {
+        let mut ml_kem = MlKem1024::new(regs.abr.abr_reg());
+        let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut ml_kem);
+        hpke.setup_base_r(&mut kem, &mut hkdf, &mut regs.trng, &enc, &TEST_VECTOR.info)
+    }
+    .unwrap();
 
     for vector in TEST_VECTOR.encryptions {
         assert_eq!(*vector.nonce, <[u8; 12]>::from(reader.compute_nonce()));
@@ -639,23 +640,34 @@ fn test_ml_kem_1024_self_talk() {
     let mut regs = TestRegisters::default();
 
     let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
-    let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut regs.ml_kem);
     let mut hkdf = hpke::kdf::Hmac384::new(&mut regs.hmac);
 
     let mut pk_rm = [0; hpke::kem::MlKem::NPK];
-    hpke.serialize_public_key(&mut kem, &mut pk_rm).unwrap();
-    let (enc, mut sender) = hpke
-        .setup_base_s(
+    {
+        let mut ml_kem = MlKem1024::new(regs.abr.abr_reg());
+        let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut ml_kem);
+        hpke.serialize_public_key(&mut kem, &mut pk_rm).unwrap();
+    }
+
+    let (enc, mut sender) = {
+        let mut ml_kem = MlKem1024::new(regs.abr.abr_reg());
+        let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut ml_kem);
+        hpke.setup_base_s(
             &mut kem,
             &mut hkdf,
             &mut regs.trng,
             &MlKemEncapsulationKey::from(pk_rm),
             &TEST_VECTOR.info,
         )
-        .unwrap();
-    let mut reader = hpke
-        .setup_base_r(&mut kem, &mut hkdf, &mut regs.trng, &enc, &TEST_VECTOR.info)
-        .unwrap();
+    }
+    .unwrap();
+
+    let mut reader = {
+        let mut ml_kem = MlKem1024::new(regs.abr.abr_reg());
+        let mut kem = hpke::kem::MlKem::new(&mut regs.sha3, &mut ml_kem);
+        hpke.setup_base_r(&mut kem, &mut hkdf, &mut regs.trng, &enc, &TEST_VECTOR.info)
+    }
+    .unwrap();
 
     for vector in TEST_VECTOR.encryptions {
         let mut ct = [0; 58];

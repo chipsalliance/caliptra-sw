@@ -18,6 +18,7 @@ mod array;
 mod array_concat;
 mod wait;
 
+mod abr;
 mod aes;
 mod bounded_address;
 pub mod cmac_kdf;
@@ -62,6 +63,7 @@ mod soc_ifc;
 mod trng;
 mod trng_ext;
 
+pub use abr::Abr;
 pub use aes::{
     Aes, AesCmacOp, AesContext, AesGcm, AesGcmContext, AesGcmIv, AesGcmIvBlock, AesGcmOp,
     AesGcmTag, AesKey, AesOperation, AES_BLOCK_SIZE_BYTES, AES_BLOCK_SIZE_WORDS,

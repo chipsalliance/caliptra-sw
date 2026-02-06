@@ -506,7 +506,8 @@ pub fn test_sign_external_mu() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let sign_rnd = Mldsa87SignRnd::default(); // Deterministic signing
     let test = acvp_vector::EXTERNAL_MU_TEST;
@@ -524,7 +525,8 @@ pub fn test_sign_external_mu() {
 }
 
 pub fn test_verify_external_mu() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
 
     let test = acvp_vector::EXTERNAL_MU_TEST;
     assert_eq!(
