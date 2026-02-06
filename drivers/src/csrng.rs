@@ -91,7 +91,8 @@ impl Csrng {
         // If already enabled, assume it was configured correctly by a previous call.
         if e.module_enable().read().module_enable() == FALSE {
             // Configure entropy_src
-            set_health_check_thresholds(e, soc_ifc.regs());
+            let entropy_cfg = read_entropy_configuration(&soc_ifc.regs());
+            set_health_check_thresholds(e, entropy_cfg);
 
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
@@ -99,18 +100,23 @@ impl Csrng {
                     .threshold_scope(TRUE)
                     .rng_bit_enable(FALSE)
             });
+
+            // We allow the SoC to set bypass mode so that entropy can be
+            // characterized directly, without passing through conditioning.
+            if (soc_ifc.regs().ss_strap_generic().at(2).read() >> 31) & 1 == 1 {
+                e.entropy_control().modify(|w| w.es_type(TRUE));
+            }
             e.module_enable().write(|w| w.module_enable(TRUE));
             check_for_alert_state(result.entropy_src.regs())?;
 
             // Lock entropy_src configuration if not in debug mode.
             // Per security model: ROM programs once, then locks permanently.
             // - SW_REGUPD: When cleared, configuration registers become read-only
-            // - ME_REGWEN: When cleared, MODULE_ENABLE becomes read-only
             // In debug mode (debug_locked == false), leave unlocked for characterization.
+            // We leave the module enable able to be turned off for potential power savings in runtime.
             if soc_ifc.regs().cptra_security_state().read().debug_locked() {
                 let e = result.entropy_src.regs_mut();
-                e.sw_regupd().write(|w| w.sw_regupd(false));
-                e.me_regwen().write(|w| w.me_regwen(false));
+                e.sw_regupd().modify(|w| w.sw_regupd(false));
             }
         }
 
@@ -217,7 +223,7 @@ fn check_for_alert_state(
             ALERT_HANG => {
                 let alert_counts = entropy_src.alert_fail_counts().read();
 
-                if alert_counts.repcnt_fail_count() > 0 {
+                if alert_counts.repcnt_fail_count() > 0 || alert_counts.repcnts_fail_count() > 0 {
                     return Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED);
                 }
 
@@ -372,73 +378,133 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     }
 }
 
+fn read_entropy_configuration(
+    soc_ifc: &soc_ifc::RegisterBlock<ureg::RealMmio>,
+) -> EntropyConfiguration {
+    // Configure alert threshold from CPTRA_ITRNG_ENTROPY_CONFIG_1[31:16]
+    // Default alert threshold value
+    const DEFAULT_ALERT_THRESHOLD: u32 = 2;
+
+    let alert_threshold = soc_ifc.cptra_i_trng_entropy_config_1().read().rsvd();
+
+    let alert_threshold = if alert_threshold == 0 {
+        DEFAULT_ALERT_THRESHOLD
+    } else {
+        alert_threshold
+    };
+
+    // Configure health test windows from SS_STRAP_GENERIC[2][15:0]
+    // This is the window size for all health tests.
+    // This value is used when entropy is being tested in FIPS mode.
+    // The default value is (2048 bits * 1 clock/4 bits);
+    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
+
+    let health_test_window = soc_ifc.ss_strap_generic().at(2).read() & 0xffff;
+
+    let health_test_window = if health_test_window == 0 {
+        DEFAULT_HEALTH_TEST_WINDOW
+    } else {
+        health_test_window
+    };
+
+    // Configure Repetition Count Test threshold
+
+    // The Repetition Count test fails if:
+    //  * An RNG wire repeats the same bit THRESHOLD times in a row.
+    // See section 4.4.1 of NIST.SP.800-90B for more information of about this test.
+
+    // If the SOC doesn't specify a repcnt threshold, use this default, which assumes a min-entropy of 1.
+    const DEFAULT_REPCNT_THRESHOLD: u32 = 41;
+
+    let repcnt_threshold = soc_ifc
+        .cptra_i_trng_entropy_config_1()
+        .read()
+        .repetition_count();
+
+    let repcnt_threshold = if repcnt_threshold == 0 {
+        DEFAULT_REPCNT_THRESHOLD
+    } else {
+        repcnt_threshold
+    };
+
+    // The Adaptive Proportion test fails if:
+    //  * Any window has more than the HI threshold of 1's; or,
+    //  * Any window has less than the LO threshold of 1's.
+    // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
+
+    // If soc doesn't set the window size, then use these defaults.
+    // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
+    // respectively.
+    //
+    // This window value of 2048 comes from the OpenTitan documentation, since two noise
+    // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
+    const ADAPTP_WINDOW_SIZE_BITS: u32 = 2048;
+    const ADAPTP_DEFAULT_HI: u32 = 3 * (ADAPTP_WINDOW_SIZE_BITS / 4);
+    const ADAPTP_DEFAULT_LO: u32 = ADAPTP_WINDOW_SIZE_BITS / 4;
+
+    let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
+    let adaptp_hi_threshold = config0.high_threshold();
+    let adaptp_lo_threshold = config0.low_threshold();
+
+    let adaptp_hi_threshold = if adaptp_hi_threshold == 0 {
+        ADAPTP_DEFAULT_HI
+    } else {
+        adaptp_hi_threshold
+    };
+
+    let adaptp_lo_threshold = if adaptp_lo_threshold == 0 {
+        ADAPTP_DEFAULT_LO
+    } else {
+        adaptp_lo_threshold
+    };
+
+    // ensure lo < hi by using defaults if hi >= lo
+    let (adaptp_hi_threshold, adaptp_lo_threshold) = if adaptp_hi_threshold <= adaptp_lo_threshold {
+        (ADAPTP_DEFAULT_HI, ADAPTP_DEFAULT_LO)
+    } else {
+        (adaptp_hi_threshold, adaptp_lo_threshold)
+    };
+
+    EntropyConfiguration {
+        alert_threshold,
+        health_test_window,
+        repcnt_threshold,
+        adaptp_hi_threshold,
+        adaptp_lo_threshold,
+    }
+}
+
+pub struct EntropyConfiguration {
+    pub alert_threshold: u32,
+    pub health_test_window: u32,
+    pub repcnt_threshold: u32,
+    pub adaptp_hi_threshold: u32,
+    pub adaptp_lo_threshold: u32,
+}
+
+/// Configure thresholds for the NIST health checks.
 fn set_health_check_thresholds(
     e: entropy_src::RegisterBlock<ureg::RealMmioMut>,
-    soc_ifc: soc_ifc::RegisterBlock<ureg::RealMmio>,
+    entropy_cfg: EntropyConfiguration,
 ) {
-    // Configure thresholds for the two approved NIST health checks:
-    //  1. Repetition Count Test
-    //  2. Adaptive Proportion Test
+    // configure the alert threshold and its inverse as required
+    e.alert_threshold().write(|w| {
+        w.alert_threshold(entropy_cfg.alert_threshold)
+            .alert_threshold_inv((!entropy_cfg.alert_threshold) & 0xffff)
+    });
 
-    {
-        // The Repetition Count test fails if:
-        //  * An RNG wire repeats the same bit THRESHOLD times in a row.
-        // See section 4.4.1 of NIST.SP.800-90B for more information of about this test.
+    e.health_test_windows()
+        .write(|w| w.fips_window(entropy_cfg.health_test_window));
 
-        // If the SOC doesn't specify a threshold, use this default, which assumes a min-entropy of 1.
-        const DEFAULT_THRESHOLD: u32 = 41;
+    e.repcnt_thresholds()
+        .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
 
-        let threshold = soc_ifc
-            .cptra_i_trng_entropy_config_1()
-            .read()
-            .repetition_count();
+    e.repcnts_thresholds()
+        .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
 
-        e.repcnt_thresholds().write(|w| {
-            w.fips_thresh(if threshold == 0 {
-                DEFAULT_THRESHOLD
-            } else {
-                threshold
-            })
-        });
-    }
+    e.adaptp_hi_thresholds()
+        .write(|w| w.fips_thresh(entropy_cfg.adaptp_hi_threshold));
 
-    {
-        // The Adaptive Proportion test fails if:
-        //  * Any window has more than the HI threshold of 1's; or,
-        //  * Any window has less than the LO threshold of 1's.
-        // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
-
-        // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
-        // respectively.
-        const WINDOW_SIZE_BITS: u32 = 2048;
-        const DEFAULT_HI: u32 = 3 * (WINDOW_SIZE_BITS / 4);
-        const DEFAULT_LO: u32 = WINDOW_SIZE_BITS / 4;
-
-        // TODO: What to do if HI <= LO?
-        let threshold_hi = soc_ifc
-            .cptra_i_trng_entropy_config_0()
-            .read()
-            .high_threshold();
-
-        let threshold_lo = soc_ifc
-            .cptra_i_trng_entropy_config_0()
-            .read()
-            .low_threshold();
-
-        e.adaptp_hi_thresholds().write(|w| {
-            w.fips_thresh(if threshold_hi == 0 {
-                DEFAULT_HI
-            } else {
-                threshold_hi
-            })
-        });
-
-        e.adaptp_lo_thresholds().write(|w| {
-            w.fips_thresh(if threshold_lo == 0 {
-                DEFAULT_LO
-            } else {
-                threshold_lo
-            })
-        });
-    }
+    e.adaptp_lo_thresholds()
+        .write(|w| w.fips_thresh(entropy_cfg.adaptp_lo_threshold));
 }
