@@ -9,6 +9,9 @@ on:
       mcu-commit:
         type: string
         required: false
+      repository:
+        default: 'chipsalliance/caliptra-sw'
+        type: string
       artifact-suffix:
         type: string
         required: false
@@ -75,6 +78,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
           submodules: recursive
       - name: Compute cache-keys
@@ -115,6 +119,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: Restore sysroot from cache
@@ -295,6 +300,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: 'Download Test Binaries Artifact'
@@ -407,6 +413,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: 'Download test results'
