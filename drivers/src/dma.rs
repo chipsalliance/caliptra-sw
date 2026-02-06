@@ -696,6 +696,15 @@ impl<'a> DmaRecovery<'a> {
         })
     }
 
+    pub fn reset_indirect_fifo_ctrl(&self) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery
+                .indirect_fifo_ctrl_0()
+                .modify(|val| val.reset(Self::RESET_VAL));
+        })
+    }
+
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
@@ -731,19 +740,12 @@ impl<'a> DmaRecovery<'a> {
         self.dma.flush();
 
         for i in (0..read_transaction.length).step_by(4) {
-            // if this is an I3C transfer, wait for the FIFO to be not empty
+            // if this is an I3C transfer, wait for payload available
             if matches!(
                 read_transaction.block_mode,
                 BlockMode::RecoveryIndirectFifoData
             ) {
-                self.with_regs(|r| {
-                    while r
-                        .sec_fw_recovery_if()
-                        .indirect_fifo_status_0()
-                        .read()
-                        .empty()
-                    {}
-                })?;
+                while !self.dma.payload_available() {}
             }
 
             // translate to single dword transfer

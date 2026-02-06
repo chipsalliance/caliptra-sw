@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::flow::cold_reset::cm_sha::CmShaCmd;
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
@@ -19,6 +20,9 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::CmShaReqHdr;
+use caliptra_api::mailbox::CmShaResp;
+use caliptra_api::mailbox::CM_SHA_REQ_HDR_SIZE;
 use caliptra_api::mailbox::{AlgorithmType, GetLdevCertResp};
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
@@ -561,6 +565,51 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
+                    CommandId::CM_SHA => {
+                        // For CM_SHA, we read the header from the mailbox and access
+                        // the input data directly from mailbox memory to avoid a large
+                        // stack allocation (the input can be up to 256KB minus header).
+                        let raw_mbox = txn.raw_mailbox_contents();
+                        let txn_dlen = txn.dlen() as usize;
+
+                        // Parse header from raw mailbox contents (using get to avoid panic)
+                        let hdr_bytes = raw_mbox
+                            .get(..CM_SHA_REQ_HDR_SIZE)
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                        let req_hdr = CmShaReqHdr::ref_from_bytes(hdr_bytes)
+                            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+                        // Verify checksum on the entire message (minus checksum field)
+                        let chksum_size = core::mem::size_of_val(&req_hdr.hdr.chksum);
+                        let chksum_data = raw_mbox
+                            .get(chksum_size..txn_dlen)
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                        if !caliptra_common::checksum::verify_checksum(
+                            req_hdr.hdr.chksum,
+                            txn.cmd(),
+                            chksum_data,
+                        ) {
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
+                        }
+
+                        // Get input data directly from mailbox memory (using get to avoid panic)
+                        let input_size = req_hdr.input_size as usize;
+                        let input = raw_mbox
+                            .get(
+                                CM_SHA_REQ_HDR_SIZE..CM_SHA_REQ_HDR_SIZE.saturating_add(input_size),
+                            )
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+
+                        let mut resp = CmShaResp::default();
+                        CmShaCmd::execute(
+                            req_hdr.hash_algorithm,
+                            input,
+                            env.sha2_512_384,
+                            resp.as_mut_bytes(),
+                        )?;
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
                     CommandId::CM_RANDOM_GENERATE => {
                         let mut request = CmRandomGenerateReq::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
@@ -723,6 +772,8 @@ impl FirmwareProcessor {
 
             // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
             dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
+            // Reset the Indirect FIFO control so that payload_available is reset.
+            dma_recovery.reset_indirect_fifo_ctrl()?;
 
             let (recovery_status, next_image_idx, device_status) = if info.is_err() {
                 (

@@ -405,6 +405,7 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-image-types",
  "caliptra-lms-types",
+ "caliptra-okref",
  "caliptra-registers",
  "caliptra-test",
  "cfg-if",
@@ -781,6 +782,10 @@ dependencies = [
  "zerocopy",
  "zeroize",
 ]
+
+[[package]]
+name = "caliptra-okref"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-registers"
@@ -2031,6 +2036,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "ocp-eat"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "ecdsa",
+ "p384",
+ "rand",
+ "sha2",
 ]
 
 [[package]]

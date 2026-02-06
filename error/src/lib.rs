@@ -1757,6 +1757,12 @@ impl CaliptraError {
             0x0102000C,
             "Firmware Processor Error: SVN too large"
         ),
+        // 0x0102000D Reserved for compatibility with 2.1
+        (
+            FW_PROC_MAILBOX_INVALID_PARAMS,
+            0x0102000E,
+            "Firmware Processor Error: Mailbox invalid parameters"
+        ),
         (
             FMC_ALIAS_CERT_VERIFY_FAILURE,
             0x01030001,
