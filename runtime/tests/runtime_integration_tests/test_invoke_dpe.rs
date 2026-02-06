@@ -395,12 +395,15 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
         DpeResult::Success,
     );
 
-    // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..100 {
+    // Wait for the runtime to be ready for the next command (ensure runtime_cmd_active is cleared)
+    for _ in 0..1000 {
         model.step();
     }
 
     model.warm_reset_flow().unwrap();
+
+    // Wait for mailbox to be ready after warm reset (this is set after warm reset checks complete)
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
     // check attestation is not disabled via FW_INFO
     let payload = MailboxReqHeader {
