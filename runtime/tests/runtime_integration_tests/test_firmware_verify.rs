@@ -45,7 +45,7 @@ fn test_firmware_verify_invalid_image() {
         invalid_image.as_slice(),
     );
 
-    if cfg!(feature = "fpga_subsystem") {
+    if cfg!(any(feature = "fpga_subsystem", feature = "emu_subsystem")) {
         // Since the mbox is smaller a different error gets reported
         assert_eq!(
             resp.unwrap_err(),
