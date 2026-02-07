@@ -1444,7 +1444,7 @@ pub struct CertifyKeyExtendedResp {
     pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
 }
 impl CertifyKeyExtendedResp {
-    pub const CERTIFY_KEY_RESP_SIZE: usize = 8000;
+    pub const CERTIFY_KEY_RESP_SIZE: usize = 11392;
 }
 impl Response for CertifyKeyExtendedResp {}
 
@@ -1514,7 +1514,7 @@ pub struct InvokeDpeResp {
     pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 8000;
+    pub const DATA_MAX_SIZE: usize = 12 * 1024;
 }
 impl ResponseVarSize for InvokeDpeResp {}
 
