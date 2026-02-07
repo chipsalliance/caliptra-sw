@@ -4,19 +4,19 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    fmc_alis_csr.rs
+    ldevid_csr_ecc_384.rs
 
 Abstract:
 
-    FMC Alias CSR Certificate Signing Request related code.
+    ECC384 Local Device ID Certificate Signing Request related code.
 
 --*/
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs_ecc_384.rs"));
+include!(concat!(env!("OUT_DIR"), "/local_dev_id_csr_tbs_ecc_384.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/fmc_alias_csr_tbs_ecc_384.rs"}
+include! {"../build/local_dev_id_csr_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -32,26 +32,16 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; FmcAliasCsrTbsEcc384::UEID_LEN];
-    const TEST_OWNER_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN];
-    const TEST_VENDOR_INFO_HASH: &[u8] =
-        &[0xEFu8; FmcAliasCsrTbsEcc384Params::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasCsrTbsEcc384Params::TCB_INFO_FMC_TCI_LEN];
-    const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
+    const TEST_UEID: &[u8] = &[0xAB; LocalDevIdCsrTbsEcc384::UEID_LEN];
 
-    fn make_test_csr(subject_key: &Ecc384AsymKey) -> FmcAliasCsrTbsEcc384 {
-        let params = FmcAliasCsrTbsEcc384Params {
+    fn make_test_csr(subject_key: &Ecc384AsymKey) -> LocalDevIdCsrTbsEcc384 {
+        let params = LocalDevIdCsrTbsEcc384Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
-            tcb_info_owner_device_info_hash: &TEST_OWNER_INFO_HASH.try_into().unwrap(),
-            tcb_info_vendor_device_info_hash: &TEST_VENDOR_INFO_HASH.try_into().unwrap(),
-            tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
-            tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
         };
 
-        FmcAliasCsrTbsEcc384::new(&params)
+        LocalDevIdCsrTbsEcc384::new(&params)
     }
 
     #[test]
@@ -68,45 +58,23 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), FmcAliasCsrTbsEcc384::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), LocalDevIdCsrTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET
-                ..FmcAliasCsrTbsEcc384::PUBLIC_KEY_OFFSET + FmcAliasCsrTbsEcc384::PUBLIC_KEY_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET
+                ..LocalDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET
+                    + LocalDevIdCsrTbsEcc384::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET
-                ..FmcAliasCsrTbsEcc384::SUBJECT_SN_OFFSET + FmcAliasCsrTbsEcc384::SUBJECT_SN_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET
+                ..LocalDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET
+                    + LocalDevIdCsrTbsEcc384::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::UEID_OFFSET
-                ..FmcAliasCsrTbsEcc384::UEID_OFFSET + FmcAliasCsrTbsEcc384::UEID_LEN],
+            &csr.tbs()[LocalDevIdCsrTbsEcc384::UEID_OFFSET
+                ..LocalDevIdCsrTbsEcc384::UEID_OFFSET + LocalDevIdCsrTbsEcc384::UEID_LEN],
             TEST_UEID,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN],
-            TEST_OWNER_INFO_HASH,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN],
-            TEST_VENDOR_INFO_HASH,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_FMC_TCI_LEN],
-            TEST_FMC_HASH,
-        );
-        assert_eq!(
-            &csr.tbs()[FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_OFFSET
-                ..FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_OFFSET
-                    + FmcAliasCsrTbsEcc384::TCB_INFO_FW_SVN_LEN],
-            TEST_TCB_INFO_FW_SVN,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
@@ -190,9 +158,9 @@ mod tests {
         };
 
         assert!(!eku_ext.critical);
-        // Should contain TCG_DICE_KP_ECA (2.23.133.5.4.100.12) and TCG_DICE_KP_ATTEST_LOC (2.23.133.5.4.100.9)
+        // Should contain TCG_DICE_KP_IDENTITY_LOC (2.23.133.5.4.100.7) and TCG_DICE_KP_ECA (2.23.133.5.4.100.12)
+        assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .7)));
         assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .12)));
-        assert!(eku.other.contains(&oid!(2.23.133 .5 .4 .100 .9)));
 
         // UEID
         let ueid_ext = requested_extensions
@@ -206,33 +174,22 @@ mod tests {
             })
             .unwrap();
         assert!(!ueid_ext.critical);
-
-        // TCB info
-        let multi_tcb_info = requested_extensions
-            .iter()
-            .find(|ext| {
-                if let ParsedExtension::UnsupportedExtension { oid } = ext.parsed_extension() {
-                    oid == &oid!(2.23.133 .5 .4 .5)
-                } else {
-                    false
-                }
-            })
-            .unwrap();
-        assert!(!multi_tcb_info.critical);
     }
 
     #[test]
     #[cfg(feature = "generate_templates")]
-    fn test_fmc_alias_csr_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_csr_tbs.rs")).unwrap();
+    fn test_ldevid_template() {
+        let manual_template = std::fs::read(std::path::Path::new(
+            "./build/local_dev_id_csr_tbs_ecc_384.rs",
+        ))
+        .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/fmc_alias_csr_tbs.rs"
+            "/local_dev_id_csr_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
-            panic!("Auto-generated FMC Alias CSR template is not equal to the manual template.")
+            panic!("Auto-generated LDevID CSR template is not equal to the manual template.")
         }
     }
 }
