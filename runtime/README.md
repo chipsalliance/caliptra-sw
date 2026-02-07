@@ -370,6 +370,40 @@ Command Code: `0x4341_5053` ("CAPS")
 | `RT_BASE`       | 64      | Base capabilities for Caliptra Runtime v2.1.
 | `RT_OCP_LOCK`   | 65      | Runtime firmware and hardware supports OCP LOCK.
 
+### AUTH_DEBUG_UNLOCK_REQ
+
+Initiates the production debug unlock flow.
+
+This command requests a device-unique debug unlock challenge from Caliptra.
+The returned challenge is later used by the caller to construct an
+authentication token that proves authorization for the requested debug unlock
+level.
+
+Command Code: `0x5044_5552` ("PDUR")
+
+*Table: `AUTH_DEBUG_UNLOCK_REQ` input arguments*
+
+| **Name**     | **Type** | **Description**                                                         |
+|--------------|----------|-------------------------------------------------------------------------|
+| chksum       | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+| unlock_level | u32      | Requested debug unlock level. Only the low 8 bits are used; upper bits must be zero. |
+
+*Table: `AUTH_DEBUG_UNLOCK_REQ` output arguments*
+
+| **Name**                 | **Type** | **Description**                                                      |
+|--------------------------|----------|----------------------------------------------------------------------|
+| chksum                   | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status              | u32      | Indicates FIPS approval status or an error.                           |
+| unique_device_identifier | u8[32]   | Device unique identifier (UID).                                       |
+| challenge                | u8[48]   | Random challenge to be incorporated into the authentication token.    |
+
+After receiving the challenge, the caller must submit an authentication token
+using the production debug unlock procedure.
+
+For the complete product debug unlock flow, see the ROM
+documentation:
+https://github.com/chipsalliance/caliptra-sw/blob/vmhatre/staging-2.1/rom/dev/README.md#debug-unlock-1
+
 ### GET\_IDEV\_ECC384\_CERT
 
 Exposes a command to reconstruct the ECC384 IDEV CERT.
