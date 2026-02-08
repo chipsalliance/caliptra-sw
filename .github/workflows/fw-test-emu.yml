@@ -63,6 +63,7 @@ jobs:
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+            export FIPS_TEST_ROM_EXP_VERSION="$(echo "${{ inputs.rom-version }}" | sed 's/\./_/g')"
           fi
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
