@@ -319,6 +319,7 @@ jobs:
 
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
             VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+            VARS+=" FIPS_TEST_ROM_EXP_VERSION=$(echo "${{ inputs.rom-version }}" | sed 's/\./_/g')"
           fi
 
           echo VARS=${VARS}

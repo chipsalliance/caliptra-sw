@@ -65,7 +65,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: "2.0", rom: "2.0", suffix: "rom-2.0", base_features: "slow_tests" }
+          - { name: "2.0", rom: "2.0.0", suffix: "rom-2.0", base_features: "slow_tests" }
           - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
         rng:
           - { name: "etrng", extra: "" }
@@ -90,7 +90,7 @@ jobs:
       fail-fast: false
       matrix:
         hw_config:
-          - { name: "rom-2.0", hw: "latest", rom: "2.0", suffix_prefix: "rom-2.0" }
+          - { name: "rom-2.0", hw: "latest", rom: "2.0.0", suffix_prefix: "rom-2.0" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
@@ -116,7 +116,7 @@ jobs:
       fail-fast: false
       matrix:
         hw_config:
-          - { name: "rom-2.0", hw: "latest", rom: "2.0", suffix_prefix: "rom-2.0" }
+          - { name: "rom-2.0", hw: "latest", rom: "2.0.0", suffix_prefix: "rom-2.0" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }

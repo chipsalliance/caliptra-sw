@@ -32,7 +32,7 @@ fn test_get_ecc_csr() {
     let result = model.mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes());
 
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 | CiRomVersion::Latest => {
+        CiRomVersion::Rom2_0_0 | CiRomVersion::Latest => {
             let response = result.unwrap().unwrap();
 
             let mut get_idv_csr_resp = GetIdevCsrResp::default();
@@ -71,7 +71,7 @@ fn test_get_mldsa_csr() {
     let result = model.mailbox_execute(CommandId::GET_IDEV_MLDSA87_CSR.into(), payload.as_bytes());
 
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 | CiRomVersion::Latest => {
+        CiRomVersion::Rom2_0_0 | CiRomVersion::Latest => {
             let response = result.unwrap().unwrap();
 
             let mut get_idv_csr_resp = GetIdevCsrResp::default();
@@ -110,7 +110,7 @@ fn test_missing_csr() {
         .unwrap_err();
 
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 | CiRomVersion::Latest => assert_eq!(
+        CiRomVersion::Rom2_0_0 | CiRomVersion::Latest => assert_eq!(
             response,
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
         ),
@@ -128,7 +128,7 @@ fn test_missing_csr() {
         .unwrap_err();
 
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 | CiRomVersion::Latest => assert_eq!(
+        CiRomVersion::Rom2_0_0 | CiRomVersion::Latest => assert_eq!(
             response,
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
         ),

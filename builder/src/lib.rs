@@ -37,7 +37,7 @@ pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
 #[derive(Debug, PartialEq)]
 pub enum CiRomVersion {
-    Rom2_0,
+    Rom2_0_0,
     Latest,
 }
 
@@ -366,7 +366,7 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
 // Default is Latest
 pub fn get_ci_rom_version() -> CiRomVersion {
     match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
-        Ok("2.0") => CiRomVersion::Rom2_0,
+        Ok("2.0.0") => CiRomVersion::Rom2_0_0,
         Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
         Err(_) => CiRomVersion::Latest,
     }
@@ -377,7 +377,7 @@ pub fn get_ci_rom_version() -> CiRomVersion {
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 => {
+        CiRomVersion::Rom2_0_0 => {
             if rom_from_env == &firmware::ROM {
                 Ok(
                     include_bytes!("../../rom/ci_frozen_rom/2.0/caliptra-rom-2.0.0-62c8009.bin")
@@ -403,7 +403,7 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
 pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env_fpga(fpga);
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0 => {
+        CiRomVersion::Rom2_0_0 => {
             if rom_from_env == &firmware::ROM {
                 Ok(
                     include_bytes!("../../rom/ci_frozen_rom/2.0/caliptra-rom-2.0.0-62c8009.bin")
