@@ -195,3 +195,14 @@ jobs:
         with:
           name: release-info-2-x
           path: /tmp/release-info-2-x
+
+  publish-website:
+    name: Publish https://caliptra-sw.github.io/
+    needs:
+      create-release-2-x
+    uses: chipsalliance/caliptra-sw/.github/workflows/publish-website.yml
+    with:
+       workflow_file: "nightly-release.yml"
+    permissions:
+      pages: write
+      id-token: write

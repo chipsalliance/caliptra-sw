@@ -183,12 +183,3 @@ jobs:
         with:
           name: release-info
           path: /tmp/release-info
-
-  publish-website:
-    name: Publish https://caliptra-sw.github.io/
-    needs:
-      create-release
-    uses: chipsalliance/caliptra-sw/.github/workflows/publish-website.yml@caliptra-1.x
-    permissions:
-      pages: write
-      id-token: write
