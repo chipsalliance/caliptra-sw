@@ -74,7 +74,12 @@ const RT_EXP_2_0_0: RtExpVals = RtExpVals {
     fw_version: 0x0200_0000, // 2.0.0
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_0 };
+const RT_EXP_2_0_1: RtExpVals = RtExpVals {
+    fmc_version: 0x1001,     // 2.0.1
+    fw_version: 0x0200_0001, // 2.0.1
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_1 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -119,6 +124,7 @@ impl RtExpVals {
             match version.as_str() {
                 // Add more versions here
                 "2_0_0" => RT_EXP_2_0_0,
+                "2_0_1" => RT_EXP_2_0_1,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
                     version

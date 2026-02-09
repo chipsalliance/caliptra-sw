@@ -1,4 +1,4 @@
-# Caliptra Runtime Firmware v2.0
+# Caliptra Runtime Firmware v2.0.1
 
 *Spec version: 0.3*
 
