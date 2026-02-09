@@ -1,4 +1,4 @@
-# Caliptra - FMC Specification v2.0
+# Caliptra - FMC Specification v2.0.1
 
 *Spec Version: 0.9*
 
