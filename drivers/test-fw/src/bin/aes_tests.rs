@@ -75,7 +75,7 @@ const EXPECTED_MAC_4256: [u8; 16] = [
 ];
 
 fn test_cmac() {
-    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -128,7 +128,7 @@ fn test_cmac_kv() {
     );
     assert!(result.is_ok());
 
-    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
     // this is the expected derived key from the above seed.
     let key: [u8; 48] = [
         0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,

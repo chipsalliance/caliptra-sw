@@ -181,7 +181,7 @@ impl Drivers {
             PersistentDataAccessor::new(),
         )?;
 
-        let aes = Aes::new(AesReg::new(), AesClpReg::new());
+        let aes = Aes::new(AesReg::new(), AesClpReg::new())?;
         let soc_ifc = SocIfc::new(SocIfcReg::new());
         let persistent_data = PersistentDataAccessor::new();
 

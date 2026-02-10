@@ -245,7 +245,7 @@ fn test_dma_aes_mcu_sram_inplace() {
     if !soc.subsystem_mode() {
         return;
     }
-    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
 
     let mut trng = unsafe {
         Trng::new(
@@ -288,7 +288,7 @@ fn test_dma_aes_mcu_sram() {
     if !soc.subsystem_mode() {
         return;
     }
-    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
 
     let mut trng = unsafe {
         Trng::new(
@@ -343,7 +343,7 @@ fn test_dma_aes_mcu_sram_256kb() {
     );
 
     // Encrypt MCU SRAM
-    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
 
     let mut trng = unsafe {
         Trng::new(
