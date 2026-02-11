@@ -191,11 +191,21 @@ fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<
 #[allow(clippy::too_many_arguments)]
 impl Aes {
     /// Create a new AES driver.
-    pub fn new(aes: AesReg, aes_clp: AesClpReg) -> Self {
+    ///
+    /// Runs the non-GCM KATs (ECB, CBC, CTR, CMAC) at construction time.
+    /// GCM and CMAC-KDF KATs are run by `AesGcm::new()` instead.
+    pub fn new(aes: AesReg, aes_clp: AesClpReg) -> CaliptraResult<Self> {
         if cfg!(feature = "rom") {
             panic!("Do not use in ROM!");
         }
-        Self { aes, aes_clp }
+        let mut aes = Self { aes, aes_clp };
+        if cfg!(feature = "runtime") {
+            crate::kats::execute_ecb_kat(&mut aes)?;
+            crate::kats::execute_cbc_kat(&mut aes)?;
+            crate::kats::execute_ctr_kat(&mut aes)?;
+            crate::kats::execute_cmac_kat(&mut aes)?;
+        }
+        Ok(aes)
     }
 
     fn new_gcm(aes: AesReg, aes_clp: AesClpReg) -> Self {

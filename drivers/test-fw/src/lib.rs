@@ -97,7 +97,7 @@ impl Default for TestRegisters {
         let soc_ifc = unsafe { SocIfcReg::new() };
         let soc = SocIfc::new(soc_ifc);
         let hmac = unsafe { Hmac::new(HmacReg::new()) };
-        let aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+        let aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()).unwrap() };
         let trng = unsafe {
             Trng::new(
                 CsrngReg::new(),
