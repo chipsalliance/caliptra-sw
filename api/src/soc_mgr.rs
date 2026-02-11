@@ -306,7 +306,8 @@ pub trait SocManager {
             .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8]).unwrap();
+        let header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8])
+            .map_err(|_| CaliptraApiError::MailboxReqTypeTooSmall)?;
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
 
         let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)?
@@ -325,7 +326,8 @@ pub trait SocManager {
         let mut response = R::Resp::new_zeroed();
         response.as_mut_bytes()[..data.len()].copy_from_slice(data);
 
-        let (response_header, _) = MailboxRespHeader::read_from_prefix(data).unwrap();
+        let (response_header, _) = MailboxRespHeader::read_from_prefix(data)
+            .map_err(|_| CaliptraApiError::MailboxRespTypeTooSmall)?;
         let actual_checksum = calc_checksum(0, &data[4..]);
         if actual_checksum != response_header.chksum {
             return Err(CaliptraApiError::MailboxRespInvalidChecksum {
