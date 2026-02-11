@@ -1,0 +1,24 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-api-test-bin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-api = { workspace = true }
+caliptra-drivers = { workspace = true, features = ["emu"] }
+caliptra-registers = { workspace = true }
+caliptra-test-harness = { workspace = true }
+cfg-if.workspace = true
+ureg.workspace = true
+zerocopy.workspace = true
+
+[features]
+emu = ["caliptra-test-harness/emu"]
+riscv = ["caliptra-test-harness/riscv"]
+
+[[bin]]
+name = "api_mailbox_panic_test"
+path = "src/bin/api_mailbox_panic_test.rs"
+required-features = ["riscv"]

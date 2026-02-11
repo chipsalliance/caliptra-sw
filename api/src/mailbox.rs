@@ -10,7 +10,7 @@ use caliptra_image_types::{
 use caliptra_registers::mbox;
 use core::mem::size_of;
 use ureg::MmioMut;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
@@ -5007,31 +5007,25 @@ pub fn mbox_read_fifo(
     mbox: mbox::RegisterBlock<impl MmioMut>,
     buf: &mut [u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    use zerocopy::Unalign;
-
-    fn dequeue_words(mbox: &mbox::RegisterBlock<impl MmioMut>, buf: &mut [Unalign<u32>]) {
-        for word in buf.iter_mut() {
-            *word = Unalign::new(mbox.dataout().read());
-        }
-    }
-
     let dlen_bytes = mbox.dlen().read() as usize;
 
     let buf = buf
         .get_mut(..dlen_bytes)
         .ok_or(CaliptraApiError::UnableToReadMailbox)?;
 
-    let len_words = buf.len() / size_of::<u32>();
-    let (mut buf_words, suffix) = Ref::from_prefix_with_elems(buf, len_words)
-        .map_err(|_| CaliptraApiError::ReadBuffTooSmall)?;
-
-    dequeue_words(&mbox, &mut buf_words);
-    if !suffix.is_empty() {
-        let last_word = mbox.dataout().read();
-        let suffix_len = suffix.len();
-        suffix
-            .as_mut_bytes()
-            .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
+    let mut remaining = &mut buf[..];
+    while remaining.len() >= 4 {
+        let (chunk, rest) = remaining.split_at_mut(4);
+        let word = mbox.dataout().read().to_le_bytes();
+        chunk[0] = word[0];
+        chunk[1] = word[1];
+        chunk[2] = word[2];
+        chunk[3] = word[3];
+        remaining = rest;
+    }
+    if !remaining.is_empty() {
+        let last_word = mbox.dataout().read().to_le_bytes();
+        remaining.copy_from_slice(&last_word[..remaining.len()]);
     }
 
     Ok(())
