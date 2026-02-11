@@ -693,10 +693,11 @@ impl<'a> DmaRecovery<'a> {
 
         #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
         {
+            let len = (image_size_bytes as usize / 4).min(buffer.len());
             let read_transaction = DmaReadTransaction {
                 read_addr: addr,
                 fixed_addr: true,
-                length: image_size_bytes,
+                length: len as u32 * 4,
                 target: DmaReadTarget::AhbFifo,
                 aes_mode: false,
                 aes_gcm: false,
@@ -705,7 +706,7 @@ impl<'a> DmaRecovery<'a> {
 
             self.dma.flush();
             self.dma.setup_dma_read(read_transaction);
-            self.dma.dma_read_fifo(buffer);
+            self.dma.dma_read_fifo(&mut buffer[..len]);
             self.dma.wait_for_dma_complete();
         }
 
