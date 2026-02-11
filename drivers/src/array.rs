@@ -115,9 +115,15 @@ unsafe fn u8_to_u32_be_impl<const W: usize, const B: usize>(
     src: &[u8; B],
 ) {
     let dest = dest.as_mut_ptr() as *mut u32;
+    let src_ptr = src.as_ptr();
     for i in 0..W {
-        dest.add(i)
-            .write(u32::from_be_bytes(src[i * 4..][..4].try_into().unwrap()));
+        let p = src_ptr.add(i * 4);
+        // Volatile read to prevent optimization to unaligned word load
+        let b0 = core::ptr::read_volatile(p);
+        let b1 = core::ptr::read_volatile(p.add(1));
+        let b2 = core::ptr::read_volatile(p.add(2));
+        let b3 = core::ptr::read_volatile(p.add(3));
+        dest.add(i).write(u32::from_be_bytes([b0, b1, b2, b3]));
     }
 }
 
