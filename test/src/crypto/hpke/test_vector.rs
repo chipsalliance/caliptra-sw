@@ -2,9 +2,16 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::crypto::{ML_KEM_ID, P384_KEM_ID};
+
 /// This file contains the test vectors as defined in Appendix A of
 /// https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/03/.
 const HPKE_TEST_VECTOR_PQ: &str = include_str!("../../crypto/test_vectors/hpke-pq.json");
+
+/// Since there is no official test vector for "DH(P-384,SHA-384)-HKDF-SHA-384-AES-256-GCM"
+/// we generate our own. This is split into a separate file to avoid mixing with official test
+/// vectors.
+const HPKE_TEST_VECTOR_P384: &str = include_str!("../../crypto/test_vectors/hpke-p384.json");
 
 #[derive(Deserialize, Serialize)]
 pub struct Encryption {
@@ -54,7 +61,12 @@ impl HpkeTestArgs {
     pub fn new(kem_id: u16) -> Self {
         let kdf_id = 2;
         let aead_id = 2;
-        let test_vectors: Vec<HpkeTestArgs> = serde_json::from_str(HPKE_TEST_VECTOR_PQ).unwrap();
+
+        let test_vectors: Vec<HpkeTestArgs> = match kem_id {
+            ML_KEM_ID => serde_json::from_str(HPKE_TEST_VECTOR_PQ).unwrap(),
+            P384_KEM_ID => serde_json::from_str(HPKE_TEST_VECTOR_P384).unwrap(),
+            kem_id => panic!("Unknown kem_id: {kem_id}"),
+        };
 
         test_vectors
             .into_iter()
