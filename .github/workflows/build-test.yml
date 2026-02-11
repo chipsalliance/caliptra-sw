@@ -31,6 +31,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
+        with:
+          submodules: true
 
       - name: Test commit name
         run: |
@@ -60,6 +62,24 @@ jobs:
       - name: Check license headers
         run: |
           cargo run -p caliptra-file-header-fix --locked -- --check
+
+      - name: Verify if bitstream manifest is in sync with RTL
+        run: |
+          # 1. Extract hash from manifest
+          EXPECTED_HASH=$(grep "caliptra_rtl_commit" hw/fpga/bitstream_manifests/subsystem.toml | sed -E 's/.*=.*"(.+)".*/\1/')
+          
+          # 2. Get the hash from submodule
+          ACTUAL_HASH=$(git submodule status hw/latest/rtl | awk '{print $1}' | sed 's/^-//;s/^+//')
+
+          echo "Hash in manifest: $EXPECTED_HASH"
+          echo "Hash in submodule:  $ACTUAL_HASH"
+
+          # 3. Check
+          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "Error: The bitstream manifest (.toml) doesn't match with the RTL submodule commit."
+            echo "Please update the field caliptra_rtl_commit in subsystem.toml"
+            exit 1
+          fi
 
   build:
     needs: lint
