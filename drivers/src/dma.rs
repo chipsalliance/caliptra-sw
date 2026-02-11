@@ -13,6 +13,10 @@ Abstract:
 --*/
 
 use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState, SocIfc};
+use bitfield::bitfield;
+use caliptra_api::mailbox::{
+    OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
@@ -1108,5 +1112,202 @@ impl<'a> DmaOtpCtrl<'a> {
             unsafe { FuseCtrlRegisterBlock::new_with_mmio(core::ptr::null_mut::<u32>(), &mmio) };
         let t = f(regs);
         mmio.check_error(t)
+    }
+}
+
+// OCP LOCK Encryption engine CTRL command codes
+bitfield! {
+    struct EncryptionEngineCtrl(u32);
+    u8;
+    execute_bit, set_execute_bit: 0;
+    done_bit, set_done_bit: 1;
+    command_code, set_command_code: 5, 2;
+    error_code, _: 19, 16;
+    ready_bit, _: 31;
+}
+impl EncryptionEngineCtrl {
+    fn clear() -> Self {
+        let mut ctrl = Self(0);
+        ctrl.set_done_bit(true);
+        ctrl
+    }
+
+    fn execute(cmd: EncryptionEngineCommandCode) -> Self {
+        let mut ctrl = Self(0);
+        ctrl.set_command_code(cmd.into());
+        ctrl.set_execute_bit(true);
+        ctrl
+    }
+}
+
+// OCP LOCK Encryption engine error result codes
+bitfield! {
+    struct EncryptionEngineError(u8);
+    ready_bit, set_ready_bit: 0;
+    error_code, set_error_code: 7, 4;
+}
+
+#[allow(dead_code)]
+enum EncryptionEngineCommandCode {
+    LoadMek = 1,
+    UnloadMek = 2,
+    Zeroize = 3,
+}
+impl From<EncryptionEngineCommandCode> for u8 {
+    fn from(val: EncryptionEngineCommandCode) -> Self {
+        match val {
+            EncryptionEngineCommandCode::LoadMek => 1u8,
+            EncryptionEngineCommandCode::UnloadMek => 2u8,
+            EncryptionEngineCommandCode::Zeroize => 3u8,
+        }
+    }
+}
+
+pub struct DmaEncryptionEngine<'a> {
+    key_release_base: AxiAddr, // AxiAddr of MEK register
+    dma: &'a Dma,
+}
+
+impl<'a> DmaEncryptionEngine<'a> {
+    #[allow(dead_code)]
+    const OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET: usize = 0x0;
+    const OCP_LOCK_ENCRYPTION_ENGINE_METD_OFFSET: usize = 0x40;
+    const OCP_LOCK_ENCRYPTION_ENGINE_AUX_OFFSET: usize = 0x60;
+    const OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET: usize = 0x80;
+
+    #[inline(always)]
+    pub fn new(key_release_base: AxiAddr, dma: &'a Dma) -> Self {
+        Self {
+            key_release_base,
+            dma,
+        }
+    }
+
+    fn write_array_fifo(&self, transaction: DmaWriteTransaction, data: &[u32]) {
+        self.dma.flush();
+        self.dma.setup_dma_write(transaction);
+        for v in data {
+            self.dma.dma_write_fifo(*v);
+        }
+        self.dma.wait_for_dma_complete();
+    }
+
+    pub fn read_ctrl(&self) -> u32 {
+        let read_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET;
+        self.dma.read_dword(read_addr)
+    }
+
+    fn write_ctrl(&self, ctrl: u32) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_CTRL_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: core::mem::size_of::<u32>() as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.write_array_fifo(write_transaction, &[ctrl]);
+    }
+
+    pub fn write_metadata(&self, metadata: &[u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE]) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_METD_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+
+        let aligned_metadata = metadata.chunks_exact(size_of::<u32>()).enumerate().fold(
+            [0u32; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE / size_of::<u32>()],
+            |mut acc, (idx, chunk)| {
+                acc[idx] = u32::from_le_bytes(chunk.try_into().unwrap());
+                acc
+            },
+        );
+
+        self.write_array_fifo(write_transaction, &aligned_metadata);
+    }
+
+    pub fn write_aux(&self, aux: &[u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE]) {
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_AUX_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+
+        let aligned_aux = aux.chunks_exact(size_of::<u32>()).enumerate().fold(
+            [0u32; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE / size_of::<u32>()],
+            |mut acc, (idx, chunk)| {
+                acc[idx] = u32::from_le_bytes(chunk.try_into().unwrap());
+                acc
+            },
+        );
+
+        self.write_array_fifo(write_transaction, &aligned_aux);
+    }
+
+    pub fn clear_ctrl(&self) {
+        let ctrl = EncryptionEngineCtrl::clear();
+        self.write_ctrl(ctrl.0);
+    }
+
+    pub fn execute_unload_command(&self) {
+        let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::UnloadMek);
+        self.write_ctrl(ctrl.0);
+    }
+
+    pub fn execute_zeroization_command(&self) {
+        let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::Zeroize);
+        self.write_ctrl(ctrl.0);
+    }
+
+    fn check_error(value: u32) -> Option<u8> {
+        let ctrl = EncryptionEngineCtrl(value);
+        if ctrl.error_code() == 0u8 {
+            None
+        } else {
+            let mut error_byte = EncryptionEngineError(0);
+
+            error_byte.set_ready_bit(ctrl.ready_bit());
+            error_byte.set_error_code(ctrl.error_code());
+
+            Some(error_byte.0)
+        }
+    }
+
+    // Check if the encryption engine is ready
+    pub fn check_ready(&self) -> CaliptraResult<()> {
+        let ctrl = EncryptionEngineCtrl(self.read_ctrl());
+        if ctrl.ready_bit() {
+            Ok(())
+        } else {
+            Err(CaliptraError::OCP_LOCK_ENGINE_NOT_READY)
+        }
+    }
+
+    // Wait the execution to be done and return the resulting CTRL register value
+    pub fn wait_done(&self, soc_ifc: &SocIfc, timeout_mtime: u64) -> CaliptraResult<Option<u8>> {
+        let start_mtime = soc_ifc.get_timestamp();
+        loop {
+            let current_mtime = soc_ifc.get_timestamp();
+            let elapsed_mtime = current_mtime - start_mtime;
+
+            if elapsed_mtime > timeout_mtime {
+                Err(CaliptraError::OCP_LOCK_ENGINE_TIMEOUT)?
+            }
+
+            let ctrl = EncryptionEngineCtrl(self.read_ctrl());
+            if ctrl.done_bit() {
+                return Ok(Self::check_error(ctrl.0));
+            }
+        }
     }
 }

@@ -35,6 +35,7 @@ use crate::common::{
 };
 
 mod test_access_key;
+mod test_clear_key_cache;
 mod test_derive_mek;
 mod test_enable_mpk;
 mod test_endorse_hpke_pubkey;
@@ -42,10 +43,12 @@ mod test_enumerate_hpke_handles;
 mod test_generate_mek;
 mod test_generate_mpk;
 mod test_get_algorithms;
+mod test_get_status;
 mod test_initialize_mek_secret;
 mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
+mod test_unload_mek;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
