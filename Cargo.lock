@@ -214,9 +214,24 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
  "caliptra-api-types",
+ "caliptra-builder",
  "caliptra-emu-types",
  "caliptra-error",
+ "caliptra-image-types",
  "caliptra-registers",
+ "ureg",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-api-test-bin"
+version = "0.1.0"
+dependencies = [
+ "caliptra-api",
+ "caliptra-drivers",
+ "caliptra-registers",
+ "caliptra-test-harness",
+ "cfg-if 1.0.0",
  "ureg",
  "zerocopy",
 ]

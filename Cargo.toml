@@ -26,6 +26,7 @@ exclude = [
 
 members = [
   "api",
+  "api/test-fw",
   "api/types",
   "auth-manifest/app",
   "auth-manifest/gen",
@@ -95,6 +96,7 @@ bitfield = "0.14.0"
 bitflags = "2.4.0"
 bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
+caliptra-api-test-bin = { path = "api/test-fw" }
 caliptra-api-types = { path = "api/types" }
 caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }

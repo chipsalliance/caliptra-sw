@@ -16,4 +16,6 @@ caliptra-registers.workspace = true
 caliptra-api-types.workspace = true
 ureg.workspace = true
 
-[features]
+[dev-dependencies]
+caliptra-builder.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
