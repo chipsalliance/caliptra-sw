@@ -96,24 +96,18 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
     // while non-ROM builds have access to all AES modes via Aes.
     #[cfg(feature = "rom")]
     {
-        cprintln!("[kat] AES-GCM + KDF-CMAC");
         env.aes_gcm.run_kats(env.trng)?;
     }
 
     #[cfg(not(feature = "rom"))]
     {
-        cprintln!("[kat] KDF-CMAC");
         caliptra_drivers::kats::execute_cmackdf_kat(env.aes)?;
-        cprintln!("[kat] AES-ECB");
         caliptra_drivers::kats::execute_ecb_kat(env.aes)?;
-        cprintln!("[kat] AES-CBC");
         caliptra_drivers::kats::execute_cbc_kat(env.aes)?;
-        cprintln!("[kat] AES-CTR");
         caliptra_drivers::kats::execute_ctr_kat(env.aes)?;
-        cprintln!("[kat] AES-CMAC");
         caliptra_drivers::kats::execute_cmac_kat(env.aes)?;
-        cprintln!("[kat] AES-GCM");
         caliptra_drivers::kats::execute_gcm_kat(env.aes, env.trng)?;
+        caliptra_drivers::kats::execute_mlkem1024_kat(env.mlkem1024)?;
     }
 
     cprintln!("[kat] LMS");

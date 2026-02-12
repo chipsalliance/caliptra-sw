@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
+use crate::{cprintln, Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
 
 // Generated from Python code:
 // >>> from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -42,6 +42,7 @@ const CT: [u8; 48] = [
 ///
 /// * `CaliptraResult` - Result denoting the KAT outcome.
 pub fn execute_ecb_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    cprintln!("[kat] AES-ECB");
     let mut ciphertext: [u8; 48] = [0u8; 48];
     aes.aes_256_ecb(KEY, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
 

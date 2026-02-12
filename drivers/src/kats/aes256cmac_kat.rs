@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{cprintln, Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // FROM ACVP test vector:
 // {
@@ -57,6 +57,7 @@ const EXPECTED_MAC: LEArray4x4 =
 ///
 /// * `CaliptraResult` - Result denoting the KAT outcome.
 pub fn execute_cmac_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    cprintln!("[kat] AES-CMAC");
     let mac = aes.cmac(AesKey::Array(&KEY), &[])?;
     if mac != EXPECTED_MAC {
         Err(CaliptraError::KAT_AES_CIPHERTEXT_MISMATCH)?;

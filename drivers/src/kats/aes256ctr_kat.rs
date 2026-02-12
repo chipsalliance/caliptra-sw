@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{cprintln, Aes, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // From NIST SP800-38A, F.5.5
 // CTR-AES256.Encrypt
@@ -87,6 +87,7 @@ const CT: [u8; 64] = [
 ///
 /// * `CaliptraResult` - Result denoting the KAT outcome.
 pub fn execute_ctr_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    cprintln!("[kat] AES-CTR");
     let mut ciphertext: [u8; 64] = [0u8; 64];
     aes.aes_256_ctr(&KEY, &IV, 0, &PT[..], &mut ciphertext)?;
 

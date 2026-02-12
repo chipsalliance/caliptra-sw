@@ -174,6 +174,9 @@ pub mod fips_self_test_cmd {
 
             // SHA Acc Lock State
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
+
+            // MLKEM1024 Engine
+            mlkem1024: &mut env.ml_kem,
         };
 
         caliptra_kat::execute_kat(&mut kats_env)?;

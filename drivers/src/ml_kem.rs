@@ -133,8 +133,15 @@ pub struct MlKem1024 {
 }
 
 impl MlKem1024 {
-    pub fn new(mlkem: AbrReg) -> Self {
-        Self { mlkem }
+    pub fn new(mlkem: AbrReg) -> CaliptraResult<Self> {
+        let mut s = Self { mlkem };
+        s.run_kats()?;
+        Ok(s)
+    }
+
+    /// Re-run KATs (for FIPS self-test).
+    pub fn run_kats(&mut self) -> CaliptraResult<()> {
+        crate::kats::execute_mlkem1024_kat(self)
     }
 
     // Wait on the provided condition OR the error condition defined in this function
