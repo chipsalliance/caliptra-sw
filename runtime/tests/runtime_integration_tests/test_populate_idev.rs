@@ -6,7 +6,7 @@ use crate::common::{
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
 use dpe::{
     commands::{Command, GetCertificateChainCmd},
@@ -142,5 +142,35 @@ fn test_populate_idev_cert_size_too_big() {
     assert_eq!(
         pop_idev_cmd.populate_chksum(),
         Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
+    );
+}
+
+#[test]
+fn test_populate_idev_cert_call_outside_pl0() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    // Set Non-PL0 PAUSER
+    model.set_apb_pauser(2);
+
+    let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cert_size: PopulateIdevCertReq::MAX_CERT_SIZE as u32,
+        cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
+    });
+    pop_idev_cmd.populate_chksum().unwrap();
+
+    // call populate idev cert
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::POPULATE_IDEV_CERT),
+            pop_idev_cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        resp,
+        ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        )
     );
 }
