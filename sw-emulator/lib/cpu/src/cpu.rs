@@ -59,6 +59,7 @@ pub struct ImageInfo {
     stack_range: StackRange,
     code_range: CodeRange,
     stack_watermark: u32,
+    image_name: Option<String>,
 }
 
 impl ImageInfo {
@@ -67,6 +68,16 @@ impl ImageInfo {
             stack_watermark: stack_range.0,
             stack_range,
             code_range,
+            image_name: None,
+        }
+    }
+
+    pub fn with_name(stack_range: StackRange, code_range: CodeRange, image_name: String) -> Self {
+        Self {
+            stack_watermark: stack_range.0,
+            stack_range,
+            code_range,
+            image_name: Some(image_name),
         }
     }
 
@@ -116,6 +127,32 @@ impl StackInfo {
             max_stack_overflow: 0,
             has_overflowed: false,
         }
+    }
+}
+
+impl std::fmt::Display for StackInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for image in self.images.iter() {
+            if let Some(name) = &image.image_name {
+                let _ = writeln!(
+                    f,
+                    "Image '{}' used {} bytes ({} bytes remaining)",
+                    name,
+                    image.stack_range.0 - image.stack_watermark,
+                    image.stack_watermark - image.stack_range.1
+                );
+            } else {
+                let _ = writeln!(
+                    f,
+                    "Image [0x{:08x}-0x{:08x}] used {} bytes ({} bytes remaining)",
+                    image.code_range.0,
+                    image.code_range.1,
+                    image.stack_range.0 - image.stack_watermark,
+                    image.stack_watermark - image.stack_range.1
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -287,7 +324,7 @@ pub struct Cpu<TBus: Bus> {
     pub(crate) watch_ptr_cfg: WatchPtrCfg,
 
     pub code_coverage: CodeCoverage,
-    stack_info: Option<StackInfo>,
+    pub stack_info: Option<StackInfo>,
 
     /// CPU arguments
     args: CpuArgs,
@@ -307,15 +344,7 @@ impl<TBus: Bus> Drop for Cpu<TBus> {
     fn drop(&mut self) {
         if let Some(stack_info) = &self.stack_info {
             if let Ok(mut file) = File::create("/tmp/caliptra-stack-usage.txt") {
-                for image in stack_info.images.iter() {
-                    let _ = writeln!(
-                        file,
-                        "Image [0x{:08x}-0x{:08x}] used {} bytes",
-                        image.code_range.0,
-                        image.code_range.1,
-                        image.stack_range.0 - image.stack_watermark
-                    );
-                }
+                let _ = writeln!(file, "{}", stack_info);
             }
             if stack_info.has_overflowed {
                 panic!(

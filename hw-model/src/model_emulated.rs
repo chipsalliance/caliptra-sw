@@ -97,28 +97,37 @@ pub struct ModelEmulated {
     rom_callback: Option<ModelCallback>,
 }
 
-#[cfg(feature = "coverage")]
 impl Drop for ModelEmulated {
     fn drop(&mut self) {
-        let cov_path =
-            std::env::var(caliptra_coverage::CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
-        if cov_path.is_empty() {
-            return;
+        if let Some(stack_usage) = &self.cpu.stack_info {
+            let mut sink = self.output.sink();
+            let _ = sink.write_all(
+                format!("[EMU] Caliptra Stack Usage Summary:\n{}", stack_usage).as_bytes(),
+            );
         }
 
-        let CoverageBitmaps { rom, iccm } = self.code_coverage_bitmap();
-        let _ = caliptra_coverage::dump_emu_coverage_to_file(
-            cov_path.as_str(),
-            self._rom_image_tag,
-            rom,
-        );
+        #[cfg(feature = "coverage")]
+        {
+            let cov_path =
+                std::env::var(caliptra_coverage::CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
+            if cov_path.is_empty() {
+                return;
+            }
 
-        if let Some(iccm_image_tag) = self.iccm_image_tag {
+            let CoverageBitmaps { rom, iccm } = self.code_coverage_bitmap();
             let _ = caliptra_coverage::dump_emu_coverage_to_file(
                 cov_path.as_str(),
-                iccm_image_tag,
-                iccm,
+                self._rom_image_tag,
+                rom,
             );
+
+            if let Some(iccm_image_tag) = self.iccm_image_tag {
+                let _ = caliptra_coverage::dump_emu_coverage_to_file(
+                    cov_path.as_str(),
+                    iccm_image_tag,
+                    iccm,
+                );
+            }
         }
     }
 }
