@@ -400,6 +400,21 @@ pub mod runtime_tests {
     };
 }
 
+pub mod api_tests {
+    use super::*;
+
+    const BASE_FWID: FwId = FwId {
+        crate_name: "caliptra-api-test-bin",
+        bin_name: "",
+        features: &["emu"],
+    };
+
+    pub const MAILBOX: FwId = FwId {
+        bin_name: "api_mailbox_panic_test",
+        ..BASE_FWID
+    };
+}
+
 pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_WITH_UART,
@@ -465,4 +480,5 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MBOX,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
+    &api_tests::MAILBOX,
 ];

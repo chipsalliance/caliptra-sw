@@ -33,13 +33,13 @@ pub const NUM_PAUSERS: usize = 5;
 /// impl SocManager for RealSocManager {
 ///     /// Address of the mailbox, remapped for the SoC.
 ///     const SOC_MBOX_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_MBOX_ADDR);
-///     
+///
 ///     /// Address of the SoC interface, remapped for the SoC.
 ///     const SOC_IFC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_ADDR);
-///     
+///
 ///     /// Address of the SoC TRNG interface, remapped for the SoC.
 ///     const SOC_IFC_TRNG_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_TRNG_ADDR);
-///     
+///
 ///     /// Address of the SHA-512 accelerator, remapped for the SoC.
 ///     const SOC_SHA512_ACC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_SHA512_ACC_ADDR);
 ///
@@ -314,7 +314,8 @@ pub trait SocManager {
             .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8]).unwrap();
+        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8])
+            .map_err(|_| CaliptraApiError::MailboxReqTypeTooSmall)?;
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
 
         let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)? else {
@@ -332,7 +333,8 @@ pub trait SocManager {
         let mut response = R::Resp::new_zeroed();
         response.as_mut_bytes()[..data.len()].copy_from_slice(data);
 
-        let (response_header, _) = MailboxRespHeader::read_from_prefix(data).unwrap();
+        let (response_header, _) = MailboxRespHeader::read_from_prefix(data)
+            .map_err(|_| CaliptraApiError::MailboxRespTypeTooSmall)?;
         let actual_checksum = calc_checksum(0, &data[4..]);
         if actual_checksum != response_header.chksum {
             return Err(CaliptraApiError::MailboxRespInvalidChecksum {
