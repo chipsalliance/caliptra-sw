@@ -2,6 +2,7 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::error::CaliptraError;
 use caliptra_api::mailbox::MailboxReq;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
@@ -414,7 +415,7 @@ impl Default for BootParams<'_> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub enum ModelError {
     MailboxCmdFailed(u32),
     UnableToSetPauser,
@@ -453,6 +454,96 @@ pub enum ModelError {
     FusesAlreadyInitialized,
     StashMeasurementFailed,
     SubsystemSramError,
+}
+
+impl core::fmt::Debug for ModelError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> ::core::fmt::Result {
+        match self {
+            ModelError::MailboxCmdFailed(caliptra_error) => {
+                if let Ok(err) = CaliptraError::try_from(*caliptra_error) {
+                    writeln!(f, "{}", err)
+                } else {
+                    writeln!(f, "MailboxCmdFailed 0x{:x}", caliptra_error,)
+                }
+            }
+            ModelError::UnableToSetPauser => {
+                writeln!(f, "UnableToSetPauser")
+            }
+            ModelError::UnableToLockMailbox => {
+                writeln!(f, "UnableToLockMailbox")
+            }
+            ModelError::BufferTooLargeForMailbox => {
+                writeln!(f, "BufferTooLargeForMailbox")
+            }
+            ModelError::UploadFirmwareUnexpectedResponse => {
+                writeln!(f, "UploadFirmwareUnexpectedResponse")
+            }
+            ModelError::UnknownCommandStatus(status) => {
+                writeln!(f, "UnknownCommandStatus: {}", status,)
+            }
+            ModelError::NotReadyForFwErr => writeln!(f, "NotReadyForFwErr"),
+            ModelError::ReadyForFirmwareTimeout { cycles } => {
+                writeln!(f, "ReadyForFirmwareTimeout cycles {}", cycles,)
+            }
+            ModelError::ProvidedIccmTooLarge => {
+                writeln!(f, "ProvidedIccmTooLarge")
+            }
+            ModelError::ProvidedDccmTooLarge => {
+                writeln!(f, "ProvidedDccmTooLarge")
+            }
+            ModelError::UnexpectedMailboxFsmStatus { expected, actual } => writeln!(
+                f,
+                "UnexpectedMailboxFsmStatus expected {} actual {}",
+                expected, actual,
+            ),
+            ModelError::UploadMeasurementResponseError => {
+                writeln!(f, "UploadMeasurementResponseError")
+            }
+            ModelError::UnableToReadMailbox => {
+                writeln!(f, "UnableToReadMailbox")
+            }
+            ModelError::MailboxNoResponseData => {
+                writeln!(f, "MailboxNoResponseData")
+            }
+            ModelError::MailboxReqTypeTooSmall => {
+                writeln!(f, "MailboxReqTypeTooSmall")
+            }
+            ModelError::MailboxRespTypeTooSmall => {
+                writeln!(f, "MailboxRespTypeTooSmall")
+            }
+            ModelError::MailboxUnexpectedResponseLen {
+                expected_min,
+                expected_max,
+                actual,
+            } => writeln!(
+                f,
+                "MailboxUnexpectedResponseLen expected_min {} expected_max {} actual {}",
+                expected_min, expected_max, actual
+            ),
+            ModelError::MailboxRespInvalidChecksum { expected, actual } => writeln!(
+                f,
+                "MailboxRespInvalidChecksum expected {} actual {}",
+                expected, actual
+            ),
+            ModelError::MailboxRespInvalidFipsStatus(status) => {
+                writeln!(f, "MailboxRespInvalidFipsStatus {}", status,)
+            }
+            ModelError::MailboxTimeout => writeln!(f, "MailboxTimeout"),
+            ModelError::ReadBufferTooSmall => {
+                writeln!(f, "ReadBufferTooSmall")
+            }
+            ModelError::FuseDoneNotSet => writeln!(f, "FuseDoneNotSet"),
+            ModelError::FusesAlreadyInitialized => {
+                writeln!(f, "FusesAlreadyInitialized")
+            }
+            ModelError::StashMeasurementFailed => {
+                writeln!(f, "StashMeasurementFailed")
+            }
+            ModelError::SubsystemSramError => {
+                writeln!(f, "SubsystemSramError")
+            }
+        }
+    }
 }
 
 impl From<CaliptraApiError> for ModelError {
