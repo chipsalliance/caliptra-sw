@@ -12,7 +12,7 @@ Updates Caliptra with a new firmware image and tests that runtime boots | **test
 Boots runtime using the Caliptra runtime test binary | **test_boot** | N/A
 Boots Caliptra and validates the firmware version | **test_fw_version** | N/A
 Tests the persistent data layout on a RISC-V CPU with the runtime flag enabled| **test_persistent_data** | N/A
-Checks that DPE contains the correct measurements upon booting runtime | **test_boot_tci_data** | N/A 
+Checks that DPE contains the correct measurements upon booting runtime | **test_boot_tci_data** | N/A
 Checks that measurements in the measurement log are added to DPE upon booting runtime | **test_measurement_in_measurement_log_added_to_dpe** | N/A
 
 <br><br>
@@ -148,7 +148,7 @@ Tags the default context, retires the default context, and checks that the dpe_g
 # **Update Reset Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Checks that the DPE root measurement is set to the RT_FW_JOURNEY_PCR upon update reset | **test_rt_journey_pcr_updated_in_dpe** | N/A
+Checks that the DPE root measurements are set to the RT_FW_CURERNT_PCR and RT_FW_JOURNEY_PCR upon update reset | **test_rt_pcr_updated_in_dpe** | N/A
 Checks that context tags are persisted across update resets | **test_tags_persistence** | N/A
 Corrupts the context tags and checks that an error is thrown upon update reset | **test_context_tags_validation** | RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED
 Corrupts the shape of the DPE context tree and checks that an error is thrown upon update reset | **test_dpe_validation_deformed_structure** | RUNTIME_DPE_VALIDATION_FAILED
@@ -160,7 +160,8 @@ Checks that the pcr reset counter is persisted across update resets | **test_pcr
 # **Warm Reset Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Corrupts the DPE root measurement, triggers a warm reset, and checks that RT journey PCR validation fails | **test_rt_journey_pcr_validation** | RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED
+Corrupts the DPE root current measurement, triggers a warm reset, and checks that RT current PCR validation fails | **test_rt_current_pcr_validation** | RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED
+Corrupts the DPE root journey measurement, triggers a warm reset, and checks that RT journey PCR validation fails | **test_rt_journey_pcr_validation** | RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED
 Tests that there is a non-fatal error if runtime is executing a mailbox command during warm reset | **test_mbox_busy_during_warm_reset** | RUNTIME_CMD_BUSY_DURING_WARM_RESET
 
 <br><br>
