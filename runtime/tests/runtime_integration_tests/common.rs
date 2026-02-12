@@ -223,17 +223,20 @@ pub fn start_rt_test_pqc_model(
     });
 
     let image_info = vec![
-        ImageInfo::new(
+        ImageInfo::with_name(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
             CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+            "caliptra-rom".to_owned(),
         ),
-        ImageInfo::new(
+        ImageInfo::with_name(
             StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
             CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+            "caliptra-fmc".to_owned(),
         ),
-        ImageInfo::new(
+        ImageInfo::with_name(
             StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+            "caliptra-runtime".to_owned(),
         ),
     ];
 
