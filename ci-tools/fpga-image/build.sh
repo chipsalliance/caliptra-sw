@@ -48,10 +48,10 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
   chroot out/rootfs bash -c 'echo "NTP=time.google.com" >> /etc/systemd/timesyncd.conf'
 
-if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
+  if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
       echo "Adding developer keys to image"
-      chroot out/rootfs bash -c "echo \"PubkeyAuthentication yes\" >> /etc/ssh/sshd_config" 
-      chroot out/rootfs bash -c "echo \"PasswordAuthentication no\" >> /etc/ssh/sshd_config" 
+      chroot out/rootfs bash -c "echo \"PubkeyAuthentication yes\" >> /etc/ssh/sshd_config"
+      chroot out/rootfs bash -c "echo \"PasswordAuthentication no\" >> /etc/ssh/sshd_config"
       chroot out/rootfs bash -c "su runner -c \"mkdir /home/runner/.ssh\""
 
       # Authorized project developer keys. Keep alphabetized.
@@ -129,6 +129,25 @@ cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
+
+
+CURRDATE=`date`
+chroot out/rootfs bash -c "echo \"Build date: ${CURRDATE}\" > /etc/caliptra-build-info"
+if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
+  chroot out/rootfs bash -c "echo \"Image env : dev\" >> /etc/caliptra-build-info"
+else
+  chroot out/rootfs bash -c "echo \"Image env : non-dev\" >> /etc/caliptra-build-info"
+fi
+chroot out/rootfs bash -c "echo \"Image variant : ${IMAGE_VARIANT}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Runner version : ${RUNNER_VERSION}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow name : ${GITHUB_WORKFLOW}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow branch : ${GITHUB_HEAD_REF}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow build commit : ${GITHUB_WORKFLOW_SHA}\" >> /etc/caliptra-build-info"
+HASH=`md5sum out/io-module.ko | awk '{print $1}'`
+chroot out/rootfs bash -c "echo \"Hash io-module.ko : ${HASH}\" >> /etc/caliptra-build-info"
+HASH=`md5sum out/system-boot.tar.gz | awk '{print $1}'`
+chroot out/rootfs bash -c "echo \"Hash system-boot.tar.gz : ${HASH}\" >> /etc/caliptra-build-info"
+
 
 rm -f out/image.img
 bootfs_blocks="$((80000 * 4))"
