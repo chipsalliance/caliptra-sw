@@ -35,7 +35,7 @@ jobs:
           cd ci-tools/test-matrix
 
           cargo run --release -- \
-            --token ${{GITHUB_TOKEN}} \
+            --token ${GITHUB_TOKEN} \
             --workflow ${{inputs.workflow_file}} \
             --out ${{inputs.www_out}}
       
