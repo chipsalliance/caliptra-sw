@@ -2919,7 +2919,7 @@ fn test_derive_stable_key_from_rom() {
         const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 
         // derive a stable key from ROM
-        let (mut model, fw_image) = start_rt_test_pqc_model(
+        let (mut model, image_bundle) = start_rt_test_pqc_model(
             RuntimeTestArgs {
                 stop_at_rom: true,
                 subsystem_mode,
@@ -2927,6 +2927,8 @@ fn test_derive_stable_key_from_rom() {
             },
             FwVerificationPqcKeyType::LMS,
         );
+        let fw_image = image_bundle.to_bytes().unwrap();
+
         // skip this test if the model doesn't support this mode
         if subsystem_mode != model.subsystem_mode() {
             continue;

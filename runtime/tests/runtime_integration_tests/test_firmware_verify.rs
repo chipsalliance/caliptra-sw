@@ -11,10 +11,11 @@ use zerocopy::FromBytes;
 
 #[test]
 fn test_firmware_verify_success() {
-    let (mut model, image) = start_rt_test_pqc_model(
+    let (mut model, image_bundle) = start_rt_test_pqc_model(
         RuntimeTestArgs::default(),
         FwVerificationPqcKeyType::default(),
     );
+    let image = image_bundle.to_bytes().unwrap();
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     let resp = model

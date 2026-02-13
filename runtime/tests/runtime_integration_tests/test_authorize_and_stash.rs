@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
@@ -205,25 +205,26 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         crate::test_update_reset::mbox_test_image(),
         image_options,
     )
-    .unwrap()
-    .to_bytes()
     .unwrap();
 
     // trigger an update reset so we can use commands in mbox responder
     model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &updated_fw_image.to_bytes().unwrap(),
+        )
         .unwrap();
 
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &updated_fw_image);
 
     // We don't expect the image_digest to be part of the stash
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
@@ -265,25 +266,26 @@ fn test_authorize_and_stash_cmd_success() {
         crate::test_update_reset::mbox_test_image(),
         image_options,
     )
-    .unwrap()
-    .to_bytes()
     .unwrap();
 
     // trigger an update reset so we can use commands in mbox responder
     model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &updated_fw_image.to_bytes().unwrap(),
+        )
         .unwrap();
 
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &updated_fw_image);
 
     // hash expected DPE measurements in order to check that stashed measurement was added to DPE
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
 
