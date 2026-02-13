@@ -531,9 +531,8 @@ impl ModelFpgaSubsystem {
     /// Implement a pair of simulated flash controllers, backed by data
     /// stored in the host memory.
     pub fn handle_flash(&mut self) {
-        // TODO: re-enable when new bitstreams are available
-        // self.handle_flash_ctrl(true);
-        // self.handle_flash_ctrl(false);
+        self.handle_flash_ctrl(true);
+        self.handle_flash_ctrl(false);
     }
 
     /// Handle operations for a single flash controller
@@ -625,6 +624,7 @@ impl ModelFpgaSubsystem {
         regs.fl_control.modify(FlashControl::START::CLEAR);
         regs.op_status
             .modify(FlashOpStatus::DONE::SET + FlashOpStatus::ERR.val(error));
+        regs.fl_interrupt_state.set(2); // event interrupt
     }
 
     fn clear_logs(&mut self) {
