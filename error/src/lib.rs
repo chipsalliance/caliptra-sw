@@ -2303,6 +2303,36 @@ impl CaliptraError {
             "ROM KAT Error: ECDH verify failure"
         ),
         (
+            KAT_MLKEM1024_KEY_PAIR_GENERATE_FAILURE,
+            0x900B0001,
+            "ROM KAT Error: MLKEM1024 key pair generate failure"
+        ),
+        (
+            KAT_MLKEM1024_KEY_PAIR_VERIFY_FAILURE,
+            0x900B0002,
+            "ROM KAT Error: MLKEM1024 key pair verify failure"
+        ),
+        (
+            KAT_MLKEM1024_ENCAPSULATE_FAILURE,
+            0x900B0003,
+            "ROM KAT Error: MLKEM1024 encapsulate failure"
+        ),
+        (
+            KAT_MLKEM1024_DECAPSULATE_FAILURE,
+            0x900B0004,
+            "ROM KAT Error: MLKEM1024 decapsulate failure"
+        ),
+        (
+            KAT_MLKEM1024_SHARED_KEY_MISMATCH,
+            0x900B0005,
+            "ROM KAT Error: MLKEM1024 shared key mismatch"
+        ),
+        (
+            KAT_MLKEM1024_CIPHERTEXT_MISMATCH,
+            0x900B0006,
+            "ROM KAT Error: MLKEM1024 ciphertext mismatch"
+        ),
+        (
             KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
             0x90050001,
             "ROM KAT Error: SHA2_512_384_ACC digest start op failure"

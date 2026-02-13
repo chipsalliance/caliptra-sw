@@ -1,9 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-#[cfg(not(feature = "rom"))]
-use caliptra_drivers::Aes;
 #[cfg(feature = "rom")]
 use caliptra_drivers::AesGcm;
+#[cfg(not(feature = "rom"))]
+use caliptra_drivers::{Aes, MlKem1024};
 use caliptra_drivers::{
     Ecc384, Hmac, Lms, Mldsa87, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, ShaAccLockState, Trng,
 };
@@ -46,4 +46,7 @@ pub struct KatsEnv<'a> {
     /// AES Engine (for non-ROM builds - provides access to all AES KATs)
     #[cfg(not(feature = "rom"))]
     pub aes: &'a mut Aes,
+
+    #[cfg(not(feature = "rom"))]
+    pub mlkem1024: &'a mut MlKem1024,
 }

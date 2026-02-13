@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesOperation, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
+use crate::{cprintln, Aes, AesOperation, CaliptraError, CaliptraResult, LEArray4x4, LEArray4x8};
 
 // Generated from Python code:
 // >>> import os
@@ -47,6 +47,7 @@ const CT: [u8; 48] = [
 ///
 /// * `CaliptraResult` - Result denoting the KAT outcome.
 pub fn execute_cbc_kat(aes: &mut Aes) -> CaliptraResult<()> {
+    cprintln!("[kat] AES-CBC");
     let mut ciphertext: [u8; 48] = [0u8; 48];
     aes.aes_256_cbc(&KEY, &IV, AesOperation::Encrypt, &PT[..], &mut ciphertext)?;
 

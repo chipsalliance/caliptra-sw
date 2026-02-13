@@ -202,7 +202,7 @@ impl Drivers {
             // TODO(clundin): Don't pass multiple `AbrReg`'s to higher level drivers.
             // https://github.com/chipsalliance/caliptra-sw/issues/3107
             mldsa87: Mldsa87::new(AbrReg::new()),
-            ml_kem: MlKem1024::new(AbrReg::new()),
+            ml_kem: MlKem1024::new(AbrReg::new())?,
             lms: Lms::default(),
             trng,
             persistent_data,

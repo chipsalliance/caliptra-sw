@@ -111,7 +111,7 @@ impl Default for TestRegisters {
         let dma = Dma::default();
         let doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
         let kv = unsafe { KeyVault::new(KvReg::new()) };
-        let ml_kem = unsafe { MlKem1024::new(AbrReg::new()) };
+        let ml_kem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
         let sha3 = unsafe { Sha3::new(KmacReg::new()) };
 
         Self {

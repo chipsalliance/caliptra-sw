@@ -12,7 +12,9 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng};
+use crate::{
+    cprintln, Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x3, LEArray4x4, LEArray4x8, Trng,
+};
 
 // Taken from NIST test vectors: https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program/cavp-testing-block-cipher-modes#GCMVS
 
@@ -54,6 +56,7 @@ const PT: [u8; 32] = [
 ///
 /// * `CaliptraResult` - Result denoting the KAT outcome.
 pub fn execute_gcm_kat(aes: &mut Aes, trng: &mut Trng) -> CaliptraResult<()> {
+    cprintln!("[kat] AES-GCM");
     let iv = (&IV).into();
     let key = AesKey::Array(&KEY);
     let mut ciphertext = [0u8; 32];
