@@ -13,7 +13,7 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
 
 #[test]
 fn test_stash_measurement() {
@@ -52,25 +52,26 @@ fn test_stash_measurement() {
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
     )
-    .unwrap()
-    .to_bytes()
     .unwrap();
 
     // trigger an update reset so we can use commands in mbox responder
     model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &updated_fw_image.to_bytes().unwrap(),
+        )
         .unwrap();
 
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &updated_fw_image);
 
     // hash expected DPE measurements in order to check that stashed measurement was added to DPE
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();
 

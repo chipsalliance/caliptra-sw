@@ -26,6 +26,8 @@ const OPCODE_HASH_DPE_TCI_DATA: u32 = 0x3000_0000;
 const OPCODE_READ_STASHED_MEASUREMENT_PCR: u32 = 0x5000_0000;
 const OPCODE_READ_DPE_ROOT_CONTEXT_MEASUREMENT: u32 = 0x6000_0000;
 const OPCODE_READ_DPE_ROOT_CONTEXT_CUMULATIVE: u32 = 0x6000_0001;
+const OPCODE_READ_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0002;
+const OPCODE_READ_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0003;
 const OPCODE_READ_DPE_TAGS: u32 = 0x7000_0000;
 const OPCODE_CORRUPT_CONTEXT_TAGS: u32 = 0x8000_0000;
 const OPCODE_CORRUPT_CONTEXT_HAS_TAG: u32 = 0x9000_0000;
@@ -184,6 +186,24 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .tci_cumulative
                     .as_bytes();
                 write_response(&mut drivers.mbox, root_measurement);
+            }
+            CommandId(OPCODE_READ_DPE_CCIV_CONTEXT_MEASUREMENT) => {
+                let cciv_idx =
+                    Drivers::get_dpe_cciv_context_idx(&drivers.persistent_data.get().dpe).unwrap();
+                let cciv_measurement = drivers.persistent_data.get().dpe.contexts[cciv_idx]
+                    .tci
+                    .tci_current
+                    .as_bytes();
+                write_response(&mut drivers.mbox, cciv_measurement);
+            }
+            CommandId(OPCODE_READ_DPE_CCIV_CONTEXT_CUMULATIVE) => {
+                let cciv_idx =
+                    Drivers::get_dpe_cciv_context_idx(&drivers.persistent_data.get().dpe).unwrap();
+                let cciv_measurement = drivers.persistent_data.get().dpe.contexts[cciv_idx]
+                    .tci
+                    .tci_cumulative
+                    .as_bytes();
+                write_response(&mut drivers.mbox, cciv_measurement);
             }
             CommandId(OPCODE_READ_DPE_TAGS) => {
                 let context_tags = drivers.persistent_data.get().context_tags;

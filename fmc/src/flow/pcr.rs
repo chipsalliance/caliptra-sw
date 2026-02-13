@@ -20,13 +20,11 @@ Note:
     PCR3 - Journey PCR unlocked and cleared on cold reset
 
 --*/
-use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 use caliptra_drivers::{
-    okref,
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     CaliptraResult, PersistentData,
 };
@@ -44,15 +42,10 @@ pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
     // Calculate RT TCI (Hash over runtime code)
     let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
-    // Calculate FW Image Manifest digest
-    let manifest_digest = Tci::image_manifest_digest(env);
-    let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
-
     // Clear current PCR before extending it.
     env.pcr_bank.erase_pcr(RT_FW_CURRENT_PCR)?;
 
     extend_and_log(env, PcrLogEntryId::RtTci, &rt_tci)?;
-    extend_and_log(env, PcrLogEntryId::FwImageManifest, &manifest_digest)?;
 
     Ok(())
 }
