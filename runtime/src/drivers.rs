@@ -16,12 +16,13 @@ Abstract:
 
 use crate::cryptographic_mailbox::CmStorage;
 use crate::debug_unlock::ProductionDebugUnlock;
+use crate::dpe_crypto::DpeEcCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
+    dice, CptraDpeEcTypes, DisableAttestationCmd, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
     DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
@@ -54,7 +55,9 @@ use caliptra_registers::{
     soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::Digest;
+use crypto::ecdsa::curve_384::EcdsaPub384;
+use crypto::ecdsa::EcdsaPubKey;
+use crypto::{Digest, PubKey};
 use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
@@ -525,13 +528,18 @@ impl Drivers {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let crypto = DpeCrypto::new(
+        let rt_pub_key = &mut pdata.rom.fht.rt_dice_ecc_pub_key;
+        let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+            &rt_pub_key.x.into(),
+            &rt_pub_key.y.into(),
+        )));
+        let crypto = DpeEcCrypto::new(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.rom.fht.rt_dice_ecc_pub_key,
+            rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.fw.dpe.exported_cdi_slots,
@@ -539,7 +547,7 @@ impl Drivers {
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.rom.manifest1);
         let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
-        let mut env = DpeEnv::<CptraDpeTypes> {
+        let mut env = DpeEnv::<CptraDpeEcTypes> {
             crypto,
             platform: DpePlatform::new(
                 CALIPTRA_LOCALITY,

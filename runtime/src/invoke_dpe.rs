@@ -15,7 +15,7 @@ Abstract:
 use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
@@ -59,19 +59,16 @@ impl InvokeDpeCmd {
 
             let pdata = drivers.persistent_data.get_mut();
             let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
-            let ueid = drivers.soc_ifc.fuse_bank().ueid();
-            let locality = drivers.mbox.id();
-            let mut env = dpe_env(drivers, None, Some(ueid))?;
 
             let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-            let resp = match command {
-                Command::GetProfile(cmd) => cmd.execute(dpe, &mut env, locality),
+
+            // Check if command can be executed
+            match command {
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(cmd) {
                         dpe_context_threshold_err?;
                     }
-                    cmd.execute(dpe, &mut env, locality)
                 }
                 Command::DeriveContext(cmd) => {
                     let flags = cmd.flags;
@@ -92,8 +89,6 @@ impl InvokeDpeCmd {
                     if flags.exports_cdi() && caller_privilege_level != PauserPrivileges::PL0 {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-
-                    cmd.execute(dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
@@ -102,16 +97,16 @@ impl InvokeDpeCmd {
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-                    cmd.execute(dpe, &mut env, locality)
                 }
-                Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
+                _ => (),
             };
-
-            // Drop env so we can use the drivers again.
-            drop(env);
+            let resp = {
+                let ueid = drivers.soc_ifc.fuse_bank().ueid();
+                let locality = drivers.mbox.id();
+                let mut env = dpe_env(drivers, None, Some(ueid));
+                let env = okmutref(&mut env)?;
+                command.execute(dpe, env, locality)
+            };
 
             if let Command::DestroyCtx(_) = command {
                 // clear tags for destroyed contexts

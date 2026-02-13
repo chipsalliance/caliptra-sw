@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeCrypto, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{dpe_crypto::DpeEcCrypto, mutrefbytes, Drivers, PauserPrivileges};
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
@@ -29,7 +29,7 @@ impl SignWithExportedEcdsaCmd {
     /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn ecdsa_sign(
-        env: &mut DpeCrypto,
+        env: &mut DpeEcCrypto,
         data: &SignData,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> CaliptraResult<(Signature, PubKey)> {
@@ -68,14 +68,19 @@ impl SignWithExportedEcdsaCmd {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
+        let rt_pub_key = &mut pdata.rom.fht.rt_dice_ecc_pub_key;
+        let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+            &rt_pub_key.x.into(),
+            &rt_pub_key.y.into(),
+        )));
 
-        let mut crypto = DpeCrypto::new(
+        let mut crypto = DpeEcCrypto::new(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.rom.fht.rt_dice_ecc_pub_key,
+            rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.fw.dpe.exported_cdi_slots,
