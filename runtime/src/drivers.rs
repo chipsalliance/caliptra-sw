@@ -170,6 +170,7 @@ impl Drivers {
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
                 Self::update_dpe_rt_tci(self)?;
+                Self::update_dpe_cciv(self)?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -215,6 +216,51 @@ impl Drivers {
             return Err(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT);
         }
         Ok(root_idx)
+    }
+
+    /// Returns the index of the single CCIV context that is an immediate child of the DPE root.
+    /// Errors if none or if multiple are found.
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - Index containing the CCIV DPE context
+    #[inline(always)]
+    pub fn get_dpe_cciv_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
+        // Find the root context index using your existing helper
+        let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
+
+        let cciv_type = u32::from_be_bytes(*b"CCIV");
+        let mut found_idx: Option<usize> = None;
+
+        // Search only immediate children of root for an active, Normal CCIV context
+        for (idx, ctx) in dpe.contexts.iter().enumerate() {
+            if ctx.state != ContextState::Inactive
+                && ctx.context_type == ContextType::Normal
+                && ctx.parent_idx == root_idx
+                && ctx.tci.tci_type == cciv_type
+            {
+                if found_idx.is_some() {
+                    // Multiple CCIV children found under root
+                    return Err(CaliptraError::RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND);
+                }
+                found_idx = Some(idx);
+            }
+        }
+
+        match found_idx {
+            Some(idx) => {
+                // prevent panic
+                if idx >= dpe.contexts.len() {
+                    return Err(CaliptraError::RUNTIME_CCIV_CONTEXT_NOT_FOUND);
+                }
+                Ok(idx)
+            }
+            None => Err(CaliptraError::RUNTIME_CCIV_CONTEXT_NOT_FOUND),
+        }
     }
 
     /// Validate DPE and disable attestation if validation fails
@@ -284,6 +330,40 @@ impl Drivers {
         let journey_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         dpe.contexts[root_idx].tci.tci_current = TciMeasurement(current_pcr);
         dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(journey_pcr);
+
+        Ok(())
+    }
+
+    /// Update DPE CCIV measurement with new values
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn update_dpe_cciv(drivers: &mut Drivers) -> CaliptraResult<()> {
+        if drivers.persistent_data.get().attestation_disabled.get() {
+            // If attestation is disabled, do not attempt to update CCIV values
+            return Ok(());
+        }
+        let initialization_values_hash: [u8; 48] =
+            <[u8; 48]>::from(Self::compute_initialization_values_hash(drivers)?);
+        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let cciv_idx = Self::get_dpe_cciv_context_idx(dpe)?;
+
+        // Only update if changed
+        let prev_current: [u8; 48] = dpe.contexts[cciv_idx].tci.tci_current.0;
+        if prev_current == initialization_values_hash {
+            return Ok(());
+        }
+
+        // Compute new journey: SHA-384(prev_journey || initialization_values_hash)
+        let prev_journey: [u8; 48] = dpe.contexts[cciv_idx].tci.tci_cumulative.0;
+        let mut digest_op = drivers.sha384.digest_init()?;
+        digest_op.update(&prev_journey);
+        digest_op.update(&initialization_values_hash);
+        let mut journey_hash = Array4x12::default();
+        digest_op.finalize(&mut journey_hash)?;
+        let new_journey: [u8; 48] = journey_hash.into();
+
+        // Update CCIV current and cumulative
+        dpe.contexts[cciv_idx].tci.tci_current = TciMeasurement(initialization_values_hash);
+        dpe.contexts[cciv_idx].tci.tci_cumulative = TciMeasurement(new_journey);
 
         Ok(())
     }
@@ -382,7 +462,8 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+        let manifest = drivers.persistent_data.get().manifest1;
+        let pl0_pauser_locality = manifest.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
@@ -394,18 +475,8 @@ impl Drivers {
         let pl0_context_limit = drivers.persistent_data.get().dpe_pl0_context_limit;
         let pl1_context_limit = drivers.persistent_data.get().dpe_pl1_context_limit;
 
-        // create a hash of all the mailbox valid pausers
-        const PAUSER_COUNT: usize = 5;
-        let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
-        let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
-        let mut digest_op = drivers.sha384.digest_init()?;
-        for i in 0..PAUSER_COUNT {
-            if mbox_pauser_lock[i] {
-                digest_op.update(mbox_valid_pauser[i].as_bytes())?;
-            }
-        }
-        let mut valid_pauser_hash = Array4x12::default();
-        digest_op.finalize(&mut valid_pauser_hash)?;
+        // Create a hash of critical initialization values
+        let initialization_values_hash = Self::compute_initialization_values_hash(drivers)?;
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
@@ -453,18 +524,16 @@ impl Drivers {
         dpe.contexts[root_idx].tci.tci_cumulative =
             TciMeasurement(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR).into());
 
-        // Call DeriveContext to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
+        // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
+        // locality to the pl0 pauser locality
         let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
-            data: valid_pauser_hash
-                .as_bytes()
-                .try_into()
-                .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
+            data: <[u8; 48]>::from(initialization_values_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
                 | DeriveContextFlags::INPUT_ALLOW_CA
                 | DeriveContextFlags::INPUT_ALLOW_X509,
-            tci_type: u32::from_be_bytes(*b"MBVP"),
+            tci_type: u32::from_be_bytes(*b"CCIV"),
             target_locality: pl0_pauser_locality,
         }
         .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
@@ -473,7 +542,7 @@ impl Drivers {
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
             }
-            Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?
+            Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
         }
 
         // Call DeriveContext to create TCIs for each measurement added in ROM
@@ -751,5 +820,43 @@ impl Drivers {
         }
 
         (nb, nf)
+    }
+
+    /// Computes the SHA-384 hash over critical initialization values
+    /// This includes mailbox valid pausers (for locked slots) and select fields from the manifest
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x12` - SHA-384 hash of the initialization values
+    fn compute_initialization_values_hash(drivers: &mut Drivers) -> CaliptraResult<Array4x12> {
+        let manifest = drivers.persistent_data.get().manifest1;
+
+        // Collect mailbox pausers and lock states
+        const PAUSER_COUNT: usize = 5;
+        let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
+        let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
+
+        // Build digest over locked mailbox pausers and manifest fields
+        let mut digest_op = drivers.sha384.digest_init()?;
+        for i in 0..PAUSER_COUNT {
+            if mbox_pauser_lock[i] {
+                digest_op.update(mbox_valid_pauser[i].as_bytes())?;
+            }
+        }
+        digest_op.update(manifest.header.pl0_pauser.as_bytes())?;
+        digest_op.update(manifest.header.flags.as_bytes())?;
+        digest_op.update(manifest.fmc.load_addr.as_bytes())?;
+        digest_op.update(manifest.fmc.entry_point.as_bytes())?;
+        digest_op.update(manifest.runtime.load_addr.as_bytes())?;
+        digest_op.update(manifest.runtime.entry_point.as_bytes())?;
+
+        // Finalize digest into Array4x12 (48 bytes for SHA-384)
+        let mut initialization_values_hash = Array4x12::default();
+        digest_op.finalize(&mut initialization_values_hash)?;
+        Ok(initialization_values_hash)
     }
 }

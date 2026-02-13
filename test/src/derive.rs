@@ -5,7 +5,6 @@
 ///
 /// DO NOT REFACTOR THIS FILE TO RE-USE CODE FROM OTHER PARTS OF CALIPTRA
 use caliptra_api_types::SecurityState;
-use caliptra_image_types::ImageManifest;
 use openssl::{
     pkey::{PKey, Public},
     sha::{sha256, sha384},
@@ -384,7 +383,6 @@ fn test_derive_pcr0() {
 
 pub struct PcrRtCurrentInput {
     pub runtime_digest: [u32; 12],
-    pub manifest: ImageManifest,
 }
 
 pub struct PcrRtCurrent(pub [u32; 12]);
@@ -399,8 +397,6 @@ impl PcrRtCurrent {
             swap_word_bytes(&input.runtime_digest).as_bytes(),
         );
 
-        let manifest_digest = sha384(input.manifest.as_bytes());
-        extend(&mut value, &manifest_digest);
         println!("Pcr is {:02x?}", value);
 
         let mut result: [u32; 12] = zerocopy::transmute!(value);
@@ -458,19 +454,10 @@ pub struct RtAliasKey {
 }
 impl RtAliasKey {
     pub fn derive(tci_input: &PcrRtCurrentInput, fmc_key: &FmcAliasKey) -> Self {
-        // NOTE: This works differently than FmcAliasKey. FmcAliasKey takes the
-        // 48-byte value from Pcr0 as context, this version uses a 96-byte
-        // concatenation of the runtime digest and manifest digest.
-        let mut tci: [u8; 96] = [0; 96];
-        tci[0..48].copy_from_slice(swap_word_bytes(&tci_input.runtime_digest).as_bytes());
-        tci[48..96]
-            .as_mut_bytes()
-            .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
-
         let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
             swap_word_bytes(&fmc_key.cdi).as_bytes(),
             b"rt_alias_cdi",
-            Some(&tci),
+            Some(swap_word_bytes(&tci_input.runtime_digest).as_bytes()),
         ));
         swap_word_bytes_inplace(&mut cdi);
 

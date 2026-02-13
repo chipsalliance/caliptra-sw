@@ -20,6 +20,7 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
     StackInfo, StackRange,
 };
+use caliptra_image_types::ImageBundle;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
     response::{
@@ -58,6 +59,22 @@ pub struct RuntimeTestArgs<'a> {
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
+    let (model, _image) = run_rt_test_base(args, lms_verify);
+    model
+}
+
+// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
+// run the production runtime image.
+pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
+    let (model, _image) = run_rt_test_base(args, false);
+    model
+}
+
+pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
+    run_rt_test_base(args, false)
+}
+
+pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwModel, ImageBundle) {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
     } else {
@@ -122,13 +139,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
-    model
-}
-
-// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
-// run the production runtime image.
-pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
-    run_rt_test_lms(args, false)
+    (model, image)
 }
 
 pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
@@ -343,4 +354,52 @@ pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
     let mut rt_resp = GetRtAliasCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
+}
+
+fn swap_word_bytes_inplace(words: &mut [u32]) {
+    for word in words.iter_mut() {
+        *word = word.swap_bytes()
+    }
+}
+
+pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
+    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
+    swap_word_bytes_inplace(&mut result);
+    result
+}
+
+pub fn calculate_cptra_config_init_vals_hash<T: HwModel>(
+    model: &mut T,
+    image_bundle: &ImageBundle,
+) -> [u8; 48] {
+    use sha2::{Digest, Sha384};
+
+    const PAUSER_COUNT: usize = 5;
+
+    let mut hasher = Sha384::new();
+
+    // Hash locked pausers
+    for i in 0..PAUSER_COUNT {
+        if model.soc_ifc().cptra_mbox_pauser_lock().at(i).read().lock() {
+            hasher.update(
+                model
+                    .soc_ifc()
+                    .cptra_mbox_valid_pauser()
+                    .at(i)
+                    .read()
+                    .as_bytes(),
+            );
+        }
+    }
+
+    // Hash manifest fields
+    let manifest = &image_bundle.manifest;
+    hasher.update(manifest.header.pl0_pauser.as_bytes());
+    hasher.update(manifest.header.flags.as_bytes());
+    hasher.update(manifest.fmc.load_addr.as_bytes());
+    hasher.update(manifest.fmc.entry_point.as_bytes());
+    hasher.update(manifest.runtime.load_addr.as_bytes());
+    hasher.update(manifest.runtime.entry_point.as_bytes());
+
+    hasher.finalize().into()
 }
