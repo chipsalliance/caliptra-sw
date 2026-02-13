@@ -48,6 +48,8 @@ pub use rt_alias_cert_mldsa_87::{RtAliasCertTbsMlDsa87, RtAliasCertTbsMlDsa87Par
 pub use ocp_lock_hpke_certs::{
     ecdh_384_ecc_348::{OcpLockEcdh384CertTbsEcc384, OcpLockEcdh384CertTbsEcc384Params},
     ecdh_384_mldsa_87::{OcpLockEcdh384CertTbsMlDsa87, OcpLockEcdh384CertTbsMlDsa87Params},
+    hybrid_ecc_384::{OcpLockHybridCertTbsEcc384, OcpLockHybridCertTbsEcc384Params},
+    hybrid_mldsa_87::{OcpLockHybridCertTbsMlDsa87, OcpLockHybridCertTbsMlDsa87Params},
     ml_kem_ecc_348::{OcpLockMlKemCertTbsEcc384, OcpLockMlKemCertTbsEcc384Params},
     ml_kem_mldsa_87::{OcpLockMlKemCertTbsMlDsa87, OcpLockMlKemCertTbsMlDsa87Params},
 };

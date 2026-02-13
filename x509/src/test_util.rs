@@ -174,4 +174,44 @@ pub mod tests {
             }
         }
     }
+
+    pub struct HybridP384MlKem1024AsymKey {
+        pub_key: Vec<u8>,
+    }
+
+    impl HybridP384MlKem1024AsymKey {
+        pub fn pub_key(&self) -> &[u8] {
+            &self.pub_key
+        }
+
+        pub fn sha256(&self) -> [u8; 32] {
+            let mut sha = Sha256::new();
+            sha.update(self.pub_key());
+            sha.finish()
+        }
+
+        pub fn sha1(&self) -> [u8; 20] {
+            let mut sha = Sha1::new();
+            sha.update(self.pub_key());
+            sha.finish()
+        }
+
+        pub fn hex_str(&self) -> String {
+            hex::encode(self.sha256()).to_uppercase()
+        }
+    }
+
+    impl Default for HybridP384MlKem1024AsymKey {
+        fn default() -> Self {
+            let ecc384 = Ecc384AsymKey::default();
+            let mlkem1024 = MlKem1024AsymKey::default();
+
+            let pq = mlkem1024.pub_key();
+            let trad = ecc384.pub_key();
+            let mut pub_key = Vec::with_capacity(pq.len() + trad.len());
+            pub_key.extend_from_slice(pq);
+            pub_key.extend_from_slice(trad);
+            Self { pub_key }
+        }
+    }
 }

@@ -211,10 +211,10 @@ mod tests {
     #[cfg(feature = "generate_templates")]
     fn test_fmc_alias_csr_template() {
         let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_csr_tbs.rs")).unwrap();
+            std::fs::read(std::path::Path::new("./build/fmc_alias_csr_tbs_ecc_384.rs")).unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/fmc_alias_csr_tbs.rs"
+            "/fmc_alias_csr_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
