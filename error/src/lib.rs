@@ -20,6 +20,12 @@ use core::num::{NonZeroU32, TryFromIntError};
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CaliptraError(pub NonZeroU32);
 
+impl core::fmt::Display for CaliptraError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.error_name().unwrap())
+    }
+}
+
 /// Macro to define error constants ensuring uniqueness
 ///
 /// This macro takes a list of (name, value, doc) tuples and generates
@@ -31,6 +37,15 @@ macro_rules! define_error_constants {
             #[doc = $doc]
             pub const $name: CaliptraError = CaliptraError::new_const($value);
         )*
+
+        pub fn error_name(&self) -> Option<& 'static str> {
+            match self.0.get() {
+                $(
+                    $value => Some(stringify!($name)),
+                )*
+                _ => None,
+            }
+        }
 
         #[cfg(test)]
         /// Returns a vector of all defined error constants for testing uniqueness
