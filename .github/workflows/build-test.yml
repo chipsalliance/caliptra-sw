@@ -31,8 +31,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-        with:
-          submodules: true
 
       - name: Test commit name
         run: |
@@ -62,24 +60,6 @@ jobs:
       - name: Check license headers
         run: |
           cargo run -p caliptra-file-header-fix --locked -- --check
-
-      - name: Verify if bitstream manifest is in sync with RTL
-        run: |
-          # 1. Extract hash from manifest
-          EXPECTED_HASH=$(grep "caliptra_rtl_commit" hw/fpga/bitstream_manifests/subsystem.toml | sed -E 's/.*=.*"(.+)".*/\1/')
-          
-          # 2. Get the hash from submodule
-          ACTUAL_HASH=$(git submodule status hw/latest/rtl | awk '{print $1}' | sed 's/^-//;s/^+//')
-
-          echo "Hash in manifest: $EXPECTED_HASH"
-          echo "Hash in submodule:  $ACTUAL_HASH"
-
-          # 3. Check
-          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "Error: The bitstream manifest (.toml) doesn't match with the RTL submodule commit."
-            echo "Please update the field caliptra_rtl_commit in subsystem.toml"
-            exit 1
-          fi
 
   build:
     needs: lint
@@ -239,6 +219,61 @@ jobs:
       - name: DPE Verification Tests
         run: |
           (cd test/dpe_verification && make run)
+
+check_manifest:
+    name: "Check Bitstream Manifest Sync"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Verify if bitstream manifest is in sync with RTL
+        shell: bash
+        run: |
+          # 1) Extract hash from manifest
+          #
+          # --- SED to extract hash from TOML ---
+          # 1. 's/'       : Start the substitution command.
+          # 2. '.*=.*'    : Match everything before and after the '=' sign.
+          # 3. '\"(.+)\"' : Capture the content inside double quotes.
+          # 4. '.*'       : Match any remaining text (comments).
+          # 5. '/\1/'     : Replace the whole line with only the captured group 1.
+          #
+          # Input Example (from subsystem.toml):
+          #    caliptra_rtl_commit = "22ef832b4d3aaa17c9cf5e63801ac5d0f21410da"
+          # Result Example:
+          #    22ef832b4d3aaa17c9cf5e63801ac5d0f21410da
+
+          EXPECTED_HASH=$(grep "caliptra_rtl_commit" hw/fpga/bitstream_manifests/subsystem.toml | sed -E 's/.*=.*"(.+)".*/\1/')
+          
+          # 2) Get the hash from submodule
+          #
+          # --- SED to clean Git status prefixes ---
+          # 1. 's/^-//' : Removes a leading hyphen (meaning submodule is uninitialized).
+          # 2. 's/^+//' : Removes a leading plus sign (meaning submodule is out of sync).
+          #
+          # Input Example (from awk):  "+22ef832b4d3aaa17c9cf5e63801ac5d0f21410da"
+          # Result Example:             "22ef832b4d3aaa17c9cf5e63801ac5d0f21410da"
+
+          ACTUAL_HASH=$(git submodule status hw/latest/rtl | awk '{print $1}' | sed 's/^-//;s/^+//')
+
+          echo "Hash in manifest: $EXPECTED_HASH"
+          echo "Hash in submodule:  $ACTUAL_HASH"
+
+          # 3. Check
+
+          if [ -z "$ACTUAL_HASH" ]; then
+            echo "Error: Could not retrieve Submodule Hash. Check if 'hw/latest/rtl' path is correct."
+            exit 1
+          fi
+
+          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "Warning: The bitstream manifest (.toml) doesn't match with the RTL submodule commit."
+            echo "Please update the field caliptra_rtl_commit in file subsystem.toml"           
+            exit 1
+          fi
 
   all_checks_passed:
     needs: [build, test_unit, test_compliance, test_rom, test_integration]
