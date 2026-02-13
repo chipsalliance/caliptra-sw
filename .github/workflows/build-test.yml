@@ -220,8 +220,7 @@ jobs:
         run: |
           (cd test/dpe_verification && make run)
 
-check_manifest:
-    name: "Check Bitstream Manifest Sync"
+  check_manifest:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repo
