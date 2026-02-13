@@ -22,6 +22,11 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi-counter",
 ] }
 
+[build-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]

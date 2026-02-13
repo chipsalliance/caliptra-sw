@@ -4,14 +4,12 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crate::{
     hpke::{kdf, suites::KemIdExt},
-    MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey, MlKem1024Message,
-    MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
+    LEArray4x392, MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey,
+    MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
     MlKem1024SharedKeyOut, Sha3, Trng,
 };
 
 use super::{DecapsulationKey, EncapsulatedSecret, EncapsulationKey, Kem, SharedSecret};
-
-use zerocopy::FromBytes;
 
 pub type MlKemEncapsulatedSecret = EncapsulatedSecret<{ MlKem::NENC }>;
 pub type MlKemEncapsulationKey = EncapsulationKey<{ MlKem::NPK }>;
@@ -175,10 +173,10 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
     ) -> CaliptraResult<MlKemSharedSecret> {
         let (_ek, dk) = self.expand_decaps_key(dk.as_ref())?;
         let mut shared_key = MlKem1024SharedKey::default();
-        let enc = MlKem1024Ciphertext::ref_from_bytes(enc.buf.as_slice())
-            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
+        // Can't use zerocopy here because the slice is not guaranteed to be aligned.
+        let enc = LEArray4x392::from(enc.buf);
         self.ml_kem
-            .decapsulate(&dk, enc, MlKem1024SharedKeyOut::Array(&mut shared_key))?;
+            .decapsulate(&dk, &enc, MlKem1024SharedKeyOut::Array(&mut shared_key))?;
         Ok(SharedSecret::from(shared_key))
     }
 }
