@@ -204,5 +204,6 @@ jobs:
     with:
        workflow_file: "nightly-release.yml"
     permissions:
+      contents: read
       pages: write
       id-token: write
