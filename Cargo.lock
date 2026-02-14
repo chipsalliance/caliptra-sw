@@ -937,6 +937,7 @@ dependencies = [
  "hmac",
  "memoffset 0.8.0",
  "ml-dsa 0.0.4",
+ "ocp-eat",
  "openssl",
  "p384",
  "platform",

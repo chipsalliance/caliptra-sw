@@ -27,6 +27,7 @@ mod drivers;
 mod fe_programming;
 pub mod fips;
 mod firmware_verify;
+mod get_attested_csr;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
 mod get_image_info;
@@ -380,6 +381,13 @@ fn execute_command(
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_MLDSA87_CSR => {
             get_fmc_alias_csr::GetFmcAliasMldsaCsrCmd::execute(drivers, resp)
+        }
+        CommandId::GET_ATTESTED_ECC384_CSR => {
+            cprintln!("[rt] Handling GET_ATTESTED_ECC384_CSR command");
+            get_attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::GET_ATTESTED_MLDSA87_CSR => {
+            get_attested_csr::AttestedMldsaCsrCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {

@@ -1735,6 +1735,16 @@ impl CaliptraError {
             "Runtime Error: RT current PCR validation failed"
         ),
         (
+            RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR,
+            0x000E0080,
+            "Runtime Error: Envelope Signed CSR EAT encoding error"
+        ),
+        (
+            RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR,
+            0x000E0081,
+            "Runtime Error: Envelope Signed CSR COSE Sign1 encoding error"
+        ),
+        (
              RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
             0x000E008A,
             "Runtime Error: Auth manifest invalid PQC key type in fuse"
