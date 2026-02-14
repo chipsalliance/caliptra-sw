@@ -12,18 +12,15 @@ Abstract:
 
 --*/
 
-use crate::{ec_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{
+    invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
+};
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxRespHeader,
 };
-use caliptra_drivers::okmutref;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::{
-    commands::{CertifyKeyP384Cmd as CertifyKeyCmd, CommandExecution},
-    response::Response,
-    DpeInstance, DpeProfile,
-};
+use dpe::commands::{CertifyKeyP384Cmd as CertifyKeyCmd, Command};
 use zerocopy::FromBytes;
 
 pub struct CertifyKeyExtendedCmd;
@@ -55,37 +52,34 @@ impl CertifyKeyExtendedCmd {
         } else {
             None
         };
-        let locality = drivers.mbox.id();
 
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
-        let resp = &{
-            let mut env = ec_dpe_env(drivers, dmtf_device_info, None);
-            let env = okmutref(&mut env)?;
+        let resp = mutrefbytes::<CertifyKeyExtendedResp>(mbox_resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        let profile = CaliptraDpeProfile::Ecc384;
+        let cmd = &Command::from(certify_key_cmd);
+        let result = invoke_dpe_cmd(
+            profile,
+            drivers,
+            cmd,
+            dmtf_device_info,
+            None,
+            &mut resp.certify_key_resp,
+        );
 
-            let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-            certify_key_cmd.execute(dpe, env, locality)
-        };
-
-        let certify_key_resp = match resp {
-            Ok(Response::CertifyKey(certify_key_resp)) => certify_key_resp,
-            Ok(_) => return Err(CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED),
+        match result {
+            Ok(dpe_resp_len) => Ok(size_of::<CertifyKeyExtendedResp>()
+                - CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE
+                + dpe_resp_len),
             Err(e) => {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
-                return Err(CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED);
+                Err(CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED)
             }
-        };
-
-        let certify_key_extended_resp = mutrefbytes::<CertifyKeyExtendedResp>(mbox_resp)?;
-        certify_key_extended_resp.hdr = MailboxRespHeader::default();
-        certify_key_extended_resp.certify_key_resp = certify_key_resp
-            .as_bytes()
-            .try_into()
-            .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
-        Ok(core::mem::size_of::<CertifyKeyExtendedResp>())
+        }
     }
 }

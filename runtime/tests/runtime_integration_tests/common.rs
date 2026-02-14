@@ -32,8 +32,13 @@ use caliptra_runtime::CaliptraDpeProfile;
 pub use caliptra_test::{
     default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware, DEFAULT_MCU_FW,
 };
+use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use dpe::{
-    commands::{Command, CommandHdr},
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
+        CommandHdr, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+    },
+    context::ContextHandle,
     response::{DpeErrorCode, Response, ResponseHdr},
 };
 use openssl::{
@@ -57,6 +62,14 @@ pub const TEST_DIGEST: [u8; 48] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
 ];
+pub const TEST_MU: [u8; 64] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
+];
+pub const TEST_SD_SHA384: PrecomputedSignData =
+    PrecomputedSignData::Digest(Digest::Sha384(Sha384(TEST_DIGEST)));
+pub const TEST_SD_MU: PrecomputedSignData = PrecomputedSignData::Mu(Mu(TEST_MU));
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
@@ -417,6 +430,121 @@ pub fn execute_dpe_cmd(
         DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CertifyKeyCommandNoRef {
+    P384(CertifyKeyP384Cmd),
+    Mldsa(CertifyKeyMldsa87Cmd),
+}
+
+impl CertifyKeyCommandNoRef {
+    pub fn new(args: CreateCertifyKeyCmdArgs) -> Self {
+        match args.profile {
+            CaliptraDpeProfile::Ecc384 => CertifyKeyCommandNoRef::P384(CertifyKeyP384Cmd {
+                handle: args.handle,
+                label: args.label,
+                flags: args.flags,
+                format: args.format,
+            }),
+            CaliptraDpeProfile::Mldsa87 => CertifyKeyCommandNoRef::Mldsa(CertifyKeyMldsa87Cmd {
+                handle: args.handle,
+                label: args.label,
+                flags: args.flags,
+                format: args.format,
+            }),
+        }
+    }
+}
+
+impl<'a> From<&'a CertifyKeyCommandNoRef> for Command<'a> {
+    fn from(cmd: &'a CertifyKeyCommandNoRef) -> Command<'a> {
+        match cmd {
+            CertifyKeyCommandNoRef::P384(cmd) => cmd.into(),
+            CertifyKeyCommandNoRef::Mldsa(cmd) => cmd.into(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SignCommandNoRef {
+    P384(SignP384Cmd),
+    Mldsa(SignMldsa87Cmd),
+}
+
+impl SignCommandNoRef {
+    pub fn new(args: CreateSignCmdArgs) -> Self {
+        let CreateSignCmdArgs { profile, data, .. } = args;
+        match (profile, data) {
+            (CaliptraDpeProfile::Ecc384, PrecomputedSignData::Digest(Digest::Sha384(digest))) => {
+                Self::P384(SignP384Cmd {
+                    handle: args.handle,
+                    label: args.label,
+                    flags: args.flags,
+                    digest: digest.0,
+                })
+            }
+            (CaliptraDpeProfile::Mldsa87, PrecomputedSignData::Mu(mu)) => {
+                Self::Mldsa(SignMldsa87Cmd {
+                    handle: args.handle,
+                    label: args.label,
+                    flags: args.flags,
+                    digest: mu.0,
+                })
+            }
+            _ => panic!("Invalid combination of profile and precomputed sign data"),
+        }
+    }
+}
+
+impl<'a> From<&'a SignCommandNoRef> for Command<'a> {
+    fn from(cmd: &'a SignCommandNoRef) -> Command<'a> {
+        match cmd {
+            SignCommandNoRef::P384(cmd) => cmd.into(),
+            SignCommandNoRef::Mldsa(cmd) => cmd.into(),
+        }
+    }
+}
+
+pub struct CreateSignCmdArgs {
+    pub profile: CaliptraDpeProfile,
+    pub handle: ContextHandle,
+    pub label: [u8; 48],
+    pub flags: SignFlags,
+    pub data: PrecomputedSignData,
+}
+
+impl Default for CreateSignCmdArgs {
+    fn default() -> Self {
+        Self {
+            profile: CaliptraDpeProfile::Ecc384,
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: SignFlags::empty(),
+            data: PrecomputedSignData::Digest([0u8; 48].into()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateCertifyKeyCmdArgs {
+    pub profile: CaliptraDpeProfile,
+    pub handle: ContextHandle,
+    pub label: [u8; 48],
+    pub flags: CertifyKeyFlags,
+    pub format: u32,
+}
+
+impl Default for CreateCertifyKeyCmdArgs {
+    fn default() -> Self {
+        Self {
+            profile: CaliptraDpeProfile::Ecc384,
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: CertifyKeyFlags::empty(),
+            format: CertifyKeyCommand::FORMAT_X509,
+        }
+    }
 }
 
 pub fn assert_error(

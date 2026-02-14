@@ -12,18 +12,17 @@ Abstract:
 
 --*/
 
-use crate::{ec_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{
+    invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
-use caliptra_drivers::{
-    okmutref, pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult,
-};
+use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
+    commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::DpeErrorCode,
+    response::{DeriveContextResp, DpeErrorCode},
     tci::TciMeasurement,
-    DpeInstance, DpeProfile,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -65,14 +64,11 @@ impl StashMeasurementCmd {
                 svn,
             };
 
-            let derive_context_resp = &{
-                let mut env = ec_dpe_env(drivers, None, None);
-                let env = okmutref(&mut env)?;
-                let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-                cmd.execute(dpe, env, locality)
-            };
-
-            match derive_context_resp {
+            let profile = CaliptraDpeProfile::Ecc384;
+            let cmd = &Command::from(&cmd);
+            let resp = &mut [0u8; size_of::<DeriveContextResp>()];
+            let result = &invoke_dpe_cmd(profile, drivers, cmd, None, None, resp);
+            match result {
                 Ok(_) => DpeErrorCode::NoError,
                 Err(e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO

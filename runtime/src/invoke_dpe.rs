@@ -118,7 +118,9 @@ impl InvokeDpeCmd {
             };
 
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let resp = invoke_dpe_cmd(profile, drivers, command, None, ueid);
+            let invoke_resp = mutrefbytes::<InvokeDpeResp>(mbox_resp)?;
+            let result =
+                invoke_dpe_cmd(profile, drivers, command, None, ueid, &mut invoke_resp.data);
 
             if let Command::DestroyCtx(_) = command {
                 // clear tags for destroyed contexts
@@ -131,17 +133,8 @@ impl InvokeDpeCmd {
 
             // If DPE command failed, populate header with error code, but
             // don't fail the mailbox command.
-            let invoke_resp = mutrefbytes::<InvokeDpeResp>(mbox_resp)?;
-
-            match resp {
-                Ok(ref r) => {
-                    let resp_bytes = r.as_bytes();
-                    let data_size = resp_bytes.len();
-                    let buf = invoke_resp
-                        .data
-                        .get_mut(..data_size)
-                        .ok_or(CaliptraError::RUNTIME_INVOKE_DPE_RESPONSE_TOO_LARGE)?;
-                    buf.copy_from_slice(resp_bytes);
+            match result {
+                Ok(data_size) => {
                     invoke_resp.data_size = data_size as u32;
                 }
                 Err(ref e) => {
@@ -195,14 +188,15 @@ pub fn invoke_dpe_cmd(
     command: &Command,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> Result<dpe::response::Response, DpeErrorCode> {
+    out: &mut [u8],
+) -> Result<usize, DpeErrorCode> {
     let locality = drivers.mbox.id();
     match profile {
         CaliptraDpeProfile::Ecc384 => {
-            invoke_ecc_dpe_cmd(drivers, command, dmtf_device_info, ueid, locality)
+            invoke_ecc_dpe_cmd(drivers, command, dmtf_device_info, ueid, locality, out)
         }
         CaliptraDpeProfile::Mldsa87 => {
-            invoke_mldsa_dpe_cmd(drivers, command, dmtf_device_info, ueid, locality)
+            invoke_mldsa_dpe_cmd(drivers, command, dmtf_device_info, ueid, locality, out)
         }
     }
 }
@@ -214,11 +208,12 @@ fn invoke_ecc_dpe_cmd(
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
     locality: u32,
-) -> Result<dpe::response::Response, DpeErrorCode> {
+    out: &mut [u8],
+) -> Result<usize, DpeErrorCode> {
     let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
     let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-    command.execute(dpe, env, locality)
+    command.execute_serialized(dpe, env, locality, out)
 }
 
 #[inline(never)]
@@ -228,9 +223,10 @@ fn invoke_mldsa_dpe_cmd(
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
     locality: u32,
-) -> Result<dpe::response::Response, DpeErrorCode> {
+    out: &mut [u8],
+) -> Result<usize, DpeErrorCode> {
     let mut env = mldsa_dpe_env(drivers, dmtf_device_info, ueid);
     let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::Mldsa87);
-    command.execute(dpe, env, locality)
+    command.execute_serialized(dpe, env, locality, out)
 }
