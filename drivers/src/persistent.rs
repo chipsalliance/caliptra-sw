@@ -79,7 +79,7 @@ pub enum BootMode {
     Normal = 0,
     /// Encrypted firmware boot mode (firmware loaded via RI_DOWNLOAD_ENCRYPTED_FIRMWARE)
     /// In this mode, runtime should not activate MCU firmware after downloading,
-    /// allowing MCU ROM to decrypt firmware first.
+    /// allowing MCU ROM to decrypt the firmware first.
     EncryptedFirmware = 1,
 }
 
