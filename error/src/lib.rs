@@ -1784,6 +1784,11 @@ impl CaliptraError {
             0x000E008D,
             "Runtime Error: DPE response too large"
         ),
+        (
+            RUNTIME_CMB_DMA_SHA384_MISMATCH,
+            0x000E008E,
+            "Runtime Error: DMA SHA384 hash mismatch during encrypted firmware decryption"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
