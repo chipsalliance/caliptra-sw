@@ -874,6 +874,22 @@ impl<'a> DmaRecovery<'a> {
     // TODO: remove this when the FPGA can do fixed burst transfers
     #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
     fn exec_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
+        // When AES mode is requested, use a single DMA transfer so data flows
+        // through the AES engine as one continuous stream.  AES-GCM requires
+        // this because the cipher maintains counter and GHASH state across
+        // blocks — breaking it into per-dword transfers with flush() in
+        // between would reset the pipeline.
+        //
+        // The per-dword workaround below is only needed because the FPGA
+        // cannot do fixed-address burst transfers (e.g. I3C recovery FIFO).
+        // Normal AXI-to-AXI (non-fixed) burst transfers work fine on FPGA.
+        if read_transaction.aes_mode || read_transaction.aes_gcm {
+            self.dma.flush();
+            self.dma.setup_dma_read(read_transaction);
+            self.dma.wait_for_dma_complete();
+            return Ok(());
+        }
+
         // Flush DMA before doing anything
         self.dma.flush();
 
