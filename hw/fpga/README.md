@@ -117,8 +117,7 @@ sudo apt install make gcc
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Clone this repo
 git clone https://github.com/chipsalliance/caliptra-sw.git
-git submodule init
-git submodule update
+git submodule update --init --recursive
 # Compile and install the kernel module
 sudo ./hw/fpga/setup_fpga.sh
 
