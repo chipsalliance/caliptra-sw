@@ -461,6 +461,10 @@ impl ModelVerilated {
         todo!()
     }
 
+    fn read_payload_from_ss_staging_area(&mut self, _len: usize) -> Result<Vec<u8>, ModelError> {
+        todo!()
+    }
+
     fn fuses(&self) -> &Fuses {
         &self.fuses
     }
