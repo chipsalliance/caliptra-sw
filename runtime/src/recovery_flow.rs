@@ -24,7 +24,7 @@ use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, AesDmaMode, DmaMmio, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, AesDmaMode, BootMode, DmaMmio, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 use ureg::MmioMut;
 use zerocopy::IntoBytes;
@@ -119,6 +119,16 @@ impl RecoveryFlow {
                     0,
                 )?;
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
+            }
+
+            // Check if firmware was loaded encrypted - if so, skip MCU activation
+            // MCU ROM will decrypt the firmware and send CM_ACTIVATE_FIRMWARE command
+            let boot_mode = drivers.persistent_data.get().rom.boot_mode;
+            if boot_mode == BootMode::EncryptedFirmware {
+                cprintln!("[rt] Encrypted firmware boot mode - skipping MCU activation");
+                // we're done with recovery, but MCU will handle its own boot after decryption
+                dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+                return Ok(());
             }
 
             // Caliptra sets RESET_REASON.FW_BOOT_UPD_RESET
