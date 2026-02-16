@@ -398,6 +398,9 @@ pub struct BootParams<'a> {
     pub soc_manifest: Option<&'a [u8]>,
     // MCU firmware image passed via the recovery interface
     pub mcu_fw_image: Option<&'a [u8]>,
+    /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
+    pub encrypted_boot: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -411,6 +414,7 @@ impl Default for BootParams<'_> {
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
+            encrypted_boot: false,
         }
     }
 }
@@ -856,11 +860,19 @@ pub trait HwModel: SocManager {
                 }
             )?;
             if subsystem_mode {
-                self.upload_firmware_rri(
-                    fw_image,
-                    boot_params.soc_manifest,
-                    boot_params.mcu_fw_image,
-                )?;
+                if boot_params.encrypted_boot {
+                    self.upload_firmware_rri_encrypted(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                } else {
+                    self.upload_firmware_rri(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                }
             } else {
                 self.upload_firmware(fw_image)?;
             }
@@ -1290,6 +1302,9 @@ pub trait HwModel: SocManager {
     /// Upload payload to external MCU SRAM
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError>;
 
+    /// Read payload from external MCU SRAM
+    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError>;
+
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         self.upload_firmware_to_mbox(firmware)
@@ -1326,7 +1341,8 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
-    /// Upload encrypted fw image to RRI.
+    /// Upload encrypted fw image to RRI using RI_DOWNLOAD_ENCRYPTED_FIRMWARE command.
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     fn upload_firmware_rri_encrypted(
         &mut self,
         firmware: &[u8],
@@ -1338,6 +1354,94 @@ pub trait HwModel: SocManager {
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
+        Ok(())
+    }
+
+    /// Decrypt the encrypted MCU firmware that was previously loaded into the
+    /// staging area. On real hardware (FPGA), the MCU ROM performs this operation
+    /// (importing the AES key, issuing CM_AES_GCM_DECRYPT_DMA, and verifying the tag).
+    /// The default implementation performs the full mailbox sequence:
+    ///   1. Import the AES key via CM_IMPORT
+    ///   2. Write the encrypted data to the subsystem staging area
+    ///   3. Issue CM_AES_GCM_DECRYPT_DMA to decrypt in place
+    ///   4. Verify the GCM authentication tag
+    fn decrypt_encrypted_mcu_firmware(
+        &mut self,
+        aes_key: &[u8; 32],
+        iv: &[u8; 12],
+        tag: &[u8; 16],
+        encrypted_data: &[u8],
+    ) -> Result<(), ModelError> {
+        use api::mailbox::{
+            CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage,
+            CommandId, MailboxReqHeader, MailboxRespHeader, CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE,
+        };
+        use zerocopy::transmute;
+
+        // Step 1: Import the AES key to get a CMK
+        let mut input = [0u8; 64];
+        input[..32].copy_from_slice(aes_key);
+
+        let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            key_usage: CmKeyUsage::Aes.into(),
+            input_size: 32,
+            input,
+        });
+        cm_import_cmd.populate_chksum().unwrap();
+
+        let resp = self
+            .mailbox_execute(
+                u32::from(CommandId::CM_IMPORT),
+                cm_import_cmd.as_bytes().unwrap(),
+            )?
+            .ok_or(ModelError::MailboxNoResponseData)?;
+
+        let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice())
+            .map_err(|_| ModelError::MailboxNoResponseData)?;
+        if cm_import_resp.hdr.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::MailboxRespInvalidFipsStatus(
+                cm_import_resp.hdr.fips_status,
+            ));
+        }
+        let cmk = cm_import_resp.cmk.clone();
+
+        // Step 2: Write encrypted data to staging area and get the AXI address
+        let mcu_sram_addr = self.write_payload_to_ss_staging_area(encrypted_data)?;
+
+        // Step 3: Compute SHA384 of encrypted data
+        let encrypted_sha384: [u8; 48] = sha2::Sha384::digest(encrypted_data).into();
+
+        // Step 4: Build and send CM_AES_GCM_DECRYPT_DMA request
+        let decrypt_req = CmAesGcmDecryptDmaReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            cmk,
+            iv: transmute!(*iv),
+            tag: transmute!(*tag),
+            encrypted_data_sha384: encrypted_sha384,
+            axi_addr_lo: mcu_sram_addr as u32,
+            axi_addr_hi: (mcu_sram_addr >> 32) as u32,
+            length: encrypted_data.len() as u32,
+            aad_length: 0,
+            aad: [0u8; CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
+        };
+
+        let mut decrypt_cmd = MailboxReq::CmAesGcmDecryptDma(decrypt_req);
+        decrypt_cmd.populate_chksum().unwrap();
+
+        let resp = self
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_GCM_DECRYPT_DMA),
+                decrypt_cmd.as_bytes().unwrap(),
+            )?
+            .ok_or(ModelError::MailboxNoResponseData)?;
+
+        let decrypt_resp = CmAesGcmDecryptDmaResp::ref_from_bytes(resp.as_slice())
+            .map_err(|_| ModelError::MailboxNoResponseData)?;
+        if decrypt_resp.tag_verified != 1 {
+            return Err(ModelError::MailboxCmdFailed(0));
+        }
+
         Ok(())
     }
 

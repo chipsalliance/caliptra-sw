@@ -1967,6 +1967,14 @@ impl HwModel for ModelFpgaSubsystem {
         } else {
             val & !(1 << 29)
         };
+        // Set encrypted boot wire on mci_generic_input_wires[1] bit 28.
+        // MCU ROM (core_test) checks this bit to decide whether to send
+        // RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE.
+        let val = if boot_params.encrypted_boot {
+            val | 1 << 28
+        } else {
+            val & !(1 << 28)
+        };
         gpio.set(val);
 
         const MAX_WAIT_FOR_CPTRA_BOOT_GO_CYCLES: u64 = 100_000_000;
@@ -2062,12 +2070,21 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
-        self.upload_firmware_rri(
-            boot_params.fw_image.unwrap(),
-            boot_params.soc_manifest,
-            Some(&mcu_fw_image),
-        )
-        .unwrap();
+        if boot_params.encrypted_boot {
+            self.upload_firmware_rri_encrypted(
+                boot_params.fw_image.unwrap(),
+                boot_params.soc_manifest,
+                Some(&mcu_fw_image),
+            )
+            .unwrap();
+        } else {
+            self.upload_firmware_rri(
+                boot_params.fw_image.unwrap(),
+                boot_params.soc_manifest,
+                Some(&mcu_fw_image),
+            )
+            .unwrap();
+        }
 
         Ok(())
     }
@@ -2188,19 +2205,25 @@ impl HwModel for ModelFpgaSubsystem {
             cb(self);
         }
 
-        // TODO: when MCU ROM supports a generic wire to indicate which command to send, we
-        // can re-enable it. But for now, we send the mailbox command ourselves and leave
-        // MCU ROM waiting.
-        let response = self.mailbox_execute(crate::RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE, &[])?;
-        if response.is_some() {
-            return Err(ModelError::UploadFirmwareUnexpectedResponse);
-        }
+        // MCU ROM checks the encrypted boot wire (mci_generic_input_wires[0] bit 28)
+        // and sends RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE.
+        // We just need to release the gate (bit 31) so MCU ROM proceeds.
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
+        let current = gpio.extract().get();
+        gpio.set(current | 1 << 31);
+
         Ok(())
     }
 
     fn upload_firmware(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         Ok(())
     }
+
+    // No override of decrypt_encrypted_mcu_firmware — use the default trait
+    // implementation which sends CM_IMPORT + CM_AES_GCM_DECRYPT_DMA from the
+    // host side, exactly like the emulated model.  The MCU ROM just loops
+    // after sending RI_DOWNLOAD_ENCRYPTED_FIRMWARE and does not attempt
+    // decryption itself.
 
     fn warm_reset(&mut self) {
         // Mark I3C as not ready since warm reset clears the dynamic address assignment
@@ -2254,6 +2277,24 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Return the physical address of the staging area
         Ok(mci_base_addr + 0xc00000)
+    }
+
+    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError> {
+        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
+
+        let mut result = Vec::with_capacity(len);
+        let num_words = (len + 3) / 4;
+
+        for i in 0..num_words {
+            let u32_value = unsafe { staging_ptr.add(i).read_volatile() };
+            let bytes = u32_value.to_le_bytes();
+            let remaining = len - result.len();
+            let take = remaining.min(4);
+            result.extend_from_slice(&bytes[..take]);
+        }
+
+        Ok(result)
     }
 
     /// Trigger a warm reset and advance the boot
@@ -2331,7 +2372,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
-        // reset the MCU input wires that let it know to load fuses or flash
+        // reset the MCU input wires that let it know to load fuses, flash, or encrypted boot
         self.wrapper.regs().mci_generic_input_wires[1].set(0);
         self.init_otp(None)
             .expect("Failed to initialize OTP after cold reset");
