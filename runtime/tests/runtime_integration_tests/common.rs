@@ -109,6 +109,8 @@ pub struct RuntimeTestArgs<'a> {
     pub ocp_lock_en: bool,
     pub key_type: Option<FwVerificationPqcKeyType>,
     pub rom_callback: Option<ModelCallback>,
+    /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE)
+    pub encrypted_boot: bool,
 }
 
 impl RuntimeTestArgs<'_> {
@@ -154,6 +156,7 @@ impl Default for RuntimeTestArgs<'_> {
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             key_type: None,
             rom_callback: None,
+            encrypted_boot: false,
         }
     }
 }
@@ -308,6 +311,7 @@ pub fn start_rt_test_pqc_model(
             initial_dbg_manuf_service_reg: boot_flags,
             soc_manifest,
             mcu_fw_image,
+            encrypted_boot: args.encrypted_boot,
             ..Default::default()
         },
     )
