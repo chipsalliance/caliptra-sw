@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::{ML_KEM_ID, P384_KEM_ID};
+use crate::crypto::{HYBRID_KEM_ID, ML_KEM_ID, P384_KEM_ID};
 
 /// This file contains the test vectors as defined in Appendix A of
 /// https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/03/.
@@ -63,7 +63,7 @@ impl HpkeTestArgs {
         let aead_id = 2;
 
         let test_vectors: Vec<HpkeTestArgs> = match kem_id {
-            ML_KEM_ID => serde_json::from_str(HPKE_TEST_VECTOR_PQ).unwrap(),
+            ML_KEM_ID | HYBRID_KEM_ID => serde_json::from_str(HPKE_TEST_VECTOR_PQ).unwrap(),
             P384_KEM_ID => serde_json::from_str(HPKE_TEST_VECTOR_P384).unwrap(),
             kem_id => panic!("Unknown kem_id: {kem_id}"),
         };
