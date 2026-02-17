@@ -41,6 +41,7 @@ fn main() {
         gen_init_devid_csr(out_dir);
         gen_fmc_alias_csr(out_dir);
         gen_local_devid_cert(out_dir);
+        gen_local_devid_csr(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
     }
@@ -140,6 +141,26 @@ fn gen_local_devid_cert(out_dir: &str) {
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 LDevID", "Caliptra 2.0 MlDsa87 IDevID");
     CodeGen::gen_code("LocalDevIdCertTbsMlDsa87", template, out_dir);
+}
+
+/// Generate Local DeviceId Certificate Template
+#[cfg(feature = "generate_templates")]
+fn gen_local_devid_csr(out_dir: &str) {
+    let mut usage = KeyUsage::default();
+    usage.set_key_cert_sign(true);
+    let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(true, 4)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17]);
+    let template = bldr.tbs_template("Caliptra 2.0 Ecc384 LDevID");
+    CodeGen::gen_code("LocalDevIdCsrTbsEcc384", template, out_dir);
+
+    let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
+        .add_basic_constraints_ext(true, 4)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17]);
+    let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 LDevID");
+    CodeGen::gen_code("LocalDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
 /// Generate FMC Alias Certificate Template
