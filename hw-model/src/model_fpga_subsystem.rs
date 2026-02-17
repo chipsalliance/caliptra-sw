@@ -985,6 +985,11 @@ impl ModelFpgaSubsystem {
                 // do the indirect fifo thing
                 println!("Recovery image available; writing blocks");
 
+                // Store the original image length before padding.
+                // The firmware uses this length for DMA transfer and SHA-384 digest,
+                // so it must reflect the actual image size, not the padded size.
+                self.recovery_ctrl_len = image.len();
+
                 // Recovery images must be padded to a multiple of 256 bytes
                 // or the last chunk will not finish.
                 let image = if image.len() % 256 == 0 {
@@ -994,8 +999,6 @@ impl ModelFpgaSubsystem {
                     image.resize(image.len().next_multiple_of(256), 0);
                     image
                 };
-
-                self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
 
                 self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
@@ -2077,6 +2080,24 @@ impl HwModel for ModelFpgaSubsystem {
                 Some(&mcu_fw_image),
             )
             .unwrap();
+
+            // Wait for the MCU ROM to finish its encrypted boot flow
+            // (CM_SHA + CM_IMPORT + CM_AES_GCM_DECRYPT_DMA) before returning.
+            // The MCU ROM sets COLD_BOOT_FLOW_COMPLETE after decrypt_firmware().
+            const MAX_WAIT_DECRYPT_CYCLES: u64 = 1_000_000_000;
+            let start = self.cycle_count();
+            while !self
+                .mci_boot_milestones()
+                .contains(McuBootMilestones::COLD_BOOT_FLOW_COMPLETE)
+            {
+                self.step();
+                if self.cycle_count().wrapping_sub(start) >= MAX_WAIT_DECRYPT_CYCLES {
+                    panic!(
+                        "Timeout waiting for MCU ROM encrypted boot to complete after {} cycles",
+                        self.cycle_count().wrapping_sub(start)
+                    );
+                }
+            }
         } else {
             self.upload_firmware_rri(
                 boot_params.fw_image.unwrap(),
@@ -2219,11 +2240,14 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(())
     }
 
-    // No override of decrypt_encrypted_mcu_firmware — use the default trait
-    // implementation which sends CM_IMPORT + CM_AES_GCM_DECRYPT_DMA from the
-    // host side, exactly like the emulated model.  The MCU ROM just loops
-    // after sending RI_DOWNLOAD_ENCRYPTED_FIRMWARE and does not attempt
-    // decryption itself.
+    /// On FPGA the real MCU ROM handles decryption autonomously after the gate
+    /// is released, so the model has nothing to do.
+    fn decrypt_encrypted_mcu_firmware(
+        &mut self,
+        _encrypted_mcu_fw: &[u8],
+    ) -> Result<(), ModelError> {
+        Ok(())
+    }
 
     fn warm_reset(&mut self) {
         // Mark I3C as not ready since warm reset clears the dynamic address assignment

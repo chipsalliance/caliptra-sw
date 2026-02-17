@@ -748,6 +748,18 @@ const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
 /// The download encrypted firmware from recovery interface Opcode
 const RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE: u32 = 0x5249_4645;
 
+/// Boot status value indicating Runtime is ready for mailbox commands.
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
+/// Test AES-256 key used for encrypted MCU firmware in sw-emulated models.
+/// On real hardware the MCU ROM obtains the key from its own storage.
+pub const MCU_TEST_AES_KEY: [u8; 32] = [0xaa; 32];
+
+/// Test AES-GCM IV used for encrypted MCU firmware in sw-emulated models.
+pub const MCU_TEST_IV: [u8; 12] = [
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+];
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -866,6 +878,13 @@ pub trait HwModel: SocManager {
                         boot_params.soc_manifest,
                         boot_params.mcu_fw_image,
                     )?;
+                    // Simulate what the MCU ROM does on real hardware: wait for
+                    // Caliptra RT to be ready, then decrypt the MCU firmware
+                    // in-place via CM_IMPORT + CM_AES_GCM_DECRYPT_DMA.
+                    if let Some(mcu_fw) = boot_params.mcu_fw_image {
+                        self.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+                        self.decrypt_encrypted_mcu_firmware(mcu_fw)?;
+                    }
                 } else {
                     self.upload_firmware_rri(
                         fw_image,
@@ -1357,20 +1376,22 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
-    /// Decrypt the encrypted MCU firmware that was previously loaded into the
-    /// staging area. On real hardware (FPGA), the MCU ROM performs this operation
-    /// (importing the AES key, issuing CM_AES_GCM_DECRYPT_DMA, and verifying the tag).
-    /// The default implementation performs the full mailbox sequence:
+    /// Simulate the MCU ROM decrypting the encrypted MCU firmware after the
+    /// RRI download. On real hardware (FPGA), the MCU ROM performs this
+    /// autonomously, so the FPGA model overrides this with a no-op.
+    ///
+    /// The default (sw-emulator) implementation uses [`MCU_TEST_AES_KEY`] and
+    /// [`MCU_TEST_IV`] and performs the mailbox sequence that the MCU ROM would
+    /// execute:
     ///   1. Import the AES key via CM_IMPORT
-    ///   2. Write the encrypted data to the subsystem staging area
+    ///   2. Write the ciphertext to the subsystem staging area
     ///   3. Issue CM_AES_GCM_DECRYPT_DMA to decrypt in place
     ///   4. Verify the GCM authentication tag
+    ///
+    /// `encrypted_mcu_fw` must be formatted as `ciphertext || 16-byte GCM tag`.
     fn decrypt_encrypted_mcu_firmware(
         &mut self,
-        aes_key: &[u8; 32],
-        iv: &[u8; 12],
-        tag: &[u8; 16],
-        encrypted_data: &[u8],
+        encrypted_mcu_fw: &[u8],
     ) -> Result<(), ModelError> {
         use api::mailbox::{
             CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage,
@@ -1378,9 +1399,17 @@ pub trait HwModel: SocManager {
         };
         use zerocopy::transmute;
 
-        // Step 1: Import the AES key to get a CMK
+        assert!(
+            encrypted_mcu_fw.len() > 16,
+            "encrypted MCU firmware must be at least 17 bytes (ciphertext + 16-byte tag)"
+        );
+
+        let (ciphertext, tag_bytes) = encrypted_mcu_fw.split_at(encrypted_mcu_fw.len() - 16);
+        let tag: [u8; 16] = tag_bytes.try_into().unwrap();
+
+        // Step 1: Import the test AES key to get a CMK
         let mut input = [0u8; 64];
-        input[..32].copy_from_slice(aes_key);
+        input[..32].copy_from_slice(&MCU_TEST_AES_KEY);
 
         let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -1406,22 +1435,22 @@ pub trait HwModel: SocManager {
         }
         let cmk = cm_import_resp.cmk.clone();
 
-        // Step 2: Write encrypted data to staging area and get the AXI address
-        let mcu_sram_addr = self.write_payload_to_ss_staging_area(encrypted_data)?;
+        // Step 2: Write ciphertext to staging area and get the AXI address
+        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext)?;
 
-        // Step 3: Compute SHA384 of encrypted data
-        let encrypted_sha384: [u8; 48] = sha2::Sha384::digest(encrypted_data).into();
+        // Step 3: Compute SHA384 of ciphertext
+        let encrypted_sha384: [u8; 48] = sha2::Sha384::digest(ciphertext).into();
 
         // Step 4: Build and send CM_AES_GCM_DECRYPT_DMA request
         let decrypt_req = CmAesGcmDecryptDmaReq {
             hdr: MailboxReqHeader { chksum: 0 },
             cmk,
-            iv: transmute!(*iv),
-            tag: transmute!(*tag),
+            iv: transmute!(MCU_TEST_IV),
+            tag: transmute!(tag),
             encrypted_data_sha384: encrypted_sha384,
             axi_addr_lo: mcu_sram_addr as u32,
             axi_addr_hi: (mcu_sram_addr >> 32) as u32,
-            length: encrypted_data.len() as u32,
+            length: ciphertext.len() as u32,
             aad_length: 0,
             aad: [0u8; CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
         };
