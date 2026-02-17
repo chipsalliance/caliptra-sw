@@ -59,6 +59,7 @@ fn main() {
         gen_init_devid_csr(out_dir);
         gen_fmc_alias_csr(out_dir);
         gen_local_devid_cert(out_dir);
+        gen_local_devid_csr(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
         gen_ocp_lock_endorsement_cert(out_dir);
@@ -181,6 +182,28 @@ fn gen_local_devid_cert(out_dir: &str) {
         .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_LOC, x509::TCG_DICE_KP_ECA]);
     let template = bldr.tbs_template(LDEVID_MLDSA87, IDEVID_MLDSA87);
     CodeGen::gen_code("LocalDevIdCertTbsMlDsa87", template, out_dir);
+}
+
+/// Generate Local DeviceId Certificate Template
+#[cfg(feature = "generate_templates")]
+fn gen_local_devid_csr(out_dir: &str) {
+    let mut usage = KeyUsage::default();
+    usage.set_key_cert_sign(true);
+    let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(true, 6)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_LOC, x509::TCG_DICE_KP_ECA]);
+    let template = bldr.tbs_template(LDEVID_ECC384);
+    CodeGen::gen_code("LocalDevIdCsrTbsEcc384", template, out_dir);
+
+    let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
+        .add_basic_constraints_ext(true, 6)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_IDENTITY_LOC, x509::TCG_DICE_KP_ECA]);
+    let template = bldr.tbs_template(LDEVID_MLDSA87);
+    CodeGen::gen_code("LocalDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
 /// Generate FMC Alias Certificate Template
