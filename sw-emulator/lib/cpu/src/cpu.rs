@@ -829,6 +829,11 @@ impl<TBus: Bus> Cpu<TBus> {
 
         // We are in a halted state. Don't continue executing but poll the bus for interrupts
         if self.halted {
+            // The incoming events loop contains interactions with peripherals, including memory,
+            // mci, etc. which are responsive even when the CPU is halted.  As such process events
+            // during the halt step as well.
+            self.handle_incoming_events();
+
             self.set_next_pc(self.pc);
             return StepAction::Continue;
         }
