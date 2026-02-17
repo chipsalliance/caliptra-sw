@@ -2219,11 +2219,14 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(())
     }
 
-    // No override of decrypt_encrypted_mcu_firmware — use the default trait
-    // implementation which sends CM_IMPORT + CM_AES_GCM_DECRYPT_DMA from the
-    // host side, exactly like the emulated model.  The MCU ROM just loops
-    // after sending RI_DOWNLOAD_ENCRYPTED_FIRMWARE and does not attempt
-    // decryption itself.
+    /// On FPGA the real MCU ROM handles decryption autonomously after the gate
+    /// is released, so the model has nothing to do.
+    fn decrypt_encrypted_mcu_firmware(
+        &mut self,
+        _encrypted_mcu_fw: &[u8],
+    ) -> Result<(), ModelError> {
+        Ok(())
+    }
 
     fn warm_reset(&mut self) {
         // Mark I3C as not ready since warm reset clears the dynamic address assignment

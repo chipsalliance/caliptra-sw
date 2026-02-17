@@ -10,7 +10,7 @@ use caliptra_api::mailbox::{
     MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
-use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams};
+use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams, MCU_TEST_AES_KEY, MCU_TEST_IV};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::from_hw_format;
 use caliptra_image_gen::ImageGeneratorCrypto;
@@ -47,53 +47,40 @@ fn import_aes_key(model: &mut caliptra_hw_model::DefaultHwModel, key: &[u8; 32])
     cm_import_resp.cmk.clone()
 }
 
-/// Encrypt data using AES-256-GCM
-fn aes_gcm_encrypt(
-    key: &[u8; 32],
-    iv: &[u8; 12],
-    aad: &[u8],
-    plaintext: &[u8],
-) -> (Vec<u8>, [u8; 16]) {
+/// Encrypt data using AES-256-GCM, returning `ciphertext || 16-byte tag`.
+fn aes_gcm_encrypt(key: &[u8; 32], iv: &[u8; 12], aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
     let key: &Key<aes_gcm::Aes256Gcm> = key.into();
     let mut cipher = aes_gcm::Aes256Gcm::new(key);
     let mut ciphertext = plaintext.to_vec();
     let tag = cipher
         .encrypt_in_place_detached(iv.into(), aad, &mut ciphertext)
         .expect("Encryption failed");
-    (ciphertext, tag.into())
+    ciphertext.extend_from_slice(&tag);
+    ciphertext
 }
 
-/// Test that the encrypted firmware flow works correctly:
-/// 1. Boot with RI_DOWNLOAD_ENCRYPTED_FIRMWARE (sends raw ciphertext as MCU image)
-/// 2. Decrypt the MCU firmware in-place via the HwModel trait's default
-///    decrypt_encrypted_mcu_firmware (CM_IMPORT + CM_AES_GCM_DECRYPT_DMA)
-/// 3. Verify the decrypted firmware matches the original plaintext
+/// Test that the encrypted firmware boot flow works end-to-end:
+/// 1. Encrypt MCU firmware with the test AES key / IV
+/// 2. Boot with RI_DOWNLOAD_ENCRYPTED_FIRMWARE — the hw-model automatically
+///    simulates MCU ROM decryption (CM_IMPORT + CM_AES_GCM_DECRYPT_DMA)
+/// 3. Verify the decrypted firmware in SRAM matches the original plaintext
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime",), ignore)]
 #[test]
 fn test_encrypted_firmware_decrypt_dma() {
     // The plaintext MCU firmware
     let mcu_fw_plaintext: Vec<u8> = (0..256).map(|i| i as u8).collect();
 
-    // AES-256 key and IV for encryption
-    let aes_key: [u8; 32] = [0xaa; 32];
-    let iv: [u8; 12] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-    ];
+    // Encrypt with the well-known test key/IV (ciphertext || tag)
     let aad: [u8; 0] = [];
+    let mcu_fw_image = aes_gcm_encrypt(&MCU_TEST_AES_KEY, &MCU_TEST_IV, &aad, &mcu_fw_plaintext);
 
-    // Encrypt the MCU firmware
-    let (mcu_fw_encrypted, tag) = aes_gcm_encrypt(&aes_key, &iv, &aad, &mcu_fw_plaintext);
-
-    // The raw ciphertext is the MCU firmware image delivered via the recovery interface.
-    // Caliptra RT downloads it to MCU SRAM and computes SHA384 over the delivered size.
-    // The auth manifest digest must match.
-    let mcu_fw_image = &mcu_fw_encrypted;
-
+    // Auth manifest digest must match what the recovery interface delivers,
+    // which is the full image (ciphertext || tag).
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw_image).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw_image).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -103,7 +90,7 @@ fn test_encrypted_firmware_decrypt_dma() {
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest_bytes = soc_manifest.as_bytes();
 
-    // Use the standard test infrastructure with encrypted_boot flag
+    // Boot with encrypted_boot — boot() handles the MCU ROM decrypt simulation.
     let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let args = RuntimeTestArgs {
         init_params: Some(InitParams {
@@ -116,29 +103,22 @@ fn test_encrypted_firmware_decrypt_dma() {
             ..Default::default()
         }),
         soc_manifest: Some(soc_manifest_bytes),
-        mcu_fw_image: Some(mcu_fw_image),
+        mcu_fw_image: Some(&mcu_fw_image),
         encrypted_boot: true,
         ..Default::default()
     };
 
     let mut model = run_rt_test(args);
+
+    // boot() already waited for RT_READY_FOR_COMMANDS and decrypted;
+    // this is a no-op but kept for clarity.
     model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
-    // Decrypt the encrypted MCU firmware in the staging area.
-    // The default trait impl imports the AES key via CM_IMPORT, writes the ciphertext
-    // to MCU SRAM at offset 0, and issues CM_AES_GCM_DECRYPT_DMA to decrypt in-place.
-    model
-        .decrypt_encrypted_mcu_firmware(&aes_key, &iv, &tag, &mcu_fw_encrypted)
-        .expect("Failed to decrypt MCU firmware");
-
-    // Read back the decrypted firmware from MCU SRAM offset 0.
-    // decrypt_encrypted_mcu_firmware wrote the ciphertext at offset 0 and decrypted
-    // it in-place, so the plaintext is at offset 0.
+    // Read back the decrypted firmware from MCU SRAM and verify.
     let decrypted_fw = model
         .read_payload_from_ss_staging_area(mcu_fw_plaintext.len())
         .unwrap();
 
-    // Verify the decrypted firmware matches the original plaintext
     assert_eq!(
         decrypted_fw, mcu_fw_plaintext,
         "Decrypted firmware does not match original plaintext"
