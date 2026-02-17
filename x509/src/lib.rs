@@ -27,6 +27,8 @@ mod ldevid_csr_ecc_384;
 mod ldevid_csr_mldsa_87;
 mod rt_alias_cert_ecc_384;
 mod rt_alias_cert_mldsa_87;
+mod rt_alias_csr_ecc_384;
+mod rt_alias_csr_mldsa_87;
 mod test_util;
 
 pub use cert_bldr::{
@@ -47,6 +49,8 @@ pub use ldevid_csr_ecc_384::{LocalDevIdCsrTbsEcc384, LocalDevIdCsrTbsEcc384Param
 pub use ldevid_csr_mldsa_87::{LocalDevIdCsrTbsMlDsa87, LocalDevIdCsrTbsMlDsa87Params};
 pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 pub use rt_alias_cert_mldsa_87::{RtAliasCertTbsMlDsa87, RtAliasCertTbsMlDsa87Params};
+pub use rt_alias_csr_ecc_384::{RtAliasCsrTbsEcc384, RtAliasCsrTbsEcc384Params};
+pub use rt_alias_csr_mldsa_87::{RtAliasCsrTbsMlDsa87, RtAliasCsrTbsMlDsa87Params};
 use zeroize::Zeroize;
 
 pub const NOT_BEFORE: &str = "20230101000000Z";

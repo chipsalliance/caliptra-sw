@@ -66,6 +66,14 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         self
     }
 
+    /// Add X509 Extended Key Usage Extension with custom OIDs
+    pub fn add_extended_key_usage_ext(mut self, oids: &[&str]) -> Self {
+        self.exts
+            .push(x509::make_extended_key_usage_ext(oids))
+            .unwrap();
+        self
+    }
+
     /// Add TCG UEID extension
     ///
     /// # Arguments
@@ -124,6 +132,29 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         });
 
         for fwid in device_fwids.iter().chain(fmc_fwids.iter()) {
+            self.params.push(CsrTemplateParam {
+                tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
+                needle: fwid.fwid.digest.to_vec(),
+            });
+        }
+
+        self
+    }
+
+    /// Add Runtime DICE TCB Info Extension
+    pub fn add_rt_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+        let svn: u8 = 0xC1;
+
+        self.exts
+            .push(x509::make_rt_dice_tcb_info_ext(svn, fwids))
+            .unwrap();
+
+        self.params.push(CsrTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_fw_svn", 0, std::mem::size_of_val(&svn)),
+            needle: svn.to_be_bytes().to_vec(),
+        });
+
+        for fwid in fwids.iter() {
             self.params.push(CsrTemplateParam {
                 tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
                 needle: fwid.fwid.digest.to_vec(),
