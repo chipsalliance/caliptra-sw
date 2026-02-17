@@ -44,6 +44,18 @@ pub const TCG_DICE_KP_IDENTITY_LOC: &str = "2.23.133.5.4.100.7";
 pub const TCG_DICE_KP_ATTEST_LOC: &str = "2.23.133.5.4.100.9";
 pub const TCG_DICE_KP_ECA: &str = "2.23.133.5.4.100.12";
 
+// TODO(clundin): Double check this oid https://github.com/chipsalliance/caliptra-sw/issues/3322.
+// From https://datatracker.ietf.org/doc/draft-ietf-lamps-pq-composite-kem/
+pub const HYBRID_MLKEM_1024_ECDH_P384_OID: &str = "1.3.6.1.5.5.7.6.63";
+pub const MLDSA_87_OID: &str = "2.16.840.1.101.3.4.3.19";
+
+pub enum KeyType {
+    P384,
+    MlDsa87,
+    MlKem1024,
+    MlKem1024P384,
+}
+
 #[derive(asn1::Asn1Write)]
 struct TcbInfo<'a> {
     #[implicit(0)]
@@ -96,6 +108,8 @@ pub trait AsymKey: Default {
     fn hex_str(&self) -> String {
         hex::encode(self.sha256()).to_uppercase()
     }
+
+    fn key_type(&self) -> KeyType;
 }
 
 /// Digest
@@ -133,6 +147,10 @@ impl AsymKey for Ecc384AsymKey {
     /// Retrieve Public Key
     fn pub_key(&self) -> &[u8] {
         &self.pub_key
+    }
+
+    fn key_type(&self) -> KeyType {
+        KeyType::P384
     }
 }
 
@@ -190,6 +208,10 @@ impl AsymKey for MlDsa87AsymKey {
     /// Retrieve Public Key
     fn pub_key(&self) -> &[u8] {
         &self.pub_key
+    }
+
+    fn key_type(&self) -> KeyType {
+        KeyType::MlDsa87
     }
 }
 
@@ -260,6 +282,10 @@ impl AsymKey for MlKem1024Key {
     fn priv_key(&self) -> &PKey<Private> {
         &self.priv_key
     }
+
+    fn key_type(&self) -> KeyType {
+        KeyType::MlKem1024
+    }
 }
 
 impl Default for MlKem1024Key {
@@ -277,6 +303,55 @@ impl Default for MlKem1024Key {
             priv_key: private_key,
             pub_key: public_key.to_vec(),
         }
+    }
+}
+
+pub struct HybridP384MlKem1024Key {
+    pub_key: Vec<u8>,
+}
+
+impl AsymKey for HybridP384MlKem1024Key {
+    fn priv_key(&self) -> &PKey<Private> {
+        // For template generation only the public key matters (at least for the subject key).
+        unimplemented!("This key can't be used for signatures!")
+    }
+
+    fn pub_key(&self) -> &[u8] {
+        &self.pub_key
+    }
+
+    fn key_type(&self) -> KeyType {
+        KeyType::MlKem1024P384
+    }
+}
+
+impl Default for HybridP384MlKem1024Key {
+    fn default() -> Self {
+        let ecc384 = Ecc384AsymKey::default();
+        let mlkem1024 = MlKem1024Key::default();
+
+        // Hybrid kem public key is the concatenation of the PQ key & the traditional key.
+        let pq = mlkem1024.pub_key();
+        let trad = ecc384.pub_key();
+
+        let mut pub_key = Vec::new();
+        pub_key.extend_from_slice(pq);
+        pub_key.extend_from_slice(trad);
+
+        Self { pub_key }
+    }
+}
+
+#[derive(Default)]
+pub struct HybridP384MlKem1024Algo {}
+
+impl SigningAlgorithm for HybridP384MlKem1024Algo {
+    type AsymKey = HybridP384MlKem1024Key;
+    // Used for KEM not signing.
+    type Digest = Noop;
+
+    fn gen_key(&self) -> Self::AsymKey {
+        Self::AsymKey::default()
     }
 }
 
@@ -541,9 +616,7 @@ impl HPKEIdentifiers {
 
     /// KEM id's
     pub const ML_KEM_1024_IANA_CODE_POINT: KemId = KemId(0x0042);
-    // TODO(clundin): This will be used in a follow up PR.
-    #[allow(dead_code)]
-    pub const ML_KEM_EC_P384_IANA_CODE_POINT: KemId = KemId(0x0052);
+    pub const ML_KEM_1024_ECDH_P384_IANA_CODE_POINT: KemId = KemId(0x0051);
     pub const ECDH_P384_IANA_CODE_POINT: KemId = KemId(0x0011);
 
     /// KDF id's

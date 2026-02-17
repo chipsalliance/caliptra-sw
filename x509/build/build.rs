@@ -23,6 +23,8 @@ mod csr;
 mod tbs;
 #[cfg(feature = "generate_templates")]
 mod x509;
+#[cfg(feature = "generate_templates")]
+mod x509_cert;
 
 #[cfg(feature = "generate_templates")]
 use {
@@ -63,6 +65,7 @@ fn main() {
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
         gen_ocp_lock_endorsement_cert(out_dir);
+        gen_ocp_lock_hybrid_endorsement_cert(out_dir);
     }
 }
 
@@ -374,4 +377,46 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
         ));
     let template = bldr.tbs_template("OCP LOCK HPKE Endorsement ECDH P-384", RT_ALIAS_MLDSA87);
     CodeGen::gen_code("OcpLockEcdh384CertTbsMlDsa87", template, out_dir);
+}
+
+/// Generate OCP LOCK HPKE Endorsement Certificate Templates with Hybrid Keys
+/// This is build with the "x509-cert" crate because OpenSSL does not yet support the ML-KEM &
+/// P-384 hybrid key type.
+#[cfg(feature = "generate_templates")]
+fn gen_ocp_lock_hybrid_endorsement_cert(out_dir: &str) {
+    use x509::{HPKEIdentifiers, HybridP384MlKem1024Algo};
+    use x509_cert::X509CertTemplateBuilder;
+    // 4.2.2.1.3
+    // In addition, the X.509 extended attributes SHALL:
+    // * Indicate the key usage as keyEncipherment
+    let mut usage = KeyUsage::default();
+    usage.set_key_encipherment(true);
+
+    let bldr = X509CertTemplateBuilder::<EcdsaSha384Algo, HybridP384MlKem1024Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ML_KEM_1024_ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ML-KEM-1024-ECDH-P384",
+        RT_ALIAS_ECC384,
+    );
+    CodeGen::gen_code("OcpLockHybridCertTbsEcc384", template, out_dir);
+
+    let bldr = X509CertTemplateBuilder::<MlDsa87Algo, HybridP384MlKem1024Algo>::new()
+        .add_basic_constraints_ext(false, 0)
+        .add_key_usage_ext(usage)
+        .add_hpke_identifiers_ext(&HPKEIdentifiers::new(
+            HPKEIdentifiers::ML_KEM_1024_ECDH_P384_IANA_CODE_POINT,
+            HPKEIdentifiers::HKDF_SHA384_IANA_CODE_POINT,
+            HPKEIdentifiers::AES_256_GCM_IANA_CODE_POINT,
+        ));
+    let template = bldr.tbs_template(
+        "OCP LOCK HPKE Endorsement ML-KEM-1024-ECDH-P384",
+        RT_ALIAS_MLDSA87,
+    );
+    CodeGen::gen_code("OcpLockHybridCertTbsMlDsa87", template, out_dir);
 }

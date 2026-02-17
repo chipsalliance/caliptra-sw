@@ -1071,6 +1071,7 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
+ "const-oid 0.9.6",
  "convert_case",
  "der 0.7.10",
  "hex",
@@ -1078,6 +1079,7 @@ dependencies = [
  "quote",
  "rand",
  "syn 1.0.109",
+ "x509-cert",
  "x509-parser",
  "zeroize",
 ]
