@@ -44,6 +44,7 @@ fn main() {
         gen_local_devid_csr(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
+        gen_rt_alias_csr(out_dir);
     }
 }
 
@@ -270,4 +271,45 @@ fn gen_rt_alias_cert(out_dir: &str) {
         "Caliptra 2.0 MlDsa87 FMC Alias",
     );
     CodeGen::gen_code("RtAliasCertTbsMlDsa87", template, out_dir);
+}
+
+/// Generate Runtime alias Certificate Signing Request Template
+#[cfg(feature = "generate_templates")]
+fn gen_rt_alias_csr(out_dir: &str) {
+    let mut usage = KeyUsage::default();
+    // Add KeyCertSign to allow signing of other certs
+    usage.set_key_cert_sign(true);
+    // Add DigitalSignature to allow signing of firmware
+    usage.set_digital_signature(true);
+    let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
+        // Basic Constraints : CA = true, PathLen = 2
+        .add_basic_constraints_ext(true, 2)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
+        .add_rt_dice_tcb_info_ext(&[FwidParam {
+            name: "TCB_INFO_RT_TCI",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xCD; 48],
+            },
+        }]);
+    let template = bldr.tbs_template("Caliptra 2.0 Ecc384 Rt Alias");
+    CodeGen::gen_code("RtAliasCsrTbsEcc384", template, out_dir);
+
+    let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
+        // Basic Constraints : CA = true, PathLen = 2
+        .add_basic_constraints_ext(true, 2)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
+        .add_rt_dice_tcb_info_ext(&[FwidParam {
+            name: "TCB_INFO_RT_TCI",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xCD; 48],
+            },
+        }]);
+    let template = bldr.tbs_template("Caliptra 2.0 MlDsa87 Rt Alias");
+    CodeGen::gen_code("RtAliasCsrTbsMlDsa87", template, out_dir);
 }
