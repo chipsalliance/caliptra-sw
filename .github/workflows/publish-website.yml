@@ -34,7 +34,7 @@ jobs:
           mkdir -p ${{inputs.www_out}}
           cd ci-tools/test-matrix
 
-          cargo run --release -- \
+          cargo +1.93 run --release -- \
             --token ${GITHUB_TOKEN} \
             --workflow ${{inputs.workflow_file}} \
             --out ${{inputs.www_out}}
