@@ -72,7 +72,7 @@ pub const LAST_REGION_END: u32 = ROM_DATA_ORG + ROM_DATA_SIZE;
 
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
 pub const ROM_SIZE: u32 = 96 * 1024;
-pub const MAX_MBOX_SIZE: u32 = 256 * 1024; // Actual size depens on hw revision and subsystem being present
+pub const MAX_MBOX_SIZE: u32 = 256 * 1024; // Actual size depends on hw revision and subsystem being present
 pub const MBOX_SIZE_PASSIVE_MODE: u32 = 16 * 1024;
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
