@@ -15,7 +15,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::hpke::{
     kem::MlKemEncapsulationKey,
-    suites::{CipherSuite, KemId},
+    suites::{HpkeCipherSuite, KemId},
     HpkeHandle,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -44,11 +44,13 @@ impl EndorseHpkePubkeyCmd {
         resp.pub_key_len = drivers.ocp_lock_context.get_hpke_public_key(
             &mut drivers.sha3,
             &mut drivers.ml_kem,
+            &mut drivers.trng,
+            &mut drivers.hmac,
             &hpke_handle,
             &mut resp.pub_key,
         )? as u32;
 
-        let CipherSuite { kem, .. } = drivers
+        let HpkeCipherSuite { kem, .. } = drivers
             .ocp_lock_context
             .get_hpke_cipher_suite(&hpke_handle)?;
 

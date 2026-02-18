@@ -5,11 +5,11 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 pub use encryption_context::{EncryptionContext, Receiver, Sender};
 use kdf::Hmac384;
 use kem::{
-    EncapsulatedSecret, EncapsulationKey, Kem, MlKem, MlKemEncapsulatedSecret,
+    EncapsulatedSecret, EncapsulationKey, Kem, MlKem, MlKemContext, MlKemEncapsulatedSecret,
     MlKemEncapsulationKey,
 };
-use suites::CipherSuite;
-use zerocopy::{transmute, FromBytes, IntoBytes};
+use suites::HpkeCipherSuite;
+use zerocopy::{transmute, FromBytes};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
@@ -67,18 +67,22 @@ pub trait Hpke<
     const NSECRET: usize,
 >
 {
-    /// The `KEM` type.
-    type K<'k>: Kem<NSK, NENC, NPK, NSECRET>;
     /// CipherSuite identifier for the HPKE implementation.
-    const SUITE_ID: CipherSuite;
+    const SUITE_ID: HpkeCipherSuite;
+
+    /// The `KEM` type.
+    type K: Kem<NSK, NENC, NPK, NSECRET>;
+
+    /// The HPKE Driver Context.
+    /// Useful for tracking types that cannot be borrowed for the lifetime of `Self`.
+    type DriverContext<'a>;
 
     /// Establish a `Sender` `EncryptionContext`.
     /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-5.1.1
     fn setup_base_s(
         &self,
-        kem: &mut Self::K<'_>,
-        kdf: &mut Hmac384,
-        trng: &mut Trng,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         pkr: &EncapsulationKey<NPK>,
         info: &[u8],
     ) -> CaliptraResult<(EncapsulatedSecret<NENC>, EncryptionContext<Sender>)>;
@@ -87,9 +91,8 @@ pub trait Hpke<
     /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-5.1.1
     fn setup_base_r(
         &self,
-        kem: &mut Self::K<'_>,
-        kdf: &mut Hmac384,
-        trng: &mut Trng,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         enc: &EncapsulatedSecret<{ NENC }>,
         info: &[u8],
     ) -> CaliptraResult<EncryptionContext<Receiver>>;
@@ -97,7 +100,8 @@ pub trait Hpke<
     /// Serialize the encapsulation key
     fn serialize_public_key(
         &self,
-        kem: &mut Self::K<'_>,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         out_key: &mut [u8; NPK],
     ) -> CaliptraResult<usize>;
 }
@@ -116,19 +120,18 @@ pub struct HpkeContext {
     priv_keys: [HpkePrivateKey; 1],
     /// Tracks the next unique HPKE handle
     /// Used by the rotate command to create new HPKE handles on rotation.
-    #[allow(unused)]
     handle_cursor: HpkeCursor,
 }
 
 impl HpkeContext {
     pub fn new(trng: &mut Trng) -> CaliptraResult<Self> {
         let mut handle_cursor = HpkeCursor::default();
-        let hpke_key = HpkePrivateKey::MlKem {
+        let ml_kem_key = HpkePrivateKey::MlKem {
             handle: handle_cursor.generate_handle(),
             context: HpkeMlKemContext::generate(trng)?,
         };
 
-        let priv_keys = [hpke_key];
+        let priv_keys = [ml_kem_key];
         Ok(Self {
             priv_keys,
             handle_cursor,
@@ -172,18 +175,22 @@ impl HpkeContext {
         &mut self,
         sha: &mut Sha3,
         ml_kem: &mut MlKem1024,
+        trng: &mut Trng,
+        hmac: &mut Hmac,
         hpke_handle: &HpkeHandle,
         pub_out: &mut [u8],
     ) -> CaliptraResult<usize> {
         for key in self.priv_keys.iter() {
             match key {
                 HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
-                    let mut ml_kem = MlKem::new(sha, ml_kem);
+                    let mut ctx = MlKemContext::new(trng, sha, ml_kem);
+                    let mut kem = MlKem::derive_key_pair(&mut ctx, context.as_ref())?;
                     let pub_out = pub_out
                         .get_mut(..MlKem::NPK)
                         .and_then(|pub_out| <[u8; MlKem::NPK]>::mut_from_bytes(pub_out).ok())
                         .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE)?;
-                    return context.serialize_public_key(&mut ml_kem, pub_out);
+                    let mut ctx = HpkeMlKemDrivers::new(trng, sha, hmac, ml_kem);
+                    return context.serialize_public_key(&mut kem, &mut ctx, pub_out);
                 }
                 _ => (),
             }
@@ -192,11 +199,14 @@ impl HpkeContext {
     }
 
     /// Get HPKE Cipher Suite
-    pub fn get_cipher_suite(&mut self, hpke_handle: &HpkeHandle) -> CaliptraResult<CipherSuite> {
+    pub fn get_cipher_suite(
+        &mut self,
+        hpke_handle: &HpkeHandle,
+    ) -> CaliptraResult<HpkeCipherSuite> {
         for key in self.priv_keys.iter() {
             match key {
                 HpkePrivateKey::MlKem { handle, .. } if handle == hpke_handle => {
-                    return Ok(CipherSuite::ML_KEM_1024);
+                    return Ok(HpkeCipherSuite::ML_KEM_1024);
                 }
                 _ => (),
             }
@@ -221,13 +231,16 @@ impl HpkeContext {
         for key in self.priv_keys.iter() {
             match key {
                 HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
-                    let mut kdf = Hmac384::new(hmac);
-                    let mut ml_kem = MlKem::new(sha, ml_kem);
                     let enc = enc
                         .get(..MlKem::NENC)
                         .and_then(|enc| MlKemEncapsulatedSecret::ref_from_bytes(enc).ok())
                         .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_ENC_FAILURE)?;
-                    return context.setup_base_r(&mut ml_kem, &mut kdf, trng, enc, info);
+
+                    let mut ctx = MlKemContext::new(trng, sha, ml_kem);
+                    let mut kem = MlKem::derive_key_pair(&mut ctx, context.as_ref())?;
+
+                    let mut ctx = HpkeMlKemDrivers::new(trng, sha, hmac, ml_kem);
+                    return context.setup_base_r(&mut kem, &mut ctx, enc, info);
                 }
                 _ => (),
             }
@@ -242,13 +255,13 @@ pub struct HpkeContextIter<'a> {
 }
 
 impl Iterator for HpkeContextIter<'_> {
-    type Item = (HpkeHandle, CipherSuite);
+    type Item = (HpkeHandle, HpkeCipherSuite);
 
     fn next(&mut self) -> Option<Self::Item> {
         let key = self.ctx.priv_keys.get(self.index);
         let item = match key {
             Some(HpkePrivateKey::MlKem { handle, .. }) => {
-                Some((handle.clone(), CipherSuite::ML_KEM_1024))
+                Some((handle.clone(), HpkeCipherSuite::ML_KEM_1024))
             }
             _ => None,
         };
@@ -257,11 +270,40 @@ impl Iterator for HpkeContextIter<'_> {
     }
 }
 
+pub struct HpkeMlKemDrivers<'a> {
+    sha: &'a mut Sha3,
+    ml_kem: &'a mut MlKem1024,
+    trng: &'a mut Trng,
+    hmac: &'a mut Hmac,
+}
+
+impl<'a> HpkeMlKemDrivers<'a> {
+    pub fn new(
+        trng: &'a mut Trng,
+        sha: &'a mut Sha3,
+        hmac: &'a mut Hmac,
+        ml_kem: &'a mut MlKem1024,
+    ) -> Self {
+        Self {
+            sha,
+            ml_kem,
+            trng,
+            hmac,
+        }
+    }
+}
+
 /// ML-KEM 1024 HPKE Context
 #[derive(ZeroizeOnDrop)]
 pub struct HpkeMlKemContext {
     /// Secret string used to derive the ML-KEM key pair.
     ikm: [u8; MlKem::NSK],
+}
+
+impl AsRef<[u8; MlKem::NSK]> for HpkeMlKemContext {
+    fn as_ref(&self) -> &[u8; MlKem::NSK] {
+        &self.ikm
+    }
 }
 
 impl HpkeMlKemContext {
@@ -284,51 +326,64 @@ impl HpkeMlKemContext {
 impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
     for HpkeMlKemContext
 {
-    type K<'k> = MlKem<'k>;
-    const SUITE_ID: CipherSuite = CipherSuite::ML_KEM_1024;
+    type K = MlKem;
+    type DriverContext<'a> = HpkeMlKemDrivers<'a>;
+    const SUITE_ID: HpkeCipherSuite = HpkeCipherSuite::ML_KEM_1024;
 
     fn setup_base_s(
         &self,
-        kem: &mut MlKem,
-        kdf: &mut Hmac384,
-        trng: &mut Trng,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         pkr: &MlKemEncapsulationKey,
         info: &[u8],
     ) -> CaliptraResult<(MlKemEncapsulatedSecret, EncryptionContext<Sender>)> {
         let pkr = LEArray4x392::ref_from_bytes(pkr.as_ref())
             .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
-        let (enc, shared_secret) = kem.encap(trng, pkr)?;
-        let (key, base_nonce, _exporter_secret) =
-            kdf.combine_secrets::<{ MlKem::NSECRET }>(trng, &Self::SUITE_ID, shared_secret, info)?;
+
+        let mut kem_ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+        let (enc, shared_secret) = kem.encap(&mut kem_ctx, pkr)?;
+
+        let mut kdf = Hmac384::new(ctx.hmac);
+        let (key, base_nonce, _exporter_secret) = kdf.combine_secrets::<{ MlKem::NSECRET }>(
+            ctx.trng,
+            Self::SUITE_ID,
+            shared_secret,
+            info,
+        )?;
         let ctx = EncryptionContext::<Sender>::new_sender(key, base_nonce);
         Ok((enc, ctx))
     }
 
     fn setup_base_r(
         &self,
-        kem: &mut Self::K<'_>,
-        kdf: &mut Hmac384,
-        trng: &mut Trng,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         enc: &MlKemEncapsulatedSecret,
         info: &[u8],
     ) -> CaliptraResult<EncryptionContext<Receiver>> {
-        let (_ek, dk) = kem.derive_key_pair(&self.ikm)?;
-        let shared_secret = kem.decap(enc, &kem::MlKemDecapsulationKey::from(dk))?;
-        let (key, base_nonce, _exporter_secret) =
-            kdf.combine_secrets::<{ MlKem::NSECRET }>(trng, &Self::SUITE_ID, shared_secret, info)?;
+        let mut kem_ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+        let shared_secret = kem.decap(&mut kem_ctx, enc)?;
+
+        let mut kdf = Hmac384::new(ctx.hmac);
+        let (key, base_nonce, _exporter_secret) = kdf.combine_secrets::<{ MlKem::NSECRET }>(
+            ctx.trng,
+            Self::SUITE_ID,
+            shared_secret,
+            info,
+        )?;
         let ctx = EncryptionContext::<Receiver>::new_receiver(key, base_nonce);
         Ok(ctx)
     }
 
     fn serialize_public_key(
         &self,
-        kem: &mut Self::K<'_>,
+        kem: &mut Self::K,
+        ctx: &mut Self::DriverContext<'_>,
         out_key: &mut [u8; MlKem::NPK],
     ) -> CaliptraResult<usize> {
-        let (ek, _dk) = kem.derive_key_pair(&self.ikm)?;
-        let ek = <[u8; MlKem::NPK]>::ref_from_bytes(ek.as_bytes())
-            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_ENCAP_KEY_SERIALIZATION_FAIL)?;
-        out_key.clone_from_slice(ek);
+        let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+        let ek = kem.serialize_public_key(&mut ctx)?;
+        out_key.clone_from_slice(ek.as_ref());
         Ok(MlKem::NPK)
     }
 }
