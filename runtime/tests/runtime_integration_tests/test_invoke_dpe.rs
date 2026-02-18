@@ -54,7 +54,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
-    assert_eq!(profile.max_tci_nodes, 32);
+    assert_eq!(profile.max_tci_nodes, 64);
 }
 
 #[test]

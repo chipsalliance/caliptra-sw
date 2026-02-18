@@ -93,7 +93,7 @@ impl From<BootMode> for u32 {
 mod fw {
     pub const ECC_RTALIAS_TBS_SIZE: u32 = 1024;
     pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
-    pub const DPE_SIZE: u32 = 5 * 1024;
+    pub const DPE_SIZE: u32 = 10 * 1024;
     pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
     pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
     pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;

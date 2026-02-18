@@ -226,9 +226,9 @@ riscv = "0.13.0"
 # TODO(zhalvorsen): this commit is temporary; update to a proper release once
 #                   multi-part responses are supported. This currently points to
 #                   https://github.com/chipsalliance/caliptra-dpe/tree/zhalvorsen/reduce-cert-size-patch
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false, features = ["hybrid"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e09a6f994c6adee9147ef889f1660d3dae8c67b4", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false, features = ["hybrid"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false }
 
 # local DPE dependency; useful when developing
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }
