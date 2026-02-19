@@ -219,13 +219,13 @@ impl OpenOcdJtagTap {
 
     /// Send a halt request to the dmcontrol register
     pub fn halt(&mut self) -> Result<()> {
-        const HALT_REQ: u32 = 1 << 31 | 1;
+        const HALT_REQ: u32 = (1 << 31) | 1;
         self.write_reg(&DmReg::DmControl, HALT_REQ)
     }
 
     /// Send a resume request to the dmcontrol register
     pub fn resume(&mut self) -> Result<()> {
-        const RESUME_REQ: u32 = 1 << 30 | 1;
+        const RESUME_REQ: u32 = (1 << 30) | 1;
         self.write_reg(&DmReg::DmControl, RESUME_REQ)
     }
 
