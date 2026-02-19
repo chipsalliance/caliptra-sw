@@ -325,14 +325,16 @@ impl RtAliasLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa87_key_gen(
-            &mut env.mldsa,
-            &mut env.hmac,
-            &mut env.trng,
-            cdi,
-            b"alias_rt_mldsa_key",
-            mldsa_keypair_seed,
-        );
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut env.hmac,
+                &mut env.trng,
+                cdi,
+                b"alias_rt_mldsa_key",
+                mldsa_keypair_seed,
+            )
+        });
         cfi_check!(result);
         let mldsa_keypair = result?;
 
@@ -501,13 +503,15 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::mldsa87_sign(
-            &mut env.mldsa,
-            &mut env.trng,
-            key_pair_seed,
-            auth_pub_key,
-            tbs.tbs(),
-        );
+        let sig = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_sign(
+                &mut mldsa87,
+                &mut env.trng,
+                key_pair_seed,
+                auth_pub_key,
+                tbs.tbs(),
+            )
+        });
         let sig = okref(&sig)?;
         // Lock the authority private key and FMC CDI
         cprintln!(
@@ -520,9 +524,10 @@ impl RtAliasLayer {
         env.key_vault.set_key_use_lock(input.cdi);
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::mldsa87_verify(&mut env.mldsa, auth_pub_key, tbs.tbs(), sig)?
-            != Mldsa87Result::Success
-        {
+        let verify_result = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_verify(&mut mldsa87, auth_pub_key, tbs.tbs(), sig)
+        })?;
+        if verify_result != Mldsa87Result::Success {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 

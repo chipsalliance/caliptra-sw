@@ -40,11 +40,11 @@ use caliptra_drivers::{
     hand_off::DataStore,
     pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
+    Abr, Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms,
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{Dma, DmaMmio, MlKem1024, Mldsa87PubKey};
+use caliptra_drivers::{Dma, DmaMmio, Mldsa87PubKey};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -134,11 +134,8 @@ pub struct Drivers {
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
-    /// Mldsa87 Engine
-    pub mldsa87: Mldsa87,
-
-    /// ML-KEM Engine
-    pub ml_kem: MlKem1024,
+    /// ABR Engine (ML-DSA and ML-KEM)
+    pub abr: Abr,
 
     pub persistent_data: PersistentDataAccessor,
 
@@ -202,10 +199,7 @@ impl Drivers {
             sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
-            // TODO(clundin): Don't pass multiple `AbrReg`'s to higher level drivers.
-            // https://github.com/chipsalliance/caliptra-sw/issues/3107
-            mldsa87: Mldsa87::new(AbrReg::new()),
-            ml_kem: MlKem1024::new(AbrReg::new())?,
+            abr: Abr::new(AbrReg::new()),
             lms: Lms::default(),
             trng,
             persistent_data,
@@ -940,14 +934,16 @@ impl Drivers {
     pub fn get_key_id_rt_mldsa_pub_key(drivers: &mut Drivers) -> CaliptraResult<Mldsa87PubKey> {
         let rt_cdi = Self::get_key_id_rt_cdi(drivers)?;
         let rt_mldsa_key = Self::get_key_id_rt_mldsa_keypair_seed(drivers)?;
-        let mldsa_key_pair = Crypto::mldsa87_key_gen(
-            &mut drivers.mldsa87,
-            &mut drivers.hmac,
-            &mut drivers.trng,
-            rt_cdi,
-            b"alias_rt_mldsa_key",
-            rt_mldsa_key,
-        )?;
+        let mldsa_key_pair = drivers.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut drivers.hmac,
+                &mut drivers.trng,
+                rt_cdi,
+                b"alias_rt_mldsa_key",
+                rt_mldsa_key,
+            )
+        })?;
         Ok(mldsa_key_pair.pub_key)
     }
 

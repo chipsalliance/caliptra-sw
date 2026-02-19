@@ -24,7 +24,7 @@ impl SelfTestStartCmd {
     #[inline(always)]
     pub(crate) fn execute(
         cmd_bytes: &[u8],
-        env: &mut KatsEnv,
+        env: &mut KatsEnv<'_, '_>,
         self_test_in_progress: bool,
         _resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {

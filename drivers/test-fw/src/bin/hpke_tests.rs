@@ -20,6 +20,7 @@ use caliptra_drivers::hpke::{
     kem::{Kem, MlKem, MlKemContext, MlKemEncapsulatedSecret, MlKemEncapsulationKey},
     Hpke, HpkeMlKemContext,
 };
+use caliptra_drivers::MlKem1024;
 use caliptra_drivers_test_bin::TestRegisters;
 use caliptra_test_harness::test_suite;
 
@@ -40,13 +41,16 @@ fn test_ml_kem_1024_test_vector() {
     // HPKE implementation against a known test vector.
     let hpke = unsafe { HpkeMlKemContext::from_seed(MLKEM_TEST_VECTOR.ikm_r.try_into().unwrap()) };
 
-    let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut regs.ml_kem);
-    let mut kem = MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap();
+    let mut kem = {
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
+        MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
+    };
     let mut kem_ctx = hpke::HpkeMlKemDrivers::new(
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
     );
 
     let mut pk_rm = [0; hpke::kem::MlKem::NPK];
@@ -78,13 +82,16 @@ fn test_ml_kem_1024_self_talk() {
     let mut regs = TestRegisters::default();
 
     let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
-    let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut regs.ml_kem);
-    let mut kem = MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap();
+    let mut kem = {
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
+        MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
+    };
     let mut kem_ctx = hpke::HpkeMlKemDrivers::new(
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
     );
 
     let mut pk_rm = [0; hpke::kem::MlKem::NPK];

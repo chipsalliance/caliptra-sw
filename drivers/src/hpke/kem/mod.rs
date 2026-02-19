@@ -25,34 +25,34 @@ pub trait Kem<const NSK: usize, const NENC: usize, const NPK: usize, const NSECR
 
     /// Holds a KEM specific GAT for objects whose lifetime must be shorter than the KEM
     /// implementer.
-    type CONTEXT<'a>;
+    type CONTEXT<'a, 'b: 'a>;
 
     /// The encapsulation key.
     type EK;
 
     /// Derives a KEM keypair from the `ikm` seed.
-    fn derive_key_pair(ctx: &mut Self::CONTEXT<'_>, ikm: &[u8; NSK]) -> CaliptraResult<Self>
+    fn derive_key_pair(ctx: &mut Self::CONTEXT<'_, '_>, ikm: &[u8; NSK]) -> CaliptraResult<Self>
     where
         Self: Sized;
 
     /// Generates a shared secret key and associated ciphertext
     fn encap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         encaps_key: &Self::EK,
     ) -> CaliptraResult<(EncapsulatedSecret<NENC>, SharedSecret<NSECRET>)>;
 
     /// Uses the decapsulation key to produce a shared secret key from a ciphertext.
     fn decap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         enc: &EncapsulatedSecret<NENC>,
     ) -> CaliptraResult<SharedSecret<NSECRET>>;
 
     /// Serializes the public key
     fn serialize_public_key(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
     ) -> CaliptraResult<EncapsulationKey<NPK>>;
 }
 

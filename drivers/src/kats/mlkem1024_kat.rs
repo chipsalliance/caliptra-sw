@@ -395,7 +395,7 @@ const CAPS_M: LEArray4x8 = LEArray4x8::new([
     0x92CF9981, 0x2621E13C, 0x56080192, 0xF9CB119C, 0x443FF07C, 0x7DFA5CAF, 0x2A9B0E55, 0x821943C7,
 ]);
 
-pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
+pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024<'_>) -> CaliptraResult<()> {
     cprintln!("[kat] MLKEM1024");
     kat_keygen(mlkem)?;
     kat_encaps_decaps(mlkem)?;
@@ -403,7 +403,7 @@ pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
 }
 
 /// Test key pair generation against NIST test vectors.
-fn kat_keygen(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
+fn kat_keygen(mlkem: &mut MlKem1024<'_>) -> CaliptraResult<()> {
     let seeds = MlKem1024Seeds::Arrays(&KEYGEN_SEED_D, &KEYGEN_SEED_Z);
     let (ek, dk) = mlkem
         .key_pair(seeds)
@@ -417,7 +417,7 @@ fn kat_keygen(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
 }
 
 /// Test encapsulation and decapsulation against NIST test vectors.
-fn kat_encaps_decaps(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
+fn kat_encaps_decaps(mlkem: &mut MlKem1024<'_>) -> CaliptraResult<()> {
     // Encapsulate
     let mut shared_key_enc = MlKem1024SharedKey::default();
     let ciphertext = mlkem

@@ -209,18 +209,18 @@ pub enum ImageSource<'a, 'b> {
 }
 
 // ROM Verification Environment
-pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
+pub(crate) struct FakeRomImageVerificationEnv<'a, 'b, 'c> {
     pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha2_512_384: &'a mut Sha2_512_384,
     pub(crate) sha2_512_384_acc: &'a mut Sha2_512_384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
-    pub(crate) mldsa87: &'a mut Mldsa87,
+    pub(crate) mldsa87: &'a mut Mldsa87<'c>,
     pub image_source: ImageSource<'a, 'b>,
 }
 
-impl FakeRomImageVerificationEnv<'_, '_> {
+impl FakeRomImageVerificationEnv<'_, '_, '_> {
     fn create_dma_recovery<'a>(soc_ifc: &'a SocIfc, dma: &'a Dma) -> DmaRecovery<'a> {
         DmaRecovery::new(
             soc_ifc.recovery_interface_base_addr().into(),
@@ -231,7 +231,7 @@ impl FakeRomImageVerificationEnv<'_, '_> {
     }
 }
 
-impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
+impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;

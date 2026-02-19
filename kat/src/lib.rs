@@ -53,7 +53,7 @@ pub struct InitializedDrivers {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
+pub fn execute_kat(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrivers> {
     cprintln!("[kat] ++");
 
     cprintln!("[kat] sha1");
@@ -107,7 +107,9 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
         caliptra_drivers::kats::execute_ctr_kat(env.aes)?;
         caliptra_drivers::kats::execute_cmac_kat(env.aes)?;
         caliptra_drivers::kats::execute_gcm_kat(env.aes, env.trng)?;
-        caliptra_drivers::kats::execute_mlkem1024_kat(env.mlkem1024)?;
+        if let Some(mlkem1024) = env.mlkem1024.as_mut() {
+            caliptra_drivers::kats::execute_mlkem1024_kat(mlkem1024)?;
+        }
     }
 
     cprintln!("[kat] LMS");

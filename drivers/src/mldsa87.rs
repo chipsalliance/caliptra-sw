@@ -106,12 +106,12 @@ impl<'a> From<&'a Mldsa87PrivKey> for Mldsa87Seed<'a> {
 }
 
 /// MLDSA-87  API
-pub struct Mldsa87 {
-    mldsa87: AbrReg,
+pub struct Mldsa87<'a> {
+    mldsa87: &'a mut AbrReg,
 }
 
-impl Mldsa87 {
-    pub fn new(mldsa87: AbrReg) -> Self {
+impl<'a> Mldsa87<'a> {
+    pub fn new(mldsa87: &'a mut AbrReg) -> Self {
         Self { mldsa87 }
     }
 

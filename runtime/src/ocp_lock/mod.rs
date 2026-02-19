@@ -14,8 +14,8 @@ use caliptra_drivers::{
     },
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
     sha2_512_384::Sha2DigestOpTrait,
-    Aes, AesKey, AesOperation, Array4x12, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, OcpLockFlags,
+    Abr, Aes, AesKey, AesOperation, Array4x12, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
+    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, OcpLockFlags,
     OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -1052,7 +1052,7 @@ impl OcpLockContext {
     pub fn decapsulate_access_key(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         hmac: &mut Hmac,
         trng: &mut Trng,
         aes: &mut Aes,
@@ -1065,7 +1065,7 @@ impl OcpLockContext {
     ) -> CaliptraResult<AccessKey<Current>> {
         let mut ctx = self
             .hpke_context
-            .decap(sha, ml_kem, hmac, trng, hpke_handle, enc, info)?;
+            .decap(sha, abr, hmac, trng, hpke_handle, enc, info)?;
         AccessKey::<Current>::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
     }
 
@@ -1074,7 +1074,7 @@ impl OcpLockContext {
     pub fn decapsulate_rotation_access_keys(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         hmac: &mut Hmac,
         trng: &mut Trng,
         aes: &mut Aes,
@@ -1087,7 +1087,7 @@ impl OcpLockContext {
     ) -> CaliptraResult<(AccessKey<Current>, AccessKey<New>)> {
         let mut ctx = self
             .hpke_context
-            .decap(sha, ml_kem, hmac, trng, hpke_handle, enc, info)?;
+            .decap(sha, abr, hmac, trng, hpke_handle, enc, info)?;
         let current = AccessKey::<Current>::from_ciphertext(
             aes,
             trng,
@@ -1284,14 +1284,14 @@ impl OcpLockContext {
     pub fn get_hpke_public_key(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         trng: &mut Trng,
         hmac: &mut Hmac,
         hpke_handle: &HpkeHandle,
         pub_out: &mut [u8],
     ) -> CaliptraResult<usize> {
         self.hpke_context
-            .get_pub_key(sha, ml_kem, trng, hmac, hpke_handle, pub_out)
+            .get_pub_key(sha, abr, trng, hmac, hpke_handle, pub_out)
     }
 
     /// Retrieve the Ciphersuite for an HPKE handle

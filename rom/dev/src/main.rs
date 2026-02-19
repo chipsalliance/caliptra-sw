@@ -156,48 +156,51 @@ pub extern "C" fn rom_entry() -> ! {
             sha1: Sha1::new().unwrap(),
         }
     } else {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // sha256
-            sha256: &mut env.sha256,
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            let mut kats_env = caliptra_kat::KatsEnv {
+                // sha256
+                sha256: &mut env.sha256,
 
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
+                // SHA2-512/384 Engine
+                sha2_512_384: &mut env.sha2_512_384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+                // SHA2-512/384 Accelerator
+                sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // SHA3/SHAKE
-            sha3: &mut env.sha3,
+                // SHA3/SHAKE
+                sha3: &mut env.sha3,
 
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
+                // Hmac-512/384 Engine
+                hmac: &mut env.hmac,
 
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
+                // Cryptographically Secure Random Number Generator
+                trng: &mut env.trng,
 
-            // LMS Engine
-            lms: &mut env.lms,
+                // LMS Engine
+                lms: &mut env.lms,
 
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
+                // MLDSA87 Engine
+                mldsa87: &mut mldsa87,
 
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
+                // Ecc384 Engine
+                ecc384: &mut env.ecc384,
 
-            // SHA Acc lock state.
-            // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            // On an Update Reset, it is expected to be unlocked.
-            // Not having it unlocked will result in a fatal error.
-            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-                ShaAccLockState::NotAcquired
-            } else {
-                ShaAccLockState::AssumedLocked
-            },
+                // AES-GCM Engine (for GCM and CMAC-KDF KATs)
+                aes_gcm: &mut env.aes_gcm,
 
-            // AES-GCM Engine (for GCM and CMAC-KDF KATs)
-            aes_gcm: &mut env.aes_gcm,
-        };
-        match run_fips_tests(&mut kats_env) {
+                // SHA Acc lock state.
+                // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+                // On an Update Reset, it is expected to be unlocked.
+                // Not having it unlocked will result in a fatal error.
+                sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+                    ShaAccLockState::NotAcquired
+                } else {
+                    ShaAccLockState::AssumedLocked
+                },
+            };
+            run_fips_tests(&mut kats_env)
+        });
+        match result {
             Err(err) => handle_fatal_error(err.into()),
             Ok(initialized) => initialized,
         }
@@ -242,7 +245,7 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
+fn run_fips_tests(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrivers> {
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
@@ -266,7 +269,7 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<InitializedDrivers> {
     Ok(initialized_drivers)
 }
 
-fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
+fn rom_integrity_test(env: &mut KatsEnv<'_, '_>, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
     // WARNING: It is undefined behavior to dereference a zero (null) pointer in
     // rust code. This is only safe because the dereference is being done by an
     // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather

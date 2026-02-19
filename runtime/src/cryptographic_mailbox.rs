@@ -1993,7 +1993,9 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let public_key = drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
+        let public_key = drivers
+            .abr
+            .with_mldsa87(|mut mldsa| mldsa.key_pair(seed, &mut drivers.trng, None))?;
 
         let resp = mutrefbytes::<CmMldsaPublicKeyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2021,14 +2023,12 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
 
-        let sign_rnd = LEArray4x8::default();
-
-        let signature =
-            drivers
-                .mldsa87
-                .sign_var(seed, pub_key, msg, &sign_rnd, &mut drivers.trng)?;
+        let signature = drivers.abr.with_mldsa87(|mut mldsa| {
+            let pub_key = mldsa.key_pair(seed, &mut drivers.trng, None)?;
+            let sign_rnd = LEArray4x8::default();
+            mldsa.sign_var(seed, &pub_key, msg, &sign_rnd, &mut drivers.trng)
+        })?;
 
         let resp = mutrefbytes::<CmMldsaSignResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2056,11 +2056,14 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
-
         let signature: &LEArray4x1157 = &cmd.signature.into();
 
-        match drivers.mldsa87.verify_var(pub_key, msg, signature)? {
+        let result = drivers.abr.with_mldsa87(|mut mldsa| {
+            let pub_key = mldsa.key_pair(seed, &mut drivers.trng, None)?;
+            mldsa.verify_var(&pub_key, msg, signature)
+        })?;
+
+        match result {
             Mldsa87Result::Success => {
                 let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
                 *resp = MailboxRespHeader::default();

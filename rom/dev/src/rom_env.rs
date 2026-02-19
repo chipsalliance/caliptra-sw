@@ -16,7 +16,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    AesGcm, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
+    Abr, AesGcm, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -72,8 +72,8 @@ pub struct RomEnv {
     /// Mechanism to access the persistent data safely
     pub persistent_data: PersistentDataAccessor,
 
-    /// Mldsa87 Engine
-    pub mldsa87: Mldsa87,
+    /// ABR Engine (ML-DSA)
+    pub abr: Abr,
 
     /// Dma engine
     pub dma: Dma,
@@ -121,7 +121,7 @@ impl RomEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa87: Mldsa87::new(AbrReg::new()),
+            abr: Abr::new(AbrReg::new()),
             dma: Dma::default(),
             aes_gcm,
         })

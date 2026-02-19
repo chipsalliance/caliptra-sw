@@ -43,7 +43,7 @@ impl EndorseHpkePubkeyCmd {
         resp.hdr = MailboxRespHeader::default();
         resp.pub_key_len = drivers.ocp_lock_context.get_hpke_public_key(
             &mut drivers.sha3,
-            &mut drivers.ml_kem,
+            &mut drivers.abr,
             &mut drivers.trng,
             &mut drivers.hmac,
             &hpke_handle,
@@ -180,13 +180,15 @@ impl EndorseHpkePubkeyCmd {
                 };
 
                 let tbs = OcpLockMlKemCertTbsMlDsa87::new(&params);
-                let signature = Crypto::mldsa87_sign(
-                    &mut drivers.mldsa87,
-                    &mut drivers.trng,
-                    rt_mldsa_key,
-                    &rt_mldsa_pub_key,
-                    tbs.tbs(),
-                )?;
+                let signature = drivers.abr.with_mldsa87(|mut mldsa87| {
+                    Crypto::mldsa87_sign(
+                        &mut mldsa87,
+                        &mut drivers.trng,
+                        rt_mldsa_key,
+                        &rt_mldsa_pub_key,
+                        tbs.tbs(),
+                    )
+                })?;
                 mldsa87_cert_from_tbs_and_sig(Some(tbs.tbs()), &signature, cert_buf)
             }
             _ => Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_KEM_ALGORITHM)?,

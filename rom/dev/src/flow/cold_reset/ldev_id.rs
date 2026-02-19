@@ -254,14 +254,16 @@ impl LocalDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa87_key_gen(
-            &mut env.mldsa87,
-            &mut env.hmac,
-            &mut env.trng,
-            cdi,
-            b"ldevid_mldsa_key",
-            mldsa_keypair_seed,
-        );
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut env.hmac,
+                &mut env.trng,
+                cdi,
+                b"ldevid_mldsa_key",
+                mldsa_keypair_seed,
+            )
+        });
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -384,13 +386,15 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with MLDSA AUTHORITY.KEYID = {}",
             mldsa_auth_priv_key as u8
         );
-        let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
-            mldsa_auth_priv_key,
-            mldsa_auth_pub_key,
-            mldsa_tbs.tbs(),
-        );
+        let mut sig = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_sign_and_verify(
+                &mut mldsa87,
+                &mut env.trng,
+                mldsa_auth_priv_key,
+                mldsa_auth_pub_key,
+                mldsa_tbs.tbs(),
+            )
+        });
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key

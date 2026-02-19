@@ -249,14 +249,16 @@ impl InitDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa87_key_gen(
-            &mut env.mldsa87,
-            &mut env.hmac,
-            &mut env.trng,
-            cdi,
-            b"idevid_mldsa_key",
-            mldsa_keypair_seed,
-        );
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut env.hmac,
+                &mut env.trng,
+                cdi,
+                b"idevid_mldsa_key",
+                mldsa_keypair_seed,
+            )
+        });
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -423,13 +425,15 @@ impl InitDevIdLayer {
         );
 
         // Sign the `To Be Signed` portion
-        let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.non_crypto.mldsa87,
-            &mut env.non_crypto.trng,
-            key_pair.key_pair_seed,
-            &key_pair.pub_key,
-            tbs.tbs(),
-        )?;
+        let mut sig = env.non_crypto.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_sign_and_verify(
+                &mut mldsa87,
+                &mut env.non_crypto.trng,
+                key_pair.key_pair_seed,
+                &key_pair.pub_key,
+                tbs.tbs(),
+            )
+        })?;
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mldsa87_signature = caliptra_x509::MlDsa87Signature {
