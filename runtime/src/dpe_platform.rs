@@ -27,12 +27,12 @@ use platform::{
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
 
-use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_ECC_CERT_CHAIN_SIZE};
+use crate::subject_alt_name::AddSubjectAltNameCmd;
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,
     hashed_rt_pub_key: Digest,
-    cert_chain: &'a ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
+    cert_chain: &'a [u8],
     not_before: NotBefore,
     not_after: NotAfter,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -46,7 +46,7 @@ impl<'a> DpePlatform<'a> {
     pub fn new(
         auto_init_locality: u32,
         hashed_rt_pub_key: Digest,
-        cert_chain: &'a ArrayVec<u8, 4096>,
+        cert_chain: &'a [u8],
         not_before: NotBefore,
         not_after: NotAfter,
         dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,

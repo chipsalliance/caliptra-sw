@@ -59,6 +59,7 @@ use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
 use crypto::ecdsa::curve_384::EcdsaPub384;
 use crypto::ecdsa::EcdsaPubKey;
+use crypto::ml_dsa::MldsaPublicKey;
 use crypto::PubKey;
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
@@ -71,6 +72,7 @@ use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 use crate::dpe_crypto::{DpeEcCrypto, DpeMldsaCrypto};
 pub use crate::hmac::Hmac;
+pub use crate::invoke_dpe::CaliptraDpeProfile;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
@@ -105,7 +107,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{okref, AxiAddr, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
@@ -317,7 +319,12 @@ fn execute_command(
         CommandId::GET_LDEV_MLDSA87_CERT => {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
-        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::INVOKE_DPE_ECC384 => {
+            InvokeDpeCmd::execute(drivers, cmd_bytes, resp, CaliptraDpeProfile::Ecc384)
+        }
+        CommandId::INVOKE_DPE_MLDSA87 => {
+            InvokeDpeCmd::execute(drivers, cmd_bytes, resp, CaliptraDpeProfile::Mldsa87)
+        }
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
@@ -761,12 +768,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     //    Ok(())
 }
 
-fn dpe_env(
+fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
 ) -> CaliptraResult<DpeEnv<CptraDpeEcTypes>> {
-    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+    let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
@@ -793,7 +800,47 @@ fn dpe_env(
         platform: DpePlatform::new(
             pl0_pauser,
             hashed_rt_pub_key,
-            &drivers.ecc_cert_chain,
+            drivers.ecc_cert_chain.as_slice(),
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.fw.dpe.state,
+    })
+}
+
+fn mldsa_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<DpeEnv<CptraDpeMldsaTypes>> {
+    let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
+    let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
+    let rt_pub_key = okref(&rt_pub_key)?;
+    let rt_pub_key = PubKey::MlDsa(MldsaPublicKey((*rt_pub_key).into()));
+    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    let key_id_rt_priv_key = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeMldsaCrypto::new(
+        &mut drivers.sha2_512_384,
+        &mut drivers.trng,
+        &mut drivers.mldsa87,
+        &mut drivers.hmac,
+        &mut drivers.key_vault,
+        rt_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_priv_key,
+        &mut pdata.fw.dpe.exported_cdi_slots,
+    );
+    let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.rom.manifest1);
+    Ok(DpeEnv::<CptraDpeMldsaTypes> {
+        crypto,
+        platform: DpePlatform::new(
+            pl0_pauser,
+            hashed_rt_pub_key,
+            drivers.mldsa_cert_chain.as_slice(),
             nb,
             nf,
             dmtf_device_info,

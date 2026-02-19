@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{ec_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{
@@ -66,7 +66,7 @@ impl StashMeasurementCmd {
             };
 
             let derive_context_resp = &{
-                let mut env = dpe_env(drivers, None, None);
+                let mut env = ec_dpe_env(drivers, None, None);
                 let env = okmutref(&mut env)?;
                 let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
                 cmd.execute(dpe, env, locality)

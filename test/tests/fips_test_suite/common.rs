@@ -300,7 +300,7 @@ pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Respons
     let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
 
-    let mut payload = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let mut payload = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data: cmd_data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
@@ -309,7 +309,7 @@ pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Respons
 
     let resp = mbx_send_and_check_resp_hdr::<_, InvokeDpeResp>(
         hw,
-        u32::from(CommandId::INVOKE_DPE),
+        u32::from(CommandId::INVOKE_DPE_ECC384),
         payload.as_bytes().unwrap(),
     )
     .unwrap();

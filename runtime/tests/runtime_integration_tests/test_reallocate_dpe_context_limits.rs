@@ -12,6 +12,7 @@ use caliptra_common::mailbox_api::{MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use zerocopy::FromBytes;
 
@@ -32,6 +33,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
     for _ in 0..(pl0_limit - 2) {
         let _ = execute_dpe_cmd(
             model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::DeriveContext(&base_derive_context_cmd),
             DpeResult::Success,
         );
@@ -41,6 +43,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
         model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
@@ -57,6 +60,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
             };
             let _ = execute_dpe_cmd(
                 model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
             );
@@ -65,6 +69,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
         } else {
             let _ = execute_dpe_cmd(
                 model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::DeriveContext(&base_derive_context_cmd),
                 DpeResult::Success,
             );
@@ -75,6 +80,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
     // Trigger failure by trying to derive one more context to PL1
     let _ = execute_dpe_cmd(
         model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
@@ -165,6 +171,7 @@ fn test_pl0_pl1_reallocation_pl0_less_than_used() {
     for _ in 0..12 {
         let _ = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
         );
@@ -200,6 +207,7 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
             };
             let _ = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
             );
@@ -208,6 +216,7 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
         } else {
             let _ = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::DeriveContext(&base_derive_context_cmd),
                 DpeResult::Success,
             );
@@ -247,6 +256,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
     for _ in 0..12 {
         let _ = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
         );
@@ -272,6 +282,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
     for _ in 0..10 {
         let _ = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
         );
@@ -280,6 +291,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );

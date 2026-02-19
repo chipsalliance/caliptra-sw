@@ -21,7 +21,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageSignData};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    CaliptraDpeProfile, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
@@ -56,6 +56,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     );
@@ -80,6 +81,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::from(&derive_context_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
@@ -91,6 +93,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
 
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::from(&derive_context_cmd),
             DpeResult::Success,
         );
@@ -127,6 +130,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::InitCtx(&init_ctx_cmd),
             DpeResult::Success,
         );
@@ -151,6 +155,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             if i == num_iterations - 1 {
                 let resp = execute_dpe_cmd(
                 &mut model,
+        CaliptraDpeProfile::Ecc384,
                 &mut Command::from(&derive_context_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED,
@@ -162,6 +167,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
 
             let resp = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::from(&derive_context_cmd),
                 DpeResult::Success,
             );
@@ -190,6 +196,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::InitCtx(&init_ctx_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
@@ -201,6 +208,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
 
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::InitCtx(&init_ctx_cmd),
             DpeResult::Success,
         );
@@ -238,6 +246,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
             if i == num_iterations {
                 let resp = execute_dpe_cmd(
                 &mut model,
+        CaliptraDpeProfile::Ecc384,
                 &mut Command::InitCtx(&init_ctx_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED,
@@ -249,6 +258,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
 
             let resp = execute_dpe_cmd(
                 &mut model,
+                CaliptraDpeProfile::Ecc384,
                 &mut Command::InitCtx(&init_ctx_cmd),
                 DpeResult::Success,
             );
@@ -282,6 +292,7 @@ fn test_change_locality() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_context_cmd),
         DpeResult::Success,
     )
@@ -297,6 +308,7 @@ fn test_change_locality() {
 
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&derive_context_cmd),
         DpeResult::Success,
     )
@@ -462,6 +474,7 @@ fn test_export_cdi_cannot_be_called_from_pl1() {
     };
     let _ = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&get_cert_chain_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
@@ -493,6 +506,7 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
         };
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::from(&certify_key_cmd),
             DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
         );
@@ -565,6 +579,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::InitCtx(&init_ctx_cmd),
             DpeResult::Success,
         );
@@ -579,6 +594,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         };
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::from(&derive_context_cmd),
             DpeResult::MboxCmdFailure(
                 caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
@@ -774,6 +790,7 @@ fn test_pl0_unset_in_header() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
@@ -827,6 +844,7 @@ fn test_user_not_pl0() {
         };
         let resp = execute_dpe_cmd(
             &mut model,
+            CaliptraDpeProfile::Ecc384,
             &mut Command::from(&certify_key_cmd),
             DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
         );

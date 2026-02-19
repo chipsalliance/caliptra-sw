@@ -4,7 +4,7 @@ use caliptra_api::{mailbox::RevokeExportedCdiHandleReq, SocManager};
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::HwModel;
-use caliptra_runtime::RtBootStatus;
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     response::Response,
@@ -26,6 +26,7 @@ fn test_revoke_exported_cdi_handle() {
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -60,6 +61,7 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -146,6 +148,7 @@ fn test_export_cdi_after_revoke() {
 
     let Some(Response::DeriveContextExportedCdi(resp)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {
@@ -167,6 +170,7 @@ fn test_export_cdi_after_revoke() {
 
     let Some(Response::DeriveContextExportedCdi(_)) = execute_dpe_cmd(
         &mut model,
+        CaliptraDpeProfile::Ecc384,
         &mut Command::from(&export_cdi_cmd),
         DpeResult::Success,
     ) else {

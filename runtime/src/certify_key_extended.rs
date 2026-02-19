@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{ec_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxRespHeader,
@@ -61,7 +61,7 @@ impl CertifyKeyExtendedCmd {
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
         let resp = &{
-            let mut env = dpe_env(drivers, dmtf_device_info, None);
+            let mut env = ec_dpe_env(drivers, dmtf_device_info, None);
             let env = okmutref(&mut env)?;
 
             let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);

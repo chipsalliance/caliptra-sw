@@ -810,13 +810,13 @@ Command Code: `0x4453_424C` ("DSBL")
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
-### INVOKE\_DPE\_COMMAND
+### INVOKE\_DPE\_ECC384
 
-Invokes a serialized DPE command.
+Invokes a serialized EC-P384 DPE profile command.
 
 Command Code: `0x4450_4543` ("DPEC")
 
-*Table: `INVOKE_DPE_COMMAND` input arguments*
+*Table: `INVOKE_DPE_ECC384` input arguments*
 
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
@@ -824,7 +824,30 @@ Command Code: `0x4450_4543` ("DPEC")
 | data\_size   | u32           | Length in bytes of the valid data in the data field.
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile.
 
-*Table: `INVOKE_DPE_COMMAND` output arguments*
+*Table: `INVOKE_DPE_ECC384` output arguments*
+
+| **Name**      | **Type**      | **Description**
+| --------      | --------      | ---------------
+| chksum        | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32           | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32           | Length in bytes of the valid data in the data field.
+| data          | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
+
+### INVOKE\_DPE\_MLDSA87
+
+Invokes a serialized ML-DSA-87 DPE profile command.
+
+Command Code: `0x4450_4543` ("DPEC")
+
+*Table: `INVOKE_DPE_MLDSA87` input arguments*
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| data\_size   | u32           | Length in bytes of the valid data in the data field.
+| data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile.
+
+*Table: `INVOKE_DPE_MLDSA87` output arguments*
 
 | **Name**      | **Type**      | **Description**
 | --------      | --------      | ---------------
