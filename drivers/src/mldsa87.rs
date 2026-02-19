@@ -140,6 +140,7 @@ impl Mldsa87 {
             regs.intr_block_rf()
                 .error_internal_intr_r()
                 .write(|_| u32::from(regs.intr_block_rf().error_internal_intr_r().read()).into());
+            regs.mldsa_ctrl().write(|w| w.zeroize(true));
             return Err(CaliptraError::DRIVER_MLDSA87_HW_ERROR);
         }
 
