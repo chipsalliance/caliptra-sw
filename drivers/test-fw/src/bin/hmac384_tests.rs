@@ -751,6 +751,48 @@ fn test_kat() {
     );
 }
 
+fn test_acvp() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let key_0 = [
+        0x5D, 0xAA, 0x32, 0x53, 0xC7, 0x51, 0x38, 0x9C, 0xD3, 0x21, 0x2D, 0x39, 0xD3, 0x9E, 0x92, 0x40, 0x06, 0xC2, 0x69, 0xB5, 0x5A, 0xAA, 0x81, 0x69, 0xDD, 0xE6, 0xC9, 0x8C, 0xBF, 0x36, 0x03, 0xC2, 0x1E, 0xB1, 0x13, 0x1A, 0x81, 0x2C, 0x88, 0xFC, 0xD3, 0x10, 0xD7, 0x6C, 0x4E, 0x54, 0x93, 0xCD, 
+    ];
+
+
+    let label = [
+        0x1C, 0xB7, 0xCC, 0xB8, 0x2E, 0x70, 0x0B, 0xD6, 0x6B, 0x49, 0x95, 0xB9, 0x16, 0xA1, 0x72, 0xEA, 
+    ];//from openssl rand -hex 16
+
+    let mut out_buf = Array4x12::default();
+
+    hmac384_kdf(
+        &mut hmac384,
+        (&Array4x12::from(&key_0)).into(),
+        &label,// Fixed data
+        None,
+        &mut trng,
+        (&mut out_buf).into(),
+    )
+    .unwrap();
+
+    let out = <[u8; 48]>::from(out_buf);
+
+    println!();
+
+    for &elem in out.iter() {
+        println!("{:02x}", elem);
+    }
+}
+
 test_suite! {
     test_kat,
     test_hmac0,
@@ -766,4 +808,5 @@ test_suite! {
     test_hmac_multi_block,
     test_hmac_exact_single_block,
     test_hmac_multi_block_two_step,
+    test_acvp,
 }
