@@ -165,6 +165,7 @@ impl MlKem1024 {
             regs.intr_block_rf()
                 .error_internal_intr_r()
                 .write(|_| u32::from(regs.intr_block_rf().error_internal_intr_r().read()).into());
+            regs.mlkem_ctrl().write(|w| w.zeroize(true));
             return Err(CaliptraError::DRIVER_MLKEM_HW_ERROR);
         }
 
