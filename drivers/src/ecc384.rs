@@ -225,7 +225,7 @@ impl Ecc384 {
             // error_global_intr_r is RO
             regs.intr_block_rf()
                 .error_internal_intr_r()
-                .write(|_| u32::from(regs.intr_block_rf().error_internal_intr_r().read()).into());
+                .write(|_| 0.into());
             return Err(CaliptraError::DRIVER_ECC384_HW_ERROR);
         }
 
