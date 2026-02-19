@@ -116,7 +116,7 @@ EOF
 fi
 
 pushd out
-podman run --rm -v$PWD:/work-dir -w/work-dir ghcr.io/chipsalliance/caliptra-build-image:latest /bin/bash -c "rustup +1.90 target add aarch64-unknown-linux-gnu && CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo +1.90 install cargo-nextest --version 0.9.118 --target aarch64-unknown-linux-gnu --target-dir /work-dir"
+podman run --rm -v$PWD:/work-dir -w/work-dir ghcr.io/chipsalliance/caliptra-builder:latest /bin/bash -c "rustup +1.90 target add aarch64-unknown-linux-gnu && CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo +1.90 install cargo-nextest --version 0.9.118 --target aarch64-unknown-linux-gnu --target-dir /work-dir"
 popd
 
 mv out/aarch64-unknown-linux-gnu/release/cargo-nextest out/rootfs/usr/bin/
