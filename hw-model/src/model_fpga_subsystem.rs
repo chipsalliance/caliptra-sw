@@ -2015,6 +2015,20 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
+        // Flash boot: MCU ROM reads images from flash and loads them into the
+        // recovery interface via AXI bypass. We just need to call the ROM callback
+        // and set bit 31 to let MCU ROM proceed.
+        if self.flash_boot {
+            println!("Flash boot: skipping BMC/I3C recovery, MCU ROM will load from flash");
+            if let Some(cb) = self.rom_callback.take() {
+                cb(self);
+            }
+            let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
+            let current = gpio.extract().get();
+            gpio.set(current | 1 << 31);
+            return Ok(());
+        }
+
         // Return here if there isn't any mutable code to load
         if boot_params.fw_image.is_none() {
             println!("Finished booting with no mutable firmware to load");
