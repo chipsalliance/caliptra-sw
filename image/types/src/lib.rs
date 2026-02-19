@@ -46,6 +46,9 @@ pub const SHA512_DIGEST_BYTE_SIZE: usize = 64;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 256 * 1024;
+/// All generated image artifacts (FW bundle, SoC manifest) must be a multiple of this.
+/// This is a hardware requirement: recovery images must be a multiple of 256 bytes in length.
+pub const IMAGE_ALIGNMENT: usize = 256;
 // LMS-SHA192-H15
 pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
 // LMOTS-SHA192-W4
@@ -444,6 +447,8 @@ impl ImageBundle {
             ));
         }
         result.extend_from_slice(&self.runtime);
+        // Pad to IMAGE_ALIGNMENT boundary
+        result.resize(result.len().next_multiple_of(IMAGE_ALIGNMENT), 0);
         Ok(result)
     }
 }
@@ -900,5 +905,63 @@ mod tests {
         image2.load_addr = 500;
         image2.size = 100;
         assert!(!image1.overlaps(&image2));
+    }
+
+    #[test]
+    fn test_to_bytes_alignment() {
+        let manifest_size = std::mem::size_of::<ImageManifest>();
+        // Create a small FMC and runtime to produce a non-256-aligned total
+        let fmc = vec![0u8; 100];
+        let runtime = vec![0u8; 37];
+        let mut manifest = ImageManifest::default();
+        manifest.fmc.offset = manifest_size as u32;
+        manifest.fmc.size = fmc.len() as u32;
+        manifest.runtime.offset = (manifest_size + fmc.len()) as u32;
+        manifest.runtime.size = runtime.len() as u32;
+        let bundle = ImageBundle {
+            manifest,
+            fmc,
+            runtime,
+        };
+        let bytes = bundle.to_bytes().unwrap();
+        assert_eq!(
+            bytes.len() % IMAGE_ALIGNMENT,
+            0,
+            "to_bytes() output must be a multiple of IMAGE_ALIGNMENT ({})",
+            IMAGE_ALIGNMENT
+        );
+        // Verify all padding bytes are zero
+        let unpadded = manifest_size + 100 + 37;
+        for &b in &bytes[unpadded..] {
+            assert_eq!(b, 0, "padding bytes must be zero");
+        }
+    }
+
+    #[test]
+    fn test_to_bytes_already_aligned() {
+        let manifest_size = std::mem::size_of::<ImageManifest>();
+        // Make total exactly a multiple of 256
+        let remainder = manifest_size % IMAGE_ALIGNMENT;
+        let fmc_size = if remainder == 0 {
+            0
+        } else {
+            IMAGE_ALIGNMENT - remainder
+        };
+        let fmc = vec![0u8; fmc_size];
+        let runtime = vec![0u8; 0];
+        let mut manifest = ImageManifest::default();
+        manifest.fmc.offset = manifest_size as u32;
+        manifest.fmc.size = fmc.len() as u32;
+        manifest.runtime.offset = (manifest_size + fmc.len()) as u32;
+        manifest.runtime.size = runtime.len() as u32;
+        let bundle = ImageBundle {
+            manifest,
+            fmc,
+            runtime,
+        };
+        let bytes = bundle.to_bytes().unwrap();
+        assert_eq!(bytes.len() % IMAGE_ALIGNMENT, 0);
+        // No extra padding should be added when already aligned
+        assert_eq!(bytes.len(), manifest_size + fmc_size);
     }
 }

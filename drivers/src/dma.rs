@@ -684,15 +684,22 @@ impl<'a> DmaRecovery<'a> {
         #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
         {
             // FPGA implementation: wait payload available and read dword by dword
-            let len = (image_size_bytes as usize / 4).min(buffer.len());
-            for i in 0..len {
+            let total_words = image_size_bytes as usize / 4;
+            let words_to_keep = total_words.min(buffer.len());
+            for i in 0..words_to_keep {
                 while !self.dma.payload_available() {}
                 buffer[i] = self.dma.read_dword(addr);
+            }
+            // Drain any excess words beyond buffer capacity
+            for _ in words_to_keep..total_words {
+                while !self.dma.payload_available() {}
+                let _ = self.dma.read_dword(addr);
             }
         }
 
         #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
         {
+            // Read the full image from the FIFO to avoid leaving it in a bad state
             let read_transaction = DmaReadTransaction {
                 read_addr: addr,
                 fixed_addr: true,
@@ -705,7 +712,17 @@ impl<'a> DmaRecovery<'a> {
 
             self.dma.flush();
             self.dma.setup_dma_read(read_transaction);
-            self.dma.dma_read_fifo(buffer);
+            // Read into buffer up to its capacity
+            let words_to_keep = (image_size_bytes as usize / 4).min(buffer.len());
+            self.dma.dma_read_fifo(&mut buffer[..words_to_keep]);
+            // Drain any excess words beyond buffer capacity
+            let total_words = image_size_bytes as usize / 4;
+            if total_words > words_to_keep {
+                let mut discard = [0u32; 1];
+                for _ in 0..(total_words - words_to_keep) {
+                    self.dma.dma_read_fifo(&mut discard);
+                }
+            }
             self.dma.wait_for_dma_complete();
         }
 

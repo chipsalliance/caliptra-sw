@@ -19,7 +19,7 @@ use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
 use caliptra_image_crypto::RustCrypto as Crypto;
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_ALIGNMENT};
 use clap::ArgMatches;
 use clap::{arg, value_parser, Command};
 use std::io::Write;
@@ -169,6 +169,12 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .with_context(|| format!("Failed to create file {}", out_path.display()))?;
 
     out_file.write_all(manifest.as_bytes())?;
+    // Pad to IMAGE_ALIGNMENT boundary
+    let len = manifest.as_bytes().len();
+    let padded = len.next_multiple_of(IMAGE_ALIGNMENT);
+    if padded > len {
+        out_file.write_all(&vec![0u8; padded - len])?;
+    }
 
     Ok(())
 }
