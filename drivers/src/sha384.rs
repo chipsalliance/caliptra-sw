@@ -110,7 +110,7 @@ impl Sha384 {
         let digest = self.read_digest();
 
         #[cfg(feature = "fips-test-hooks")]
-        let digest = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::SHA384_CORRUPT_DIGEST,
                 &digest,

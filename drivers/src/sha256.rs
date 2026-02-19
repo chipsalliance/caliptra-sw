@@ -128,7 +128,7 @@ impl Sha256Alg for Sha256 {
         let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
 
         #[cfg(feature = "fips-test-hooks")]
-        let digest = unsafe {
+        unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::SHA256_CORRUPT_DIGEST,
                 &digest,
