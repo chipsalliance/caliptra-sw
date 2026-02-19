@@ -3,9 +3,11 @@
 use caliptra_error::CaliptraResult;
 use zeroize::ZeroizeOnDrop;
 
+mod hybrid;
 mod mlkem;
 mod p384;
 
+pub use hybrid::*;
 pub use mlkem::*;
 pub use p384::*;
 
@@ -72,6 +74,12 @@ impl<const NSECRET: usize> AsRef<[u8]> for SharedSecret<NSECRET> {
 
 impl From<Array4x12> for SharedSecret<{ Hmac384::NH }> {
     fn from(value: Array4x12) -> Self {
+        Self { buf: value.into() }
+    }
+}
+
+impl From<crate::Array4x8> for SharedSecret<32> {
+    fn from(value: crate::Array4x8) -> Self {
         Self { buf: value.into() }
     }
 }

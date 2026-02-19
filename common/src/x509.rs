@@ -60,6 +60,11 @@ pub fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
             pub_key_bytes[..ml_kem_pubkey.len()].copy_from_slice(ml_kem_pubkey);
             pub_key_bytes.len()
         }
+        PubKey::HybridMlkemP384(pub_key) => {
+            let hybrid_pubkey: &[u8; 1665] = pub_key.as_ref();
+            pub_key_bytes[..hybrid_pubkey.len()].copy_from_slice(hybrid_pubkey);
+            pub_key_bytes.len()
+        }
     }
 }
 
