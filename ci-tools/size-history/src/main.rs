@@ -22,7 +22,7 @@ use crate::{cache_gha::GithubActionCache, util::other_err};
 
 // Increment with non-backwards-compatible changes are made to the cache record
 // format
-const CACHE_FORMAT_VERSION: &str = "v2";
+const CACHE_FORMAT_VERSION: &str = "v3";
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 struct Sizes {
@@ -30,6 +30,7 @@ struct Sizes {
     rom_size_prod: Option<u64>,
     fmc_size_with_uart: Option<u64>,
     app_size_with_uart: Option<u64>,
+    app_size_with_uart_ocp_lock: Option<u64>,
 }
 impl Sizes {
     fn update_from(&mut self, other: &Sizes) {
@@ -37,6 +38,9 @@ impl Sizes {
         self.rom_size_prod = other.rom_size_prod.or(self.rom_size_prod);
         self.fmc_size_with_uart = other.fmc_size_with_uart.or(self.fmc_size_with_uart);
         self.app_size_with_uart = other.app_size_with_uart.or(self.app_size_with_uart);
+        self.app_size_with_uart_ocp_lock = other
+            .app_size_with_uart_ocp_lock
+            .or(self.app_size_with_uart_ocp_lock);
     }
 }
 
@@ -187,6 +191,7 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
         rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
         fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
         app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
+        app_size_with_uart_ocp_lock: fwid_elf_size_or_none(&firmware::APP_WITH_UART_OCP_LOCK),
     }
 }
 
