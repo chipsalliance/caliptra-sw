@@ -62,7 +62,7 @@ impl RecoveryFlow {
 
         SetAuthManifestCmd::set_auth_manifest(drivers, source, false)?;
 
-        let digest = {
+        let (digest, mcu_size_bytes) = {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -83,12 +83,13 @@ impl RecoveryFlow {
             let mcu_size_bytes =
                 dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
             cprintln!("[rt] Calculating MCU digest");
-            dma_recovery.sha384_mcu_sram(
+            let digest = dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
                 0,
                 mcu_size_bytes,
                 AesDmaMode::None,
-            )?
+            )?;
+            (digest, mcu_size_bytes)
         };
 
         let digest: [u8; 48] = digest.into();
@@ -126,6 +127,18 @@ impl RecoveryFlow {
             let boot_mode = drivers.persistent_data.get().rom.boot_mode;
             if boot_mode == BootMode::EncryptedFirmware {
                 cprintln!("[rt] Encrypted firmware boot mode - skipping MCU activation");
+
+                // Write MCU firmware image size to ss_generic_fw_exec_ctrl[1] so MCU ROM
+                // can read it for decryption (it needs to know ciphertext length).
+                let mut fw_ctrl = [0u32; 4];
+                drivers.soc_ifc.get_ss_generic_fw_exec_ctrl(&mut fw_ctrl);
+                fw_ctrl[1] = mcu_size_bytes;
+                drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&fw_ctrl);
+                cprintln!(
+                    "[rt] Wrote MCU firmware size {} to fw_exec_ctrl[1]",
+                    mcu_size_bytes
+                );
+
                 // we're done with recovery, but MCU will handle its own boot after decryption
                 dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
                 return Ok(());
