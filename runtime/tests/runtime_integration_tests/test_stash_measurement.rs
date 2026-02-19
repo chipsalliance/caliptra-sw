@@ -13,11 +13,13 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    calculate_cptra_config_init_vals_hash, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
+};
 
 #[test]
 fn test_stash_measurement() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let (mut model, image_bundle) = run_rt_test_return_fw(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -64,13 +66,16 @@ fn test_stash_measurement() {
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &image_bundle)
+            .as_bytes()
+            .try_into()
+            .unwrap();
 
     // hash expected DPE measurements in order to check that stashed measurement was added to DPE
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();
 

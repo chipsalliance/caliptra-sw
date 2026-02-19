@@ -382,7 +382,8 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+        let manifest = drivers.persistent_data.get().manifest1;
+        let pl0_pauser_locality = manifest.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
@@ -404,6 +405,12 @@ impl Drivers {
                 digest_op.update(mbox_valid_pauser[i].as_bytes())?;
             }
         }
+        digest_op.update(pl0_pauser_locality.as_bytes())?;
+        digest_op.update(manifest.header.flags.as_bytes())?;
+        digest_op.update(manifest.fmc.load_addr.as_bytes())?;
+        digest_op.update(manifest.fmc.entry_point.as_bytes())?;
+        digest_op.update(manifest.runtime.load_addr.as_bytes())?;
+        digest_op.update(manifest.runtime.entry_point.as_bytes())?;
         let mut valid_pauser_hash = Array4x12::default();
         digest_op.finalize(&mut valid_pauser_hash)?;
 
@@ -464,7 +471,7 @@ impl Drivers {
                 | DeriveContextFlags::CHANGE_LOCALITY
                 | DeriveContextFlags::INPUT_ALLOW_CA
                 | DeriveContextFlags::INPUT_ALLOW_X509,
-            tci_type: u32::from_be_bytes(*b"MBVP"),
+            tci_type: u32::from_be_bytes(*b"CCIV"),
             target_locality: pl0_pauser_locality,
         }
         .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
