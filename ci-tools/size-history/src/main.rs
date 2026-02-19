@@ -30,13 +30,18 @@ struct Sizes {
     rom_size_prod: Option<u64>,
     fmc_size_with_uart: Option<u64>,
     app_size_with_uart: Option<u64>,
+    app_size_with_uart_ocplock: Option<u64>,
 }
+
 impl Sizes {
     fn update_from(&mut self, other: &Sizes) {
         self.rom_size_with_uart = other.rom_size_with_uart.or(self.rom_size_with_uart);
         self.rom_size_prod = other.rom_size_prod.or(self.rom_size_prod);
         self.fmc_size_with_uart = other.fmc_size_with_uart.or(self.fmc_size_with_uart);
         self.app_size_with_uart = other.app_size_with_uart.or(self.app_size_with_uart);
+        self.app_size_with_uart_ocplock = other
+            .app_size_with_uart_ocplock
+            .or(self.app_size_with_uart_ocplock);
     }
 }
 
@@ -172,6 +177,7 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
         let elf_bytes = caliptra_builder::build_firmware_elf_uncached(workspace_dir, fwid)?;
         elf_size(&elf_bytes)
     };
+
     let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {
         match fwid_elf_size(fwid) {
             Ok(result) => Some(result),
@@ -187,6 +193,7 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
         rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
         fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
         app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
+        app_size_with_uart_ocplock: fwid_elf_size_or_none(&firmware::APP_WITH_UART_OCP_LOCK),
     }
 }
 
