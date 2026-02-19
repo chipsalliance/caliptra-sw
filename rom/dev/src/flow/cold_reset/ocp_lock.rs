@@ -3,6 +3,8 @@
 use caliptra_api::mailbox::{
     OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp, OcpLockReportHekMetadataRespFlags,
 };
+#[cfg(not(feature = "no-cfi"))]
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
     crypto::Crypto,
@@ -43,6 +45,7 @@ pub fn ocp_lock_cold_reset_flow(env: &mut RomEnv) -> CaliptraResult<()> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
     let hek_seed = env.soc_ifc.fuse_bank().ocp_hek_seed();
     Crypto::hmac_kdf(
@@ -63,6 +66,7 @@ fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
     Crypto::hmac_kdf(
         &mut env.hmac,
@@ -81,6 +85,7 @@ fn derive_mdk(env: &mut RomEnv) -> CaliptraResult<()> {
 ///
 /// Returns:
 ///  True if the HEK is available. False otherwise.
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn handle_report_hek_metadata(
     lifecycle_state: Lifecycle,
     pdata: &mut PersistentData,
@@ -109,6 +114,7 @@ pub fn handle_report_hek_metadata(
 ///
 /// If HEK is available, NOP
 /// If HEK is unavailable, erase HEK.
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn zeroize_hek_if_needed(pdata: &mut PersistentData, kv: &mut KeyVault) -> CaliptraResult<()> {
     if cfi_launder(pdata.rom.ocp_lock_metadata.hek_available) {
         return Ok(());
@@ -122,6 +128,7 @@ fn zeroize_hek_if_needed(pdata: &mut PersistentData, kv: &mut KeyVault) -> Calip
 /// Write locks OCP LOCK HEK & MDK Key Vault slots
 ///
 /// This should be called on reset to prevent later stages from writing to the HEK & MDK slots.
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn wr_lock_keyvault(kv: &mut KeyVault) {
     kv.set_key_write_lock(KEY_ID_HEK);
     kv.set_key_write_lock(KEY_ID_MDK);
@@ -130,6 +137,7 @@ pub fn wr_lock_keyvault(kv: &mut KeyVault) {
 /// Completes the OCP LOCK flow after a cold reset.
 ///
 /// Checks the HEK seed state. Sets LOCK in Progress.
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn complete_ocp_lock_flow(
     soc_ifc: &mut SocIfc,
     pdata: &mut PersistentData,
