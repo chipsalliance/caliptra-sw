@@ -361,12 +361,15 @@ impl HashSha3 {
         let cmd: CmdType = self.cmd.reg.read(Cmd::CMD).into();
         match cmd {
             CmdType::Start => {
-                // change to abosrb state
-                self.status.reg.modify(Status::SHA3_ABSORB::SET);
+                // change to absorb state
+                self.msg_fifo.data.clear();
+                self.status
+                    .reg
+                    .set((Status::SHA3_ABSORB::SET + Status::FIFO_EMPTY::SET).into());
             }
             CmdType::Process => {
                 // change to squeeze state
-                self.status.reg.modify(Status::SHA3_SQUEEZE::SET);
+                self.status.reg.set(Status::SHA3_SQUEEZE::SET.into());
 
                 let res = self.sha3.update(&self.msg_fifo.data);
                 if !res {
@@ -383,6 +386,10 @@ impl HashSha3 {
             CmdType::Run => todo!(),
             CmdType::Done => {
                 self.state.fill(0);
+                self.msg_fifo.data.clear();
+                self.status
+                    .reg
+                    .set((Status::SHA3_IDLE::SET + Status::FIFO_EMPTY::SET).into());
             }
         }
 
