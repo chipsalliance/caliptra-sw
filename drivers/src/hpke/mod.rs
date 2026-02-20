@@ -36,7 +36,7 @@ impl From<HpkeHandle> for u32 {
 }
 
 /// Tracks the next HPKE handle id
-#[derive(Default)]
+#[derive(Default, Zeroize)]
 pub struct HpkeCursor(u32);
 
 impl HpkeCursor {
@@ -119,6 +119,7 @@ enum HpkePrivateKey {
 }
 
 // High level struct for https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
+#[derive(ZeroizeOnDrop)]
 pub struct HpkeContext {
     /// HPKE Private Keys
     priv_keys: [HpkePrivateKey; 2],
