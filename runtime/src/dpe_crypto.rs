@@ -133,6 +133,7 @@ impl<'a> DpeMldsaCrypto<'a> {
 }
 
 impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> {
+    #[inline(never)]
     fn derive_cdi_inner(
         &mut self,
         measurement: &Digest,
@@ -164,6 +165,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         Ok(key_id)
     }
 
+    #[inline(never)]
     fn derive_key_pair_inner(
         &mut self,
         cdi: &KeyId,
@@ -308,6 +310,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         Ok(Signature::MlDsa(MldsaSignature(dpe_sig)))
     }
 
+    #[inline(never)]
     fn sign_helper(
         signer: &mut Signer,
         sha2_512_384: &mut Sha2_512_384,
@@ -391,6 +394,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn derive_exported_cdi(
         &mut self,
         measurement: &Digest,
@@ -439,11 +443,13 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn derive_cdi(&mut self, measurement: &Digest, info: &[u8]) -> Result<Self::Cdi, CryptoError> {
         self.derive_cdi_inner(measurement, info, KEY_ID_DPE_CDI)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn derive_key_pair(
         &mut self,
         cdi: &Self::Cdi,
@@ -454,6 +460,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn derive_key_pair_exported(
         &mut self,
         exported_handle: &ExportedCdiHandle,
@@ -480,6 +487,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)
     }
 
+    #[inline(never)]
     fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
         Self::sign_helper(
             &mut self.signer,
@@ -491,6 +499,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         )
     }
 
+    #[inline(never)]
     fn sign_with_derived(
         &mut self,
         data: &SignData,
