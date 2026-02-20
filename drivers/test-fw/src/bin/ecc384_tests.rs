@@ -502,7 +502,10 @@ fn test_kat() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate4();
+    let mut entropy_gen = || {
+        trng.generate4()
+            .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+    };
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(

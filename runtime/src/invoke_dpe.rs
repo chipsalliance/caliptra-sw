@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{ec_dpe_env, mldsa_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use dpe::{

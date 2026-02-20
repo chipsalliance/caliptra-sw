@@ -3,9 +3,9 @@
 use crate::{Drivers, PauserPrivileges};
 
 #[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 
 use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
 use caliptra_drivers::ExportedCdiEntry;

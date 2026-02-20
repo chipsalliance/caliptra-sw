@@ -349,17 +349,7 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-derive"
 version = "0.1.0"
-dependencies = [
- "paste",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "caliptra-cfi-derive-git"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=a98e499d279e81ae85881991b1e9eee354151189#a98e499d279e81ae85881991b1e9eee354151189"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
 dependencies = [
  "paste",
  "proc-macro2",
@@ -370,18 +360,7 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
-dependencies = [
- "caliptra-cfi-derive",
- "caliptra-error",
- "caliptra-registers",
- "serial_test",
- "ufmt",
-]
-
-[[package]]
-name = "caliptra-cfi-lib-git"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=a98e499d279e81ae85881991b1e9eee354151189#a98e499d279e81ae85881991b1e9eee354151189"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
 
 [[package]]
 name = "caliptra-coverage"
@@ -420,9 +399,7 @@ dependencies = [
  "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
- "caliptra-cfi-derive-git",
  "caliptra-cfi-lib",
- "caliptra-cfi-lib-git",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -921,8 +898,8 @@ dependencies = [
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",
- "caliptra-cfi-derive-git",
- "caliptra-cfi-lib-git",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-emu-bus",
@@ -1118,9 +1095,8 @@ dependencies = [
  "bitfield",
  "bitflags 2.9.1",
  "caliptra-api",
- "caliptra-cfi-derive-git",
+ "caliptra-cfi-derive",
  "caliptra-cfi-lib",
- "caliptra-cfi-lib-git",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -1378,11 +1354,11 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
 dependencies = [
  "arrayvec",
- "caliptra-cfi-derive-git",
- "caliptra-cfi-lib-git",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "constant_time_eq",
  "zerocopy",
  "zeroize",
@@ -1452,19 +1428,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
-]
-
-[[package]]
-name = "dashmap"
-version = "5.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
-dependencies = [
- "cfg-if",
- "hashbrown 0.14.5",
- "lock_api",
- "once_cell",
- "parking_lot_core",
 ]
 
 [[package]]
@@ -1578,11 +1541,11 @@ dependencies = [
 [[package]]
 name = "dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
 dependencies = [
  "bitflags 2.9.1",
- "caliptra-cfi-derive-git",
- "caliptra-cfi-lib-git",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "cfg-if",
  "constant_time_eq",
  "crypto",
@@ -1737,83 +1700,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
-name = "futures-channel"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
-dependencies = [
- "futures-core",
- "futures-sink",
-]
-
-[[package]]
-name = "futures-core"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
-
-[[package]]
-name = "futures-executor"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
-dependencies = [
- "futures-core",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
-name = "futures-io"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
-
-[[package]]
-name = "futures-sink"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
-
-[[package]]
-name = "futures-task"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
-
-[[package]]
-name = "futures-util"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-io",
- "futures-sink",
- "futures-task",
- "memchr",
- "pin-project-lite",
- "pin-utils",
- "slab",
-]
-
-[[package]]
 name = "gdbstub"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1906,12 +1792,6 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
-
-[[package]]
-name = "hashbrown"
-version = "0.14.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 
 [[package]]
 name = "hashbrown"
@@ -2134,16 +2014,6 @@ name = "linux-raw-sys"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd945864f07fe9f5371a27ad7b52a172b4b499999f1d97574c9fa68373937e12"
-
-[[package]]
-name = "lock_api"
-version = "0.4.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96936507f153605bddfcda068dd804796c84324ed2510809e5b2a624c81da765"
-dependencies = [
- "autocfg",
- "scopeguard",
-]
 
 [[package]]
 name = "log"
@@ -2421,29 +2291,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parking_lot"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70d58bf43669b5795d1576d0641cfb6fbb2057bf629506267a92807158584a13"
-dependencies = [
- "lock_api",
- "parking_lot_core",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.9.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc838d2a56b5b1a6c25f55575dfc605fabb63bb2365f6c2353ef9159aa69e4a5"
-dependencies = [
- "cfg-if",
- "libc",
- "redox_syscall",
- "smallvec",
- "windows-targets 0.52.6",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2457,12 +2304,6 @@ checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
 dependencies = [
  "base64ct",
 ]
-
-[[package]]
-name = "pin-project-lite"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 
 [[package]]
 name = "pin-utils"
@@ -2499,7 +2340,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
 dependencies = [
  "arrayvec",
  "cfg-if",
@@ -2635,15 +2476,6 @@ name = "rand_core"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
-
-[[package]]
-name = "redox_syscall"
-version = "0.5.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d04b7d0ee6b4a0207a0a7adb104d23ecb0b47d6beae7152d0fa34b692b29fd6"
-dependencies = [
- "bitflags 2.9.1",
-]
 
 [[package]]
 name = "regex"
@@ -2825,31 +2657,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serial_test"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e56dd856803e253c8f298af3f4d7eb0ae5e23a737252cd90bb4f3b435033b2d"
-dependencies = [
- "dashmap",
- "futures",
- "lazy_static",
- "log",
- "parking_lot",
- "serial_test_derive",
-]
-
-[[package]]
-name = "serial_test_derive"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91d129178576168c589c9ec973feedf7d3126c01ac2bf08795109aa35b69fb8f"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2916,18 +2723,6 @@ dependencies = [
  "digest 0.11.0-rc.2",
  "rand_core 0.9.3",
 ]
-
-[[package]]
-name = "slab"
-version = "0.4.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
-
-[[package]]
-name = "smallvec"
-version = "1.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smlang"

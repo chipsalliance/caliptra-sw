@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::{EcdsaVerifyReq, MldsaVerifyReq};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,

@@ -15,7 +15,7 @@ Abstract:
 use crate::{
     invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
