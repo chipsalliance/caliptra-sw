@@ -985,6 +985,11 @@ impl ModelFpgaSubsystem {
                 // do the indirect fifo thing
                 println!("Recovery image available; writing blocks");
 
+                // Store the original image length before padding.
+                // The firmware uses this length for DMA transfer and SHA-384 digest,
+                // so it must reflect the actual image size, not the padded size.
+                self.recovery_ctrl_len = image.len();
+
                 // Recovery images must be padded to a multiple of 256 bytes
                 // or the last chunk will not finish.
                 let image = if image.len() % 256 == 0 {
@@ -994,8 +999,6 @@ impl ModelFpgaSubsystem {
                     image.resize(image.len().next_multiple_of(256), 0);
                     image
                 };
-
-                self.recovery_ctrl_len = image.len();
                 self.recovery_ctrl_written = false;
 
                 self.recovery_fifo_blocks = image.chunks(256).map(|chunk| chunk.to_vec()).collect();
