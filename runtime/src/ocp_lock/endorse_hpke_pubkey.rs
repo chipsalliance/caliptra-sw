@@ -6,7 +6,7 @@ use caliptra_api::mailbox::{
     EndorsementAlgorithms, MailboxRespHeader, OcpLockEndorseHpkePubKeyReq,
     OcpLockEndorseHpkePubKeyResp,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_common::{
     crypto::{Crypto, PubKey},

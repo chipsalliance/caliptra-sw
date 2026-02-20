@@ -5,7 +5,7 @@ use crate::{mutrefbytes, Drivers};
 use caliptra_api::mailbox::{
     MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEnableMpkResp, WrappedKey,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_drivers::hpke::{aead::Aes256GCM, HpkeHandle};
 use caliptra_error::{CaliptraError, CaliptraResult};

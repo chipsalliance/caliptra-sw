@@ -14,7 +14,7 @@ Abstract:
 
 use crate::mutrefbytes;
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::populate_checksum;
 use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_common::mailbox_api::{FirmwareVerifyResp, FirmwareVerifyResult};

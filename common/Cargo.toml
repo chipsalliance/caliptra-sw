@@ -9,12 +9,8 @@ edition = "2021"
 [dependencies]
 bitfield.workspace = true
 bitflags.workspace = true
-caliptra-cfi-lib-git = { workspace = true, default-features = false, features = [
-    "cfi",
-    "cfi-counter",
-] }
-caliptra-cfi-derive-git.workspace = true
 caliptra-cfi-lib.workspace = true
+caliptra-cfi-derive.workspace = true
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
 caliptra-error.workspace = true

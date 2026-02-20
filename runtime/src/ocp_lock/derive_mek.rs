@@ -3,7 +3,7 @@
 use crate::{mutrefbytes, Drivers};
 
 use caliptra_api::mailbox::{MailboxRespHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 
