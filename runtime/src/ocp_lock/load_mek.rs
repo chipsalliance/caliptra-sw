@@ -1,29 +1,39 @@
-// Licensed under the Apache-2.0 license
+/*++
 
-use crate::{mutrefbytes, Drivers};
+Licensed under the Apache-2.0 license.
 
-use caliptra_api::mailbox::{MailboxRespHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp};
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_drivers::DmaEncryptionEngine;
+File Name:
 
-use caliptra_error::{CaliptraError, CaliptraResult};
+    load_mek.rs
 
+Abstract:
+
+    File contains UNLOAD_MEK mailbox command.
+
+--*/
+
+use crate::mutrefbytes;
+use crate::Drivers;
+use caliptra_common::mailbox_api::{MailboxRespHeader, OcpLockLoadMekReq, OcpLockLoadMekResp};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DmaEncryptionEngine};
 use zerocopy::FromBytes;
 
-use super::{timeout_to_mtime, MekChecksum};
+use super::timeout_to_mtime;
 
-pub struct DeriveMekCmd;
-impl DeriveMekCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+pub struct LoadMekCmd;
+impl LoadMekCmd {
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
-        cmd_args: &[u8],
+        cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let cmd = OcpLockDeriveMekReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        if cmd_bytes.len() != size_of::<OcpLockLoadMekReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
 
+        let cmd = OcpLockLoadMekReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let soc_ifc = &mut drivers.soc_ifc;
 
         // Convert timeout into mtime
@@ -45,13 +55,13 @@ impl DeriveMekCmd {
         // Write AUX
         dma_encryption_engine.write_aux(&cmd.aux_metadata);
 
-        let expected_mek_checksum = MekChecksum(cmd.mek_checksum);
-        let checksum = drivers.ocp_lock_context.derive_mek(
+        // Handle MEK generation
+        drivers.ocp_lock_context.load_mek_into_key_vault(
             &mut drivers.aes,
-            &mut drivers.hmac,
             &mut drivers.trng,
+            &mut drivers.hmac,
             &mut drivers.key_vault,
-            expected_mek_checksum,
+            &cmd.wrapped_mek,
         )?;
 
         // Write MEK
@@ -73,9 +83,10 @@ impl DeriveMekCmd {
             Err(CaliptraError::OCP_LOCK_ENGINE_ERR)?
         };
 
-        let resp = mutrefbytes::<OcpLockDeriveMekResp>(resp)?;
+        // Populate response
+        let resp = mutrefbytes::<OcpLockLoadMekResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        resp.mek_checksum = checksum.0;
-        Ok(core::mem::size_of::<OcpLockDeriveMekResp>())
+
+        Ok(core::mem::size_of::<OcpLockLoadMekResp>())
     }
 }

@@ -45,6 +45,7 @@ mod test_generate_mpk;
 mod test_get_algorithms;
 mod test_get_status;
 mod test_initialize_mek_secret;
+mod test_load_mek;
 mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;

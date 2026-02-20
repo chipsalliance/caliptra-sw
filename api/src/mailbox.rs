@@ -70,6 +70,10 @@ const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE % size_of::<u32>(
 pub const OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE: usize = 32;
 const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE % size_of::<u32>() == 0);
 
+/// Maximum MEK size for encryption engine interaction supported by OCP LOCK
+pub const OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE: usize = 64;
+const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE % size_of::<u32>() == 0);
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 
@@ -238,6 +242,7 @@ impl CommandId {
     pub const OCP_LOCK_CLEAR_KEY_CACHE: Self = Self(0x434C_4B43); // "CLKC"
     pub const OCP_LOCK_GET_STATUS: Self = Self(0x4753_5441); // "GSTA"
     pub const OCP_LOCK_UNLOAD_MEK: Self = Self(0x554D_454B); // "UMEK"
+    pub const OCP_LOCK_LOAD_MEK: Self = Self(0x4C4D_454B); // "LMEK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
 }
@@ -395,6 +400,7 @@ pub enum MailboxResp {
     OcpLockGetStatus(OcpLockGetStatusResp),
     OcpLockClearKeyCache(OcpLockClearKeyCacheResp),
     OcpLockUnloadMek(OcpLockUnloadMekResp),
+    OcpLockLoadMek(OcpLockLoadMekResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -474,6 +480,7 @@ impl MailboxResp {
             MailboxResp::OcpLockGetStatus(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -551,6 +558,7 @@ impl MailboxResp {
             MailboxResp::OcpLockGetStatus(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -696,6 +704,7 @@ pub enum MailboxReq {
     OcpLockGetStatus(OcpLockGetStatusReq),
     OcpLockClearKeyCache(OcpLockClearKeyCacheReq),
     OcpLockUnloadMek(OcpLockUnloadMekReq),
+    OcpLockLoadMek(OcpLockLoadMekReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -791,6 +800,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGetStatus(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockLoadMek(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -884,6 +894,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGetStatus(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockLoadMek(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -983,6 +994,7 @@ impl MailboxReq {
             MailboxReq::OcpLockGetStatus(_) => CommandId::OCP_LOCK_GET_STATUS,
             MailboxReq::OcpLockClearKeyCache(_) => CommandId::OCP_LOCK_CLEAR_KEY_CACHE,
             MailboxReq::OcpLockUnloadMek(_) => CommandId::OCP_LOCK_UNLOAD_MEK,
+            MailboxReq::OcpLockLoadMek(_) => CommandId::OCP_LOCK_LOAD_MEK,
         }
     }
 
@@ -5032,6 +5044,32 @@ pub struct OcpLockUnloadMekResp {
 }
 
 impl Response for OcpLockUnloadMekResp {}
+
+// LOAD_MEK
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockLoadMekReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub metadata: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE],
+    pub aux_metadata: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE],
+    pub wrapped_mek: WrappedKey,
+    pub cmd_timeout: u32,
+}
+
+impl Request for OcpLockLoadMekReq {
+    const ID: CommandId = CommandId::OCP_LOCK_LOAD_MEK;
+    type Resp = OcpLockLoadMekResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockLoadMekResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+}
+
+impl Response for OcpLockLoadMekResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
