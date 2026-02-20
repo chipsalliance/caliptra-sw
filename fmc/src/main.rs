@@ -65,7 +65,11 @@ pub extern "C" fn entry_point() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || env.trng.generate4();
+        let mut entropy_gen = || {
+            env.trng
+                .generate4()
+                .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+        };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);

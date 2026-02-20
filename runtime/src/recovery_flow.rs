@@ -19,7 +19,7 @@ use crate::{
     Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},

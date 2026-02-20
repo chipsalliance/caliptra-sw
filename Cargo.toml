@@ -35,8 +35,6 @@ members = [
   "auth-manifest/gen",
   "auth-manifest/types",
   "builder",
-  "cfi/lib",
-  "cfi/derive",
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
@@ -108,10 +106,9 @@ caliptra-api-test-bin = { path = "api/test-fw" }
 caliptra-api-types = { path = "api/types" }
 caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
-caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
-caliptra-cfi-derive = { path = "cfi/derive" }
-caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
-caliptra-cfi-derive-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive-git", rev = "a98e499d279e81ae85881991b1e9eee354151189"}
+caliptra-cfi-lib = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib", rev = "767d4ef59a106aea683b883c07bd65456fb3ba6b", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive", rev = "767d4ef59a106aea683b883c07bd65456fb3ba6b"}
+
 caliptra_common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
@@ -234,9 +231,9 @@ itertools = { version = "0.12.0", default-features = false }
 riscv = "0.13.0"
 
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false, features = ["hybrid"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false, features = ["hybrid", "cfi"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false, features = ["cfi"] }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false }
 
 # local DPE dependency; useful when developing
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }

@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use caliptra_common::{cfi_check, crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac_kdf, sha2_512_384::Sha2DigestOpTrait, Array4x12, HmacData, HmacKey, HmacMode, HmacTag,
@@ -71,7 +71,7 @@ fn ecc384_key_gen(
     if KEY_ID_TMP != priv_key {
         drivers.key_vault.erase_key(KEY_ID_TMP)?;
     } else {
-        cfi_assert_eq(KEY_ID_TMP, priv_key);
+        cfi_assert_eq(u32::from(KEY_ID_TMP), u32::from(priv_key));
     }
 
     Ok(Ecc384KeyPair {

@@ -30,18 +30,13 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi-counter",
 ] }
 caliptra-cfi-derive.workspace = true
-caliptra-cfi-lib-git = { workspace = true, default-features = false, features = [
-    "cfi",
-    "cfi-counter",
-], optional = true }
-caliptra-cfi-derive-git = { workspace = true, optional = true }
 
 [features]
 std = []
 emu = []
 riscv = []
 rom = []
-runtime = ["dep:dpe", "dep:caliptra-cfi-lib-git", "dep:caliptra-cfi-derive-git"]
+runtime = ["dep:dpe"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 fpga_subsystem = ["caliptra-hw-model/fpga_subsystem"]
