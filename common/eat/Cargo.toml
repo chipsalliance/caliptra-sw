@@ -28,3 +28,6 @@ p384 = { workspace = true, optional = true }
 ecdsa = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+minicbor = { version = "0.25", default-features = false, features = ["alloc"] }

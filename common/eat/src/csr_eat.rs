@@ -26,9 +26,10 @@
 //! ])
 //! ```
 
-use crate::cbor::CborEncoder;
+use crate::cbor::{CborEncodable, CborEncoder};
 use crate::claim_keys::*;
 use crate::error::EatError;
+use crate::TaggedOid;
 
 // Envelope Signed CSR specific private claim keys (must be < -65536 per RFC 8392)
 const ENV_SIGNED_CSR_CLAIM_KEY_CSR: i64 = -70001;
@@ -91,55 +92,6 @@ pub mod oids {
     pub const OCP_SECURITY_OID_KDA_OWNER_PROVISIONED_KEY: &[u8] = &[
         0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x04,
     ];
-}
-
-/// OID type for key attributes (tagged with CBOR tag 111 for OID)
-///
-/// Encodes Object Identifiers using CBOR tag 111 as specified in RFC 8949.
-/// The OID value must be in X.690 BER encoding (content octets only, without the
-/// UNIVERSAL TAG 6 prefix or length byte).
-///
-/// # Example
-/// For OCP DIP Owner Entropy Fuse OID {1 3 6 1 4 1 42623 1 2 1}:
-/// ```text
-/// BER:  06 0B 2B 06 01 04 01 82 CD 1F 01 02 01
-/// CBOR: D8 6F 4B 2B 06 01 04 01 82 CD 1F 01 02 01
-///       └───┘ └┘ └──────────────────────────────┘
-///       tag   len    OID value (X.690)
-///       111   11
-/// ```
-/// The `oid` field contains: `[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x01]`
-///
-/// # Usage
-/// ```rust,ignore
-/// use ocp_eat::csr_eat::{TaggedOid, oids};
-///
-/// let attr = TaggedOid::new(oids::OCP_SECURITY_OID_KDA_OWNER_ENTROPY_FUSE);
-/// ```
-#[derive(Debug, Clone, Copy)]
-pub struct TaggedOid<'a> {
-    /// OID value in X.690 BER encoding (content octets only)
-    pub oid: &'a [u8],
-}
-
-impl<'a> TaggedOid<'a> {
-    /// Create a new tagged OID
-    ///
-    /// # Arguments
-    /// * `oid` - OID value encoded using X.690 BER (content octets, no tag/length)
-    pub fn new(oid: &'a [u8]) -> Self {
-        Self { oid }
-    }
-
-    /// Encode the tagged OID to CBOR
-    ///
-    /// Produces: tag(111) followed by byte string containing the X.690 encoded OID value
-    pub fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
-        // Tag 111 for OID (RFC 8949 Section 3.4.5.3)
-        encoder.encode_tag(111)?;
-        encoder.encode_bytes(self.oid)?;
-        Ok(())
-    }
 }
 
 /// Envelope Signed CSR EAT Claims
