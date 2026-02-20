@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 // Concise Evidence structures and encoding for RATS CoRIM compliance
-use crate::cbor::{CborEncodable, CborEncoder};
+use crate::cbor::{CborEncodable, CborEncoder, TaggedOid, TaggedUuid};
 use crate::error::EatError;
 
 // CBOR tag for tagged concise evidence
@@ -245,16 +245,15 @@ impl CborEncodable for EnvironmentMap<'_> {
 // Evidence identifier type choice
 #[derive(Debug, Clone, Copy)]
 pub enum EvidenceIdTypeChoice<'a> {
-    TaggedUuid(&'a [u8]),
+    TaggedUuid(TaggedUuid<'a>),
+    TaggedOid(TaggedOid<'a>),
 }
 
 impl CborEncodable for EvidenceIdTypeChoice<'_> {
     fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
         match self {
-            EvidenceIdTypeChoice::TaggedUuid(uuid) => {
-                // Encode tagged UUID (needs proper tag)
-                encoder.encode_bytes(uuid)
-            }
+            EvidenceIdTypeChoice::TaggedUuid(uuid) => uuid.encode(encoder),
+            EvidenceIdTypeChoice::TaggedOid(oid) => oid.encode(encoder),
         }
     }
 }
