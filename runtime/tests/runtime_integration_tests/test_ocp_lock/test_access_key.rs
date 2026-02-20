@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, MailboxReq, OcpLockGenerateMpkResp, OcpLockTestAccessKeyReq,
+    CommandId, MailboxReq, OcpLockGenerateMpkResp, OcpLockTestAccessKeyReq,
     OcpLockTestAccessKeyResp, SealedAccessKey, WrappedKey, OCP_LOCK_MAX_ENC_LEN,
     OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
@@ -24,11 +24,7 @@ fn test_test_access_key() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -88,11 +84,7 @@ fn test_test_access_key_warm_reset() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -113,11 +105,7 @@ fn test_test_access_key_warm_reset() {
 
     model.warm_reset_flow().unwrap();
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let nonce = [0x11; 32];
     let cmd = create_test_access_key_req(

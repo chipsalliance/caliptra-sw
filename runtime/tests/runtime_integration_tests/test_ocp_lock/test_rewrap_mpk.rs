@@ -3,8 +3,7 @@
 use std::sync::LazyLock;
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, OcpLockGenerateMpkResp, OcpLockRewrapMpkResp,
-    OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
+    CommandId, OcpLockGenerateMpkResp, OcpLockRewrapMpkResp, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
@@ -37,11 +36,7 @@ fn test_rewrap_mpk() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -104,11 +99,7 @@ fn test_rewrap_invalid_hpke_key() {
         ..Default::default()
     });
 
-    let mut endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let mut endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];

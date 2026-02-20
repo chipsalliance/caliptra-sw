@@ -4,8 +4,10 @@ use caliptra_error::CaliptraResult;
 use zeroize::ZeroizeOnDrop;
 
 mod mlkem;
+mod p384;
 
 pub use mlkem::*;
+pub use p384::*;
 
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
@@ -78,6 +80,12 @@ impl From<Array4x12> for SharedSecret<{ Hmac384::NH }> {
 #[derive(Debug, PartialEq, KnownLayout, Immutable, FromBytes)]
 pub struct EncapsulatedSecret<const NENC: usize> {
     buf: [u8; NENC],
+}
+
+impl<const NENC: usize> AsRef<[u8; NENC]> for EncapsulatedSecret<NENC> {
+    fn as_ref(&self) -> &[u8; NENC] {
+        &self.buf
+    }
 }
 
 /// Serialized ML-KEM Encap key

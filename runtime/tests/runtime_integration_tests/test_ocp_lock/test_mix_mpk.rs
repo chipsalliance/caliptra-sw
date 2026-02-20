@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, MailboxReq, OcpLockEnableMpkResp, OcpLockInitializeMekSecretReq,
-    OcpLockMixMpkReq, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
+    CommandId, MailboxReq, OcpLockEnableMpkResp, OcpLockInitializeMekSecretReq, OcpLockMixMpkReq,
+    WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -27,11 +27,7 @@ fn test_mix_mpk() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -72,11 +68,7 @@ fn test_mix_mpk_warm_reset() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -106,11 +98,7 @@ fn test_mix_mpk_warm_reset() {
     model.warm_reset_flow().unwrap();
 
     // Need a new HPKE key & to re-initialize the MEK secret after a warm reset.
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let mut cmd = MailboxReq::OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq {
         sek: [0xAB; 32],
@@ -169,11 +157,7 @@ fn test_mix_mpk_cold_reset() {
             ..Default::default()
         });
 
-        let endorsed_handle = get_validated_hpke_handle(
-            &mut model,
-            HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-        )
-        .unwrap();
+        let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
         let info = [0xDE; 256];
         let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -224,11 +208,7 @@ fn test_mix_mpk_missing_init_mek_secrets() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];

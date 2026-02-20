@@ -13,16 +13,20 @@ use caliptra_common::{
     dice::{ecc384_cert_from_tbs_and_sig, mldsa87_cert_from_tbs_and_sig},
     x509,
 };
-use caliptra_drivers::hpke::{
-    kem::MlKemEncapsulationKey,
-    suites::{HpkeCipherSuite, KemId},
-    HpkeHandle,
+use caliptra_drivers::{
+    hpke::{
+        kem::{MlKemEncapsulationKey, P384EncapsulationKey},
+        suites::{HpkeCipherSuite, KemId},
+        HpkeHandle,
+    },
+    Ecc384PubKey,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_x509::{
-    OcpLockMlKemCertTbsEcc384, OcpLockMlKemCertTbsEcc384Params, OcpLockMlKemCertTbsMlDsa87,
-    OcpLockMlKemCertTbsMlDsa87Params,
+    OcpLockEcdh384CertTbsEcc384, OcpLockEcdh384CertTbsEcc384Params, OcpLockEcdh384CertTbsMlDsa87,
+    OcpLockEcdh384CertTbsMlDsa87Params, OcpLockMlKemCertTbsEcc384, OcpLockMlKemCertTbsEcc384Params,
+    OcpLockMlKemCertTbsMlDsa87, OcpLockMlKemCertTbsMlDsa87Params,
 };
 use zerocopy::FromBytes;
 
@@ -44,6 +48,7 @@ impl EndorseHpkePubkeyCmd {
         resp.pub_key_len = drivers.ocp_lock_context.get_hpke_public_key(
             &mut drivers.sha3,
             &mut drivers.ml_kem,
+            &mut drivers.ecc384,
             &mut drivers.trng,
             &mut drivers.hmac,
             &hpke_handle,
@@ -77,9 +82,11 @@ impl EndorseHpkePubkeyCmd {
             EndorsementAlgorithms::ECDSA_P384_SHA384 => {
                 Self::create_ecdsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
             }
-            EndorsementAlgorithms::ML_DSA_87 => {
-                Self::create_mldsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
-            }
+            // TODO(clundin): Renable after code space optimizations
+            // https://github.com/chipsalliance/caliptra-sw/issues/3355
+            // EndorsementAlgorithms::ML_DSA_87 => {
+            //     Self::create_mldsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
+            // }
             _ => Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_ENDORSEMENT_ALGORITHM)?,
         }
     }
@@ -98,8 +105,8 @@ impl EndorseHpkePubkeyCmd {
         let authority_key_id: [u8; 20] =
             x509::subj_key_id(&mut drivers.sha256, &PubKey::Ecc(rt_ecc_pub_key))?;
 
-        match kem_id {
-            &KemId::ML_KEM_1024 => {
+        match *kem_id {
+            KemId::ML_KEM_1024 => {
                 let public_key = pub_key
                     .get(..OcpLockMlKemCertTbsEcc384Params::PUBLIC_KEY_LEN)
                     .and_then(|pub_key| <MlKemEncapsulationKey>::ref_from_bytes(pub_key).ok())
@@ -134,10 +141,50 @@ impl EndorseHpkePubkeyCmd {
                 )?;
                 ecc384_cert_from_tbs_and_sig(Some(tbs.tbs()), &signature, cert_buf)
             }
+            KemId::P_384 => {
+                let public_key = pub_key
+                    .get(..OcpLockEcdh384CertTbsEcc384Params::PUBLIC_KEY_LEN)
+                    .and_then(|pub_key| <P384EncapsulationKey>::ref_from_bytes(pub_key).ok())
+                    .ok_or(CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?;
+                let public_key_serialized = Ecc384PubKey::try_from(public_key)
+                    .map_err(|_| CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?;
+                let subject_sn: [u8; 64] =
+                    x509::subj_sn(&mut drivers.sha256, &PubKey::Ecc(&public_key_serialized))?;
+                let subject_key_id: [u8; 20] =
+                    x509::subj_key_id(&mut drivers.sha256, &PubKey::Ecc(&public_key_serialized))?;
+
+                let params = OcpLockEcdh384CertTbsEcc384Params {
+                    public_key: public_key.as_ref(),
+                    subject_sn: &subject_sn,
+                    issuer_sn: &issuer_sn,
+                    serial_number: subject_sn
+                        .get(..20)
+                        .and_then(|sn| <[u8; 20]>::ref_from_bytes(sn).ok())
+                        .ok_or(CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?,
+                    subject_key_id: &subject_key_id,
+                    authority_key_id: &authority_key_id,
+                    not_before: &not_before.value,
+                    not_after: &not_after.value,
+                };
+
+                let tbs = OcpLockEcdh384CertTbsEcc384::new(&params);
+                let signature = Crypto::ecdsa384_sign(
+                    &mut drivers.sha2_512_384,
+                    &mut drivers.ecc384,
+                    &mut drivers.trng,
+                    rt_ecc_key,
+                    rt_ecc_pub_key,
+                    tbs.tbs(),
+                )?;
+                ecc384_cert_from_tbs_and_sig(Some(tbs.tbs()), &signature, cert_buf)
+            }
             _ => Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_KEM_ALGORITHM)?,
         }
     }
 
+    // TODO(clundin): Renable after code space optimizations
+    // https://github.com/chipsalliance/caliptra-sw/issues/3355
+    #[allow(dead_code)]
     fn create_mldsa_endorsed_certificate(
         drivers: &mut Drivers,
         pub_key: &[u8],
@@ -154,8 +201,8 @@ impl EndorseHpkePubkeyCmd {
         let authority_key_id: [u8; 20] =
             x509::subj_key_id(&mut drivers.sha256, &PubKey::Mldsa(&rt_mldsa_pub_key))?;
 
-        match kem_id {
-            &KemId::ML_KEM_1024 => {
+        match *kem_id {
+            KemId::ML_KEM_1024 => {
                 let public_key = pub_key
                     .get(..OcpLockMlKemCertTbsMlDsa87Params::PUBLIC_KEY_LEN)
                     .and_then(|pub_key| <MlKemEncapsulationKey>::ref_from_bytes(pub_key).ok())
@@ -180,6 +227,42 @@ impl EndorseHpkePubkeyCmd {
                 };
 
                 let tbs = OcpLockMlKemCertTbsMlDsa87::new(&params);
+                let signature = Crypto::mldsa87_sign(
+                    &mut drivers.mldsa87,
+                    &mut drivers.trng,
+                    rt_mldsa_key,
+                    &rt_mldsa_pub_key,
+                    tbs.tbs(),
+                )?;
+                mldsa87_cert_from_tbs_and_sig(Some(tbs.tbs()), &signature, cert_buf)
+            }
+            KemId::P_384 => {
+                let public_key = pub_key
+                    .get(..OcpLockEcdh384CertTbsMlDsa87Params::PUBLIC_KEY_LEN)
+                    .and_then(|pub_key| <P384EncapsulationKey>::ref_from_bytes(pub_key).ok())
+                    .ok_or(CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?;
+                let public_key_serialized = Ecc384PubKey::try_from(public_key)
+                    .map_err(|_| CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?;
+                let subject_sn: [u8; 64] =
+                    x509::subj_sn(&mut drivers.sha256, &PubKey::Ecc(&public_key_serialized))?;
+                let subject_key_id: [u8; 20] =
+                    x509::subj_key_id(&mut drivers.sha256, &PubKey::Ecc(&public_key_serialized))?;
+
+                let params = OcpLockEcdh384CertTbsMlDsa87Params {
+                    public_key: public_key.as_ref(),
+                    subject_sn: &subject_sn,
+                    issuer_sn: &issuer_sn,
+                    serial_number: subject_sn
+                        .get(..20)
+                        .and_then(|sn| <[u8; 20]>::ref_from_bytes(sn).ok())
+                        .ok_or(CaliptraError::RUNTIME_OCP_LOCK_ENDORSEMENT_CERT_ENCODING_ERROR)?,
+                    subject_key_id: &subject_key_id,
+                    authority_key_id: &authority_key_id,
+                    not_before: &not_before.value,
+                    not_after: &not_after.value,
+                };
+
+                let tbs = OcpLockEcdh384CertTbsMlDsa87::new(&params);
                 let signature = Crypto::mldsa87_sign(
                     &mut drivers.mldsa87,
                     &mut drivers.trng,

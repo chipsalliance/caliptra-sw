@@ -3,8 +3,7 @@
 use std::sync::LazyLock;
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, OcpLockGenerateMpkResp, WrappedKey,
-    OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
+    CommandId, OcpLockGenerateMpkResp, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
@@ -38,11 +37,7 @@ fn test_generate_mpk() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -71,11 +66,7 @@ fn test_generate_mpk_invalid_hpke_key() {
         ..Default::default()
     });
 
-    let mut endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let mut endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     // Scramble pub key so shared secret is incorrect.
     endorsed_handle.pub_key[5..10].clone_from_slice(&[0xAA; 5]);
@@ -108,11 +99,7 @@ fn test_generate_mpk_missing_hek() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -142,11 +129,7 @@ fn test_generate_mpk_warm_reset() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -167,11 +150,7 @@ fn test_generate_mpk_warm_reset() {
 
     model.warm_reset_flow().unwrap();
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let cmd = create_generate_mpk_req(&endorsed_handle, &info, &metadata, &access_key);
 

@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::{CommandId, HpkeAlgorithms, MailboxReq, OcpLockEndorseHpkePubKeyReq};
+use caliptra_api::mailbox::{CommandId, MailboxReq, OcpLockEndorseHpkePubKeyReq};
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
 
@@ -9,18 +9,13 @@ use super::{
 };
 
 // TODO(clundin): Add tests for hybrid and ECDH KEMs once implemented
-// * https://github.com/chipsalliance/caliptra-sw/issues/3033
 // * https://github.com/chipsalliance/caliptra-sw/issues/3034
 
 #[test]
 fn test_endorse_hpke_pubkey() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams::default());
-
-    let _ = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    );
+    let _ = get_validated_hpke_handle(&mut model);
 }
 
 #[test]

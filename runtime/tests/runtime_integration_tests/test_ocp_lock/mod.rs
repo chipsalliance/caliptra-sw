@@ -22,6 +22,8 @@ use caliptra_hw_model::{
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::crypto::hpke::{self, Hpke};
 use dpe::U8Bool;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use zerocopy::{FromBytes, IntoBytes};
 
 use openssl::x509::X509;
@@ -49,6 +51,11 @@ mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
 mod test_unload_mek;
+
+const ALL_HPKE_ALGS: &[HpkeAlgorithms] = &[
+    HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
+    HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM,
+];
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
@@ -227,7 +234,7 @@ fn validate_ocp_lock_response<T>(
     None
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct ValidatedHpkeHandle {
     hpke_handle: HpkeHandle,
     pub_key: Vec<u8>,
@@ -259,28 +266,36 @@ fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<
     Some(hpke_handle)
 }
 
-fn get_validated_hpke_handle(
-    model: &mut DefaultHwModel,
-    suite: HpkeAlgorithms,
-) -> Option<ValidatedHpkeHandle> {
-    let hpke_handle = get_hpke_handle(model, suite)?;
-    verify_hpke_pub_key(model, hpke_handle)
+fn get_validated_hpke_handle(model: &mut DefaultHwModel) -> Option<ValidatedHpkeHandle> {
+    let mut valid_handles = Vec::new();
+    for alg in ALL_HPKE_ALGS {
+        if let Some(hpke_handle) = get_hpke_handle(model, alg.clone()) {
+            valid_handles.push(verify_hpke_pub_key(model, hpke_handle));
+        }
+    }
+    // Pick a random valid HPKE handle, they should all be valid.
+    // The tests are written with a specific sequence. This improves HPKE test coverage without
+    // leaking the HPKE algorithm into each test case.
+    let mut rng = thread_rng();
+    valid_handles
+        .choose(&mut rng)
+        .and_then(|handle| handle.clone())
 }
 
 fn verify_hpke_pub_key(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
 ) -> Option<ValidatedHpkeHandle> {
-    let ecdsa_res = verify_hpke_pub_key_with_algo(
+    // TODO(clundin): Don't have the code space for ML-DSA endorsed certs.
+    // Tracking in https://github.com/chipsalliance/caliptra-sw/issues/3355
+    // let mldsa_res =
+    //     verify_hpke_pub_key_with_algo(model, hpke_handle, EndorsementAlgorithms::ML_DSA_87);
+    // assert_eq!(ecdsa_res, mldsa_res);
+    verify_hpke_pub_key_with_algo(
         model,
         hpke_handle.clone(),
         EndorsementAlgorithms::ECDSA_P384_SHA384,
-    );
-    let mldsa_res =
-        verify_hpke_pub_key_with_algo(model, hpke_handle, EndorsementAlgorithms::ML_DSA_87);
-
-    assert_eq!(ecdsa_res, mldsa_res);
-    ecdsa_res
+    )
 }
 
 fn verify_hpke_pub_key_with_algo(
@@ -406,6 +421,9 @@ fn verify_endorsement_certificate(
         HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
             assert_eq!(kem_id, 0x0042);
         }
+        HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            assert_eq!(kem_id, 0x0011);
+        }
         _ => {
             panic!(
                 "Unverified HPKE alg: {:?} IDs: {} {} {}",
@@ -421,8 +439,17 @@ fn encrypt_message_to_hpke_pub_key(
     aad: &[u8],
     pt: &[u8],
 ) -> (Vec<u8>, Vec<u8>) {
-    let hpke = hpke::HpkeMlKem1024::generate_key_pair();
-    let (enc, mut sender_ctx) = hpke.setup_base_s(&endorsed_key.pub_key, info);
+    let (enc, mut sender_ctx) = match endorsed_key.hpke_handle.hpke_algorithm {
+        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeP384::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        _ => panic!("Unknown HPKE algorithm"),
+    };
     let ct = sender_ctx.seal(aad, pt);
     (enc, ct)
 }
@@ -468,8 +495,17 @@ fn create_rewrap_mpk_req(
     new_access_key: &[u8; 32],
     current_locked_mpk: &WrappedKey,
 ) -> MailboxReq {
-    let hpke = hpke::HpkeMlKem1024::generate_key_pair();
-    let (enc, mut sender_ctx) = hpke.setup_base_s(&endorsed_key.pub_key, info);
+    let (enc, mut sender_ctx) = match endorsed_key.hpke_handle.hpke_algorithm {
+        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeP384::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        _ => panic!("Unknown HPKE algorithm"),
+    };
 
     let current_ct = sender_ctx.seal(metadata, current_access_key);
     let new_ct = sender_ctx.seal(metadata, new_access_key);

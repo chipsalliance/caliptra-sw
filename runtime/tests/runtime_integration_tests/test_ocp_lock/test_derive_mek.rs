@@ -3,8 +3,8 @@
 use std::sync::LazyLock;
 
 use caliptra_api::mailbox::{
-    CommandId, HpkeAlgorithms, MailboxReq, MailboxReqHeader, OcpLockDeriveMekReq,
-    OcpLockDeriveMekResp, OcpLockInitializeMekSecretReq, OcpLockMixMpkReq, WrappedKey,
+    CommandId, MailboxReq, MailboxReqHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp,
+    OcpLockInitializeMekSecretReq, OcpLockMixMpkReq, WrappedKey,
     OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
 use caliptra_builder::{
@@ -151,9 +151,7 @@ fn mix_mpk_flow(
     builder: &mut OcpLockKeyLadderBuilder,
     mpks: Option<&[(WrappedKey, WrappedKey)]>,
 ) -> Vec<(WrappedKey, WrappedKey)> {
-    let endorsed_handle =
-        get_validated_hpke_handle(model, HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM)
-            .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
@@ -270,11 +268,7 @@ fn test_derive_mek_mix_mpk() {
         ..Default::default()
     });
 
-    let endorsed_handle = get_validated_hpke_handle(
-        &mut model,
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
-    )
-    .unwrap();
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
