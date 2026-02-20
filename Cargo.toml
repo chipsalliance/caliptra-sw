@@ -225,10 +225,10 @@ riscv = "0.13.0"
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
 # TODO(zhalvorsen): this commit is temporary; update to a proper release once
 #                   multi-part responses are supported. This currently points to
-#                   https://github.com/chipsalliance/caliptra-dpe/tree/zhalvorsen/reduce-cert-size-patch
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false, features = ["hybrid"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4fa31d99abca3b9d09cea06eb9a57c819ac17596", default-features = false }
+#                   https://github.com/chipsalliance/caliptra-dpe/tree/clundin/mono-fix
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "afc5cf9ed1121da21c1e4e6bb9990edd280c9b63", default-features = false, features = ["hybrid"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "afc5cf9ed1121da21c1e4e6bb9990edd280c9b63", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "afc5cf9ed1121da21c1e4e6bb9990edd280c9b63", default-features = false }
 
 # local DPE dependency; useful when developing
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }
