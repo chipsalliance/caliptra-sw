@@ -15,6 +15,7 @@ use hpke::{
     kem::{DhP384HkdfSha384, Kem as HpkeKem},
     Deserializable, Serializable,
 };
+use kdf::Shake256Kdf;
 use ml_kem::{
     kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey, Kem},
     EncapsulateDeterministic, Encoded, EncodedSizeUser, KemCore, MlKem1024, MlKem1024Params, B32,
@@ -25,11 +26,25 @@ use openssl::{
     pkey_ml_kem::{PKeyMlKemBuilder, PKeyMlKemParams, Variant},
     sign::Signer,
 };
+use p384::ecdh::diffie_hellman;
+use p384::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
+use p384::{
+    elliptic_curve::{ops::Reduce, Scalar},
+    AffinePoint, ProjectivePoint,
+};
+use p384::{
+    EncodedPoint, NonZeroScalar, PublicKey as P384PublicKey, Scalar as P384Scalar, SecretKey,
+};
 use rand::Rng;
+use sha2::{
+    digest::{consts::P338, generic_array::GenericArray},
+    Digest,
+};
+use sha3::Sha3_256;
 use test_vector::HpkeTestArgs;
 use zerocopy::IntoBytes;
 
-use super::P384_KEM_ID;
+use super::{HYBRID_KEM_ID, P384_KEM_ID};
 
 pub mod kdf;
 pub mod test_vector;
@@ -189,6 +204,8 @@ pub trait Hpke {
     fn encap(&self, pk_r: &[u8]) -> (Vec<u8>, Vec<u8>);
     fn derive_key_pair(ikm: Vec<u8>) -> Self;
     fn generate_key_pair() -> Self;
+    fn serialize_dk(&self) -> Vec<u8>;
+    fn serialize_ek(&self) -> Vec<u8>;
 }
 
 pub struct HpkeMlKem1024 {
@@ -246,6 +263,14 @@ impl Hpke for HpkeMlKem1024 {
         rng.fill(&mut dz[..]);
         Self::derive_key_pair(dz)
     }
+
+    fn serialize_ek(&self) -> Vec<u8> {
+        self.ek.as_bytes().to_vec()
+    }
+
+    fn serialize_dk(&self) -> Vec<u8> {
+        self.dk.clone()
+    }
 }
 
 pub struct HpkeP384 {
@@ -285,6 +310,187 @@ impl Hpke for HpkeP384 {
         let (sk, pk) = DhP384HkdfSha384::gen_keypair(&mut rng);
         Self { sk, pk }
     }
+
+    fn serialize_ek(&self) -> Vec<u8> {
+        self.pk.to_bytes().to_vec()
+    }
+
+    fn serialize_dk(&self) -> Vec<u8> {
+        self.sk.to_bytes().to_vec()
+    }
+}
+
+pub struct HpkeHybrid {
+    pub pq_dk: Vec<u8>,
+    pub pq_ek: Vec<u8>,
+    pub trad_dk: SecretKey,
+    pub trad_ek: P384PublicKey,
+    pub seed: Vec<u8>,
+}
+
+impl HpkeHybrid {
+    fn derive_pq(pq_seed: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let pq_dk = pq_seed.to_vec();
+        let pq_ek = {
+            let d = B32::try_from(&pq_seed[..32]).unwrap();
+            let z = B32::try_from(&pq_seed[32..]).unwrap();
+            let (_, ek) = MlKem1024::generate_deterministic(&d, &z);
+            ek
+        };
+        (pq_dk, pq_ek.as_bytes().to_vec())
+    }
+
+    fn derive_trad(trad_seed: &[u8]) -> (SecretKey, P384PublicKey) {
+        let trad_dk = SecretKey::from_bytes(
+            &P384Scalar::reduce_bytes(GenericArray::from_slice(trad_seed)).to_bytes(),
+        )
+        .unwrap();
+        let trad_ek = trad_dk.public_key();
+        (trad_dk, trad_ek)
+    }
+
+    fn derive_from_seed(seed: Vec<u8>) -> Self {
+        let mlkem_seed_size = 64;
+        let p384_seed_size = 48;
+
+        let seed_full = kdf::Shake256Kdf::derive(&seed, mlkem_seed_size + p384_seed_size);
+
+        let pq_seed = &seed_full[..mlkem_seed_size];
+        let trad_seed = &seed_full[mlkem_seed_size..mlkem_seed_size + p384_seed_size];
+
+        let (pq_dk, pq_ek) = Self::derive_pq(pq_seed);
+        let (trad_dk, trad_ek) = Self::derive_trad(trad_seed);
+
+        Self {
+            pq_dk,
+            pq_ek,
+            trad_dk,
+            trad_ek,
+            seed,
+        }
+    }
+
+    fn encap_pq(&self, pk_rm: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut rng = rand::thread_rng();
+        let ek_bytes =
+            Encoded::<<Kem<MlKem1024Params> as KemCore>::EncapsulationKey>::try_from(pk_rm)
+                .unwrap();
+        let ek = <<Kem<MlKem1024Params> as KemCore>::EncapsulationKey>::from_bytes(&ek_bytes);
+        let (enc, shared_secret) = ek.encapsulate(&mut rng).unwrap();
+        (enc.as_bytes().to_vec(), shared_secret.as_bytes().to_vec())
+    }
+
+    fn encap_trad(&self, pk_rm: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut rng = rand::thread_rng();
+        let sk_e = SecretKey::random(&mut rng);
+        let enc = sk_e.public_key().to_encoded_point(false);
+        let shared_secret = self.ecdh(pk_rm, &sk_e);
+        (enc.as_bytes().to_vec(), shared_secret)
+    }
+
+    fn decap_pq(&self, enc_pq: &[u8]) -> Vec<u8> {
+        let d = B32::try_from(&self.pq_dk[..32]).unwrap();
+        let z = B32::try_from(&self.pq_dk[32..]).unwrap();
+        let (dk, _) = MlKem1024::generate_deterministic(&d, &z);
+        dk.decapsulate(enc_pq.try_into().unwrap()).unwrap().to_vec()
+    }
+
+    fn ecdh(&self, encoded_point: &[u8], priv_key: &SecretKey) -> Vec<u8> {
+        let public_key = P384PublicKey::from_sec1_bytes(encoded_point).unwrap();
+        let shared_secret = diffie_hellman(priv_key.to_nonzero_scalar(), public_key.as_affine());
+
+        // We need to include the raw `X` bytes in the `C2PRICombiner`.
+        shared_secret.raw_secret_bytes().to_vec()
+    }
+
+    fn decap_trad(&self, enc_trad: &[u8]) -> Vec<u8> {
+        self.ecdh(enc_trad, &self.trad_dk)
+    }
+}
+
+impl Hpke for HpkeHybrid {
+    // KEM ID 0x0051
+    const LABEL_DERIVE_SUITE_ID: &'static [u8] = &[0x4b, 0x45, 0x4d, 0x00, 0x51];
+    // KEM (0x0051) + KDF (0x0002) + AEAD (0x0002)
+    const ALG_ID: &'static [u8] = &[0x0, 0x51, 0x0, 0x02, 0x0, 0x02];
+    const NK: usize = 32;
+    const NT: usize = 16;
+    const NH: usize = 48;
+
+    fn decap(&self, enc: &[u8], sk_r: &[u8]) -> Vec<u8> {
+        let hpke = Self::derive_from_seed(sk_r.to_vec());
+
+        let enc_pq = &enc[..1568];
+        let enc_trad = &enc[1568..];
+
+        let pq_shared_secret = hpke.decap_pq(enc_pq);
+        let trad_shared_secret = hpke.decap_trad(enc_trad);
+
+        let mut ss_combined = Vec::new();
+        ss_combined.extend_from_slice(&pq_shared_secret);
+        ss_combined.extend_from_slice(&trad_shared_secret);
+        ss_combined.extend_from_slice(enc_trad);
+        ss_combined.extend_from_slice(hpke.trad_ek.to_encoded_point(false).as_bytes());
+        ss_combined.extend_from_slice(&b"MLKEM1024-P384"[..]);
+
+        let mut hasher = Sha3_256::new();
+        hasher.update(&ss_combined);
+        hasher.finalize().to_vec()
+    }
+
+    fn encap(&self, pk_r: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let pk_pq_bytes = &pk_r[..1568];
+        let pk_trad_bytes = &pk_r[1568..];
+
+        let (enc_pq, ss_pq) = self.encap_pq(pk_pq_bytes);
+        let (enc_trad, ss_trad) = self.encap_trad(pk_trad_bytes);
+
+        let mut enc = Vec::new();
+        enc.extend_from_slice(&enc_pq);
+        enc.extend_from_slice(enc_trad.as_bytes());
+
+        let mut ss_combined = Vec::new();
+        ss_combined.extend_from_slice(&ss_pq);
+        ss_combined.extend_from_slice(&ss_trad);
+        ss_combined.extend_from_slice(enc_trad.as_bytes());
+        ss_combined.extend_from_slice(pk_trad_bytes);
+        ss_combined.extend_from_slice(&b"MLKEM1024-P384"[..]);
+
+        let mut hasher = Sha3_256::new();
+        hasher.update(&ss_combined);
+        let ss = hasher.finalize().to_vec();
+
+        (ss, enc)
+    }
+
+    fn derive_key_pair(ikm: Vec<u8>) -> Self {
+        let seed = kdf::Shake256Kdf::labeled_derive(
+            Self::LABEL_DERIVE_SUITE_ID,
+            &ikm,
+            b"DeriveKeyPair",
+            b"",
+            32,
+        );
+        Self::derive_from_seed(seed)
+    }
+
+    fn generate_key_pair() -> Self {
+        let mut rng = rand::thread_rng();
+        let mut dz = vec![0; 64];
+        rng.fill(&mut dz[..]);
+        Self::derive_key_pair(dz)
+    }
+
+    fn serialize_dk(&self) -> Vec<u8> {
+        self.seed.clone()
+    }
+
+    fn serialize_ek(&self) -> Vec<u8> {
+        let mut ek = Vec::new();
+        ek.extend_from_slice(self.pq_ek.as_bytes());
+        ek.extend_from_slice(self.trad_ek.to_encoded_point(false).as_bytes());
+        ek
+    }
 }
 
 #[test]
@@ -311,8 +517,8 @@ fn test_hpke_p384_vectors() {
     let args = HpkeTestArgs::new(P384_KEM_ID);
     assert_eq!(args.kem_id, 17);
     let hpke = HpkeP384::derive_key_pair(args.ikm_r.clone());
-    assert_eq!(hpke.pk.to_bytes().as_slice(), args.pk_rm.as_slice(),);
-    assert_eq!(hpke.sk.to_bytes().as_slice(), args.sk_rm.as_slice(),);
+    assert_eq!(hpke.serialize_ek(), args.pk_rm.as_slice(),);
+    assert_eq!(hpke.serialize_dk(), args.sk_rm.as_slice(),);
 
     let mut recipient_ctx = hpke.setup_base_r(&args.enc, &args.sk_rm, &args.info);
     assert_eq!(recipient_ctx.key, args.key);
@@ -323,4 +529,42 @@ fn test_hpke_p384_vectors() {
         let pt = recipient_ctx.open(&enc_test.aad, &enc_test.ct);
         assert_eq!(pt, enc_test.pt);
     }
+}
+
+#[test]
+fn test_hpke_hybrid_vectors() {
+    let args = HpkeTestArgs::new(HYBRID_KEM_ID);
+    assert_eq!(args.kem_id, 81);
+    let hpke = HpkeHybrid::derive_key_pair(args.ikm_r.clone());
+    assert_eq!(hpke.serialize_dk(), args.sk_rm.as_slice());
+    assert_eq!(hpke.serialize_ek(), args.pk_rm.as_slice());
+
+    let mut recipient_ctx = hpke.setup_base_r(&args.enc, &args.sk_rm, &args.info);
+    assert_eq!(recipient_ctx.key, args.key);
+    assert_eq!(recipient_ctx.base_nonce, args.base_nonce,);
+    assert_eq!(recipient_ctx.exporter_secret, args.exporter_secret,);
+
+    for enc_test in &args.encryptions {
+        let pt = recipient_ctx.open(&enc_test.aad, &enc_test.ct);
+        assert_eq!(pt, enc_test.pt);
+    }
+}
+
+#[test]
+fn test_hpke_hybrid_self_talk() {
+    let hpke_receiver = HpkeHybrid::generate_key_pair();
+    let pk_r = hpke_receiver.serialize_ek();
+    let sk_r = hpke_receiver.serialize_dk();
+
+    let info = b"HPKE Hybrid Info";
+    let aad = b"HPKE Hybrid AAD";
+    let pt = b"All that is gold does not glitter";
+
+    let (enc, mut sender_ctx) = hpke_receiver.setup_base_s(&pk_r, info);
+    let ct = sender_ctx.seal(aad, pt);
+
+    let mut receiver_ctx = hpke_receiver.setup_base_r(&enc, &sk_r, info);
+    let decrypted_pt = receiver_ctx.open(aad, &ct);
+
+    assert_eq!(pt, decrypted_pt.as_slice());
 }

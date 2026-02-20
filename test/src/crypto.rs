@@ -32,6 +32,7 @@ use crate::{swap_word_bytes, swap_word_bytes_inplace};
 
 const ML_KEM_ID: u16 = 0x42;
 const P384_KEM_ID: u16 = 0x11;
+const HYBRID_KEM_ID: u16 = 0x51;
 
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
 pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
@@ -576,8 +577,8 @@ fn test_aes256_ecb() {
 fn hpke_mlkem_1024() {
     let test_vector = hpke::test_vector::HpkeTestArgs::new(ML_KEM_ID);
     let ctx = hpke::HpkeMlKem1024::derive_key_pair(test_vector.ikm_r);
-    assert_eq!(ctx.ek.as_bytes().as_slice().to_vec(), test_vector.pk_rm);
-    assert_eq!(ctx.dk, test_vector.sk_rm);
+    assert_eq!(ctx.serialize_ek(), test_vector.pk_rm);
+    assert_eq!(ctx.serialize_dk(), test_vector.sk_rm);
     assert_eq!(
         ctx.decap(&test_vector.enc, &ctx.dk),
         test_vector.shared_secret.clone()
