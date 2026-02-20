@@ -286,16 +286,15 @@ fn verify_hpke_pub_key(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
 ) -> Option<ValidatedHpkeHandle> {
-    // TODO(clundin): Don't have the code space for ML-DSA endorsed certs.
-    // Tracking in https://github.com/chipsalliance/caliptra-sw/issues/3355
-    // let mldsa_res =
-    //     verify_hpke_pub_key_with_algo(model, hpke_handle, EndorsementAlgorithms::ML_DSA_87);
-    // assert_eq!(ecdsa_res, mldsa_res);
-    verify_hpke_pub_key_with_algo(
+    let ecdsa_res = verify_hpke_pub_key_with_algo(
         model,
         hpke_handle.clone(),
         EndorsementAlgorithms::ECDSA_P384_SHA384,
-    )
+    );
+    let mldsa_res =
+        verify_hpke_pub_key_with_algo(model, hpke_handle, EndorsementAlgorithms::ML_DSA_87);
+    assert_eq!(ecdsa_res, mldsa_res);
+    ecdsa_res
 }
 
 fn verify_hpke_pub_key_with_algo(
