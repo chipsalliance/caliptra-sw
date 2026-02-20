@@ -9,12 +9,13 @@
 #![allow(dead_code)]
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{bail, ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::jtag::JtagAccessibleReg;
+use crate::jtag::{CsrReg, DmReg, JtagAccessibleReg};
 use crate::openocd::openocd_server::{OpenOcdError, OpenOcdServer};
 
 /// Available JTAG TAPs in Calitpra Subsystem.
@@ -201,5 +202,39 @@ impl OpenOcdJtagTap {
             bail!("unexpected response: '{response}'");
         }
         Ok(())
+    }
+
+    /// Poll until any bits in a given mask are set in the dmstatus register
+    pub fn wait_status(&mut self, mask: u32, timeout: Duration) -> Result<()> {
+        for _ in 0..100 {
+            let status = self.read_reg(&DmReg::DmStatus)?;
+            if status & mask > 0 {
+                return Ok(());
+            }
+            std::thread::sleep(timeout / 100);
+        }
+
+        bail!("Timed out waiting for status register")
+    }
+
+    /// Send a halt request to the dmcontrol register
+    pub fn halt(&mut self) -> Result<()> {
+        const HALT_REQ: u32 = (1 << 31) | 1;
+        self.write_reg(&DmReg::DmControl, HALT_REQ)
+    }
+
+    /// Send a resume request to the dmcontrol register
+    pub fn resume(&mut self) -> Result<()> {
+        const RESUME_REQ: u32 = (1 << 30) | 1;
+        self.write_reg(&DmReg::DmControl, RESUME_REQ)
+    }
+
+    /// Write a value to a CSR using the abstract command register
+    pub fn write_csr_reg(&mut self, reg: CsrReg, value: u32) -> Result<()> {
+        self.write_reg(&DmReg::DmAbstractData0, value)?;
+
+        // From https://chipsalliance.github.io/Cores-VeeR-EL2/html/main/docs_rendered/html/debugging.html#abstract-command-register-command
+        let abstract_cmd = 0x00230000 | (reg as u32 & 0xFFF);
+        self.write_reg(&DmReg::DmAbstractCommand, abstract_cmd)
     }
 }

@@ -16,8 +16,18 @@ pub trait JtagAccessibleReg {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum DmReg {
+    DmAbstractData0 = 0x04,
+    DmAbstractData1 = 0x05,
     DmControl = 0x10,
     DmStatus = 0x11,
+    DmAbstractCS = 0x16,
+    DmAbstractCommand = 0x17,
+    DmAbstractAuto = 0x18,
+    DmSbcs = 0x38,
+    DmSbAddress0 = 0x39,
+    DmSbData0 = 0x3C,
+    DmSbData1 = 0x3D,
+    DmHaltSum0 = 0x40,
 }
 
 impl JtagAccessibleReg for DmReg {
@@ -75,4 +85,16 @@ impl JtagAccessibleReg for CaliptraCoreReg {
     fn byte_offset(&self) -> u32 {
         *self as u32 * 4
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum CsrReg {
+    Tselect = 0x7A0,
+    Tdata1 = 0x7A1,
+    Tdata2 = 0x7A2,
+    Dcsr = 0x7B0,
+    Dpc = 0x7B1,
+    Dscratch0 = 0x7B2,
+    Dscratch1 = 0x7B3,
 }
