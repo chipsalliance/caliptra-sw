@@ -13,7 +13,9 @@ File contains DMA peripheral implementation.
 --*/
 
 use crate::helpers::words_from_bytes_be;
-use crate::{mci::Mci, Aes, MailboxRam, Sha512Accelerator, SocRegistersInternal};
+use crate::{
+    mci::Mci, Aes, KeyUsage, KeyVault, MailboxRam, Sha512Accelerator, SocRegistersInternal,
+};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
@@ -60,11 +62,12 @@ register_bitfields! [
             AXI_WR = 0b11,
         ],
         READ_ADDR_FIXED OFFSET(20) NUMBITS(1) [],
-        WRITE_ROUTE OFFSET(24) NUMBITS(2) [
-            DISABLE = 0b00,
-            MAILBOX = 0b01,
-            AHB_FIFO = 0b10,
-            AXI_RD = 0b11,
+        WRITE_ROUTE OFFSET(24) NUMBITS(3) [
+            DISABLE = 0b000,
+            MAILBOX = 0b001,
+            AHB_FIFO = 0b010,
+            AXI_RD = 0b011,
+            KEY_VAULT = 0b100,
         ],
         WRITE_ADDR_FIXED OFFSET(28) NUMBITS(1) [],
     ],
@@ -171,6 +174,9 @@ pub struct Dma {
     /// AES peripheral
     aes: Aes,
 
+    /// Key vault
+    key_vault: KeyVault,
+
     // Ongoing DMA operations
     pending_axi_to_axi: Option<WriteXfer>,
     pending_axi_to_fifo: bool,
@@ -217,6 +223,7 @@ impl Dma {
         sha512_acc: Sha512Accelerator,
         mci: Mci,
         aes: Aes,
+        key_vault: KeyVault,
         test_sram: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
     ) -> Self {
@@ -247,6 +254,7 @@ impl Dma {
             ),
             mailbox,
             aes,
+            key_vault,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
             pending_axi_to_mailbox: false,
@@ -524,6 +532,34 @@ impl Dma {
         true
     }
 
+    // Returns true if this completed immediately.
+    fn key_vault_to_axi(&mut self) -> bool {
+        let xfer = self.write_xfer();
+
+        // Get key from the key vault
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_dma_data(true);
+        key_usage.set_aes_key(true);
+        let data = self.key_vault.read_key(23, key_usage).unwrap();
+        if xfer.len > data.len() {
+            return false;
+        }
+
+        for (i, chunk) in data.chunks_exact(size_of::<u32>()).enumerate() {
+            let addr = xfer.dest
+                + if xfer.fixed {
+                    0
+                } else {
+                    (size_of::<u32>() * i) as AxiAddr
+                };
+            let value = u32::from_le_bytes(chunk.try_into().unwrap());
+            self.axi
+                .write(Self::AXI_DATA_WIDTH.into(), addr, value)
+                .unwrap();
+        }
+        true
+    }
+
     fn op_complete(&mut self) {
         let read_target = self.control.reg.read_as_enum(Control::READ_ROUTE).unwrap();
         let write_origin = self.control.reg.read_as_enum(Control::WRITE_ROUTE).unwrap();
@@ -543,6 +579,9 @@ impl Dma {
             }
             (Control::READ_ROUTE::Value::DISABLE, Control::WRITE_ROUTE::Value::AHB_FIFO) => {
                 self.fifo_to_axi()
+            }
+            (Control::READ_ROUTE::Value::DISABLE, Control::WRITE_ROUTE::Value::KEY_VAULT) => {
+                self.key_vault_to_axi()
             }
             (_, _) => panic!("Invalid read/write DMA combination"),
         };
@@ -697,6 +736,7 @@ mod tests {
         let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, mci.clone(), args);
         let aes_key = Rc::new(RefCell::new(None));
         let aes = crate::Aes::new(aes_key, Rc::new(RefCell::new(AesKeyReleaseOp::default())));
+        let key_vault = KeyVault::new();
         let mut dma = Dma::new(
             &clock,
             mbox_ram.clone(),
@@ -704,6 +744,7 @@ mod tests {
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
             mci.clone(),
             aes,
+            key_vault,
             None,
             false,
         );

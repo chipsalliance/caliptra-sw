@@ -918,6 +918,11 @@ impl CaliptraError {
             "OCP LOCK Encryption Engine Not Ready"
         ),
         (
+            OCP_LOCK_ENGINE_INVALID_MEK_SIZE,
+            0x000b0062,
+            "OCP LOCK Encryption Engine Invalid MEK size"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"

@@ -532,7 +532,8 @@ fn execute_command(
         | ocp_lock_command_id @ CommandId::OCP_LOCK_GET_STATUS
         | ocp_lock_command_id @ CommandId::OCP_LOCK_CLEAR_KEY_CACHE
         | ocp_lock_command_id @ CommandId::OCP_LOCK_UNLOAD_MEK
-        | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK => {
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_DERIVE_MEK
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_LOAD_MEK => {
             ocp_lock::command_handler(ocp_lock_command_id, drivers, cmd_bytes, resp)
         }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),

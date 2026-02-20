@@ -380,6 +380,7 @@ impl CaliptraRootBus {
             sha512_acc.clone(),
             mci.clone(),
             aes.clone(),
+            key_vault.clone(),
             test_sram,
             use_mcu_recovery_interface,
         );

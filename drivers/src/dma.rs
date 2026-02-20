@@ -12,10 +12,13 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState, SocIfc};
+use crate::{
+    cprintln, Array4x12, Array4x16, KeyId, KeyVault, Sha2_512_384Acc, ShaAccLockState, SocIfc,
+};
 use bitfield::bitfield;
 use caliptra_api::mailbox::{
-    OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+    OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE,
+    OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
@@ -409,22 +412,6 @@ impl Dma {
     ///
     pub fn payload_available(&self) -> bool {
         self.with_dma(|dma| dma.status0().read().payload_available())
-    }
-
-    /// Used by OCP LOCK to release an MEK to the Encryption Engine key vault
-    pub fn ocp_lock_key_vault_release(&self, soc: &SocIfc) {
-        let write_addr = AxiAddr::from(soc.ocp_lock_get_key_release_addr());
-        let kv_release_size = soc.ocp_lock_get_key_size();
-        let write_transaction = DmaWriteTransaction {
-            write_addr,
-            fixed_addr: false,
-            length: kv_release_size,
-            origin: DmaWriteOrigin::KeyVault,
-            aes_mode: false,
-            aes_gcm: false,
-        };
-        self.setup_dma_write(write_transaction);
-        self.wait_for_dma_complete();
     }
 }
 
@@ -1164,7 +1151,6 @@ bitfield! {
     error_code, set_error_code: 7, 4;
 }
 
-#[allow(dead_code)]
 enum EncryptionEngineCommandCode {
     LoadMek = 1,
     UnloadMek = 2,
@@ -1186,7 +1172,6 @@ pub struct DmaEncryptionEngine<'a> {
 }
 
 impl<'a> DmaEncryptionEngine<'a> {
-    #[allow(dead_code)]
     const OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET: usize = 0x0;
     const OCP_LOCK_ENCRYPTION_ENGINE_METD_OFFSET: usize = 0x40;
     const OCP_LOCK_ENCRYPTION_ENGINE_AUX_OFFSET: usize = 0x60;
@@ -1271,6 +1256,34 @@ impl<'a> DmaEncryptionEngine<'a> {
         self.write_array_fifo(write_transaction, &aligned_aux);
     }
 
+    /// Used by OCP LOCK to release an MEK to the Encryption Engine key vault
+    pub fn release_mek_from_key_vault(
+        &self,
+        key_vault: &mut KeyVault,
+        mek_size: u32,
+    ) -> CaliptraResult<()> {
+        if mek_size > OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE as u32 || mek_size & 0x3 != 0 {
+            Err(CaliptraError::OCP_LOCK_ENGINE_INVALID_MEK_SIZE)?
+        }
+
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: mek_size,
+            origin: DmaWriteOrigin::KeyVault,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.dma.setup_dma_write(write_transaction);
+        self.dma.wait_for_dma_complete();
+
+        // Clear key vault
+        key_vault.erase_key(KeyId::KeyId23)?;
+
+        Ok(())
+    }
+
     pub fn clear_ctrl(&self) {
         let ctrl = EncryptionEngineCtrl::clear();
         self.write_ctrl(ctrl.0);
@@ -1283,6 +1296,11 @@ impl<'a> DmaEncryptionEngine<'a> {
 
     pub fn execute_zeroization_command(&self) {
         let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::Zeroize);
+        self.write_ctrl(ctrl.0);
+    }
+
+    pub fn execute_load_command(&self) {
+        let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::LoadMek);
         self.write_ctrl(ctrl.0);
     }
 

@@ -14,9 +14,9 @@ use caliptra_drivers::{
     },
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
     sha2_512_384::Sha2DigestOpTrait,
-    Aes, AesKey, AesOperation, Array4x12, Dma, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024, OcpLockFlags,
-    OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
+    Aes, AesKey, AesOperation, Array4x12, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs, KeyUsage,
+    KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x3, LEArray4x4, LEArray4x8, MlKem1024,
+    OcpLockFlags, OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -41,6 +41,7 @@ mod generate_mpk;
 mod get_algorithms;
 mod get_status;
 mod initialize_mek_secret;
+mod load_mek;
 mod mix_mpk;
 mod rewrap_mpk;
 mod rotate_hpke_key;
@@ -52,6 +53,7 @@ pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use get_status::GetStatusCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
+pub use load_mek::LoadMekCmd;
 pub use mix_mpk::MixMpkCmd;
 pub use unload_mek::UnloadMekCmd;
 
@@ -624,6 +626,64 @@ impl MekSecret<'_> {
             tag: result.tag.into(),
         })
     }
+
+    fn decrypt_mek(
+        self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        hmac: &mut Hmac,
+        wrapped_mek: &WrappedKey,
+    ) -> CaliptraResult<SingleEncryptedMek> {
+        // Check key tpe
+        if wrapped_mek.key_type != WrappedMek::KEY_TYPE {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_INVALID_WRAPPED_KEY_TYPE);
+        }
+
+        // Parse ciphertext
+        let mut encrypted_key = [0u8; WrappedMek::KEY_LEN];
+        {
+            encrypted_key
+                .copy_from_slice(&wrapped_mek.ciphertext_and_auth_tag[..WrappedMek::KEY_LEN]);
+        }
+
+        // Parse tag
+        let mut tag = [0; Aes256GCM::NT];
+        tag.copy_from_slice(
+            &wrapped_mek.ciphertext_and_auth_tag
+                [WrappedMek::KEY_LEN..WrappedMek::KEY_LEN + Aes256GCM::NT],
+        );
+
+        let mut single_encrypted_mek = [0; WrappedMek::KEY_LEN];
+        let aad = WrappedMekAad {
+            key_type: WrappedMek::KEY_TYPE,
+            metadata_len: 0,
+        }
+        .as_bytes();
+
+        let salt: LEArray4x3 = LEArray4x3::from(wrapped_mek.salt);
+        let iv: LEArray4x3 = LEArray4x3::from(wrapped_mek.iv);
+        let tag: LEArray4x4 = LEArray4x4::from(tag);
+
+        preconditioned_aes_decrypt(
+            aes,
+            hmac,
+            trng,
+            self.kv,
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
+            b"wrapped_mek",
+            aad,
+            &salt,
+            &iv,
+            &tag,
+            &encrypted_key,
+            &mut single_encrypted_mek,
+        )?;
+
+        Ok(SingleEncryptedMek {
+            key: single_encrypted_mek,
+        })
+    }
 }
 
 impl Drop for MekSecret<'_> {
@@ -958,11 +1018,9 @@ impl OcpLockContext {
     pub fn derive_mek(
         &mut self,
         aes: &mut Aes,
-        dma: &mut Dma,
         hmac: &mut Hmac,
         trng: &mut Trng,
         kv: &mut KeyVault,
-        soc: &mut SocIfc,
         expect_mek_checksum: MekChecksum,
     ) -> CaliptraResult<MekChecksum> {
         // After `intermediate_secret` is consumed a new MEK cannot be created without first calling
@@ -983,8 +1041,6 @@ impl OcpLockContext {
 
         // Decrypt MEK from MEK seed using MDK.
         aes.aes_256_ecb_decrypt_kv(mek_seed.as_ref())?;
-        // Release MEK to Encryption Engine.
-        dma.ocp_lock_key_vault_release(soc);
 
         Ok(checksum)
     }
@@ -1301,6 +1357,28 @@ impl OcpLockContext {
     ) -> CaliptraResult<HpkeCipherSuite> {
         self.hpke_context.get_cipher_suite(hpke_handle)
     }
+
+    /// Load an MEK
+    pub fn load_mek_into_key_vault(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        hmac: &mut Hmac,
+        kv: &mut KeyVault,
+        wrapped_mek: &WrappedKey,
+    ) -> CaliptraResult<()> {
+        // After `intermediate_secret` is consumed a new MEK cannot be created without first calling
+        // `OCP_LOCK_INITIALIZE_MEK_SECRET` so we take it.
+        let Some(intermediate_secret) = self.intermediate_secret.take() else {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_NOT_INITIALIZED);
+        };
+        let mek_secret = intermediate_secret.wrapping_mek_secret(hmac, trng, kv)?;
+
+        let single_encrypted_mek = mek_secret.decrypt_mek(aes, trng, hmac, wrapped_mek)?;
+        aes.aes_256_ecb_decrypt_kv(&LEArray4x16::from(single_encrypted_mek.key))?;
+
+        Ok(())
+    }
 }
 
 type Millisecond = u32;
@@ -1374,6 +1452,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_GET_STATUS => GetStatusCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_CLEAR_KEY_CACHE => ClearKeyCacheCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_UNLOAD_MEK => UnloadMekCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_LOAD_MEK => LoadMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
