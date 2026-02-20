@@ -48,6 +48,7 @@ mod test_initialize_mek_secret;
 mod test_mix_mpk;
 mod test_rewrap_mpk;
 mod test_rotate_hpke_key;
+mod test_shake256_hpke_interleave;
 mod test_unload_mek;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]

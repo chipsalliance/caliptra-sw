@@ -1784,6 +1784,11 @@ impl CaliptraError {
             0x000E008D,
             "Runtime Error: DPE response too large"
         ),
+        (
+            RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH,
+            0x000E008E,
+            "Runtime Error: SHAKE256 context mismatch - SHA3 hardware was used between calls"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

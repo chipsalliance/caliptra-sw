@@ -362,6 +362,7 @@ impl HashSha3 {
         match cmd {
             CmdType::Start => {
                 // change to abosrb state
+                self.msg_fifo.data.clear();
                 self.status.reg.modify(Status::SHA3_ABSORB::SET);
             }
             CmdType::Process => {
