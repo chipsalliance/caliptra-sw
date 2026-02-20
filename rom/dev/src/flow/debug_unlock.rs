@@ -206,17 +206,19 @@ fn handle_auth_debug_unlock_token(
     token_bytes.copy_from_slice(cmd_bytes);
 
     // Use common validation function
-    let result = debug_unlock::validate_debug_unlock_token(
-        &env.soc_ifc,
-        &mut env.sha2_512_384,
-        &mut env.sha2_512_384_acc,
-        &mut env.ecc384,
-        &mut env.mldsa87,
-        &mut env.dma,
-        request,
-        challenge,
-        &token,
-    );
+    let result = env.abr.with_mldsa87(|mut mldsa87| {
+        debug_unlock::validate_debug_unlock_token(
+            &env.soc_ifc,
+            &mut env.sha2_512_384,
+            &mut env.sha2_512_384_acc,
+            &mut env.ecc384,
+            &mut mldsa87,
+            &mut env.dma,
+            request,
+            challenge,
+            &token,
+        )
+    });
 
     // Send response
     let _ = txn.send_response(MailboxRespHeader::default().as_bytes());

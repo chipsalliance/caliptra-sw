@@ -71,7 +71,10 @@ fn test_mlkem_name() {
 }
 
 fn test_key_pair_generation() {
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
 
     // Test key pair generation with arrays
     let seed_d = LEArray4x8::from(SEED_D);
@@ -277,7 +280,10 @@ fn test_key_pair_generation_from_kv() {
         .unwrap()
     };
 
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
 
     // Store seeds in key vault
@@ -368,7 +374,10 @@ fn test_key_pair_generation_from_kv() {
 }
 
 fn test_encapsulate_and_decapsulate() {
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
 
     // Generate key pair
     let seed_d = LEArray4x8::from(SEED_D);
@@ -418,7 +427,10 @@ fn test_encapsulate_with_kv_message() {
         .unwrap()
     };
 
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
 
     // Generate key pair
@@ -596,7 +608,10 @@ fn test_encapsulate_with_kv_message() {
 }
 
 fn test_encapsulate_with_kv_output() {
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
 
     // Generate key pair
     let seed_d = LEArray4x8::from(SEED_D);
@@ -627,7 +642,10 @@ fn test_encapsulate_with_kv_output() {
 }
 
 fn test_keygen_decapsulate() {
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
 
     // Generate key pair for encapsulation
     let seed_d = LEArray4x8::from(SEED_D);
@@ -664,7 +682,10 @@ fn test_keygen_decapsulate() {
 }
 
 fn test_keygen_decapsulate_with_kv() {
-    let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
 
     // Generate key pair for encapsulation using KV
     let seeds_kv = MlKem1024Seeds::Key(KeyReadArgs::new(KEY_ID));

@@ -93,7 +93,9 @@ impl GetPcrQuoteCmd {
 
                 pcr_hash.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
 
-                let signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+                let signature = drivers
+                    .abr
+                    .with_mldsa87(|mut mldsa| mldsa.pcr_sign_flow(&mut drivers.trng))?;
 
                 let resp = mutrefbytes::<QuotePcrsMldsa87Resp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();

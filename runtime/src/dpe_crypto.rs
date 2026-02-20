@@ -109,7 +109,7 @@ impl<'a> DpeMldsaCrypto<'a> {
     pub fn new(
         sha2_512_384: &'a mut Sha2_512_384,
         trng: &'a mut Trng,
-        mldsa: &'a mut Mldsa87,
+        mldsa: &'a mut Mldsa87<'a>,
         hmac: &'a mut Hmac,
         key_vault: &'a mut KeyVault,
         rt_pub_key: PubKey,
@@ -276,7 +276,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
 
     #[inline(never)]
     fn sign_mldsa(
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
@@ -510,5 +510,5 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
 
 enum Signer<'a> {
     Ec(&'a mut Ecc384),
-    Mldsa(&'a mut Mldsa87),
+    Mldsa(&'a mut Mldsa87<'a>),
 }

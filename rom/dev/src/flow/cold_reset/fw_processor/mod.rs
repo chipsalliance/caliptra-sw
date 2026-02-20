@@ -103,49 +103,51 @@ pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // sha256
-            sha256: &mut env.sha256,
-
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
-
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-
-            // SHA3/SHAKE Engine
-            sha3: &mut env.sha3,
-
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
-
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
-
-            // LMS Engine
-            lms: &mut env.lms,
-
-            // Mldsa87 Engine
-            mldsa87: &mut env.mldsa87,
-
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
-
-            // SHA Acc lock state
-            sha_acc_lock_state: ShaAccLockState::NotAcquired,
-
-            // AES-GCM Engine (for GCM and CMAC-KDF KATs)
-            aes_gcm: &mut env.aes_gcm,
-        };
         // Process mailbox commands.
-        let (mut txn, image_size_bytes) = Self::process_mailbox_commands(
-            &mut env.soc_ifc,
-            &mut env.mbox,
-            &mut env.pcr_bank,
-            &mut env.dma,
-            &mut kats_env,
-            env.persistent_data.get_mut(),
-        )?;
+        let (mut txn, image_size_bytes) = env.abr.with_mldsa87(|mut mldsa87| {
+            let mut kats_env = caliptra_kat::KatsEnv {
+                // sha256
+                sha256: &mut env.sha256,
+
+                // SHA2-512/384 Engine
+                sha2_512_384: &mut env.sha2_512_384,
+
+                // SHA2-512/384 Accelerator
+                sha2_512_384_acc: &mut env.sha2_512_384_acc,
+
+                // SHA3/SHAKE Engine
+                sha3: &mut env.sha3,
+
+                // Hmac-512/384 Engine
+                hmac: &mut env.hmac,
+
+                // Cryptographically Secure Random Number Generator
+                trng: &mut env.trng,
+
+                // LMS Engine
+                lms: &mut env.lms,
+
+                // Mldsa87 Engine
+                mldsa87: &mut mldsa87,
+
+                // Ecc384 Engine
+                ecc384: &mut env.ecc384,
+
+                // AES-GCM Engine (for GCM and CMAC-KDF KATs)
+                aes_gcm: &mut env.aes_gcm,
+
+                // SHA Acc lock state
+                sha_acc_lock_state: ShaAccLockState::NotAcquired,
+            };
+            Self::process_mailbox_commands(
+                &mut env.soc_ifc,
+                &mut env.mbox,
+                &mut env.pcr_bank,
+                &mut env.dma,
+                &mut kats_env,
+                env.persistent_data.get_mut(),
+            )
+        })?;
 
         // After processing commands but before booting into the next stage we need to complete the OCP LOCK flow.
         if env.soc_ifc.ocp_lock_enabled() {
@@ -181,21 +183,22 @@ impl FirmwareProcessor {
                 axi_start: AxiAddr::from(mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET),
             }
         };
-        let mut venv = FirmwareImageVerificationEnv {
-            sha256: &mut env.sha256,
-            sha2_512_384: &mut env.sha2_512_384,
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-            soc_ifc: &mut env.soc_ifc,
-            ecc384: &mut env.ecc384,
-            mldsa87: &mut env.mldsa87,
-            data_vault: &env.persistent_data.get().rom.data_vault,
-            pcr_bank: &mut env.pcr_bank,
-            image_source,
-            persistent_data: env.persistent_data.get(),
-        };
-
         // Verify the image
-        let info = Self::verify_image(&mut venv, manifest, image_size_bytes);
+        let info = env.abr.with_mldsa87(|mut mldsa87| {
+            let mut venv = FirmwareImageVerificationEnv {
+                sha256: &mut env.sha256,
+                sha2_512_384: &mut env.sha2_512_384,
+                sha2_512_384_acc: &mut env.sha2_512_384_acc,
+                soc_ifc: &mut env.soc_ifc,
+                ecc384: &mut env.ecc384,
+                mldsa87: &mut mldsa87,
+                data_vault: &env.persistent_data.get().rom.data_vault,
+                pcr_bank: &mut env.pcr_bank,
+                image_source,
+                persistent_data: env.persistent_data.get(),
+            };
+            Self::verify_image(&mut venv, manifest, image_size_bytes)
+        });
         let info = okref(&info)?;
 
         Self::update_fuse_log(
@@ -272,7 +275,7 @@ impl FirmwareProcessor {
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
         dma: &mut Dma,
-        env: &mut KatsEnv,
+        env: &mut KatsEnv<'_, '_>,
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<(Option<ManuallyDrop<MailboxRecvTxn<'a>>>, u32)> {
         let mut self_test_in_progress = false;

@@ -84,15 +84,15 @@ impl From<[u8; 64]> for MlKemDecapsulationKey {
     }
 }
 
-pub struct MlKemContext<'a> {
+pub struct MlKemContext<'a, 'b> {
     sha: &'a mut Sha3,
-    ml_kem: &'a mut MlKem1024,
+    ml_kem: &'a mut MlKem1024<'b>,
     trng: &'a mut Trng,
 }
 
-impl<'a> MlKemContext<'a> {
+impl<'a, 'b> MlKemContext<'a, 'b> {
     /// Create a new instance of `MlKemContext`
-    pub fn new(trng: &'a mut Trng, sha: &'a mut Sha3, ml_kem: &'a mut MlKem1024) -> Self {
+    pub fn new(trng: &'a mut Trng, sha: &'a mut Sha3, ml_kem: &'a mut MlKem1024<'b>) -> Self {
         Self { trng, sha, ml_kem }
     }
 }
@@ -117,7 +117,7 @@ impl MlKem {
     /// compute the corresponding encapsulation key
     fn expand_decaps_key(
         &mut self,
-        ctx: &mut MlKemContext<'_>,
+        ctx: &mut MlKemContext<'_, '_>,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
         let (a, b) = {
             let mut a = [0; 32];
@@ -139,11 +139,14 @@ impl MlKem {
 
 impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> for MlKem {
     const KEM_ID: KemId = KemId::ML_KEM_1024;
-    type CONTEXT<'a> = MlKemContext<'a>;
+    type CONTEXT<'a, 'b>
+        = MlKemContext<'a, 'b>
+    where
+        'b: 'a;
     type EK = MlKem1024EncapsKey;
 
     fn derive_key_pair(
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         ikm: &[u8; MlKem::NSK],
     ) -> CaliptraResult<Self> {
         let ikm = kdf::Shake256::labeled_derive(
@@ -158,7 +161,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
 
     fn encap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         encaps_key: &Self::EK,
     ) -> CaliptraResult<(MlKemEncapsulatedSecret, MlKemSharedSecret)> {
         let message = {
@@ -184,7 +187,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
     /// See https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/03/ section 3.
     fn decap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         enc: &MlKemEncapsulatedSecret,
     ) -> CaliptraResult<MlKemSharedSecret> {
         let (_ek, dk) = self.expand_decaps_key(ctx)?;
@@ -198,7 +201,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
 
     fn serialize_public_key(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
     ) -> CaliptraResult<EncapsulationKey<{ MlKem::NPK }>> {
         let (ek, _dk) = self.expand_decaps_key(ctx)?;
         Ok(MlKemEncapsulationKey::from(ek))

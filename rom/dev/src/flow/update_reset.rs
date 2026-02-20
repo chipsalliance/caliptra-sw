@@ -129,20 +129,21 @@ impl UpdateResetFlow {
             } else {
                 caliptra_common::verifier::ImageSource::MboxMemory(recv_txn.raw_mailbox_contents())
             };
-            let mut venv = FirmwareImageVerificationEnv {
-                sha256: &mut env.sha256,
-                sha2_512_384: &mut env.sha2_512_384,
-                sha2_512_384_acc: &mut env.sha2_512_384_acc,
-                soc_ifc: &mut env.soc_ifc,
-                ecc384: &mut env.ecc384,
-                mldsa87: &mut env.mldsa87,
-                data_vault: &env.persistent_data.get().rom.data_vault,
-                pcr_bank: &mut env.pcr_bank,
-                image_source,
-                persistent_data: env.persistent_data.get(),
-            };
-
-            let info = Self::verify_image(&mut venv, &manifest, img_bundle_sz);
+            let info = env.abr.with_mldsa87(|mut mldsa87| {
+                let mut venv = FirmwareImageVerificationEnv {
+                    sha256: &mut env.sha256,
+                    sha2_512_384: &mut env.sha2_512_384,
+                    sha2_512_384_acc: &mut env.sha2_512_384_acc,
+                    soc_ifc: &mut env.soc_ifc,
+                    ecc384: &mut env.ecc384,
+                    mldsa87: &mut mldsa87,
+                    data_vault: &env.persistent_data.get().rom.data_vault,
+                    pcr_bank: &mut env.pcr_bank,
+                    image_source,
+                    persistent_data: env.persistent_data.get(),
+                };
+                Self::verify_image(&mut venv, &manifest, img_bundle_sz)
+            });
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
 

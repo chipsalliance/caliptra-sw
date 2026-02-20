@@ -68,24 +68,27 @@ impl FirmwareVerifyCmd {
             }
         };
 
-        let mut venv = FirmwareImageVerificationEnv {
-            sha256: &mut drivers.sha256,
-            sha2_512_384: &mut drivers.sha2_512_384,
-            sha2_512_384_acc: &mut drivers.sha2_512_384_acc,
-            soc_ifc: &mut drivers.soc_ifc,
-            ecc384: &mut drivers.ecc384,
-            mldsa87: &mut drivers.mldsa87,
-            data_vault: &drivers.persistent_data.get().rom.data_vault,
-            pcr_bank: &mut drivers.pcr_bank,
-            image_source,
-            persistent_data: drivers.persistent_data.get(),
-        };
-        let mut verifier = ImageVerifier::new(&mut venv);
+        let verify_succeeded = drivers.abr.with_mldsa87(|mut mldsa87| {
+            let mut venv = FirmwareImageVerificationEnv {
+                sha256: &mut drivers.sha256,
+                sha2_512_384: &mut drivers.sha2_512_384,
+                sha2_512_384_acc: &mut drivers.sha2_512_384_acc,
+                soc_ifc: &mut drivers.soc_ifc,
+                ecc384: &mut drivers.ecc384,
+                mldsa87: &mut mldsa87,
+                data_vault: &drivers.persistent_data.get().rom.data_vault,
+                pcr_bank: &mut drivers.pcr_bank,
+                image_source,
+                persistent_data: drivers.persistent_data.get(),
+            };
+            let mut verifier = ImageVerifier::new(&mut venv);
+            verifier.verify(&manifest, image_size, ResetReason::UpdateReset)
+        });
 
         let resp = &mut [0u8; core::mem::size_of::<FirmwareVerifyResp>()][..];
         let resp = mutrefbytes::<FirmwareVerifyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        match verifier.verify(&manifest, image_size, ResetReason::UpdateReset) {
+        match verify_succeeded {
             Ok(_) => {
                 // Verification succeeded
                 resp.verify_result = FirmwareVerifyResult::Success as u32;
