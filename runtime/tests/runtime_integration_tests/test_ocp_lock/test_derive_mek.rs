@@ -3,7 +3,8 @@
 use std::sync::LazyLock;
 
 use caliptra_api::mailbox::{
-    CommandId, MailboxReq, MailboxReqHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp,
+    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, OcpLockClearKeyCacheReq,
+    OcpLockClearKeyCacheResp, OcpLockDeriveMekReq, OcpLockDeriveMekResp,
     OcpLockInitializeMekSecretReq, OcpLockMixMpkReq, WrappedKey,
     OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
@@ -43,7 +44,7 @@ static EXPECTED_MEK: LazyLock<Mek> = LazyLock::new(|| {
 });
 
 // TODO(clundin): Make tests work on emulator.
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_hitless_update() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -57,11 +58,12 @@ fn test_derive_mek_hitless_update() {
     });
     verify_derive_mek(&mut model, &EXPECTED_MEK);
     update_fw(&mut model);
+    clear_key_cache(&mut model);
     initialize_mek_secret(&mut model);
     verify_derive_mek(&mut model, &EXPECTED_MEK);
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_mix_mpk_hitless_update() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -87,6 +89,8 @@ fn test_derive_mek_mix_mpk_hitless_update() {
 
     update_fw(&mut model);
 
+    clear_key_cache(&mut model);
+
     initialize_mek_secret(&mut model);
 
     let mut new_builder = OcpLockKeyLadderBuilder::new(doe_out)
@@ -105,11 +109,48 @@ fn test_derive_mek_mix_mpk_hitless_update() {
     verify_derive_mek(&mut model, &new_expected_mek);
 }
 
+fn clear_key_cache(model: &mut DefaultHwModel) {
+    let mut cmd = MailboxReq::OcpLockClearKeyCache(OcpLockClearKeyCacheReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        reserved: 0,
+        cmd_timeout: 0xFFFF_FFFFu32,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_CLEAR_KEY_CACHE.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let clear_key_cache_resp =
+            OcpLockClearKeyCacheResp::ref_from_bytes(response.as_bytes()).unwrap();
+
+        // Verify response checksum
+        assert!(caliptra_common::checksum::verify_checksum(
+            clear_key_cache_resp.hdr.chksum,
+            0x0,
+            &clear_key_cache_resp.as_bytes()
+                [core::mem::size_of_val(&clear_key_cache_resp.hdr.chksum)..],
+        ));
+
+        // Verify FIPS status
+        assert_eq!(
+            clear_key_cache_resp.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+
+        assert_eq!(clear_key_cache_resp.reserved, 0);
+    });
+}
+
 fn verify_derive_mek(model: &mut DefaultHwModel, expected_mek: &Mek) {
     let mut cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: expected_mek.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -220,7 +261,7 @@ fn mix_mpk_flow(
     result_mpks
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -237,6 +278,7 @@ fn test_derive_mek() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: EXPECTED_MEK.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -255,7 +297,7 @@ fn test_derive_mek() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_mix_mpk() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -322,6 +364,7 @@ fn test_derive_mek_mix_mpk() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: expected_mek.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -340,7 +383,7 @@ fn test_derive_mek_mix_mpk() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 /// Verifies MEK does not change after a warm reset.
 fn test_derive_mek_warm_reset() {
@@ -358,6 +401,7 @@ fn test_derive_mek_warm_reset() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: EXPECTED_MEK.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     derive_mek_cmd.populate_chksum().unwrap();
@@ -376,6 +420,8 @@ fn test_derive_mek_warm_reset() {
     });
 
     model.warm_reset_flow().unwrap();
+
+    clear_key_cache(&mut model);
 
     let mut cmd = MailboxReq::OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -408,7 +454,7 @@ fn test_derive_mek_warm_reset() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -427,6 +473,7 @@ fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: EXPECTED_MEK.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -445,7 +492,7 @@ fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_debug_unlocked() {
     let debug_unlocked_doe_out = DoeOutput::generate(&DoeInput::debug_unlocked());
@@ -474,6 +521,7 @@ fn test_derive_mek_debug_unlocked() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: expected_debug_unlocked_mek.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -496,7 +544,7 @@ fn test_derive_mek_debug_unlocked() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_corrupted_sek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -513,6 +561,7 @@ fn test_derive_corrupted_sek() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: EXPECTED_MEK.checksum,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -530,7 +579,7 @@ fn test_derive_corrupted_sek() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_corrupted_sek_no_checksum() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -546,6 +595,7 @@ fn test_derive_corrupted_sek_no_checksum() {
     let mut cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -563,7 +613,7 @@ fn test_derive_corrupted_sek_no_checksum() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_missing_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -576,6 +626,7 @@ fn test_derive_missing_secret_seed() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: [0; 16],
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -595,7 +646,7 @@ fn test_derive_missing_secret_seed() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_consumed_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -612,6 +663,7 @@ fn test_derive_consumed_secret_seed() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: [0; 16],
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -644,7 +696,7 @@ fn test_derive_consumed_secret_seed() {
     });
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]
 fn test_derive_mek_missing_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -657,6 +709,7 @@ fn test_derive_mek_missing_hek() {
         hdr: MailboxReqHeader { chksum: 0 },
         reserved: 0,
         mek_checksum: [0; 16],
+        cmd_timeout: 0xFFFF_FFFF,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();

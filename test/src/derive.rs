@@ -21,6 +21,7 @@ use crate::{
     crypto::{
         self, aes256_ecb_decrypt, aes256_ecb_encrypt, cmac_kdf, derive_ecdsa_key, derive_mldsa_key,
         hmac384_drbg_keygen, hmac512, hmac512_kdf, preconditioned_aes_decrypt,
+        preconditioned_aes_encrypt,
     },
     swap_word_bytes, swap_word_bytes_inplace,
 };
@@ -434,6 +435,60 @@ impl OcpLockKeyLadderBuilder {
             mek,
             checksum: mek_checksum,
         }
+    }
+
+    pub fn generate_and_wrap_mek(self) -> (Mek, WrappedKey) {
+        use openssl::rand::rand_bytes;
+
+        const WRAPPED_MEK_TYPE: u16 = 0x3;
+        const WRAPPED_KEY_LEN: u32 = 64;
+
+        let ims = self.intermediate_mek_secret.unwrap();
+        let mut mek_secret: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&ims).as_bytes(),
+            b"ocp_lock_wrapped_mek",
+            None,
+        ));
+        swap_word_bytes_inplace(&mut mek_secret);
+
+        let mut mek = [0u8; 64];
+        rand_bytes(&mut mek).unwrap();
+
+        let mdk = swap_word_bytes(&self.mdk.unwrap());
+        let key = &mdk.as_bytes()[..32];
+        let single_encrypted_mek = aes256_ecb_encrypt(key, mek.as_bytes());
+
+        // AAD consists of 2-byte KEY_TYPE, and 4-byte metadata lengh which is zero for MEK
+        let mut wrapped_mek_aad: [u8; 6] = [0u8; 6];
+        wrapped_mek_aad[..2].copy_from_slice(WRAPPED_MEK_TYPE.as_bytes());
+
+        let wrapped_mek = preconditioned_aes_encrypt(
+            swap_word_bytes(&mek_secret).as_bytes(),
+            b"wrapped_mek",
+            &wrapped_mek_aad,
+            &single_encrypted_mek,
+        );
+
+        let mut ciphertext_and_auth_tag = [0u8; 80];
+        ciphertext_and_auth_tag[..64].copy_from_slice(&wrapped_mek.ciphertext);
+        ciphertext_and_auth_tag[64..80].copy_from_slice(&wrapped_mek.tag);
+
+        let wrapped_mek = WrappedKey {
+            key_type: WRAPPED_MEK_TYPE,
+            salt: wrapped_mek.salt,
+            key_len: WRAPPED_KEY_LEN,
+            iv: wrapped_mek.iv,
+            ciphertext_and_auth_tag,
+            ..Default::default()
+        };
+
+        (
+            Mek {
+                mek,
+                checksum: [0u8; 16],
+            },
+            wrapped_mek,
+        )
     }
 }
 
