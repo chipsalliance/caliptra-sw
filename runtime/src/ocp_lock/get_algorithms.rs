@@ -9,7 +9,7 @@ use crate::mutrefbytes;
 
 pub struct GetAlgorithmsCmd;
 impl GetAlgorithmsCmd {
-    #[cfg_attr(not(feature = "no-cfi"), caliptra_cfi_derive_git::cfi_impl_fn)]
+    #[cfg_attr(not(feature = "no-cfi"), caliptra_cfi_derive::cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(resp: &mut [u8]) -> CaliptraResult<usize> {
         let resp = mutrefbytes::<OcpLockGetAlgorithmsResp>(resp)?;

@@ -108,8 +108,6 @@ caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive = { path = "cfi/derive" }
-caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
-caliptra-cfi-derive-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive-git", rev = "a98e499d279e81ae85881991b1e9eee354151189"}
 caliptra_common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_mod_fn;
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]

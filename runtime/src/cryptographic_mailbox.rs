@@ -15,7 +15,7 @@ Abstract:
 use crate::{mutrefbytes, Drivers};
 use arrayvec::ArrayVec;
 use bitfield::bitfield;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     hmac_cm::hmac,

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{mutrefbytes, Drivers};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     AlgorithmType, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxRespHeader,
     QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req, QuotePcrsMldsa87Resp,

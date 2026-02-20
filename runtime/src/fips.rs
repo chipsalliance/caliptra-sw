@@ -11,7 +11,7 @@ Abstract:
     File contains FIPS module and FIPS self test.
 
 --*/
-use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
@@ -63,7 +63,7 @@ impl FipsModule {
 pub mod fips_self_test_cmd {
     use super::*;
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
-    use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
+    use caliptra_cfi_lib::cfi_assert_eq_8_words;
     use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
     use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::{ImageTocEntry, RomInfo};

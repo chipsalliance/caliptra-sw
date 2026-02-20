@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 #[allow(dead_code)]
