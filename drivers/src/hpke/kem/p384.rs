@@ -55,13 +55,13 @@ impl TryFrom<&[u8; P384::NPK]> for Ecc384PubKey {
         // Skip compression encoding.
         let value = value
             .get(1..)
-            .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DEERIALIZATION_FAIL)?;
+            .ok_or(CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DESERIALIZATION_FAIL)?;
 
         let (x, rem) = <[u8; Ecc384Scalar::bytes_size()]>::ref_from_prefix(value)
-            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DEERIALIZATION_FAIL)?;
+            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DESERIALIZATION_FAIL)?;
 
         let y = <[u8; Ecc384Scalar::bytes_size()]>::ref_from_bytes(rem)
-            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DEERIALIZATION_FAIL)?;
+            .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DESERIALIZATION_FAIL)?;
 
         Ok(Ecc384PubKey {
             x: Array4x12::from(x),
