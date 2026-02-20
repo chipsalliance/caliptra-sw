@@ -2606,7 +2606,7 @@ impl CaliptraError {
             "Driver Error: HPKE ml-kem failed to seriliaze the encap key"
         ),
         (
-            RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DEERIALIZATION_FAIL,
+            RUNTIME_DRIVER_HPKE_P384_ENCAP_KEY_DESERIALIZATION_FAIL,
             0xa004_1020,
             "Driver Error: HPKE p-384 failed to deseriliaze the encap key"
         ),
