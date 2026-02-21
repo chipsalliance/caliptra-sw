@@ -1081,6 +1081,72 @@ impl Commands {
         resp.partial_len()
     }
 
+    /// Common GCM init logic for encrypt and decrypt.
+    /// When `cmd_iv` is `None`, generates a random IV and increments the usage counter (encrypt).
+    /// When `cmd_iv` is `Some`, uses the provided IV (decrypt).
+    #[inline(never)]
+    fn gcm_init_common(
+        drivers: &mut Drivers,
+        cmk_bytes: &[u8],
+        flags: u32,
+        aad: &[u8],
+        cmd_iv: Option<&[u8; 12]>,
+    ) -> CaliptraResult<AesGcmContext> {
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(cmk_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let iv_arr;
+        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        let (key, iv) = if flags != 0 {
+            if !matches!(key_usage, CmKeyUsage::Hmac) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let spdm_version: SpdmVersion = (flags as u8).try_into()?;
+            let (key, iv) = Self::spdm_derive_key_and_iv(
+                drivers,
+                &cmk.key_material[..cmk.length as usize],
+                spdm_version,
+            )?;
+            iv_arr = iv;
+            (key, AesGcmIv::Array(&iv_arr))
+        } else if let Some(ref provided_iv) = cmd_iv {
+            // Decrypt: use provided IV
+            if !matches!(key_usage, CmKeyUsage::Aes) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
+            (key, (*provided_iv).into())
+        } else {
+            // Encrypt: increment and check usage, random IV
+            if !matches!(key_usage, CmKeyUsage::Aes) {
+                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+            }
+            let counter = drivers.cryptographic_mailbox.increment_counter(&cmk)?;
+            if counter > GCM_MAX_KEY_USES {
+                Err(CaliptraError::RUNTIME_GCM_KEY_USAGE_LIMIT_REACHED)?;
+            }
+            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
+            (key, AesGcmIv::Random)
+        };
+
+        let unencrypted_context = drivers
+            .aes
+            .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+
+        Ok(unencrypted_context)
+    }
+
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn aes_256_gcm_encrypt_init(
         drivers: &mut Drivers,
@@ -1098,51 +1164,7 @@ impl Commands {
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
-
-        if cmk.length as usize > cmk.key_material.len() {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-
-        let iv_arr;
-        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
-
-        let (key, iv) = if cmd.flags != 0 {
-            if !matches!(key_usage, CmKeyUsage::Hmac) {
-                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-            }
-            let spdm_version: SpdmVersion = (cmd.flags as u8).try_into()?;
-            let (key, iv) = Self::spdm_derive_key_and_iv(
-                drivers,
-                &cmk.key_material[..cmk.length as usize],
-                spdm_version,
-            )?;
-            iv_arr = iv;
-            (key, AesGcmIv::Array(&iv_arr))
-        } else {
-            // increment and check usage
-            if !matches!(key_usage, CmKeyUsage::Aes) {
-                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-            }
-            let counter = drivers.cryptographic_mailbox.increment_counter(&cmk)?;
-            if counter > GCM_MAX_KEY_USES {
-                Err(CaliptraError::RUNTIME_GCM_KEY_USAGE_LIMIT_REACHED)?;
-            }
-            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (key, AesGcmIv::Random)
-        };
-
-        let unencrypted_context =
-            drivers
-                .aes
-                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+        let unencrypted_context = Self::gcm_init_common(drivers, &cmd.cmk.0[..], 0, aad, None)?;
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1171,6 +1193,51 @@ impl Commands {
         result
     }
 
+    /// Common SPDM GCM init logic for encrypt and decrypt.
+    #[inline(never)]
+    fn spdm_gcm_init_common(
+        drivers: &mut Drivers,
+        cmk_bytes: &[u8],
+        spdm_flags: u32,
+        spdm_counter: &[u8; 8],
+        aad: &[u8],
+    ) -> CaliptraResult<AesGcmContext> {
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(cmk_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        if cmk.length as usize > cmk.key_material.len() {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+
+        if !matches!(key_usage, CmKeyUsage::Hmac) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
+
+        let flags = SpdmFlags(spdm_flags);
+        let spdm_version: SpdmVersion = (flags.version() as u8).try_into()?;
+        let (key, iv) = Self::spdm_derive_key_and_iv(
+            drivers,
+            &cmk.key_material[..cmk.length as usize],
+            spdm_version,
+        )?;
+        let iv = Self::xor_iv(&iv, spdm_counter, flags.counter_big_endian() == 1);
+        let iv = AesGcmIv::Array(&iv);
+
+        let unencrypted_context = drivers
+            .aes
+            .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+
+        Ok(unencrypted_context)
+    }
+
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn aes_256_gcm_spdm_encrypt_init(
         drivers: &mut Drivers,
@@ -1188,38 +1255,13 @@ impl Commands {
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
-
-        if cmk.length as usize > cmk.key_material.len() {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-
-        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
-
-        if !matches!(key_usage, CmKeyUsage::Hmac) {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-        let spdm_flags = SpdmFlags(cmd.spdm_flags);
-        let spdm_version: SpdmVersion = (spdm_flags.version() as u8).try_into()?;
-        let (key, iv) = Self::spdm_derive_key_and_iv(
+        let unencrypted_context = Self::spdm_gcm_init_common(
             drivers,
-            &cmk.key_material[..cmk.length as usize],
-            spdm_version,
+            &cmd.cmk.0[..],
+            cmd.spdm_flags,
+            &cmd.spdm_counter,
+            aad,
         )?;
-        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, spdm_flags.counter_big_endian() == 1);
-        let iv = AesGcmIv::Array(&iv);
-
-        let unencrypted_context =
-            drivers
-                .aes
-                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1337,47 +1379,8 @@ impl Commands {
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
-
-        if cmk.length as usize > cmk.key_material.len() {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-
-        let iv_arr;
-        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
-
-        let (key, iv) = if cmd.flags != 0 {
-            if !matches!(key_usage, CmKeyUsage::Hmac) {
-                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-            }
-            let spdm_version: SpdmVersion = (cmd.flags as u8).try_into()?;
-            let (key, iv) = Self::spdm_derive_key_and_iv(
-                drivers,
-                &cmk.key_material[..cmk.length as usize],
-                spdm_version,
-            )?;
-            iv_arr = iv;
-            (key, AesGcmIv::Array(&iv_arr))
-        } else {
-            // check usage
-            if !matches!(key_usage, CmKeyUsage::Aes) {
-                Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-            }
-            let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (key, AesGcmIv::Array(&cmd.iv))
-        };
-
         let unencrypted_context =
-            drivers
-                .aes
-                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
-
+            Self::gcm_init_common(drivers, &cmd.cmk.0[..], 0, aad, Some(&cmd.iv))?;
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -1411,37 +1414,13 @@ impl Commands {
         }
         let aad = &cmd.aad[..cmd.aad_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
-
-        if cmk.length as usize > cmk.key_material.len() {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-
-        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
-
-        if !matches!(key_usage, CmKeyUsage::Hmac) {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
-        let spdm_version: SpdmVersion = (cmd.spdm_flags as u8).try_into()?;
-        let (key, iv) = Self::spdm_derive_key_and_iv(
+        let unencrypted_context = Self::spdm_gcm_init_common(
             drivers,
-            &cmk.key_material[..cmk.length as usize],
-            spdm_version,
+            &cmd.cmk.0[..],
+            cmd.spdm_flags,
+            &cmd.spdm_counter,
+            aad,
         )?;
-        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
-        let iv = AesGcmIv::Array(&iv);
-
-        let unencrypted_context =
-            drivers
-                .aes
-                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
-
         let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_gcm_context(
             &mut drivers.aes,
             &mut drivers.trng,
