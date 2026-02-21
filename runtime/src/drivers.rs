@@ -44,7 +44,7 @@ use caliptra_drivers::{
     PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{Dma, DmaMmio, MlKem1024, Mldsa87PubKey};
+use caliptra_drivers::{okref, Dma, DmaMmio, MlKem1024, Mldsa87PubKey};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -60,14 +60,15 @@ use crypto::ecdsa::EcdsaPubKey;
 use crypto::{Digest, PubKey};
 use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::response::DeriveContextResp;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
+use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
 };
-use dpe::{okref, MAX_HANDLES};
 use dpe::{DpeFlags, DpeProfile};
 use ureg::MmioMut;
 
@@ -594,7 +595,8 @@ impl Drivers {
             .as_bytes()
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?;
-        let derive_context_resp = DeriveContextCmd {
+        let derive_context_resp = &mut [0u8; size_of::<DeriveContextResp>()];
+        let result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(valid_pauser_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
@@ -605,8 +607,8 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
-        if let Err(e) = derive_context_resp {
+        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, derive_context_resp);
+        if let Err(e) = result {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -632,7 +634,7 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
-            let derive_context_resp = DeriveContextCmd {
+            let result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
                     measurement_data
@@ -647,8 +649,13 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_context_resp {
+            .execute_serialized(
+                &mut dpe,
+                &mut env,
+                pl0_pauser_locality,
+                derive_context_resp,
+            );
+            if let Err(e) = result {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);

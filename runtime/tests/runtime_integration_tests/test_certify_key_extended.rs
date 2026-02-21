@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
+use anyhow::anyhow;
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
@@ -16,8 +18,6 @@ use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
-
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
 #[test]
 fn test_dmtf_other_name_validation_fail() {
@@ -52,6 +52,41 @@ fn test_dmtf_other_name_validation_fail() {
     );
 }
 
+fn execute_certify_key_extended_cmd(
+    model: &mut impl HwModel,
+    flags: CertifyKeyExtendedFlags,
+) -> anyhow::Result<CertifyKeyP384Resp> {
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+    };
+    let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
+        flags,
+    });
+    cmd.populate_chksum()
+        .map_err(|e| anyhow!("Failed to populate checksum: {:?}", e))?;
+
+    let mut resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+            cmd.as_bytes().unwrap(),
+        )
+        .map_err(|e| anyhow!("Failed to execute mailbox command: {:?}", e))?
+        .ok_or(anyhow!("Did not receive a response from mailbox command"))?;
+    resp.resize(size_of::<CertifyKeyExtendedResp>(), 0);
+
+    let certify_key_extended_resp = CertifyKeyExtendedResp::read_from_bytes(resp.as_slice())
+        .map_err(|e| anyhow!("Failed to parse CertifyKeyExtendedResp: {:?}", e))?;
+    let (resp, _) =
+        CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp)
+            .map_err(|e| anyhow!("Failed to parse CertifyKeyP384Resp: {:?}", e))?;
+    Ok(resp)
+}
+
 #[test]
 fn test_dmtf_other_name_extension_present() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -79,30 +114,8 @@ fn test_dmtf_other_name_extension_present() {
         .unwrap()
         .expect("We should have received a response");
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
-        flags: CertifyKeyExtendedFlags::DMTF_OTHER_NAME,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
+        execute_certify_key_extended_cmd(&mut model, CertifyKeyExtendedFlags::DMTF_OTHER_NAME)
             .unwrap();
 
     let (_, cert) =
@@ -130,33 +143,8 @@ fn test_dmtf_other_name_extension_not_present() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
-
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-
-    // Check that otherName extension is not present if not provided by ADD_SUBJECT_ALT_NAME
-    let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
-        flags: CertifyKeyExtendedFlags::DMTF_OTHER_NAME,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
+        execute_certify_key_extended_cmd(&mut model, CertifyKeyExtendedFlags::DMTF_OTHER_NAME)
             .unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
@@ -184,25 +172,8 @@ fn test_dmtf_other_name_extension_not_present() {
         .expect("We should have received a response");
 
     // Check that otherName extension is not present if not requested in input flags
-    let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
-        flags: CertifyKeyExtendedFlags::empty(),
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyP384Resp::try_read_from_bytes(&certify_key_extended_resp.certify_key_resp[..])
-            .unwrap();
+        execute_certify_key_extended_cmd(&mut model, CertifyKeyExtendedFlags::empty()).unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
             .unwrap();
