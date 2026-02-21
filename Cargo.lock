@@ -955,6 +955,7 @@ dependencies = [
  "hmac",
  "memoffset 0.8.0",
  "ml-dsa 0.0.4",
+ "ml-dsa 0.1.0-rc.0",
  "openssl",
  "p384",
  "platform",
@@ -1366,7 +1367,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=e7061bc5a03ab40c59b8faa984011e875f9f7dc5#e7061bc5a03ab40c59b8faa984011e875f9f7dc5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive-git",
@@ -1566,7 +1567,7 @@ dependencies = [
 [[package]]
 name = "dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=e7061bc5a03ab40c59b8faa984011e875f9f7dc5#e7061bc5a03ab40c59b8faa984011e875f9f7dc5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
 dependencies = [
  "bitflags 2.9.1",
  "caliptra-cfi-derive-git",
@@ -2466,7 +2467,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=e7061bc5a03ab40c59b8faa984011e875f9f7dc5#e7061bc5a03ab40c59b8faa984011e875f9f7dc5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a26db5b869f13f0d2c5762b75f8892b9fe2d8055#a26db5b869f13f0d2c5762b75f8892b9fe2d8055"
 dependencies = [
  "arrayvec",
  "cfg-if",

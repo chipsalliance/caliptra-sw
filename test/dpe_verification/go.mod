@@ -5,12 +5,12 @@ go 1.22.0
 toolchain go1.24.8
 
 require (
-	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260220222653-e7061bc5a03a
-	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260220222653-e7061bc5a03a
+	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260223170926-a26db5b869f1
+	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260223170926-a26db5b869f1
 )
 
 require (
-	github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260220222653-e7061bc5a03a // indirect
+	github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260223170926-a26db5b869f1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/github/smimesign v0.2.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

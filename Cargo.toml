@@ -223,9 +223,9 @@ itertools = { version = "0.12.0", default-features = false }
 riscv = "0.13.0"
 
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e7061bc5a03ab40c59b8faa984011e875f9f7dc5", default-features = false, features = ["hybrid"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e7061bc5a03ab40c59b8faa984011e875f9f7dc5", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "e7061bc5a03ab40c59b8faa984011e875f9f7dc5", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false, features = ["hybrid"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a26db5b869f13f0d2c5762b75f8892b9fe2d8055", default-features = false }
 
 # local DPE dependency; useful when developing
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }
