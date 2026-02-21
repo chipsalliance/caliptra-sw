@@ -82,11 +82,9 @@ impl EndorseHpkePubkeyCmd {
             EndorsementAlgorithms::ECDSA_P384_SHA384 => {
                 Self::create_ecdsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
             }
-            // TODO(clundin): Renable after code space optimizations
-            // https://github.com/chipsalliance/caliptra-sw/issues/3355
-            // EndorsementAlgorithms::ML_DSA_87 => {
-            //     Self::create_mldsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
-            // }
+            EndorsementAlgorithms::ML_DSA_87 => {
+                Self::create_mldsa_endorsed_certificate(drivers, pub_key, kem_id, cert_buf)
+            }
             _ => Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_ENDORSEMENT_ALGORITHM)?,
         }
     }
@@ -182,9 +180,6 @@ impl EndorseHpkePubkeyCmd {
         }
     }
 
-    // TODO(clundin): Renable after code space optimizations
-    // https://github.com/chipsalliance/caliptra-sw/issues/3355
-    #[allow(dead_code)]
     fn create_mldsa_endorsed_certificate(
         drivers: &mut Drivers,
         pub_key: &[u8],
