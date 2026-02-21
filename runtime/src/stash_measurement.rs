@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{ec_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{
     okmutref, pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult,

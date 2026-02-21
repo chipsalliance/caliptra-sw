@@ -15,8 +15,8 @@ Abstract:
 use crate::manifest::find_metadata_entry;
 use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
@@ -80,7 +80,7 @@ impl AuthorizeAndStashCmd {
                 IMAGE_AUTHORIZED
             } else if source == ImageHashSource::InRequest {
                 if cfi_launder(metadata_entry.digest) == cmd.measurement {
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(cmd.measurement).0,
                     );
@@ -110,7 +110,7 @@ impl AuthorizeAndStashCmd {
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                     .into();
                 if cfi_launder(metadata_entry.digest) == measurement {
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(measurement).0,
                     );

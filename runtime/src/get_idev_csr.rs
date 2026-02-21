@@ -2,7 +2,7 @@
 
 use crate::{mutrefbytes, Drivers};
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
