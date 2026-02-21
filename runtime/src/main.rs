@@ -65,7 +65,7 @@ pub extern "C" fn entry_point() -> ! {
                     let b = a.0;
                     (b[0], b[1], b[2], b[3])
                 })
-                .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError.into())
+                .map_err(|_| caliptra_cfi_lib::CfiError(u32::from(caliptra_cfi_lib::CfiPanicInfo::TrngError)))
         };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
