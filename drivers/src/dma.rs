@@ -380,6 +380,20 @@ impl Dma {
         self.wait_for_dma_complete();
     }
 
+    /// Writes an arbitrary length buffer to the given AXI address
+    ///
+    /// # Arguments
+    ///
+    /// * `write_addr` - Address to write to
+    /// * `buffer`  - Target location to write from
+    pub fn write_buffer(&self, write_addr: AxiAddr, buffer: &[u32]) {
+        // TODO(zhalvorsen): figure out why one shot is only writing ~1KB in the emulator and switch
+        // to using a single DMA transaction instead of writing a dword at a time.
+        for (i, write_val) in buffer.iter().enumerate() {
+            self.write_dword(write_addr + (i as u32 * 4), *write_val);
+        }
+    }
+
     /// Write a 32-bit word to the specified address
     ///
     /// # Arguments

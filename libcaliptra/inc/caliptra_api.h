@@ -207,7 +207,7 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
 int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async);
 
 // DPE MLDSA87 command
-int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async);
+int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_mldsa87_req *req, struct caliptra_invoke_dpe_resp *resp, bool async);
 
 // Disable attestation
 int caliptra_disable_attestation(bool async);
