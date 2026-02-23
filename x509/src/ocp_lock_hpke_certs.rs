@@ -2,12 +2,6 @@
 
 pub mod ml_kem_ecc_348 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_ml_kem_cert_tbs_ecc_384.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"../build/ocp_lock_ml_kem_cert_tbs_ecc_384.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -137,36 +131,11 @@ pub mod ml_kem_ecc_348 {
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
         }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_mlkem_ecc384_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./build/ocp_lock_ml_kem_cert_tbs_ecc_384.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_ml_kem_cert_tbs_ecc_384.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK ML-KEM 1024 EC Certificate template is not equal to the manual template."
-            )
-            }
-        }
     }
 }
 
 pub mod ml_kem_mldsa_87 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_ml_kem_cert_tbs_ml_dsa_87.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"../build/ocp_lock_ml_kem_cert_tbs_ml_dsa_87.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -299,36 +268,11 @@ pub mod ml_kem_mldsa_87 {
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
         }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_mlkem_mldsa87_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./build/ocp_lock_ml_kem_cert_tbs_ml_dsa_87.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_ml_kem_cert_tbs_ml_dsa_87.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK ML-KEM 1024 ML-DSA Certificate template is not equal to the manual template."
-            )
-            }
-        }
     }
 }
 
 pub mod ecdh_384_ecc_348 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_ecdh_384_cert_tbs_ecc_384.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"../build/ocp_lock_ecdh_384_cert_tbs_ecc_384.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -457,36 +401,11 @@ pub mod ecdh_384_ecc_348 {
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
         }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_ecdh_ecc384_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./build/ocp_lock_ecdh_384_cert_tbs_ecc_384.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_ecdh_384_cert_tbs_ecc_384.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK ECDH P-384 EC Certificate template is not equal to the manual template."
-            )
-            }
-        }
     }
 }
 
 pub mod ecdh_384_mldsa_87 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_ecdh_384_cert_tbs_ml_dsa_87.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"../build/ocp_lock_ecdh_384_cert_tbs_ml_dsa_87.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -619,36 +538,11 @@ pub mod ecdh_384_mldsa_87 {
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
         }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_ecdh_mldsa87_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./build/ocp_lock_ecdh_384_cert_tbs_ml_dsa_87.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_ecdh_384_cert_tbs_ml_dsa_87.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK ECDH P-384 ML-DSA Certificate template is not equal to the manual template."
-            )
-            }
-        }
     }
 }
 
 pub mod hybrid_ecc_384 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_hybrid_cert_tbs_ecc_384.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"ocp_lock_hybrid_cert_tbs_ecc_384.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -751,36 +645,11 @@ pub mod hybrid_ecc_384 {
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
         }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_hybrid_ecc384_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./src/ocp_lock_hybrid_cert_tbs_ecc_384.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_hybrid_cert_tbs_ecc_384.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK Hybrid EC Certificate template is not equal to the manual template."
-            )
-            }
-        }
     }
 }
 
 pub mod hybrid_mldsa_87 {
 
-    #[cfg(feature = "generate_templates")]
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs"
-    ));
-    #[cfg(not(feature = "generate_templates"))]
     include! {"ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs"}
 
     #[cfg(all(test, target_family = "unix"))]
@@ -886,25 +755,6 @@ pub mod hybrid_mldsa_87 {
             let ext_map = parsed_cert.extensions_map().unwrap();
             const HPKE_IDENTIFIERS_OID: Oid = oid!(2.23.133 .21 .1 .1);
             assert!(!ext_map[&HPKE_IDENTIFIERS_OID].critical);
-        }
-
-        #[test]
-        #[cfg(feature = "generate_templates")]
-        fn test_ocp_lock_hybrid_mldsa87_template() {
-            let manual_template = std::fs::read(std::path::Path::new(
-                "./src/ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs",
-            ))
-            .unwrap();
-            let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-                env!("OUT_DIR"),
-                "/ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs"
-            )))
-            .unwrap();
-            if auto_generated_template != manual_template {
-                panic!(
-                "Auto-generated OCP LOCK Hybrid ML-DSA Certificate template is not equal to the manual template."
-            )
-            }
         }
     }
 }

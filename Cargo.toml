@@ -70,6 +70,7 @@ members = [
   "ureg/lib/codegen",
   "ureg/lib/systemrdl",
   "x509",
+  "x509/gen",
   "kat",
   "image/types",
   "image/gen",

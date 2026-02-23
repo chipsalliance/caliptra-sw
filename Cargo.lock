@@ -1071,6 +1071,17 @@ dependencies = [
 name = "caliptra-x509"
 version = "0.1.0"
 dependencies = [
+ "hex",
+ "openssl",
+ "rand",
+ "x509-parser",
+ "zeroize",
+]
+
+[[package]]
+name = "caliptra-x509-gen"
+version = "0.1.0"
+dependencies = [
  "asn1",
  "bitfield",
  "const-oid 0.9.6",
@@ -1082,8 +1093,6 @@ dependencies = [
  "rand",
  "syn 1.0.109",
  "x509-cert",
- "x509-parser",
- "zeroize",
 ]
 
 [[package]]

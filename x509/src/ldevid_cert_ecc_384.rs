@@ -13,12 +13,6 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-#[cfg(feature = "generate_templates")]
-include!(concat!(
-    env!("OUT_DIR"),
-    "/local_dev_id_cert_tbs_ecc_384.rs"
-));
-#[cfg(not(feature = "generate_templates"))]
 include! {"../build/local_dev_id_cert_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
@@ -172,24 +166,5 @@ mod tests {
 
         const UEID_OID: Oid = oid!(2.23.133 .5 .4 .4);
         assert!(!ext_map[&UEID_OID].critical);
-    }
-
-    #[test]
-    #[cfg(feature = "generate_templates")]
-    fn test_ldevid_template() {
-        let manual_template = std::fs::read(std::path::Path::new(
-            "./build/local_dev_id_cert_tbs_ecc_384.rs",
-        ))
-        .unwrap();
-        let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-            env!("OUT_DIR"),
-            "/local_dev_id_cert_tbs_ecc_384.rs"
-        )))
-        .unwrap();
-        if auto_generated_template != manual_template {
-            panic!(
-                "Auto-generated LDevID Certificate template is not equal to the manual template."
-            )
-        }
     }
 }

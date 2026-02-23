@@ -32,13 +32,11 @@ impl CodeGen {
         let file_name = format!("{}.rs", type_name.to_case(Case::Snake));
         let file_path = Path::new(out_path).join(file_name);
         std::fs::write(&file_path, Self::code(type_name, template)).unwrap();
-        if Command::new("rustfmt")
+        let _ = Command::new("rustfmt")
             .arg("--emit=files")
             .arg("--edition=2024")
             .arg(file_path)
-            .spawn()
-            .is_ok()
-        {}
+            .status();
     }
 
     fn code(type_name: &str, template: TbsTemplate) -> String {
@@ -153,7 +151,7 @@ Licensed under the Apache-2.0 license.
 
 Abstract:
 
-    Regenerate the template by building caliptra-x509-build with the generate_templates flag.
+    Regenerate the template with: cargo run -p caliptra-x509-gen
 
 --"]
             #[allow(clippy::needless_lifetimes)]

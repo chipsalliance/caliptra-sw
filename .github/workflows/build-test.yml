@@ -113,6 +113,15 @@ jobs:
           RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
           CARGO_TARGET_DIR=target RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets --manifest-path ci-tools/fpga-boss/Cargo.toml -- -D warnings
 
+      - name: Check x509 templates are up to date
+        run: |
+          cargo run -p caliptra-x509-gen --locked
+          git diff --exit-code -- x509/build/ x509/src/ || (
+            echo "x509 templates are out of date. Please regenerate with:"
+            echo "  cargo run -p caliptra-x509-gen"
+            exit 1
+          )
+
       # As fuzzing targets are not part of the workspace, perform their tests explicitly.
       - name: Build test fuzzing targets
         # Intermittently fails and is too slow

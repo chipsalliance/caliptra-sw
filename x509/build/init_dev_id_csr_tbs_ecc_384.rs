@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 Abstract:
 
-    Regenerate the template by building caliptra-x509-build with the generate_templates flag.
+    Regenerate the template with: cargo run -p caliptra-x509-gen
 
 --"]
 #[allow(clippy::needless_lifetimes)]
