@@ -87,7 +87,64 @@ impl CodeGen {
             pub const TBS_TEMPLATE_LEN: usize = #tbs_len;
         );
 
-        let tbs = template.tbs();
+        // Generate chunked template constants and new() body
+        let (template_consts, new_body) = if let (Some(before_key), Some(after_key)) =
+            (template.tbs_before_key(), template.tbs_after_key())
+        {
+            let template_consts = quote!(
+                const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [#(#before_key,)*];
+                const TBS_TEMPLATE_AFTER_KEY_LEN: usize = Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
+                const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [#(#after_key,)*];
+
+                #[cfg(test)]
+                const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
+                    let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
+                    let before = Self::TBS_TEMPLATE_BEFORE_KEY;
+                    let after = Self::TBS_TEMPLATE_AFTER_KEY;
+                    let mut i = 0;
+                    while i < before.len() {
+                        result[i] = before[i];
+                        i += 1;
+                    }
+                    i = 0;
+                    while i < after.len() {
+                        result[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN + i] = after[i];
+                        i += 1;
+                    }
+                    result
+                };
+            );
+
+            let new_body = quote!(
+                pub fn new(params: &#param_name) -> Self {
+                    let mut tbs = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
+                    tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_KEY);
+                    tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&Self::TBS_TEMPLATE_AFTER_KEY);
+                    let mut template = Self { tbs };
+                    template.apply(params);
+                    template
+                }
+            );
+
+            (template_consts, new_body)
+        } else {
+            let tbs = template.tbs();
+            let template_consts = quote!(
+                const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [#(#tbs,)*];
+            );
+
+            let new_body = quote!(
+                pub fn new(params: &#param_name) -> Self {
+                    let mut template = Self {
+                        tbs: Self::TBS_TEMPLATE,
+                    };
+                    template.apply(params);
+                    template
+                }
+            );
+
+            (template_consts, new_body)
+        };
 
         quote!(
             #[doc = "++
@@ -96,7 +153,7 @@ Licensed under the Apache-2.0 license.
 
 Abstract:
 
-    Regenerate the template by building caliptra-x509-build with the generate-templates flag.
+    Regenerate the template by building caliptra-x509-build with the generate_templates flag.
 
 --"]
             #[allow(clippy::needless_lifetimes)]
@@ -116,15 +173,9 @@ Abstract:
                 #(#offset_consts)*
                 #(#len_consts)*
                 #tbs_len_const
-                const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [#(#tbs,)*];
+                #template_consts
 
-                pub fn new(params: &#param_name) -> Self {
-                    let mut template = Self {
-                        tbs: Self::TBS_TEMPLATE,
-                    };
-                    template.apply(params);
-                    template
-                }
+                #new_body
 
                 pub fn sign<Sig, Error>(
                     &self,
