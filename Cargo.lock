@@ -1037,6 +1037,7 @@ dependencies = [
  "hpke",
  "ml-kem",
  "openssl",
+ "p384",
  "rand",
  "regex",
  "serde",
