@@ -9,6 +9,13 @@ on:
       - "ci-tools/fpga-image/**"
       - "hw/fpga/**"
 
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/fpga-image.yml"
+      - "ci-tools/fpga-image/**"
+      - "hw/fpga/**"
+
   schedule:
     # 5:13 AM PST tuesday, thursday
     - cron: '13 13 * * 2,4'
@@ -45,7 +52,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        with: 
+        with:
           ref: ${{ inputs.branch }}
 
       - name: Cache Kernel output
@@ -125,10 +132,11 @@ jobs:
         image_variant: [core, subsystem]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
+      PR_BASE_COMMIT: ${{github.event.pull_request.base.sha}}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        with: 
+        with:
           ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
@@ -146,19 +154,19 @@ jobs:
       - name: Install pre-requisites
         run: |
           sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu 
+          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Build SD images
         run: |
           # Build Dev image
           cd ci-tools/fpga-image
-          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=true KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=true IMAGE_VARIANT=${IMAGE_VARIANT} KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
           # Save Dev image for upload
           sudo mv out/image.img dev-image.img
           sudo rm -rf out/
           # Now build CI image
-          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=false KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=false IMAGE_VARIANT=${IMAGE_VARIANT} KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
       - name: 'Upload dev-image as artifact'
         uses: actions/upload-artifact@v4
