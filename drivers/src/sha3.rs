@@ -140,23 +140,53 @@ impl Sha3 {
         &mut self,
         data: &[u8],
     ) -> CaliptraResult<Array4xN<W, B>> {
-        self.digest_generic(Sha3Mode::Shake, Sha3KStrength::L256, data)
+        self.digest_generic(Sha3Mode::Shake, Sha3KStrength::L256, [data].iter())
+    }
+
+    /// Calculate the SHA3-256 digest for specified data
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Data to used to update the digest
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x8` - Array containing the digest.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn sha3_256_digest(&mut self, data: &[u8]) -> CaliptraResult<crate::Array4x8> {
+        self.digest_generic(Sha3Mode::Sha3, Sha3KStrength::L256, [data].iter())
+    }
+
+    // Similar to `sha3_256_digest` but allows passing an iterator of slices to avoid copying data.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn sha3_256_digest_ext<I, T>(&mut self, data: I) -> CaliptraResult<crate::Array4x8>
+    where
+        I: Iterator<Item = T>,
+        T: AsRef<[u8]>,
+    {
+        self.digest_generic(Sha3Mode::Sha3, Sha3KStrength::L256, data)
     }
 
     // Helper function to be called by a mode-specific public function
     // Performs a digest using a single, provided slice of data
-    fn digest_generic<const W: usize, const B: usize>(
+    fn digest_generic<const W: usize, const B: usize, I, T>(
         &mut self,
         mode: Sha3Mode,
         strength: Sha3KStrength,
-        data: &[u8],
-    ) -> CaliptraResult<Array4xN<W, B>> {
+        data: I,
+    ) -> CaliptraResult<Array4xN<W, B>>
+    where
+        I: Iterator<Item = T>,
+        T: AsRef<[u8]>,
+    {
         // START
         self.digest_start(mode, strength)?;
 
         // UPDATE
         // Stream data
-        self.stream_msg(data)?;
+        for item in data {
+            self.stream_msg(item.as_ref())?;
+        }
 
         // FINALIZE
         self.finalize()?;
