@@ -888,13 +888,14 @@ int rt_test_all_commands(const test_info *info)
     // INVOKE_DPE_MLDSA87
     // Using GET_PROFILE as an example command
     // TODO: Coverage of other DPE commands should be added
+    struct caliptra_invoke_dpe_mldsa87_req dpe_mldsa87_req = {};
 
-    dpe_req.data_size = sizeof(struct dpe_get_profile_cmd);
-    dpe_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
-    dpe_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
-    dpe_req.get_profile_cmd.cmd_hdr.profile = 0x2;
+    dpe_mldsa87_req.data_size = sizeof(struct dpe_get_profile_cmd);
+    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
+    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
+    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.profile = 0x2;
 
-    status = caliptra_invoke_dpe_mldsa87_command(&dpe_req, &dpe_resp, false);
+    status = caliptra_invoke_dpe_mldsa87_command(&dpe_mldsa87_req, &dpe_resp, false);
 
     if (status)
     {

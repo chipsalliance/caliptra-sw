@@ -632,7 +632,7 @@ pub enum MailboxReq {
     GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeEcc384Command(InvokeDpeReq),
-    InvokeDpeMldsa87Command(InvokeDpeReq),
+    InvokeDpeMldsa87Command(InvokeDpeMldsa87Req),
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq),
@@ -1555,11 +1555,37 @@ impl Request for InvokeDpeReq {
     type Resp = InvokeDpeResp;
 }
 
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeMldsa87Flags(u32);
+
+bitflags! {
+    impl InvokeDpeMldsa87Flags: u32 {
+        const EXTERNAL_AXI_RESPONSE = 1u32 << 31;
+    }
+}
+
+impl InvokeDpeMldsa87Flags {
+    pub fn external_axi_response(&self) -> bool {
+        self.contains(InvokeDpeMldsa87Flags::EXTERNAL_AXI_RESPONSE)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct AxiResponseInfo {
+    pub addr_lo: u32,
+    pub addr_hi: u32,
+    pub max_size: u32,
+}
+
 // INVOKE_DPE_MLDSA87
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeMldsa87Req {
     pub hdr: MailboxReqHeader,
+    pub flags: InvokeDpeMldsa87Flags,
+    pub axi_response: AxiResponseInfo,
     pub data_size: u32,
     pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE], // variable length
 }
@@ -1587,6 +1613,8 @@ impl Default for InvokeDpeMldsa87Req {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
+            flags: InvokeDpeMldsa87Flags::default(),
+            axi_response: AxiResponseInfo::default(),
             data_size: 0,
             data: [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE],
         }

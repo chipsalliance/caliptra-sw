@@ -835,17 +835,34 @@ Command Code: `0x4450_4543` ("DPEC")
 
 ### INVOKE\_DPE\_MLDSA87
 
-Invokes a serialized ML-DSA-87 DPE profile command.
+Invokes a serialized ML-DSA-87 DPE profile command. In subsystem mode a response
+can be DMA'ed to an external address. This is especially useful for large
+commands like `CertifyKey` or `DeriveContext` when exporting a CDI. Both of
+these responses contain a potentially large certificate/CSR. To use this
+feature, set the EXTERNAL_AXI_RESPONSE in `flags` and set the corresponding
+AXI address and size fields. The response over the mailbox will only contain a
+mailbox header (`chksum` and `fips_status`). The full response including the
+mailbox header will be found at the given address.
 
 Command Code: `0x4450_4543` ("DPEC")
 
 *Table: `INVOKE_DPE_MLDSA87` input arguments*
 
-| **Name**     | **Type**      | **Description**
-| --------     | --------      | ---------------
-| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| data\_size   | u32           | Length in bytes of the valid data in the data field.
-| data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile.
+| **Name**       | **Type** | **Description**                                                             |
+| -------------- | -------- | --------------------------------------------------------------------------- |
+| chksum         | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+| flags          | u32      | Flags to give configurations of the command.                                |
+| axi\_addr\_lo  | u32      | Lower word of the destination physical address.                             |
+| axi\_addr\_hi  | u32      | Upper word of the destination physical address.                             |
+| axi\_max\_size | u32      | Maximum DMA response size.                                                  |
+| data\_size     | u32      | Length in bytes of the valid data in the data field.                        |
+| data           | u8[...]  | DPE command structure as defined in the DPE iRoT profile.                   |
+
+*Table: `INVOKE_DPE_MLDSA87` input flags*
+
+| **Name**                | **Value** |
+| ----------------------- | --------- |
+| EXTERNAL\_AXI\_RESPONSE | 1 << 31   |
 
 *Table: `INVOKE_DPE_MLDSA87` output arguments*
 

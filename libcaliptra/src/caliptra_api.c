@@ -1166,23 +1166,13 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
     return pack_and_execute_command(&p, async);
 }
 
-/**
- * invoke_dpe_command
- *
- * @param[in] req Pointer to a valid caliptra_invoke_dpe_req struct
- * @param[out] resp Pointer to a valid caliptra_invoke_dpe_resp struct
- * @param[in] is_mldsa87 Boolean indicating whether to use MLDSA87 command
- * @param[in] async Boolean indicating whether to perform an asynchronous operation
- *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
-static int invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool is_mldsa87, bool async)
+// DPE ECDSA384 command
+int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
 {
     if (!req || !resp)
     {
         return INVALID_PARAMS;
     }
-    uint32_t command = is_mldsa87 ? OP_INVOKE_MLDSA87_DPE_COMMAND : OP_INVOKE_ECC384_DPE_COMMAND;
 
     // While it will likely cause no harm, there's no sense in writing more
     // to the FIFO than is absolutely required. This command can have a variable
@@ -1190,7 +1180,7 @@ static int invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct calipt
     uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) + req->data_size;
 
     struct parcel p = {
-        .command   = command,
+        .command   = OP_INVOKE_ECC384_DPE_COMMAND,
         .tx_buffer = (uint8_t*)req,
         .tx_bytes  = actual_bytes,
         .rx_buffer = (uint8_t*)resp,
@@ -1200,18 +1190,28 @@ static int invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct calipt
     return pack_and_execute_command(&p, async);
 }
 
-// DPE ECDSA384 command
-int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
-{
-    bool is_mldsa87 = false;
-    return invoke_dpe_command(req, resp, is_mldsa87, async);
-}
-
 // DPE MLDSA87 command
-int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
+int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_mldsa87_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
 {
-    bool is_mldsa87 = true;
-    return invoke_dpe_command(req, resp, is_mldsa87, async);
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    // While it will likely cause no harm, there's no sense in writing more
+    // to the FIFO than is absolutely required. This command can have a variable
+    // data buffer.
+    uint32_t actual_bytes = sizeof(req->hdr) + sizeof(uint32_t) * 5 + req->data_size;
+
+    struct parcel p = {
+        .command   = OP_INVOKE_MLDSA87_DPE_COMMAND,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
 }
 
 // Disable attestation
