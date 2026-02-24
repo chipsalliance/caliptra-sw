@@ -21,12 +21,14 @@ use caliptra_api::mailbox::{
     CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
     CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
     CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
-    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp,
-    CmShake256InitReq, CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk,
-    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
-    ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES,
-    MAX_CMB_DATA_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
+    CmMlkemDecapsulateReq, CmMlkemDecapsulateResp, CmMlkemEncapsulateReq, CmMlkemEncapsulateResp,
+    CmMlkemKeyGenReq, CmMlkemKeyGenResp, CmRandomGenerateReq, CmRandomGenerateResp,
+    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
+    CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq, CmShake256InitResp,
+    CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk, CommandId, MailboxReq,
+    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    MLKEM1024_ENCAPS_KEY_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -4105,4 +4107,369 @@ fn test_shake256_many() {
         populate_checksum(expected_resp.as_mut_bytes());
         assert_eq!(expected_resp.as_bytes(), resp_bytes.as_slice());
     }
+}
+
+#[test]
+fn test_mlkem_key_gen() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // ML-KEM seeds: seed_d (32 bytes) || seed_z (32 bytes) = 64 bytes total
+    let seed_bytes: [u8; 64] = [
+        // seed_d
+        0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
+        0x6d, 0x72, 0xc6, 0x9a, 0x9a, 0xab, 0xf9, 0x79, 0x90, 0xc5, 0x73, 0x21, 0x48, 0x46, 0xfe,
+        0x5b, 0x64, // seed_z
+        0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18, 0x29, 0x3a, 0x4b, 0x5c, 0x6d, 0x7e, 0x8f,
+        0x90, 0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a, 0xab, 0xbc, 0xcd, 0xde,
+        0xef, 0xf0,
+    ];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
+
+    let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    assert_eq!(
+        resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Verify the encaps key is not all zeros (it should be a valid key)
+    assert_ne!(resp.encaps_key, [0u8; MLKEM1024_ENCAPS_KEY_SIZE]);
+
+    // Verify determinism: same seeds should produce the same encaps key
+    let mut req2 = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req2.populate_chksum().unwrap();
+    let resp_bytes2 = model
+        .mailbox_execute(req2.cmd_code().into(), req2.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp2 = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes2.as_slice()).unwrap();
+    assert_eq!(resp.encaps_key, resp2.encaps_key);
+}
+
+#[test]
+fn test_mlkem_encapsulate_decapsulate() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // ML-KEM seeds: seed_d (32 bytes) || seed_z (32 bytes) = 64 bytes total
+    let seed_bytes: [u8; 64] = [
+        // seed_d
+        0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
+        0x6d, 0x72, 0xc6, 0x9a, 0x9a, 0xab, 0xf9, 0x79, 0x90, 0xc5, 0x73, 0x21, 0x48, 0x46, 0xfe,
+        0x5b, 0x64, // seed_z
+        0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18, 0x29, 0x3a, 0x4b, 0x5c, 0x6d, 0x7e, 0x8f,
+        0x90, 0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a, 0xab, 0xbc, 0xcd, 0xde,
+        0xef, 0xf0,
+    ];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
+
+    // Step 1: Generate key pair to get the encapsulation key
+    let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let key_gen_resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    assert_eq!(
+        key_gen_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Step 2: Encapsulate using the encapsulation key
+    let mut req = MailboxReq::CmMlkemEncapsulate(CmMlkemEncapsulateReq {
+        key_usage: CmKeyUsage::Aes.into(),
+        encaps_key: key_gen_resp.encaps_key,
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let encaps_resp = CmMlkemEncapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    assert_eq!(
+        encaps_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Verify ciphertext is not all zeros
+    assert_ne!(encaps_resp.ciphertext, [0u8; 1568]);
+
+    // Step 3: Decapsulate using the CMK (seeds) and the ciphertext
+    let decaps_req = CmMlkemDecapsulateReq {
+        key_usage: CmKeyUsage::Aes.into(),
+        cmk: cmk.clone(),
+        ciphertext: encaps_resp.ciphertext,
+        ..Default::default()
+    };
+    let mut req = MailboxReq::CmMlkemDecapsulate(decaps_req);
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let decaps_resp = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    assert_eq!(
+        decaps_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Verify both CMKs contain the same shared key by using one to encrypt
+    // and the other to decrypt.
+    let plaintext = [0x42u8; 16];
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        &encaps_resp.shared_key,
+        &[],
+        &plaintext,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+    let (success, decrypted) = mailbox_gcm_decrypt(
+        &mut model,
+        &decaps_resp.shared_key,
+        &iv,
+        &[],
+        &ciphertext,
+        &tag,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+    assert!(success, "Decryption with decapsulate CMK must succeed");
+    assert_eq!(
+        decrypted, plaintext,
+        "Shared keys from encapsulate and decapsulate must match"
+    );
+}
+
+#[test]
+fn test_mlkem_wrong_key_usage() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Import a key with MLDSA usage, then try to use it for MLKEM
+    let seed_bytes: [u8; 32] = [
+        0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
+        0x6d, 0x72, 0xc6, 0x9a, 0x9a, 0xab, 0xf9, 0x79, 0x90, 0xc5, 0x73, 0x21, 0x48, 0x46, 0xfe,
+        0x5b, 0x64,
+    ];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mldsa);
+
+    let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .expect_err("Should have failed with wrong key usage");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+}
+
+#[test]
+fn test_mlkem_multiple_encapsulate_decapsulate() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let seed_bytes: [u8; 64] = [
+        0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
+        0x6d, 0x72, 0xc6, 0x9a, 0x9a, 0xab, 0xf9, 0x79, 0x90, 0xc5, 0x73, 0x21, 0x48, 0x46, 0xfe,
+        0x5b, 0x64, 0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18, 0x29, 0x3a, 0x4b, 0x5c, 0x6d,
+        0x7e, 0x8f, 0x90, 0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a, 0xab, 0xbc,
+        0xcd, 0xde, 0xef, 0xf0,
+    ];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
+
+    // Get encaps key
+    let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let key_gen_resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Run multiple encapsulate/decapsulate cycles
+    for i in 0..5 {
+        let mut req = MailboxReq::CmMlkemEncapsulate(CmMlkemEncapsulateReq {
+            key_usage: CmKeyUsage::Aes.into(),
+            encaps_key: key_gen_resp.encaps_key,
+            ..Default::default()
+        });
+        req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+            .unwrap()
+            .expect("Should have gotten a response");
+        let encaps_resp = CmMlkemEncapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+        let mut req = MailboxReq::CmMlkemDecapsulate(CmMlkemDecapsulateReq {
+            key_usage: CmKeyUsage::Aes.into(),
+            cmk: cmk.clone(),
+            ciphertext: encaps_resp.ciphertext,
+            ..Default::default()
+        });
+        req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+            .unwrap()
+            .expect("Should have gotten a response");
+        let decaps_resp = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+        // Verify both CMKs yield the same shared key via AES-GCM round-trip
+        let plaintext = [0x42u8; 16];
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+            &mut model,
+            &encaps_resp.shared_key,
+            &[],
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
+        );
+        let (success, decrypted) = mailbox_gcm_decrypt(
+            &mut model,
+            &decaps_resp.shared_key,
+            &iv,
+            &[],
+            &ciphertext,
+            &tag,
+            MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
+        );
+        assert!(success, "Shared keys must match in iteration {i}");
+        assert_eq!(
+            decrypted, plaintext,
+            "Plaintext must match in iteration {i}"
+        );
+    }
+}
+
+#[test]
+fn test_mlkem_corrupt_ciphertext() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let seed_bytes: [u8; 64] = [
+        0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
+        0x6d, 0x72, 0xc6, 0x9a, 0x9a, 0xab, 0xf9, 0x79, 0x90, 0xc5, 0x73, 0x21, 0x48, 0x46, 0xfe,
+        0x5b, 0x64, 0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18, 0x29, 0x3a, 0x4b, 0x5c, 0x6d,
+        0x7e, 0x8f, 0x90, 0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a, 0xab, 0xbc,
+        0xcd, 0xde, 0xef, 0xf0,
+    ];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
+
+    // Get encaps key
+    let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let key_gen_resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Encapsulate
+    let mut req = MailboxReq::CmMlkemEncapsulate(CmMlkemEncapsulateReq {
+        key_usage: CmKeyUsage::Aes.into(),
+        encaps_key: key_gen_resp.encaps_key,
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let encaps_resp = CmMlkemEncapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Encrypt a known plaintext with the encapsulate shared key
+    let plaintext = [0x42u8; 16];
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        &encaps_resp.shared_key,
+        &[],
+        &plaintext,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+
+    // Corrupt the MLKEM ciphertext by flipping a byte
+    let mut corrupt_ciphertext = encaps_resp.ciphertext;
+    corrupt_ciphertext[0] ^= 0xff;
+
+    // Decapsulate with corrupt ciphertext — ML-KEM uses implicit rejection,
+    // so decapsulation succeeds but produces a different shared key.
+    let mut req = MailboxReq::CmMlkemDecapsulate(CmMlkemDecapsulateReq {
+        key_usage: CmKeyUsage::Aes.into(),
+        cmk: cmk.clone(),
+        ciphertext: corrupt_ciphertext,
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let decaps_resp = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    assert_eq!(
+        decaps_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // The shared key should NOT match when ciphertext is corrupted —
+    // decrypting data encrypted with the encaps key using the corrupt
+    // decaps key must fail the GCM authentication tag check.
+    let (success, _) = mailbox_gcm_decrypt(
+        &mut model,
+        &decaps_resp.shared_key,
+        &iv,
+        &[],
+        &ciphertext,
+        &tag,
+        MAX_CMB_DATA_SIZE,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+    assert!(
+        !success,
+        "Shared keys must differ when ciphertext is corrupted (implicit rejection)"
+    );
 }

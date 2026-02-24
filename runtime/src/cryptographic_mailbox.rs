@@ -34,13 +34,16 @@ use caliptra_common::{
         CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
         CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq,
         CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
-        CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
-        CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
+        CmMlkemDecapsulateReq, CmMlkemDecapsulateResp, CmMlkemEncapsulateReq,
+        CmMlkemEncapsulateResp, CmMlkemKeyGenReq, CmMlkemKeyGenResp, CmRandomGenerateReq,
+        CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
+        CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
         CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
         MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
         CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
         CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
         CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+        MLKEM1024_SHARED_KEY_SIZE,
     },
 };
 use caliptra_drivers::{
@@ -48,9 +51,11 @@ use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x3, LEArray4x4, LEArray4x8,
-    Mldsa87Result, Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES,
-    AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
+    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x3, LEArray4x392, LEArray4x4,
+    LEArray4x8, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed, PersistentDataAccessor,
+    Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
+    MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -61,6 +66,7 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
 pub const MLDSA_SEED_SIZE: usize = 32;
+pub const MLKEM_SEED_SIZE: usize = 32;
 
 // We have 24 bits for the key ID.
 const MAX_KEY_ID: u32 = 0xffffff;
@@ -510,6 +516,7 @@ impl Commands {
             (CmKeyUsage::Aes | CmKeyUsage::Mldsa, 32) => (),
             (CmKeyUsage::Ecdsa, 48) => (),
             (CmKeyUsage::Hmac, 48 | 64) => (),
+            (CmKeyUsage::Mlkem, 64) => (),
             _ => Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?,
         }
 
@@ -2391,6 +2398,166 @@ impl Commands {
                 Err(CaliptraError::RUNTIME_MAILBOX_SIGNATURE_MISMATCH)?
             }
         }
+    }
+
+    /// Wraps a raw shared key into an encrypted CMK, following the same
+    /// pattern as `ecdh_finish`.
+    fn wrap_shared_key_as_cmk(
+        drivers: &mut Drivers,
+        raw_key: &[u8; MLKEM1024_SHARED_KEY_SIZE],
+        key_usage: CmKeyUsage,
+    ) -> CaliptraResult<EncryptedCmk> {
+        let mut unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: MLKEM1024_SHARED_KEY_SIZE as u16,
+            key_usage: key_usage as u32 as u8,
+            id: if matches!(key_usage, CmKeyUsage::Aes) {
+                drivers.cryptographic_mailbox.add_counter()?
+            } else {
+                [0u8; 3]
+            },
+            usage_counter: 0,
+            key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
+        };
+        unencrypted_cmk.key_material[..MLKEM1024_SHARED_KEY_SIZE].copy_from_slice(raw_key);
+
+        drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )
+    }
+
+    fn decrypt_mlkem_seeds(
+        drivers: &mut Drivers,
+        cmk: &MailboxCmk,
+    ) -> CaliptraResult<(MlKem1024Seed, MlKem1024Seed)> {
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Mlkem) {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let seed_d = &cmk.key_material[..MLKEM_SEED_SIZE];
+        let seed_d: &[u8; MLKEM_SEED_SIZE] = seed_d.try_into().unwrap();
+        let seed_z = &cmk.key_material[MLKEM_SEED_SIZE..MLKEM_SEED_SIZE * 2];
+        let seed_z: &[u8; MLKEM_SEED_SIZE] = seed_z.try_into().unwrap();
+        Ok((seed_d.into(), seed_z.into()))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn mlkem_key_gen(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() != core::mem::size_of::<CmMlkemKeyGenReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let cmd = CmMlkemKeyGenReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
+        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
+        let (encaps_key, _decaps_key) = drivers.ml_kem.key_pair(seeds)?;
+
+        let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        let encaps_key_bytes: [u8; 1568] = (&encaps_key).into();
+        resp.encaps_key.copy_from_slice(&encaps_key_bytes);
+        Ok(core::mem::size_of::<CmMlkemKeyGenResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn mlkem_encapsulate(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() != core::mem::size_of::<CmMlkemEncapsulateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let cmd = CmMlkemEncapsulateReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let key_usage: CmKeyUsage = cmd.key_usage.into();
+        if key_usage == CmKeyUsage::Reserved {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let encaps_key: LEArray4x392 = (&cmd.encaps_key).into();
+
+        // Generate random message from TRNG
+        let message = {
+            let mut message = MlKem1024Message::default();
+            let rnd = drivers.trng.generate()?;
+            message.0[..].clone_from_slice(&rnd.0[..8]);
+            message
+        };
+
+        let mut shared_key = MlKem1024SharedKey::default();
+        let ciphertext = drivers.ml_kem.encapsulate(
+            &encaps_key,
+            MlKem1024MessageSource::Array(&message),
+            MlKem1024SharedKeyOut::Array(&mut shared_key),
+        )?;
+
+        let shared_key_bytes: [u8; 32] = (&shared_key).into();
+        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage)?;
+
+        let resp = mutrefbytes::<CmMlkemEncapsulateResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        let ciphertext_bytes: [u8; 1568] = (&ciphertext).into();
+        resp.ciphertext.copy_from_slice(&ciphertext_bytes);
+        resp.shared_key = transmute!(encrypted_cmk);
+        Ok(core::mem::size_of::<CmMlkemEncapsulateResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn mlkem_decapsulate(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() != core::mem::size_of::<CmMlkemDecapsulateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let cmd = CmMlkemDecapsulateReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let key_usage: CmKeyUsage = cmd.key_usage.into();
+        if key_usage == CmKeyUsage::Reserved {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
+        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
+        let ciphertext: LEArray4x392 = (&cmd.ciphertext).into();
+
+        let mut shared_key = MlKem1024SharedKey::default();
+        drivers.ml_kem.keygen_decapsulate(
+            seeds,
+            &ciphertext,
+            MlKem1024SharedKeyOut::Array(&mut shared_key),
+        )?;
+
+        let shared_key_bytes: [u8; 32] = (&shared_key).into();
+        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage)?;
+
+        let resp = mutrefbytes::<CmMlkemDecapsulateResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.shared_key = transmute!(encrypted_cmk);
+        Ok(core::mem::size_of::<CmMlkemDecapsulateResp>())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
