@@ -3,7 +3,7 @@
 use crate::common::{
     execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, CertifyKeyCommandNoRef,
     CreateCertifyKeyCmdArgs, CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef,
-    TEST_DIGEST, TEST_LABEL, TEST_SD_MU, TEST_SD_SHA384,
+    TEST_DIGEST, TEST_LABEL, TEST_MU, TEST_SD_MU, TEST_SD_SHA384,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
@@ -26,10 +26,7 @@ use dpe::{
     context::ContextHandle,
     response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
 };
-use fips204::{
-    ml_dsa_87::PublicKey,
-    traits::{SerDes, Verifier},
-};
+use ml_dsa_01::{EncodedSignature, EncodedVerifyingKey, Signature, VerifyingKey};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -164,9 +161,12 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
                 Response::Sign(SignResp::MlDsa(sign_resp)),
                 Response::CertifyKey(CertifyKeyResp::Mldsa87(certify_key_resp)),
             ) => {
-                let public_key = PublicKey::try_from_bytes(certify_key_resp.pubkey).unwrap();
-
-                assert!(public_key.verify(data.as_slice(), &sign_resp.sig, &[]));
+                let encoded_vk =
+                    EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(certify_key_resp.pubkey);
+                let vk = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&encoded_vk);
+                let encoded_sig = EncodedSignature::<ml_dsa_01::MlDsa87>::from(sign_resp.sig);
+                let sig = Signature::decode(&encoded_sig).unwrap();
+                assert!(vk.verify_mu(&TEST_MU.into(), &sig));
             }
             _ => panic!("Wrong response type!"),
         }
