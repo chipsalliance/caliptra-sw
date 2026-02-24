@@ -43,6 +43,13 @@ const _: () = assert!(CMB_ECDH_CONTEXT_SIZE + 12 + 16 == CMB_ECDH_ENCRYPTED_CONT
 pub const CMB_ECDH_EXCHANGE_DATA_MAX_SIZE: usize = 96; // = 48 * 2;
 const _: () = assert!(CMB_ECDH_CONTEXT_SIZE * 2 == CMB_ECDH_EXCHANGE_DATA_MAX_SIZE);
 pub const CMB_HMAC_MAX_SIZE: usize = 64; // SHA512 digest size
+/// Plaintext size for the CMB SHAKE256 context (u128 session token).
+pub const CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE: usize = 16;
+/// Encrypted context size for the CMB SHAKE256 commands.
+pub const CMB_SHAKE256_CONTEXT_SIZE: usize = 44; // = plaintext size + 12 bytes IV + 16 bytes tag
+const _: () = assert!(CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE + 12 + 16 == CMB_SHAKE256_CONTEXT_SIZE);
+/// Maximum digest size for SHAKE256 (64 bytes).
+pub const SHAKE256_MAX_DIGEST_BYTE_SIZE: usize = 64;
 
 /// The max number of HPKE handles that OCP LOCK can manage.
 pub const OCP_LOCK_MAX_HPKE_HANDLES: usize = 3;
@@ -220,6 +227,9 @@ impl CommandId {
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
     pub const CM_SHA: Self = Self(0x434D_5348); // "CMSH"
+    pub const CM_SHAKE256_INIT: Self = Self(0x434D_5849); // "CMXI"
+    pub const CM_SHAKE256_UPDATE: Self = Self(0x434D_5855); // "CMXU"
+    pub const CM_SHAKE256_FINAL: Self = Self(0x434D_5846); // "CMXF"
 
     // OCP LOCK Commands
     pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
@@ -352,6 +362,8 @@ pub enum MailboxResp {
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
     CmSha(CmShaResp),
+    CmShake256Init(CmShake256InitResp),
+    CmShake256Final(CmShake256FinalResp),
     CmRandomGenerate(CmRandomGenerateResp),
     CmAesEncryptInit(CmAesEncryptInitResp),
     CmAesEncryptUpdate(CmAesResp),
@@ -431,6 +443,8 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmSha(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmShake256Init(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmShake256Final(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesEncryptInit(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesEncryptUpdate(resp) => resp.as_bytes_partial(),
@@ -508,6 +522,8 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmSha(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmShake256Init(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmShake256Final(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesEncryptInit(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
@@ -647,6 +663,9 @@ pub enum MailboxReq {
     CmShaInit(CmShaInitReq),
     CmShaUpdate(CmShaUpdateReq),
     CmShaFinal(CmShaFinalReq),
+    CmShake256Init(CmShake256InitReq),
+    CmShake256Update(CmShake256UpdateReq),
+    CmShake256Final(CmShake256FinalReq),
     CmRandomGenerate(CmRandomGenerateReq),
     CmRandomStir(CmRandomStirReq),
     CmAesEncryptInit(CmAesEncryptInitReq),
@@ -742,6 +761,9 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
+            MailboxReq::CmShake256Init(req) => req.as_bytes_partial(),
+            MailboxReq::CmShake256Update(req) => req.as_bytes_partial(),
+            MailboxReq::CmShake256Final(req) => req.as_bytes_partial(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial(),
             MailboxReq::CmAesEncryptInit(req) => req.as_bytes_partial(),
@@ -835,6 +857,9 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmShake256Init(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmShake256Update(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmShake256Final(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesEncryptInit(req) => req.as_bytes_partial_mut(),
@@ -928,6 +953,9 @@ impl MailboxReq {
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
+            MailboxReq::CmShake256Init(_) => CommandId::CM_SHAKE256_INIT,
+            MailboxReq::CmShake256Update(_) => CommandId::CM_SHAKE256_UPDATE,
+            MailboxReq::CmShake256Final(_) => CommandId::CM_SHAKE256_FINAL,
             MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
             MailboxReq::CmRandomStir(_) => CommandId::CM_RANDOM_STIR,
             MailboxReq::CmAesEncryptInit(_) => CommandId::CM_AES_ENCRYPT_INIT,
@@ -2683,6 +2711,174 @@ impl Default for CmShaFinalResp {
 }
 
 impl ResponseVarSize for CmShaFinalResp {}
+
+// CM_SHAKE256_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256InitReq {
+    pub hdr: MailboxReqHeader,
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShake256InitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShake256InitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShake256InitReq {
+    const ID: CommandId = CommandId::CM_SHAKE256_INIT;
+    type Resp = CmShake256InitResp;
+}
+
+// Note: CmShake256InitResp is also used as the response for CM_SHAKE256_UPDATE,
+// since both return the same encrypted context structure.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256InitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+}
+
+impl Default for CmShake256InitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmShake256InitResp {}
+
+// CM_SHAKE256_UPDATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256UpdateReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShake256UpdateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShake256UpdateReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShake256UpdateReq {
+    const ID: CommandId = CommandId::CM_SHAKE256_UPDATE;
+    type Resp = CmShake256InitResp; // Reuse init response (returns updated context).
+}
+
+// CM_SHAKE256_FINAL
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256FinalReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShake256FinalReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShake256FinalReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShake256FinalReq {
+    const ID: CommandId = CommandId::CM_SHAKE256_FINAL;
+    type Resp = CmShake256FinalResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256FinalResp {
+    pub hdr: MailboxRespHeader,
+    pub hash: [u8; SHAKE256_MAX_DIGEST_BYTE_SIZE],
+}
+
+impl Default for CmShake256FinalResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            hash: [0u8; SHAKE256_MAX_DIGEST_BYTE_SIZE],
+        }
+    }
+}
+
+impl Response for CmShake256FinalResp {}
 
 // CM_SHA (one-shot SHA384/SHA512 hash)
 #[repr(C)]

@@ -420,6 +420,15 @@ fn execute_command(
         CommandId::CM_SHA_FINAL => {
             cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_SHAKE256_INIT => {
+            cryptographic_mailbox::Commands::shake256_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_SHAKE256_UPDATE => {
+            cryptographic_mailbox::Commands::shake256_update(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_SHAKE256_FINAL => {
+            cryptographic_mailbox::Commands::shake256_final(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_RANDOM_GENERATE => {
             cryptographic_mailbox::Commands::random_generate(drivers, cmd_bytes, resp)
         }

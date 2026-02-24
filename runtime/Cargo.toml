@@ -73,6 +73,7 @@ ml-dsa.workspace = true
 openssl.workspace = true
 p384.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
+sha3.workspace = true
 spki.workspace = true
 cms.workspace = true
 rand.workspace = true

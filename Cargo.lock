@@ -960,6 +960,7 @@ dependencies = [
  "platform",
  "rand",
  "sha2",
+ "sha3 0.10.8",
  "spki 0.7.3",
  "ufmt",
  "ureg",
