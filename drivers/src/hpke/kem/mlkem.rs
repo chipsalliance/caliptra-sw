@@ -110,7 +110,7 @@ impl MlKem {
 
     /// Creates an ML-KEM object without first conditioning it with a KDF
     /// This should only be used for hybrid KEMs.
-    pub fn derive_key_pair_raw(ikm: [u8; Self::NSK]) -> Self {
+    pub(super) fn derive_key_pair_raw(ikm: [u8; Self::NSK]) -> Self {
         Self { ikm }
     }
 }

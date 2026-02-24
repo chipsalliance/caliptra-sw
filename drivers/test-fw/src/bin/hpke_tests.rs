@@ -55,10 +55,9 @@ test_suite! {
     test_ml_kem_1024_self_talk,
     test_p384_self_talk,
     test_p384_test_vector,
+    test_p384_public_key_curve_validation,
     test_hybrid_test_vector,
     test_hybrid_self_talk,
-    // Keep this test case last
-    test_p384_public_key_curve_validation,
 }
 
 fn test_ml_kem_1024_test_vector() {
@@ -297,7 +296,9 @@ fn test_hybrid_test_vector() {
         &mut regs.hmac,
     );
     let ikm = <[u8; 32]>::try_from(HYBRID_TEST_VECTOR.ikm_r).unwrap();
-    let mut kem = MlKem1024P384::new(ikm, trad);
+    // SAFETY: This API is unsafe to discourage usage in firmware. It's used here to verify the
+    // HPKE implementation against a known test vector.
+    let mut kem = unsafe { MlKem1024P384::new(ikm, trad) };
 
     let pk_r = kem.serialize_public_key(&mut kem_ctx).unwrap();
     let pk_rm: &[u8] = pk_r.as_ref();

@@ -105,7 +105,7 @@ impl P384 {
 
     // Derive a key pair without first running through a KDF.
     // For use in Hybrid KEMs
-    pub fn derive_key_pair_raw(
+    pub(super) fn derive_key_pair_raw(
         ctx: &mut P384KemContext<'_>,
         seed: &[u8; Self::NSK],
     ) -> CaliptraResult<Self> {
@@ -132,7 +132,7 @@ impl P384 {
 
     /// The `encap` operation with no KDF applied to the shared secret.
     /// Hybrid KEMs need the raw shared secret of the KEM algorithm.
-    pub fn raw_encap(
+    pub(super) fn raw_encap(
         &mut self,
         ctx: &mut P384KemContext<'_>,
         encaps_key: &P384EncapsulationKey,
@@ -163,7 +163,7 @@ impl P384 {
 
     /// The `decap` operation with no KDF applied to the shared secret.
     /// Hybrid KEMs need the raw shared secret of the KEM algorithm.
-    pub fn raw_decap(
+    pub(super) fn raw_decap(
         &mut self,
         ctx: &mut P384KemContext<'_>,
         enc: &P384EncapsulatedSecret,
