@@ -1357,3 +1357,65 @@ fn test_fmc_wdt_timeout() {
         assert_eq!(error_internal_intr_r, 0b01000000);
     }
 }
+
+/// Test that flash-based boot works: firmware is loaded from flash by MCU ROM
+/// via AXI bypass into the recovery interface, instead of streaming via I3C/BMC.
+#[cfg(feature = "fpga_subsystem")]
+#[test]
+fn smoke_test_flash_boot() {
+    use caliptra_hw_model::flash_image::build_flash_image_bytes;
+    use caliptra_hw_model::SubsystemInitParams;
+
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let fw_svn = 1;
+
+    let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(true).unwrap();
+
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART_FPGA,
+        ImageOptions {
+            fw_svn,
+            pqc_key_type,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let image_bytes = image.to_bytes().unwrap();
+    let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
+    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
+    let soc_manifest_bytes = default_soc_manifest_bytes(pqc_key_type, fw_svn);
+
+    // Build the flash image containing all firmware components
+    let flash_image = build_flash_image_bytes(
+        Some(&image_bytes),
+        Some(&soc_manifest_bytes),
+        Some(&DEFAULT_MCU_FW),
+    );
+
+    let fuses = Fuses {
+        vendor_pk_hash: vendor_pk_desc_hash_words,
+        fuse_pqc_key_type: pqc_key_type as u32,
+        ..Default::default()
+    };
+
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            fuses,
+            rom: &rom,
+            security_state: *SecurityState::default()
+                .set_debug_locked(true)
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            ss_init_params: SubsystemInitParams {
+                primary_flash_initial_contents: Some(&flash_image),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    hw.step_until_output_contains("[rt] RT listening for mailbox commands...\n")
+        .unwrap();
+}
