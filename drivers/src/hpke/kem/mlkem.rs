@@ -7,9 +7,9 @@ use crate::{
         kdf,
         suites::{CipherSuite, KemId},
     },
-    LEArray4x392, MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey,
-    MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, Sha3, Trng,
+    Array4x16, LEArray4x392, MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey,
+    MlKem1024EncapsKey, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, Sha3, Trng,
 };
 
 use super::{DecapsulationKey, EncapsulatedSecret, EncapsulationKey, Kem, SharedSecret};
@@ -107,6 +107,12 @@ impl MlKem {
     pub const NENC: usize = 1568;
     pub const NPK: usize = 1568;
     pub const NSECRET: usize = 32;
+
+    /// Creates an ML-KEM object without first conditioning it with a KDF
+    /// This should only be used for hybrid KEMs.
+    pub fn derive_key_pair_raw(ikm: [u8; Self::NSK]) -> Self {
+        Self { ikm }
+    }
 }
 
 impl MlKem {
@@ -146,14 +152,14 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         ctx: &mut Self::CONTEXT<'_>,
         ikm: &[u8; MlKem::NSK],
     ) -> CaliptraResult<Self> {
-        let ikm = kdf::Shake256::labeled_derive(
+        let ikm: Array4x16 = kdf::Shake256::<{ MlKem::NSK as u16 }>::labeled_derive(
             ctx.sha,
             CipherSuite::Kem(Self::KEM_ID),
             ikm,
             b"DeriveKeyPair",
             b"",
         )?;
-        Ok(Self { ikm })
+        Ok(Self { ikm: ikm.into() })
     }
 
     fn encap(

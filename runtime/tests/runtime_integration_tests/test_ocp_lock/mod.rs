@@ -55,6 +55,7 @@ mod test_unload_mek;
 const ALL_HPKE_ALGS: &[HpkeAlgorithms] = &[
     HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
     HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM,
+    HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM,
 ];
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
@@ -421,6 +422,9 @@ fn verify_endorsement_certificate(
         HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
             assert_eq!(kem_id, 0x0042);
         }
+        HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            assert_eq!(kem_id, 0x0051);
+        }
         HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
             assert_eq!(kem_id, 0x0011);
         }
@@ -446,6 +450,10 @@ fn encrypt_message_to_hpke_pub_key(
         }
         HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
             let hpke = hpke::HpkeP384::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeHybrid::generate_key_pair();
             hpke.setup_base_s(&endorsed_key.pub_key, info)
         }
         _ => panic!("Unknown HPKE algorithm"),
@@ -498,6 +506,10 @@ fn create_rewrap_mpk_req(
     let (enc, mut sender_ctx) = match endorsed_key.hpke_handle.hpke_algorithm {
         HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
             let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+            hpke.setup_base_s(&endorsed_key.pub_key, info)
+        }
+        HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+            let hpke = hpke::HpkeHybrid::generate_key_pair();
             hpke.setup_base_s(&endorsed_key.pub_key, info)
         }
         HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {

@@ -12,10 +12,9 @@ Abstract:
 
 --*/
 
-// use crate::helpers::EndianessTransform;
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
-    Shake256,
+    Digest, Sha3_256, Shake256,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -74,10 +73,15 @@ impl From<u32> for Sha3Strength {
 
 const DIGEST_SIZE: usize = 200;
 
+enum Sha3Variant {
+    Shake256(Shake256),
+    Sha3_256(Sha3_256),
+}
+
 /// SHA-3
 pub struct Sha3 {
     /// Hasher
-    hasher: Option<Shake256>,
+    hasher: Option<Sha3Variant>,
 
     /// Output digest
     digest: [u8; DIGEST_SIZE],
@@ -105,32 +109,47 @@ impl Sha3 {
 
     /// Set hashing algorithm.
     pub fn set_hasher(&mut self, mode: Sha3Mode, strength: Sha3Strength) {
-        if mode != Sha3Mode::SHAKE || strength != Sha3Strength::L256 {
-            todo!("Only SHAKE256 implemented currently");
+        match (mode, strength) {
+            (Sha3Mode::SHAKE, Sha3Strength::L256) => {
+                self.hasher = Some(Sha3Variant::Shake256(Shake256::default()));
+            }
+            (Sha3Mode::SHA3, Sha3Strength::L256) => {
+                self.hasher = Some(Sha3Variant::Sha3_256(Sha3_256::default()));
+            }
+            _ => todo!("Requested SHA3 variant not yet implemented in emulator"),
         }
-
-        self.hasher = Some(Shake256::default());
     }
 
     /// Write data to hasher.
     pub fn update(&mut self, data: &[u8]) -> bool {
-        if let Some(ref mut hasher) = &mut self.hasher {
-            hasher.update(data);
-            return true;
+        match &mut self.hasher {
+            Some(Sha3Variant::Shake256(h)) => {
+                Update::update(h, data);
+                true
+            }
+            Some(Sha3Variant::Sha3_256(h)) => {
+                Update::update(h, data);
+                true
+            }
+            None => false,
         }
-
-        false
     }
 
     /// Write hash to digest.
     pub fn finalize(&mut self) -> bool {
-        if let Some(hasher) = &self.hasher {
-            let mut reader = hasher.clone().finalize_xof();
-            reader.read(&mut self.digest);
-            return true;
+        match &self.hasher {
+            Some(Sha3Variant::Shake256(h)) => {
+                let mut reader = h.clone().finalize_xof();
+                reader.read(&mut self.digest);
+                true
+            }
+            Some(Sha3Variant::Sha3_256(h)) => {
+                let result = h.clone().finalize();
+                self.digest[..32].copy_from_slice(&result);
+                true
+            }
+            None => false,
         }
-
-        false
     }
 
     pub fn digest(&self) -> [u8; DIGEST_SIZE] {
@@ -150,7 +169,7 @@ mod tests {
     #[should_panic]
     fn test_invalid_mode() {
         let mut sha3 = Sha3::new();
-        sha3.set_hasher(Sha3Mode::SHA3, Sha3Strength::L256);
+        sha3.set_hasher(Sha3Mode::SHA3, Sha3Strength::L512);
     }
 
     #[test]

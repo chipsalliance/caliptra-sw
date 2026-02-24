@@ -53,6 +53,14 @@ impl HpkeCipherSuite {
         AeadId::AES_256_GCM,
     );
 
+    /// ML_KEM + P-384 based ciphersuite
+    pub const ML_KEM_1024_P384: Self = Self::new(
+        HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM,
+        KemId::ML_KEM_1024_P384,
+        KdfId::HKDF_SHA384,
+        AeadId::AES_256_GCM,
+    );
+
     /// P-384 based ciphersuite
     pub const P_384: Self = Self::new(
         HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM,
@@ -107,6 +115,10 @@ impl KemId {
     pub const ML_KEM_1024: Self = Self {
         value: 0x0042,
         serialized_be: [0x00, 0x42],
+    };
+    pub const ML_KEM_1024_P384: Self = Self {
+        value: 0x0051,
+        serialized_be: [0x00, 0x51],
     };
     pub const P_384: Self = Self {
         value: 0x0011,

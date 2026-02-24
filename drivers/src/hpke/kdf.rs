@@ -1,20 +1,21 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_error::{CaliptraError, CaliptraResult};
+use zerocopy::IntoBytes;
 
 use crate::{
     hkdf::{hkdf_expand_ext, hkdf_extract_ext},
-    Array4x12, Array4x16, Hmac, HmacKey, HmacMode, HmacTag, Sha3, Trng,
+    Array4x12, Array4xN, Hmac, HmacKey, HmacMode, HmacTag, Sha3, Trng,
 };
 
 use super::{
     aead::{Aes256GCM, EncryptionKey, Nonce},
     encryption_context::ExporterSecret,
-    kem::{MlKem, SharedSecret},
+    kem::SharedSecret,
     suites::{CipherSuite, HpkeCipherSuite},
 };
 
-use zerocopy::{Immutable, IntoBytes, KnownLayout};
+use zerocopy::{Immutable, KnownLayout};
 
 /// Represents the key schedule context as described in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#name-creating-the-encryption-con
 #[repr(C, packed)]
@@ -227,41 +228,38 @@ impl Hmac384<'_> {
     }
 }
 
-/// HPKE `DeriveKeyPair` uses a SHAKE256 KDF to derive a 64 byte seed for ML-KEM.
+/// HPKE `DeriveKeyPair` uses a SHAKE256 KDF to derive a seed for ML-KEM & Hybrid KEMs
 ///
 /// https://www.ietf.org/archive/id/draft-ietf-hpke-pq-03.html#section-3
-pub struct Shake256<const NSK: usize>;
+/// https://www.ietf.org/archive/id/draft-ietf-hpke-pq-03.html#section-4
+pub struct Shake256<const NSK: u16>;
 
-impl Shake256<{ MlKem::NSK }> {
+impl<const NSK: u16> Shake256<NSK> {
     /// Implements labeled derive as described in
     /// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#name-cryptographic-dependencies.
-    pub fn labeled_derive(
+    pub fn labeled_derive<const W: usize, const B: usize>(
         shake: &mut Sha3,
         suite_id: CipherSuite,
         ikm: &[u8],
         label: &[u8],
         context: &[u8],
-    ) -> CaliptraResult<[u8; MlKem::NSK]> {
+    ) -> CaliptraResult<Array4xN<W, B>> {
         let label_len = u16::try_from(label.len())
             .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_SHAKE_INVALID_LABEL_LEN)?
             .to_be_bytes();
 
         // Truncate NSK to a u16.
-        // `MlKem::NSK` is `64` so this will always fit.
-        let l = (MlKem::NSK as u16).to_be_bytes();
+        let l = NSK.to_be_bytes();
 
-        let output: Array4x16 = {
-            let mut digest_op = shake.shake256_digest_init()?;
-            digest_op.update(ikm)?;
-            digest_op.update(b"HPKE-v1")?;
-            digest_op.update(suite_id.ikm_prefix())?;
-            digest_op.update(suite_id.as_ref())?;
-            digest_op.update(&label_len)?;
-            digest_op.update(label)?;
-            digest_op.update(&l)?;
-            digest_op.update(context)?;
-            digest_op.finalize()?
-        };
-        Ok(output.into())
+        let mut digest_op = shake.shake256_digest_init()?;
+        digest_op.update(ikm)?;
+        digest_op.update(b"HPKE-v1")?;
+        digest_op.update(suite_id.ikm_prefix())?;
+        digest_op.update(suite_id.as_ref())?;
+        digest_op.update(&label_len)?;
+        digest_op.update(label)?;
+        digest_op.update(&l)?;
+        digest_op.update(context)?;
+        digest_op.finalize()
     }
 }

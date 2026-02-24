@@ -151,6 +151,11 @@ pub struct TestVector {
             "MLKEM_TEST_VECTOR",
         ),
         (
+            0x51,
+            "../../test/src/crypto/test_vectors/hpke-pq.json",
+            "HYBRID_TEST_VECTOR",
+        ),
+        (
             0x11,
             "../../test/src/crypto/test_vectors/hpke-p384.json",
             "P384_TEST_VECTOR",
