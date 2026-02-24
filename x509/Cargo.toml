@@ -4,26 +4,12 @@
 name = "caliptra-x509"
 version = "0.1.0"
 edition = "2021"
-build = "build/build.rs"
 
 [lib]
 doctest = false
 
 [dependencies]
 zeroize.workspace = true
-
-[build-dependencies]
-asn1 = { workspace = true, optional = true }
-bitfield = { workspace = true, optional = true }
-convert_case = { workspace = true, optional = true }
-der = { workspace = true, optional = true }
-hex = { workspace = true, optional = true }
-openssl = { workspace = true, optional = true }
-quote = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
-syn = { workspace = true, optional = true }
-x509-cert = { workspace = true, optional = true }
-const-oid = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex.workspace = true
@@ -34,4 +20,3 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 std = []
-generate_templates = ["dep:asn1", "dep:bitfield", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:syn", "dep:rand", "dep:x509-cert", "dep:const-oid"]

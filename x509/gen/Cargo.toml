@@ -1,0 +1,23 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-x509-gen"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "generate-templates"
+path = "src/main.rs"
+
+[dependencies]
+asn1.workspace = true
+bitfield.workspace = true
+convert_case.workspace = true
+der.workspace = true
+hex.workspace = true
+openssl.workspace = true
+quote.workspace = true
+rand.workspace = true
+syn.workspace = true
+x509-cert.workspace = true
+const-oid.workspace = true

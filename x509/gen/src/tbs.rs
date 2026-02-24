@@ -78,7 +78,6 @@ impl TbsTemplate {
 /// Initialize template parameter with its offset
 pub fn init_param(needle: &[u8], haystack: &[u8], param: TbsParam) -> TbsParam {
     assert_eq!(needle.len(), param.len);
-    eprintln!("{}", param.name);
     // Throw an error if there are multiple instances of our "needle"
     // This could lead to incorrect offsets in the cert template
     if haystack.windows(param.len).filter(|w| *w == needle).count() > 1 {
@@ -114,7 +113,6 @@ pub fn sanitize(param: TbsParam, buf: &mut [u8]) -> TbsParam {
 ///
 /// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
 /// artifact
-#[cfg(feature = "std")]
 pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
     if der[0] != 0x30 {
         panic!("Invalid DER start tag");

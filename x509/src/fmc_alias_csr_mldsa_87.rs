@@ -13,9 +13,6 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-#[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_tbs_ml_dsa_87.rs"));
-#[cfg(not(feature = "generate_templates"))]
 include! {"../build/fmc_alias_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
@@ -215,22 +212,5 @@ mod tests {
             })
             .unwrap();
         assert!(!multi_tcb_info.critical);
-    }
-
-    #[test]
-    #[cfg(feature = "generate_templates")]
-    fn test_fmc_alias_csr_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_tbs_ml_dsa_87.rs")).unwrap();
-        let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-            env!("OUT_DIR"),
-            "/fmc_alias_tbs_ml_dsa_87.rs"
-        )))
-        .unwrap();
-        if auto_generated_template != manual_template {
-            panic!(
-                "Auto-generated FMC Alias CSR MLDSA template is not equal to the manual template."
-            )
-        }
     }
 }

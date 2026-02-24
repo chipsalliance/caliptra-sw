@@ -4,74 +4,60 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    build.rs
+    main.rs
 
 Abstract:
 
-    File contains the entry point for build time script used for generating various X509 artifacts
-    used by Caliptra Firmware.
+    Binary that generates X509 TBS templates used by Caliptra firmware.
+    Outputs directly to x509/build/ and x509/src/.
+
+    Usage: cargo run -p caliptra-x509-gen
 
 --*/
 
-#[cfg(feature = "generate_templates")]
 mod cert;
-#[cfg(feature = "generate_templates")]
 mod code_gen;
-#[cfg(feature = "generate_templates")]
 mod csr;
-#[cfg(feature = "generate_templates")]
 mod tbs;
-#[cfg(feature = "generate_templates")]
 mod x509;
-#[cfg(feature = "generate_templates")]
 mod x509_cert;
 
-#[cfg(feature = "generate_templates")]
-use {
-    code_gen::CodeGen,
-    std::env,
-    x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage, MlDsa87Algo},
-};
+use code_gen::CodeGen;
+use x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage, MlDsa87Algo};
 
 // Version strings
-#[cfg(feature = "generate_templates")]
 const IDEVID_ECC384: &str = "Caliptra 2.1 Ecc384 IDevID";
-#[cfg(feature = "generate_templates")]
 const IDEVID_MLDSA87: &str = "Caliptra 2.1 MlDsa87 IDevID";
-#[cfg(feature = "generate_templates")]
 const LDEVID_ECC384: &str = "Caliptra 2.1 Ecc384 LDevID";
-#[cfg(feature = "generate_templates")]
 const LDEVID_MLDSA87: &str = "Caliptra 2.1 MlDsa87 LDevID";
-#[cfg(feature = "generate_templates")]
 const FMC_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 FMC Alias";
-#[cfg(feature = "generate_templates")]
 const FMC_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 FMC Alias";
-#[cfg(feature = "generate_templates")]
 const RT_ALIAS_ECC384: &str = "Caliptra 2.1 Ecc384 Rt Alias";
-#[cfg(feature = "generate_templates")]
 const RT_ALIAS_MLDSA87: &str = "Caliptra 2.1 MlDsa87 Rt Alias";
 
-// Main Entry point
 fn main() {
-    #[cfg(feature = "generate_templates")]
-    {
-        let out_dir_os_str = env::var_os("OUT_DIR").unwrap();
-        let out_dir = out_dir_os_str.to_str().unwrap();
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set; run via cargo");
+    let x509_dir = std::path::Path::new(&manifest_dir).parent().unwrap();
+    let build_dir = x509_dir.join("build");
+    let src_dir = x509_dir.join("src");
+    let build_dir = build_dir.to_str().unwrap();
+    let src_dir = src_dir.to_str().unwrap();
 
-        gen_init_devid_csr(out_dir);
-        gen_fmc_alias_csr(out_dir);
-        gen_local_devid_cert(out_dir);
-        gen_local_devid_csr(out_dir);
-        gen_fmc_alias_cert(out_dir);
-        gen_rt_alias_cert(out_dir);
-        gen_rt_alias_csr(out_dir);
-        gen_ocp_lock_endorsement_cert(out_dir);
-        gen_ocp_lock_hybrid_endorsement_cert(out_dir);
-    }
+    gen_init_devid_csr(build_dir);
+    gen_fmc_alias_csr(build_dir);
+    gen_local_devid_cert(build_dir);
+    gen_local_devid_csr(build_dir);
+    gen_fmc_alias_cert(build_dir);
+    gen_rt_alias_cert(build_dir);
+    gen_rt_alias_csr(build_dir);
+    gen_ocp_lock_endorsement_cert(build_dir);
+    gen_ocp_lock_hybrid_endorsement_cert(build_dir, src_dir);
+
+    eprintln!("Templates generated successfully in {build_dir}/ and {src_dir}/");
 }
 
 /// Generate Initial DeviceId Cert Signing request Template
-#[cfg(feature = "generate_templates")]
 fn gen_init_devid_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -93,7 +79,6 @@ fn gen_init_devid_csr(out_dir: &str) {
     CodeGen::gen_code("InitDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
-#[cfg(feature = "generate_templates")]
 fn gen_fmc_alias_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -167,7 +152,6 @@ fn gen_fmc_alias_csr(out_dir: &str) {
 }
 
 /// Generate Local DeviceId Certificate Template
-#[cfg(feature = "generate_templates")]
 fn gen_local_devid_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -189,7 +173,6 @@ fn gen_local_devid_cert(out_dir: &str) {
 }
 
 /// Generate Local DeviceId Certificate Template
-#[cfg(feature = "generate_templates")]
 fn gen_local_devid_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -211,7 +194,6 @@ fn gen_local_devid_csr(out_dir: &str) {
 }
 
 /// Generate FMC Alias Certificate Template
-#[cfg(feature = "generate_templates")]
 fn gen_fmc_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -285,7 +267,6 @@ fn gen_fmc_alias_cert(out_dir: &str) {
 }
 
 /// Generate Runtime Alias Certificate Template
-#[cfg(feature = "generate_templates")]
 fn gen_rt_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     // Add KeyCertSign to allow signing of other certs
@@ -326,7 +307,6 @@ fn gen_rt_alias_cert(out_dir: &str) {
 }
 
 /// Generate Runtime alias Certificate Signing Request Template
-#[cfg(feature = "generate_templates")]
 fn gen_rt_alias_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     // Add KeyCertSign to allow signing of other certs
@@ -367,7 +347,6 @@ fn gen_rt_alias_csr(out_dir: &str) {
 }
 
 /// Generate OCP LOCK HPKE Endorsement Certificate Templates
-#[cfg(feature = "generate_templates")]
 fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
     use x509::{HPKEIdentifiers, MlKem1024Algo};
     let mut usage = KeyUsage::default();
@@ -422,10 +401,9 @@ fn gen_ocp_lock_endorsement_cert(out_dir: &str) {
 }
 
 /// Generate OCP LOCK HPKE Endorsement Certificate Templates with Hybrid Keys
-/// This is build with the "x509-cert" crate because OpenSSL does not yet support the ML-KEM &
+/// This is built with the "x509-cert" crate because OpenSSL does not yet support the ML-KEM &
 /// P-384 hybrid key type.
-#[cfg(feature = "generate_templates")]
-fn gen_ocp_lock_hybrid_endorsement_cert(out_dir: &str) {
+fn gen_ocp_lock_hybrid_endorsement_cert(build_dir: &str, src_dir: &str) {
     use x509::{HPKEIdentifiers, HybridP384MlKem1024Algo};
     use x509_cert::X509CertTemplateBuilder;
     // 4.2.2.1.3
@@ -446,7 +424,13 @@ fn gen_ocp_lock_hybrid_endorsement_cert(out_dir: &str) {
         "OCP LOCK HPKE Endorsement ML-KEM-1024-ECDH-P384",
         RT_ALIAS_ECC384,
     );
-    CodeGen::gen_code("OcpLockHybridCertTbsEcc384", template, out_dir);
+    // Hybrid templates go to both build/ (for OUT_DIR path) and src/ (for include! path)
+    CodeGen::gen_code("OcpLockHybridCertTbsEcc384", template, build_dir);
+    std::fs::copy(
+        std::path::Path::new(build_dir).join("ocp_lock_hybrid_cert_tbs_ecc_384.rs"),
+        std::path::Path::new(src_dir).join("ocp_lock_hybrid_cert_tbs_ecc_384.rs"),
+    )
+    .unwrap();
 
     let bldr = X509CertTemplateBuilder::<MlDsa87Algo, HybridP384MlKem1024Algo>::new()
         .add_basic_constraints_ext(false, 0)
@@ -460,5 +444,10 @@ fn gen_ocp_lock_hybrid_endorsement_cert(out_dir: &str) {
         "OCP LOCK HPKE Endorsement ML-KEM-1024-ECDH-P384",
         RT_ALIAS_MLDSA87,
     );
-    CodeGen::gen_code("OcpLockHybridCertTbsMlDsa87", template, out_dir);
+    CodeGen::gen_code("OcpLockHybridCertTbsMlDsa87", template, build_dir);
+    std::fs::copy(
+        std::path::Path::new(build_dir).join("ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs"),
+        std::path::Path::new(src_dir).join("ocp_lock_hybrid_cert_tbs_ml_dsa_87.rs"),
+    )
+    .unwrap();
 }

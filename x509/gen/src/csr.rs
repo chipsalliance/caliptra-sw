@@ -48,7 +48,6 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
     ///
     /// * `ca`       - Flag indicating if the certificate is a Certificate Authority
     /// * `path_len` - Certificate path length
-
     pub fn add_basic_constraints_ext(mut self, ca: bool, path_len: u32) -> Self {
         self.exts
             .push(x509::make_basic_constraints_ext(ca, path_len))

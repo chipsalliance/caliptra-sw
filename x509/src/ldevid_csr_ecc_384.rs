@@ -13,9 +13,6 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-#[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/local_dev_id_csr_tbs_ecc_384.rs"));
-#[cfg(not(feature = "generate_templates"))]
 include! {"../build/local_dev_id_csr_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
@@ -174,22 +171,5 @@ mod tests {
             })
             .unwrap();
         assert!(!ueid_ext.critical);
-    }
-
-    #[test]
-    #[cfg(feature = "generate_templates")]
-    fn test_ldevid_template() {
-        let manual_template = std::fs::read(std::path::Path::new(
-            "./build/local_dev_id_csr_tbs_ecc_384.rs",
-        ))
-        .unwrap();
-        let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
-            env!("OUT_DIR"),
-            "/local_dev_id_csr_tbs_ecc_384.rs"
-        )))
-        .unwrap();
-        if auto_generated_template != manual_template {
-            panic!("Auto-generated LDevID CSR template is not equal to the manual template.")
-        }
     }
 }

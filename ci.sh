@@ -76,6 +76,17 @@ if task_enabled "check_fmt"; then
   cargo fmt --check --all
 fi
 
+if task_enabled "check_x509_templates"; then
+  echo Check that x509 templates are up to date
+  cargo run -p caliptra-x509-gen --locked
+  git diff --exit-code -- x509/build/ x509/src/ || (
+    echo "x509 templates are out of date. Please regenerate with:"
+    echo "  cargo run -p caliptra-x509-gen"
+    echo "and include the updated templates in your pull request."
+    exit 1
+  )
+fi
+
 
 if task_enabled "check_lint"; then
   echo Clippy lint check

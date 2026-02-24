@@ -1,10 +1,9 @@
 ## Generating Templates
 
+To regenerate the X509 TBS templates, run:
+
 ```
-$ cargo build -p caliptra-x509 --features generate_templates
-$ cd target/debug/build/caliptra-x509-[hash]/
-$ mkdir target
-$ OUT_DIR=target ./build-script-build
+$ cargo run -p caliptra-x509-gen
 ```
 
-Generated templates in `target` can be copied to `x509/build`.
+This writes generated templates directly to `x509/build/` and `x509/src/`.
