@@ -41,7 +41,7 @@ fn main() {
             arg!(--"hashes" [FILE] "File path for output JSON file containing image bundle header hashes for external signing tools")
                 .value_parser(value_parser!(PathBuf))
         )
-        .arg(arg!(--"zeros" "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
+        .arg(arg!(--"zeros" [bool] "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
         .arg(arg!(--"owner-sig-override" [FILE] "Manually overwrite the owner_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"vendor-sig-override" [FILE] "Manually overwrite the vendor_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .arg(
