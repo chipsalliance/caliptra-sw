@@ -1660,6 +1660,16 @@ impl Default for InvokeDpeResp {
     }
 }
 
+impl InvokeDpeResp {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
 // GET_FMC_ALIAS_ECC384_CERT
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]

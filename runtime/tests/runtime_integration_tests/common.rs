@@ -39,7 +39,7 @@ use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
-        CommandHdr, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
     },
     context::ContextHandle,
     response::{DpeErrorCode, Response, ResponseHdr},
@@ -374,18 +374,59 @@ pub enum DpeResult {
     MboxCmdFailure(CaliptraError),
 }
 
+pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {
+    let resp_hdr =
+        MailboxReqHeader::try_read_from_bytes(&resp[..core::mem::size_of::<MailboxReqHeader>()])
+            .map_err(|e| anyhow::anyhow!("Failed to get the header from the response: {e}"))?;
+    if !caliptra_common::checksum::verify_checksum(
+        resp_hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.chksum)..],
+    ) {
+        anyhow::bail!("Invalid checksum in response header");
+    }
+    Ok(())
+}
+
 pub fn execute_dpe_cmd(
     model: &mut DefaultHwModel,
     profile: CaliptraDpeProfile,
     dpe_cmd: &mut Command,
     expected_result: DpeResult,
 ) -> Option<Response> {
+    // For certain commands, the DPE response is returned via an AXI write to external MCU SRAM
+    // instead of the mailbox response because the response is too large for the mailbox. In those
+    // cases, we need to set up the staging area and indicate to Caliptra that we want the response
+    // to be written there.
+    let external_response = match (model.subsystem_mode(), profile, &dpe_cmd) {
+        (true, CaliptraDpeProfile::Mldsa87, Command::CertifyKey(_)) => true,
+        (
+            true,
+            CaliptraDpeProfile::Mldsa87,
+            Command::DeriveContext(DeriveContextCmd { flags, .. }),
+        ) => flags.exports_cdi(),
+        _ => false,
+    };
+    let (flags, addr_lo, addr_hi) = if external_response {
+        let addr = model.staging_physical_address().unwrap();
+        (
+            InvokeDpeMldsa87Flags::EXTERNAL_AXI_RESPONSE,
+            addr as u32,
+            (addr >> 32) as u32,
+        )
+    } else {
+        (InvokeDpeMldsa87Flags::empty(), 0, 0)
+    };
+
+    // Fill the request buffer with the correct info
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let cmd_hdr = CommandHdr::new(profile.into(), dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+
+    // Get the profile specific mailbox command
     let (cmd_id, mut mbox_cmd) = match profile {
         CaliptraDpeProfile::Ecc384 => (
             CommandId::INVOKE_DPE_ECC384,
@@ -399,9 +440,12 @@ pub fn execute_dpe_cmd(
             CommandId::INVOKE_DPE_MLDSA87,
             MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
                 hdr: MailboxReqHeader { chksum: 0 },
-                // TODO(zhalvorsen): Add support for external responses
-                flags: InvokeDpeMldsa87Flags::empty(),
-                axi_response: AxiResponseInfo::default(),
+                flags,
+                axi_response: AxiResponseInfo {
+                    addr_lo,
+                    addr_hi,
+                    max_size: size_of::<InvokeDpeResp>() as u32,
+                },
                 data: cmd_data,
                 data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
             }),
@@ -414,17 +458,21 @@ pub fn execute_dpe_cmd(
         assert_error(model, expected_err, resp.unwrap_err());
         return None;
     }
+    // The external mailbox command also sends the mailbox header so we always expect something.
     let resp = resp.unwrap().expect("We should have received a response");
+    check_header_checksum(&resp).unwrap();
 
-    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
     let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
-
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp_hdr.hdr.chksum,
-        0x0,
-        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
-    ));
+    if !external_response {
+        assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
+        resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    } else {
+        let resp = model
+            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>())
+            .unwrap();
+        resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+        check_header_checksum(resp_hdr.as_bytes_partial().unwrap()).unwrap();
+    };
 
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
