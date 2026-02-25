@@ -27,7 +27,7 @@ impl SignWithExportedEcdsaCmd {
     /// * `env` - DPE environment containing Crypto and Platform implementations
     /// * `data` - The data to be signed
     /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn ecdsa_sign(
         env: &mut DpeEcCrypto,
         data: &SignData,
@@ -47,7 +47,7 @@ impl SignWithExportedEcdsaCmd {
         Ok((sig, pub_key))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

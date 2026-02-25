@@ -15,7 +15,7 @@ Abstract:
 use core::num::NonZeroU32;
 
 use crate::*;
-#[cfg(all(not(test), not(feature = "no-cfi")))]
+#[cfg(all(not(test), feature = "cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder,
@@ -86,7 +86,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// # Returns
     ///
     /// * `ImageVerificationInfo` - Image verification information success
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn verify(
         &mut self,
@@ -198,7 +198,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Preamble
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     fn verify_preamble<'a>(
         &mut self,
         preamble: &'a ImagePreamble,
@@ -660,7 +660,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Header
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     fn verify_header<'a>(
         &mut self,
         header: &'a ImageHeader,
@@ -992,7 +992,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Table of Contents
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     fn verify_toc<'a>(
         &mut self,
         manifest: &'a ImageManifest,
@@ -1106,7 +1106,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify FMC
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     fn verify_fmc(
         &mut self,
         verify_info: &ImageTocEntry,
@@ -1175,7 +1175,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Runtime
-    #[cfg_attr(all(not(test), not(feature = "no-cfi")), cfi_impl_fn)]
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
     fn verify_runtime(
         &mut self,
         verify_info: &ImageTocEntry,

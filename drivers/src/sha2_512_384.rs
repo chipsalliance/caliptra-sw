@@ -14,7 +14,7 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{array::Array4x32, wait, Array4x12, Array4x16, Array4x8, PcrId};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
@@ -140,7 +140,7 @@ impl Sha2_512_384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sha384_digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         self.sha_digest_helper(buf, ShaMode::Sha384)?;
 
@@ -165,7 +165,7 @@ impl Sha2_512_384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sha512_digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x16> {
         self.sha_digest_helper(buf, ShaMode::Sha512)?;
 

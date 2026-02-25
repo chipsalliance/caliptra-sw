@@ -23,7 +23,7 @@ use dpe::U8Bool;
 
 pub struct DisableAttestationCmd;
 impl DisableAttestationCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<usize> {
         Self::erase_keys(drivers)?;
@@ -45,7 +45,7 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn erase_keys(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_ecc_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
@@ -60,7 +60,7 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn zero_cdi(drivers: &mut Drivers, key: KeyId) -> CaliptraResult<()> {
         hmac_kdf(
@@ -90,7 +90,7 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn generate_dice_key(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
 

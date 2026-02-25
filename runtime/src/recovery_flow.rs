@@ -35,7 +35,7 @@ pub enum RecoveryFlow {}
 
 impl RecoveryFlow {
     /// Load the SoC Manifest and MCU firwmare
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
         const SOC_MANIFEST_INDEX: u32 = 1;
         const MCU_FIRMWARE_INDEX: u32 = 2;

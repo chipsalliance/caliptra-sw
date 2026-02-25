@@ -23,7 +23,7 @@ use zerocopy::FromBytes;
 
 pub struct TagTciCmd;
 impl TagTciCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
@@ -62,7 +62,7 @@ impl TagTciCmd {
 
 pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &Drivers,

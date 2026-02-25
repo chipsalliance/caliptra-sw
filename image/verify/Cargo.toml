@@ -23,7 +23,7 @@ caliptra_common = { path = "../../common", default-features = false }
 caliptra-cfi-lib = { workspace = true, features = ["cfi-test" ] }
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 std = ["caliptra-image-types/std"]
-no-cfi = []
+cfi = []
 fips-test-hooks = []

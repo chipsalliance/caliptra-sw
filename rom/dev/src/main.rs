@@ -16,6 +16,8 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
+const _: () = assert!(cfg!(feature = "cfi"), "CFI must be enabled");
+
 use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
@@ -78,7 +80,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     // Initialize CFI before creating the rest of the environment
     // (AesGcm::new runs KATs which have CFI annotations)
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         let mut entropy_gen = || {
             trng.generate4()
                 .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
@@ -230,7 +232,7 @@ pub extern "C" fn rom_entry() -> ! {
     lock_registers(&mut env, reset_reason);
 
     // Reset the CFI counter.
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         CfiCounter::corrupt();
     }
 

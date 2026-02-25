@@ -48,6 +48,9 @@ Running Caliptra FMC ...
 
 // Upon cold reset, fills the reserved field with 0xFFs. Any newly-allocated fields will
 // therefore be marked as implicitly invalid.
+
+const _: () = assert!(cfg!(feature = "cfi"), "CFI must be enabled");
+
 fn fix_fht(env: &mut fmc_env::FmcEnvFips) {
     if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
         cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
@@ -63,7 +66,7 @@ pub extern "C" fn entry_point() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || {
             env.trng

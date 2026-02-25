@@ -14,7 +14,7 @@ use super::{AccessKey, Current, LockedMpk, Sek};
 
 pub struct TestAccessKeyCmd;
 impl TestAccessKeyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

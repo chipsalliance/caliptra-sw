@@ -13,7 +13,7 @@ File Name:
 
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
@@ -153,24 +153,24 @@ impl HandOff {
     }
 
     /// Store runtime Dice ECC Signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn set_rt_dice_ecc_signature(env: &mut FmcEnv, sig: &Ecc384Signature) {
         Self::fht_mut(env).rt_dice_ecc_sign = *sig;
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn set_rtalias_ecc_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
         Self::fht_mut(env).rtalias_ecc_tbs_size = rtalias_tbs_size as u16;
     }
 
     /// Store runtime Dice MLDSA Signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn set_rt_dice_mldsa_signature(env: &mut FmcEnv, sig: &Mldsa87Signature) {
         // Self::fht_mut(env).rt_dice_mldsa_sign = *sig;
         env.persistent_data.get_mut().fw.rt_dice_mldsa_sign = *sig;
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn set_rtalias_mldsa_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
         env.persistent_data.get_mut().fw.rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
     }
@@ -186,7 +186,7 @@ impl HandOff {
     }
 
     /// Update HandOff Table with RT Parameters
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn update(env: &mut FmcEnv, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
         Self::fht_mut(env).rt_cdi_kv_hdl = Self::key_id_to_handle(out.cdi);

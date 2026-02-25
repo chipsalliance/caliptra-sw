@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{Array4x12, Array4x16, Hmac, HmacKey, HmacMode, HmacTag, Trng};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -27,7 +27,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 /// * `trng` - TRNG driver instance
 /// * `prk` - Location to store the output PRK
 /// * `mode` - HMAC Mode
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn hkdf_extract(
     hmac: &mut Hmac,
     ikm: &[u8],
@@ -45,7 +45,7 @@ pub fn hkdf_extract(
 }
 
 /// Allows loading arbitrary `ikm` slices without an allocation
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn hkdf_extract_ext<I, T>(
     hmac: &mut Hmac,
     ikm: I,
@@ -106,7 +106,7 @@ where
 /// * `trng` - TRNG driver instance
 /// * `okm` - Location to store the output key material
 /// * `mode` - HMAC Mode
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn hkdf_expand(
     hmac: &mut Hmac,
     prk: HmacKey,
@@ -123,7 +123,7 @@ pub fn hkdf_expand(
     hkdf_expand_ext(hmac, prk, labels.iter(), trng, okm, mode)
 }
 
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn hkdf_expand_ext<I, T>(
     hmac: &mut Hmac,
     prk: HmacKey,

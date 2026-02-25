@@ -26,10 +26,10 @@ riscv.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra-drivers/emu"]
 std = []
 rom = ["caliptra-drivers/rom"]
 fmc = []
 runtime = []
-no-cfi = []
+cfi = ["caliptra-drivers/cfi"]

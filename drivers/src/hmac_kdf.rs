@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{Hmac, HmacKey, HmacMode, HmacTag, Trng};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::CaliptraResult;
 
@@ -33,7 +33,7 @@ use caliptra_error::CaliptraResult;
 /// * `trng` - TRNG driver instance
 /// * `output` - Location to store the output
 /// * `mode` - HMAC Mode
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn hmac_kdf(
     hmac: &mut Hmac,
     key: HmacKey,

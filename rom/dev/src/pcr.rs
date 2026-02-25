@@ -21,7 +21,7 @@ Note:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::{
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
@@ -38,7 +38,7 @@ struct PcrExtender<'a> {
     sha2_512_384: &'a mut Sha2_512_384,
 }
 impl PcrExtender<'_> {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
@@ -64,7 +64,7 @@ impl PcrExtender<'_> {
 /// # Return Value
 /// * `Ok(())` on success, error code on failure
 ///
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub(crate) fn extend_pcrs(
     persistent_data: &mut PersistentData,
@@ -142,7 +142,7 @@ pub(crate) fn extend_pcrs(
 /// * `Err(GlobalErr::PcrLogInvalidEntryId)` - Invalid PCR log entry ID
 /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
 ///
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn log_pcr(
     persistent_data: &mut PersistentData,
     pcr_entry_id: PcrLogEntryId,

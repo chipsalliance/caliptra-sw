@@ -21,6 +21,7 @@ cfg-if.workspace = true
 [features]
 default = ["std"]
 emu = ["caliptra-drivers/emu"]
+cfi = ["caliptra-drivers/cfi"]
 interactive_test_fmc = []
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]

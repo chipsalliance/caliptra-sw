@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::Launder;
 use core::mem::MaybeUninit;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -31,7 +31,7 @@ macro_rules! static_assert {
 #[derive(
     Debug, Clone, Copy, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Zeroize,
 )]
-#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
+#[cfg_attr(feature = "cfi", derive(Launder))]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
@@ -167,7 +167,7 @@ impl<const W: usize, const B: usize> From<Array4xN<W, B>> for LEArray4xN<W, B> {
 #[derive(
     Debug, Clone, Copy, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Zeroize,
 )]
-#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
+#[cfg_attr(feature = "cfi", derive(Launder))]
 pub struct LEArray4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> LEArray4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {

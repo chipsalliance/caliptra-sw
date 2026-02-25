@@ -18,7 +18,7 @@ use crate::{
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_cfi_lib::{
@@ -462,7 +462,7 @@ impl Mldsa87 {
         Ok(truncated_signature.try_into().unwrap())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn verify_internal(
         &mut self,
         pub_key: &Mldsa87PubKey,
@@ -503,7 +503,7 @@ impl Mldsa87 {
         Ok(result)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn verify(
         &mut self,
         pub_key: &Mldsa87PubKey,
@@ -513,7 +513,7 @@ impl Mldsa87 {
         self.verify_internal(pub_key, SigData::Msg(msg), signature)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn verify_external_mu(
         &mut self,
         pub_key: &Mldsa87PubKey,
@@ -523,7 +523,7 @@ impl Mldsa87 {
         self.verify_internal(pub_key, SigData::Mu(mu), signature)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn verify_var(
         &mut self,
         pub_key: &Mldsa87PubKey,
@@ -567,7 +567,7 @@ impl Mldsa87 {
     /// # Returns
     ///
     /// * `Mldsa87Signature` - Generated signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87Signature> {
         let mldsa = self.mldsa87.regs_mut();
 

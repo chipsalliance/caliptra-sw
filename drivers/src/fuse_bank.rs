@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{Array4x12, Array4x16, Array4x8};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use zerocopy::IntoBytes;
@@ -37,7 +37,7 @@ pub enum X509KeyIdAlgo {
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
-    #[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
+    #[cfg_attr(feature = "cfi", derive(Launder))]
     pub struct VendorEccPubKeyRevocation : u32 {
         const KEY0 = 0b0001;
         const KEY1 = 0b0010;

@@ -13,5 +13,5 @@ riscv = []
 runtime = []
 
 [dependencies]
-caliptra-drivers = { workspace = true, features=["emu"] }
+caliptra-drivers = { workspace = true, features=["emu", "cfi"] }
 cfg-if.workspace = true

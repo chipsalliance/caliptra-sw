@@ -172,7 +172,7 @@ impl Sha3 {
     /// # Returns
     ///
     /// * `Array4xN` - Array containing the digest. Size depends on expected return type (Array4x8, Array4x16, etc.)
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn shake256_digest<const W: usize, const B: usize>(
         &mut self,
         data: &[u8],
@@ -189,13 +189,13 @@ impl Sha3 {
     /// # Returns
     ///
     /// * `Array4x8` - Array containing the digest.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sha3_256_digest(&mut self, data: &[u8]) -> CaliptraResult<crate::Array4x8> {
         self.digest_generic(Sha3Mode::Sha3, Sha3KStrength::L256, [data].iter())
     }
 
     // Similar to `sha3_256_digest` but allows passing an iterator of slices to avoid copying data.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sha3_256_digest_ext<I, T>(&mut self, data: I) -> CaliptraResult<crate::Array4x8>
     where
         I: Iterator<Item = T>,

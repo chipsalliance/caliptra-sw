@@ -42,111 +42,117 @@ pub fn fake_rom(fpga: bool) -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &[],
+    features: &["cfi"],
 };
 
 pub const ROM_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fpga_realtime"],
+    features: &["fpga_realtime", "cfi"],
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu"],
+    features: &["emu", "cfi"],
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
+    features: &["emu", "fake-rom", "cfi"],
 };
 
 pub const ROM_FAKE_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom", "fpga_realtime"],
+    features: &["emu", "fake-rom", "fpga_realtime", "cfi"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
+    features: &["fips-test-hooks", "cfi"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks", "fpga_realtime"],
+    features: &["fips-test-hooks", "fpga_realtime", "cfi"],
 };
 
 // TODO: delete this when AXI DMA is fixed in the FPGA
 pub const ROM_FPGA_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fpga_realtime"],
+    features: &["emu", "fpga_realtime", "cfi"],
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu"],
+    features: &["emu", "cfi"],
 };
 
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc"],
+    features: &["emu", "fake-fmc", "cfi"],
 };
 
 // TODO: delete this when AXI DMA is fixed in the FPGA
 pub const FMC_FPGA_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "fpga_realtime"],
+    features: &["emu", "fpga_realtime", "cfi"],
 };
 
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["fips_self_test"],
+    features: &["fips_self_test", "cfi"],
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test"],
+    features: &["emu", "fips_self_test", "cfi"],
 };
 
 pub const APP_WITH_UART_OCP_LOCK: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "ocp-lock"],
+    features: &["emu", "fips_self_test", "ocp-lock", "cfi"],
 };
 
 pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks"],
+    features: &["emu", "fips_self_test", "fips-test-hooks", "cfi"],
 };
 
 pub const APP_WITH_UART_FIPS_TEST_HOOKS_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks", "fpga_subsystem"],
+    features: &[
+        "emu",
+        "fips_self_test",
+        "fips-test-hooks",
+        "fpga_subsystem",
+        "cfi",
+    ],
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime"],
+    features: &["emu", "fips_self_test", "fpga_realtime", "cfi"],
 };
 
 pub const APP_WITH_UART_OCP_LOCK_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime", "ocp-lock"],
+    features: &["emu", "fips_self_test", "fpga_realtime", "ocp-lock", "cfi"],
 };
 
 pub const APP_ZEROS: FwId = FwId {
@@ -516,31 +522,31 @@ pub mod rom_tests {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
+        features: &["emu", "cfi"],
     };
 
     pub const TEST_RT_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-rt",
         bin_name: "caliptra-rom-test-rt",
-        features: &["emu"],
+        features: &["emu", "cfi"],
     };
 
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "fake-fmc"],
+        features: &["emu", "fake-fmc", "cfi"],
     };
 
     pub const TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
+        features: &["emu", "interactive_test_fmc", "cfi"],
     };
 
     pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc", "fake-fmc"],
+        features: &["emu", "interactive_test_fmc", "fake-fmc", "cfi"],
     };
 
     pub const TEST_PMP_TESTS: FwId = FwId {
@@ -555,7 +561,7 @@ pub mod runtime_tests {
     const RUNTIME_TEST_FWID_BASE: FwId = FwId {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: "",
-        features: &["emu", "riscv", "runtime"],
+        features: &["emu", "riscv", "runtime", "cfi"],
     };
 
     pub const BOOT: FwId = FwId {
@@ -570,20 +576,20 @@ pub mod runtime_tests {
 
     pub const MBOX_FPGA: FwId = FwId {
         bin_name: "mbox",
-        features: &["emu", "riscv", "runtime", "fpga_realtime"],
+        features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
         ..RUNTIME_TEST_FWID_BASE
     };
 
     // Used to test updates between RT FW images.
     pub const MBOX_WITHOUT_UART: FwId = FwId {
         bin_name: "mbox",
-        features: &["riscv", "runtime"],
+        features: &["riscv", "runtime", "cfi"],
         ..RUNTIME_TEST_FWID_BASE
     };
 
     pub const MBOX_WITHOUT_UART_FPGA: FwId = FwId {
         bin_name: "mbox",
-        features: &["riscv", "runtime", "fpga_realtime"],
+        features: &["riscv", "runtime", "fpga_realtime", "cfi"],
         ..RUNTIME_TEST_FWID_BASE
     };
 
@@ -599,7 +605,7 @@ pub mod runtime_tests {
 
     pub const MOCK_RT_INTERACTIVE_FPGA: FwId = FwId {
         bin_name: "mock_rt_interact",
-        features: &["emu", "riscv", "runtime", "fpga_realtime"],
+        features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
         ..RUNTIME_TEST_FWID_BASE
     };
 }

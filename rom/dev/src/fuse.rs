@@ -10,7 +10,7 @@ Abstract:
     The file contains Fuse-related Implementations.
 
 --*/
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::{CaliptraError, CaliptraResult, FuseLogArray};
@@ -27,7 +27,7 @@ use zerocopy::IntoBytes;
 /// * `Err(GlobalErr::FuseLogInvalidEntryId)` - Invalid Fuse log entry ID
 /// * `Err(GlobalErr::FuseLogUpsupportedDataLength)` - Unsupported data length
 ///
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub fn log_fuse_data(
     log: &mut FuseLogArray,

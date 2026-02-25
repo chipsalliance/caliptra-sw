@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use crate::{cprintln, flow::cold_reset::ocp_lock, rom_env::RomEnv};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
 use caliptra_common::{handle_fatal_error, RomBootStatus::*};
@@ -29,7 +29,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 

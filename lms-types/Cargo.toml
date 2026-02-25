@@ -17,6 +17,6 @@ zerocopy.workspace = true
 zeroize.workspace = true
 
 [features]
-default = []
+default = ["cfi"]
 std = ["dep:serde", "dep:serde_derive"]
-no-cfi = []
+cfi = []

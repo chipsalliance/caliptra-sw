@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
@@ -390,7 +390,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         Ok(DpeHasher::new(op))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_exported_cdi(
         &mut self,
         measurement: &Digest,
@@ -438,12 +438,12 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         Err(CryptoError::ExportedCdiHandleLimitExceeded)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(&mut self, measurement: &Digest, info: &[u8]) -> Result<Self::Cdi, CryptoError> {
         self.derive_cdi_inner(measurement, info, KEY_ID_DPE_CDI)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         &mut self,
         cdi: &Self::Cdi,
@@ -453,7 +453,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         self.derive_key_pair_inner(cdi, label, info, KEY_ID_DPE_PRIV_KEY)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair_exported(
         &mut self,
         exported_handle: &ExportedCdiHandle,

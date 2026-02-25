@@ -17,7 +17,7 @@ use super::dice::*;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::rom_env::RomEnv;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV};
@@ -50,7 +50,7 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
@@ -128,7 +128,7 @@ impl LocalDevIdLayer {
     /// * `env` - ROM Environment
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac_mac(
             &mut env.hmac,
@@ -165,7 +165,7 @@ impl LocalDevIdLayer {
     /// * `env` - ROM Environment
     /// * `idev` - Key slot holding the IDevID CDI
     /// * `stable_idev` - Key Slot to store the generated stable identity root IDevID key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_stable_identity_root_idev(
         env: &mut RomEnv,
         idev: KeyId,
@@ -195,7 +195,7 @@ impl LocalDevIdLayer {
     /// * `env` - ROM Environment
     /// * `ldev` - Key slot holding the LDevID CDI
     /// * `stable_ldev` - Key Slot to store the generated stable identity root LDevID key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_stable_identity_root_ldev(
         env: &mut RomEnv,
         ldev: KeyId,
@@ -230,7 +230,7 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,

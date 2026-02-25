@@ -3,6 +3,7 @@
 use crate::{mutrefbytes, Drivers};
 
 use caliptra_api::mailbox::{MailboxRespHeader, OcpLockGetHpkePubKeyReq, OcpLockGetHpkePubKeyResp};
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_drivers::hpke::HpkeHandle;
@@ -12,7 +13,7 @@ use zerocopy::FromBytes;
 
 pub struct GetHpkePubKeyCmd;
 impl GetHpkePubKeyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

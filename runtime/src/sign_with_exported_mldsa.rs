@@ -9,7 +9,7 @@ pub struct SignWithExportedMldsaCmd;
 
 impl SignWithExportedMldsaCmd {
     #[allow(dead_code)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         _drivers: &mut Drivers,

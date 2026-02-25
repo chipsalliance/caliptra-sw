@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_common::crypto::Crypto;
@@ -33,7 +33,7 @@ const LADDER_KEY: KeyId = KEY_ID_FW_KEY_LADDER;
 ///
 /// * `env` - ROM Environment
 /// * `ladder_len` - Length of ladder to initialize, based on firmware's SVN
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub(crate) fn initialize_key_ladder(env: &mut RomEnv, ladder_len: u32) -> CaliptraResult<()> {
     Crypto::hmac_kdf(
         &mut env.hmac,
@@ -59,7 +59,7 @@ pub(crate) fn initialize_key_ladder(env: &mut RomEnv, ladder_len: u32) -> Calipt
 /// * `hmac` - HMAC helper
 /// * `trng` - TRNG helper
 /// * `num_iters` - Amount by which to extend the ladder
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub(crate) fn extend_key_ladder(
     hmac: &mut Hmac,
     trng: &mut Trng,

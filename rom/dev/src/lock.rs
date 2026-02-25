@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{cprintln, rom_env::RomEnv};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     lock_datavault_region,
@@ -28,7 +28,7 @@ use core::mem::size_of;
 ///
 /// * `env` - ROM Environment
 /// * `reset_reason` - Reset reason
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
     cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
@@ -51,7 +51,7 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn lock_cold_reset_reg(env: &mut RomEnv) {
     let base_addr = &env
         .persistent_data
@@ -67,7 +67,7 @@ pub fn lock_cold_reset_reg(env: &mut RomEnv) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn lock_common_reg_set(env: &mut RomEnv) {
     let base_addr = &env
         .persistent_data

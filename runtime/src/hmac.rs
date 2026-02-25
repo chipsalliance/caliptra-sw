@@ -37,7 +37,7 @@ use crate::Drivers;
 /// # Returns
 ///
 /// * `Ecc384KeyPair` - Generated key pair
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn ecc384_key_gen(
     drivers: &mut Drivers,
     input: KeyId,
@@ -92,7 +92,7 @@ impl Hmac {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn hmac_kdf(
         drivers: &mut Drivers,
         key: KeyId,
@@ -135,7 +135,7 @@ impl Hmac {
     /// # Returns
     ///
     /// * `Array4x12` - Computed HMAC result
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn ecc384_hmac(
         drivers: &mut Drivers,
         input: KeyId,

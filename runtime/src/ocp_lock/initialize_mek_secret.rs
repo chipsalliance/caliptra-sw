@@ -15,7 +15,7 @@ use super::{Dpk, Sek};
 
 pub struct InitializeMekSecretCmd;
 impl InitializeMekSecretCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
