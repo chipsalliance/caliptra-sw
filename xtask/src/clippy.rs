@@ -21,14 +21,18 @@ fn clippy_all() -> Result<()> {
         "-D",
         "warnings",
     ];
-    let status = Command::new("cargo")
+    let output = Command::new("cargo")
         .current_dir(&*PROJECT_ROOT)
         .args(args)
         .env("RUSTFLAGS", "-Dwarnings")
-        .status()?;
+        .output()?;
 
-    if !status.success() {
+    if !output.status.success() {
+        log::error!("{}", String::from_utf8_lossy(&output.stdout));
+        log::error!("{}", String::from_utf8_lossy(&output.stderr));
         bail!("cargo clippy failed");
     }
+
+    info!("cargo clippy passed!");
     Ok(())
 }

@@ -37,6 +37,7 @@ pub struct HwExpVals {
 }
 
 const HW_EXP_2_0_0: HwExpVals = HwExpVals { hw_revision: 0x2 };
+const HW_EXP_2_1_0: HwExpVals = HwExpVals { hw_revision: 0x112 };
 
 const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x112 };
 
@@ -79,7 +80,12 @@ const RT_EXP_2_0_0: RtExpVals = RtExpVals {
     fw_version: 0x0200_0000, // 2.0.0
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_0 };
+const RT_EXP_2_1_0: RtExpVals = RtExpVals {
+    fmc_version: 0x1040,    // 2.1.0
+    fw_version: 0x02010000, // 2.1.0
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_1_0 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -90,6 +96,7 @@ impl HwExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_HW_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_1_0" => HW_EXP_2_1_0,
                 "2_0_0" => HW_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected HW values ({})",
@@ -106,6 +113,7 @@ impl RomExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_ROM_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_1_0" => ROM_EXP_2_1_0,
                 "2_0_0" => ROM_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
@@ -122,6 +130,7 @@ impl RtExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_RT_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_1_0" => RT_EXP_2_1_0,
                 "2_0_0" => RT_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
