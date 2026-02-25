@@ -2245,6 +2245,12 @@ impl HwModel for ModelFpgaSubsystem {
         });
     }
 
+    fn staging_physical_address(&mut self) -> Result<u64, ModelError> {
+        let mci_base_addr: u64 = u64::from(self.soc_ifc().ss_mci_base_addr_l().read())
+            | (u64::from(self.soc_ifc().ss_mci_base_addr_h().read()) << 32);
+        Ok(mci_base_addr + 0xc00000)
+    }
+
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
         let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
         let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
@@ -2263,11 +2269,22 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
-        let mci_base_addr: u64 = u64::from(self.soc_ifc().ss_mci_base_addr_l().read())
-            | (u64::from(self.soc_ifc().ss_mci_base_addr_h().read()) << 32);
-
         // Return the physical address of the staging area
-        Ok(mci_base_addr + 0xc00000)
+        self.staging_physical_address()
+    }
+
+    fn read_payload_from_ss_staging_area(&mut self, length: usize) -> Result<Vec<u8>, ModelError> {
+        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+        let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
+
+        let length_words = (length + 3) / 4;
+        let mut payload = Vec::with_capacity(length_words * 4);
+        for i in 0..length_words {
+            let u32_value = unsafe { staging_ptr.add(i).read_volatile() };
+            payload.extend_from_slice(&u32_value.to_le_bytes());
+        }
+        payload.truncate(length); // Remove any extra bytes from the last chunk
+        Ok(payload)
     }
 
     /// Trigger a warm reset and advance the boot

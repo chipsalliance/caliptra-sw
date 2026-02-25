@@ -102,73 +102,78 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
 
 #[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
-        let data = match profile {
-            CaliptraDpeProfile::Ecc384 => TEST_SD_SHA384,
-            CaliptraDpeProfile::Mldsa87 => TEST_SD_MU,
-        };
-        let sign_cmd = SignCommandNoRef::new(CreateSignCmdArgs {
-            profile,
-            data: data.clone(),
-            ..Default::default()
-        });
-        let sign_resp = execute_dpe_cmd(
-            &mut model,
-            profile,
-            &mut Command::from(&sign_cmd),
-            DpeResult::Success,
-        )
-        .unwrap();
-
-        let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
-            profile,
-            format: CertifyKeyCommand::FORMAT_X509,
+    for subsystem in [false, true] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode: subsystem,
             ..Default::default()
         });
 
-        let certify_key_resp = execute_dpe_cmd(
-            &mut model,
-            profile,
-            &mut Command::from(&certify_key_cmd),
-            DpeResult::Success,
-        )
-        .unwrap();
+        for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+            let data = match profile {
+                CaliptraDpeProfile::Ecc384 => TEST_SD_SHA384,
+                CaliptraDpeProfile::Mldsa87 => TEST_SD_MU,
+            };
+            let sign_cmd = SignCommandNoRef::new(CreateSignCmdArgs {
+                profile,
+                data: data.clone(),
+                ..Default::default()
+            });
+            let sign_resp = execute_dpe_cmd(
+                &mut model,
+                profile,
+                &mut Command::from(&sign_cmd),
+                DpeResult::Success,
+            )
+            .unwrap();
 
-        match (profile, sign_resp, certify_key_resp) {
-            (
-                CaliptraDpeProfile::Ecc384,
-                Response::Sign(SignResp::P384(sign_resp)),
-                Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)),
-            ) => {
-                let sig = EcdsaSig::from_private_components(
-                    BigNum::from_slice(&sign_resp.sig_r).unwrap(),
-                    BigNum::from_slice(&sign_resp.sig_s).unwrap(),
-                )
-                .unwrap();
+            let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+                profile,
+                format: CertifyKeyCommand::FORMAT_X509,
+                ..Default::default()
+            });
 
-                let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
-                    &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-                    &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-                    &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
-                )
-                .unwrap();
-                assert!(sig.verify(data.as_slice(), &ecc_pub_key).unwrap());
+            let certify_key_resp = execute_dpe_cmd(
+                &mut model,
+                profile,
+                &mut Command::from(&certify_key_cmd),
+                DpeResult::Success,
+            )
+            .unwrap();
+
+            match (profile, sign_resp, certify_key_resp) {
+                (
+                    CaliptraDpeProfile::Ecc384,
+                    Response::Sign(SignResp::P384(sign_resp)),
+                    Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)),
+                ) => {
+                    let sig = EcdsaSig::from_private_components(
+                        BigNum::from_slice(&sign_resp.sig_r).unwrap(),
+                        BigNum::from_slice(&sign_resp.sig_s).unwrap(),
+                    )
+                    .unwrap();
+
+                    let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
+                        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+                        &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
+                        &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+                    )
+                    .unwrap();
+                    assert!(sig.verify(data.as_slice(), &ecc_pub_key).unwrap());
+                }
+                (
+                    CaliptraDpeProfile::Mldsa87,
+                    Response::Sign(SignResp::MlDsa(sign_resp)),
+                    Response::CertifyKey(CertifyKeyResp::Mldsa87(certify_key_resp)),
+                ) => {
+                    let encoded_vk =
+                        EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(certify_key_resp.pubkey);
+                    let vk = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&encoded_vk);
+                    let encoded_sig = EncodedSignature::<ml_dsa_01::MlDsa87>::from(sign_resp.sig);
+                    let sig = Signature::decode(&encoded_sig).unwrap();
+                    assert!(vk.verify_mu(&TEST_MU.into(), &sig));
+                }
+                _ => panic!("Wrong response type!"),
             }
-            (
-                CaliptraDpeProfile::Mldsa87,
-                Response::Sign(SignResp::MlDsa(sign_resp)),
-                Response::CertifyKey(CertifyKeyResp::Mldsa87(certify_key_resp)),
-            ) => {
-                let encoded_vk =
-                    EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(certify_key_resp.pubkey);
-                let vk = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&encoded_vk);
-                let encoded_sig = EncodedSignature::<ml_dsa_01::MlDsa87>::from(sign_resp.sig);
-                let sig = Signature::decode(&encoded_sig).unwrap();
-                assert!(vk.verify_mu(&TEST_MU.into(), &sig));
-            }
-            _ => panic!("Wrong response type!"),
         }
     }
 }

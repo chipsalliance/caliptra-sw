@@ -1288,8 +1288,14 @@ pub trait HwModel: SocManager {
         Ok(Some(result))
     }
 
+    /// Get the physical address of the staging area in external MCU SRAM
+    fn staging_physical_address(&mut self) -> Result<u64, ModelError>;
+
     /// Upload payload to external MCU SRAM
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError>;
+
+    /// Read payload from external MCU SRAM staging area
+    fn read_payload_from_ss_staging_area(&mut self, length: usize) -> Result<Vec<u8>, ModelError>;
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {

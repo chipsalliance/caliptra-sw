@@ -715,7 +715,15 @@ impl HwModel for ModelFpgaRealtime {
         todo!()
     }
 
+    fn staging_physical_address(&mut self) -> Result<u64, ModelError> {
+        Err(ModelError::SubsystemSramError)
+    }
+
     fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
+        Err(ModelError::SubsystemSramError)
+    }
+
+    fn read_payload_from_ss_staging_area(&mut self, length: usize) -> Result<Vec<u8>, ModelError> {
         Err(ModelError::SubsystemSramError)
     }
 
