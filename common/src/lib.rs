@@ -2,6 +2,23 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(all(
+    target_arch = "riscv32",
+    not(clippy),
+    feature = "rom",
+    feature = "runtime"
+))]
+compile_error!("features \"rom\" and \"runtime\" are mutually exclusive");
+#[cfg(all(target_arch = "riscv32", not(clippy), feature = "rom", feature = "fmc"))]
+compile_error!("features \"rom\" and \"fmc\" are mutually exclusive");
+#[cfg(all(
+    target_arch = "riscv32",
+    not(clippy),
+    feature = "fmc",
+    feature = "runtime"
+))]
+compile_error!("features \"fmc\" and \"runtime\" are mutually exclusive");
+
 pub mod boot_status;
 pub mod capabilities {
     pub use caliptra_api::Capabilities;
