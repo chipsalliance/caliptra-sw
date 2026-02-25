@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::{CommandId, MailboxReq, OcpLockEndorseHpkePubKeyReq};
+use caliptra_api::mailbox::{CommandId, MailboxReq, OcpLockGetHpkePubKeyReq};
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
 
@@ -23,14 +23,14 @@ fn test_endorse_unknown_hpke_handle() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams::default());
 
-    let mut cmd = MailboxReq::OcpLockEndorseHpkePubKey(OcpLockEndorseHpkePubKeyReq {
+    let mut cmd = MailboxReq::OcpLockGetHpkePubKey(OcpLockGetHpkePubKeyReq {
         hpke_handle: u32::MAX,
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
 
     let response = model.mailbox_execute(
-        CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY.into(),
+        CommandId::OCP_LOCK_GET_HPKE_PUB_KEY.into(),
         cmd.as_bytes().unwrap(),
     );
 

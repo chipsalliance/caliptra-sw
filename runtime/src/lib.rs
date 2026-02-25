@@ -547,7 +547,7 @@ fn execute_command(
         | ocp_lock_command_id @ CommandId::OCP_LOCK_REWRAP_MPK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_ENABLE_MPK
         | ocp_lock_command_id @ CommandId::OCP_LOCK_MIX_MPK
-        | ocp_lock_command_id @ CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY
+        | ocp_lock_command_id @ CommandId::OCP_LOCK_GET_HPKE_PUB_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_TEST_ACCESS_KEY
         | ocp_lock_command_id @ CommandId::OCP_LOCK_GET_STATUS
         | ocp_lock_command_id @ CommandId::OCP_LOCK_CLEAR_KEY_CACHE
