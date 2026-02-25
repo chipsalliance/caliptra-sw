@@ -194,7 +194,7 @@ fn main() -> io::Result<()> {
             arg!(--"ueid" <U128> "128-bit Unique Endpoint Id")
                 .required(false)
                 .value_parser(value_parser!(u128))
-                .default_value(&u128::MAX.to_string())
+                .default_value(u128::MAX.to_string())
         )
         .arg(
             arg!(--"idevid-key-id-algo" <algo> "idevid certificate key id algorithm [sha1, sha256, sha384, fuse]")
@@ -218,19 +218,19 @@ fn main() -> io::Result<()> {
                 .default_value("/tmp")
         )
         .arg(
-            arg!(--"mfg-pk-hash" ... "Hash of the four Manufacturer Public Keys")
+            arg!(--"mfg-pk-hash" <HASH> "Hash of the four Manufacturer Public Keys")
                 .required(false)
                 .value_parser(value_parser!(String))
                 .default_value(""),
         )
         .arg(
-            arg!(--"owner-pk-hash" ... "Owner Public Key Hash")
+            arg!(--"owner-pk-hash" <HASH> "Owner Public Key Hash")
                 .required(false)
                 .value_parser(value_parser!(String))
                 .default_value(""),
         )
         .arg(
-            arg!(--"device-lifecycle" ... "Device Lifecycle State [unprovisioned, manufacturing, production]")
+            arg!(--"device-lifecycle" <DEVICE_LIFECYCLE> "Device Lifecycle State [unprovisioned, manufacturing, production]")
                 .required(false)
                 .value_parser(value_parser!(String))
                 .default_value("unprovisioned"),
@@ -239,7 +239,7 @@ fn main() -> io::Result<()> {
             arg!(--"wdt-timeout" <U64> "Watchdog Timer Timeout in CPU Clock Cycles")
                 .required(false)
                 .value_parser(value_parser!(u64))
-                .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
+                .default_value(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string())
         )
         .arg(
             arg!(--"subsystem-mode" ... "Subsystem mode: get image update via recovery register interface")

@@ -1,4 +1,10 @@
 # Licensed under the Apache-2.0 license
+
+[alias]
+xtask = "run --package xtask --"
+xtask-fpga = "run --package xtask --features=fpga_realtime --"
+xtask-subsystem = "run --package xtask --features=fpga_subsystem --"
+
 [env]
 RUST_MIN_STACK="16777216" # 16MB
 

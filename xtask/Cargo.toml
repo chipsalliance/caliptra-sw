@@ -1,0 +1,16 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+fpga_realtime = []
+fpga_subsystem = []
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+log.workspace = true
+simple_logger.workspace = true
