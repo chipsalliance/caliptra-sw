@@ -934,9 +934,9 @@ impl CaliptraError {
             "Runtime Error: Context Already Tagged"
         ),
         (
-            RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED,
+            RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED,
             0x000E0021,
-            "Runtime Error: Add Valid Pauser Measurement to DPE Failed"
+            "Runtime Error: Add CCIV Measurement to DPE Failed"
         ),
         (
             RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE,
@@ -1247,6 +1247,16 @@ impl CaliptraError {
             RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED,
             0x000E005F,
             "Runtime Error: RT current PCR validation failed"
+        ),
+        (
+            RUNTIME_CCIV_CONTEXT_NOT_FOUND,
+            0x000E0060,
+            "Runtime Error: CCIV context not found"
+        ),
+        (
+            RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND,
+            0x000E0061,
+            "Runtime Error: Multiple CCIV contexts found"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

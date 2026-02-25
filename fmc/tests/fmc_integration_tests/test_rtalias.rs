@@ -141,22 +141,13 @@ fn test_pcr_log() {
     );
 
     let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest);
-    let manifest_digest1 = openssl::sha::sha384(image1.manifest.as_bytes());
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        fht.pcr_log_index - 2,
-        PcrLogEntryId::RtTci,
-        PCR2_AND_PCR3_EXTENDED_ID,
-        rt_tci1.as_bytes(),
-    );
 
     check_pcr_log_entry(
         &pcr_entry_arr,
         fht.pcr_log_index - 1,
-        PcrLogEntryId::FwImageManifest,
+        PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
-        &manifest_digest1,
+        rt_tci1.as_bytes(),
     );
 
     // Fetch and validate PCR values against the log.
@@ -207,22 +198,13 @@ fn test_pcr_log() {
     );
 
     let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
-    let manifest_digest2 = openssl::sha::sha384(image2.manifest.as_bytes());
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        fht.pcr_log_index - 2,
-        PcrLogEntryId::RtTci,
-        PCR2_AND_PCR3_EXTENDED_ID,
-        rt_tci2.as_bytes(),
-    );
 
     check_pcr_log_entry(
         &pcr_entry_arr,
         fht.pcr_log_index - 1,
-        PcrLogEntryId::FwImageManifest,
+        PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
-        &manifest_digest2,
+        rt_tci2.as_bytes(),
     );
 
     let pcr2_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId2);

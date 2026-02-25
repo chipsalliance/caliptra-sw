@@ -17,7 +17,6 @@ use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
-use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
 use crate::FmcBootStatus;
@@ -31,8 +30,6 @@ use caliptra_drivers::{
     ResetReason,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
-
-const SHA384_HASH_SIZE: usize = 48;
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -238,17 +235,10 @@ impl RtAliasLayer {
     /// * `rt_cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
-        // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
-        let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
-        tci[0..SHA384_HASH_SIZE].copy_from_slice(&rt_tci);
-
-        let image_manifest_digest: Result<_, CaliptraError> = Tci::image_manifest_digest(env);
-        let image_manifest_digest: [u8; 48] = okref(&image_manifest_digest)?.into();
-        tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi)?;
+        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&rt_tci), rt_cdi)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         Ok(())
     }

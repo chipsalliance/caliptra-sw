@@ -17,7 +17,6 @@ pub mod dice;
 mod fmc_alias_csr;
 mod pcr;
 mod rt_alias;
-mod tci;
 mod x509;
 
 use crate::flow::rt_alias::RtAliasLayer;

@@ -1127,7 +1127,7 @@ InvokeDpe command should fail.
 
 At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 16) to DeriveContext for:
    - RTFW Journey (RTFJ) Measurement (1)
-   - Mailbox Valid Pauser digest (MBVP) (1)
+   - Caliptra Configured Initialization Values digest (CCIV) (1)
    - ROM Stashed Measurements (max 8)
 
 Further, it is not allowed for PL1 to call DeriveContext with the intent to change locality to PL0's locality; this would increase the number
@@ -1185,9 +1185,16 @@ Caliptra Runtime Firmware is responsible for initializing DPE’s default contex
     * TYPE = “RTMR”
     * CONTEXT\_HANDLE = default context
     * TARGET\_LOCALITY = Caliptra locality (0xFFFFFFFF)
-  * Call DeriveContext with mailbox valid PAUSERS
-    * INPUT\_DATA = Hash of [CPTRA\_VALID\_PAUSER register](https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.CPTRA_MBOX_VALID_PAUSER%5B0%5D).
-    * TYPE = “MBVP”
+  * Call DeriveContext with hash of initialization values below
+    * INPUT\_DATA = Hash of:
+      * [CPTRA\_VALID\_PAUSER register](https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.CPTRA_MBOX_VALID_PAUSER%5B0%5D)
+      * PL0 PAUSER locality
+      * Flags from FW image manifest header
+      * FMC load address
+      * FMC entry point
+      * Runtime load address
+      * Runtime entry point
+    * TYPE = "CCIV"
     * CONTEXT\_HANDLE = default context
     * TARGET\_LOCALITY = PL0 PAUSER
   * Call DeriveContext for each STASH\_MEASUREMENT call made during Caliptra ROM execution

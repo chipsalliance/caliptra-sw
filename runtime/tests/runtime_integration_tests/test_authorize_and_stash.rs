@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
 use crate::test_update_reset::update_fw;
 use caliptra_api::SocManager;
@@ -16,7 +16,7 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
@@ -38,9 +38,7 @@ pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
 
-fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
+fn set_auth_manifest<T: HwModel>(model: &mut T, auth_manifest: Option<AuthorizationManifest>) {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -69,8 +67,6 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
         )
         .unwrap()
         .expect("We should have received a response");
-
-    model
 }
 
 #[test]
@@ -111,25 +107,26 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
     )
-    .unwrap()
-    .to_bytes()
     .unwrap();
 
     // trigger an update reset so we can use commands in mbox responder
     model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &updated_fw_image.to_bytes().unwrap(),
+        )
         .unwrap();
 
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &updated_fw_image);
 
     // We don't expect the image_digest to be part of the stash
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
@@ -138,7 +135,8 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
 
 #[test]
 fn test_authorize_and_stash_cmd_success() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -167,25 +165,26 @@ fn test_authorize_and_stash_cmd_success() {
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
     )
-    .unwrap()
-    .to_bytes()
     .unwrap();
 
     // trigger an update reset so we can use commands in mbox responder
     model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &updated_fw_image.to_bytes().unwrap(),
+        )
         .unwrap();
 
     let rt_current_pcr_resp = model.mailbox_execute(0x1000_0001, &[]).unwrap().unwrap();
     let rt_current_pcr: [u8; 48] = rt_current_pcr_resp.as_bytes().try_into().unwrap();
 
-    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+    let cptra_config_init_vals_hash: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &updated_fw_image);
 
     // hash expected DPE measurements in order to check that stashed measurement was added to DPE
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
-    hasher.update(valid_pauser_hash);
+    hasher.update(cptra_config_init_vals_hash);
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
 
@@ -195,7 +194,8 @@ fn test_authorize_and_stash_cmd_success() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -222,7 +222,8 @@ fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -250,7 +251,8 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -279,7 +281,8 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
 
 #[test]
 fn test_authorize_and_stash_cmd_success_skip_auth() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -317,7 +320,8 @@ fn test_authorize_and_stash_fwid_0() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -355,7 +359,8 @@ fn test_authorize_and_stash_fwid_127() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -382,7 +387,8 @@ fn test_authorize_and_stash_fwid_127() {
 #[test]
 fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
     {
-        let mut model = set_auth_manifest(None);
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        set_auth_manifest(&mut model, None);
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -418,7 +424,8 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             digest: IMAGE_DIGEST_BAD,
         }];
         let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-        let mut model = set_auth_manifest(Some(auth_manifest));
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        set_auth_manifest(&mut model, Some(auth_manifest));
 
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
             hdr: MailboxReqHeader { chksum: 0 },
@@ -461,7 +468,8 @@ fn test_authorize_and_stash_after_update_reset() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -524,7 +532,8 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -593,7 +602,8 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -650,7 +660,8 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
 
 #[test]
 fn test_authorize_and_stash_after_update_reset_skip_auth() {
-    let mut model = set_auth_manifest(None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, None);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -713,7 +724,8 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         digest: IMAGE_DIGEST1,
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest(Some(auth_manifest));
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    set_auth_manifest(&mut model, Some(auth_manifest));
 
     // Valid authorization.
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
