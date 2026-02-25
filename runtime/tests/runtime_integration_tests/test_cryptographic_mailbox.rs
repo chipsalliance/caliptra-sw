@@ -2073,6 +2073,56 @@ fn test_ecdh() {
     assert_eq!(tag, rtag);
 }
 
+#[test]
+fn test_ecdh_invalid_peer_then_recovery() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    let mut generate = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+    generate.populate_chksum().unwrap();
+    let bytes = model
+        .mailbox_execute(generate.cmd_code().into(), generate.as_bytes().unwrap())
+        .unwrap()
+        .expect("ECDH key generation should return a response");
+    let generated = CmEcdhGenerateResp::ref_from_bytes(&bytes).unwrap();
+    let mut finish = MailboxReq::CmEcdhFinish(CmEcdhFinishReq {
+        context: generated.context,
+        key_usage: CmKeyUsage::Aes.into(),
+        ..Default::default()
+    });
+    finish.populate_chksum().unwrap();
+    let error = model
+        .mailbox_execute(finish.cmd_code().into(), finish.as_bytes().unwrap())
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::DRIVER_ECC384_HW_ERROR,
+        error,
+    );
+
+    let bytes = model
+        .mailbox_execute(generate.cmd_code().into(), generate.as_bytes().unwrap())
+        .unwrap()
+        .expect("ECC should recover after rejecting the zero peer");
+    let generated = CmEcdhGenerateResp::ref_from_bytes(&bytes).unwrap();
+    let mut finish = MailboxReq::CmEcdhFinish(CmEcdhFinishReq {
+        context: generated.context,
+        key_usage: CmKeyUsage::Aes.into(),
+        incoming_exchange_data: generated.exchange_data,
+        ..Default::default()
+    });
+    finish.populate_chksum().unwrap();
+    let bytes = model
+        .mailbox_execute(finish.cmd_code().into(), finish.as_bytes().unwrap())
+        .unwrap()
+        .expect("ECDH should succeed with a valid peer after recovery");
+    let response = CmEcdhFinishResp::ref_from_bytes(&bytes).unwrap();
+    assert_eq!(
+        response.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+}
+
 // We can't do HMAC-SHA-512 on a 384-bit key in HW.
 #[test]
 fn test_hmac_cant_use_sha512_on_384_key() {

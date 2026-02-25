@@ -340,6 +340,7 @@ impl AsymEcc384 {
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
+            self.error_internal_intr.write(RvSize::Word, 0)?;
             self.zeroize();
         }
 
@@ -802,6 +803,7 @@ mod tests {
     const OFFSET_SEED_STATUS: RvAddr = 0x60c;
     const OFFSET_KEY_WRITE_CONTROL: RvAddr = 0x610;
     const OFFSET_KEY_WRITE_STATUS: RvAddr = 0x614;
+    const OFFSET_ERROR_INTERNAL_INTR: RvAddr = 0x814;
 
     const PRIV_KEY: [u8; 48] = [
         0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
@@ -1443,6 +1445,74 @@ mod tests {
         // Verify shared key is not all zeros
         let shared_key = bytes_from_words_le(&ecc.dh_shared_key);
         assert_eq!(shared_key, SHARED_SECRET);
+    }
+
+    #[test]
+    fn test_dh_shared_key_invalid_peer_recovery() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
+        let mut priv_key = PRIV_KEY;
+        priv_key.to_big_endian();
+        for i in (0..priv_key.len()).step_by(4) {
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PRIV_KEY_IN + i as RvAddr,
+                make_word(i, &priv_key),
+            )
+            .unwrap();
+        }
+        ecc.write(
+            RvSize::Word,
+            OFFSET_CONTROL,
+            Control::DH_SHAREDKEY::SET.value,
+        )
+        .unwrap();
+        for _ in 0..=ECC384_OP_TICKS {
+            clock.increment_and_process_timer_actions(1, &mut ecc);
+        }
+        let status = InMemoryRegister::<u32, Status::Register>::new(
+            ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+        );
+        assert!(status.is_set(Status::READY));
+        assert!(!status.is_set(Status::VALID));
+        assert_ne!(
+            ecc.read(RvSize::Word, OFFSET_ERROR_INTERNAL_INTR).unwrap(),
+            0
+        );
+
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.value)
+            .unwrap();
+        assert_eq!(
+            ecc.read(RvSize::Word, OFFSET_ERROR_INTERNAL_INTR).unwrap(),
+            0
+        );
+        for (offset, mut key) in [
+            (OFFSET_PRIV_KEY_IN, PRIV_KEY),
+            (OFFSET_PUB_KEY_X, PUB_KEY_X),
+            (OFFSET_PUB_KEY_Y, PUB_KEY_Y),
+        ] {
+            key.to_big_endian();
+            for i in (0..key.len()).step_by(4) {
+                ecc.write(RvSize::Word, offset + i as RvAddr, make_word(i, &key))
+                    .unwrap();
+            }
+        }
+        ecc.write(
+            RvSize::Word,
+            OFFSET_CONTROL,
+            Control::DH_SHAREDKEY::SET.value,
+        )
+        .unwrap();
+        for _ in 0..=ECC384_OP_TICKS {
+            clock.increment_and_process_timer_actions(1, &mut ecc);
+        }
+        let status = InMemoryRegister::<u32, Status::Register>::new(
+            ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+        );
+        assert!(status.is_set(Status::READY) && status.is_set(Status::VALID));
+        assert_eq!(bytes_from_words_le(&ecc.dh_shared_key), SHARED_SECRET);
     }
 
     #[test]
