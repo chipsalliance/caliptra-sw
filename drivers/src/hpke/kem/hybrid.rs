@@ -85,7 +85,11 @@ impl MlKem1024P384 {
         + Self::COMBINER_LABEL.len();
     pub const COMBINER_LABEL: &[u8] = b"MLKEM1024-P384";
 
-    pub fn new(seed: [u8; Self::NSK], trad: P384) -> Self {
+    /// # SAFETY
+    ///
+    /// This function SHALL NOT be used in firmware. It is strictly for testing against known test
+    /// vectors.
+    pub unsafe fn new(seed: [u8; Self::NSK], trad: P384) -> Self {
         Self { seed, trad }
     }
 
@@ -184,7 +188,7 @@ impl
         let (_, trad_seed) = Self::expand_seed(ctx.sha, ikm)?;
         let mut ctx = P384KemContext::new(ctx.trng, ctx.ecc, ctx.hmac);
         let trad = P384::derive_key_pair_raw(&mut ctx, &trad_seed)?;
-        Ok(Self::new(*ikm, trad))
+        Ok(Self { seed: *ikm, trad })
     }
 
     fn encap(

@@ -340,6 +340,8 @@ impl AsymEcc384 {
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
+            // Clear error register on zeroize.
+            self.error_internal_intr.write(RvSize::Word, 0)?;
             self.zeroize();
         }
 
