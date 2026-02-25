@@ -22,9 +22,11 @@ use caliptra_api::mailbox::{
     CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
     CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
     CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
-    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk, CommandId,
-    MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp,
+    CmShake256InitReq, CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk,
+    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
+    ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES,
+    MAX_CMB_DATA_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -43,6 +45,8 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
+use sha3::digest::ExtendableOutput;
+use sha3::Shake256;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 
 #[cfg(feature = "fpga_subsystem")]
@@ -3570,4 +3574,535 @@ fn test_kek_iv_initialized() {
         iv_bytes, &[0u8; 12],
         "kek_next_iv was not initialized - IV should be random, not zero"
     );
+}
+
+#[test]
+fn test_shake256_simple() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let input_data = b"hello world";
+
+    // INIT with data
+    let mut req = CmShake256InitReq {
+        input_size: input_data.len() as u32,
+        ..Default::default()
+    };
+    req.input[..input_data.len()].copy_from_slice(input_data);
+
+    let mut init = MailboxReq::CmShake256Init(req);
+    init.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_INIT),
+            init.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a context");
+    let resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // FINAL with no additional data
+    let req = CmShake256FinalReq {
+        context: resp.context,
+        ..Default::default()
+    };
+
+    let mut fin = MailboxReq::CmShake256Final(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_FINAL),
+            fin.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a digest");
+
+    // Compute expected SHAKE256 digest (always 64 bytes)
+    let mut expected_resp = CmShake256FinalResp::default();
+    let mut hasher = Shake256::default();
+    sha3::digest::Update::update(&mut hasher, input_data);
+    let mut expected_hash = [0u8; 64];
+    hasher.finalize_xof_into(&mut expected_hash);
+    expected_resp.hash.copy_from_slice(&expected_hash);
+    populate_checksum(expected_resp.as_mut_bytes());
+    assert_eq!(expected_resp.as_bytes(), resp_bytes.as_slice());
+}
+
+#[test]
+fn test_shake256_partial_update() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let input_str = "a".repeat(2048);
+    let original_input_data = input_str.as_bytes();
+    let mut input_data = input_str.as_bytes().to_vec();
+    let mut input_data = input_data.as_mut_slice();
+
+    let split = 4;
+    let initial = 1024;
+
+    // INIT with first chunk
+    let mut req = CmShake256InitReq {
+        input_size: initial as u32,
+        ..Default::default()
+    };
+    req.input[..initial].copy_from_slice(&input_data[..initial]);
+    input_data = &mut input_data[initial..];
+
+    let mut init = MailboxReq::CmShake256Init(req);
+    init.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_INIT),
+            init.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a context");
+    let mut resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let mut resp_bytes: Vec<u8>;
+
+    // UPDATE with small chunks
+    while input_data.len() > split {
+        let mut req = CmShake256UpdateReq {
+            input_size: split as u32,
+            context: resp.context,
+            ..Default::default()
+        };
+        req.input[..split].copy_from_slice(&input_data[..split]);
+
+        let mut update = MailboxReq::CmShake256Update(req);
+        update.populate_chksum().unwrap();
+        resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_UPDATE),
+                update.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("Should have gotten a context");
+
+        resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        input_data = &mut input_data[split..];
+    }
+
+    // FINAL with remaining data
+    let mut req = CmShake256FinalReq {
+        input_size: input_data.len() as u32,
+        context: resp.context,
+        ..Default::default()
+    };
+    req.input[..input_data.len()].copy_from_slice(input_data);
+
+    let mut fin = MailboxReq::CmShake256Final(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_FINAL),
+            fin.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a digest");
+
+    let mut expected_resp = CmShake256FinalResp::default();
+    let mut hasher = Shake256::default();
+    sha3::digest::Update::update(&mut hasher, original_input_data);
+    let mut expected_hash = [0u8; 64];
+    hasher.finalize_xof_into(&mut expected_hash);
+    expected_resp.hash.copy_from_slice(&expected_hash);
+    populate_checksum(expected_resp.as_mut_bytes());
+    assert_eq!(expected_resp.as_bytes(), resp_bytes.as_slice());
+}
+
+#[test]
+fn test_shake256_context_reuse_after_final_fails() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let input_data = b"test context reuse";
+
+    // INIT
+    let mut req = CmShake256InitReq {
+        input_size: input_data.len() as u32,
+        ..Default::default()
+    };
+    req.input[..input_data.len()].copy_from_slice(input_data);
+
+    let mut init = MailboxReq::CmShake256Init(req);
+    init.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_INIT),
+            init.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a context");
+    let resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let saved_context = resp.context;
+
+    // FINAL (completes the operation, clears the session)
+    let req = CmShake256FinalReq {
+        context: saved_context,
+        ..Default::default()
+    };
+    let mut fin = MailboxReq::CmShake256Final(req);
+    fin.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_FINAL),
+            fin.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a digest");
+
+    // Try to UPDATE with the old context — should fail
+    let mut req = CmShake256UpdateReq {
+        context: saved_context,
+        input_size: 5,
+        ..Default::default()
+    };
+    req.input[..5].copy_from_slice(b"extra");
+    let mut update = MailboxReq::CmShake256Update(req);
+    update.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_UPDATE),
+            update.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH,
+        resp,
+    );
+}
+
+#[test]
+fn test_shake256_interleaved_operations_fail() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Start first SHAKE256 operation
+    let mut req = CmShake256InitReq {
+        input_size: 5,
+        ..Default::default()
+    };
+    req.input[..5].copy_from_slice(b"first");
+    let mut init1 = MailboxReq::CmShake256Init(req);
+    init1.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_INIT),
+            init1.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a context");
+    let resp1 = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let context1 = resp1.context;
+
+    // Start second SHAKE256 operation (invalidates first session)
+    let mut req = CmShake256InitReq {
+        input_size: 6,
+        ..Default::default()
+    };
+    req.input[..6].copy_from_slice(b"second");
+    let mut init2 = MailboxReq::CmShake256Init(req);
+    init2.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_INIT),
+            init2.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Should have gotten a context");
+
+    // Try to UPDATE the first operation — should fail because second INIT
+    // replaced the active session token in the SHA3 driver
+    let mut req = CmShake256UpdateReq {
+        context: context1,
+        input_size: 4,
+        ..Default::default()
+    };
+    req.input[..4].copy_from_slice(b"more");
+    let mut update = MailboxReq::CmShake256Update(req);
+    update.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_SHAKE256_UPDATE),
+            update.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH,
+        resp,
+    );
+}
+
+#[test]
+fn test_shake256_edge_cases() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    fn shake256_init(model: &mut DefaultHwModel, data: &[u8]) -> [u8; CMB_SHAKE256_CONTEXT_SIZE] {
+        let mut req = CmShake256InitReq {
+            input_size: data.len() as u32,
+            ..Default::default()
+        };
+        req.input[..data.len()].copy_from_slice(data);
+        let mut init = MailboxReq::CmShake256Init(req);
+        init.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_INIT),
+                init.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("INIT should succeed");
+        CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice())
+            .unwrap()
+            .context
+    }
+
+    fn shake256_update(
+        model: &mut DefaultHwModel,
+        context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+        data: &[u8],
+    ) -> [u8; CMB_SHAKE256_CONTEXT_SIZE] {
+        let mut req = CmShake256UpdateReq {
+            context,
+            input_size: data.len() as u32,
+            ..Default::default()
+        };
+        req.input[..data.len()].copy_from_slice(data);
+        let mut update = MailboxReq::CmShake256Update(req);
+        update.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_UPDATE),
+                update.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("UPDATE should succeed");
+        CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice())
+            .unwrap()
+            .context
+    }
+
+    fn shake256_final(
+        model: &mut DefaultHwModel,
+        context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+        data: &[u8],
+    ) -> [u8; SHAKE256_MAX_DIGEST_BYTE_SIZE] {
+        let mut req = CmShake256FinalReq {
+            context,
+            input_size: data.len() as u32,
+            ..Default::default()
+        };
+        req.input[..data.len()].copy_from_slice(data);
+        let mut fin = MailboxReq::CmShake256Final(req);
+        fin.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_FINAL),
+                fin.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("FINAL should succeed");
+        CmShake256FinalResp::ref_from_bytes(resp_bytes.as_slice())
+            .unwrap()
+            .hash
+    }
+
+    fn expected_shake256(data: &[u8]) -> [u8; SHAKE256_MAX_DIGEST_BYTE_SIZE] {
+        let mut hasher = Shake256::default();
+        sha3::digest::Update::update(&mut hasher, data);
+        let mut hash = [0u8; SHAKE256_MAX_DIGEST_BYTE_SIZE];
+        hasher.finalize_xof_into(&mut hash);
+        hash
+    }
+
+    // 1. Empty INIT → immediate FINAL (zero total data)
+    {
+        let ctx = shake256_init(&mut model, &[]);
+        let hash = shake256_final(&mut model, ctx, &[]);
+        assert_eq!(hash, expected_shake256(&[]));
+    }
+
+    // 2. Empty INIT → empty UPDATE → empty FINAL
+    {
+        let ctx = shake256_init(&mut model, &[]);
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let hash = shake256_final(&mut model, ctx, &[]);
+        assert_eq!(hash, expected_shake256(&[]));
+    }
+
+    // 3. Non-empty INIT → empty UPDATE → empty FINAL
+    {
+        let ctx = shake256_init(&mut model, b"data");
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let hash = shake256_final(&mut model, ctx, &[]);
+        assert_eq!(hash, expected_shake256(b"data"));
+    }
+
+    // 4. Empty INIT → non-empty UPDATE → empty FINAL
+    {
+        let ctx = shake256_init(&mut model, &[]);
+        let ctx = shake256_update(&mut model, ctx, b"later");
+        let hash = shake256_final(&mut model, ctx, &[]);
+        assert_eq!(hash, expected_shake256(b"later"));
+    }
+
+    // 5. Empty INIT → empty UPDATE → non-empty FINAL
+    {
+        let ctx = shake256_init(&mut model, &[]);
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let hash = shake256_final(&mut model, ctx, b"final");
+        assert_eq!(hash, expected_shake256(b"final"));
+    }
+
+    // 6. Non-empty INIT → non-empty UPDATE → non-empty FINAL
+    {
+        let ctx = shake256_init(&mut model, b"aaa");
+        let ctx = shake256_update(&mut model, ctx, b"bbb");
+        let hash = shake256_final(&mut model, ctx, b"ccc");
+        assert_eq!(hash, expected_shake256(b"aaabbbccc"));
+    }
+
+    // 7. INIT with max data → immediate FINAL with no data
+    {
+        let big = vec![0x42u8; MAX_CMB_DATA_SIZE];
+        let ctx = shake256_init(&mut model, &big);
+        let hash = shake256_final(&mut model, ctx, &[]);
+        assert_eq!(hash, expected_shake256(&big));
+    }
+
+    // 8. INIT with no data → FINAL with max data
+    {
+        let big = vec![0x43u8; MAX_CMB_DATA_SIZE];
+        let ctx = shake256_init(&mut model, &[]);
+        let hash = shake256_final(&mut model, ctx, &big);
+        assert_eq!(hash, expected_shake256(&big));
+    }
+
+    // 9. Multiple empty UPDATEs between non-empty INIT and FINAL
+    {
+        let ctx = shake256_init(&mut model, b"start");
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let ctx = shake256_update(&mut model, ctx, &[]);
+        let hash = shake256_final(&mut model, ctx, b"end");
+        assert_eq!(hash, expected_shake256(b"startend"));
+    }
+
+    // 10. Single byte at each stage
+    {
+        let ctx = shake256_init(&mut model, &[0x01]);
+        let ctx = shake256_update(&mut model, ctx, &[0x02]);
+        let hash = shake256_final(&mut model, ctx, &[0x03]);
+        assert_eq!(hash, expected_shake256(&[0x01, 0x02, 0x03]));
+    }
+}
+
+#[test]
+fn test_shake256_many() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // 467 is a prime so should exercise different edge cases in sizes
+    for i in (0..MAX_CMB_DATA_SIZE * 4).step_by(467) {
+        let input_str = "b".repeat(i);
+        let input_copy = input_str.clone();
+        let original_input_data = input_copy.as_bytes();
+        let mut input_data = input_str.as_bytes().to_vec();
+        let mut input_data = input_data.as_mut_slice();
+
+        let process = input_data.len().min(MAX_CMB_DATA_SIZE);
+
+        // INIT with first chunk
+        let mut req = CmShake256InitReq {
+            input_size: process as u32,
+            ..Default::default()
+        };
+        req.input[..process].copy_from_slice(&input_data[..process]);
+        input_data = &mut input_data[process..];
+
+        let mut init = MailboxReq::CmShake256Init(req);
+        init.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_INIT),
+                init.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("Should have gotten a context");
+        let mut resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        let mut resp_bytes: Vec<u8>;
+
+        // UPDATE with remaining full chunks
+        while input_data.len() > MAX_CMB_DATA_SIZE {
+            let mut req = CmShake256UpdateReq {
+                input_size: MAX_CMB_DATA_SIZE as u32,
+                context: resp.context,
+                ..Default::default()
+            };
+            req.input.copy_from_slice(&input_data[..MAX_CMB_DATA_SIZE]);
+
+            let mut update = MailboxReq::CmShake256Update(req);
+            update.populate_chksum().unwrap();
+            resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_SHAKE256_UPDATE),
+                    update.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("Should have gotten a context");
+
+            resp = CmShake256InitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+            input_data = &mut input_data[MAX_CMB_DATA_SIZE..];
+        }
+
+        // FINAL with leftover data
+        let mut req = CmShake256FinalReq {
+            input_size: input_data.len() as u32,
+            context: resp.context,
+            ..Default::default()
+        };
+        req.input[..input_data.len()].copy_from_slice(input_data);
+
+        let mut fin = MailboxReq::CmShake256Final(req);
+        fin.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_SHAKE256_FINAL),
+                fin.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("Should have gotten a digest");
+
+        let mut expected_resp = CmShake256FinalResp::default();
+        let mut hasher = Shake256::default();
+        sha3::digest::Update::update(&mut hasher, original_input_data);
+        let mut expected_hash = [0u8; SHAKE256_MAX_DIGEST_BYTE_SIZE];
+        hasher.finalize_xof_into(&mut expected_hash);
+        expected_resp.hash.copy_from_slice(&expected_hash);
+        populate_checksum(expected_resp.as_mut_bytes());
+        assert_eq!(expected_resp.as_bytes(), resp_bytes.as_slice());
+    }
 }

@@ -35,11 +35,12 @@ use caliptra_common::{
         CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq,
         CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
         CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
-        CmShaInitResp, CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
+        CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
+        CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
         MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
         CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-        CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES,
-        MAX_CMB_DATA_SIZE,
+        CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
+        CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
     },
 };
 use caliptra_drivers::{
@@ -343,6 +344,53 @@ impl CmStorage {
         )?;
         Ok(plaintext)
     }
+
+    fn encrypt_shake256_context(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        token: u128,
+    ) -> CaliptraResult<EncryptedShake256Context> {
+        let context_iv: [u32; 4] = transmute!(self.context_next_iv);
+        let context_iv: [u32; 3] = context_iv[..3].try_into().unwrap();
+        let context_iv: LEArray4x3 = context_iv.into();
+        self.context_next_iv += 1;
+
+        let mut ciphertext = [0u8; CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE];
+        let (iv, tag) = aes.aes_256_gcm_encrypt(
+            trng,
+            AesGcmIv::Array(&context_iv),
+            AesKey::Split(&self.context_key.0, &self.context_key.1),
+            &[],
+            &token.to_le_bytes(),
+            &mut ciphertext[..],
+            16,
+        )?;
+        Ok(EncryptedShake256Context {
+            iv,
+            tag,
+            ciphertext,
+        })
+    }
+
+    fn decrypt_shake256_context(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        encrypted_context: &EncryptedShake256Context,
+    ) -> CaliptraResult<u128> {
+        let mut plaintext = [0u8; CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE];
+        aes.aes_256_gcm_decrypt(
+            trng,
+            &encrypted_context.iv,
+            AesKey::Split(&self.context_key.0, &self.context_key.1),
+            &[],
+            &encrypted_context.ciphertext,
+            &mut plaintext,
+            &encrypted_context.tag,
+        )?;
+        Ok(u128::from_le_bytes(plaintext))
+    }
 }
 
 #[derive(Default)]
@@ -403,6 +451,14 @@ struct EncryptedEcdhContext {
     pub ciphertext: [u8; CMB_ECDH_CONTEXT_SIZE],
 }
 
+#[repr(C)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+struct EncryptedShake256Context {
+    pub iv: LEArray4x3,
+    pub tag: LEArray4x4,
+    pub ciphertext: [u8; CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE],
+}
+
 const _: () = assert!(core::mem::size_of::<UnencryptedCmk>() == UNENCRYPTED_CMK_SIZE_BYTES);
 const _: () = assert!(core::mem::size_of::<EncryptedCmk>() == CMK_SIZE_BYTES);
 const _: () = assert!(core::mem::size_of::<ShaContext>() == CMB_SHA_CONTEXT_SIZE);
@@ -411,6 +467,9 @@ const _: () =
 
 const _: () =
     assert!(core::mem::size_of::<EncryptedEcdhContext>() == CMB_ECDH_ENCRYPTED_CONTEXT_SIZE);
+
+const _: () =
+    assert!(core::mem::size_of::<EncryptedShake256Context>() == CMB_SHAKE256_CONTEXT_SIZE);
 
 pub(crate) struct Commands {}
 
@@ -747,6 +806,151 @@ impl Commands {
         resp.hdr.data_len = len as u32;
         resp.hash = digest;
         resp.partial_len()
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn shake256_init(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() > core::mem::size_of::<CmShake256InitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShake256InitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let data = &cmd.input[..cmd.input_size as usize];
+
+        // Generate a random session token
+        let rand = drivers.trng.generate4()?;
+        let token = ((rand.0 as u128) << 96)
+            | ((rand.1 as u128) << 64)
+            | ((rand.2 as u128) << 32)
+            | (rand.3 as u128);
+
+        // Start SHAKE256 streaming operation with the token
+        drivers.sha3.shake256_streaming_start(token)?;
+        drivers.sha3.shake256_streaming_update(token, data)?;
+
+        // Encrypt the token as context
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_shake256_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            token,
+        )?;
+
+        let resp = mutrefbytes::<CmShake256InitResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.context = transmute!(encrypted_context);
+        Ok(core::mem::size_of::<CmShake256InitResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn shake256_update(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() > core::mem::size_of::<CmShake256UpdateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShake256UpdateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        // Decrypt the context to get the session token
+        let encrypted_context: EncryptedShake256Context =
+            EncryptedShake256Context::read_from_bytes(&cmd.context)
+                .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let token = drivers.cryptographic_mailbox.decrypt_shake256_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &encrypted_context,
+        )?;
+
+        // Driver verifies token matches the active session
+        let data = &cmd.input[..cmd.input_size as usize];
+        drivers
+            .sha3
+            .shake256_streaming_update(token, data)
+            .map_err(|_| CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH)?;
+
+        // Re-encrypt the same token as new context (fresh IV)
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_shake256_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            token,
+        )?;
+
+        let resp = mutrefbytes::<CmShake256InitResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.context = transmute!(encrypted_context);
+        Ok(core::mem::size_of::<CmShake256InitResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn shake256_final(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() > core::mem::size_of::<CmShake256FinalReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShake256FinalReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        // Decrypt the context to get the session token
+        let encrypted_context: EncryptedShake256Context =
+            EncryptedShake256Context::read_from_bytes(&cmd.context)
+                .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let token = drivers.cryptographic_mailbox.decrypt_shake256_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &encrypted_context,
+        )?;
+
+        // Driver verifies token and streams remaining data
+        let data = &cmd.input[..cmd.input_size as usize];
+        drivers
+            .sha3
+            .shake256_streaming_update(token, data)
+            .map_err(|_| CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH)?;
+
+        // Finalize and read digest (up to 64 bytes); driver clears session
+        let full_digest = drivers
+            .sha3
+            .shake256_streaming_finalize(token)
+            .map_err(|_| CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH)?;
+
+        let resp = mutrefbytes::<CmShake256FinalResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.hash = full_digest.into();
+        Ok(core::mem::size_of::<CmShake256FinalResp>())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
