@@ -3,10 +3,10 @@
 use caliptra_api::{
     mailbox::{
         CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
-        MailboxReqHeader, MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEndorseHpkePubKeyReq,
-        OcpLockEndorseHpkePubKeyResp, OcpLockEnumerateHpkeHandlesReq,
+        MailboxReqHeader, MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEnumerateHpkeHandlesReq,
         OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockGenerateMpkResp,
-        OcpLockInitializeMekSecretReq, OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
+        OcpLockGetHpkePubKeyReq, OcpLockGetHpkePubKeyResp, OcpLockInitializeMekSecretReq,
+        OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
         OcpLockReportHekMetadataRespFlags, OcpLockRewrapMpkReq, SealedAccessKey, WrappedKey,
         OCP_LOCK_MAX_ENC_LEN, OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN,
         OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
@@ -26,25 +26,17 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use zerocopy::{FromBytes, IntoBytes};
 
-use openssl::x509::X509;
-use x509_parser::der_parser::ber::parse_ber_sequence;
-use x509_parser::nom::Parser;
-use x509_parser::oid_registry::asn1_rs::oid;
-use x509_parser::prelude::*;
-
-use crate::common::{
-    get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, RuntimeTestArgs,
-};
+use crate::common::{run_rt_test, RuntimeTestArgs};
 
 mod test_access_key;
 mod test_clear_key_cache;
 mod test_derive_mek;
 mod test_enable_mpk;
-mod test_endorse_hpke_pubkey;
 mod test_enumerate_hpke_handles;
 mod test_generate_mek;
 mod test_generate_mpk;
 mod test_get_algorithms;
+mod test_get_hpke_pubkey;
 mod test_get_status;
 mod test_initialize_mek_secret;
 mod test_mix_mpk;
@@ -288,11 +280,6 @@ fn verify_hpke_pub_key(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
 ) -> Option<ValidatedHpkeHandle> {
-    // TODO(clundin): Don't have the code space for ML-DSA endorsed certs.
-    // Tracking in https://github.com/chipsalliance/caliptra-sw/issues/3355
-    // let mldsa_res =
-    //     verify_hpke_pub_key_with_algo(model, hpke_handle, EndorsementAlgorithms::ML_DSA_87);
-    // assert_eq!(ecdsa_res, mldsa_res);
     verify_hpke_pub_key_with_algo(
         model,
         hpke_handle.clone(),
@@ -303,24 +290,22 @@ fn verify_hpke_pub_key(
 fn verify_hpke_pub_key_with_algo(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
-    endorsement_algorithm: EndorsementAlgorithms,
+    _endorsement_algorithm: EndorsementAlgorithms,
 ) -> Option<ValidatedHpkeHandle> {
-    let mut cmd = MailboxReq::OcpLockEndorseHpkePubKey(OcpLockEndorseHpkePubKeyReq {
+    let mut cmd = MailboxReq::OcpLockGetHpkePubKey(OcpLockGetHpkePubKeyReq {
         hpke_handle: hpke_handle.handle,
-        endorsement_algorithm: endorsement_algorithm.clone(),
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
 
     let response = model.mailbox_execute(
-        CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY.into(),
+        CommandId::OCP_LOCK_GET_HPKE_PUB_KEY.into(),
         cmd.as_bytes().unwrap(),
     );
 
     let endorse_resp = validate_ocp_lock_response(model, response, |response, _| {
         let response = response.unwrap().unwrap();
-        let endorse_resp =
-            OcpLockEndorseHpkePubKeyResp::read_from_bytes(response.as_bytes()).unwrap();
+        let endorse_resp = OcpLockGetHpkePubKeyResp::read_from_bytes(response.as_bytes()).unwrap();
 
         // Verify response checksum
         assert!(caliptra_common::checksum::verify_checksum(
@@ -335,108 +320,113 @@ fn verify_hpke_pub_key_with_algo(
         );
         endorse_resp
     })?;
-    verify_endorsement_certificate(
-        model,
-        &endorse_resp,
-        endorsement_algorithm,
-        &hpke_handle.hpke_algorithm,
-    );
+    // TODO(clundin): Re-enable certificate verification once MCU runtime implements HPKE public
+    // https://github.com/chipsalliance/caliptra-mcu-sw/issues/949
+    // key endorsement.
+    // verify_endorsement_certificate(
+    //     model,
+    //     &endorse_resp,
+    //     endorsement_algorithm,
+    //     &hpke_handle.hpke_algorithm,
+    // );
     Some(ValidatedHpkeHandle {
         hpke_handle,
         pub_key: endorse_resp.pub_key[..endorse_resp.pub_key_len as usize].to_vec(),
     })
 }
 
-fn verify_endorsement_certificate(
-    model: &mut DefaultHwModel,
-    endorse_resp: &OcpLockEndorseHpkePubKeyResp,
-    endorsement_algorithm: EndorsementAlgorithms,
-    expected_hpke_alg: &HpkeAlgorithms,
-) {
-    // Get RT Alias Cert
-    let rt_alias_cert = match endorsement_algorithm {
-        EndorsementAlgorithms::ECDSA_P384_SHA384 => {
-            let rt_alias_cert_resp = get_rt_alias_ecc384_cert(model);
-            X509::from_der(&rt_alias_cert_resp.data[..rt_alias_cert_resp.data_size as usize])
-                .unwrap()
-        }
-        EndorsementAlgorithms::ML_DSA_87 => {
-            let rt_alias_cert_resp = get_rt_alias_mldsa87_cert(model);
-            X509::from_der(&rt_alias_cert_resp.data[..rt_alias_cert_resp.data_size as usize])
-                .unwrap()
-        }
-        _ => panic!("Unsupported endorsement algorithm"),
-    };
-
-    // Verify Endorsement Certificate Signature
-    let endorsement_cert_der = &endorse_resp.endorsement[..endorse_resp.endorsement_len as usize];
-    let endorsement_cert = X509::from_der(endorsement_cert_der).unwrap();
-    assert!(endorsement_cert
-        .verify(&rt_alias_cert.public_key().unwrap())
-        .unwrap());
-
-    // Verify Subject Public Key in Certificate matches Response Public Key
-    let pub_key_resp = &endorse_resp.pub_key[..endorse_resp.pub_key_len as usize];
-
-    // Parse with x509_parser to extract Subject Public Key bytes
-    let (_, cert_parsed) = X509CertificateParser::new()
-        .parse(endorsement_cert_der)
-        .unwrap();
-
-    // Ensure the public key in response is contained in the certificate's SPKI
-    assert_eq!(
-        cert_parsed
-            .tbs_certificate
-            .subject_pki
-            .subject_public_key
-            .data,
-        pub_key_resp
-    );
-
-    // Verify HPKE Identifiers Extension
-    let hpke_oid = oid!(2.23.133 .21 .1 .1);
-    let hpke_ext = cert_parsed
-        .tbs_certificate
-        .extensions()
-        .iter()
-        .find(|e| e.oid == hpke_oid)
-        .expect("HPKE Identifiers extension not found");
-
-    let (_, seq) =
-        parse_ber_sequence(hpke_ext.value).expect("Failed to parse HPKE identifiers sequence");
-
-    let items = seq
-        .content
-        .as_sequence()
-        .expect("HPKE Identifiers extension is not a sequence");
-
-    assert_eq!(items.len(), 3);
-
-    let kem_id = items[0].as_u32().unwrap();
-    let kdf_id = items[1].as_u32().unwrap();
-    let aead_id = items[2].as_u32().unwrap();
-
-    assert_eq!(kdf_id, 0x0002);
-    assert_eq!(aead_id, 0x0002);
-
-    match *expected_hpke_alg {
-        HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
-            assert_eq!(kem_id, 0x0042);
-        }
-        HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
-            assert_eq!(kem_id, 0x0051);
-        }
-        HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
-            assert_eq!(kem_id, 0x0011);
-        }
-        _ => {
-            panic!(
-                "Unverified HPKE alg: {:?} IDs: {} {} {}",
-                expected_hpke_alg, kem_id, kdf_id, aead_id
-            );
-        }
-    }
-}
+// TODO(clundin): Re-eanable once MCU firmware supports creating an endorsement.
+// https://github.com/chipsalliance/caliptra-mcu-sw/issues/949
+// fn verify_endorsement_certificate(
+//     model: &mut DefaultHwModel,
+//     endorse_resp: &OcpLockGetHpkePubKeyResp,
+//     endorsement_algorithm: EndorsementAlgorithms,
+//     expected_hpke_alg: &HpkeAlgorithms,
+// ) {
+//     // Get RT Alias Cert
+//     let rt_alias_cert = match endorsement_algorithm {
+//         EndorsementAlgorithms::ECDSA_P384_SHA384 => {
+//             let rt_alias_cert_resp = get_rt_alias_ecc384_cert(model);
+//             X509::from_der(&rt_alias_cert_resp.data[..rt_alias_cert_resp.data_size as usize])
+//                 .unwrap()
+//         }
+//         EndorsementAlgorithms::ML_DSA_87 => {
+//             let rt_alias_cert_resp = get_rt_alias_mldsa87_cert(model);
+//             X509::from_der(&rt_alias_cert_resp.data[..rt_alias_cert_resp.data_size as usize])
+//                 .unwrap()
+//         }
+//         _ => panic!("Unsupported endorsement algorithm"),
+//     };
+//
+//     // Verify Endorsement Certificate Signature
+//     let endorsement_cert_der = &endorse_resp.endorsement[..endorse_resp.endorsement_len as usize];
+//     let endorsement_cert = X509::from_der(endorsement_cert_der).unwrap();
+//     assert!(endorsement_cert
+//         .verify(&rt_alias_cert.public_key().unwrap())
+//         .unwrap());
+//
+//     // Verify Subject Public Key in Certificate matches Response Public Key
+//     let pub_key_resp = &endorse_resp.pub_key[..endorse_resp.pub_key_len as usize];
+//
+//     // Parse with x509_parser to extract Subject Public Key bytes
+//     let (_, cert_parsed) = X509CertificateParser::new()
+//         .parse(endorsement_cert_der)
+//         .unwrap();
+//
+//     // Ensure the public key in response is contained in the certificate's SPKI
+//     assert_eq!(
+//         cert_parsed
+//             .tbs_certificate
+//             .subject_pki
+//             .subject_public_key
+//             .data,
+//         pub_key_resp
+//     );
+//
+//     // Verify HPKE Identifiers Extension
+//     let hpke_oid = oid!(2.23.133 .21 .1 .1);
+//     let hpke_ext = cert_parsed
+//         .tbs_certificate
+//         .extensions()
+//         .iter()
+//         .find(|e| e.oid == hpke_oid)
+//         .expect("HPKE Identifiers extension not found");
+//
+//     let (_, seq) =
+//         parse_ber_sequence(hpke_ext.value).expect("Failed to parse HPKE identifiers sequence");
+//
+//     let items = seq
+//         .content
+//         .as_sequence()
+//         .expect("HPKE Identifiers extension is not a sequence");
+//
+//     assert_eq!(items.len(), 3);
+//
+//     let kem_id = items[0].as_u32().unwrap();
+//     let kdf_id = items[1].as_u32().unwrap();
+//     let aead_id = items[2].as_u32().unwrap();
+//
+//     assert_eq!(kdf_id, 0x0002);
+//     assert_eq!(aead_id, 0x0002);
+//
+//     match *expected_hpke_alg {
+//         HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
+//             assert_eq!(kem_id, 0x0042);
+//         }
+//         HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+//             assert_eq!(kem_id, 0x0051);
+//         }
+//         HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+//             assert_eq!(kem_id, 0x0011);
+//         }
+//         _ => {
+//             panic!(
+//                 "Unverified HPKE alg: {:?} IDs: {} {} {}",
+//                 expected_hpke_alg, kem_id, kdf_id, aead_id
+//             );
+//         }
+//     }
+// }
 
 fn encrypt_message_to_hpke_pub_key(
     endorsed_key: &ValidatedHpkeHandle,

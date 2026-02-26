@@ -21,10 +21,10 @@ use caliptra_drivers::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use enable_mpk::EnableMpkCmd;
-use endorse_hpke_pubkey::EndorseHpkePubkeyCmd;
 use enumerate_hpke_handles::EnumerateHpkeHandles;
 use generate_mek::GenerateMekCmd;
 use generate_mpk::GenerateMpkCmd;
+use get_hpke_pubkey::GetHpkePubKeyCmd;
 use rewrap_mpk::RewrapMpkCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
 use test_access_key::TestAccessKeyCmd;
@@ -34,11 +34,11 @@ use zeroize::ZeroizeOnDrop;
 mod clear_key_cache;
 mod derive_mek;
 mod enable_mpk;
-mod endorse_hpke_pubkey;
 mod enumerate_hpke_handles;
 mod generate_mek;
 mod generate_mpk;
 mod get_algorithms;
+mod get_hpke_pubkey;
 mod get_status;
 mod initialize_mek_secret;
 mod mix_mpk;
@@ -1366,9 +1366,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES => {
             EnumerateHpkeHandles::execute(drivers, cmd_bytes, resp)
         }
-        CommandId::OCP_LOCK_ENDORSE_HPKE_PUB_KEY => {
-            EndorseHpkePubkeyCmd::execute(drivers, cmd_bytes, resp)
-        }
+        CommandId::OCP_LOCK_GET_HPKE_PUB_KEY => GetHpkePubKeyCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_ROTATE_HPKE_KEY => RotateHpkeKeyCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MEK => GenerateMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_GENERATE_MPK => GenerateMpkCmd::execute(drivers, cmd_bytes, resp),
