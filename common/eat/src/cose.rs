@@ -55,6 +55,16 @@ impl ProtectedHeader<'_> {
         }
     }
 
+    /// Create a new protected header for MLDSA87
+    /// with default content type APPLICATION_EAT_CWT and no key ID.
+    pub fn new_mldsa87() -> Self {
+        Self {
+            alg: cose_alg::MLDSA87,
+            content_type: content_type::APPLICATION_EAT_CWT,
+            kid: None,
+        }
+    }
+
     /// Estimate the size required for encoding this protected header
     pub fn estimate_size(&self) -> usize {
         let mut size = 0;

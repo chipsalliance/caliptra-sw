@@ -1,9 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-//! Envelope Signed CSR EAT (Envelope Signed Certificate Signing Request Entity Attestation Token)
+//! Attested CSR EAT (Attested Certificate Signing Request Entity Attestation Token)
 //!
 //! This module implements CSR EAT claims according to the CDDL specification
-//! for envelope-signed CSR EAT tokens.
+//! for attested CSR EAT tokens.
 //!
 //! # CBOR Structure Example
 //!
@@ -31,9 +31,9 @@ use crate::claim_keys::*;
 use crate::error::EatError;
 use crate::TaggedOid;
 
-// Envelope Signed CSR specific private claim keys (must be < -65536 per RFC 8392)
-const ENV_SIGNED_CSR_CLAIM_KEY_CSR: i64 = -70001;
-const ENV_SIGNED_CSR_CLAIM_KEY_ATTRIB: i64 = -70002;
+// Attested CSR specific private claim keys (must be < -65536 per RFC 8392)
+const CLAIM_KEY_ATTESTED_CSR: i64 = -70001;
+const CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB: i64 = -70002;
 
 /// OCP Security OID definitions for Device Identity Provisioning
 ///
@@ -45,9 +45,9 @@ pub mod oids {
     /// Base OID for all OCP Security specifications
     pub const OCP_SECURITY: &[u8] = &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01];
 
-    /// Envelope-signed EAT profile OID: {1 3 6 1 4 1 42623 1 1}
+    /// Attested EAT profile OID: {1 3 6 1 4 1 42623 1 1}
     ///
-    /// Identifies the OCP DIP Envelope-signed EAT profile
+    /// Identifies the OCP DIP Attested EAT profile
     pub const OCP_SECURITY_OID_EAT_PROFILE: &[u8] =
         &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x01];
 
@@ -94,9 +94,9 @@ pub mod oids {
     ];
 }
 
-/// Envelope Signed CSR EAT Claims
+/// Attested CSR EAT Claims
 ///
-/// Payload structure for Envelope Signed CSR (Certificate Signing Request) EAT tokens.
+/// Payload structure for Attested CSR (Certificate Signing Request) EAT tokens.
 /// Contains a CSR along with key attribute OIDs that describe the requested certificate's
 /// key properties. Used in device identity provisioning workflows.
 ///
@@ -179,11 +179,11 @@ impl<'a> CsrEatClaims<'a> {
         }
 
         // CSR claim (required)
-        encoder.encode_int(ENV_SIGNED_CSR_CLAIM_KEY_CSR)?;
+        encoder.encode_int(CLAIM_KEY_ATTESTED_CSR)?;
         encoder.encode_bytes(self.csr)?;
 
         // Attributes claim (required, array of tagged OIDs)
-        encoder.encode_int(ENV_SIGNED_CSR_CLAIM_KEY_ATTRIB)?;
+        encoder.encode_int(CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB)?;
         encoder.encode_array_header(self.attributes.len() as u64)?;
         for attr in self.attributes {
             attr.encode(encoder)?;
@@ -437,8 +437,8 @@ mod tests {
     #[test]
     fn test_cbor_claim_keys() {
         // Verify CSR claim keys are negative and < -65536
-        assert_eq!(ENV_SIGNED_CSR_CLAIM_KEY_CSR, -70001);
-        assert_eq!(ENV_SIGNED_CSR_CLAIM_KEY_ATTRIB, -70002);
+        assert_eq!(CLAIM_KEY_ATTESTED_CSR, -70001);
+        assert_eq!(CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB, -70002);
         // Verify standard nonce claim key
         assert_eq!(CLAIM_KEY_NONCE, 10);
     }

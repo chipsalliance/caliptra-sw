@@ -36,7 +36,7 @@ runtime/userspace/api/eat/
 │   ├── claim_key.rs       # EAT claim key definitions
 │   └── error.rs           # Error handling modules
 │   └── ocp_profile/       # OCP profile-specific EAT claims encoding modules for attestation
-│   └── csr_eat.rs         # Envelope Signed CSR EAT claims encoding module
+│   └── csr_eat.rs         # Attested CSR EAT claims encoding module
 ├── output/                # Auto-created output directory for tokens
 │   └── *.cbor            # Generated CBOR token files
 ├── Cargo.toml            # Rust package manifest

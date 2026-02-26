@@ -119,6 +119,6 @@ pub use ocp_profile::{
     PrivateClaim, // Custom private claims (keys < -65536)
 };
 
-// Re-export Envelope Signed CSR EAT types for provisioning workflows
+// Re-export Attested CSR EAT types for provisioning workflows
 // Reference: https://opencomputeproject.github.io/Security/device-identity-provisioning/
 pub use csr_eat::CsrEatClaims; // CSR EAT token payload with nonce and attributes
