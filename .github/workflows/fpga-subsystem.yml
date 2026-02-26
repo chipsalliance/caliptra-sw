@@ -49,7 +49,7 @@ permissions:
   contents: read
 
 env:
-  CALIPTRA_MCU_COMMIT: 982ca4f02b7e9fefb58850657246b0c8f28e5b53
+  CALIPTRA_MCU_COMMIT: d74a1d7cf8b0144bd5394fe8d9baf65c833c8144
 
 jobs:
   check_cache:
@@ -169,8 +169,8 @@ jobs:
       - name: Build test MCU ROM
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
         run: |
-          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
-          pushd caliptra-mcu-sw
+          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw" /tmp/caliptra-mcu-sw
+          pushd /tmp/caliptra-mcu-sw
           git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
           git reset --hard ${CALIPTRA_MCU_COMMIT}
           git submodule update --init --recursive
@@ -179,9 +179,10 @@ jobs:
 
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           cargo xtask-fpga rom-build --platform fpga --features core_test
-          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga-core_test.bin target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin
-          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin ../mcu-rom-fpga.bin
-          tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
+          cp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga-core_test.bin target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin
+          popd
+          cp /tmp/caliptra-mcu-sw/target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
+          tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C /tmp/caliptra-mcu-sw/target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
 
       - name: Save test MCU ROM to cache
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"

@@ -34,6 +34,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
 mod bmc;
+pub mod flash_image;
 mod fpga_regs;
 pub mod jtag;
 pub mod keys;

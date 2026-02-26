@@ -840,6 +840,11 @@ impl<'a> DmaRecovery<'a> {
         })
     }
 
+    /// Wait for the payload_available signal to deassert.
+    pub fn wait_for_payload_not_available(&self) {
+        while self.dma.payload_available() {}
+    }
+
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
