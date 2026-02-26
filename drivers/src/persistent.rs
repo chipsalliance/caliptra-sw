@@ -79,7 +79,7 @@ pub enum BootMode {
     Normal = 0,
     /// Encrypted firmware boot mode (firmware loaded via RI_DOWNLOAD_ENCRYPTED_FIRMWARE)
     /// In this mode, runtime should not activate MCU firmware after downloading,
-    /// allowing MCU ROM to decrypt firmware first.
+    /// allowing MCU ROM to decrypt the firmware first.
     EncryptedFirmware = 1,
 }
 
@@ -95,7 +95,7 @@ mod fw {
     pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
     pub const DPE_SIZE: u32 = 10 * 1024;
     pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
-    pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
+    pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 11 * 1024;
     pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
     pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
     pub const FIRMWARE_OCP_LOCK_METADATA_SIZE: u32 = 4;

@@ -12,7 +12,7 @@ File contains DMA peripheral implementation.
 
 --*/
 
-use crate::helpers::words_from_bytes_be;
+use crate::helpers::words_from_bytes_le;
 use crate::{mci::Mci, Aes, MailboxRam, Sha512Accelerator, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
@@ -468,7 +468,7 @@ impl Dma {
                 });
 
             let encrypted_data = self.aes.process_block(&data);
-            let encrypted_data_words = words_from_bytes_be(&encrypted_data);
+            let encrypted_data_words = words_from_bytes_le(&encrypted_data);
 
             acc.extend_from_slice(&encrypted_data_words[..chunk.len()]);
             acc

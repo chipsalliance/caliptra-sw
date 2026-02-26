@@ -165,6 +165,7 @@ pub struct AuthManifestImageMetadata {
     pub component_id: u32,
     pub classification: u32,
     pub flags: u32, // ImageMetadataFlags(image_source, ignore_auth_check)
+    pub size: u32,
     pub image_load_address: Addr64,
     pub image_staging_address: Addr64,
     pub digest: [u8; 48],
@@ -177,6 +178,7 @@ impl Default for AuthManifestImageMetadata {
             component_id: u32::MAX,
             classification: 0,
             flags: 0,
+            size: 0,
             image_load_address: Addr64 { lo: 0, hi: 0 },
             image_staging_address: Addr64 { lo: 0, hi: 0 },
             digest: [0; 48],

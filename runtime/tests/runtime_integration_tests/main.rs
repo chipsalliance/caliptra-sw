@@ -13,6 +13,7 @@ mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
+mod test_encrypted_firmware;
 mod test_fe_programming;
 mod test_fips;
 mod test_firmware_verify;

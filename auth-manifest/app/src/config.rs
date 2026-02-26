@@ -51,6 +51,7 @@ pub struct ImageMetadataConfigFromFile {
     exec_bit: u32,
     ignore_auth_check: bool,
     component_id: u32,
+    size: u32,
     image_load_address: u64,
     image_staging_address: u64,
     classification: u32,
@@ -154,6 +155,7 @@ pub(crate) fn image_metadata_config_from_file(
             flags: flags.0,
             digest: digest_vec.try_into().unwrap(),
             component_id: image.component_id,
+            size: image.size,
             image_load_address: {
                 let addr = image.image_load_address;
                 Addr64 {
