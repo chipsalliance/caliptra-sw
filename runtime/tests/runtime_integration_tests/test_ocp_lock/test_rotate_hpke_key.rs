@@ -15,9 +15,6 @@ use super::{
     OcpLockBootParams,
 };
 
-// TODO(clundin): Verify that the public key from endorsement changes.
-// TODO(clundin): When multiple algs are supported verify different orders of rotations will work.
-
 #[test]
 fn test_rotate_ml_kem_hpke_handle() {
     // This command should have no dependency on the HEK's availability, so don't include it here.
@@ -131,4 +128,87 @@ fn test_rotate_unknown_hpke_handle() {
             )
         );
     });
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_rotate_hpke_key_isolation() {
+    // Verify that if one HPKE key is rotated, the others are left the same.
+    let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
+        force_ocp_lock_en: true,
+        ..Default::default()
+    });
+
+    let mut cmd =
+        MailboxReq::OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let handles = validate_ocp_lock_response(&mut model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let enumerate_resp =
+            OcpLockEnumerateHpkeHandlesResp::ref_from_bytes(response.as_bytes()).unwrap();
+        enumerate_resp.hpke_handles[..enumerate_resp.hpke_handle_count as usize].to_vec()
+    })
+    .unwrap();
+
+    let pub_keys: Vec<_> = handles
+        .iter()
+        .map(|handle| {
+            verify_hpke_pub_key(&mut model, handle.clone())
+                .unwrap()
+                .pub_key
+        })
+        .collect();
+    let first_handle = handles.first().unwrap();
+
+    // Rotate the first handle
+    let mut cmd = MailboxReq::OcpLockRotateHpkeKey(OcpLockRotateHpkeKeyReq {
+        hpke_handle: first_handle.handle,
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ROTATE_HPKE_KEY.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockRotateHpkeKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_ne!(response.hpke_handle, first_handle.handle);
+    })
+    .unwrap();
+
+    let mut cmd =
+        MailboxReq::OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let new_handles = validate_ocp_lock_response(&mut model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let enumerate_resp =
+            OcpLockEnumerateHpkeHandlesResp::ref_from_bytes(response.as_bytes()).unwrap();
+        enumerate_resp.hpke_handles[..enumerate_resp.hpke_handle_count as usize].to_vec()
+    })
+    .unwrap();
+
+    let change_count = pub_keys
+        .into_iter()
+        .zip(new_handles)
+        .filter(|(key, new_handle)| {
+            let new_key = verify_hpke_pub_key(&mut model, new_handle.clone()).unwrap();
+            *key != new_key.pub_key
+        })
+        .count();
+    assert_eq!(change_count, 1);
 }
