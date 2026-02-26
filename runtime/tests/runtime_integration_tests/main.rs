@@ -2,6 +2,7 @@
 
 mod common;
 mod test_activate_firmware;
+mod test_attested_csr;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_cap_warmreset;
