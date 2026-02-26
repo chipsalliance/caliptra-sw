@@ -85,7 +85,7 @@ jobs:
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+      CACHE_BUSTER: 9ff0db8889e8
       CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || 'e362d273e0775f63bf54414fb1cc5a365d687895' }}
 
     steps:
@@ -170,7 +170,7 @@ jobs:
           cargo xtask-fpga rom-build --platform fpga --features core_test
           scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga-core_test.bin target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin
           popd 
-          /tmp/caliptra-mcu-sw/target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
+          cp /tmp/caliptra-mcu-sw/target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
           tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C /tmp/caliptra-mcu-sw/target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
 
       - name: Save test MCU ROM to cache
