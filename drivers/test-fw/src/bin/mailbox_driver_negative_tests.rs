@@ -5,21 +5,16 @@
 #![no_main]
 #![no_std]
 
-use caliptra_registers::mbox::MboxCsr;
 // Needed to bring in startup code
 #[allow(unused)]
 use caliptra_test_harness::{self, println};
 
 use caliptra_drivers::{self, Mailbox};
+use caliptra_registers::mbox::MboxCsr;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
-}
-
-fn mbox_fsm_error() -> bool {
-    let mbox = unsafe { MboxCsr::new() };
-    mbox.regs().status().read().mbox_fsm_ps().mbox_error()
 }
 
 #[no_mangle]
@@ -30,15 +25,10 @@ extern "C" fn main() {
         let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
         let mut txn = mbox.try_start_send_txn().unwrap();
         txn.send_request(0xa000_0000, b"").unwrap();
-        // TODO: get rid of mbox_fsm_error() and make the driver handle this correctly (see #718)
-        while !txn.is_response_ready() && !mbox_fsm_error() {}
-        txn.complete().unwrap();
-        drop(txn);
-        drop(mbox);
-
-        // Clear any error states
-        // TODO: This should probably be done in the driver
-        let mut reg = unsafe { MboxCsr::new() };
-        reg.regs_mut().unlock().write(|w| w.unlock(true));
+        while !txn.is_response_ready() {}
+        // complete() detects FSM error state, writes unlock to recover,
+        // and returns Err(DRIVER_MAILBOX_FSM_ERROR). Ignore the error
+        // and loop to retry the transaction.
+        let _ = txn.complete();
     }
 }

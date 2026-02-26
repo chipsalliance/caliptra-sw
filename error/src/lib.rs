@@ -439,6 +439,11 @@ impl CaliptraError {
             "Mailbox Error: Uncorrectable ECC"
         ),
         (
+            DRIVER_MAILBOX_FSM_ERROR,
+            0x00080006,
+            "Mailbox Error: FSM entered error state"
+        ),
+        (
             DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS,
             0x00090003,
             "SHA2_512_384ACC Error: Index out of bounds"
