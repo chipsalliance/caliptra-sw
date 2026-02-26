@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{CommandId, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN};
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 use caliptra_common::keyids::ocp_lock::{
     KEY_ID_EPK, KEY_ID_HEK, KEY_ID_LOCKED_MPK_ENCRYPTION_KEY, KEY_ID_MDK, KEY_ID_MEK_SECRETS,
     KEY_ID_VEK,

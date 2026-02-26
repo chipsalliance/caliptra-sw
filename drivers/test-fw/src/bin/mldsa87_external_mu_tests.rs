@@ -501,7 +501,10 @@ pub fn test_sign_external_mu() {
         )
         .unwrap()
     };
-    let mut entropy_gen = || trng.generate4();
+    let mut entropy_gen = || {
+        trng.generate4()
+            .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+    };
 
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);

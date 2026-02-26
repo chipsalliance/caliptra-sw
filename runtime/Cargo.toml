@@ -8,11 +8,8 @@ build = "build.rs"
 
 [dependencies]
 bitfield.workspace = true
-caliptra-cfi-lib-git = { workspace = true, default-features = false, features = [
-    "cfi",
-    "cfi-counter",
-] }
-caliptra-cfi-derive-git.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter"] }
+caliptra-cfi-derive = { workspace = true }
 caliptra_common = { workspace = true, default-features = false, features = [
     "runtime",
 ] }
@@ -62,7 +59,6 @@ caliptra-image-crypto.workspace = true
 caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-test.workspace = true
-caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 cbc.workspace = true
 cipher.workspace = true
 ctr.workspace = true
@@ -94,7 +90,6 @@ fips_self_test = []
 no-cfi = [
     "caliptra-image-verify/no-cfi",
     "caliptra-drivers/no-cfi",
-    "dpe/no-cfi",
 ]
 fpga_realtime = [
     "caliptra-drivers/fpga_realtime",

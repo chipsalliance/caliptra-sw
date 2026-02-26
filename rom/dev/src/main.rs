@@ -79,7 +79,10 @@ pub extern "C" fn rom_entry() -> ! {
     // Initialize CFI before creating the rest of the environment
     // (AesGcm::new runs KATs which have CFI annotations)
     if !cfg!(feature = "no-cfi") {
-        let mut entropy_gen = || trng.generate4();
+        let mut entropy_gen = || {
+            trng.generate4()
+                .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+        };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);

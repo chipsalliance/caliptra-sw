@@ -74,7 +74,6 @@ store-failure-output = true
 default-filter = """
 not (package(/caliptra-emu-.*/) |
        package(caliptra-builder) |
-       package(caliptra-cfi-derive) |
        package(caliptra-file-header-fix) |
        package(compliance-test) |
        test(test_csrng_runtime_health_failure) |
