@@ -306,6 +306,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const MAILBOX_DRIVER_DATA_READY: FwId = FwId {
+        bin_name: "mailbox_driver_data_ready",
+        ..BASE_FWID
+    };
+
     pub const MBOX_SEND_TXN_DROP: FwId = FwId {
         bin_name: "mbox_send_txn_drop",
         ..BASE_FWID
@@ -659,6 +664,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MAILBOX_DRIVER_RESPONDER,
     &driver_tests::MAILBOX_DRIVER_SENDER,
     &driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS,
+    &driver_tests::MAILBOX_DRIVER_DATA_READY,
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::ML_DSA87,
     &driver_tests::ML_DSA87_EXTERNAL_MU,

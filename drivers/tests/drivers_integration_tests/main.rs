@@ -761,6 +761,24 @@ fn test_uc_to_soc_error_state() {
 }
 
 #[test]
+fn test_mailbox_uc_to_soc_data_ready() {
+    let mut model = start_driver_test(&firmware::driver_tests::MAILBOX_DRIVER_DATA_READY).unwrap();
+
+    // Firmware sends request with cmd 0xd000_0000 and data "Hello"
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xd000_0000);
+    assert_eq!(txn.req.data, b"Hello");
+    // Respond with DataReady - firmware should treat this as an error and unlock
+    txn.respond_with_data(&[0x12, 0x34, 0x56, 0x78]).unwrap();
+
+    // After error recovery, firmware retries with a second request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xd000_1000);
+    assert_eq!(txn.req.data, b"");
+    txn.respond_success();
+}
+
+#[test]
 fn test_pcrbank() {
     run_driver_test(&firmware::driver_tests::PCRBANK);
 }

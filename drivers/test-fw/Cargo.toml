@@ -107,6 +107,11 @@ path = "src/bin/mailbox_driver_negative_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "mailbox_driver_data_ready"
+path = "src/bin/mailbox_driver_data_ready.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "keyvault"
 path = "src/bin/keyvault_tests.rs"
 required-features = ["riscv"]

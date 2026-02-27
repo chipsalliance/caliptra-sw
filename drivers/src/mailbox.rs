@@ -254,12 +254,17 @@ impl MailboxSendTxn<'_> {
 
     /// Checks if receiver processed the request.
     pub fn is_response_ready(&self) -> bool {
-        // TODO: Handle MboxStatusE::DataReady
         let mbox = self.mbox.regs();
+        let status = mbox.status().read();
+
+        // If the FSM is in error state (SoC misbehaved), stop waiting.
+        if status.mbox_fsm_ps().mbox_error() {
+            return true;
+        }
 
         matches!(
-            mbox.status().read().status(),
-            MboxStatusE::CmdComplete | MboxStatusE::CmdFailure
+            status.status(),
+            MboxStatusE::DataReady | MboxStatusE::CmdComplete | MboxStatusE::CmdFailure
         )
     }
 
@@ -276,6 +281,17 @@ impl MailboxSendTxn<'_> {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         let mbox = self.mbox.regs_mut();
+        let status = mbox.status().read();
+
+        // If FSM is in error state, recover by writing to unlock register.
+        // Also, DataReady is not expected in any current firmware flow.
+        // Treat it as unexpected SoC behavior.
+        if status.mbox_fsm_ps().mbox_error() || status.status() == MboxStatusE::DataReady {
+            mbox.unlock().write(|w| w.unlock(true));
+            self.state = MailboxOpState::Idle;
+            return Err(CaliptraError::DRIVER_MAILBOX_FSM_ERROR);
+        }
+
         mbox.execute().write(|w| w.execute(false));
         self.state = MailboxOpState::Idle;
         Ok(())
