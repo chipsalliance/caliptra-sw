@@ -731,7 +731,13 @@ pub fn test_all_measurement_apis() {
         // COMPARE CERTS
         // Certs should be exactly the same regardless of method
         //
-        assert_eq!(&rom_stash_dpe_cert, rt_stash_dpe_cert);
-        assert_eq!(&rom_stash_dpe_cert, derive_context_dpe_cert);
+        if hw.subsystem_mode() {
+            // Subsystem will measure & store MCU FW _after_ booting into runtime.
+            // This means the certificate won't match the cert produced with the ROM stashed measurement because the ROM measurement is _before_ the MCU FW measurement.
+            assert_eq!(derive_context_dpe_cert, rt_stash_dpe_cert);
+        } else {
+            assert_eq!(&rom_stash_dpe_cert, rt_stash_dpe_cert);
+            assert_eq!(&rom_stash_dpe_cert, derive_context_dpe_cert);
+        }
     }
 }

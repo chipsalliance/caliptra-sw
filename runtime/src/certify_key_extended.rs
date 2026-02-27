@@ -173,6 +173,7 @@ impl CertifyKeyExtendedCmd {
             cmd,
             dmtf_device_info,
             None,
+            None,
             &mut resp.certify_key_resp,
         );
 

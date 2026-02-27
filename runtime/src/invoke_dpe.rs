@@ -56,14 +56,15 @@ impl InvokeDpeCmd {
     ) -> CaliptraResult<usize> {
         // The mailbox SRAM has to be accessed in word alignment, copying the command locally to
         // avoid unaligned accesses.
-        let mut staging_buffer = [0u8; size_of::<InvokeDpeReq>()];
+        let mut staging_buffer_buf = [0u32; size_of::<InvokeDpeReq>() / 4];
+        let staging_buffer = staging_buffer_buf.as_mut_bytes();
         if cmd_args.len() > staging_buffer.len() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
         staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
 
         // Parse the header to get the DPE command size and buffer
-        let (cmd, dpe_cmd_buf) = InvokeDpeEcc384Header::ref_from_prefix(&staging_buffer)
+        let (cmd, dpe_cmd_buf) = InvokeDpeEcc384Header::ref_from_prefix(staging_buffer)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let dpe_cmd_buf = dpe_cmd_buf
             .get(..cmd.data_size as usize)
@@ -81,14 +82,15 @@ impl InvokeDpeCmd {
     ) -> CaliptraResult<usize> {
         // The mailbox SRAM has to be accessed in word alignment, copying the command locally to
         // avoid unaligned accesses.
-        let mut staging_buffer = [0u8; size_of::<InvokeDpeMldsa87Req>()];
+        let mut staging_buffer_buf = [0u32; size_of::<InvokeDpeMldsa87Req>() / 4];
+        let staging_buffer = staging_buffer_buf.as_mut_bytes();
         if cmd_args.len() > staging_buffer.len() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
         staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
 
         // Parse the header to get the DPE command size and buffer
-        let (cmd, dpe_cmd_buf) = InvokeDpeMldsa87Header::ref_from_prefix(&staging_buffer)
+        let (cmd, dpe_cmd_buf) = InvokeDpeMldsa87Header::ref_from_prefix(staging_buffer)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let dpe_cmd_buf = dpe_cmd_buf
             .get(..cmd.data_size as usize)
@@ -231,7 +233,7 @@ impl InvokeDpeCmd {
         if data.len() < core::mem::size_of::<ResponseHdr>() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
-        let result = invoke_dpe_cmd(profile, drivers, command, None, ueid, data);
+        let result = invoke_dpe_cmd(profile, drivers, command, None, ueid, None, data);
 
         if let Command::DestroyCtx(_) = command {
             // clear tags for destroyed contexts
@@ -295,9 +297,14 @@ pub fn invoke_dpe_cmd(
     command: &Command,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
+    locality: Option<u32>,
     out: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
-    let locality = drivers.mbox.id();
+    let locality = if let Some(locality) = locality {
+        locality
+    } else {
+        drivers.mbox.id()
+    };
     match profile {
         CaliptraDpeProfile::Ecc384 => {
             invoke_ecc_dpe_cmd(drivers, command, dmtf_device_info, ueid, locality, out)

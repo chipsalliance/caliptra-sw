@@ -183,6 +183,11 @@ fn test_boot_tci_data() {
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
+    if model.subsystem_mode() {
+        let mut mcu_hasher = Sha384::new();
+        mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
+        hasher.update(mcu_hasher.finalize());
+    }
     let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
@@ -260,6 +265,11 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         hasher.update(rt_current_pcr);
         hasher.update(cptra_config_init_vals_hash);
         hasher.update(measurement);
+        if model.subsystem_mode() {
+            let mut mcu_hasher = Sha384::new();
+            mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
+            hasher.update(mcu_hasher.finalize());
+        }
         let expected_measurement_hash = hasher.finalize();
 
         let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
