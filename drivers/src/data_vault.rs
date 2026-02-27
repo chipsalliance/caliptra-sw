@@ -72,8 +72,8 @@ impl DataVault {
     /// # Returns
     ///     ldev dice ECC signature
     ///
-    pub fn ldev_dice_ecc_signature(&self) -> Ecc384Signature {
-        self.cold_reset_entries.ldev_dice_ecc_sig
+    pub fn ldev_dice_ecc_signature(&self) -> &Ecc384Signature {
+        &self.cold_reset_entries.ldev_dice_ecc_sig
     }
 
     /// Set the ldev dice ECC public key.
@@ -90,8 +90,8 @@ impl DataVault {
     /// # Returns
     /// * ldev dice ECC public key
     ///
-    pub fn ldev_dice_ecc_pub_key(&self) -> Ecc384PubKey {
-        self.cold_reset_entries.ldev_dice_ecc_pk
+    pub fn ldev_dice_ecc_pub_key(&self) -> &Ecc384PubKey {
+        &self.cold_reset_entries.ldev_dice_ecc_pk
     }
 
     /// Set the fmc dice ECC signature.
@@ -108,8 +108,8 @@ impl DataVault {
     /// # Returns
     /// * fmc dice ECC signature
     ///
-    pub fn fmc_dice_ecc_signature(&self) -> Ecc384Signature {
-        self.cold_reset_entries.fmc_dice_ecc_sig
+    pub fn fmc_dice_ecc_signature(&self) -> &Ecc384Signature {
+        &self.cold_reset_entries.fmc_dice_ecc_sig
     }
 
     /// Set the fmc ECC public key.
@@ -126,8 +126,8 @@ impl DataVault {
     /// # Returns
     /// * fmc ECC public key
     ///
-    pub fn fmc_ecc_pub_key(&self) -> Ecc384PubKey {
-        self.cold_reset_entries.fmc_ecc_pk
+    pub fn fmc_ecc_pub_key(&self) -> &Ecc384PubKey {
+        &self.cold_reset_entries.fmc_ecc_pk
     }
 
     /// Set the ldev dice MLDSA signature.
@@ -144,8 +144,8 @@ impl DataVault {
     /// # Returns
     /// * ldev dice MLDSA signature
     ///
-    pub fn ldev_dice_mldsa_signature(&self) -> Mldsa87Signature {
-        self.cold_reset_entries.ldev_dice_mldsa_sig
+    pub fn ldev_dice_mldsa_signature(&self) -> &Mldsa87Signature {
+        &self.cold_reset_entries.ldev_dice_mldsa_sig
     }
 
     /// Set the ldev dice MLDSA public key.
@@ -162,8 +162,8 @@ impl DataVault {
     /// # Returns
     /// * ldev dice MLDSA public key
     ///
-    pub fn ldev_dice_mldsa_pub_key(&self) -> Mldsa87PubKey {
-        self.cold_reset_entries.ldev_dice_mldsa_pk
+    pub fn ldev_dice_mldsa_pub_key(&self) -> &Mldsa87PubKey {
+        &self.cold_reset_entries.ldev_dice_mldsa_pk
     }
 
     /// Set the fmc dice MLDSA signature.
@@ -180,8 +180,8 @@ impl DataVault {
     /// # Returns
     /// * fmc dice MLDSA signature
     ///
-    pub fn fmc_dice_mldsa_signature(&self) -> Mldsa87Signature {
-        self.cold_reset_entries.fmc_dice_mldsa_sig
+    pub fn fmc_dice_mldsa_signature(&self) -> &Mldsa87Signature {
+        &self.cold_reset_entries.fmc_dice_mldsa_sig
     }
 
     /// Set the fmc MLDSA public key.
@@ -198,8 +198,8 @@ impl DataVault {
     /// # Returns
     /// * fmc MLDSA public key
     ///
-    pub fn fmc_mldsa_pub_key(&self) -> Mldsa87PubKey {
-        self.cold_reset_entries.fmc_mldsa_pk
+    pub fn fmc_mldsa_pub_key(&self) -> &Mldsa87PubKey {
+        &self.cold_reset_entries.fmc_mldsa_pk
     }
 
     /// Set the fmc tcb component identifier.
