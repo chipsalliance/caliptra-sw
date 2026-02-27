@@ -64,7 +64,7 @@ impl HandOff {
     /// # Returns
     /// * fmc ECC public key
     ///
-    pub fn fmc_ecc_pub_key(env: &FmcEnv) -> Ecc384PubKey {
+    pub fn fmc_ecc_pub_key(env: &FmcEnv) -> &Ecc384PubKey {
         env.persistent_data.get().rom.data_vault.fmc_ecc_pub_key()
     }
 
@@ -73,7 +73,7 @@ impl HandOff {
     /// # Returns
     /// * fmc MLDSA public key
     ///
-    pub fn fmc_mldsa_pub_key(env: &FmcEnv) -> Mldsa87PubKey {
+    pub fn fmc_mldsa_pub_key(env: &FmcEnv) -> &Mldsa87PubKey {
         env.persistent_data.get().rom.data_vault.fmc_mldsa_pub_key()
     }
 
