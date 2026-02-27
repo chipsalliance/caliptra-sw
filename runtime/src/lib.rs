@@ -512,6 +512,15 @@ fn execute_command(
         CommandId::CM_ECDSA_VERIFY => {
             cryptographic_mailbox::Commands::ecdsa_verify(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_MLKEM_KEY_GEN => {
+            cryptographic_mailbox::Commands::mlkem_key_gen(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_MLKEM_ENCAPSULATE => {
+            cryptographic_mailbox::Commands::mlkem_encapsulate(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_MLKEM_DECAPSULATE => {
+            cryptographic_mailbox::Commands::mlkem_decapsulate(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_DERIVE_STABLE_KEY => {
             cryptographic_mailbox::Commands::derive_stable_key(drivers, cmd_bytes, resp)
         }

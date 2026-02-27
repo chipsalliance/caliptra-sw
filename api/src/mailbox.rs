@@ -51,6 +51,15 @@ const _: () = assert!(CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE + 12 + 16 == CMB_SHAKE
 /// Maximum digest size for SHAKE256 (64 bytes).
 pub const SHAKE256_MAX_DIGEST_BYTE_SIZE: usize = 64;
 
+/// ML-KEM-1024 Encapsulation Key size in bytes.
+pub const MLKEM1024_ENCAPS_KEY_SIZE: usize = 1568;
+/// ML-KEM-1024 Ciphertext size in bytes.
+pub const MLKEM1024_CIPHERTEXT_SIZE: usize = 1568;
+/// ML-KEM-1024 Shared Key size in bytes.
+pub const MLKEM1024_SHARED_KEY_SIZE: usize = 32;
+/// ML-KEM-1024 Seed size in bytes (seed_d + seed_z = 32 + 32).
+pub const MLKEM1024_SEED_SIZE: usize = 64;
+
 /// The max number of HPKE handles that OCP LOCK can manage.
 pub const OCP_LOCK_MAX_HPKE_HANDLES: usize = 3;
 // The largest pub key is the hybrid pub key
@@ -227,6 +236,9 @@ impl CommandId {
     pub const CM_SHAKE256_INIT: Self = Self(0x434D_5849); // "CMXI"
     pub const CM_SHAKE256_UPDATE: Self = Self(0x434D_5855); // "CMXU"
     pub const CM_SHAKE256_FINAL: Self = Self(0x434D_5846); // "CMXF"
+    pub const CM_MLKEM_KEY_GEN: Self = Self(0x434D_4C4B); // "CMLK"
+    pub const CM_MLKEM_ENCAPSULATE: Self = Self(0x434D_4C45); // "CMLE"
+    pub const CM_MLKEM_DECAPSULATE: Self = Self(0x434D_4C44); // "CMLD"
 
     // OCP LOCK Commands
     pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
@@ -384,6 +396,9 @@ pub enum MailboxResp {
     CmMldsaSign(CmMldsaSignResp),
     CmEcdsaPublicKey(CmEcdsaPublicKeyResp),
     CmEcdsaSign(CmEcdsaSignResp),
+    CmMlkemKeyGen(CmMlkemKeyGenResp),
+    CmMlkemEncapsulate(CmMlkemEncapsulateResp),
+    CmMlkemDecapsulate(CmMlkemDecapsulateResp),
     CmDeriveStableKey(CmDeriveStableKeyResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
@@ -465,6 +480,9 @@ impl MailboxResp {
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmMlkemKeyGen(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmMlkemEncapsulate(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmMlkemDecapsulate(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
@@ -544,6 +562,9 @@ impl MailboxResp {
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmMlkemKeyGen(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmMlkemEncapsulate(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmMlkemDecapsulate(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
@@ -689,6 +710,9 @@ pub enum MailboxReq {
     CmEcdsaPublicKey(CmEcdsaPublicKeyReq),
     CmEcdsaSign(CmEcdsaSignReq),
     CmEcdsaVerify(CmEcdsaVerifyReq),
+    CmMlkemKeyGen(CmMlkemKeyGenReq),
+    CmMlkemEncapsulate(CmMlkemEncapsulateReq),
+    CmMlkemDecapsulate(CmMlkemDecapsulateReq),
     CmDeriveStableKey(CmDeriveStableKeyReq),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
     OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
@@ -787,6 +811,9 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(req) => Ok(req.as_bytes()),
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
+            MailboxReq::CmMlkemKeyGen(req) => Ok(req.as_bytes()),
+            MailboxReq::CmMlkemEncapsulate(req) => Ok(req.as_bytes()),
+            MailboxReq::CmMlkemDecapsulate(req) => Ok(req.as_bytes()),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
@@ -883,6 +910,9 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmEcdsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmMlkemKeyGen(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmMlkemEncapsulate(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmMlkemDecapsulate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_mut_bytes()),
@@ -979,6 +1009,9 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(_) => CommandId::CM_ECDSA_PUBLIC_KEY,
             MailboxReq::CmEcdsaSign(_) => CommandId::CM_ECDSA_SIGN,
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
+            MailboxReq::CmMlkemKeyGen(_) => CommandId::CM_MLKEM_KEY_GEN,
+            MailboxReq::CmMlkemEncapsulate(_) => CommandId::CM_MLKEM_ENCAPSULATE,
+            MailboxReq::CmMlkemDecapsulate(_) => CommandId::CM_MLKEM_DECAPSULATE,
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
             MailboxReq::FeProg(_) => CommandId::FE_PROG,
@@ -2438,6 +2471,7 @@ pub enum CmKeyUsage {
     Aes = 2,
     Ecdsa = 3,
     Mldsa = 4,
+    Mlkem = 5,
 }
 
 impl From<u32> for CmKeyUsage {
@@ -2447,6 +2481,7 @@ impl From<u32> for CmKeyUsage {
             2_u32 => CmKeyUsage::Aes,
             3_u32 => CmKeyUsage::Ecdsa,
             4_u32 => CmKeyUsage::Mldsa,
+            5_u32 => CmKeyUsage::Mlkem,
             _ => CmKeyUsage::Reserved,
         }
     }
@@ -2459,6 +2494,7 @@ impl From<CmKeyUsage> for u32 {
             CmKeyUsage::Aes => 2,
             CmKeyUsage::Ecdsa => 3,
             CmKeyUsage::Mldsa => 4,
+            CmKeyUsage::Mlkem => 5,
             _ => 0,
         }
     }
@@ -4595,6 +4631,116 @@ impl Request for CmEcdsaVerifyReq {
     const ID: CommandId = CommandId::CM_ECDSA_VERIFY;
     type Resp = MailboxRespHeader;
 }
+
+// CM_MLKEM_KEY_GEN
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct CmMlkemKeyGenReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+}
+
+impl Request for CmMlkemKeyGenReq {
+    const ID: CommandId = CommandId::CM_MLKEM_KEY_GEN;
+    type Resp = CmMlkemKeyGenResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemKeyGenResp {
+    pub hdr: MailboxRespHeader,
+    pub encaps_key: [u8; MLKEM1024_ENCAPS_KEY_SIZE],
+}
+
+impl Default for CmMlkemKeyGenResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            encaps_key: [0u8; MLKEM1024_ENCAPS_KEY_SIZE],
+        }
+    }
+}
+
+impl Response for CmMlkemKeyGenResp {}
+
+// CM_MLKEM_ENCAPSULATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemEncapsulateReq {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+    pub encaps_key: [u8; MLKEM1024_ENCAPS_KEY_SIZE],
+}
+
+impl Default for CmMlkemEncapsulateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            key_usage: 0,
+            encaps_key: [0u8; MLKEM1024_ENCAPS_KEY_SIZE],
+        }
+    }
+}
+
+impl Request for CmMlkemEncapsulateReq {
+    const ID: CommandId = CommandId::CM_MLKEM_ENCAPSULATE;
+    type Resp = CmMlkemEncapsulateResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemEncapsulateResp {
+    pub hdr: MailboxRespHeader,
+    pub ciphertext: [u8; MLKEM1024_CIPHERTEXT_SIZE],
+    pub shared_key: Cmk,
+}
+
+impl Default for CmMlkemEncapsulateResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            ciphertext: [0u8; MLKEM1024_CIPHERTEXT_SIZE],
+            shared_key: Cmk::default(),
+        }
+    }
+}
+
+impl Response for CmMlkemEncapsulateResp {}
+
+// CM_MLKEM_DECAPSULATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemDecapsulateReq {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+    pub cmk: Cmk,
+    pub ciphertext: [u8; MLKEM1024_CIPHERTEXT_SIZE],
+}
+
+impl Default for CmMlkemDecapsulateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            key_usage: 0,
+            cmk: Cmk::default(),
+            ciphertext: [0u8; MLKEM1024_CIPHERTEXT_SIZE],
+        }
+    }
+}
+
+impl Request for CmMlkemDecapsulateReq {
+    const ID: CommandId = CommandId::CM_MLKEM_DECAPSULATE;
+    type Resp = CmMlkemDecapsulateResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct CmMlkemDecapsulateResp {
+    pub hdr: MailboxRespHeader,
+    pub shared_key: Cmk,
+}
+
+impl Response for CmMlkemDecapsulateResp {}
 
 // CM_DERIVE_STABLE_KEY
 pub const CM_STABLE_KEY_INFO_SIZE_BYTES: usize = 32;

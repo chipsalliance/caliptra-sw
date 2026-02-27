@@ -27,8 +27,6 @@ v2.1:
 
 ## Spec Opens
 
-* Cryptographic Mailbox: ML-KEM support
-
 ## Runtime Firmware environment
 
 This section provides an overview of the Runtime Firmware environment.
@@ -94,7 +92,7 @@ These commands are not meant to be high-performance as they are accessed via mai
 
 CM itself does not provide any storage for the keys: when generated, they are returned to the caller in encrypted form, and must be passed back to be used.
 
-These mailbox commands provide SHA, HMAC, HKDF, AES, RNG, MLDSA, and ECDSA services.
+These mailbox commands provide SHA, HMAC, HKDF, AES, RNG, MLDSA, ECDSA, and ML-KEM services.
 
 Note that while MLDSA and ECDSA keys can be imported, generated, and used in the cryptographic mailbox commands (i.e., `CM_*` commands) through CMKs, these keys are *NOT* tied DICE or DPE, so their use may be restricted for certain purposes.
 
@@ -159,8 +157,10 @@ The internal CMK structure and several commands use a key usage tag to specify h
 | --------- | --------- |
 | 0         | Reserved  |
 | 1         | HMAC      |
-| 2         | HKDF      |
-| 3         | AES       |
+| 2         | AES       |
+| 3         | ECDSA     |
+| 4         | MLDSA     |
+| 5         | ML-KEM    |
 
 #### Replay Prevention and Deletion
 
@@ -1833,6 +1833,73 @@ Command Code: `0x434D_4556` ("CMEV")
 | ----------- | -------- | -------------------------- |
 | chksum      | u32      |                            |
 | fips_status | u32      | FIPS approved or an error  |
+
+### CM_MLKEM_KEY_GEN
+
+Generates an ML-KEM-1024 encapsulation key from the seed (seed\_d || seed\_z, 64 bytes) stored in a CMK with key usage `Mlkem`.
+
+The key generation algorithm is described in [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final).
+
+Command Code: `0x434D_4C4B` ("CMLK")
+
+*Table: `CM_MLKEM_KEY_GEN` input arguments*
+| **Name** | **Type** | **Description**                          |
+| -------- | -------- | ---------------------------------------- |
+| chksum   | u32      |                                          |
+| CMK      | CMK      | ML-KEM seed (seed\_d \|\| seed\_z)       |
+
+*Table: `CM_MLKEM_KEY_GEN` output arguments*
+| **Name**    | **Type** | **Description**                          |
+| ----------- | -------- | ---------------------------------------- |
+| chksum      | u32      |                                          |
+| fips_status | u32      | FIPS approved or an error                |
+| encaps_key  | u8[1568] | ML-KEM-1024 encapsulation key            |
+
+### CM_MLKEM_ENCAPSULATE
+
+Performs ML-KEM-1024 encapsulation against the provided encapsulation key, producing a ciphertext and a shared key wrapped as a CMK.
+
+The encapsulation algorithm is described in [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final).
+
+Command Code: `0x434D_4C45` ("CMLE")
+
+*Table: `CM_MLKEM_ENCAPSULATE` input arguments*
+| **Name**    | **Type** | **Description**                          |
+| ----------- | -------- | ---------------------------------------- |
+| chksum      | u32      |                                          |
+| key_usage   | u32      | Key usage for the output CMK             |
+| encaps_key  | u8[1568] | ML-KEM-1024 encapsulation key            |
+
+*Table: `CM_MLKEM_ENCAPSULATE` output arguments*
+| **Name**    | **Type** | **Description**                          |
+| ----------- | -------- | ---------------------------------------- |
+| chksum      | u32      |                                          |
+| fips_status | u32      | FIPS approved or an error                |
+| ciphertext  | u8[1568] | ML-KEM-1024 ciphertext                   |
+| shared_key  | CMK      | CMK of the shared secret key             |
+
+### CM_MLKEM_DECAPSULATE
+
+Performs ML-KEM-1024 decapsulation using the seed in the provided CMK and the given ciphertext, recovering the shared key wrapped as a CMK. This uses the hardware's combined keygen\_decapsulate operation to avoid materializing the full 3168-byte decapsulation key in memory.
+
+The decapsulation algorithm is described in [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final).
+
+Command Code: `0x434D_4C44` ("CMLD")
+
+*Table: `CM_MLKEM_DECAPSULATE` input arguments*
+| **Name**    | **Type** | **Description**                          |
+| ----------- | -------- | ---------------------------------------- |
+| chksum      | u32      |                                          |
+| key_usage   | u32      | Key usage for the output CMK             |
+| CMK         | CMK      | ML-KEM seed (seed\_d \|\| seed\_z)       |
+| ciphertext  | u8[1568] | ML-KEM-1024 ciphertext to decapsulate    |
+
+*Table: `CM_MLKEM_DECAPSULATE` output arguments*
+| **Name**    | **Type** | **Description**                          |
+| ----------- | -------- | ---------------------------------------- |
+| chksum      | u32      |                                          |
+| fips_status | u32      | FIPS approved or an error                |
+| shared_key  | CMK      | CMK of the shared secret key             |
 
 ### CM_AES_ENCRYPT_INIT
 
