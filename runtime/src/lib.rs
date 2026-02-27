@@ -330,12 +330,8 @@ fn execute_command(
         CommandId::GET_LDEV_MLDSA87_CERT => {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
-        CommandId::INVOKE_DPE_ECC384 => {
-            InvokeDpeCmd::execute(drivers, cmd_bytes, resp, CaliptraDpeProfile::Ecc384)
-        }
-        CommandId::INVOKE_DPE_MLDSA87 => {
-            InvokeDpeCmd::execute(drivers, cmd_bytes, resp, CaliptraDpeProfile::Mldsa87)
-        }
+        CommandId::INVOKE_DPE_ECC384 => InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp),
+        CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp),
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }

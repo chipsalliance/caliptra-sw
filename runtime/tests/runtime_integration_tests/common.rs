@@ -1,7 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::{
-    mailbox::{GetFmcAliasMlDsa87CertResp, Request},
+    mailbox::{
+        AxiResponseInfo, GetFmcAliasMlDsa87CertResp, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req,
+        Request,
+    },
     SocManager,
 };
 use caliptra_builder::{
@@ -394,8 +397,11 @@ pub fn execute_dpe_cmd(
         ),
         CaliptraDpeProfile::Mldsa87 => (
             CommandId::INVOKE_DPE_MLDSA87,
-            MailboxReq::InvokeDpeMldsa87Command(InvokeDpeReq {
+            MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
                 hdr: MailboxReqHeader { chksum: 0 },
+                // TODO(zhalvorsen): Add support for external responses
+                flags: InvokeDpeMldsa87Flags::empty(),
+                axi_response: AxiResponseInfo::default(),
                 data: cmd_data,
                 data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
             }),

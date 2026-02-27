@@ -612,6 +612,29 @@ struct caliptra_invoke_dpe_req
     };
 };
 
+struct caliptra_invoke_dpe_mldsa87_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint32_t axi_addr_lo;
+    uint32_t axi_addr_hi;
+    uint32_t axi_max_size;
+    uint32_t data_size;
+    union
+    {
+        struct dpe_cmd_hdr cmd_hdr;
+        struct dpe_get_profile_cmd get_profile_cmd;
+        struct dpe_initialize_context_cmd initialize_context_cmd;
+        struct dpe_derive_context_cmd derive_context_cmd;
+        struct dpe_certify_key_cmd certify_key_cmd;
+        struct dpe_sign_cmd sign_cmd;
+        struct dpe_rotate_context_handle_cmd rotate_context_handle_cmd;
+        struct dpe_destroy_context_cmd destroy_context_cmd;
+        struct dpe_get_certificate_chain_cmd get_certificate_chain_cmd;
+        uint8_t data[0];
+    };
+};
+
 struct caliptra_invoke_dpe_resp
 {
     struct caliptra_resp_header cpl;
