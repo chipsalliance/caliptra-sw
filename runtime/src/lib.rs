@@ -14,6 +14,7 @@ Abstract:
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 #![no_std]
 mod activate_firmware;
+mod attested_csr;
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
@@ -404,6 +405,12 @@ fn execute_command(
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_MLDSA87_CSR => {
             get_fmc_alias_csr::GetFmcAliasMldsaCsrCmd::execute(drivers, resp)
+        }
+        CommandId::GET_ATTESTED_ECC384_CSR => {
+            attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::GET_ATTESTED_MLDSA87_CSR => {
+            attested_csr::AttestedMldsaCsrCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {

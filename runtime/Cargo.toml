@@ -35,6 +35,7 @@ zeroize.workspace = true
 bitflags.workspace = true
 memoffset.workspace = true
 ureg.workspace = true
+ocp-eat.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -61,6 +62,7 @@ caliptra-image-serde.workspace = true
 caliptra-test.workspace = true
 cbc.workspace = true
 cipher.workspace = true
+coset.workspace = true
 ctr.workspace = true
 fips204.workspace = true
 hkdf.workspace = true

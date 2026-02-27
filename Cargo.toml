@@ -164,6 +164,7 @@ clap = { version = "4.5.23", features = [
     "wrap_help",
 ] }
 const-random = "0.1.18"
+coset = "0.4.1"
 constant_time_eq = "0.3.0"
 convert_case = "0.6.0"
 cms = "0.2.2"

@@ -27,6 +27,8 @@ pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
 pub const MAX_RESP_DATA_SIZE: usize = 9216; // 9K
+/// Maximum response data size for envelope signed CSR (supports MLDSA CSR)
+pub const MAX_ATTESTED_CSR_RESP_DATA_SIZE: usize = 12800; // 12.5K, 32-bit aligned
 /// Unencrypted context size for the CMB AES generic commands.
 pub const _CMB_AES_CONTEXT_SIZE: usize = 128;
 /// Encrypted context size for the CMB AES generic commands.
@@ -167,6 +169,12 @@ impl CommandId {
 
     // The get FMC Alias MLDSA CSR command.
     pub const GET_FMC_ALIAS_MLDSA87_CSR: Self = Self(0x464d_4452); // "FMDR"
+
+    // Attested ECC CSR command
+    pub const GET_ATTESTED_ECC384_CSR: Self = Self(0x4145_4352); // "AECR"
+
+    // Attested MLDSA CSR command
+    pub const GET_ATTESTED_MLDSA87_CSR: Self = Self(0x414D_4352); // "AMCR"
 
     // The sign with exported ecdsa command.
     pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
@@ -363,6 +371,7 @@ pub enum MailboxResp {
     GetIdevEccCsr(GetIdevCsrResp),
     GetIdevMldsaCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
+    GetAttestedCsr(AttestedCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
     GetImageInfo(GetImageInfoResp),
@@ -447,6 +456,7 @@ impl MailboxResp {
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetAttestedCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_bytes()),
@@ -529,6 +539,7 @@ impl MailboxResp {
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetAttestedCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_mut_bytes()),
@@ -665,6 +676,8 @@ pub enum MailboxReq {
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrsEcc384(QuotePcrsEcc384Req),
     QuotePcrsMldsa87(QuotePcrsMldsa87Req),
+    GetAttestedEcc384Csr(GetAttestedEccCsrReq),
+    GetAttestedMldsa87Csr(GetAttestedMldsaCsrReq),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
@@ -766,6 +779,8 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_bytes()),
+            MailboxReq::GetAttestedEcc384Csr(req) => Ok(req.as_bytes()),
+            MailboxReq::GetAttestedMldsa87Csr(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
@@ -865,6 +880,8 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetAttestedEcc384Csr(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetAttestedMldsa87Csr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
@@ -964,6 +981,8 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrsEcc384(_) => CommandId::QUOTE_PCRS_ECC384,
             MailboxReq::QuotePcrsMldsa87(_) => CommandId::QUOTE_PCRS_MLDSA87,
+            MailboxReq::GetAttestedEcc384Csr(_) => CommandId::GET_ATTESTED_ECC384_CSR,
+            MailboxReq::GetAttestedMldsa87Csr(_) => CommandId::GET_ATTESTED_MLDSA87_CSR,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
@@ -1978,6 +1997,58 @@ impl Response for QuotePcrsMldsa87Resp {}
 impl Request for QuotePcrsMldsa87Req {
     const ID: CommandId = CommandId::QUOTE_PCRS_MLDSA87;
     type Resp = QuotePcrsMldsa87Resp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
+pub struct AttestedCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; AttestedCsrResp::DATA_MAX_SIZE],
+}
+
+impl AttestedCsrResp {
+    pub const DATA_MAX_SIZE: usize = MAX_ATTESTED_CSR_RESP_DATA_SIZE;
+}
+
+impl ResponseVarSize for AttestedCsrResp {}
+
+impl Default for AttestedCsrResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_ATTESTED_ECC384_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetAttestedEccCsrReq {
+    pub hdr: MailboxReqHeader,
+    pub key_id: u32,
+    pub nonce: [u8; 32],
+}
+
+impl Request for GetAttestedEccCsrReq {
+    const ID: CommandId = CommandId::GET_ATTESTED_ECC384_CSR;
+    type Resp = AttestedCsrResp;
+}
+
+// GET_ATTESTED_MLDSA87_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetAttestedMldsaCsrReq {
+    pub hdr: MailboxReqHeader,
+    pub key_id: u32,
+    pub nonce: [u8; 32],
+}
+
+impl Request for GetAttestedMldsaCsrReq {
+    const ID: CommandId = CommandId::GET_ATTESTED_MLDSA87_CSR;
+    type Resp = AttestedCsrResp;
 }
 
 // SET_AUTH_MANIFEST
