@@ -3,6 +3,7 @@
 mod test_common;
 mod test_fmc_alias;
 mod test_ldevid;
+mod test_rt_alias;
 
 // Shared imports
 use caliptra_common::mailbox_api::{
