@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 mod test_common;
+mod test_fmc_alias;
 mod test_ldevid;
 
 // Shared imports
