@@ -1,11 +1,14 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, CertifyKeyCommandNoRef,
-    CreateCertifyKeyCmdArgs, CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef,
-    TEST_DIGEST, TEST_LABEL, TEST_MU, TEST_SD_MU, TEST_SD_SHA384,
+    execute_dpe_cmd, get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test,
+    CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, CreateSignCmdArgs, DpeResult, RuntimeTestArgs,
+    SignCommandNoRef, TEST_MU, TEST_SD_MU, TEST_SD_SHA384,
 };
-use caliptra_api::SocManager;
+use caliptra_api::{
+    mailbox::{AxiResponseInfo, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req},
+    SocManager,
+};
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
@@ -19,14 +22,15 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
-        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd,
-        RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
+        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
+        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
     },
     context::ContextHandle,
     response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
 };
-use ml_dsa_01::{EncodedSignature, EncodedVerifyingKey, Signature, VerifyingKey};
+use ml_dsa_01::{
+    signature::Verifier, EncodedSignature, EncodedVerifyingKey, Signature, VerifyingKey,
+};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -62,9 +66,21 @@ fn test_invoke_dpe_get_profile_cmd() {
 
 #[test]
 fn test_invoke_dpe_size_too_big() {
-    // Test with data_size too big.
+    // Test with data_size too big with ECC384.
     let mut cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
+        data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
+        data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
+    });
+    assert_eq!(
+        cmd.populate_chksum(),
+        Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
+    );
+    // Test with data_size too big with MLDSA87.
+    let mut cmd = MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        flags: InvokeDpeMldsa87Flags::empty(),
+        axi_response: AxiResponseInfo::default(),
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
     });
@@ -82,22 +98,29 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let get_cert_chain_cmd = GetCertificateChainCmd {
-        offset: 0,
-        size: 2048,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::GetCertificateChain(&get_cert_chain_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::GetCertificateChain(cert_chain)) = resp else {
-        panic!("Wrong response type!");
-    };
+    let mut chains = vec![];
+    for p in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let get_cert_chain_cmd = GetCertificateChainCmd {
+            offset: 0,
+            size: 2048,
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            p,
+            &mut Command::GetCertificateChain(&get_cert_chain_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::GetCertificateChain(cert_chain)) = resp else {
+            panic!("Wrong response type!");
+        };
 
-    assert_eq!(cert_chain.certificate_size, 2048);
-    assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+        assert_eq!(cert_chain.certificate_size, 2048);
+        assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+        chains.push(cert_chain.certificate_chain);
+    }
+
+    // Ensure the two profiles return different certificate chains.
+    assert_ne!(chains[0], chains[1]);
 }
 
 #[test]
@@ -181,24 +204,33 @@ fn test_invoke_dpe_asymmetric_sign() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let sign_cmd = SignCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: SignFlags::empty(),
-        digest: TEST_DIGEST,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&sign_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::Sign(SignResp::P384(sign_resp))) = resp else {
-        panic!("Wrong response type!");
-    };
-
-    assert_ne!(sign_resp.sig_r, [0u8; 48]);
-    assert_ne!(sign_resp.sig_s, [0u8; 48]);
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let data = match profile {
+            CaliptraDpeProfile::Ecc384 => TEST_SD_SHA384,
+            CaliptraDpeProfile::Mldsa87 => TEST_SD_MU,
+        };
+        let sign_cmd = SignCommandNoRef::new(CreateSignCmdArgs {
+            profile,
+            data,
+            ..Default::default()
+        });
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::from(&sign_cmd),
+            DpeResult::Success,
+        );
+        match resp {
+            Some(Response::Sign(SignResp::P384(sign_resp))) => {
+                assert_ne!(sign_resp.sig_r, [0u8; 48]);
+                assert_ne!(sign_resp.sig_s, [0u8; 48]);
+            }
+            Some(Response::Sign(SignResp::MlDsa(sign_resp))) => {
+                assert_ne!(sign_resp.sig, [0u8; 4627]);
+            }
+            _ => panic!("Wrong response type!"),
+        }
+    }
 }
 
 #[test]
@@ -209,21 +241,23 @@ fn test_dpe_header_error_code() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // cannot initialize non-simulation contexts so expect DPE cmd to fail
-    let init_ctx_cmd = InitCtxCmd::new_use_default();
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::InitCtx(&init_ctx_cmd),
-        DpeResult::DpeCmdFailure,
-    );
-    let Some(Response::Error(hdr)) = resp else {
-        panic!("Wrong response type!");
-    };
-    assert_eq!(
-        hdr.status,
-        DpeErrorCode::ArgumentNotSupported.get_error_code()
-    );
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        // cannot initialize non-simulation contexts so expect DPE cmd to fail
+        let init_ctx_cmd = InitCtxCmd::new_use_default();
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::InitCtx(&init_ctx_cmd),
+            DpeResult::DpeCmdFailure,
+        );
+        let Some(Response::Error(hdr)) = resp else {
+            panic!("Wrong response type!");
+        };
+        assert_eq!(
+            hdr.status,
+            DpeErrorCode::ArgumentNotSupported.get_error_code()
+        );
+    }
 }
 
 #[test]
@@ -234,62 +268,82 @@ fn test_invoke_dpe_certify_key_csr() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_CSR,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile,
+            format: CertifyKeyCommand::FORMAT_CSR,
+            ..Default::default()
+        });
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::from(&certify_key_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+            panic!("Wrong response type!");
+        };
 
-    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
-    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
+        let rt_resp = match profile {
+            CaliptraDpeProfile::Ecc384 => get_rt_alias_ecc384_cert(&mut model),
+            CaliptraDpeProfile::Mldsa87 => get_rt_alias_mldsa87_cert(&mut model),
+        };
+        let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
-    // parse CMS ContentInfo
-    let content_info = ContentInfo::from_der(certify_key_resp.cert().unwrap()).unwrap();
-    // parse SignedData
-    let mut signed_data = SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
-    assert_eq!(signed_data.version, CmsVersion::V3);
+        // parse CMS ContentInfo
+        let content_info = ContentInfo::from_der(certify_key_resp.cert().unwrap()).unwrap();
+        // parse SignedData
+        let mut signed_data =
+            SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
+        assert_eq!(signed_data.version, CmsVersion::V3);
 
-    // validate signer infos
-    let signer_infos = signed_data.signer_infos.0;
-    // ensure there is only 1 signer info
-    assert_eq!(signer_infos.len(), 1);
-    let signer_info = signer_infos.get(0).unwrap();
-    assert_eq!(signer_info.version, CmsVersion::V3);
+        // validate signer infos
+        let signer_infos = signed_data.signer_infos.0;
+        // ensure there is only 1 signer info
+        assert_eq!(signer_infos.len(), 1);
+        let signer_info = signer_infos.get(0).unwrap();
+        assert_eq!(signer_info.version, CmsVersion::V3);
 
-    // validate signer identifier
-    let sid = &signer_info.sid;
-    match sid {
-        SignerIdentifier::SubjectKeyIdentifier(subject_key_identifier) => {
-            // skip first two bytes - first byte is 0x4 der encoding byte and second byte is size byte
-            let cert_ski = &subject_key_identifier.0.as_bytes()[2..];
-            let ski = rt_cert.subject_key_id().unwrap().as_slice();
-            assert_eq!(cert_ski, ski);
+        // validate signer identifier
+        let sid = &signer_info.sid;
+        match sid {
+            SignerIdentifier::SubjectKeyIdentifier(subject_key_identifier) => {
+                // skip first two bytes - first byte is 0x4 der encoding byte and second byte is size byte
+                let cert_ski = &subject_key_identifier.0.as_bytes()[2..];
+                let ski = rt_cert.subject_key_id().unwrap().as_slice();
+                assert_eq!(cert_ski, ski);
+            }
+            _ => panic!("Error: Signer Identifier is not SubjectKeyIdentifier!"),
+        };
+
+        // parse encapsulated content info
+        let econtent_info = &mut signed_data.encap_content_info;
+        // skip first 4 explicit encoding bytes
+        let econtent = &econtent_info.econtent.as_mut().unwrap().to_der().unwrap()[4..];
+
+        // validate csr signature with the alias key
+        match profile {
+            CaliptraDpeProfile::Ecc384 => {
+                let mut hasher = Sha384::new();
+                hasher.update(econtent);
+                let csr_digest = hasher.finalize();
+                let alias_key = rt_cert.public_key().unwrap().ec_key().unwrap();
+                let csr_sig = EcdsaSig::from_der(signer_info.signature.as_bytes()).unwrap();
+                assert!(csr_sig.verify(&csr_digest, &alias_key).unwrap());
+            }
+            CaliptraDpeProfile::Mldsa87 => {
+                let alias_key = rt_cert.public_key().unwrap().raw_public_key().unwrap();
+                let alias_key: [u8; 2592] = alias_key.try_into().unwrap();
+                let alias_key = EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(alias_key);
+                let alias_key = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&alias_key);
+                let sig_bytes: [u8; 4627] = signer_info.signature.as_bytes().try_into().unwrap();
+                let sig =
+                    Signature::decode(&EncodedSignature::<ml_dsa_01::MlDsa87>::from(sig_bytes))
+                        .unwrap();
+                assert!(alias_key.verify(econtent, &sig).is_ok());
+            }
         }
-        _ => panic!("Error: Signer Identifier is not SubjectKeyIdentifier!"),
-    };
-
-    // parse encapsulated content info
-    let econtent_info = &mut signed_data.encap_content_info;
-    // skip first 4 explicit encoding bytes
-    let econtent = &econtent_info.econtent.as_mut().unwrap().to_der().unwrap()[4..];
-
-    // validate csr signature with the alias key
-    let mut hasher = Sha384::new();
-    hasher.update(econtent);
-    let csr_digest = hasher.finalize();
-    let alias_key = rt_cert.public_key().unwrap().ec_key().unwrap();
-    let csr_sig = EcdsaSig::from_der(signer_info.signature.as_bytes()).unwrap();
-    assert!(csr_sig.verify(&csr_digest, &alias_key).unwrap());
+    }
 }
 
 #[test]
@@ -305,34 +359,36 @@ fn test_invoke_dpe_rotate_context() {
         flags: RotateCtxFlags::empty(),
     };
 
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::RotateCtx(&rotate_ctx_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::RotateCtx(&rotate_ctx_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
+            panic!("Wrong response type!");
+        };
 
-    assert!(!rotate_ctx_resp.handle.is_default());
+        assert!(!rotate_ctx_resp.handle.is_default());
 
-    let rotate_ctx_cmd = RotateCtxCmd {
-        handle: rotate_ctx_resp.handle,
-        flags: RotateCtxFlags::TARGET_IS_DEFAULT,
-    };
+        let rotate_ctx_cmd = RotateCtxCmd {
+            handle: rotate_ctx_resp.handle,
+            flags: RotateCtxFlags::TARGET_IS_DEFAULT,
+        };
 
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::RotateCtx(&rotate_ctx_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::RotateCtx(&rotate_ctx_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
+            panic!("Wrong response type!");
+        };
 
-    assert!(rotate_ctx_resp.handle.is_default());
+        assert!(rotate_ctx_resp.handle.is_default());
+    }
 }
 
 fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
@@ -353,132 +409,145 @@ fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
 fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(resp))) = resp else {
-        panic!("Wrong response type!");
-    };
-    check_dice_extension_criticality(&resp.cert[..resp.cert_size.try_into().unwrap()], false);
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile,
+            format: CertifyKeyCommand::FORMAT_X509,
+            ..Default::default()
+        });
+
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::from(&certify_key_cmd),
+            DpeResult::Success,
+        )
+        .unwrap();
+
+        let Response::CertifyKey(resp) = resp else {
+            panic!("Wrong response type!");
+        };
+        check_dice_extension_criticality(resp.cert().unwrap(), false);
+    }
 }
 
 #[test]
 fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    // Exporting the CDI destroys the context so we need to run a separate HW model instance
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let derive_ctx_cmd = DeriveContextCmd {
-        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        ..Default::default()
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&derive_ctx_cmd),
-        DpeResult::Success,
-    );
+        let derive_ctx_cmd = DeriveContextCmd {
+            flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+            ..Default::default()
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::from(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
 
-    let Some(Response::DeriveContextExportedCdi(resp)) = resp else {
-        panic!("expected derive context resp!");
-    };
-    check_dice_extension_criticality(
-        &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
-        false,
-    );
+        let Some(Response::DeriveContextExportedCdi(resp)) = resp else {
+            panic!("expected derive context resp!");
+        };
+        check_dice_extension_criticality(
+            &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
+            false,
+        );
+    }
 }
 
 #[test]
 fn test_export_cdi_attestation_not_disabled_after_update_reset() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        security_state: Some(
-            *SecurityState::default()
-                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
-                .set_debug_locked(true),
-        ),
-        ..Default::default()
-    });
+    // Exporting the CDI destroys the context so we need to run a separate HW model instance
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            security_state: Some(
+                *SecurityState::default()
+                    .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                    .set_debug_locked(true),
+            ),
+            ..Default::default()
+        });
 
-    let derive_ctx_cmd = DeriveContextCmd {
-        flags: DeriveContextFlags::EXPORT_CDI
-            | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        ..Default::default()
-    };
+        let derive_ctx_cmd = DeriveContextCmd {
+            flags: DeriveContextFlags::EXPORT_CDI
+                | DeriveContextFlags::CREATE_CERTIFICATE
+                | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            ..Default::default()
+        };
 
-    let _ = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
-        DpeResult::Success,
-    );
+        let _ = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::DeriveContext(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
 
-    // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..1000 {
-        model.step();
+        // Triggering a warm reset while a command is being processed will disable attestation.
+        for _ in 0..1000 {
+            model.step();
+        }
+
+        model.warm_reset_flow().unwrap();
+
+        // check attestation is not disabled via FW_INFO
+        let payload = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+        };
+        let resp = model
+            .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+            .unwrap()
+            .unwrap();
+        let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(info.attestation_disabled, 0);
     }
-
-    model.warm_reset_flow().unwrap();
-
-    // check attestation is not disabled via FW_INFO
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(info.attestation_disabled, 0);
 }
 
 #[test]
 fn test_export_cdi_destroyed_root_context() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        security_state: Some(
-            *SecurityState::default()
-                .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
-                .set_debug_locked(true),
-        ),
-        ..Default::default()
-    });
-    // You probably want to retain the parent context, otherwise the whole DPE chain _may be
-    // destroyed.
-    //
-    // This test case exercises that runtime cannot find the root context if the chain is
-    // destroyed.
-    let derive_ctx_cmd = DeriveContextCmd {
-        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        ..Default::default()
-    };
+    // Exporting the CDI destroys the context so we need to run a separate HW model instance
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            security_state: Some(
+                *SecurityState::default()
+                    .set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production)
+                    .set_debug_locked(true),
+            ),
+            ..Default::default()
+        });
+        // You probably want to retain the parent context, otherwise the whole DPE chain _may be
+        // destroyed.
+        //
+        // This test case exercises that runtime cannot find the root context if the chain is
+        // destroyed.
+        let derive_ctx_cmd = DeriveContextCmd {
+            flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+            ..Default::default()
+        };
 
-    let _ = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
-        DpeResult::Success,
-    );
+        let _ = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::DeriveContext(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
 
-    // Triggering a warm reset while a command is being processed will disable attestation.
-    for _ in 0..1000 {
-        model.step();
+        // Triggering a warm reset while a command is being processed will disable attestation.
+        for _ in 0..1000 {
+            model.step();
+        }
+
+        model.warm_reset_flow().unwrap();
+
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into(),
+            30_000_000,
+        );
     }
-
-    model.warm_reset_flow().unwrap();
-
-    model.step_until_fatal_error(
-        CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into(),
-        30_000_000,
-    );
 }
