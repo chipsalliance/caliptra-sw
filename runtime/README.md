@@ -1352,6 +1352,18 @@ These commands are defined in the OCP LOCK v1.0 [specification](https://github.c
 ### REPORT_HEK_METADATA
 ### GET_ALGORITHMS
 ### INITIALIZE_MEK_SECRET
+### ROTATE_HPKE_KEY
+### GENERATE_MEK
+### GENERATE_MPK
+### REWRAP_MPK
+### ENABLE_MPK
+### MIX_MPK
+### GET_HPKE_PUB_KEY
+### TEST_ACCESS_KEY
+### GET_STATUS
+### CLEAR_KEY_CACHE
+### UNLOAD_MEK
+### DERIVE_MEK 
 
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 

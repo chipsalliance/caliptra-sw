@@ -18,6 +18,8 @@ use caliptra_drivers::{
     KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x8, MlKem1024,
     OcpLockFlags, OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
 };
+
+use crate::{Drivers, PauserPrivileges};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use enable_mpk::EnableMpkCmd;
@@ -28,6 +30,9 @@ use get_hpke_pubkey::GetHpkePubKeyCmd;
 use rewrap_mpk::RewrapMpkCmd;
 use rotate_hpke_key::RotateHpkeKeyCmd;
 use test_access_key::TestAccessKeyCmd;
+
+use core::marker::PhantomData;
+
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::ZeroizeOnDrop;
 
@@ -54,8 +59,6 @@ pub use get_status::GetStatusCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
 pub use mix_mpk::MixMpkCmd;
 pub use unload_mek::UnloadMekCmd;
-
-use crate::{Drivers, PauserPrivileges};
 
 const ACCESS_KEY_LEN: usize = 32;
 
@@ -107,8 +110,6 @@ impl Vek {
 /// Represents the SEK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
 pub struct Sek(pub [u8; 32]);
-
-use core::marker::PhantomData;
 
 /// Represents the DPK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]

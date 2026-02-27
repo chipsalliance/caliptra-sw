@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 /// Implements:
 /// * ML-KEM-1024-HKDF-SHA-384-AES-256-GCM
 /// * DH(P-384,SHA-384)-HKDF-SHA-384-AES-256-GCM
+/// * ML-KEM-1024-P384-HKDF-SHA-384-AES-256-GCM
 use aes_gcm::{
     aead::{Aead, Payload},
     Aes256Gcm, KeyInit,
@@ -129,9 +130,9 @@ impl<Receiver> EncryptionContext<Receiver> {
 pub trait Hpke {
     const LABEL_DERIVE_SUITE_ID: &'static [u8];
     const ALG_ID: &'static [u8];
-    const NK: usize;
-    const NT: usize;
-    const NH: usize;
+    const NK: usize = 32;
+    const NT: usize = 16;
+    const NH: usize = 48;
     fn labeled_extract(salt: &[u8], label: &[u8], ikm: &[u8]) -> Vec<u8> {
         let suite_id: Vec<u8> = [&b"HPKE"[..], Self::ALG_ID].concat();
         let labeled_ikm = {
@@ -218,9 +219,6 @@ impl Hpke for HpkeMlKem1024 {
     const LABEL_DERIVE_SUITE_ID: &'static [u8] = &[0x4b, 0x45, 0x4d, 0x00, 0x42];
     // KDF + KDF + AAD
     const ALG_ID: &'static [u8] = &[0x0, 0x42, 0x0, 0x02, 0x0, 0x02];
-    const NK: usize = 32;
-    const NT: usize = 16;
-    const NH: usize = 48;
 
     fn decap(&self, enc: &[u8], sk_r: &[u8]) -> Vec<u8> {
         let d = B32::try_from(&sk_r[..32]).unwrap();
@@ -283,9 +281,6 @@ impl Hpke for HpkeP384 {
     const LABEL_DERIVE_SUITE_ID: &'static [u8] = &[0x4b, 0x45, 0x4d, 0x00, 0x11];
     // KEM (0x0011) + KDF (0x0002) + AEAD (0x0002)
     const ALG_ID: &'static [u8] = &[0x0, 0x11, 0x0, 0x02, 0x0, 0x02];
-    const NK: usize = 32;
-    const NT: usize = 16;
-    const NH: usize = 48;
 
     fn decap(&self, enc: &[u8], sk_r: &[u8]) -> Vec<u8> {
         let sk = <DhP384HkdfSha384 as HpkeKem>::PrivateKey::from_bytes(sk_r).unwrap();
@@ -413,9 +408,6 @@ impl Hpke for HpkeHybrid {
     const LABEL_DERIVE_SUITE_ID: &'static [u8] = &[0x4b, 0x45, 0x4d, 0x00, 0x51];
     // KEM (0x0051) + KDF (0x0002) + AEAD (0x0002)
     const ALG_ID: &'static [u8] = &[0x0, 0x51, 0x0, 0x02, 0x0, 0x02];
-    const NK: usize = 32;
-    const NT: usize = 16;
-    const NH: usize = 48;
 
     fn decap(&self, enc: &[u8], sk_r: &[u8]) -> Vec<u8> {
         let hpke = Self::derive_from_seed(sk_r.to_vec());
