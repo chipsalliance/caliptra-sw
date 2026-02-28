@@ -100,6 +100,7 @@ fpga_realtime = [
     "caliptra-drivers/fpga_realtime",
     "caliptra-hw-model/fpga_realtime",
 ]
+emu_subsystem = []
 fpga_subsystem = [
     "caliptra-drivers/fpga_subsystem",
     "caliptra-hw-model/fpga_subsystem",

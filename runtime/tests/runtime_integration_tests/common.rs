@@ -152,7 +152,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
             hek_seed: None,
-            subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            subsystem_mode: cfg!(any(feature = "fpga_subsystem", feature = "emu_subsystem")),
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             key_type: None,
@@ -210,6 +210,8 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
+    let subsystem =
+        cfg!(any(feature = "fpga_subsystem", feature = "emu_subsystem")) || args.subsystem_mode;
     let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
     let ocp_lock = args.ocp_lock_en || cfg!(feature = "ocp-lock");
     let default_rt_fwid = match (fpga, ocp_lock) {
@@ -267,10 +269,10 @@ pub fn start_rt_test_pqc_model(
         stack_info: Some(StackInfo::new(image_info)),
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
-        subsystem_mode: args.subsystem_mode,
+        subsystem_mode: subsystem,
         ocp_lock_en: ocp_lock,
         ss_init_params: SubsystemInitParams {
-            enable_mcu_uart_log: args.subsystem_mode,
+            enable_mcu_uart_log: subsystem,
             ..Default::default()
         },
         rom_callback: args.rom_callback,
@@ -296,7 +298,7 @@ pub fn start_rt_test_pqc_model(
     let image = image.to_bytes().unwrap();
 
     let default_manifest_bytes;
-    let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
+    let (soc_manifest, mcu_fw_image) = if subsystem && args.soc_manifest.is_none() {
         default_manifest_bytes =
             default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
         (Some(&default_manifest_bytes[..]), Some(&DEFAULT_MCU_FW[..]))
