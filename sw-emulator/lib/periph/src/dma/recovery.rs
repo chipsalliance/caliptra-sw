@@ -509,7 +509,7 @@ impl RecoveryRegisterInterface {
 fn to_payload(data: &[u32], len: usize) -> Option<Vec<u8>> {
     Some(
         data.iter()
-            .flat_map(|x| x.to_le_bytes().to_vec())
+            .flat_map(|x| x.to_le_bytes())
             .take(len)
             .collect(),
     )

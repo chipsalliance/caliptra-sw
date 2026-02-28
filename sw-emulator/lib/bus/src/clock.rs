@@ -17,7 +17,7 @@ use std::{
     collections::{BTreeSet, HashSet},
     ptr,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex, RwLock,
     },
 };
@@ -300,7 +300,8 @@ impl TimerAction {
 
 struct ClockImpl {
     now: AtomicU64,
-    next_action_time: Mutex<Option<u64>>,
+    next_action_time_valid: AtomicBool,
+    next_action_time: AtomicU64,
     next_action_id: AtomicU64,
     action_handles: Arc<RwLock<BTreeSet<ActionHandleImpl>>>,
 }
@@ -308,7 +309,8 @@ impl ClockImpl {
     fn new() -> Arc<Self> {
         Arc::new(Self {
             now: AtomicU64::new(0),
-            next_action_time: Mutex::new(None),
+            next_action_time_valid: AtomicBool::new(false),
+            next_action_time: AtomicU64::new(0),
             next_action_id: AtomicU64::new(0),
             action_handles: Arc::new(RwLock::new(BTreeSet::new())),
         })
@@ -327,14 +329,16 @@ impl ClockImpl {
             "Cannot increment the current time by more than {} clock cycles.",
             (u64::MAX >> 1)
         );
-        self.now.fetch_add(delta, Ordering::Relaxed);
-        let next_action_time = *self.next_action_time.lock().unwrap();
-        if let Some(next_action_time) = next_action_time {
-            if self.has_fired(next_action_time) {
-                self.remove_fired_actions(&mut fired_actions);
+        let prev_now = self.now.fetch_add(delta, Ordering::Relaxed);
+        let now = prev_now.wrapping_add(delta);
+
+        if self.next_action_time_valid.load(Ordering::Acquire) {
+            let next_action_time = self.next_action_time.load(Ordering::Relaxed);
+            if Self::has_fired_at(now, next_action_time) {
+                self.remove_fired_actions(now, &mut fired_actions);
                 return fired_actions;
             }
-        };
+        }
         fired_actions
     }
 
@@ -373,11 +377,20 @@ impl ClockImpl {
         }
     }
     fn has_fired(&self, action_time: u64) -> bool {
-        self.now().wrapping_sub(action_time) < (u64::MAX >> 1)
+        Self::has_fired_at(self.now(), action_time)
+    }
+
+    #[inline]
+    fn has_fired_at(now: u64, action_time: u64) -> bool {
+        now.wrapping_sub(action_time) < (u64::MAX >> 1)
     }
     fn recompute_next_action_time(&self, future_actions: &BTreeSet<ActionHandleImpl>) {
-        *self.next_action_time.lock().unwrap() =
-            self.find_next_action(future_actions).map(|a| a.time);
+        if let Some(next) = self.find_next_action(future_actions).map(|a| a.time) {
+            self.next_action_time.store(next, Ordering::Relaxed);
+            self.next_action_time_valid.store(true, Ordering::Release);
+        } else {
+            self.next_action_time_valid.store(false, Ordering::Release);
+        }
     }
     fn find_next_action<'a>(
         &self,
@@ -396,13 +409,30 @@ impl ClockImpl {
     }
 
     #[cold]
-    fn remove_fired_actions(&self, fired_actions: &mut HashSet<TimerAction>) {
+    fn remove_fired_actions(&self, now: u64, fired_actions: &mut HashSet<TimerAction>) {
         let mut future_actions = self.action_handles.write().unwrap();
-        while let Some(action) = self.find_next_action(&future_actions) {
-            if !self.has_fired(action.time) {
+
+        let search_start = now.wrapping_sub(u64::MAX >> 1);
+        let search_action = ActionHandleImpl {
+            time: search_start,
+            id: TimerActionId::default(),
+            action: TimerAction::Poll,
+        };
+
+        // Walk the set in wraparound order starting at search_start. This avoids
+        // repeatedly calling find_next_action() (an O(log n) lookup) in a loop.
+        let mut to_remove: Vec<ActionHandleImpl> = Vec::new();
+        for action in future_actions
+            .range(&search_action..)
+            .chain(future_actions.range(..&search_action))
+        {
+            if !Self::has_fired_at(now, action.time) {
                 break;
             }
-            let action = *action;
+            to_remove.push(*action);
+        }
+
+        for action in to_remove {
             future_actions.remove(&action);
             fired_actions.insert(action.action);
         }
