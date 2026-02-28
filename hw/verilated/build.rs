@@ -87,5 +87,7 @@ fn main() {
 
     println!("cargo:rustc-link-search={}/out", manifest_dir.display());
     println!("cargo:rustc-link-lib=static=caliptra_verilated");
+    // Link the Verilator runtime library (contains VlDynamicTriggerScheduler, etc.)
+    println!("cargo:rustc-link-lib=static=verilated");
     println!("cargo:rustc-link-lib=dylib=stdc++");
 }
