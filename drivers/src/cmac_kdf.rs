@@ -16,7 +16,7 @@ Abstract:
 
 use crate::{AesCmacOp, AesKey, LEArray4x16, AES_BLOCK_SIZE_WORDS};
 use arrayvec::ArrayVec;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -37,7 +37,7 @@ const MAX_KMAC_INPUT_SIZE: usize = 4096;
 /// # Returns
 /// The output key as an array of bytes. The number of valid bytes is
 /// `rounds` * 16.`
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn cmac_kdf<A: AesCmacOp>(
     aes: &mut A,
     key: AesKey,

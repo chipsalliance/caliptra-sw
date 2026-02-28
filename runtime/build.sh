@@ -8,5 +8,5 @@ cargo build \
   --target riscv32imc-unknown-none-elf \
   --profile=firmware \
   --no-default-features \
-  --features riscv \
+  --features riscv,cfi \
   --bin=caliptra-runtime

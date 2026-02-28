@@ -17,7 +17,7 @@ use crate::{
     array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
     KeyWriteArgs, Trng,
 };
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::ecc::{EccReg, RegisterBlock};
 use core::cmp::Ordering;
@@ -245,7 +245,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn key_pair(
         &mut self,
         seed: Ecc384Seed,
@@ -268,7 +268,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn key_pair_for_fips_kat(
         &mut self,
         trng: &mut Trng,
@@ -288,7 +288,7 @@ impl Ecc384 {
 
     /// Private base function to generate ECC-384 Key Pair
     /// pct_sig should only be provided in the KAT use case
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn key_pair_base(
         &mut self,
@@ -412,7 +412,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Generated signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Ecc384Signature> {
         let ecc = self.ecc.regs_mut();
 
@@ -439,7 +439,7 @@ impl Ecc384 {
         Ok(signature)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn sign_internal(
         &mut self,
         priv_key: Ecc384PrivKeyIn,
@@ -498,7 +498,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Generate signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sign(
         &mut self,
         priv_key: Ecc384PrivKeyIn,
@@ -520,7 +520,7 @@ impl Ecc384 {
         let _r = self.verify_r(pub_key, data, sig)?;
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
-        #[cfg(not(feature = "no-cfi"))]
+        #[cfg(feature = "cfi")]
         caliptra_cfi_lib::cfi_assert_eq_12_words(&_r.0, &sig.r.0);
 
         #[cfg(feature = "fips-test-hooks")]
@@ -549,7 +549,7 @@ impl Ecc384 {
     /// # Result
     ///
     /// *  `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn verify(
         &mut self,
         pub_key: &Ecc384PubKey,
@@ -561,7 +561,7 @@ impl Ecc384 {
 
         // compare the hardware generate `r` with one in signature
         let result = if verify_r == signature.r {
-            #[cfg(not(feature = "no-cfi"))]
+            #[cfg(feature = "cfi")]
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &signature.r.0);
             Ecc384Result::Success
         } else {
@@ -585,7 +585,7 @@ impl Ecc384 {
     /// # Result
     ///
     /// *  `Array4xN<12, 48>` - verify R value
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn verify_r(
         &mut self,
         pub_key: &Ecc384PubKey,
@@ -644,7 +644,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `()` - Success or error
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn ecdh(
         &mut self,
         priv_key: Ecc384PrivKeyIn,

@@ -28,7 +28,7 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::rom_env::RomEnvFips;
 use crate::{cprintln, rom_env::RomEnv};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
@@ -51,7 +51,7 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnvFips) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
@@ -128,7 +128,7 @@ fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
 ///
 /// # Returns
 ///     CaliptraResult
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
     let persistent_data = env.persistent_data.get_mut();

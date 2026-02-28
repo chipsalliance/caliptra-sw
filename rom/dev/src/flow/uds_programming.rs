@@ -12,7 +12,7 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::cprintln;
 use caliptra_common::uds_fe_programming::UdsFeProgrammingFlow;
@@ -23,7 +23,7 @@ pub struct UdsProgrammingFlow {}
 
 impl UdsProgrammingFlow {
     #[inline(never)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn program_uds(env: &mut RomEnv) -> CaliptraResult<()> {
         // Check if UDS programming is requested.
         if !env.soc_ifc.uds_program_req() {

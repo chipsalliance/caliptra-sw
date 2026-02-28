@@ -16,7 +16,7 @@ Environment:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::WdtTimeout;
 use caliptra_drivers::SocIfc;
@@ -29,7 +29,7 @@ use crate::cprintln;
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn start_wdt(soc_ifc: &mut SocIfc) {
     if soc_ifc.debug_locked() {
         let mut wdt_timeout_cycles = soc_ifc.wdt1_timeout_cycle_count();

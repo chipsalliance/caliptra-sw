@@ -18,7 +18,7 @@ use crate::{
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::abr::{AbrReg, RegisterBlock};
@@ -230,7 +230,7 @@ impl MlKem1024 {
     /// # Returns
     ///
     /// * `MlKem1024Ciphertext` - Generated ciphertext
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn encapsulate(
         &mut self,
         encaps_key: &MlKem1024EncapsKey,
@@ -315,7 +315,7 @@ impl MlKem1024 {
     /// # Returns
     ///
     /// * `()` - Success
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn decapsulate(
         &mut self,
         decaps_key: &MlKem1024DecapsKey,
@@ -388,7 +388,7 @@ impl MlKem1024 {
     /// # Returns
     ///
     /// * `()` - Success
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn keygen_decapsulate(
         &mut self,
         seeds: MlKem1024Seeds,

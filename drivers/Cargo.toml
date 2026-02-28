@@ -32,6 +32,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
 caliptra-cfi-derive.workspace = true
 
 [features]
+default = ["cfi"]
 std = []
 emu = []
 riscv = []
@@ -43,7 +44,7 @@ fpga_subsystem = ["caliptra-hw-model/fpga_subsystem"]
 ocp-lock = ["caliptra-hw-model/ocp-lock"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
-no-cfi = []
+cfi = []
 fips-test-hooks = []
 
 [dev-dependencies]

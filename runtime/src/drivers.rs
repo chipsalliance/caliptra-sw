@@ -228,7 +228,7 @@ impl Drivers {
         })
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
         self.cryptographic_mailbox
@@ -367,7 +367,7 @@ impl Drivers {
     }
 
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_dpe_rt_tci(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().fw.dpe.state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -478,7 +478,7 @@ impl Drivers {
     }
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn compute_ecc_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self
             .persistent_data
@@ -495,7 +495,7 @@ impl Drivers {
     }
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn compute_mldsa_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = Self::get_key_id_rt_mldsa_pub_key(self);
         let key = okref(&key)?;
@@ -507,7 +507,7 @@ impl Drivers {
     }
 
     /// Initialize DPE with measurements and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pl0_pauser_locality = drivers
             .persistent_data
@@ -676,13 +676,13 @@ impl Drivers {
     }
 
     /// Create certificate chain and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         Self::create_ecc_cert_chain(drivers)?;
         Self::create_mldsa_cert_chain(drivers)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_ecc_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
 
@@ -727,7 +727,7 @@ impl Drivers {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_mldsa_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
 

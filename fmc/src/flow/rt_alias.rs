@@ -11,7 +11,7 @@ Abstract:
     Alias RT DICE Layer & PCR extension
 
 --*/
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder};
 use caliptra_common::x509;
@@ -47,7 +47,7 @@ pub struct RtAliasLayer {}
 
 impl RtAliasLayer {
     /// Perform derivations for the DICE layer
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         if Self::kv_slot_collides(input.cdi) {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
@@ -124,7 +124,7 @@ impl RtAliasLayer {
             || slot == KEY_ID_TMP
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
@@ -264,7 +264,7 @@ impl RtAliasLayer {
     /// * `env` - ROM Environment
     /// * `fmc_cdi` - Key Slot that holds the current CDI
     /// * `rt_cdi` - Key Slot to store the generated CDI
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
@@ -305,7 +305,7 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut FmcEnv,
         cdi: KeyId,
@@ -346,7 +346,7 @@ impl RtAliasLayer {
     /// * `env`    - FMC Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut FmcEnv,
         input: &DiceInput,
@@ -362,7 +362,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn generate_ecc_cert_sig(
         env: &mut FmcEnv,
         input: &DiceInput,
@@ -456,7 +456,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn generate_mldsa_cert_sig(
         env: &mut FmcEnv,
         input: &DiceInput,
@@ -535,7 +535,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn copy_ecc_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.fw.ecc_rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_ECC_TBS_SIZE_EXCEEDED);
@@ -544,7 +544,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn copy_mldsa_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.fw.mldsa_rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED);

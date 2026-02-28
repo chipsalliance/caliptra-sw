@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{
@@ -50,7 +50,7 @@ impl FhtDataStore {
     }
 }
 
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
 

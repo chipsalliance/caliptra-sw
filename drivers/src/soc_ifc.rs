@@ -14,7 +14,7 @@ Abstract:
 
 use crate::Array4x12;
 use bitfield::size_of;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
@@ -692,7 +692,7 @@ impl From<u32> for MfgFlags {
 
 /// Reset Reason
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
+#[cfg_attr(feature = "cfi", derive(Launder))]
 pub enum ResetReason {
     /// Cold Reset
     ColdReset,

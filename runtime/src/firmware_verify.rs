@@ -106,7 +106,7 @@ impl FirmwareVerifyCmd {
     }
 
     /// Load manifest from mailbox SRAM
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_mbox(
         manifest: &mut ImageManifest,
         fw_payload: &[u8],
@@ -121,7 +121,7 @@ impl FirmwareVerifyCmd {
     }
 
     /// Load manifest from external memory (MCU SRAM) using DMA
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_external(
         manifest: &mut ImageManifest,
         dma: &mut caliptra_drivers::Dma,

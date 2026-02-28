@@ -22,7 +22,7 @@ use zerocopy::FromBytes;
 pub struct FeProgrammingCmd;
 
 impl FeProgrammingCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<usize> {
         let cmd = FeProgReq::ref_from_bytes(cmd_bytes)

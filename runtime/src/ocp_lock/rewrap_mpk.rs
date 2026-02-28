@@ -16,7 +16,7 @@ use super::{AccessKey, Current, EncryptedAccessKey, LockedMpk, New, Sek};
 
 pub struct RewrapMpkCmd;
 impl RewrapMpkCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

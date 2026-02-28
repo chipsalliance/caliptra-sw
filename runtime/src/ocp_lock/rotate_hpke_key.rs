@@ -12,7 +12,7 @@ use crate::{mutrefbytes, Drivers};
 
 pub struct RotateHpkeKeyCmd;
 impl RotateHpkeKeyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

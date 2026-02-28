@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use caliptra_api::mailbox::{EcdsaVerifyReq, MldsaVerifyReq};
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
@@ -22,7 +23,7 @@ use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(ecc384: &mut Ecc384, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
@@ -54,7 +55,7 @@ impl EcdsaVerifyCmd {
 
 pub struct MldsaVerifyCmd;
 impl MldsaVerifyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(mldsa87: &mut Mldsa87, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let pubkey_bytes = MldsaVerifyReq::pub_key(cmd_args)

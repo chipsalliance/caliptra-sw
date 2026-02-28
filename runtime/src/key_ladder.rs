@@ -33,7 +33,7 @@ impl KeyLadder {
     /// * `target_svn` - SVN to which the derived secret should be bound. May not be larger than the current key ladder's SVN.
     /// * `context` - Diversification value
     /// * `dest` - Key Vault slot to whch the derived secret should be written.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn derive_secret(
         drivers: &mut Drivers,

@@ -17,7 +17,7 @@ use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::key_ladder;
 use crate::{cprintln, pcr, rom_env::RomEnv};
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
@@ -40,7 +40,7 @@ impl UpdateResetFlow {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
@@ -210,7 +210,7 @@ impl UpdateResetFlow {
     /// * `env` - ROM Environment
     /// * 'manifest'- Manifest
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn verify_image(
         env: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
@@ -251,7 +251,7 @@ impl UpdateResetFlow {
     /// * `txn`      - Mailbox Receive Transaction
     /// * `soc_ifc`  - SoC Interface
     /// * `dma`      - DMA engine
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image(
         manifest: &ImageManifest,
         txn: &mut MailboxRecvTxn,
@@ -277,7 +277,7 @@ impl UpdateResetFlow {
     ///
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image_from_mbox(
         manifest: &ImageManifest,
         txn: &mut MailboxRecvTxn,
@@ -310,7 +310,7 @@ impl UpdateResetFlow {
     /// * `manifest` - Manifest
     /// * `soc_ifc`  - SoC Interface
     /// * `dma`      - DMA engine
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image_from_mcu(
         manifest: &ImageManifest,
         dma: &mut Dma,
@@ -347,7 +347,7 @@ impl UpdateResetFlow {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest(
         manifest: &mut ImageManifest,
         txn: &mut MailboxRecvTxn,
@@ -365,7 +365,7 @@ impl UpdateResetFlow {
     }
 
     /// Load the manifest from mailbox SRAM
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_mbox(
         manifest: &mut ImageManifest,
         txn: &mut MailboxRecvTxn,
@@ -380,7 +380,7 @@ impl UpdateResetFlow {
     }
 
     /// Load the manifest from MCU SRAM using DMA
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_mcu(
         manifest: &mut ImageManifest,
         dma: &mut Dma,

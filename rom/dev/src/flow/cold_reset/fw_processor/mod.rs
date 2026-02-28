@@ -23,7 +23,7 @@ use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_api::mailbox::{
     AlgorithmType, CmDeriveStableKeyReq, CmKeyUsage, CmStableKeyType, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
 use caliptra_common::{
@@ -525,7 +525,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
         txn: Option<&mut MailboxRecvTxn>,
@@ -544,7 +544,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_mbox(
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
@@ -565,7 +565,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest_from_mcu(
         persistent_data: &mut PersistentDataAccessor,
         soc_ifc: &mut SocIfc,
@@ -599,7 +599,7 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn verify_image(
         venv: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
@@ -712,7 +712,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * CaliptraResult
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_fuse_log(
         log: &mut FuseLogArray,
         log_info: &ImageVerificationLogInfo,
@@ -805,7 +805,7 @@ impl FirmwareProcessor {
     ///
     // Inlined to reduce ROM size
     #[inline(always)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image(
         manifest: &ImageManifest,
         txn: Option<&mut MailboxRecvTxn>,
@@ -826,7 +826,7 @@ impl FirmwareProcessor {
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image_from_mbox(
         manifest: &ImageManifest,
         txn: &mut MailboxRecvTxn,
@@ -879,7 +879,7 @@ impl FirmwareProcessor {
     /// * `soc_ifc`  - SoC Interface
     /// * `dma`      - DMA engine
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image_from_mcu(
         manifest: &ImageManifest,
         soc_ifc: &mut SocIfc,
@@ -939,7 +939,7 @@ impl FirmwareProcessor {
     /// * `info` - Image Verification Info
     /// * `persistent_data` - Persistent data accessor
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn populate_data_vault(
         info: &ImageVerificationInfo,
         persistent_data: &mut PersistentDataAccessor,
@@ -961,7 +961,7 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
         let svn = env.persistent_data.get().rom.data_vault.fw_svn();
 

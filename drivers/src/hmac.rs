@@ -18,7 +18,7 @@ use crate::{
     KeyWriteArgs, Trng,
 };
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 
@@ -249,7 +249,7 @@ impl Hmac {
     ///
     /// # Returns
     /// * `CaliptraResult<()>` - Result of the operation
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn hmac(
         &mut self,
         key: HmacKey,

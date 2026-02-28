@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{Array4x5, CaliptraError, CaliptraResult};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use zeroize::Zeroize;
 
@@ -66,7 +66,7 @@ impl Sha1 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x5> {
         #[cfg(feature = "fips-test-hooks")]
         unsafe {

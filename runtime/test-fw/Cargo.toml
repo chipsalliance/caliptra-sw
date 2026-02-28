@@ -13,6 +13,10 @@ riscv = [
     "caliptra-runtime/riscv",
     "caliptra-test-harness/riscv",
 ]
+cfi = [
+    "caliptra-drivers/cfi",
+    "caliptra-runtime/cfi",
+]
 emu = [
     "caliptra-drivers/emu",
     "caliptra-runtime/emu",

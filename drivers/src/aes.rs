@@ -24,7 +24,7 @@ use crate::{
     LEArray4x3, LEArray4x4, LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use core::cmp::Ordering;
@@ -605,7 +605,7 @@ impl Aes {
 
     /// Calculate the AES-256-GCM encrypted ciphertext for the given plaintext.
     /// Returns the IV and the tag.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn aes_256_gcm_encrypt(
         &mut self,
         trng: &mut Trng,
@@ -634,7 +634,7 @@ impl Aes {
     }
 
     /// Calculate the AES-256-GCM decrypted plaintext for the given ciphertext.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn aes_256_gcm_decrypt(
         &mut self,
         trng: &mut Trng,
@@ -665,7 +665,7 @@ impl Aes {
     }
 
     /// Initializes the AES engine for GCM mode and returns the IV used.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn initialize_aes_gcm(
         &mut self,
         trng: &mut Trng,
@@ -767,7 +767,7 @@ impl Aes {
     }
 
     /// Initializes the AES engine for CBC or CTR mode
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn initialize_aes_cbc_ctr(
         &mut self,
         iv: &AesBlock,
@@ -807,7 +807,7 @@ impl Aes {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn aes_256_gcm_op(
         &mut self,
         trng: &mut Trng,
@@ -953,7 +953,7 @@ impl Aes {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     /// AES ECB Decrypt to KV. Used by OCP LOCK for MEK release.
     pub fn aes_256_ecb_decrypt_kv(&mut self, input: &LEArray4x16) -> CaliptraResult<()> {
         // Only KV 16 is allowed to be key KV.
@@ -1022,7 +1022,7 @@ impl Aes {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn aes_256_ecb(
         &mut self,
         key: AesKey,
@@ -1475,7 +1475,7 @@ impl AesGcm {
 
     /// Calculate the AES-256-GCM encrypted ciphertext for the given plaintext.
     /// Returns the IV and the tag.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn encrypt(
         &mut self,
         trng: &mut Trng,
@@ -1491,7 +1491,7 @@ impl AesGcm {
     }
 
     /// Calculate the AES-256-GCM decrypted plaintext for the given ciphertext.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn decrypt(
         &mut self,
         trng: &mut Trng,

@@ -66,7 +66,7 @@ zerocopy.workspace = true
 
 [features]
 riscv = []
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra_common/std",
@@ -81,7 +81,12 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = []
-no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
+cfi = [
+  "caliptra-image-verify/cfi",
+  "caliptra-image-types/cfi",
+  "caliptra-drivers/cfi",
+  "caliptra_common/cfi"
+]
 slow_tests = []
 fips-test-hooks = [
   "caliptra-drivers/fips-test-hooks",

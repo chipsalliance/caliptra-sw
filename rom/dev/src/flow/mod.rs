@@ -22,7 +22,7 @@ mod warm_reset;
 
 pub use crate::flow::uds_programming::UdsProgrammingFlow;
 use crate::{handle_fatal_error, rom_env::RomEnvFips};
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_drivers::{CaliptraResult, ResetReason};
@@ -33,7 +33,7 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn run(env: &mut RomEnvFips) -> CaliptraResult<()> {
     let reset_reason = env.soc_ifc.reset_reason();
 
