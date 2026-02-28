@@ -30,6 +30,7 @@ use ureg::MmioMut;
 use zerocopy::IntoBytes;
 
 const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;
+const MCU_TCI_TYPE: &[u8; 4] = b"MCFW";
 
 pub enum RecoveryFlow {}
 
@@ -106,9 +107,11 @@ impl RecoveryFlow {
         cprintln!("[rt] Verifying MCU digest: {}", HexBytes(&digest));
         // verify the digest
         let auth_and_stash_req = AuthorizeAndStashReq {
-            fw_id: [2, 0, 0, 0],
+            fw_id: *MCU_TCI_TYPE,
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
+            // We want to make sure this measurement is not skipped.
+            flags: 0,
             ..Default::default()
         };
 
