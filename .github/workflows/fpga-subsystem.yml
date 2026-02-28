@@ -359,13 +359,18 @@ jobs:
           cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --partition count:${{ matrix.partition }}/4 \
+              --partition hash:${{ matrix.partition }}/4 \
               --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
+          echo "Running the following tests:"
+          cargo-nextest nextest list \
+              "${COMMON_ARGS[@]}" \
+              --partition hash:${{ matrix.partition }}/4
 
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
-              --partition count:${{ matrix.partition }}/4 \
+              --partition hash:${{ matrix.partition }}/4 \
               --test-threads=1 \
+              --no-capture \
               --no-fail-fast
 
           sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
