@@ -715,10 +715,6 @@ impl HwModel for ModelFpgaRealtime {
         todo!()
     }
 
-    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
-        Err(ModelError::SubsystemSramError)
-    }
-
     fn fuses(&self) -> &Fuses {
         &self.fuses
     }

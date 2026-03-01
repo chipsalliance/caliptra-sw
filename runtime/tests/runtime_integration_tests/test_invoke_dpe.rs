@@ -10,7 +10,7 @@ use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -100,10 +100,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
 }
 
-#[test]
-fn test_invoke_dpe_sign_and_certify_key_cmds() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
+fn sign_and_certify_key_test_helper(model: &mut DefaultHwModel) {
     for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         let data = match profile {
             CaliptraDpeProfile::Ecc384 => TEST_SD_SHA384,
@@ -115,7 +112,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
             ..Default::default()
         });
         let sign_resp = execute_dpe_cmd(
-            &mut model,
+            model,
             profile,
             &mut Command::from(&sign_cmd),
             DpeResult::Success,
@@ -129,7 +126,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         });
 
         let certify_key_resp = execute_dpe_cmd(
-            &mut model,
+            model,
             profile,
             &mut Command::from(&certify_key_cmd),
             DpeResult::Success,
@@ -171,6 +168,22 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
             _ => panic!("Wrong response type!"),
         }
     }
+}
+
+#[test]
+fn test_invoke_dpe_sign_and_certify_key_cmds() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    sign_and_certify_key_test_helper(&mut model);
+}
+
+#[test]
+#[cfg_attr(not(feature = "fpga_realtime"), ignore)]
+fn test_invoke_dpe_sign_and_certify_key_cmds_with_subsystem() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        ..Default::default()
+    });
+    sign_and_certify_key_test_helper(&mut model);
 }
 
 #[test]

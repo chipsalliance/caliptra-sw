@@ -473,6 +473,13 @@ impl HwModel for ModelEmulated {
         self.events_to_caliptra.clone()
     }
 
+    fn staging_physical_address(&mut self) -> Result<u64, ModelError> {
+        if !self.subsystem_mode() {
+            return Err(ModelError::SubsystemSramError);
+        }
+        Ok(AxiRootBus::mcu_sram_offset())
+    }
+
     fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
         if !self.subsystem_mode() {
             return Err(ModelError::SubsystemSramError);
@@ -489,7 +496,20 @@ impl HwModel for ModelEmulated {
             .get_mut(..payload_len)
             .ok_or(ModelError::SubsystemSramError)?
             .copy_from_slice(payload);
-        Ok(AxiRootBus::mcu_sram_offset())
+        self.staging_physical_address()
+    }
+
+    fn read_payload_from_ss_staging_area(&mut self, length: usize) -> Result<Vec<u8>, ModelError> {
+        if !self.subsystem_mode() {
+            return Err(ModelError::SubsystemSramError);
+        }
+
+        let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data();
+        let payload = mcu_sram_data
+            .get(..length)
+            .ok_or(ModelError::SubsystemSramError)?
+            .to_vec();
+        Ok(payload)
     }
 
     fn fuses(&self) -> &Fuses {
