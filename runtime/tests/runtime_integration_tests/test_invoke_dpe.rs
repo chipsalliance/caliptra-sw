@@ -210,6 +210,65 @@ fn test_invoke_dpe_sign_and_certify_key_cmds_with_subsystem() {
 }
 
 #[test]
+fn test_certify_key_with_max_contexts() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    // Set the limit to 64 so we don't have to deal with the PL1 locality
+    model
+        .mailbox_execute_req(caliptra_api::mailbox::ReallocateDpeContextLimitsReq {
+            pl0_context_limit: 64,
+            ..Default::default()
+        })
+        .unwrap();
+
+    let base_derive_context_cmd = DeriveContextCmd {
+        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::INPUT_ALLOW_X509,
+        ..Default::default()
+    };
+
+    // Fill PL0 contexts
+    let max_after_init_contexts = 64 - 2;
+    for _ in 0..max_after_init_contexts {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            CaliptraDpeProfile::Ecc384,
+            &mut Command::DeriveContext(&base_derive_context_cmd),
+            DpeResult::Success,
+        );
+    }
+
+    // Trigger failure by trying to derive one more context to PL0
+    let _ = execute_dpe_cmd(
+        &mut model,
+        CaliptraDpeProfile::Ecc384,
+        &mut Command::DeriveContext(&base_derive_context_cmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
+    );
+
+    // Make sure both profiles can get certificates and CSRs
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let formats = [
+            CertifyKeyCommand::FORMAT_X509,
+            CertifyKeyCommand::FORMAT_CSR,
+        ];
+        for format in formats {
+            let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+                profile,
+                format,
+                ..Default::default()
+            });
+
+            let _ = execute_dpe_cmd(
+                &mut model,
+                profile,
+                &mut Command::from(&certify_key_cmd),
+                DpeResult::Success,
+            );
+        }
+    }
+}
+
+#[test]
 fn test_invoke_dpe_asymmetric_sign() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
