@@ -387,11 +387,26 @@ impl Dma {
     /// * `write_addr` - Address to write to
     /// * `buffer`  - Target location to write from
     pub fn write_buffer(&self, write_addr: AxiAddr, buffer: &[u32]) {
-        // TODO(zhalvorsen): figure out why one shot is only writing ~1KB in the emulator and switch
-        // to using a single DMA transaction instead of writing a dword at a time.
-        for (i, write_val) in buffer.iter().enumerate() {
-            self.write_dword(write_addr + (i as u32 * 4), *write_val);
-        }
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            // Length is in bytes.
+            length: buffer.len() as u32 * 4,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+        self.flush();
+        self.setup_dma_write(write_transaction);
+        self.with_dma(|dma| {
+            for write_data in buffer.iter() {
+                let max_fifo_depth = dma.cap().read().fifo_max_depth();
+                while max_fifo_depth == dma.status0().read().fifo_depth() {}
+
+                dma.write_data().write(|_| *write_data);
+            }
+        });
+        self.wait_for_dma_complete();
     }
 
     /// Write a 32-bit word to the specified address
