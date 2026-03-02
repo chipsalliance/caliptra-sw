@@ -5,7 +5,7 @@ use crate::common::{
     TEST_LABEL,
 };
 use caliptra_api::{
-    mailbox::{CommandId, FwInfoResp},
+    mailbox::{CommandId, FwInfoResp, ReallocateDpeContextLimitsReq},
     SocManager,
 };
 use caliptra_builder::{
@@ -464,4 +464,59 @@ fn test_export_cdi_destroyed_root_context() {
         resp,
         ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into())
     );
+}
+
+#[test]
+fn test_certify_key_with_max_contexts() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    // Set the limit to 32 so we don't have to deal with the PL1 locality
+    model
+        .mailbox_execute_req(ReallocateDpeContextLimitsReq {
+            pl0_context_limit: 32,
+            ..Default::default()
+        })
+        .unwrap();
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::INPUT_ALLOW_X509,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    // Fill PL0 contexts
+    let max_after_init_contexts = 32 - 2;
+    for _ in 0..max_after_init_contexts {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
+    }
+
+    // Trigger failure by trying to derive one more context to PL0
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
+    );
+
+    // Make sure we can get certificates and CSRs
+    let formats = [CertifyKeyCmd::FORMAT_X509, CertifyKeyCmd::FORMAT_CSR];
+    for format in formats {
+        let certify_key_cmd = CertifyKeyCmd {
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: CertifyKeyFlags::empty(),
+            format,
+        };
+
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::CertifyKey(&certify_key_cmd),
+            DpeResult::Success,
+        );
+    }
 }
