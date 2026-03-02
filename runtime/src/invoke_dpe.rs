@@ -12,14 +12,14 @@ Abstract:
 
 --*/
 
-use crate::{ec_dpe_env, mldsa_dpe_env, mutrefbytes, AxiAddr, Drivers, PauserPrivileges};
+use crate::{ec_dpe_env, mldsa_dpe_env, AxiAddr, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_api::mailbox::{
     populate_checksum, AxiResponseInfo, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req,
-    MailboxReqHeader, MailboxRespHeader,
+    MailboxReqHeader, MailboxRespHeader, SUBSYSTEM_MAILBOX_SIZE_LIMIT,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
@@ -98,6 +98,23 @@ impl InvokeDpeCmd {
         if cmd.flags.external_axi_response() && !drivers.soc_ifc.subsystem_mode() {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
+
+        // Trim the response buffer to the correct size. If the response doesn't fit, it will fail
+        // during DPE execution and not at the transport layer. This is especially important for DPE
+        // handle rotation so the caller doesn't lose the handle.
+        let mbox_resp = if drivers.soc_ifc.subsystem_mode() {
+            let len = if cmd.flags.external_axi_response() {
+                usize::min(mbox_resp.len(), cmd.axi_response.max_size as usize)
+            } else {
+                // The mailbox size is smaller when subsystem is enabled
+                usize::min(mbox_resp.len(), SUBSYSTEM_MAILBOX_SIZE_LIMIT)
+            };
+            mbox_resp
+                .get_mut(..len)
+                .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        } else {
+            mbox_resp
+        };
 
         // Execute the DPE command and get the length of the response that was written
         let len = Self::execute(drivers, dpe_cmd_buf, mbox_resp, CaliptraDpeProfile::Mldsa87)?;
@@ -209,8 +226,12 @@ impl InvokeDpeCmd {
         };
 
         let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-        let invoke_resp = mutrefbytes::<InvokeDpeResp>(mbox_resp)?;
-        let result = invoke_dpe_cmd(profile, drivers, command, None, ueid, &mut invoke_resp.data);
+        let (invoke_resp, data) = InvokeDpeRespHeader::mut_from_prefix(mbox_resp)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        if data.len() < core::mem::size_of::<ResponseHdr>() {
+            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        }
+        let result = invoke_dpe_cmd(profile, drivers, command, None, ueid, data);
 
         if let Command::DestroyCtx(_) = command {
             // clear tags for destroyed contexts
@@ -233,14 +254,13 @@ impl InvokeDpeCmd {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 let r = ResponseHdr::new(profile.into(), *e);
-                invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
-                    .copy_from_slice(r.as_bytes());
-                let data_size = r.as_bytes().len();
-                invoke_resp.data_size = data_size as u32;
+                data[..core::mem::size_of::<ResponseHdr>()].copy_from_slice(r.as_bytes());
+                invoke_resp.data_size = r.as_bytes().len() as u32;
             }
         };
 
-        invoke_resp.partial_len()
+        Ok(size_of::<InvokeDpeResp>() - InvokeDpeResp::DATA_MAX_SIZE
+            + invoke_resp.data_size as usize)
     }
 
     /// Remove context tags for all inactive DPE contexts
@@ -341,4 +361,15 @@ struct InvokeDpeMldsa87Header {
 const _: () = assert!(
     size_of::<InvokeDpeMldsa87Header>()
         == size_of::<InvokeDpeMldsa87Req>() - InvokeDpeMldsa87Req::DATA_MAX_SIZE
+);
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeRespHeader {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+}
+
+const _: () = assert!(
+    size_of::<InvokeDpeRespHeader>() == size_of::<InvokeDpeResp>() - InvokeDpeResp::DATA_MAX_SIZE
 );

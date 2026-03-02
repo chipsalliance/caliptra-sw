@@ -358,7 +358,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder.build()
 }
 
-fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
+pub fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
     if let Ok(&ResponseHdr { status, .. }) =
         ResponseHdr::try_ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
     {
@@ -407,15 +407,53 @@ pub fn execute_dpe_cmd(
         ) => flags.exports_cdi(),
         _ => false,
     };
-    let (flags, addr_lo, addr_hi) = if external_response {
+    let external_response_info = if external_response {
         let addr = model.staging_physical_address().unwrap();
+        Some(AxiResponseInfo {
+            addr_lo: addr as u32,
+            addr_hi: (addr >> 32) as u32,
+            max_size: size_of::<InvokeDpeResp>() as u32,
+        })
+    } else {
+        None
+    };
+    let resp = execute_dpe_cmd_raw(model, profile, dpe_cmd, external_response_info);
+    if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
+        assert_error(model, expected_err, resp.unwrap_err());
+        return None;
+    }
+    let resp = resp.unwrap();
+
+    let resp_bytes = &resp.data[..resp.data_size as usize];
+    Some(match expected_result {
+        DpeResult::Success => {
+            // Peek response header so we can panic with an error code in case the command failed.
+            check_dpe_status(resp_bytes, DpeErrorCode::NoError);
+            Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
+        },
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
+        DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
+    })
+}
+
+pub fn execute_dpe_cmd_raw(
+    model: &mut DefaultHwModel,
+    profile: CaliptraDpeProfile,
+    dpe_cmd: &mut Command,
+    external_response_info: Option<AxiResponseInfo>,
+) -> Result<InvokeDpeResp, ModelError> {
+    let external_response = external_response_info.is_some();
+    let (flags, axi_response) = if let Some(info) = external_response_info {
         (
             InvokeDpeMldsa87Flags::EXTERNAL_AXI_RESPONSE,
-            addr as u32,
-            (addr >> 32) as u32,
+            AxiResponseInfo {
+                addr_lo: info.addr_lo,
+                addr_hi: info.addr_hi,
+                max_size: info.max_size,
+            },
         )
     } else {
-        (InvokeDpeMldsa87Flags::empty(), 0, 0)
+        (InvokeDpeMldsa87Flags::empty(), AxiResponseInfo::default())
     };
 
     // Fill the request buffer with the correct info
@@ -441,11 +479,7 @@ pub fn execute_dpe_cmd(
             MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
                 hdr: MailboxReqHeader { chksum: 0 },
                 flags,
-                axi_response: AxiResponseInfo {
-                    addr_lo,
-                    addr_hi,
-                    max_size: size_of::<InvokeDpeResp>() as u32,
-                },
+                axi_response,
                 data: cmd_data,
                 data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
             }),
@@ -453,13 +487,9 @@ pub fn execute_dpe_cmd(
     };
     mbox_cmd.populate_chksum().unwrap();
 
-    let resp = model.mailbox_execute(u32::from(cmd_id), mbox_cmd.as_bytes().unwrap());
-    if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
-        assert_error(model, expected_err, resp.unwrap_err());
-        return None;
-    }
+    let resp = model.mailbox_execute(u32::from(cmd_id), mbox_cmd.as_bytes().unwrap())?;
     // The external mailbox command also sends the mailbox header so we always expect something.
-    let resp = resp.unwrap().expect("We should have received a response");
+    let resp = resp.expect("We should have received a response");
     check_header_checksum(&resp).unwrap();
 
     let mut resp_hdr = InvokeDpeResp::default();
@@ -473,17 +503,7 @@ pub fn execute_dpe_cmd(
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
         check_header_checksum(resp_hdr.as_bytes_partial().unwrap()).unwrap();
     };
-
-    let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
-    Some(match expected_result {
-        DpeResult::Success => {
-            // Peek response header so we can panic with an error code in case the command failed.
-            check_dpe_status(resp_bytes, DpeErrorCode::NoError);
-            Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
-        },
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
-        DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
-    })
+    Ok(resp_hdr)
 }
 
 #[derive(Debug, PartialEq, Eq)]

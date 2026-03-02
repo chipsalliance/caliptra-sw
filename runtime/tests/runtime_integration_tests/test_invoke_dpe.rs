@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test,
-    CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, CreateSignCmdArgs, DpeResult, RuntimeTestArgs,
-    SignCommandNoRef, TEST_MU, TEST_SD_MU, TEST_SD_SHA384,
+    check_dpe_status, execute_dpe_cmd, execute_dpe_cmd_raw, get_rt_alias_ecc384_cert,
+    get_rt_alias_mldsa87_cert, run_rt_test, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs,
+    CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef, TEST_MU, TEST_SD_MU,
+    TEST_SD_SHA384,
 };
 use caliptra_api::{
     mailbox::{AxiResponseInfo, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req},
@@ -194,6 +195,8 @@ fn sign_and_certify_key_test_helper(model: &mut DefaultHwModel) {
 }
 
 #[test]
+// This test is the same as test_invoke_dpe_sign_and_certify_key_cmds_with_subsystem on a subsystem FPGA
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     sign_and_certify_key_test_helper(&mut model);
@@ -563,4 +566,60 @@ fn test_export_cdi_destroyed_root_context() {
             30_000_000,
         );
     }
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_subsystem_response_buffer_limits() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    // The ECC384 command should succeed because it can't exceed the size of the mailbox
+    let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile: CaliptraDpeProfile::Ecc384,
+        ..Default::default()
+    });
+    let _resp = execute_dpe_cmd(
+        &mut model,
+        CaliptraDpeProfile::Ecc384,
+        &mut Command::from(&certify_key_cmd),
+        DpeResult::Success,
+    )
+    .unwrap();
+
+    // The ML-DSA command should fail because it can easily surpass the size of the mailbox
+    let profile = CaliptraDpeProfile::Mldsa87;
+    let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile,
+        ..Default::default()
+    });
+    let resp = execute_dpe_cmd_raw(
+        &mut model,
+        CaliptraDpeProfile::Mldsa87,
+        &mut Command::from(&certify_key_cmd),
+        None,
+    )
+    .unwrap();
+
+    let resp_bytes = resp.as_bytes_partial().unwrap();
+    check_dpe_status(resp_bytes, DpeErrorCode::InvalidMutRefBuf);
+
+    // Set the AXI size too small to ensure there is an error there too
+    let addr = model.staging_physical_address().unwrap();
+    let resp = execute_dpe_cmd_raw(
+        &mut model,
+        CaliptraDpeProfile::Mldsa87,
+        &mut Command::from(&certify_key_cmd),
+        Some(AxiResponseInfo {
+            addr_lo: addr as u32,
+            addr_hi: (addr >> 32) as u32,
+            max_size: 16 * 1024,
+        }),
+    )
+    .unwrap();
+
+    let resp_bytes = resp.as_bytes_partial().unwrap();
+    check_dpe_status(resp_bytes, DpeErrorCode::InvalidMutRefBuf);
 }
