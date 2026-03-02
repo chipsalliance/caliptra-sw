@@ -36,6 +36,11 @@ impl Packet {
         // Get reference to raw mailbox contents
         let raw_data = mbox.raw_mailbox_contents();
 
+        // Bounds check: dlen must not exceed the mailbox SRAM size
+        if dlen > raw_data.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
         // Create the packet with raw pointers to the mailbox data
         let packet = Packet {
             cmd: cmd.into(),
@@ -75,7 +80,8 @@ impl Packet {
     pub fn payload(&self) -> &[u8] {
         unsafe {
             // Safety: This is safe because:
-            // 1. None of the mailbox request handlers use the mailbox in a way that
+            // 1. payload_len is bounds-checked against the mailbox SRAM size in get_from_mbox().
+            // 2. None of the mailbox request handlers use the mailbox in a way that
             //    modifies the mailbox sram content before sending back a reply.
             core::slice::from_raw_parts(self.payload_ptr, self.payload_len)
         }
