@@ -44,8 +44,7 @@ pub const TCG_DICE_KP_IDENTITY_LOC: &str = "2.23.133.5.4.100.7";
 pub const TCG_DICE_KP_ATTEST_LOC: &str = "2.23.133.5.4.100.9";
 pub const TCG_DICE_KP_ECA: &str = "2.23.133.5.4.100.12";
 
-// TODO(clundin): Double check this oid https://github.com/chipsalliance/caliptra-sw/issues/3322.
-// From https://datatracker.ietf.org/doc/draft-ietf-lamps-pq-composite-kem/
+// OID from https://datatracker.ietf.org/doc/draft-ietf-lamps-pq-composite-kem/
 pub const HYBRID_MLKEM_1024_ECDH_P384_OID: &str = "1.3.6.1.5.5.7.6.63";
 pub const MLDSA_87_OID: &str = "2.16.840.1.101.3.4.3.19";
 

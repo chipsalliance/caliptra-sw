@@ -95,12 +95,14 @@ impl AsRef<[u8]> for HpkeCipherSuite {
 #[derive(Copy, Clone)]
 pub struct KdfId(u16);
 impl KdfId {
+    // Codepoint as defined in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#name-key-derivation-functions-kd
     pub const HKDF_SHA384: Self = Self(0x0002);
 }
 
 #[derive(Copy, Clone)]
 pub struct AeadId(u16);
 impl AeadId {
+    // Codepoint as defined in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#section-7.3
     pub const AES_256_GCM: Self = Self(0x0002);
 }
 
@@ -112,14 +114,19 @@ pub struct KemId {
     serialized_be: [u8; 2],
 }
 impl KemId {
+    // Codepoint as defined in section 8.1 of https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/03/
     pub const ML_KEM_1024: Self = Self {
         value: 0x0042,
         serialized_be: [0x00, 0x42],
     };
+
+    // Codepoint as defined in section 8.2 of https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/03/
     pub const ML_KEM_1024_P384: Self = Self {
         value: 0x0051,
         serialized_be: [0x00, 0x51],
     };
+
+    // Codepoint as defined in https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02#name-key-encapsulation-mechanism
     pub const P_384: Self = Self {
         value: 0x0011,
         serialized_be: [0x00, 0x11],
