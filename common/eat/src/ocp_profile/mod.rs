@@ -11,7 +11,7 @@ pub use eat::{
 
 // Re-export only used items from the concise_evidence module
 pub use concise_evidence::{
-    ClassMap, ConciseEvidence, ConciseEvidenceMap, DigestEntry, EnvironmentMap, EvTriplesMap,
-    EvidenceTripleRecord, IntegrityRegisterEntry, IntegrityRegisterIdChoice, MeasurementMap,
-    MeasurementValue, TaggedConciseEvidence,
+    ClassIdTypeChoice, ClassMap, ConciseEvidence, ConciseEvidenceMap, DigestEntry, EnvironmentMap,
+    EvTriplesMap, EvidenceTripleRecord, IntegrityRegisterEntry, IntegrityRegisterIdChoice,
+    MeasurementMap, MeasurementValue, TaggedConciseEvidence,
 };

@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 // Concise Evidence structures and encoding for RATS CoRIM compliance
-use crate::cbor::{CborEncodable, CborEncoder, TaggedOid, TaggedUuid};
+use crate::cbor::{CborEncodable, CborEncoder, TaggedBytes, TaggedOid, TaggedUuid};
 use crate::error::EatError;
 
 // CBOR tag for tagged concise evidence
@@ -184,9 +184,30 @@ impl CborEncodable for MeasurementMap<'_> {
     }
 }
 
+/// Class ID type choice per CoRIM specification:
+/// $class-id-type-choice /= tagged-oid-type    ; #6.111(bstr)
+/// $class-id-type-choice /= tagged-uuid-type   ; #6.37(bstr .size 16)
+/// $class-id-type-choice /= tagged-bytes       ; #6.560(bstr)
+#[derive(Debug, Clone, Copy)]
+pub enum ClassIdTypeChoice<'a> {
+    TaggedOid(TaggedOid<'a>),
+    TaggedUuid(TaggedUuid<'a>),
+    TaggedBytes(TaggedBytes<'a>),
+}
+
+impl CborEncodable for ClassIdTypeChoice<'_> {
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
+        match self {
+            ClassIdTypeChoice::TaggedOid(oid) => oid.encode(encoder),
+            ClassIdTypeChoice::TaggedUuid(uuid) => uuid.encode(encoder),
+            ClassIdTypeChoice::TaggedBytes(bytes) => bytes.encode(encoder),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ClassMap<'a> {
-    pub class_id: &'a str,
+    pub class_id: ClassIdTypeChoice<'a>,
     pub vendor: Option<&'a str>,
     pub model: Option<&'a str>,
 }
@@ -203,13 +224,9 @@ impl CborEncodable for ClassMap<'_> {
 
         encoder.encode_map_header(entries)?;
 
-        // Key 0: class-id (mandatory)
+        // Key 0: class-id (mandatory) - encoded per class-id-type-choice
         encoder.encode_int(0)?;
-        // For now, treat class_id as a text string that should be encoded as tagged OID
-        // In a real implementation, you'd parse the OID string and encode it properly
-        // Tag 111 is for OID as per CBOR spec
-        encoder.encode_tag(111)?;
-        encoder.encode_bytes(self.class_id.as_bytes())?;
+        self.class_id.encode(encoder)?;
 
         // Key 1: vendor (optional)
         if let Some(vendor) = self.vendor {
@@ -849,7 +866,7 @@ mod tests {
     #[test]
     fn test_class_map_minimal() {
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.9999",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.9999")),
             vendor: None,
             model: None,
         };
@@ -876,9 +893,76 @@ mod tests {
     }
 
     #[test]
+    fn test_class_map_with_tagged_uuid() {
+        let uuid = [
+            0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
+            0x00, 0x00,
+        ];
+        let class_map = ClassMap {
+            class_id: ClassIdTypeChoice::TaggedUuid(TaggedUuid::new(&uuid)),
+            vendor: Some("UUID Corp"),
+            model: None,
+        };
+
+        let mut buffer = [0u8; 128];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        class_map.encode(&mut encoder).expect("Encoding failed");
+
+        let encoded_len = encoder.len();
+
+        // Expected: map(2) + key(0) + tag(37) + uuid(16) + key(1) + vendor
+        let expected_size = CborEncoder::estimate_uint_size(2) + // map header
+                           CborEncoder::estimate_uint_size(0) + // key 0
+                           CborEncoder::estimate_uint_size(37) + // tag 37
+                           CborEncoder::estimate_bytes_string_size(16) + // uuid
+                           CborEncoder::estimate_uint_size(1) + // key 1
+                           CborEncoder::estimate_text_string_size(9); // vendor
+        assert_eq!(encoded_len, expected_size);
+
+        // Verify map header (2 entries)
+        assert_eq!(
+            buffer[0],
+            crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Map, 2)
+        );
+    }
+
+    #[test]
+    fn test_class_map_with_tagged_bytes() {
+        let raw_id = [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
+        let class_map = ClassMap {
+            class_id: ClassIdTypeChoice::TaggedBytes(TaggedBytes::new(&raw_id)),
+            vendor: Some("Bytes Corp"),
+            model: Some("Model B"),
+        };
+
+        let mut buffer = [0u8; 128];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        class_map.encode(&mut encoder).expect("Encoding failed");
+
+        let encoded_len = encoder.len();
+
+        // Expected: map(3) + key(0) + tag(560) + bytes(8) + key(1) + vendor + key(2) + model
+        let expected_size = CborEncoder::estimate_uint_size(3) + // map header
+                           CborEncoder::estimate_uint_size(0) + // key 0
+                           CborEncoder::estimate_uint_size(560) + // tag 560
+                           CborEncoder::estimate_bytes_string_size(8) + // raw bytes
+                           CborEncoder::estimate_uint_size(1) + // key 1
+                           CborEncoder::estimate_text_string_size(10) + // vendor
+                           CborEncoder::estimate_uint_size(2) + // key 2
+                           CborEncoder::estimate_text_string_size(7); // model
+        assert_eq!(encoded_len, expected_size);
+
+        // Verify map header (3 entries)
+        assert_eq!(
+            buffer[0],
+            crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Map, 3)
+        );
+    }
+
+    #[test]
     fn test_class_map_complete() {
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.9999",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.9999")),
             vendor: Some("ACME Corp"),
             model: Some("Model X"),
         };
@@ -907,7 +991,7 @@ mod tests {
     #[test]
     fn test_environment_map_encode() {
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.8888",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.8888")),
             vendor: Some("Vendor Inc"),
             model: None,
         };
@@ -961,7 +1045,7 @@ mod tests {
         let measurements_array = [measurement_map];
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.7777",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.7777")),
             vendor: Some("Test Vendor"),
             model: Some("Test Model"),
         };
@@ -1058,7 +1142,7 @@ mod tests {
         let measurements_array = [measurement_map];
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.6666",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.6666")),
             vendor: None,
             model: None,
         };
@@ -1121,7 +1205,7 @@ mod tests {
         let measurements_array = [measurement_map];
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.5555",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.5555")),
             vendor: Some("Example Vendor"),
             model: Some("Example Model"),
         };
@@ -1190,7 +1274,7 @@ mod tests {
         let measurements_array = [measurement_map];
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.4444",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.4444")),
             vendor: None,
             model: None,
         };
@@ -1263,7 +1347,7 @@ mod tests {
         let measurements_array = [measurement_map];
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.3333",
+            class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"1.3.6.1.4.1.3333")),
             vendor: Some("Tagged Vendor"),
             model: Some("Tagged Model"),
         };

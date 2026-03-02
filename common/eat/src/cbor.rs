@@ -34,6 +34,7 @@ pub mod tag {
     pub const SELF_DESCRIBED_CBOR: u64 = 55799;
     pub const OID: u64 = 111;
     pub const UUID: u64 = 37;
+    pub const BYTES: u64 = 560;
 }
 
 /// Construct a CBOR initial byte from major type and additional info
@@ -414,6 +415,43 @@ impl CborEncodable for TaggedUuid<'_> {
         // Tag 37 for UUID (RFC 9562 Section 4)
         encoder.encode_tag(tag::UUID)?;
         encoder.encode_bytes(self.uuid)?;
+        Ok(())
+    }
+}
+
+/// CBOR-tagged Bytes
+///
+/// Encodes arbitrary byte strings using CBOR tag 560 as specified in
+/// the CoRIM specification for tagged-bytes.
+///
+/// # CBOR Encoding
+///
+/// The structure is encoded as:
+/// - Tag 560 (CBOR tag for tagged-bytes)
+/// - Byte string containing the raw bytes
+#[derive(Debug, Clone, Copy)]
+pub struct TaggedBytes<'a> {
+    /// Raw byte content
+    pub bytes: &'a [u8],
+}
+
+impl<'a> TaggedBytes<'a> {
+    /// Create a new tagged bytes value
+    ///
+    /// # Arguments
+    /// * `bytes` - The raw byte content
+    pub const fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes }
+    }
+}
+
+impl CborEncodable for TaggedBytes<'_> {
+    /// Encode the tagged bytes to CBOR
+    ///
+    /// Produces: tag(560) followed by byte string
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
+        encoder.encode_tag(tag::BYTES)?;
+        encoder.encode_bytes(self.bytes)?;
         Ok(())
     }
 }
@@ -811,6 +849,97 @@ mod tests {
         assert_eq!(buffer[2], 0x59); // Byte string major type with 2-byte length
         assert_eq!(buffer[3], 0x01); // High byte of length (256 + 44 = 300)
         assert_eq!(buffer[4], 0x2C); // Low byte of length
+    }
+
+    #[test]
+    fn test_tagged_bytes_encode() {
+        // Test TaggedBytes encoding with tag 560
+        let data = &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        let tagged_bytes = TaggedBytes::new(data);
+
+        let mut buffer = [0u8; 32];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        tagged_bytes.encode(&mut encoder).expect("Encoding failed");
+
+        let encoded_len = encoder.len();
+
+        // Expected: tag(560) + bytes(8)
+        // Tag 560 = 0xD9 0x02 0x30 (3 bytes, major type 6 with 2-byte value)
+        // Bytes header for 8 bytes = 0x48 (1 byte)
+        // 8 bytes of data
+        // Total: 3 + 1 + 8 = 12 bytes
+        assert_eq!(encoded_len, 12);
+
+        // Verify tag 560 encoding
+        assert_eq!(buffer[0], 0xD9); // Tag major type (6) with additional info 25 (2-byte value)
+        assert_eq!(buffer[1], 0x02); // High byte of 560
+        assert_eq!(buffer[2], 0x30); // Low byte of 560
+
+        // Verify byte string header
+        assert_eq!(buffer[3], 0x48); // Byte string (major type 2) with length 8
+
+        // Verify data bytes
+        assert_eq!(&buffer[4..12], data);
+    }
+
+    #[test]
+    fn test_tagged_bytes_empty() {
+        // Empty bytes
+        let data: &[u8] = &[];
+        let tagged_bytes = TaggedBytes::new(data);
+
+        let mut buffer = [0u8; 16];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        tagged_bytes
+            .encode(&mut encoder)
+            .expect("Empty bytes should encode");
+
+        // Tag 560 (3 bytes) + empty byte string (1 byte) = 4 bytes
+        assert_eq!(encoder.len(), 4);
+        assert_eq!(buffer[0], 0xD9);
+        assert_eq!(buffer[1], 0x02);
+        assert_eq!(buffer[2], 0x30);
+        assert_eq!(buffer[3], 0x40); // Byte string with length 0
+    }
+
+    #[test]
+    fn test_tagged_bytes_creation() {
+        let data = &[0xDE, 0xAD, 0xBE, 0xEF];
+        let tagged_bytes = TaggedBytes::new(data);
+        assert_eq!(tagged_bytes.bytes, data);
+    }
+
+    #[test]
+    fn test_tagged_bytes_buffer_too_small() {
+        let data = &[0xAB; 16];
+        let tagged_bytes = TaggedBytes::new(data);
+
+        // Buffer too small to hold tag(3) + header(1) + data(16) = 20 bytes
+        let mut buffer = [0u8; 10];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        let result = tagged_bytes.encode(&mut encoder);
+
+        assert!(result.is_err());
+        assert!(matches!(result, Err(EatError::BufferTooSmall)));
+    }
+
+    #[test]
+    fn test_tagged_bytes_large() {
+        // Large payload testing 2-byte length encoding
+        let data = &[0xCC; 100];
+        let tagged_bytes = TaggedBytes::new(data);
+
+        let mut buffer = [0u8; 128];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        tagged_bytes.encode(&mut encoder).expect("Encoding failed");
+
+        // Tag 560 (3 bytes) + byte string header (2 bytes for length 100) + 100 bytes = 105 bytes
+        assert_eq!(encoder.len(), 105);
+        assert_eq!(buffer[0], 0xD9);
+        assert_eq!(buffer[1], 0x02);
+        assert_eq!(buffer[2], 0x30);
+        assert_eq!(buffer[3], 0x58); // Byte string major type with 1-byte length
+        assert_eq!(buffer[4], 100); // Length = 100
     }
 
     #[test]

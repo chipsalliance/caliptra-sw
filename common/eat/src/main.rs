@@ -17,9 +17,9 @@ use ocp_eat::{
 
 #[cfg(feature = "crypto")]
 use ocp_eat::ocp_profile::{
-    ClassMap, ConciseEvidence, ConciseEvidenceMap, DebugStatus, DigestEntry, EnvironmentMap,
-    EvTriplesMap, EvidenceTripleRecord, MeasurementFormat, MeasurementMap, MeasurementValue,
-    OcpEatClaims, TaggedConciseEvidence,
+    ClassIdTypeChoice, ClassMap, ConciseEvidence, ConciseEvidenceMap, DebugStatus, DigestEntry,
+    EnvironmentMap, EvTriplesMap, EvidenceTripleRecord, MeasurementFormat, MeasurementMap,
+    MeasurementValue, OcpEatClaims, TaggedConciseEvidence,
 };
 
 // Cryptographic imports for signature generation (only available with crypto feature)
@@ -322,7 +322,7 @@ fn create_mock_concise_evidence_structured() -> ConciseEvidence<'static> {
     // Create RATS CoRIM compliant evidence structure with 2 environments
     static ENVIRONMENT_MAP_1: EnvironmentMap<'static> = EnvironmentMap {
         class: ClassMap {
-            class_id: "0x0001",
+            class_id: ClassIdTypeChoice::TaggedOid(ocp_eat::TaggedOid::new(b"0x0001")),
             vendor: Some("Example Corp"),
             model: Some("ExampleChip-v1.0"),
         },
@@ -330,7 +330,7 @@ fn create_mock_concise_evidence_structured() -> ConciseEvidence<'static> {
 
     static ENVIRONMENT_MAP_2: EnvironmentMap<'static> = EnvironmentMap {
         class: ClassMap {
-            class_id: "0x0002",
+            class_id: ClassIdTypeChoice::TaggedOid(ocp_eat::TaggedOid::new(b"0x0002")),
             vendor: Some("Example Corp"),
             model: Some("ExampleChip-v1.0"),
         },
