@@ -128,20 +128,18 @@ pub extern "C" fn rom_entry() -> ! {
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
-    // TODO(clundin): Re-add after more code savings https://github.com/chipsalliance/caliptra-sw/pull/3073
-    // cprintln!(
-    //     "[state] DebugLocked = {}",
-    //     if env.soc_ifc.debug_locked() {
-    //         "Yes"
-    //     } else {
-    //         "No"
-    //     }
-    // );
+    cprintln!(
+        "[state] DebugLocked = {}",
+        if env.soc_ifc.debug_locked() {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
 
-    // TODO(clundin): Re-add after more code savings https://github.com/chipsalliance/caliptra-sw/pull/3073
-    // if env.soc_ifc.ocp_lock_enabled() {
-    //     cprintln!("[ROM] OCP-LOCK Supported");
-    // }
+    if env.soc_ifc.ocp_lock_enabled() {
+        cprintln!("[ROM] OCP-LOCK Supported");
+    }
 
     // Set the ROM version
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
