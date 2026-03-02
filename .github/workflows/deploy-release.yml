@@ -1,0 +1,48 @@
+name: Caliptra Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The release tag to deploy, formatted as component-major.minor.patch (e.g. fmc-2.0.0)'
+        required: true
+        type: string
+      commit:
+        description: 'The commit reference to checkout and tag'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-release:
+    name: Deploy Release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+          submodules: 'true'
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+
+          git fetch --depth 1 origin ${{ inputs.commit }}
+          git reset --hard ${{ inputs.commit }}
+
+          git remote rename origin release-repo
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update -qy && sudo apt-get install -y libftdi1-dev libusb-1.0-0-dev golang-1.21-go
+
+      - name: Run xtask release deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo xtask release deploy ${{ inputs.tag }}

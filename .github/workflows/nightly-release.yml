@@ -176,13 +176,15 @@ jobs:
           git push origin ${{ needs.find-latest-release-2-x.outputs.new_release_tag }}
 
       - name: Upload release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ./release/caliptra_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
             ./release/test_artifacts_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release-2-x.outputs.new_release_tag }}
           prerelease: true
+          # Release as draft. Since immutable releases are enabled we must first create a release as draft so we can upload artifacts and then tag it.
+          draft: true
 
       - name: Write artifact to workflow with release info
         run: |
