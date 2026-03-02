@@ -711,7 +711,9 @@ mod tests {
             mval: measurement_value,
         };
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.1234",
+            class_id: ClassIdTypeChoice::TaggedOid(crate::cbor::TaggedOid::new(
+                b"1.3.6.1.4.1.1234",
+            )),
             vendor: Some("TestVendor"),
             model: Some("TestModel"),
         };
@@ -792,7 +794,9 @@ mod tests {
             mval: measurement_value,
         };
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.1234",
+            class_id: ClassIdTypeChoice::TaggedOid(crate::cbor::TaggedOid::new(
+                b"1.3.6.1.4.1.1234",
+            )),
             vendor: Some("TestVendor"),
             model: Some("TestModel"),
         };
@@ -895,7 +899,9 @@ mod tests {
         };
 
         let class_map = ClassMap {
-            class_id: "1.3.6.1.4.1.1234",
+            class_id: ClassIdTypeChoice::TaggedOid(crate::cbor::TaggedOid::new(
+                b"1.3.6.1.4.1.1234",
+            )),
             vendor: Some("TestVendor"),
             model: Some("TestModel"),
         };

@@ -18,8 +18,9 @@
 //!
 //! ```rust,no_run
 //! use ocp_eat::{
-//!     ConciseEvidenceMap, EnvironmentMap, ClassMap, MeasurementMap,
-//!     MeasurementValue, MeasurementFormat, EvidenceTripleRecord, EvTriplesMap, ConciseEvidence
+//!     ConciseEvidenceMap, EnvironmentMap, ClassMap, ClassIdTypeChoice, TaggedOid,
+//!     MeasurementMap, MeasurementValue, MeasurementFormat, EvidenceTripleRecord,
+//!     EvTriplesMap, ConciseEvidence
 //! };
 //!
 //! // Create structured evidence
@@ -27,7 +28,7 @@
 //! let evidence_triple = EvidenceTripleRecord {
 //!     environment: EnvironmentMap {
 //!         class: ClassMap {
-//!             class_id: "example-device",
+//!             class_id: ClassIdTypeChoice::TaggedOid(TaggedOid::new(b"example-device")),
 //!             vendor: Some("Example Corp"),
 //!             model: Some("Device-v1.0"),
 //!         },
@@ -77,7 +78,7 @@ pub mod cbor_tags {
 pub use error::EatError;
 
 // Re-export CBOR encoder, trait, and common CBOR types for custom encoding
-pub use cbor::{CborEncodable, CborEncoder, TaggedOid, TaggedUuid};
+pub use cbor::{CborEncodable, CborEncoder, TaggedBytes, TaggedOid, TaggedUuid};
 
 // Re-export standard EAT/CWT claim keys (RFC 8392, RFC 9711)
 // These are shared across both OCP Profile EAT and CSR EAT
@@ -98,6 +99,7 @@ pub use cose::{
 // Reference: https://opencomputeproject.github.io/Security/ietf-eat-profile/HEAD/
 pub use ocp_profile::{
     // Evidence structures (RATS CoRIM format)
+    ClassIdTypeChoice,  // Class ID type choice (tagged OID, UUID, or bytes)
     ClassMap,           // Device class identification
     ConciseEvidence,    // Top-level evidence container (tagged or map)
     ConciseEvidenceMap, // Evidence map with triples
