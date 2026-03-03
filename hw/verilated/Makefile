@@ -17,7 +17,7 @@ VERILATOR = verilator
 VERILATED_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../latest/rtl)
 
-CFLAGS := -std=c++11 -fno-exceptions -fPIC
+CFLAGS := -std=c++14 -fno-exceptions -fPIC
 VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
 
 VERILATOR_CFLAGS = $(shell pkg-config --cflags verilator)
@@ -26,9 +26,14 @@ VERILATOR_OBJS = out/verilated_threads.o out/verilated.o out/verilated_vcd_c.o
 
 LIB_OBJS = out/caliptra_verilated.o
 
-export CALIPTRA_ROOT = $(realpath ../latest/rtl)
+# Environment variables needed by caliptra_top_tb.vf
+export CALIPTRA_ROOT = $(CALIPTRA_RTL_DIR)
+export CALIPTRA_PRIM_ROOT = $(CALIPTRA_RTL_DIR)/src/caliptra_prim_generic
+export CALIPTRA_PRIM_MODULE_PREFIX = caliptra_prim_generic
+# AXI4PC is not needed for simulation, provide empty stub location
+export CALIPTRA_AXI4PC_DIR = $(VERILATED_DIR)
 
-suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED
+suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED -Wno-UNSIGNED -Wno-REALCVT -Wno-SELRANGE -Wno-PINMISSING -Wno-TIMESCALEMOD
 
 out/libcaliptra_verilated.a: out/Vcaliptra_verilated__ALL.a $(LIB_OBJS) $(VERILATOR_OBJS)
 	cp out/Vcaliptra_verilated__ALL.a out/.libcaliptra_verilated.a
@@ -38,7 +43,6 @@ out/libcaliptra_verilated.a: out/Vcaliptra_verilated__ALL.a $(LIB_OBJS) $(VERILA
 out:
 	mkdir -p out
 
-
 $(VERILATOR_OBJS): out/%.o: $(VERILATOR_INCLUDEDIR)/%.cpp
 	$(CXX) ${CFLAGS} $(VERILATOR_CFLAGS) -c $< -o $@
 
@@ -46,15 +50,16 @@ $(LIB_OBJS): out/%.o: $(VERILATED_DIR)/%.cpp
 	$(CXX) -Iout ${CFLAGS} $(VERILATOR_CFLAGS) -c $< -o $@
 
 out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
-	$(VERILATOR)  --cc -CFLAGS "${CFLAGS}" \
+	$(VERILATOR) --cc -CFLAGS "${CFLAGS}" \
 	  --trace \
-	  +libext+.v+.sv +define+RV_OPENSOURCE \
+	  +libext+.v+.sv +define+RV_OPENSOURCE +define+VERILATOR \
 	  --timescale 1ns/1ps \
 	  --trace-structs \
+	  --timing \
 	  $(includes) \
 	  -Mdir out \
 	  -MMD \
-	  -Wno-fatal `#TODO: Remove this line once RTL warnings are fixed` \
+	  -Wno-fatal \
 	  --clk core_clk \
 	  $(suppress) \
 	  -f $(CALIPTRA_RTL_DIR)/src/integration/config/caliptra_top_tb.vf \
@@ -66,4 +71,4 @@ out/Vcaliptra_verilated__ALL.a: out/Vcaliptra_verilated.h
 	$(MAKE) -j $(CALIPTRA_VERILATOR_JOBS) -e -C out -f Vcaliptra_verilated.mk $(VERILATOR_MAKE_FLAGS)
 
 clean:
-	rm -r out
+	rm -rf out

@@ -3,6 +3,7 @@
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
 use crate::EtrngResponse;
+use crate::ModelError;
 use crate::{HwModel, SocManager, TrngMode};
 use caliptra_api_types::Fuses;
 use caliptra_emu_bus::Bus;
@@ -10,30 +11,30 @@ use caliptra_emu_bus::BusMmio;
 use caliptra_emu_bus::Event;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
-use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
+use caliptra_verilated::CaliptraVerilated;
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
 use std::io::Write;
-use std::mpsc;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::mpsc;
 
 use crate::Output;
 
-const DEFAULT_AXI_PAUSER: u32 = 0x1;
+const DEFAULT_AXI_USER: u32 = 0x1;
 
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
 
-pub struct VerilatedApbBus<'a> {
+pub struct VerilatedAxiBus<'a> {
     model: &'a mut ModelVerilated,
 }
-impl<'a> Bus for VerilatedApbBus<'a> {
+impl<'a> Bus for VerilatedAxiBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        let result = Ok(self.model.v.apb_read_u32(self.model.soc_axi_pauser, addr));
+        let result = Ok(self.model.v.axi_read_u32(self.model.soc_axi_user, addr));
         self.model
             .log
             .borrow_mut()
@@ -56,7 +57,7 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         }
         self.model
             .v
-            .apb_write_u32(self.model.soc_axi_pauser, addr, val);
+            .axi_write_u32(self.model.soc_axi_user, addr, val);
         self.model
             .log
             .borrow_mut()
@@ -91,7 +92,7 @@ pub struct ModelVerilated {
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
 
-    soc_axi_pauser: u32,
+    soc_axi_user: u32,
 }
 
 impl ModelVerilated {
@@ -108,16 +109,8 @@ impl ModelVerilated {
     }
 }
 
-fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
-    match ty {
-        AhbTxnType::ReadU8 | AhbTxnType::WriteU8 => RvSize::Byte,
-        AhbTxnType::ReadU16 | AhbTxnType::WriteU16 => RvSize::HalfWord,
-        AhbTxnType::ReadU32 | AhbTxnType::WriteU32 => RvSize::Word,
-        AhbTxnType::ReadU64 | AhbTxnType::WriteU64 => RvSize::Word,
-    }
-}
 impl SocManager for ModelVerilated {
-    type TMmio<'a> = BusMmio<VerilatedApbBus<'a>>;
+    type TMmio<'a> = BusMmio<VerilatedAxiBus<'a>>;
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
         BusMmio::new(self.apb_bus())
@@ -135,7 +128,7 @@ impl SocManager for ModelVerilated {
 }
 
 impl HwModel for ModelVerilated {
-    type TBus<'a> = VerilatedApbBus<'a>;
+    type TBus<'a> = VerilatedAxiBus<'a>;
 
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
     where
@@ -163,42 +156,7 @@ impl HwModel for ModelVerilated {
         };
 
         let log = Rc::new(RefCell::new(BusLogger::new(NullBus())));
-        let bus_log = log.clone();
 
-        let ahb_cb = Box::new(
-            move |_v: &CaliptraVerilated, ty: AhbTxnType, addr: u32, data: u64| {
-                if ty.is_write() {
-                    bus_log.borrow_mut().log_write(
-                        "UC",
-                        ahb_txn_size(ty),
-                        addr,
-                        data as u32,
-                        Ok(()),
-                    );
-                    if ty == AhbTxnType::WriteU64 {
-                        bus_log.borrow_mut().log_write(
-                            "UC",
-                            ahb_txn_size(ty),
-                            addr + 4,
-                            (data >> 32) as u32,
-                            Ok(()),
-                        );
-                    }
-                } else {
-                    bus_log
-                        .borrow_mut()
-                        .log_read("UC", ahb_txn_size(ty), addr, Ok(data as u32));
-                    if ty == AhbTxnType::WriteU64 {
-                        bus_log.borrow_mut().log_read(
-                            "UC",
-                            ahb_txn_size(ty),
-                            addr + 4,
-                            Ok((data >> 32) as u32),
-                        );
-                    }
-                }
-            },
-        );
         let compiled_trng_mode = if cfg!(feature = "itrng") {
             TrngMode::Internal
         } else {
@@ -220,9 +178,9 @@ impl HwModel for ModelVerilated {
             caliptra_verilated::InitArgs {
                 security_state: u32::from(params.security_state),
                 cptra_obf_key: params.cptra_obf_key,
+                cptra_csr_hmac_key: params.csr_hmac_key,
             },
             generic_output_wires_changed_cb,
-            ahb_cb,
         );
 
         v.write_rom_image(params.rom);
@@ -245,7 +203,7 @@ impl HwModel for ModelVerilated {
 
             log,
 
-            soc_axi_pauser: DEFAULT_AXI_PAUSER,
+            soc_axi_user: DEFAULT_AXI_USER,
         };
 
         m.tracing_hint(true);
@@ -276,7 +234,7 @@ impl HwModel for ModelVerilated {
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
-        VerilatedApbBus { model: self }
+        VerilatedAxiBus { model: self }
     }
 
     fn step(&mut self) {
@@ -325,8 +283,8 @@ impl HwModel for ModelVerilated {
         }
     }
 
-    fn ready_for_mb_processing(&self) -> bool {
-        self.v.output.ready_for_mb_processing_push
+    fn ready_for_fw(&self) -> bool {
+        self.v.output.ready_for_mb_processing
     }
 
     fn tracing_hint(&mut self, enable: bool) {
@@ -368,8 +326,38 @@ impl HwModel for ModelVerilated {
         }
     }
 
-    fn set_axi_user(&mut self, pauser: u32) {
-        self.soc_axi_pauser = pauser;
+    fn set_axi_user(&mut self, user: u32) {
+        self.soc_axi_user = user;
+    }
+
+    fn put_firmware_in_rri(
+        &mut self,
+        _firmware: &[u8],
+        _soc_manifest: Option<&[u8]>,
+        _mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        Err(ModelError::SubsystemSramError)
+    }
+
+    fn events_from_caliptra(&mut self) -> Vec<Event> {
+        vec![]
+    }
+
+    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
+        let (tx, _rx) = mpsc::channel();
+        tx
+    }
+
+    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
+        Err(ModelError::SubsystemSramError)
+    }
+
+    fn fuses(&self) -> &Fuses {
+        &self.fuses
+    }
+
+    fn set_fuses(&mut self, fuses: Fuses) {
+        self.fuses = fuses;
     }
 }
 impl ModelVerilated {
@@ -443,29 +431,5 @@ impl ModelVerilated {
         if self.v.input.itrng_valid {
             self.v.input.itrng_valid = false;
         }
-    }
-
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        todo!()
-    }
-
-    fn events_from_caliptra(&mut self) -> Vec<Event> {
-        todo!()
-    }
-
-    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
-        todo!()
-    }
-
-    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
-        todo!()
-    }
-
-    fn fuses(&self) -> &Fuses {
-        &self.fuses
-    }
-
-    fn set_fuses(&mut self, fuses: Fuses) {
-        self.fuses = fuses;
     }
 }
