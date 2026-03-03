@@ -141,6 +141,7 @@ impl RtExpVals {
 pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // Create params if not provided
     let mut init_params = init_params.unwrap_or_default();
+    init_params.ss_init_params.enable_mcu_uart_log = true;
 
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]
