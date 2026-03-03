@@ -185,6 +185,7 @@ pub struct Dma {
     // If true, the recovery interface in the MCU will be used,
     // otherwise, the local recovery interface is used.
     use_mcu_recovery_interface: bool,
+    continued_write_xfer: Option<WriteXfer>,
 }
 
 #[derive(Debug)]
@@ -259,6 +260,7 @@ impl Dma {
             pending_axi_to_fifo: false,
             pending_axi_to_mailbox: false,
             use_mcu_recovery_interface,
+            continued_write_xfer: None,
         }
     }
 
@@ -502,7 +504,10 @@ impl Dma {
 
     // Returns true if this completed immediately.
     fn fifo_to_axi(&mut self) -> bool {
-        let xfer = self.write_xfer();
+        let xfer = self
+            .continued_write_xfer
+            .take()
+            .unwrap_or_else(|| self.write_xfer());
 
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
@@ -510,7 +515,20 @@ impl Dma {
                 Some(b) => b,
                 None => {
                     // TODO set interrupt bits
-                    return true;
+                    if i != xfer.len {
+                        self.continued_write_xfer = Some(WriteXfer {
+                            dest: xfer.dest + i as u64,
+                            fixed: xfer.fixed,
+                            len: xfer.len - i,
+                        });
+                        self.op_complete_action = Some(
+                            self.timer.schedule_poll_in(
+                                (Self::DMA_CYCLES_PER_WORD * self.byte_count.reg.get() as u64 / 4)
+                                    .max(Self::DMA_CYCLES_MIN),
+                            ),
+                        );
+                    }
+                    return i == xfer.len;
                 }
             };
             self.axi

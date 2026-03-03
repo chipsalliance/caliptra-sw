@@ -177,7 +177,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "fpga_realtime"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 fn test_invoke_dpe_sign_and_certify_key_cmds_with_subsystem() {
     let mut model = run_rt_test(RuntimeTestArgs {
         subsystem_mode: true,
