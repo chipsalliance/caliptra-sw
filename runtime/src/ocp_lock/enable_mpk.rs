@@ -60,7 +60,7 @@ impl EnableMpkCmd {
 
         let access_key = drivers.ocp_lock_context.decapsulate_access_key(
             &mut drivers.sha3,
-            &mut drivers.ml_kem,
+            &mut drivers.abr,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.trng,

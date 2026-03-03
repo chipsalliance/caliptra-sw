@@ -337,9 +337,9 @@ fn execute_command(
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
         CommandId::LMS_SIGNATURE_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::MLDSA87_SIGNATURE_VERIFY => {
-            caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, cmd_bytes)
-        }
+        CommandId::MLDSA87_SIGNATURE_VERIFY => drivers.abr.with_mldsa87(|mut mldsa| {
+            caliptra_common::verify::MldsaVerifyCmd::execute(&mut mldsa, cmd_bytes)
+        }),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
@@ -537,15 +537,17 @@ fn execute_command(
             cmd_bytes,
             resp,
         ),
-        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN => drivers.debug_unlock.handle_token(
-            &mut drivers.soc_ifc,
-            &mut drivers.sha2_512_384,
-            &mut drivers.sha2_512_384_acc,
-            &mut drivers.ecc384,
-            &mut drivers.mldsa87,
-            &mut drivers.dma,
-            cmd_bytes,
-        ),
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN => drivers.abr.with_mldsa87(|mut mldsa| {
+            drivers.debug_unlock.handle_token(
+                &mut drivers.soc_ifc,
+                &mut drivers.sha2_512_384,
+                &mut drivers.sha2_512_384_acc,
+                &mut drivers.ecc384,
+                &mut mldsa,
+                &mut drivers.dma,
+                cmd_bytes,
+            )
+        }),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
             ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)
@@ -858,7 +860,7 @@ fn mldsa_dpe_env(
     let crypto = DpeMldsaCrypto::new(
         &mut drivers.sha2_512_384,
         &mut drivers.trng,
-        &mut drivers.mldsa87,
+        drivers.abr.abr_reg(),
         &mut drivers.hmac,
         &mut drivers.key_vault,
         rt_pub_key,

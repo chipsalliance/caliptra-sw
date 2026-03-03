@@ -14,6 +14,7 @@ use crate::{
     },
     Array4x28, Array4x8, Ecc384, Hmac, LEArray4x8, MlKem1024, MlKem1024EncapsKey, Sha3, Trng,
 };
+use caliptra_registers::abr::AbrReg;
 
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -146,28 +147,30 @@ impl MlKem1024P384 {
     }
 }
 
-pub struct MlKem1024P384KemContext<'a> {
+pub struct MlKem1024P384KemContext<'a, 'b: 'a> {
     trng: &'a mut Trng,
     sha: &'a mut Sha3,
-    ml_kem: &'a mut MlKem1024,
+    abr_reg: &'a mut AbrReg,
     ecc: &'a mut Ecc384,
     hmac: &'a mut Hmac,
+    _phantom: core::marker::PhantomData<&'b ()>,
 }
 
-impl<'a> MlKem1024P384KemContext<'a> {
+impl<'a, 'b: 'a> MlKem1024P384KemContext<'a, 'b> {
     pub fn new(
         trng: &'a mut Trng,
         sha: &'a mut Sha3,
-        ml_kem: &'a mut MlKem1024,
+        abr_reg: &'a mut AbrReg,
         ecc: &'a mut Ecc384,
         hmac: &'a mut Hmac,
     ) -> Self {
         Self {
             trng,
             sha,
-            ml_kem,
+            abr_reg,
             ecc,
             hmac,
+            _phantom: core::marker::PhantomData,
         }
     }
 }
@@ -181,10 +184,13 @@ impl
     > for MlKem1024P384
 {
     const KEM_ID: KemId = KemId::ML_KEM_1024_P384;
-    type CONTEXT<'a> = MlKem1024P384KemContext<'a>;
+    type CONTEXT<'a, 'b>
+        = MlKem1024P384KemContext<'a, 'b>
+    where
+        'b: 'a;
     type EK = HybridEncapsulationKey;
 
-    fn derive_key_pair(ctx: &mut Self::CONTEXT<'_>, ikm: &[u8; 32]) -> CaliptraResult<Self> {
+    fn derive_key_pair(ctx: &mut Self::CONTEXT<'_, '_>, ikm: &[u8; 32]) -> CaliptraResult<Self> {
         let (_, trad_seed) = Self::expand_seed(ctx.sha, ikm)?;
         let mut ctx = P384KemContext::new(ctx.trng, ctx.ecc, ctx.hmac);
         let trad = P384::derive_key_pair_raw(&mut ctx, &trad_seed)?;
@@ -193,7 +199,7 @@ impl
 
     fn encap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         encaps_key: &Self::EK,
     ) -> CaliptraResult<(HybridEncapsulatedSecret, HybridSharedSecret)> {
         let encaps_key: &[u8; Self::NPK] = encaps_key.as_ref();
@@ -209,7 +215,8 @@ impl
 
         let (pq_enc, pq_shared_secret) = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.encap(&mut ctx, pq_ek)?
         };
@@ -233,7 +240,7 @@ impl
 
     fn decap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         enc: &HybridEncapsulatedSecret,
     ) -> CaliptraResult<HybridSharedSecret> {
         let enc = enc.as_ref();
@@ -244,7 +251,8 @@ impl
 
         let pq_shared_secret = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.decap(&mut ctx, pq_enc)?
         };
@@ -267,11 +275,12 @@ impl
 
     fn serialize_public_key(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
     ) -> CaliptraResult<HybridEncapsulationKey> {
         let pq_ek = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, ctx.ml_kem);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.serialize_public_key(&mut ctx)?
         };

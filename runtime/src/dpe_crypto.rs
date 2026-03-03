@@ -25,6 +25,7 @@ use caliptra_drivers::{
     Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87SignRnd, Sha2DigestOp, Sha2_512_384,
     Trng,
 };
+use caliptra_registers::abr::AbrReg;
 use constant_time_eq::constant_time_eq;
 use core::marker::PhantomData;
 use crypto::{
@@ -109,7 +110,7 @@ impl<'a> DpeMldsaCrypto<'a> {
     pub fn new(
         sha2_512_384: &'a mut Sha2_512_384,
         trng: &'a mut Trng,
-        mldsa: &'a mut Mldsa87,
+        abr_reg: &'a mut AbrReg,
         hmac: &'a mut Hmac,
         key_vault: &'a mut KeyVault,
         rt_pub_key: PubKey,
@@ -122,7 +123,7 @@ impl<'a> DpeMldsaCrypto<'a> {
             trng,
             hmac,
             key_vault,
-            signer: Signer::Mldsa(mldsa),
+            signer: Signer::Mldsa(abr_reg),
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
@@ -205,7 +206,8 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
                 )));
                 Ok((key_id, pub_key))
             }
-            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(mldsa)) => {
+            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+                let mut mldsa = Mldsa87::new(abr_reg);
                 let pub_key = mldsa
                     .key_pair(
                         Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
@@ -276,7 +278,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
 
     #[inline(never)]
     fn sign_mldsa(
-        mldsa: &mut Mldsa87,
+        mldsa: &mut Mldsa87<'_>,
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
@@ -320,8 +322,9 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
             (SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384), Signer::Ec(ecc384)) => {
                 Self::sign_ec(ecc384, sha2_512_384, trng, data, priv_key, pub_key)
             }
-            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(mldsa)) => {
-                Self::sign_mldsa(mldsa, trng, data, priv_key, pub_key)
+            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+                let mut mldsa = Mldsa87::new(abr_reg);
+                Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key)
             }
             _ => Err(CryptoError::MismatchedAlgorithm),
         }
@@ -510,5 +513,5 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
 
 enum Signer<'a> {
     Ec(&'a mut Ecc384),
-    Mldsa(&'a mut Mldsa87),
+    Mldsa(&'a mut AbrReg),
 }

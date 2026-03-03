@@ -171,13 +171,15 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let tbs = FmcAliasTbsMlDsa87::new(&params);
 
     // Sign the `To Be Signed` portion
-    let mut sig = Crypto::mldsa87_sign_and_verify(
-        &mut env.mldsa,
-        &mut env.trng,
-        key_pair.key_pair_seed,
-        &key_pair.pub_key,
-        tbs.tbs(),
-    )?;
+    let mut sig = env.abr.with_mldsa87(|mut mldsa87| {
+        Crypto::mldsa87_sign_and_verify(
+            &mut mldsa87,
+            &mut env.trng,
+            key_pair.key_pair_seed,
+            &key_pair.pub_key,
+            tbs.tbs(),
+        )
+    })?;
 
     // Build the CSR with `To Be Signed` & `Signature`
     let mldsa87_signature = caliptra_x509::MlDsa87Signature {

@@ -52,7 +52,7 @@ use caliptra_drivers::{
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
     Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x3, LEArray4x392, LEArray4x4,
-    LEArray4x8, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds,
+    LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds,
     MlKem1024SharedKey, MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed, PersistentDataAccessor,
     Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
     MAX_SEED_WORDS,
@@ -2178,7 +2178,9 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let public_key = drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
+        let public_key = drivers
+            .abr
+            .with_mldsa87(|mut mldsa| mldsa.key_pair(seed, &mut drivers.trng, None))?;
 
         let resp = mutrefbytes::<CmMldsaPublicKeyResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2206,14 +2208,12 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
 
-        let sign_rnd = LEArray4x8::default();
-
-        let signature =
-            drivers
-                .mldsa87
-                .sign_var(seed, pub_key, msg, &sign_rnd, &mut drivers.trng)?;
+        let signature = drivers.abr.with_mldsa87(|mut mldsa| {
+            let pub_key = mldsa.key_pair(seed, &mut drivers.trng, None)?;
+            let sign_rnd = LEArray4x8::default();
+            mldsa.sign_var(seed, &pub_key, msg, &sign_rnd, &mut drivers.trng)
+        })?;
 
         let resp = mutrefbytes::<CmMldsaSignResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2241,11 +2241,14 @@ impl Commands {
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
         let seed = Mldsa87Seed::Array4x8(&seed);
-        let pub_key = &drivers.mldsa87.key_pair(seed, &mut drivers.trng, None)?;
-
         let signature: &LEArray4x1157 = &cmd.signature.into();
 
-        match drivers.mldsa87.verify_var(pub_key, msg, signature)? {
+        let result = drivers.abr.with_mldsa87(|mut mldsa| {
+            let pub_key = mldsa.key_pair(seed, &mut drivers.trng, None)?;
+            mldsa.verify_var(&pub_key, msg, signature)
+        })?;
+
+        match result {
             Mldsa87Result::Success => {
                 let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
                 *resp = MailboxRespHeader::default();
@@ -2467,7 +2470,8 @@ impl Commands {
 
         let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-        let (encaps_key, _decaps_key) = drivers.ml_kem.key_pair(seeds)?;
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds)?;
 
         let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2505,7 +2509,8 @@ impl Commands {
         };
 
         let mut shared_key = MlKem1024SharedKey::default();
-        let ciphertext = drivers.ml_kem.encapsulate(
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        let ciphertext = ml_kem.encapsulate(
             &encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut shared_key),
@@ -2545,7 +2550,8 @@ impl Commands {
         let ciphertext: LEArray4x392 = (&cmd.ciphertext).into();
 
         let mut shared_key = MlKem1024SharedKey::default();
-        drivers.ml_kem.keygen_decapsulate(
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        ml_kem.keygen_decapsulate(
             seeds,
             &ciphertext,
             MlKem1024SharedKeyOut::Array(&mut shared_key),

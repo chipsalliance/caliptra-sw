@@ -233,7 +233,8 @@ impl DevIdKeyType {
         let rt_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
         let key_args = KeyReadArgs::new(rt_seed);
 
-        let signature = drivers.mldsa87.sign_var(
+        let mut mldsa87 = caliptra_drivers::Mldsa87::new(drivers.abr.abr_reg());
+        let signature = mldsa87.sign_var(
             Mldsa87Seed::Key(key_args),
             &rt_pub_key,
             digest.as_bytes(),

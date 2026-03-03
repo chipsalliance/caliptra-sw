@@ -64,7 +64,7 @@ const KAT_SK_DIGEST: Array4x16 = Array4x16::new([
     0x51FD3214, 0xD686BB49, 0x76432EC1, 0x2B40DE7E, 0x4E68A595, 0x260B7E9E, 0x5B7A522B, 0x4D0F05AA,
 ]);
 
-pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
+pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024<'_>) -> CaliptraResult<()> {
     cprintln!("[kat] MLKEM1024");
     let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
@@ -72,7 +72,10 @@ pub fn execute_mlkem1024_kat(mlkem: &mut MlKem1024) -> CaliptraResult<()> {
     Ok(())
 }
 
-fn kat_keygen_encaps_decaps(mlkem: &mut MlKem1024, sha2: &mut Sha2_512_384) -> CaliptraResult<()> {
+fn kat_keygen_encaps_decaps(
+    mlkem: &mut MlKem1024<'_>,
+    sha2: &mut Sha2_512_384,
+) -> CaliptraResult<()> {
     // Generate keypair from seeds
     let seeds = MlKem1024Seeds::Arrays(&KEYGEN_SEED_D, &KEYGEN_SEED_Z);
     let (ek, dk) = mlkem
