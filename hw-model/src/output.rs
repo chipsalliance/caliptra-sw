@@ -384,6 +384,10 @@ impl Output {
     pub fn exit_status(&self) -> Option<ExitStatus> {
         self.sink.0.exit_status.get()
     }
+
+    pub fn clear_exit_status(&self) {
+        self.sink.0.exit_status.take();
+    }
 }
 
 #[cfg(test)]

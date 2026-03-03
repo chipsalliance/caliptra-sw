@@ -29,6 +29,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::HexSlice;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
+use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -106,6 +107,9 @@ const EMULATOR_I3C_END_ADDR: usize = EMULATOR_I3C_ADDR + EMULATOR_I3C_ADDR_RANGE
 const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
 const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
 const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
+const EMULATOR_OTP_ADDR: usize = 0x1006_0000;
+const EMULATOR_OTP_ADDR_RANGE_SIZE: usize = OTP_FULL_SIZE;
+const EMULATOR_OTP_END_ADDR: usize = EMULATOR_OTP_ADDR + EMULATOR_OTP_ADDR_RANGE_SIZE - 1;
 
 // page size of simulated flash
 const FLASH_PAGE_SIZE: usize = 256;
@@ -430,6 +434,7 @@ pub struct ModelFpgaSubsystem {
 
     pub realtime_thread: Option<thread::JoinHandle<()>>,
     pub realtime_thread_exit_flag: Arc<AtomicBool>,
+    pub realtime_thread_paused: Arc<AtomicBool>,
 
     pub fuses: Fuses,
     pub otp_init: Vec<u8>,
@@ -451,6 +456,18 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
+
+    // Saved init params needed for cold_reset re-initialization
+    saved_input_wires: [u32; 2],
+    saved_cptra_obf_key: [u32; 8],
+    saved_csr_hmac_key: [u32; 16],
+    saved_raw_unlock_token_hash: [u32; 4],
+    saved_rma_or_scrap_ppd: bool,
+    saved_debug_intent: bool,
+    saved_prod_dbg_unlock_pk_hashes_offset: u32,
+    saved_num_prod_dbg_unlock_pk_hashes: u32,
+    saved_ocp_lock_en: bool,
+    saved_security_state: SecurityState,
 }
 
 impl ModelFpgaSubsystem {
@@ -517,6 +534,77 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
         std::thread::sleep(std::time::Duration::from_micros(1));
+    }
+
+    /// Re-programs all FPGA wrapper registers that are cleared by AXI reset.
+    /// Called from both `new_unbooted()` and `cold_reset()`.
+    fn setup_hardware_registers(&mut self) {
+        let input_wires = self.saved_input_wires;
+        let cptra_obf_key = self.saved_cptra_obf_key;
+        let csr_hmac_key = self.saved_csr_hmac_key;
+        let raw_unlock_token_hash = self.saved_raw_unlock_token_hash;
+        let rma_or_scrap_ppd = self.saved_rma_or_scrap_ppd;
+        let debug_intent = self.saved_debug_intent;
+        let bootfsm_break = self.bootfsm_break;
+        let prod_dbg_offset = self.saved_prod_dbg_unlock_pk_hashes_offset;
+        let num_prod_dbg = self.saved_num_prod_dbg_unlock_pk_hashes;
+        let ocp_lock_en = self.saved_ocp_lock_en;
+        let security_state = self.saved_security_state;
+
+        println!(
+            "Setting input wires {:x} {:x}",
+            input_wires[0], input_wires[1]
+        );
+        self.set_generic_input_wires(&input_wires);
+        self.set_mci_generic_input_wires(&[0, 0]);
+
+        println!("Set itrng divider");
+        self.set_itrng_divider(ITRNG_DIVISOR);
+
+        println!("Set deobf key");
+        for i in 0..8 {
+            self.wrapper.regs().cptra_obf_key[i].set(cptra_obf_key[i]);
+        }
+        for i in 0..16 {
+            self.wrapper.regs().cptra_csr_hmac_key[i].set(csr_hmac_key[i]);
+        }
+
+        self.set_secrets_valid(false);
+
+        println!("Putting subsystem into reset");
+        self.set_subsystem_reset(true);
+
+        self.init_otp(Some(&security_state))
+            .expect("Failed to initialize OTP");
+
+        println!("Clearing fifo");
+        self.clear_logs();
+
+        self.set_axi_user(DEFAULT_AXI_PAUSER);
+        println!("AXI user written {:x}", DEFAULT_AXI_PAUSER);
+
+        self.set_raw_unlock_token_hash(&raw_unlock_token_hash);
+        self.set_ss_rma_or_scrap_ppd(rma_or_scrap_ppd);
+        self.set_ss_debug_intent(debug_intent);
+        self.set_bootfsm_break(bootfsm_break);
+        self.wrapper
+            .regs()
+            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
+            .set(prod_dbg_offset);
+        self.wrapper
+            .regs()
+            .num_of_prod_debug_unlock_auth_pk_hashes
+            .set(num_prod_dbg);
+        self.set_ss_ocp_lock(ocp_lock_en);
+
+        println!("Writing MCU reset vector");
+        self.wrapper
+            .regs()
+            .mcu_reset_vector
+            .set(FPGA_MEMORY_MAP.rom_offset);
+
+        println!("Taking subsystem out of reset");
+        self.set_subsystem_reset(false);
     }
 
     pub fn set_subsystem_reset(&mut self, reset: bool) {
@@ -659,44 +747,34 @@ impl ModelFpgaSubsystem {
 
     fn clear_logs(&mut self) {
         println!("Clearing Caliptra logs");
-        loop {
-            if self
-                .wrapper
-                .fifo_regs()
-                .log_fifo_status
-                .is_set(FifoStatus::Empty)
-            {
-                break;
-            }
-            if !self
-                .wrapper
-                .fifo_regs()
-                .log_fifo_data
-                .is_set(FifoData::CharValid)
-            {
-                break;
-            }
+        while !self
+            .wrapper
+            .fifo_regs()
+            .log_fifo_status
+            .is_set(FifoStatus::Empty)
+        {
+            self.wrapper.fifo_regs().log_fifo_data.get();
         }
 
         println!("Clearing MCU logs");
+        while !self
+            .wrapper
+            .fifo_regs()
+            .dbg_fifo_status
+            .is_set(FifoStatus::Empty)
+        {
+            self.wrapper.fifo_regs().dbg_fifo_data_pop.get();
+        }
+
+        println!("Clearing output and exit status");
+        let _ = self.output.sink().flush();
         loop {
-            if self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_status
-                .is_set(FifoStatus::Empty)
-            {
-                break;
-            }
-            if !self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_data_pop
-                .is_set(FifoData::CharValid)
-            {
+            let s = self.output.take(1000);
+            if s.is_empty() {
                 break;
             }
         }
+        self.output.clear_exit_status();
     }
 
     fn handle_log(&mut self) {
@@ -771,6 +849,7 @@ impl ModelFpgaSubsystem {
     fn realtime_thread_itrng_fn(
         wrapper: Arc<Wrapper>,
         running: Arc<AtomicBool>,
+        paused: Arc<AtomicBool>,
         mut itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
     ) {
         // Reset ITRNG FIFO to clear out old data
@@ -788,6 +867,11 @@ impl ModelFpgaSubsystem {
         thread::sleep(Duration::from_millis(1));
 
         while running.load(Ordering::Relaxed) {
+            // If paused, sleep and check again
+            if paused.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(1));
+                continue;
+            }
             // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
             // FPGA ITRNG FIFO is 1024 DW deep.
             for _ in 0..FPGA_ITRNG_FIFO_SIZE {
@@ -1655,6 +1739,10 @@ impl ModelFpgaSubsystem {
     ) -> Result<Box<OpenOcdJtagTap>> {
         Ok(OpenOcdJtagTap::new(params, tap)?)
     }
+
+    fn otp_status(&mut self) -> u32 {
+        u32::from(self.mmio.otp().unwrap().status().read())
+    }
 }
 
 impl HwModel for ModelFpgaSubsystem {
@@ -1739,6 +1827,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(true));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
+        let realtime_thread_paused = Arc::new(AtomicBool::new(false));
+        let realtime_thread_paused2 = realtime_thread_paused.clone();
         let realtime_wrapper = wrapper.clone();
 
         let xi3c_config = xi3c::Config {
@@ -1769,6 +1859,8 @@ impl HwModel for ModelFpgaSubsystem {
             mcu_cpu_event_recv,
         );
 
+        let saved_input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 0, 0];
+
         let mut m = Self {
             devs,
             wrapper,
@@ -1793,6 +1885,7 @@ impl HwModel for ModelFpgaSubsystem {
             fuses: params.fuses,
             realtime_thread: None,
             realtime_thread_exit_flag,
+            realtime_thread_paused,
 
             output,
             recovery_started: false,
@@ -1824,6 +1917,21 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
+
+            saved_input_wires,
+            saved_cptra_obf_key: params.cptra_obf_key,
+            saved_csr_hmac_key: params.csr_hmac_key,
+            saved_raw_unlock_token_hash: params.ss_init_params.raw_unlock_token_hash,
+            saved_rma_or_scrap_ppd: params.ss_init_params.rma_or_scrap_ppd,
+            saved_debug_intent: params.debug_intent,
+            saved_prod_dbg_unlock_pk_hashes_offset: params
+                .ss_init_params
+                .prod_dbg_unlock_pk_hashes_offset,
+            saved_num_prod_dbg_unlock_pk_hashes: params
+                .ss_init_params
+                .num_prod_dbg_unlock_pk_hashes,
+            saved_ocp_lock_en: params.ocp_lock_en,
+            saved_security_state: params.security_state,
         };
 
         println!("AXI reset");
@@ -1835,57 +1943,12 @@ impl HwModel for ModelFpgaSubsystem {
             Self::realtime_thread_itrng_fn(
                 realtime_wrapper,
                 realtime_thread_exit_flag2,
+                realtime_thread_paused2,
                 params.itrng_nibbles,
             )
         }));
 
-        // Set generic input wires.
-        // The FPGA has generic input wire bit 0, word 0 set to HW_CONFIG fuse granularity,
-        // where 0 = 64, 1 = 32
-        let input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 0, 0];
-        println!(
-            "Setting input wires {:x} {:x}",
-            input_wires[0], input_wires[1]
-        );
-        m.set_generic_input_wires(&input_wires);
-
-        m.set_mci_generic_input_wires(&[0, 0]);
-
-        println!("Set itrng divider");
-        // Set divisor for ITRNG throttling
-        m.set_itrng_divider(ITRNG_DIVISOR);
-
-        println!("Set deobf key");
-        // Set deobfuscation key
-        for i in 0..8 {
-            m.wrapper.regs().cptra_obf_key[i].set(params.cptra_obf_key[i]);
-        }
-
-        // Set the CSR HMAC key
-        for i in 0..16 {
-            m.wrapper.regs().cptra_csr_hmac_key[i].set(params.csr_hmac_key[i]);
-        }
-
-        // Currently not using strap UDS and FE
-        m.set_secrets_valid(false);
-
-        println!("Putting subsystem into reset");
-        m.set_subsystem_reset(true);
-
-        m.init_otp(Some(&params.security_state))?;
-
-        println!("Clearing fifo");
-        // Sometimes there's garbage in here; clean it out
-        m.clear_logs();
-
-        println!("new_unbooted");
-
-        // Set initial PAUSER
-        m.set_axi_user(DEFAULT_AXI_PAUSER);
-
-        println!("AXI user written {:x}", DEFAULT_AXI_PAUSER);
-
-        // copy the ROM data
+        // Copy the ROM data (only needed on first init; survives AXI reset)
         println!("Writing Caliptra ROM");
         let mut caliptra_rom_data = vec![0; caliptra_rom_size];
         caliptra_rom_data[..params.rom.len()].clone_from_slice(params.rom);
@@ -1902,34 +1965,11 @@ impl HwModel for ModelFpgaSubsystem {
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
-        // Set the raw unlock token hash.
-        m.set_raw_unlock_token_hash(&params.ss_init_params.raw_unlock_token_hash);
-        // Set the RMA or scrap PPD.
-        m.set_ss_rma_or_scrap_ppd(params.ss_init_params.rma_or_scrap_ppd);
-        // Setup debug intent signal if requested.
-        m.set_ss_debug_intent(params.debug_intent);
-        // Set BootFSM break if requested.
-        m.set_bootfsm_break(params.bootfsm_break);
-        // Set prod debug unlock authentication settings.
-        m.wrapper
-            .regs()
-            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
-            .set(params.ss_init_params.prod_dbg_unlock_pk_hashes_offset);
-        m.wrapper
-            .regs()
-            .num_of_prod_debug_unlock_auth_pk_hashes
-            .set(params.ss_init_params.num_prod_dbg_unlock_pk_hashes);
-        m.set_ss_ocp_lock(params.ocp_lock_en);
+        println!("new_unbooted");
 
-        // set the reset vector to point to the ROM backdoor
-        println!("Writing MCU reset vector");
-        m.wrapper
-            .regs()
-            .mcu_reset_vector
-            .set(FPGA_MEMORY_MAP.rom_offset);
+        // Set up all hardware registers (input wires, keys, OTP, reset vector, etc.)
+        m.setup_hardware_registers();
 
-        println!("Taking subsystem out of reset");
-        m.set_subsystem_reset(false);
         Ok(m)
     }
 
@@ -1979,8 +2019,9 @@ impl HwModel for ModelFpgaSubsystem {
             self.step();
             if self.cycle_count().wrapping_sub(start_cycle) >= MAX_WAIT_FOR_CPTRA_BOOT_GO_CYCLES {
                 panic!(
-                    "Timeout waiting for CPTRA_BOOT_GO to be asserted after {} cycles",
-                    self.cycle_count()
+                    "Timeout waiting for CPTRA_BOOT_GO to be asserted after {} cycles; OTP status 0x{:08x}",
+                    self.cycle_count(),
+                    self.otp_status(),
                 );
             }
         }
@@ -2360,14 +2401,22 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
-        println!("Putting subsystem into reset");
-        self.set_subsystem_reset(true);
-        // reset the MCU input wires that let it know to load fuses or flash
-        self.wrapper.regs().mci_generic_input_wires[1].set(0);
-        self.init_otp(None)
-            .expect("Failed to initialize OTP after cold reset");
-        println!("Taking subsystem out of reset");
-        self.set_subsystem_reset(false);
+        // wait some cycles for MCU to finish setting the fatal error
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Pause the TRNG thread so it doesn't access the AXI bus during reset
+        self.realtime_thread_paused.store(true, Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(2));
+
+        // Full AXI reset to clear all subsystem state including MCU
+        println!("AXI reset");
+        self.axi_reset();
+
+        // Re-program all hardware registers cleared by AXI reset
+        self.setup_hardware_registers();
+
+        // Resume the TRNG thread
+        self.realtime_thread_paused.store(false, Ordering::Relaxed);
     }
 
     fn fuses(&self) -> &Fuses {
@@ -2412,6 +2461,7 @@ impl FpgaRealtimeBus<'_> {
         let offset = match addr {
             EMULATOR_I3C_ADDR..=EMULATOR_I3C_END_ADDR => EMULATOR_I3C_ADDR,
             EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => EMULATOR_MCI_ADDR,
+            EMULATOR_OTP_ADDR..=EMULATOR_OTP_END_ADDR => EMULATOR_OTP_ADDR,
             0x3002_0000..0x3004_0000 => 0x3000_0000,
             _ => return None,
         };
@@ -2599,6 +2649,22 @@ mod sensitive_mmio {
                     Some(caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
                         crate::model_fpga_subsystem::EMULATOR_I3C_ADDR as *mut u32,
                         BusMmio::new(FpgaRealtimeBus::new(self.i3c_mmio)),
+                    ))
+                }
+            } else {
+                None
+            }
+        }
+
+        pub fn otp(
+            &mut self,
+        ) -> Option<caliptra_registers::otp_ctrl::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>>>
+        {
+            if self.enabled {
+                unsafe {
+                    Some(caliptra_registers::otp_ctrl::RegisterBlock::new_with_mmio(
+                        crate::model_fpga_subsystem::EMULATOR_OTP_ADDR as *mut u32,
+                        BusMmio::new(FpgaRealtimeBus::new(self.otp_mmio)),
                     ))
                 }
             } else {
