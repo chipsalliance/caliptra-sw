@@ -28,7 +28,7 @@ impl GetHpkePubKeyCmd {
         resp.hdr = MailboxRespHeader::default();
         resp.pub_key_len = drivers.ocp_lock_context.get_hpke_public_key(
             &mut drivers.sha3,
-            &mut drivers.ml_kem,
+            &mut drivers.abr,
             &mut drivers.ecc384,
             &mut drivers.trng,
             &mut drivers.hmac,

@@ -3,8 +3,8 @@
 #![no_std]
 
 use caliptra_drivers::{
-    Aes, Array4x16, DeobfuscationEngine, Dma, DmaEncryptionEngine, Ecc384, Ecc384PubKey, Hmac,
-    HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, MlKem1024,
+    Abr, Aes, Array4x16, DeobfuscationEngine, Dma, DmaEncryptionEngine, Ecc384, Ecc384PubKey, Hmac,
+    HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
     PersistentDataAccessor, Sha3, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
@@ -88,7 +88,7 @@ pub struct TestRegisters {
     pub dma: Dma,
     pub doe: DeobfuscationEngine,
     pub kv: KeyVault,
-    pub ml_kem: MlKem1024,
+    pub abr: Abr,
     pub sha3: Sha3,
     pub ecc: Ecc384,
 }
@@ -112,7 +112,7 @@ impl Default for TestRegisters {
         let dma = Dma::default();
         let doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
         let kv = unsafe { KeyVault::new(KvReg::new()) };
-        let ml_kem = unsafe { MlKem1024::new(AbrReg::new()).unwrap() };
+        let abr = unsafe { Abr::new(AbrReg::new()) };
         let sha3 = unsafe { Sha3::new(KmacReg::new()) };
         let ecc = unsafe { Ecc384::new(EccReg::new()) };
 
@@ -124,7 +124,7 @@ impl Default for TestRegisters {
             dma,
             doe,
             kv,
-            ml_kem,
+            abr,
             sha3,
             ecc,
         }

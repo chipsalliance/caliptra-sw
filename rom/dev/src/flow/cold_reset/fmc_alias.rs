@@ -169,14 +169,16 @@ impl FmcAliasLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa87_key_gen(
-            &mut env.mldsa87,
-            &mut env.hmac,
-            &mut env.trng,
-            cdi,
-            b"alias_fmc_mldsa_key",
-            mldsa_keypair_seed,
-        );
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut env.hmac,
+                &mut env.trng,
+                cdi,
+                b"alias_fmc_mldsa_key",
+                mldsa_keypair_seed,
+            )
+        });
         cfi_check!(result);
         let mldsa_keypair = result?;
 
@@ -315,13 +317,15 @@ impl FmcAliasLayer {
             "[afmc] MLDSA Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::mldsa87_sign_and_verify(
-            &mut env.mldsa87,
-            &mut env.trng,
-            auth_priv_key,
-            auth_pub_key,
-            tbs.tbs(),
-        );
+        let mut sig = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_sign_and_verify(
+                &mut mldsa87,
+                &mut env.trng,
+                auth_priv_key,
+                auth_pub_key,
+                tbs.tbs(),
+            )
+        });
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key

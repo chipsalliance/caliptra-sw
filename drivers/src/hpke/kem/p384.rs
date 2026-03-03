@@ -106,7 +106,7 @@ impl P384 {
     // Derive a key pair without first running through a KDF.
     // For use in Hybrid KEMs
     pub(super) fn derive_key_pair_raw(
-        ctx: &mut P384KemContext<'_>,
+        ctx: &mut P384KemContext<'_, '_>,
         seed: &[u8; Self::NSK],
     ) -> CaliptraResult<Self> {
         let seed = Ecc384Scalar::from(seed);
@@ -134,7 +134,7 @@ impl P384 {
     /// Hybrid KEMs need the raw shared secret of the KEM algorithm.
     pub(super) fn raw_encap(
         &mut self,
-        ctx: &mut P384KemContext<'_>,
+        ctx: &mut P384KemContext<'_, '_>,
         encaps_key: &P384EncapsulationKey,
     ) -> CaliptraResult<(P384EncapsulatedSecret, P384SharedSecret)> {
         // NOTE: The HPKE specification states that:
@@ -165,7 +165,7 @@ impl P384 {
     /// Hybrid KEMs need the raw shared secret of the KEM algorithm.
     pub(super) fn raw_decap(
         &mut self,
-        ctx: &mut P384KemContext<'_>,
+        ctx: &mut P384KemContext<'_, '_>,
         enc: &P384EncapsulatedSecret,
     ) -> CaliptraResult<P384SharedSecret> {
         // NOTE: The HPKE specification states that:
@@ -189,23 +189,37 @@ impl P384 {
     }
 }
 
-pub struct P384KemContext<'a> {
+use core::marker::PhantomData;
+
+pub struct P384KemContext<'a, 'b: 'a> {
     trng: &'a mut Trng,
     ecc: &'a mut Ecc384,
     hmac: &'a mut Hmac,
+    _phantom: PhantomData<&'b ()>,
 }
 
-impl<'a> P384KemContext<'a> {
+impl<'a, 'b: 'a> P384KemContext<'a, 'b> {
     pub fn new(trng: &'a mut Trng, ecc: &'a mut Ecc384, hmac: &'a mut Hmac) -> Self {
-        Self { trng, ecc, hmac }
+        Self {
+            trng,
+            ecc,
+            hmac,
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl Kem<{ P384::NSK }, { P384::NENC }, { P384::NPK }, { P384::NSECRET }> for P384 {
     const KEM_ID: KemId = KemId::P_384;
     type EK = P384EncapsulationKey;
-    type CONTEXT<'a> = P384KemContext<'a>;
-    fn derive_key_pair(ctx: &mut Self::CONTEXT<'_>, ikm: &[u8; P384::NSK]) -> CaliptraResult<Self> {
+    type CONTEXT<'a, 'b>
+        = P384KemContext<'a, 'b>
+    where
+        'b: 'a;
+    fn derive_key_pair(
+        ctx: &mut Self::CONTEXT<'_, '_>,
+        ikm: &[u8; P384::NSK],
+    ) -> CaliptraResult<Self> {
         let suite_id = &CipherSuite::Kem(Self::KEM_ID);
 
         let mut kdf = Hmac384::new(ctx.hmac);
@@ -242,7 +256,7 @@ impl Kem<{ P384::NSK }, { P384::NENC }, { P384::NPK }, { P384::NSECRET }> for P3
 
     fn encap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         encaps_key: &Self::EK,
     ) -> CaliptraResult<(P384EncapsulatedSecret, P384SharedSecret)> {
         let (enc, shared_secret) = self.raw_encap(ctx, encaps_key)?;
@@ -260,7 +274,7 @@ impl Kem<{ P384::NSK }, { P384::NENC }, { P384::NPK }, { P384::NSECRET }> for P3
 
     fn decap(
         &mut self,
-        ctx: &mut Self::CONTEXT<'_>,
+        ctx: &mut Self::CONTEXT<'_, '_>,
         enc: &P384EncapsulatedSecret,
     ) -> CaliptraResult<P384SharedSecret> {
         let shared_secret = self.raw_decap(ctx, enc)?;
@@ -278,7 +292,7 @@ impl Kem<{ P384::NSK }, { P384::NENC }, { P384::NPK }, { P384::NSECRET }> for P3
 
     fn serialize_public_key(
         &mut self,
-        _ctx: &mut Self::CONTEXT<'_>,
+        _ctx: &mut Self::CONTEXT<'_, '_>,
     ) -> CaliptraResult<P384EncapsulationKey> {
         Ok(self.pub_key.to_der().into())
     }

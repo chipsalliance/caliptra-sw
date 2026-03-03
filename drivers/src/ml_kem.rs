@@ -128,15 +128,13 @@ impl From<KeyWriteArgs> for MlKem1024SharedKeyOut<'_> {
 }
 
 /// ML-KEM-1024 API
-pub struct MlKem1024 {
-    mlkem: AbrReg,
+pub struct MlKem1024<'a> {
+    mlkem: &'a mut AbrReg,
 }
 
-impl MlKem1024 {
-    pub fn new(mlkem: AbrReg) -> CaliptraResult<Self> {
-        let mut s = Self { mlkem };
-        s.run_kats()?;
-        Ok(s)
+impl<'a> MlKem1024<'a> {
+    pub fn new(mlkem: &'a mut AbrReg) -> Self {
+        Self { mlkem }
     }
 
     /// Re-run KATs (for FIPS self-test).

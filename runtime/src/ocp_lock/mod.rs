@@ -14,8 +14,8 @@ use caliptra_drivers::{
     },
     preconditioned_aes::{preconditioned_aes_decrypt, preconditioned_aes_encrypt},
     sha2_512_384::Sha2DigestOpTrait,
-    Aes, AesKey, AesOperation, Array4x12, Ecc384, Hmac, HmacKey, HmacMode, HmacTag, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x3, LEArray4x4, LEArray4x8, MlKem1024,
+    Abr, Aes, AesKey, AesOperation, Array4x12, Ecc384, Hmac, HmacKey, HmacMode, HmacTag,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x16, LEArray4x3, LEArray4x4, LEArray4x8,
     OcpLockFlags, OcpLockMetadataFirmware, Sha2_512_384, Sha3, SocIfc, Trng,
 };
 
@@ -1119,7 +1119,7 @@ impl OcpLockContext {
     pub fn decapsulate_access_key(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         ecc: &mut Ecc384,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -1131,9 +1131,9 @@ impl OcpLockContext {
         tag: &[u8; 16],
         ct: &[u8; AccessKey::<Current>::KEY_LEN],
     ) -> CaliptraResult<AccessKey<Current>> {
-        let mut ctx =
-            self.hpke_context
-                .decap(sha, ml_kem, ecc, hmac, trng, hpke_handle, enc, info)?;
+        let mut ctx = self
+            .hpke_context
+            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)?;
         AccessKey::<Current>::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
     }
 
@@ -1142,7 +1142,7 @@ impl OcpLockContext {
     pub fn decapsulate_rotation_access_keys(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         ecc: &mut Ecc384,
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -1154,9 +1154,9 @@ impl OcpLockContext {
         current: &EncryptedAccessKey<Current>,
         new: &EncryptedAccessKey<New>,
     ) -> CaliptraResult<(AccessKey<Current>, AccessKey<New>)> {
-        let mut ctx =
-            self.hpke_context
-                .decap(sha, ml_kem, ecc, hmac, trng, hpke_handle, enc, info)?;
+        let mut ctx = self
+            .hpke_context
+            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)?;
         let current = AccessKey::<Current>::from_ciphertext(
             aes,
             trng,
@@ -1354,7 +1354,7 @@ impl OcpLockContext {
     pub fn get_hpke_public_key(
         &mut self,
         sha: &mut Sha3,
-        ml_kem: &mut MlKem1024,
+        abr: &mut Abr,
         ecc: &mut Ecc384,
         trng: &mut Trng,
         hmac: &mut Hmac,
@@ -1362,7 +1362,7 @@ impl OcpLockContext {
         pub_out: &mut [u8],
     ) -> CaliptraResult<usize> {
         self.hpke_context
-            .get_pub_key(sha, ml_kem, ecc, trng, hmac, hpke_handle, pub_out)
+            .get_pub_key(sha, abr, ecc, trng, hmac, hpke_handle, pub_out)
     }
 
     /// Retrieve the Ciphersuite for an HPKE handle

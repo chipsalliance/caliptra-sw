@@ -15,6 +15,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_drivers::MlKem1024;
 use caliptra_drivers::{
     hpke::{
         kem::{
@@ -68,13 +69,16 @@ fn test_ml_kem_1024_test_vector() {
     // HPKE implementation against a known test vector.
     let hpke = unsafe { HpkeMlKemContext::from_seed(MLKEM_TEST_VECTOR.ikm_r.try_into().unwrap()) };
 
-    let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut regs.ml_kem);
-    let mut kem = MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap();
+    let mut kem = {
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
+        MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
+    };
     let mut kem_ctx = HpkeMlKemDrivers::new(
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
     );
 
     let mut pk_rm = [0; MlKem::NPK];
@@ -106,13 +110,16 @@ fn test_ml_kem_1024_self_talk() {
     let mut regs = TestRegisters::default();
 
     let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
-    let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut regs.ml_kem);
-    let mut kem = MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap();
+    let mut kem = {
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
+        MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
+    };
     let mut kem_ctx = HpkeMlKemDrivers::new(
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
     );
 
     let mut pk_rm = [0; MlKem::NPK];
@@ -291,7 +298,7 @@ fn test_hybrid_test_vector() {
     let mut kem_ctx = MlKem1024P384KemContext::new(
         &mut regs.trng,
         &mut regs.sha3,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
         &mut regs.ecc,
         &mut regs.hmac,
     );
@@ -314,7 +321,7 @@ fn test_hybrid_test_vector() {
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
         &mut regs.ecc,
     );
     let mut reader = hpke
@@ -351,7 +358,7 @@ fn test_hybrid_self_talk() {
     let mut kem_ctx = MlKem1024P384KemContext::new(
         &mut regs.trng,
         &mut regs.sha3,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
         &mut regs.ecc,
         &mut regs.hmac,
     );
@@ -360,7 +367,7 @@ fn test_hybrid_self_talk() {
         &mut regs.trng,
         &mut regs.sha3,
         &mut regs.hmac,
-        &mut regs.ml_kem,
+        regs.abr.abr_reg(),
         &mut regs.ecc,
     );
 

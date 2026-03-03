@@ -8,7 +8,7 @@ use caliptra_drivers::{
     Ecc384, Hmac, Lms, Mldsa87, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, ShaAccLockState, Trng,
 };
 
-pub struct KatsEnv<'a> {
+pub struct KatsEnv<'a, 'b> {
     // SHA2-256 Engine
     pub sha256: &'a mut Sha256,
 
@@ -37,7 +37,7 @@ pub struct KatsEnv<'a> {
     pub sha_acc_lock_state: ShaAccLockState,
 
     /// MLDSA Engine
-    pub mldsa87: &'a mut Mldsa87,
+    pub mldsa87: &'a mut Mldsa87<'b>,
 
     /// AES-GCM Engine (for ROM builds - provides access to GCM and CMAC-KDF KATs)
     #[cfg(feature = "rom")]
@@ -48,5 +48,5 @@ pub struct KatsEnv<'a> {
     pub aes: &'a mut Aes,
 
     #[cfg(not(feature = "rom"))]
-    pub mlkem1024: &'a mut MlKem1024,
+    pub mlkem1024: Option<&'a mut MlKem1024<'b>>,
 }
