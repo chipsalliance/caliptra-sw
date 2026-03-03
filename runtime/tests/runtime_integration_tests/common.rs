@@ -535,6 +535,15 @@ impl CertifyKeyCommandNoRef {
     }
 }
 
+impl CertifyKeyCommandNoRef {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            CertifyKeyCommandNoRef::P384(cmd) => cmd.as_bytes(),
+            CertifyKeyCommandNoRef::Mldsa(cmd) => cmd.as_bytes(),
+        }
+    }
+}
+
 impl<'a> From<&'a CertifyKeyCommandNoRef> for Command<'a> {
     fn from(cmd: &'a CertifyKeyCommandNoRef) -> Command<'a> {
         match cmd {

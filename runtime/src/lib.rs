@@ -368,7 +368,12 @@ fn execute_command(
             GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
+            CertifyKeyExtendedCmd::execute_ecc384(drivers, cmd_bytes, resp)
+        }
+        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
+            CertifyKeyExtendedCmd::execute_mldsa87(drivers, cmd_bytes, resp)
+        }
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }

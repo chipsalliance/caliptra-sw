@@ -236,7 +236,8 @@ int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async);
 int caliptra_add_subject_alt_name(struct caliptra_add_subject_alt_name_req *req, bool async);
 
 // Certify key extended
-int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
+int caliptra_certify_key_extended_ecc384(struct caliptra_certify_key_extended_ecc384_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
+int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
 
 // FIPS version
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);

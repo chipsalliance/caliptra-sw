@@ -1043,15 +1043,32 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Certify key extended
-    int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req * req, struct caliptra_certify_key_extended_resp * resp, bool async);
-    struct caliptra_certify_key_extended_req certify_key_extended_req = {};
+    int caliptra_certify_key_extended_ecc384(struct caliptra_certify_key_extended_ecc384_req * req, struct caliptra_certify_key_extended_resp * resp, bool async);
+    struct caliptra_certify_key_extended_ecc384_req certify_key_extended_ecc384_req = {};
     struct caliptra_certify_key_extended_resp certify_key_extended_resp;
 
-    status = caliptra_certify_key_extended(&certify_key_extended_req, &certify_key_extended_resp, false);
+    status = caliptra_certify_key_extended_ecc384(&certify_key_extended_ecc384_req, &certify_key_extended_resp, false);
 
     if (status)
     {
-        printf("Certify Key Extended failed: 0x%x\n", status);
+        printf("Certify Key Extended ECC384 failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Certify Key Extended: OK\n");
+    }
+
+    // Certify key extended
+    int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req * req, struct caliptra_certify_key_extended_resp * resp, bool async);
+    struct caliptra_certify_key_extended_mldsa87_req certify_key_extended_mldsa87_req = {};
+
+    status = caliptra_certify_key_extended_mldsa87(&certify_key_extended_mldsa87_req, &certify_key_extended_resp, false);
+
+    if (status)
+    {
+        printf("Certify Key Extended MLDSA87 failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     }

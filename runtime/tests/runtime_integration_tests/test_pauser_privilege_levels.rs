@@ -2,7 +2,10 @@
 
 use crate::common::PQC_KEY_TYPE;
 use caliptra_api::{
-    mailbox::{RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq},
+    mailbox::{
+        AxiResponseInfo, CertifyKeyExtendedMldsa87Req, RevokeExportedCdiHandleReq,
+        SignWithExportedEcdsaReq,
+    },
     SocManager,
 };
 use caliptra_builder::{
@@ -11,7 +14,7 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
+    CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CommandId, MailboxReq, MailboxReqHeader,
     PopulateIdevEcc384CertReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
@@ -534,24 +537,40 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
 
-        let mut certify_key_extended_cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            certify_key_req: [0u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
-            flags: CertifyKeyExtendedFlags::empty(),
-        });
-        certify_key_extended_cmd.populate_chksum().unwrap();
+        for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+            let (cmd_id, mut certify_key_extended_cmd) = match profile {
+                CaliptraDpeProfile::Ecc384 => (
+                    CommandId::CERTIFY_KEY_EXTENDED_ECC384,
+                    MailboxReq::CertifyKeyExtendedEcc384(CertifyKeyExtendedEcc384Req {
+                        hdr: MailboxReqHeader { chksum: 0 },
+                        certify_key_req: [0u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
+                        flags: CertifyKeyExtendedFlags::empty(),
+                    }),
+                ),
+                CaliptraDpeProfile::Mldsa87 => (
+                    CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
+                    MailboxReq::CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req {
+                        hdr: MailboxReqHeader { chksum: 0 },
+                        certify_key_req: [0u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
+                        flags: CertifyKeyExtendedFlags::empty(),
+                        axi_response: AxiResponseInfo::default(),
+                    }),
+                ),
+            };
+            certify_key_extended_cmd.populate_chksum().unwrap();
 
-        let resp = model
-            .mailbox_execute(
-                u32::from(CommandId::CERTIFY_KEY_EXTENDED),
-                certify_key_extended_cmd.as_bytes().unwrap(),
-            )
-            .unwrap_err();
-        assert_error(
-            &mut model,
-            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-            resp,
-        );
+            let resp = model
+                .mailbox_execute(
+                    u32::from(cmd_id),
+                    certify_key_extended_cmd.as_bytes().unwrap(),
+                )
+                .unwrap_err();
+            assert_error(
+                &mut model,
+                CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+                resp,
+            );
+        }
     }
 }
 
