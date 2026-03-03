@@ -9,9 +9,11 @@ use ocp_eat::{cbor::TaggedOid, cbor_tags, CborEncoder, CoseSign1, ProtectedHeade
 
 mod fmc_alias;
 mod ldevid;
+mod rt_alias;
 
 use fmc_alias::{generate_fmc_alias_ecc_csr, generate_fmc_alias_mldsa_csr};
 use ldevid::{generate_ldevid_ecc_csr, generate_ldevid_mldsa_csr};
+use rt_alias::{generate_rt_alias_ecc_csr, generate_rt_alias_mldsa_csr};
 
 // Maximum size for CSR EAT claims payload (CBOR encoded)
 // Calculation for ML-DSA CSR (worst case, assuming 7680-byte CSR):
@@ -83,10 +85,7 @@ impl DevIdKeyType {
         let csr_len: usize = match self {
             DevIdKeyType::LdevId => generate_ldevid_ecc_csr(drivers, &mut csr_data),
             DevIdKeyType::FmcAlias => generate_fmc_alias_ecc_csr(drivers, &mut csr_data),
-            // TODO: RT Alias CSR support will be added in a follow-up PR
-            // Tracking issue:
-            // - RT Alias Attested CSR:  https://github.com/chipsalliance/caliptra-sw/issues/3253
-            DevIdKeyType::RtAlias => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+            DevIdKeyType::RtAlias => generate_rt_alias_ecc_csr(drivers, &mut csr_data),
         }?;
 
         Ok(CsrData {
@@ -101,10 +100,7 @@ impl DevIdKeyType {
         let csr_len: usize = match self {
             DevIdKeyType::LdevId => generate_ldevid_mldsa_csr(drivers, &mut csr_data),
             DevIdKeyType::FmcAlias => generate_fmc_alias_mldsa_csr(drivers, &mut csr_data),
-            // TODO: RT Alias CSR support will be added in a follow-up PR
-            // Tracking issue:
-            // - RT Alias Attested CSR:  https://github.com/chipsalliance/caliptra-sw/issues/3253
-            DevIdKeyType::RtAlias => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+            DevIdKeyType::RtAlias => generate_rt_alias_mldsa_csr(drivers, &mut csr_data),
         }?;
 
         Ok(CsrData {
