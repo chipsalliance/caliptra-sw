@@ -27,8 +27,9 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
-    ModelCallback, ModelError, SecurityState, StackInfo, StackRange, SubsystemInitParams,
+    flash_image::build_flash_image_bytes, BootParams, CodeRange, DefaultHwModel, DeviceLifecycle,
+    Fuses, HwModel, ImageInfo, InitParams, ModelCallback, ModelError, SecurityState, StackInfo,
+    StackRange, SubsystemInitParams,
 };
 
 use caliptra_runtime::CaliptraDpeProfile;
@@ -304,6 +305,15 @@ pub fn start_rt_test_pqc_model(
         (args.soc_manifest, args.mcu_fw_image)
     };
 
+    let flash_image = build_flash_image_bytes(Some(&image), soc_manifest, mcu_fw_image);
+
+    let flash_image = if cfg!(feature = "flash-boot") {
+        Some(flash_image.as_bytes())
+    } else {
+        None
+    };
+
+    init_params.ss_init_params.primary_flash_initial_contents = flash_image;
     let model = caliptra_hw_model::new(
         init_params,
         BootParams {
