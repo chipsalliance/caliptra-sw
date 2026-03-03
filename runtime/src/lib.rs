@@ -31,6 +31,7 @@ mod firmware_verify;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
 mod get_image_info;
+mod get_mcu_fw_size;
 pub mod handoff;
 mod hmac;
 pub mod info;
@@ -420,6 +421,7 @@ fn execute_command(
             RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
         }
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::GET_MCU_FW_SIZE => get_mcu_fw_size::GetMcuFwSizeCmd::execute(drivers, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
         CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
@@ -530,6 +532,9 @@ fn execute_command(
         }
         CommandId::CM_DERIVE_STABLE_KEY => {
             cryptographic_mailbox::Commands::derive_stable_key(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_AES_GCM_DECRYPT_DMA => {
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_dma(drivers, cmd_bytes, resp)
         }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,

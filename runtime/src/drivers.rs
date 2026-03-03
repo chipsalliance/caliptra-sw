@@ -167,6 +167,10 @@ pub struct Drivers {
 
     pub debug_unlock: ProductionDebugUnlock,
     pub ocp_lock_context: OcpLockContext,
+
+    /// MCU firmware metadata recorded during recovery.
+    /// Queried by MCU ROM via GET_MCU_FW_SIZE during encrypted boot.
+    pub mcu_fw_info: crate::get_mcu_fw_size::McuFwInfo,
 }
 
 impl Drivers {
@@ -219,6 +223,7 @@ impl Drivers {
             debug_unlock: ProductionDebugUnlock::new(),
             ocp_lock_context,
             aes,
+            mcu_fw_info: crate::get_mcu_fw_size::McuFwInfo::default(),
         })
     }
 

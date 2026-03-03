@@ -24,7 +24,7 @@ use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, AesDmaMode, DmaMmio, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, AesDmaMode, BootMode, DmaMmio, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 use ureg::MmioMut;
 use zerocopy::IntoBytes;
@@ -62,7 +62,7 @@ impl RecoveryFlow {
 
         SetAuthManifestCmd::set_auth_manifest(drivers, source, false)?;
 
-        let digest = {
+        let (digest, mcu_size_bytes) = {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -94,12 +94,13 @@ impl RecoveryFlow {
             let mcu_size_bytes =
                 dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
             cprintln!("[rt] Calculating MCU digest");
-            dma_recovery.sha384_mcu_sram(
+            let digest = dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
                 0,
                 mcu_size_bytes,
                 AesDmaMode::None,
-            )?
+            )?;
+            (digest, mcu_size_bytes)
         };
 
         let digest: [u8; 48] = digest.into();
@@ -130,6 +131,38 @@ impl RecoveryFlow {
                     0,
                 )?;
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
+            }
+
+            // Check if firmware was loaded encrypted - if so, skip MCU activation
+            // MCU ROM will decrypt the firmware and send CM_ACTIVATE_FIRMWARE command
+            let boot_mode = drivers.persistent_data.get().rom.boot_mode;
+            if boot_mode == BootMode::EncryptedFirmware {
+                cprintln!("[rt] Encrypted firmware boot mode - skipping MCU activation");
+
+                // The image in MCU SRAM is ciphertext || 16-byte GCM tag.
+                // CM_AES_GCM_DECRYPT_DMA expects the tag as a separate field
+                // and verifies the SHA-384 against only the ciphertext portion,
+                // so strip the tag from both the size and the digest.
+                const GCM_TAG_SIZE: u32 = 16;
+                let ciphertext_size = mcu_size_bytes
+                    .checked_sub(GCM_TAG_SIZE)
+                    .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                let ciphertext_digest = dma_recovery.sha384_mcu_sram(
+                    &mut drivers.sha2_512_384_acc,
+                    0,
+                    ciphertext_size,
+                    AesDmaMode::None,
+                )?;
+                drivers.mcu_fw_info.size = ciphertext_size;
+                drivers.mcu_fw_info.sha384 = ciphertext_digest.into();
+                cprintln!(
+                    "[rt] Stored MCU ciphertext size {} for GET_MCU_FW_SIZE",
+                    ciphertext_size
+                );
+
+                // we're done with recovery, but MCU will handle its own boot after decryption
+                dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+                return Ok(());
             }
 
             // Caliptra sets RESET_REASON.FW_BOOT_UPD_RESET
