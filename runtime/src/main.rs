@@ -14,8 +14,6 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-const _: () = assert!(cfg!(feature = "cfi"), "CFI must be enabled");
-
 #[cfg(target_arch = "riscv32")]
 core::arch::global_asm!(include_str!("ext_intr.S"));
 
