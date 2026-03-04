@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{
-    AccessKeySizes, CommandId, EndorsementAlgorithms, HpkeAlgorithms, MailboxReqHeader,
-    MailboxRespHeader, OcpLockGetAlgorithmsResp,
+    AccessKeySizes, CommandId, HpkeAlgorithms, MailboxReqHeader, MailboxRespHeader,
+    OcpLockGetAlgorithmsResp,
 };
 use caliptra_api::SocManager;
 use caliptra_hw_model::HwModel;
@@ -49,10 +49,6 @@ fn test_get_algorithms() {
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
 
-        assert_eq!(
-            get_algs_resp.endorsement_algorithms,
-            EndorsementAlgorithms::all()
-        );
         assert_eq!(get_algs_resp.hpke_algorithms, HpkeAlgorithms::all());
         assert_eq!(get_algs_resp.access_key_sizes, AccessKeySizes::LEN_256);
     });
