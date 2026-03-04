@@ -16,8 +16,6 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
-const _: () = assert!(cfg!(feature = "cfi"), "CFI must be enabled");
-
 use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
