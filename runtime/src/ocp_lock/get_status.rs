@@ -14,11 +14,14 @@ Abstract:
 
 use crate::mutrefbytes;
 use crate::Drivers;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, OcpLockGetStatusReq, OcpLockGetStatusResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DmaEncryptionEngine};
 
 pub struct GetStatusCmd;
 impl GetStatusCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

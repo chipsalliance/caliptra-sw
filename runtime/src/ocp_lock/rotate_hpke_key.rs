@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{MailboxRespHeader, OcpLockRotateHpkeKeyReq, OcpLockRotateHpkeKeyResp};
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_drivers::hpke::HpkeHandle;

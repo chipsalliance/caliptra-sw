@@ -3,6 +3,7 @@
 use crate::{mutrefbytes, Drivers};
 
 use caliptra_api::mailbox::{MailboxRespHeader, OcpLockDeriveMekReq, OcpLockDeriveMekResp};
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::ocp_lock::KEY_ID_MEK;
 use caliptra_drivers::DmaEncryptionEngine;
