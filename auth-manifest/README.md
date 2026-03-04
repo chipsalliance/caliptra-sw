@@ -51,7 +51,7 @@ Up to 127 image hashes are supported.
 | **Image Hash**          | 48           | SHA2-384 hash of a SOC image. |
 | **Image Identifier**    | 4            | Unique value selected by the vendor to distinguish between images. |
 | **Component Id**        | 4            | Identifies the image component to be loaded. This corresponds to the `ComponentIdentifier` field defined in the DMTF PLDM Firmware Update Specification (DSP0267). |
-| **Flags**               | 4            | Image-specific flags.<br/>**Bit 0:** If set, the image hash will **not** be verified; otherwise, the metadata image hash will be compared against the calculated hash of the image.<br/>**Bit 1:** If set, indicates that the image is an MCU Runtime image; otherwise, it indicates a SOC image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
+| **Flags**               | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image hash will **not** be verified; otherwise, the metadata image hash will be compared against the calculated hash of the image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
 | **Image Load Address High** | 4       | High 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Image Load Address Low**  | 4       | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Staging Address High**   | 4       | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
