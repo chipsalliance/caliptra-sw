@@ -843,6 +843,7 @@ fn ec_dpe_env(
     Ok(DpeEnv::<CptraDpeEcTypes> {
         crypto,
         platform: DpePlatform::new(
+            CaliptraDpeProfile::Ecc384,
             pl0_pauser,
             hashed_rt_pub_key,
             drivers.ecc_cert_chain.as_slice(),
@@ -883,6 +884,7 @@ fn mldsa_dpe_env(
     Ok(DpeEnv::<CptraDpeMldsaTypes> {
         crypto,
         platform: DpePlatform::new(
+            CaliptraDpeProfile::Mldsa87,
             pl0_pauser,
             hashed_rt_pub_key,
             drivers.mldsa_cert_chain.as_slice(),

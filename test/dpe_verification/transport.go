@@ -57,9 +57,28 @@ import (
 	"github.com/chipsalliance/caliptra-dpe/verification/client"
 )
 
+// DpeProfile is an enum for the DPE profile
+type DpeProfile int
+
+const (
+	ProfileEcc384 DpeProfile = iota
+	ProfileMldsa87
+)
+
+func (p DpeProfile) String() string {
+	switch p {
+	case ProfileEcc384:
+		return "Ecc384"
+	case ProfileMldsa87:
+		return "Mldsa87"
+	}
+	return "Unknown"
+}
+
 // CptraModel is a struct for the Caliptra model
 type CptraModel struct {
 	currentLocality uint32
+	profile         DpeProfile
 	client.Transport
 }
 
@@ -172,15 +191,25 @@ func (s *CptraModel) PowerOff() error {
 
 // SendCmd sends a DPE command.
 func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
-	var req C.struct_caliptra_invoke_dpe_req
 	var resp C.struct_caliptra_invoke_dpe_resp
+	var cptraStatus C.int
 
-	// Caliptra expects all DPE commands to fill the whole data buffer
-	// Note: Go replaces the anonymous union of command types with an array "anon0"
-	C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
-	req.data_size = C.uint32_t(512)
+	if s.profile == ProfileEcc384 {
+		var req C.struct_caliptra_invoke_dpe_req
+		C.memset(unsafe.Pointer(&req), 0, C.sizeof_struct_caliptra_invoke_dpe_req)
+		// Caliptra expects all DPE commands to fill the whole data buffer
+		// Note: Go replaces the anonymous union of command types with an array "anon0"
+		C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+		req.data_size = C.uint32_t(512)
+		cptraStatus = C.caliptra_invoke_dpe_command(&req, &resp, false)
+	} else {
+		var req C.struct_caliptra_invoke_dpe_mldsa87_req
+		C.memset(unsafe.Pointer(&req), 0, C.sizeof_struct_caliptra_invoke_dpe_mldsa87_req)
+		C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+		req.data_size = C.uint32_t(512)
+		cptraStatus = C.caliptra_invoke_dpe_mldsa87_command(&req, &resp, false)
+	}
 
-	cptraStatus := C.caliptra_invoke_dpe_command(&req, &resp, false)
 	if cptraStatus != 0 {
 		return []byte{}, fmt.Errorf("Failed to send DPE command, error 0x%08x", int(cptraStatus))
 	}
