@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::mailbox::{CommandId, WrappedKey, OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_mod_fn;
+#[cfg(feature = "cfi")]
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 use caliptra_common::keyids::ocp_lock::{
     KEY_ID_EPK, KEY_ID_HEK, KEY_ID_LOCKED_MPK_ENCRYPTION_KEY, KEY_ID_MDK, KEY_ID_MEK_SECRETS,
@@ -1010,6 +1013,7 @@ impl OcpLockContext {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
         } else {
+            #[cfg(feature = "cfi")]
             cfi_assert!(self.hek_available);
         }
         let epk = Epk::new(hmac, trng, kv, sek)?;
@@ -1046,8 +1050,12 @@ impl OcpLockContext {
         // If `expect_mek_checksum` is all zeros, skip checking that the MEK checksum matches.
         // `expect_mek_checksum` should match the `checksum` that was derived.
         // Otherwise we need to report an error.
-        if expect_mek_checksum != MekChecksum::default() && expect_mek_checksum != checksum {
-            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL);
+        if expect_mek_checksum != MekChecksum::default() {
+            if expect_mek_checksum != checksum {
+                return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_CHKSUM_FAIL);
+            }
+            #[cfg(feature = "cfi")]
+            cfi_assert!(expect_mek_checksum == checksum);
         }
 
         // Decrypt MEK from MEK seed using MDK.
@@ -1107,6 +1115,7 @@ impl OcpLockContext {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
         } else {
+            #[cfg(feature = "cfi")]
             cfi_assert!(self.hek_available);
         }
 
@@ -1192,6 +1201,7 @@ impl OcpLockContext {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
         } else {
+            #[cfg(feature = "cfi")]
             cfi_assert!(self.hek_available);
         }
 
@@ -1223,6 +1233,7 @@ impl OcpLockContext {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
         } else {
+            #[cfg(feature = "cfi")]
             cfi_assert!(self.hek_available);
         }
 
@@ -1281,6 +1292,7 @@ impl OcpLockContext {
         if !self.hek_available {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_HEK_UNAVAILABLE);
         } else {
+            #[cfg(feature = "cfi")]
             cfi_assert!(self.hek_available);
         }
 
@@ -1310,6 +1322,9 @@ impl OcpLockContext {
     ) -> CaliptraResult<()> {
         if !state.flags.contains(OcpLockFlags::VEK_AVAILABLE) {
             return Err(CaliptraError::RUNTIME_OCP_LOCK_VEK_UNAVAILABLE);
+        } else {
+            #[cfg(feature = "cfi")]
+            cfi_assert!(state.flags.contains(OcpLockFlags::VEK_AVAILABLE));
         }
 
         let Some(ref mut intermediate_secret) = self.intermediate_secret else {
@@ -1425,6 +1440,7 @@ fn timeout_to_mtime(command_timeout: Millisecond, clock_period: Picosecond) -> u
 }
 
 /// Entry point for OCP LOCK commands
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn command_handler(
     cmd_id: CommandId,
     drivers: &mut Drivers,
@@ -1444,6 +1460,9 @@ pub fn command_handler(
             return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
         }
     }
+
+    #[cfg(feature = "cfi")]
+    cfi_assert!(drivers.caller_privilege_level() == PauserPrivileges::PL0);
 
     match cmd_id {
         CommandId::OCP_LOCK_GET_ALGORITHMS => GetAlgorithmsCmd::execute(resp),

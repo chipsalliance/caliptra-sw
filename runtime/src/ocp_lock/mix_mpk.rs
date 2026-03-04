@@ -3,6 +3,7 @@
 use crate::{mutrefbytes, Drivers};
 
 use caliptra_api::mailbox::{MailboxRespHeader, OcpLockMixMpkReq, OcpLockMixMpkResp};
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_error::{CaliptraError, CaliptraResult};

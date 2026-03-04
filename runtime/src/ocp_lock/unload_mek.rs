@@ -14,6 +14,8 @@ Abstract:
 
 use crate::mutrefbytes;
 use crate::Drivers;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, OcpLockUnloadMekReq, OcpLockUnloadMekResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DmaEncryptionEngine};
 use zerocopy::FromBytes;
@@ -22,6 +24,7 @@ use super::timeout_to_mtime;
 
 pub struct UnloadMekCmd;
 impl UnloadMekCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
