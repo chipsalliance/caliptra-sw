@@ -399,6 +399,9 @@ pub struct BootParams<'a> {
     pub soc_manifest: Option<&'a [u8]>,
     // MCU firmware image passed via the recovery interface
     pub mcu_fw_image: Option<&'a [u8]>,
+    /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
+    pub encrypted_boot: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -412,6 +415,7 @@ impl Default for BootParams<'_> {
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
+            encrypted_boot: false,
         }
     }
 }
@@ -745,6 +749,18 @@ const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
 /// The download encrypted firmware from recovery interface Opcode
 const RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE: u32 = 0x5249_4645;
 
+/// Boot status value indicating Runtime is ready for mailbox commands.
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
+/// Test AES-256 key used for encrypted MCU firmware in sw-emulated models.
+/// On real hardware the MCU ROM obtains the key from its own storage.
+pub const MCU_TEST_AES_KEY: [u8; 32] = [0xaa; 32];
+
+/// Test AES-GCM IV used for encrypted MCU firmware in sw-emulated models.
+pub const MCU_TEST_IV: [u8; 12] = [
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+];
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -857,11 +873,26 @@ pub trait HwModel: SocManager {
                 }
             )?;
             if subsystem_mode {
-                self.upload_firmware_rri(
-                    fw_image,
-                    boot_params.soc_manifest,
-                    boot_params.mcu_fw_image,
-                )?;
+                if boot_params.encrypted_boot {
+                    self.upload_firmware_rri_encrypted(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                    // Simulate what the MCU ROM does on real hardware: wait for
+                    // Caliptra RT to be ready, then decrypt the MCU firmware
+                    // in-place via CM_IMPORT + CM_AES_GCM_DECRYPT_DMA.
+                    if let Some(mcu_fw) = boot_params.mcu_fw_image {
+                        self.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+                        self.decrypt_encrypted_mcu_firmware(mcu_fw)?;
+                    }
+                } else {
+                    self.upload_firmware_rri(
+                        fw_image,
+                        boot_params.soc_manifest,
+                        boot_params.mcu_fw_image,
+                    )?;
+                }
             } else {
                 self.upload_firmware(fw_image)?;
             }
@@ -1339,7 +1370,8 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
-    /// Upload encrypted fw image to RRI.
+    /// Upload encrypted fw image to RRI using RI_DOWNLOAD_ENCRYPTED_FIRMWARE command.
+    /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     fn upload_firmware_rri_encrypted(
         &mut self,
         firmware: &[u8],
@@ -1351,6 +1383,130 @@ pub trait HwModel: SocManager {
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
+        Ok(())
+    }
+
+    /// Simulate the MCU ROM decrypting the encrypted MCU firmware after the
+    /// RRI download. On real hardware (FPGA), the MCU ROM performs this
+    /// autonomously, so the FPGA model overrides this with a no-op.
+    ///
+    /// The default (sw-emulator) implementation uses [`MCU_TEST_AES_KEY`] and
+    /// [`MCU_TEST_IV`] and performs the mailbox sequence that the MCU ROM would
+    /// execute:
+    ///   1. Query the firmware size and SHA-384 digest via GET_MCU_FW_SIZE
+    ///   2. Import the AES key via CM_IMPORT
+    ///   3. Write the ciphertext to the subsystem staging area
+    ///   4. Issue CM_AES_GCM_DECRYPT_DMA to decrypt in place
+    ///   5. Verify the GCM authentication tag
+    ///
+    /// `encrypted_mcu_fw` must be formatted as `ciphertext || 16-byte GCM tag`.
+    fn decrypt_encrypted_mcu_firmware(
+        &mut self,
+        encrypted_mcu_fw: &[u8],
+    ) -> Result<(), ModelError> {
+        use api::mailbox::{
+            CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage,
+            CommandId, GetMcuFwSizeResp, MailboxReqHeader, MailboxRespHeader,
+            CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE,
+        };
+        use zerocopy::transmute;
+
+        assert!(
+            encrypted_mcu_fw.len() > 16,
+            "encrypted MCU firmware must be at least 17 bytes (ciphertext + 16-byte tag)"
+        );
+
+        // Step 1: Query the MCU firmware size via GET_MCU_FW_SIZE (as the
+        // real MCU ROM would do to learn the ciphertext length).
+        let mut get_size_cmd = MailboxReq::GetMcuFwSize(MailboxReqHeader { chksum: 0 });
+        get_size_cmd.populate_chksum().unwrap();
+
+        let resp = self
+            .mailbox_execute(
+                u32::from(CommandId::GET_MCU_FW_SIZE),
+                get_size_cmd.as_bytes().unwrap(),
+            )?
+            .ok_or(ModelError::MailboxNoResponseData)?;
+
+        let size_resp = GetMcuFwSizeResp::ref_from_bytes(resp.as_slice())
+            .map_err(|_| ModelError::MailboxNoResponseData)?;
+
+        let (ciphertext, tag_bytes) = encrypted_mcu_fw.split_at(encrypted_mcu_fw.len() - 16);
+
+        // GET_MCU_FW_SIZE now returns the ciphertext length (excluding the
+        // 16-byte GCM tag) and a SHA-384 computed over that ciphertext only,
+        // matching what CM_AES_GCM_DECRYPT_DMA will verify.
+        assert_eq!(
+            size_resp.size as usize,
+            ciphertext.len(),
+            "GET_MCU_FW_SIZE returned unexpected size"
+        );
+        // Use the SHA-384 digest returned by Caliptra RT instead of
+        // recomputing it (mirrors what the real MCU ROM does).
+        let encrypted_sha384 = size_resp.sha384;
+        let tag: [u8; 16] = tag_bytes.try_into().unwrap();
+
+        // Step 2: Import the test AES key to get a CMK
+        let mut input = [0u8; 64];
+        input[..32].copy_from_slice(&MCU_TEST_AES_KEY);
+
+        let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            key_usage: CmKeyUsage::Aes.into(),
+            input_size: 32,
+            input,
+        });
+        cm_import_cmd.populate_chksum().unwrap();
+
+        let resp = self
+            .mailbox_execute(
+                u32::from(CommandId::CM_IMPORT),
+                cm_import_cmd.as_bytes().unwrap(),
+            )?
+            .ok_or(ModelError::MailboxNoResponseData)?;
+
+        let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice())
+            .map_err(|_| ModelError::MailboxNoResponseData)?;
+        if cm_import_resp.hdr.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::MailboxRespInvalidFipsStatus(
+                cm_import_resp.hdr.fips_status,
+            ));
+        }
+        let cmk = cm_import_resp.cmk.clone();
+
+        // Step 3: Write ciphertext to staging area and get the AXI address
+        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext)?;
+
+        // Step 4: Build and send CM_AES_GCM_DECRYPT_DMA request
+        let decrypt_req = CmAesGcmDecryptDmaReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            cmk,
+            iv: transmute!(MCU_TEST_IV),
+            tag: transmute!(tag),
+            encrypted_data_sha384: encrypted_sha384,
+            axi_addr_lo: mcu_sram_addr as u32,
+            axi_addr_hi: (mcu_sram_addr >> 32) as u32,
+            length: ciphertext.len() as u32,
+            aad_length: 0,
+            aad: [0u8; CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
+        };
+
+        let mut decrypt_cmd = MailboxReq::CmAesGcmDecryptDma(decrypt_req);
+        decrypt_cmd.populate_chksum().unwrap();
+
+        let resp = self
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_GCM_DECRYPT_DMA),
+                decrypt_cmd.as_bytes().unwrap(),
+            )?
+            .ok_or(ModelError::MailboxNoResponseData)?;
+
+        let decrypt_resp = CmAesGcmDecryptDmaResp::ref_from_bytes(resp.as_slice())
+            .map_err(|_| ModelError::MailboxNoResponseData)?;
+        if decrypt_resp.tag_verified != 1 {
+            return Err(ModelError::MailboxCmdFailed(0));
+        }
+
         Ok(())
     }
 
