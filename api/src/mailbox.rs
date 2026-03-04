@@ -5064,17 +5064,6 @@ impl Request for OcpLockGetAlgorithmsReq {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct EndorsementAlgorithms(u32);
-
-bitflags! {
-    impl EndorsementAlgorithms: u32 {
-        const ECDSA_P384_SHA384 = 1 << 0;
-        const ML_DSA_87 = 1 << 1;
-    }
-}
-
-#[repr(C)]
 #[derive(Clone, Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct HpkeAlgorithms(u32);
 
@@ -5101,7 +5090,6 @@ bitflags! {
 pub struct OcpLockGetAlgorithmsResp {
     pub hdr: MailboxRespHeader,
     pub reserved: [u32; 4],
-    pub endorsement_algorithms: EndorsementAlgorithms,
     pub hpke_algorithms: HpkeAlgorithms,
     pub access_key_sizes: AccessKeySizes,
 }
@@ -5285,7 +5273,6 @@ pub struct OcpLockGetHpkePubKeyReq {
     pub hdr: MailboxReqHeader,
     pub reserved: u32,
     pub hpke_handle: u32,
-    pub endorsement_algorithm: EndorsementAlgorithms,
 }
 impl Request for OcpLockGetHpkePubKeyReq {
     const ID: CommandId = CommandId::OCP_LOCK_GET_HPKE_PUB_KEY;

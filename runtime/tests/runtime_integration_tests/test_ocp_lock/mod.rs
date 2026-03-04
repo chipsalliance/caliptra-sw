@@ -2,8 +2,8 @@
 
 use caliptra_api::{
     mailbox::{
-        CapabilitiesResp, CommandId, EndorsementAlgorithms, HpkeAlgorithms, HpkeHandle, MailboxReq,
-        MailboxReqHeader, MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEnumerateHpkeHandlesReq,
+        CapabilitiesResp, CommandId, HpkeAlgorithms, HpkeHandle, MailboxReq, MailboxReqHeader,
+        MailboxRespHeader, OcpLockEnableMpkReq, OcpLockEnumerateHpkeHandlesReq,
         OcpLockEnumerateHpkeHandlesResp, OcpLockGenerateMpkReq, OcpLockGenerateMpkResp,
         OcpLockGetHpkePubKeyReq, OcpLockGetHpkePubKeyResp, OcpLockInitializeMekSecretReq,
         OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
@@ -281,17 +281,12 @@ fn verify_hpke_pub_key(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
 ) -> Option<ValidatedHpkeHandle> {
-    verify_hpke_pub_key_with_algo(
-        model,
-        hpke_handle.clone(),
-        EndorsementAlgorithms::ECDSA_P384_SHA384,
-    )
+    verify_hpke_pub_key_with_algo(model, hpke_handle.clone())
 }
 
 fn verify_hpke_pub_key_with_algo(
     model: &mut DefaultHwModel,
     hpke_handle: HpkeHandle,
-    _endorsement_algorithm: EndorsementAlgorithms,
 ) -> Option<ValidatedHpkeHandle> {
     let mut cmd = MailboxReq::OcpLockGetHpkePubKey(OcpLockGetHpkePubKeyReq {
         hpke_handle: hpke_handle.handle,
