@@ -97,16 +97,14 @@ impl<'a> CborEncoder<'a> {
             .pos
             .checked_add(bytes.len())
             .ok_or(EatError::BufferTooSmall)?;
-        if end_pos > self.buffer.len() {
-            return Err(EatError::BufferTooSmall);
-        }
-        if let Some(buf_slice) = self.buffer.get_mut(self.pos..end_pos) {
-            buf_slice.copy_from_slice(bytes);
-            self.pos = end_pos;
-            Ok(())
-        } else {
-            Err(EatError::BufferTooSmall)
-        }
+        let buf_slice = self
+            .buffer
+            .get_mut(self.pos..end_pos)
+            .ok_or(EatError::BufferTooSmall)?;
+        let len = bytes.len();
+        buf_slice[..len].copy_from_slice(bytes);
+        self.pos = end_pos;
+        Ok(())
     }
 
     // Encode major type + additional info according to CBOR rules
