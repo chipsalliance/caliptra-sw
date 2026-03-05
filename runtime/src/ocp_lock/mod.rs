@@ -537,6 +537,10 @@ impl Mek {
 }
 
 impl IntermediateMekSecret {
+    const DERIVE_MEK_LABEL: &[u8] = b"ocp_lock_derived_mek";
+    const WRAPPED_MEK_LABEL: &[u8] = b"ocp_lock_wrapped_mek";
+    const MIX_MPK_LABEL: &[u8] = b"ocp_lock_mix_mpk";
+
     /// Consumes `Self` to produce a derived `MekSecret`.
     fn derive_mek_secret<'a>(
         self,
@@ -547,7 +551,7 @@ impl IntermediateMekSecret {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"ocp_lock_derived_mek",
+            Self::DERIVE_MEK_LABEL,
             None,
             trng,
             HmacTag::Key(KeyWriteArgs::new(
@@ -570,7 +574,7 @@ impl IntermediateMekSecret {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"ocp_lock_wrapped_mek",
+            Self::WRAPPED_MEK_LABEL,
             None,
             trng,
             HmacTag::Key(KeyWriteArgs::new(
@@ -587,7 +591,7 @@ impl IntermediateMekSecret {
         hmac_kdf(
             hmac,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"ocp_lock_mix_mpk",
+            Self::MIX_MPK_LABEL,
             Some(mpk.as_bytes()),
             trng,
             HmacTag::Key(KeyWriteArgs::new(
@@ -607,13 +611,16 @@ pub struct MekSecret<'a> {
 }
 
 impl MekSecret<'_> {
+    const MEK_SEED_LABEL: &'static [u8] = b"ocp_lock_mek_seed";
+    const WRAPPED_MEK_LABEL: &'static [u8] = b"ocp_lock_mek";
+
     /// Consumes `Self` to produce a `MekSeed`.
     /// NOTE: This will erase the `MEK_SECRET` key vault.
     fn derive_mek_seed(self, aes: &mut Aes) -> CaliptraResult<MekSeed> {
         Ok(MekSeed(cmac_kdf(
             aes,
             AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"ocp_lock_mek_seed",
+            Self::MEK_SEED_LABEL,
             None,
             4,
         )?))
@@ -644,7 +651,7 @@ impl MekSecret<'_> {
             self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"wrapped_mek",
+            Self::WRAPPED_MEK_LABEL,
             aad,
             mek.as_ref(),
             &mut encrypted_key,
@@ -683,7 +690,7 @@ impl MekSecret<'_> {
             self.kv,
             HmacKey::Key(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
             AesKey::KV(KeyReadArgs::new(KEY_ID_MEK_SECRETS)),
-            b"wrapped_mek",
+            Self::WRAPPED_MEK_LABEL,
             aad,
             &salt,
             &iv,

@@ -464,7 +464,7 @@ impl OcpLockKeyLadderBuilder {
 
         let wrapped_mek = preconditioned_aes_encrypt(
             swap_word_bytes(&mek_secret).as_bytes(),
-            b"wrapped_mek",
+            b"ocp_lock_mek",
             &wrapped_mek_aad,
             &single_encrypted_mek,
         );
