@@ -12,6 +12,8 @@ use caliptra_hw_model::{
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 
+use crate::common::{run_rt_test, RuntimeTestArgs};
+
 #[test]
 fn test_rt_journey_pcr_validation() {
     let security_state = *SecurityState::default()
@@ -287,4 +289,42 @@ fn test_mbox_idle_during_warm_reset() {
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
     );
+}
+
+#[test]
+fn test_warm_reset_debug_unlocked() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(false)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(security_state),
+        ..Default::default()
+    });
+
+    // Wait for runtime
+    while !model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime()
+    {
+        model.step();
+    }
+
+    // Perform warm reset
+    model.warm_reset_flow().unwrap();
+
+    // Wait for runtime
+    while !model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime()
+    {
+        model.step();
+    }
+
+    assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0x0);
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0x0);
 }

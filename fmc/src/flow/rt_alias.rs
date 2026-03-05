@@ -158,26 +158,47 @@ impl RtAliasLayer {
     ///
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
-        let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
-        let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
-        let ecc_auth_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
+        // In debug mode, the key vault is wiped on warm reset but IDEV, LDEV,
+        // and FMC alias are not re-derived by the ROM. Regenerate dummy FMC
+        // key pairs from the (now-zeroed) CDI slot so that the RT alias
+        // derivation can still proceed.
+        let reset_reason = env.soc_ifc.reset_reason();
+        let debug_not_locked = !env.soc_ifc.debug_locked();
+        let (ecc_auth_key_pair, mldsa_auth_key_pair) =
+            if reset_reason == ResetReason::WarmReset && debug_not_locked {
+                cfi_assert_eq(reset_reason, ResetReason::WarmReset);
+                cfi_assert_bool(debug_not_locked);
+                Self::regenerate_fmc_key_pairs(env)?
+            } else {
+                (
+                    Ecc384KeyPair {
+                        priv_key: HandOff::fmc_ecc_priv_key(env),
+                        pub_key: HandOff::fmc_ecc_pub_key(env),
+                    },
+                    MlDsaKeyPair {
+                        key_pair_seed: HandOff::fmc_mldsa_keypair_seed_key(env),
+                        pub_key: HandOff::fmc_mldsa_pub_key(env),
+                    },
+                )
+            };
 
-        let mldsa_auth_pub = HandOff::fmc_mldsa_pub_key(env);
-        let mldsa_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
-        let mldsa_auth_key_id =
-            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
+        let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_key_pair.pub_key))?;
+        let ecc_auth_key_id =
+            x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_key_pair.pub_key))?;
 
-        // Create initial output
+        let mldsa_auth_sn = x509::subj_sn(
+            &mut env.sha256,
+            &PubKey::Mldsa(&mldsa_auth_key_pair.pub_key),
+        )?;
+        let mldsa_auth_key_id = x509::subj_key_id(
+            &mut env.sha256,
+            &PubKey::Mldsa(&mldsa_auth_key_pair.pub_key),
+        )?;
+
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
-            ecc_auth_key_pair: Ecc384KeyPair {
-                priv_key: HandOff::fmc_ecc_priv_key(env),
-                pub_key: ecc_auth_pub,
-            },
-            mldsa_auth_key_pair: MlDsaKeyPair {
-                key_pair_seed: HandOff::fmc_mldsa_keypair_seed_key(env),
-                pub_key: mldsa_auth_pub,
-            },
+            ecc_auth_key_pair,
+            mldsa_auth_key_pair,
             ecc_auth_sn,
             ecc_auth_key_id,
             mldsa_auth_sn,
@@ -558,5 +579,51 @@ impl RtAliasLayer {
         extend(env, &mut pcr, &rt_tci)?;
 
         Ok(pcr)
+    }
+
+    /// Regenerate dummy FMC alias key pairs from the FMC CDI key vault slot.
+    ///
+    /// In debug mode, the key vault is wiped on a warm reset, but the ROM
+    /// does not re-derive IDEV, LDEV, or FMC alias keys. This function
+    /// generates new FMC ECC and MLDSA key pairs from the (now-zeroed) CDI
+    /// slot so that the RT alias derivation flow can still execute. The
+    /// resulting keys will not match the keys certified in the FMC alias
+    /// certificate.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    ///
+    /// # Returns
+    ///
+    /// * `(Ecc384KeyPair, MlDsaKeyPair)` - Regenerated FMC key pairs
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn regenerate_fmc_key_pairs(env: &mut FmcEnv) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        let fmc_cdi = HandOff::fmc_cdi(env);
+        let fmc_ecc_priv_key = HandOff::fmc_ecc_priv_key(env);
+        let fmc_mldsa_keypair_seed = HandOff::fmc_mldsa_keypair_seed_key(env);
+
+        let ecc_key_pair = Crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
+            &mut env.trng,
+            &mut env.key_vault,
+            fmc_cdi,
+            b"alias_fmc_ecc_key",
+            fmc_ecc_priv_key,
+        )
+        .map_err(|_| CaliptraError::FMC_REGENERATE_FMC_ECC_KEY_PAIR_FAILED)?;
+
+        let mldsa_key_pair = Crypto::mldsa87_key_gen(
+            &mut env.mldsa,
+            &mut env.hmac,
+            &mut env.trng,
+            fmc_cdi,
+            b"alias_fmc_mldsa_key",
+            fmc_mldsa_keypair_seed,
+        )
+        .map_err(|_| CaliptraError::FMC_REGENERATE_FMC_MLDSA_KEY_PAIR_FAILED)?;
+
+        Ok((ecc_key_pair, mldsa_key_pair))
     }
 }
