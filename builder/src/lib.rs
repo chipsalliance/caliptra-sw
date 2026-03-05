@@ -412,7 +412,7 @@ pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, 
                 )
             } else if rom_from_env == &firmware::ROM_FPGA {
                 Ok(include_bytes!(
-                    "../../rom/ci_frozen_rom/2.1/caliptra-rom-temp-fpga-2.1.0-a72a76f.bin"
+                    "../../rom/ci_frozen_rom/2.1/caliptra-fpga-rom-2.1.0-a72a76f.bin"
                 )
                 .as_slice()
                 .into())
@@ -424,7 +424,7 @@ pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, 
                 .into())
             } else if rom_from_env == &firmware::ROM_FPGA_WITH_UART {
                 Ok(include_bytes!(
-                    "../../rom/ci_frozen_rom/2.1/caliptra-rom-temp-fpga-with-log-2.1.0-a72a76f.bin"
+                    "../../rom/ci_frozen_rom/2.1/caliptra-fpga-rom-with-log-2.1.0-a72a76f.bin"
                 )
                 .as_slice()
                 .into())
