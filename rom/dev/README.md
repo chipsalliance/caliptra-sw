@@ -699,8 +699,8 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 14. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 IDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_ecc384_cert)
 15. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#get_ldev_mldsa87_cert)
 16. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime#install_owner_pk_hash)
-
-17. **ZEROIZE_UDS_FE**
+17. **OCP_LOCK_REPORT_HEK_METADATA**: This command allows the MCU to report HEK seed state and metadata to the ROM, which determines if the HEK is available. See the [OCP LOCK specification](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf) for details.
+18. **ZEROIZE_UDS_FE**
 
 Zeroizes (sets to 0xFFFFFFFF) the UDS (Unique Device Secret) and/or FE (Field Entropy) partitions in the OTP fuse controller. This command is typically used during device decommissioning or ownership transfer flows.
 
