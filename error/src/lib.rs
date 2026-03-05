@@ -1648,6 +1648,16 @@ impl CaliptraError {
             "FMC Error: RT alias MLDSA TBS size exceeded"
         ),
         (
+            FMC_REGENERATE_FMC_ECC_KEY_PAIR_FAILED,
+            0x000F00015,
+            "FMC Error: Regenerate FMC ECC key pair failed"
+        ),
+        (
+            FMC_REGENERATE_FMC_MLDSA_KEY_PAIR_FAILED,
+            0x000F00016,
+            "FMC Error: Regenerate FMC MLDSA key pair failed"
+        ),
+        (
             DRIVER_TRNG_EXT_TIMEOUT,
             0x00100001,
             "TRNG_EXT Error: Timeout"
