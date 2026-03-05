@@ -220,6 +220,9 @@ impl<'a, const PROTECTED_SIZE: usize> CoseSign1WithBuffer<'a, PROTECTED_SIZE> {
         // Encode into a temporary array, then copy to ArrayVec
         let mut temp_buffer = [0u8; PROTECTED_SIZE];
         let len = protected.encode(&mut temp_buffer)?;
+        if len > PROTECTED_SIZE {
+            return Err(EatError::BufferTooSmall);
+        }
         protected_buffer
             .try_extend_from_slice(&temp_buffer[..len])
             .map_err(|_| EatError::BufferTooSmall)?;
