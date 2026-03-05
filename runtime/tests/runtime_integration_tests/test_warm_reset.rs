@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::bytes_to_be_words_48;
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
     firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
@@ -10,18 +11,6 @@ use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams,
 use dpe::DPE_PROFILE;
 use openssl::sha::sha384;
 use zerocopy::IntoBytes;
-
-fn swap_word_bytes_inplace(words: &mut [u32]) {
-    for word in words.iter_mut() {
-        *word = word.swap_bytes()
-    }
-}
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
 
 #[test]
 fn test_rt_journey_pcr_validation() {

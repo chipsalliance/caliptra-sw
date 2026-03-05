@@ -581,7 +581,6 @@ fn smoke_test() {
     let expected_rt_alias_key = RtAliasKey::derive(
         &PcrRtCurrentInput {
             runtime_digest: image.manifest.runtime.digest,
-            manifest: image.manifest,
         },
         &expected_fmc_alias_key,
     );

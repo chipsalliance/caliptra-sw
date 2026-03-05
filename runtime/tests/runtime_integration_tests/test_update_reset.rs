@@ -4,7 +4,7 @@ use std::mem::size_of;
 
 pub use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -12,7 +12,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
@@ -23,7 +23,7 @@ use dpe::{
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
 
 pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
@@ -348,4 +348,130 @@ fn test_pcr_reset_counter_persistence() {
     assert_eq!(pcr_reset_counter_1, pcr_reset_counter_2);
     // check that the pcr reset counters are not default
     assert_ne!(pcr_reset_counter_1, [0u8; size_of::<PcrResetCounter>()]);
+}
+
+#[test]
+fn test_cciv_updated_in_dpe() {
+    // Helper function to calculate updated journey measurement
+    fn update_journey_measurement(prev_journey: [u8; 48], current: [u8; 48]) -> [u8; 48] {
+        use sha2::{Digest, Sha384};
+
+        let mut hasher = Sha384::new();
+
+        hasher.update(prev_journey);
+        hasher.update(current);
+
+        hasher.finalize().into()
+    }
+
+    // Initialize model
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    // Build both standard FW and mailbox responder test FW
+    let image_bundle_mbox = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &firmware::runtime_tests::MBOX,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let image_bundle_standard = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    // Boot the initial FW
+    model
+        .upload_firmware(&image_bundle_mbox.to_bytes().unwrap())
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Generate the expected CCIV values for each of the two FWs
+    let cciv_hash_mbox_bundle_exp: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_mbox);
+    let cciv_hash_standard_bundle_exp: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_standard);
+    assert_ne!(cciv_hash_mbox_bundle_exp, cciv_hash_standard_bundle_exp);
+
+    // Calculate initial journey measurement
+    let zero_hash = [0u8; 48];
+    let cciv_journey_exp: [u8; 48] =
+        update_journey_measurement(zero_hash, cciv_hash_mbox_bundle_exp);
+
+    // Get actual values from FW
+    let cciv_current_resp = model.mailbox_execute(0x6000_0002, &[]).unwrap().unwrap();
+    let cciv_current: [u8; 48] = cciv_current_resp.as_bytes().try_into().unwrap();
+
+    let cciv_journey_resp = model.mailbox_execute(0x6000_0003, &[]).unwrap().unwrap();
+    let cciv_journey: [u8; 48] = cciv_journey_resp.as_bytes().try_into().unwrap();
+
+    // Compare actual vs expected
+    assert_eq!(cciv_hash_mbox_bundle_exp, cciv_current);
+    assert_eq!(cciv_journey_exp, cciv_journey);
+
+    // Trigger update to the same FW
+    model
+        .upload_firmware(&image_bundle_mbox.to_bytes().unwrap())
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Get actual values from FW
+    let cciv_current_resp = model.mailbox_execute(0x6000_0002, &[]).unwrap().unwrap();
+    let cciv_current: [u8; 48] = cciv_current_resp.as_bytes().try_into().unwrap();
+
+    let cciv_journey_resp = model.mailbox_execute(0x6000_0003, &[]).unwrap().unwrap();
+    let cciv_journey: [u8; 48] = cciv_journey_resp.as_bytes().try_into().unwrap();
+
+    // Compare actual vs expected
+    // Journey should not have been updated since current did not change
+    assert_eq!(cciv_hash_mbox_bundle_exp, cciv_current);
+    assert_eq!(cciv_journey_exp, cciv_journey);
+
+    // Trigger update reset to standard FW
+    model
+        .upload_firmware(&image_bundle_standard.to_bytes().unwrap())
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Update CCIV journey measurement
+    let cciv_journey_exp: [u8; 48] =
+        update_journey_measurement(cciv_journey_exp, cciv_hash_standard_bundle_exp);
+
+    // Trigger update reset back to mailbox responder FW
+    model
+        .upload_firmware(&image_bundle_mbox.to_bytes().unwrap())
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Update expected CCIV journey measurement
+    let cciv_journey_exp: [u8; 48] =
+        update_journey_measurement(cciv_journey_exp, cciv_hash_mbox_bundle_exp);
+
+    // Get actual values from FW
+    let cciv_current_resp = model.mailbox_execute(0x6000_0002, &[]).unwrap().unwrap();
+    let cciv_current: [u8; 48] = cciv_current_resp.as_bytes().try_into().unwrap();
+
+    let cciv_journey_resp = model.mailbox_execute(0x6000_0003, &[]).unwrap().unwrap();
+    let cciv_journey: [u8; 48] = cciv_journey_resp.as_bytes().try_into().unwrap();
+
+    // Compare actual vs expected
+    assert_eq!(cciv_hash_mbox_bundle_exp, cciv_current);
+    assert_eq!(cciv_journey_exp, cciv_journey);
 }
