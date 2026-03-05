@@ -8,9 +8,6 @@ use super::{
     boot_ocp_lock_runtime, get_validated_hpke_handle, validate_ocp_lock_response, OcpLockBootParams,
 };
 
-// TODO(clundin): Add tests for hybrid and ECDH KEMs once implemented
-// * https://github.com/chipsalliance/caliptra-sw/issues/3034
-
 #[test]
 fn test_endorse_hpke_pubkey() {
     // This command should have no dependency on the HEK's availability, so don't include it here.

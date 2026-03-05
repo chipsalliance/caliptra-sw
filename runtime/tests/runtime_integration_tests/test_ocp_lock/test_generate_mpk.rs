@@ -89,8 +89,7 @@ fn test_generate_mpk_invalid_hpke_key() {
     });
 }
 
-// TODO(clundin): Update default HEK / pass in explicitly to make pass on emu.
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_generate_mpk_missing_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -119,8 +118,7 @@ fn test_generate_mpk_missing_hek() {
     });
 }
 
-// TODO(clundin): Debug why RT public key changes during warm reset on emulator.
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_generate_mpk_warm_reset() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

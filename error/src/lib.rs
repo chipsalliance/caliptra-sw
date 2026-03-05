@@ -1663,7 +1663,6 @@ impl CaliptraError {
             0x000E0073,
             "Runtime Error: Reallocate DPE context requested fewer PL1 contexts than are used currently"
         ),
-        // TODO(clundin): Align error codes with OCP LOCK spec.
         (
             RUNTIME_OCP_LOCK_UNSUPPORTED_COMMAND,
             0x000E0074,
