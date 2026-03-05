@@ -179,7 +179,7 @@ fn sign_and_certify_key_test_helper(model: &mut DefaultHwModel) {
             }
             (
                 CaliptraDpeProfile::Mldsa87,
-                Response::Sign(SignResp::MlDsa(sign_resp)),
+                Response::Sign(SignResp::Mldsa87(sign_resp)),
                 Response::CertifyKey(CertifyKeyResp::Mldsa87(certify_key_resp)),
             ) => {
                 let encoded_vk =
@@ -300,7 +300,7 @@ fn test_invoke_dpe_asymmetric_sign() {
                 assert_ne!(sign_resp.sig_r, [0u8; 48]);
                 assert_ne!(sign_resp.sig_s, [0u8; 48]);
             }
-            Some(Response::Sign(SignResp::MlDsa(sign_resp))) => {
+            Some(Response::Sign(SignResp::Mldsa87(sign_resp))) => {
                 assert_ne!(sign_resp.sig, [0u8; 4627]);
             }
             _ => panic!("Wrong response type!"),

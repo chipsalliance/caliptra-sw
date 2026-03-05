@@ -10,11 +10,6 @@ resolver = "2"
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
-  "dpe/dpe",
-  "dpe/crypto",
-  "dpe/platform",
-  "dpe/simulator",
-  "dpe/tools",
 
   # fpga-boss depends on crates with annoying system deps like libusb and
   # libftdi, so keep it in its own workspace
@@ -232,9 +227,9 @@ itertools = { version = "0.12.0", default-features = false }
 riscv = "0.13.0"
 
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false, features = ["hybrid"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "337f7e4151f60add8e97445f71fc1393afc661a8", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cfc9a713882ca562a0ae6565198129e6da121a42", default-features = false, features = ["hybrid"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cfc9a713882ca562a0ae6565198129e6da121a42", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cfc9a713882ca562a0ae6565198129e6da121a42", default-features = false }
 
 # local DPE dependency; useful when developing
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }

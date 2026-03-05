@@ -858,7 +858,7 @@ fn mldsa_dpe_env(
     let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
     let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let rt_pub_key = okref(&rt_pub_key)?;
-    let rt_pub_key = PubKey::MlDsa(MldsaPublicKey((*rt_pub_key).into()));
+    let rt_pub_key = PubKey::Mldsa(MldsaPublicKey((*rt_pub_key).into()));
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
