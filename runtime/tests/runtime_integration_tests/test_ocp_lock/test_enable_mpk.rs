@@ -16,13 +16,6 @@ use zerocopy::{FromBytes, IntoBytes};
 const WRAPPED_MEK_TYPE: u16 = 0x2;
 const WRAPPED_KEY_LEN: u32 = 32;
 
-// TODO(clundin):
-// * Verify enable mpk key can decrypt once
-// * Verify VEK key DOES NOT change after warm reset.
-// * Verify VEK key DOES change after cold reset.
-//
-// Blocked on https://github.com/chipsalliance/caliptra-sw/issues/3003 is implemented.
-
 #[test]
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 fn test_enable_mpk() {

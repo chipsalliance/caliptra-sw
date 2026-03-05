@@ -67,8 +67,6 @@ pub use unload_mek::UnloadMekCmd;
 
 const ACCESS_KEY_LEN: usize = 32;
 
-// TODO(clundin): Use a shared generic base for the WrappedKey types?
-
 /// Represents the VEK type from OCP LOCK.
 /// The VEK is used to encrypt an MPK. This transitions the MPK to the "enabled" state and it can
 /// be mixed into an MEK.
@@ -1026,9 +1024,6 @@ impl OcpLockContext {
     ///
     /// NOTE: This operation will consume `intermediate_secret` and erase the MEK secret key vault on
     /// completion.
-    // TODO(clundin): Maybe we will want to split the MEK
-    // release into a separate step since other flows will
-    // need it. This will reduce the args.
     #[allow(clippy::too_many_arguments)]
     pub fn derive_mek(
         &mut self,
