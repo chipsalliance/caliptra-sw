@@ -1340,14 +1340,25 @@ int caliptra_add_subject_alt_name(struct caliptra_add_subject_alt_name_req *req,
 }
 
 // Certify key extended
-int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async)
+int caliptra_certify_key_extended_ecc384(struct caliptra_certify_key_extended_ecc384_req *req, struct caliptra_certify_key_extended_resp *resp, bool async)
 {
     if (!req || !resp)
     {
         return INVALID_PARAMS;
     }
 
-    CREATE_PARCEL(p, OP_CERTIFY_KEY_EXTENDED, req, resp);
+    CREATE_PARCEL(p, OP_CERTIFY_KEY_EXTENDED_ECC384, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req *req, struct caliptra_certify_key_extended_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CERTIFY_KEY_EXTENDED_MLDSA87, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

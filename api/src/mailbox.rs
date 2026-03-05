@@ -131,7 +131,8 @@ impl CommandId {
     pub const QUOTE_PCRS_MLDSA87: Self = Self(0x5043524D); // "PCRM"
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
-    pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    pub const CERTIFY_KEY_EXTENDED_ECC384: Self = Self(0x434B4558); // "CKEX"
+    pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B584D); // "CKXM"
     pub const ZEROIZE_UDS_FE: Self = Self(0x5A455546); // "ZEUF"
 
     /// FIPS module commands.
@@ -696,7 +697,8 @@ pub enum MailboxReq {
     GetAttestedMldsa87Csr(GetAttestedMldsaCsrReq),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
-    CertifyKeyExtended(CertifyKeyExtendedReq),
+    CertifyKeyExtendedEcc384(CertifyKeyExtendedEcc384Req),
+    CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req),
     SetAuthManifest(SetAuthManifestReq),
     VerifyAuthManifest(VerifyAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
@@ -802,7 +804,8 @@ impl MailboxReq {
             MailboxReq::GetAttestedMldsa87Csr(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
-            MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
+            MailboxReq::CertifyKeyExtendedEcc384(req) => Ok(req.as_bytes()),
+            MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
@@ -906,7 +909,8 @@ impl MailboxReq {
             MailboxReq::GetAttestedMldsa87Csr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
-            MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CertifyKeyExtendedEcc384(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
@@ -1010,7 +1014,8 @@ impl MailboxReq {
             MailboxReq::GetAttestedMldsa87Csr(_) => CommandId::GET_ATTESTED_MLDSA87_CSR,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
-            MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
+            MailboxReq::CertifyKeyExtendedEcc384(_) => CommandId::CERTIFY_KEY_EXTENDED_ECC384,
+            MailboxReq::CertifyKeyExtendedMldsa87(_) => CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
@@ -1556,16 +1561,29 @@ impl Response for StashMeasurementResp {}
 // CERTIFY_KEY_EXTENDED
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct CertifyKeyExtendedReq {
+pub struct CertifyKeyExtendedEcc384Req {
     pub hdr: MailboxReqHeader,
     pub flags: CertifyKeyExtendedFlags,
-    pub certify_key_req: [u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
+    pub certify_key_req: [u8; Self::CERTIFY_KEY_REQ_SIZE],
 }
-impl CertifyKeyExtendedReq {
+impl CertifyKeyExtendedEcc384Req {
     pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
 }
-impl Request for CertifyKeyExtendedReq {
-    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED;
+impl Request for CertifyKeyExtendedEcc384Req {
+    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED_ECC384;
+    type Resp = CertifyKeyExtendedResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyExtendedMldsa87Req {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyExtendedFlags,
+    pub axi_response: AxiResponseInfo,
+    pub certify_key_req: [u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
+}
+impl Request for CertifyKeyExtendedMldsa87Req {
+    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED_MLDSA87;
     type Resp = CertifyKeyExtendedResp;
 }
 
@@ -1576,6 +1594,17 @@ pub struct CertifyKeyExtendedFlags(pub u32);
 bitflags! {
     impl CertifyKeyExtendedFlags: u32 {
         const DMTF_OTHER_NAME = 1u32 << 31;
+        const EXTERNAL_AXI_RESPONSE = 1u32 << 30;
+    }
+}
+
+impl CertifyKeyExtendedFlags {
+    pub fn dmtf_other_name(&self) -> bool {
+        self.contains(CertifyKeyExtendedFlags::DMTF_OTHER_NAME)
+    }
+
+    pub fn external_axi_response(&self) -> bool {
+        self.contains(CertifyKeyExtendedFlags::EXTERNAL_AXI_RESPONSE)
     }
 }
 
@@ -1583,12 +1612,33 @@ bitflags! {
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedResp {
     pub hdr: MailboxRespHeader,
+    pub size: u32,
     pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
 }
 impl CertifyKeyExtendedResp {
     pub const CERTIFY_KEY_RESP_SIZE: usize = 25152;
 }
 impl Response for CertifyKeyExtendedResp {}
+
+impl Default for CertifyKeyExtendedResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            size: 0,
+            certify_key_resp: [0u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+        }
+    }
+}
+
+impl CertifyKeyExtendedResp {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.size as usize > Self::CERTIFY_KEY_RESP_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::CERTIFY_KEY_RESP_SIZE - self.size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
 
 // INVOKE_DPE_ECC384
 #[repr(C)]

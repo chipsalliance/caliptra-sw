@@ -31,7 +31,7 @@ use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-#[derive(uDebug, Debug, Copy, Clone)]
+#[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
     Ecc384,
     Mldsa87,

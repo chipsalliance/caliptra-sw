@@ -283,16 +283,27 @@ struct caliptra_add_subject_alt_name_req
     uint8_t dmtf_device_info[128];
 };
 
-struct caliptra_certify_key_extended_req
+struct caliptra_certify_key_extended_ecc384_req
 {
     struct caliptra_req_header hdr;
     uint32_t flags;
     uint8_t certify_key_req[72];
 };
 
+struct caliptra_certify_key_extended_mldsa87_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint32_t axi_addr_lo;
+    uint32_t axi_addr_hi;
+    uint32_t axi_max_size;
+    uint8_t certify_key_req[72];
+};
+
 struct caliptra_certify_key_extended_resp
 {
     struct caliptra_resp_header hdr;
+    uint32_t certify_key_resp_size;
     uint8_t certify_key_resp[25152];
 };
 

@@ -1195,33 +1195,64 @@ Command Code: `0x414C_544E` ("ALTN")
 | chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
-### CERTIFY\_KEY\_EXTENDED
+### CERTIFY\_KEY\_EXTENDED\_ECC384
 
-Produces a DPE leaf certificate or CSR containing custom extensions provided by the SoC.
+Produces an ECC-P384 DPE leaf certificate or CSR containing custom extensions provided by the SoC.
 
 Command Code: `0x434B_4558` ("CKEX")
 
-*Table: `CERTIFY_KEY_EXTENDED` input arguments*
+*Table: `CERTIFY_KEY_EXTENDED_ECC384` input arguments*
 
 | **Name**          | **Type** | **Description**                                                             |
 | ----------------- | -------- | --------------------------------------------------------------------------- |
 | chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
-| certify\_key\_req | u8[72]   | Certify Key Request.                                                        |
 | flags             | u32      | Flags determining which custom extensions to include in the certificate.    |
+| certify\_key\_req | u8[72]   | Certify Key Request.                                                        |
 
-*Table: `CERTIFY_KEY_EXTENDED` input flags*
+*Table: `CERTIFY_KEY_EXTENDED_ECC384` input flags*
 
-| **Name**        | **Offset** |
-| --------------- | ---------- |
-| DMTF_OTHER_NAME | 1 << 31    |
+| **Name**          | **Offset** |
+| ----------------- | ---------- |
+| DMTF\_OTHER\_NAME | 1 << 31    |
 
-*Table: `CERTIFY_KEY_EXTENDED` output arguments*
+*Table: `CERTIFY_KEY_EXTENDED_ECC384` output arguments*
 
-| **Name**           | **Type** | **Description**                                                            |
-| ------------------ | -------- | -------------------------------------------------------------------------- |
-| chksum             | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| fips\_status       | u32      | Indicates if the command is FIPS approved or an error.                     |
-| certify\_key\_resp | u8[2176] | Certify Key Response.                                                      |
+| **Name**           | **Type**  | **Description**                                                            |
+| ------------------ | --------- | -------------------------------------------------------------------------- |
+| chksum             | u32       | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status       | u32       | Indicates if the command is FIPS approved or an error.                     |
+| size               | u32       | The size of the response in the certify\_key\_resp field.                  |
+| certify\_key\_resp | u8[25152] | Certify Key Response.                                                      |
+
+### CERTIFY\_KEY\_EXTENDED\_MLDSA87
+
+Produces an ML-DSA-87 DPE leaf certificate or CSR containing custom extensions provided by the SoC.
+
+Command Code: `0x434B_584D` ("CKXM")
+
+*Table: `CERTIFY_KEY_EXTENDED_MLDSA87` input arguments*
+
+| **Name**          | **Type** | **Description**                                                             |
+| ----------------- | -------- | --------------------------------------------------------------------------- |
+| chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+| flags             | u32      | Flags determining which custom extensions to include in the certificate.    |
+| certify\_key\_req | u8[72]   | Certify Key Request.                                                        |
+
+*Table: `CERTIFY_KEY_EXTENDED_MLDSA87` input flags*
+
+| **Name**                | **Offset** |
+| ----------------------- | ---------- |
+| DMTF\_OTHER\_NAME       | 1 << 31    |
+| EXTERNAL\_AXI\_RESPONSE | 1 << 30    |
+
+*Table: `CERTIFY_KEY_EXTENDED_MLDSA87` output arguments*
+
+| **Name**           | **Type**  | **Description**                                                            |
+| ------------------ | --------- | -------------------------------------------------------------------------- |
+| chksum             | u32       | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status       | u32       | Indicates if the command is FIPS approved or an error.                     |
+| size               | u32       | The size of the response in the certify\_key\_resp field.                  |
+| certify\_key\_resp | u8[25152] | Certify Key Response.                                                      |
 
 ### SET_AUTH_MANIFEST
 
@@ -1412,7 +1443,7 @@ These commands are defined in the OCP LOCK v1.0 [specification](https://github.c
 ### GET_STATUS
 ### CLEAR_KEY_CACHE
 ### UNLOAD_MEK
-### DERIVE_MEK 
+### DERIVE_MEK
 
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
