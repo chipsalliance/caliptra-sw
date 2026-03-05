@@ -50,7 +50,7 @@ When ROM receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command instead of `RI_DO
    - Decrypt the firmware in-place using `CM_AES_GCM_DECRYPT_DMA`
    - Send `CM_ACTIVATE_FIRMWARE` to activate the decrypted MCU firmware
 
-The `CM_AES_GCM_DECRYPT_DMA` command is restricted to the `EncryptedFirmware` boot mode and performs a SHA384 integrity check of the ciphertext before decryption.
+The `CM_AES_GCM_DECRYPT_DMA` command is intended to be used for the `EncryptedFirmware` boot mode and performs a SHA384 integrity check of the ciphertext before decryption, but can be used to decrypt other images as well in any boot mode.
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
@@ -2379,6 +2379,7 @@ Command Code: `0x434D_4446` ("CMDF")
 Performs in-place AES-256-GCM decryption of data at an AXI address using DMA. This command is specifically designed for decrypting MCU firmware that was downloaded via the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command.
 
 **Important restrictions:**
+- This command is only available in subsystem mode, as DMA is only available in subsystem.
 - This command is only available when the boot mode is `EncryptedFirmware`, which is set by ROM when it receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command.
 - The command performs a two-pass operation:
   1. First pass: Verifies the SHA384 hash of the encrypted data at the AXI address

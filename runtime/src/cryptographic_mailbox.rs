@@ -51,7 +51,7 @@ use caliptra_drivers::{
     cmac_kdf, hkdf_expand, hkdf_extract, hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesDmaMode, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12,
-    Array4x16, AxiAddr, BootMode, CaliptraResult, DmaRecovery, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
+    Array4x16, AxiAddr, CaliptraResult, DmaRecovery, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
     Ecc384PubKey, Ecc384Result, Ecc384Seed, Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157,
     LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message,
     MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
@@ -2739,14 +2739,13 @@ impl Commands {
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        if !drivers.cryptographic_mailbox.initialized {
-            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        // DMA is only available in subsystem mode
+        if !drivers.soc_ifc.subsystem_mode() {
+            Err(CaliptraError::RUNTIME_CMB_DMA_NOT_SUBSYSTEM_MODE)?;
         }
 
-        // Validate boot mode - this command is only allowed when boot mode is EncryptedFirmware
-        let boot_mode = drivers.persistent_data.get().rom.boot_mode;
-        if boot_mode != BootMode::EncryptedFirmware {
-            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
 
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptDmaReq>() {

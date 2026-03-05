@@ -1813,6 +1813,11 @@ impl CaliptraError {
             0x000E008F,
             "Runtime Error: DMA SHA384 hash mismatch during encrypted firmware decryption"
         ),
+        (
+            RUNTIME_CMB_DMA_NOT_SUBSYSTEM_MODE,
+            0x000E0092,
+            "Runtime Error: CM AES GCM decrypt DMA requires subsystem mode"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
