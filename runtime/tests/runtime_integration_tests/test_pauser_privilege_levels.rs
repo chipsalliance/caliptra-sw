@@ -870,3 +870,54 @@ fn test_user_not_pl0() {
         assert!(resp.is_none());
     }
 }
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_ocp_lock_commands_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ocp_lock_en: true,
+        subsystem_mode: true,
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let ocp_lock_commands = [
+        u32::from(CommandId::OCP_LOCK_GET_ALGORITHMS),
+        u32::from(CommandId::OCP_LOCK_INITIALIZE_MEK_SECRET),
+        u32::from(CommandId::OCP_LOCK_MIX_MPK),
+        u32::from(CommandId::OCP_LOCK_DERIVE_MEK),
+        u32::from(CommandId::OCP_LOCK_ENUMERATE_HPKE_HANDLES),
+        u32::from(CommandId::OCP_LOCK_GET_HPKE_PUB_KEY),
+        u32::from(CommandId::OCP_LOCK_ROTATE_HPKE_KEY),
+        u32::from(CommandId::OCP_LOCK_GENERATE_MEK),
+        u32::from(CommandId::OCP_LOCK_GENERATE_MPK),
+        u32::from(CommandId::OCP_LOCK_REWRAP_MPK),
+        u32::from(CommandId::OCP_LOCK_ENABLE_MPK),
+        u32::from(CommandId::OCP_LOCK_TEST_ACCESS_KEY),
+        u32::from(CommandId::OCP_LOCK_GET_STATUS),
+        u32::from(CommandId::OCP_LOCK_CLEAR_KEY_CACHE),
+        u32::from(CommandId::OCP_LOCK_UNLOAD_MEK),
+        u32::from(CommandId::OCP_LOCK_LOAD_MEK),
+    ];
+
+    for cmd_id in ocp_lock_commands {
+        let mut cmd = MailboxReqHeader { chksum: 0 };
+        cmd.chksum = caliptra_common::checksum::calc_checksum(cmd_id, &[]);
+
+        let resp = model.mailbox_execute(cmd_id, cmd.as_bytes()).unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
+}
