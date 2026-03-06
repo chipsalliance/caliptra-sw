@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 #![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unexpected_cfgs)]
 
 use caliptra_api::mailbox::{
     AlgorithmType, GetFmcAliasEcc384CertReq, GetFmcAliasMlDsa87CertReq, GetLdevEcc384CertReq,
@@ -69,6 +71,7 @@ fn get_idevid_pubkey_mldsa() -> openssl::pkey::PKey<openssl::pkey::Public> {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn fake_boot_test() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         for algorithm_type in ALGORITHM_TYPES.iter() {

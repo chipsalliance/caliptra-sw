@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unexpected_cfgs)]
 
 use std::mem;
 
