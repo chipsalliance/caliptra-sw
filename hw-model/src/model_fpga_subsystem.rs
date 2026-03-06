@@ -2078,6 +2078,28 @@ impl HwModel for ModelFpgaSubsystem {
             let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
             let current = gpio.extract().get();
             gpio.set(current | 1 << 31);
+
+            // In encrypted boot + flash boot mode, the MCU ROM decrypts
+            // firmware autonomously after loading it from flash. Wait for
+            // COLD_BOOT_FLOW_COMPLETE so the decrypt finishes before we
+            // return control to the test.
+            if boot_params.encrypted_boot {
+                const MAX_WAIT_DECRYPT_CYCLES: u64 = 1_000_000_000;
+                let start = self.cycle_count();
+                while !self
+                    .mci_boot_milestones()
+                    .contains(McuBootMilestones::COLD_BOOT_FLOW_COMPLETE)
+                {
+                    self.step();
+                    if self.cycle_count().wrapping_sub(start) >= MAX_WAIT_DECRYPT_CYCLES {
+                        panic!(
+                            "Timeout waiting for MCU ROM encrypted boot to complete after {} cycles",
+                            self.cycle_count().wrapping_sub(start)
+                        );
+                    }
+                }
+            }
+
             return Ok(());
         }
 

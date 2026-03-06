@@ -133,14 +133,18 @@ jobs:
         ocp_lock:
           - { name: "", ocp_lock: false }
           - { name: "ocp-lock", ocp_lock: true }
+        flash_boot:
+          - { name: "", flash_boot: false }
+          - { name: "flash-boot", flash_boot: true }
     with:
-      artifact-suffix: -fpga-subsystem-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}
+      artifact-suffix: -fpga-subsystem-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}
       extra-features: ${{ matrix.rng.extra }}
       hw-version: ${{ matrix.hw_config.hw }}
       rom-logging: ${{ matrix.log.rom_logging }}
       fpga-itrng: ${{ matrix.rng.fpga_itrng }}
       ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
       rom-version: ${{ matrix.hw_config.rom }}
+      flash-boot: ${{ matrix.flash_boot.flash_boot }}
       branch: "main"
 
 

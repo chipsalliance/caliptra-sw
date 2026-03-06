@@ -36,8 +36,9 @@ fn aes_gcm_encrypt(key: &[u8; 32], iv: &[u8; 12], aad: &[u8], plaintext: &[u8]) 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime",), ignore)]
 #[test]
 fn test_encrypted_firmware_decrypt_dma() {
-    // The plaintext MCU firmware
-    let mcu_fw_plaintext: Vec<u8> = (0..256).map(|i| i as u8).collect();
+    // The plaintext MCU firmware (240 bytes so that ciphertext+tag = 256,
+    // a multiple of the FPGA BMC's 256-byte recovery FIFO block size).
+    let mcu_fw_plaintext: Vec<u8> = (0..240).map(|i| i as u8).collect();
 
     // Encrypt with the well-known test key/IV (ciphertext || tag)
     let aad: [u8; 0] = [];
