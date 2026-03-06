@@ -2,50 +2,19 @@
 
 //! Tests for encrypted firmware flow using RI_DOWNLOAD_ENCRYPTED_FIRMWARE and CM_AES_GCM_DECRYPT_DMA
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
-use caliptra_api::mailbox::{
-    CmAesGcmDecryptDmaReq, CmImportReq, CmImportResp, CmKeyUsage, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader,
-};
+use caliptra_api::mailbox::{CmAesGcmDecryptDmaReq, CommandId, MailboxReq};
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
+use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams, MCU_TEST_AES_KEY, MCU_TEST_IV};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::from_hw_format;
 use caliptra_image_gen::ImageGeneratorCrypto;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
-
-/// Import a raw AES key and return the CMK
-fn import_aes_key(model: &mut caliptra_hw_model::DefaultHwModel, key: &[u8; 32]) -> Cmk {
-    let mut input = [0u8; 64];
-    input[..32].copy_from_slice(key);
-
-    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::Aes.into(),
-        input_size: 32,
-        input,
-    });
-    cm_import_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::CM_IMPORT),
-            cm_import_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(
-        cm_import_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
-    );
-    cm_import_resp.cmk.clone()
-}
 
 /// Encrypt data using AES-256-GCM, returning `ciphertext || 16-byte tag`.
 fn aes_gcm_encrypt(key: &[u8; 32], iv: &[u8; 12], aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
@@ -125,73 +94,29 @@ fn test_encrypted_firmware_decrypt_dma() {
     );
 }
 
-/// Test that CM_AES_GCM_DECRYPT_DMA fails when not in encrypted firmware mode
+/// Test that CM_AES_GCM_DECRYPT_DMA fails when not in subsystem mode.
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime",), ignore)]
 #[test]
-fn test_decrypt_dma_fails_in_normal_mode() {
-    // Create a simple MCU firmware
-    let mcu_fw = vec![1, 2, 3, 4];
-    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
-    let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
-    let metadata = vec![AuthManifestImageMetadata {
-        fw_id: 2,
-        flags: flags.0,
-        digest,
-        ..Default::default()
-    }];
-    let soc_manifest = create_auth_manifest_with_metadata(metadata);
-    let soc_manifest_bytes = soc_manifest.as_bytes();
+fn test_decrypt_dma_requires_subsystem_mode() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let mut args = RuntimeTestArgs::default();
-    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
-    args.init_params = Some(InitParams {
-        rom: &rom,
-        subsystem_mode: true,
-        ..Default::default()
-    });
-    args.soc_manifest = Some(soc_manifest_bytes);
-    args.mcu_fw_image = Some(&mcu_fw);
+    if model.subsystem_mode() {
+        return;
+    }
 
-    // Use normal boot (RI_DOWNLOAD_FIRMWARE, not encrypted)
-    let mut model = run_rt_test(args);
-    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    let mut cmd = MailboxReq::CmAesGcmDecryptDma(CmAesGcmDecryptDmaReq::default());
+    cmd.populate_chksum().unwrap();
 
-    // Import an AES key
-    let aes_key: [u8; 32] = [0xaa; 32];
-    let cmk = import_aes_key(&mut model, &aes_key);
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_DMA),
+            cmd.as_bytes().unwrap(),
+        )
+        .expect_err("CM_AES_GCM_DECRYPT_DMA should fail outside subsystem mode");
 
-    // Get MCU SRAM address
-    let mcu_sram_addr = model
-        .write_payload_to_ss_staging_area(&mcu_fw)
-        .expect("Failed to get MCU SRAM address");
-
-    // Try to use CM_AES_GCM_DECRYPT_DMA - should fail because we're not in encrypted firmware mode
-    let decrypt_req = CmAesGcmDecryptDmaReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        cmk,
-        iv: [0u32; 3],
-        tag: [0u32; 4],
-        encrypted_data_sha384: [0u8; 48],
-        axi_addr_lo: mcu_sram_addr as u32,
-        axi_addr_hi: (mcu_sram_addr >> 32) as u32,
-        length: mcu_fw.len() as u32,
-        aad_length: 0,
-        aad: [0u8; caliptra_api::mailbox::CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE],
-    };
-
-    let mut decrypt_cmd = MailboxReq::CmAesGcmDecryptDma(decrypt_req);
-    decrypt_cmd.populate_chksum().unwrap();
-
-    // This should fail with RUNTIME_MAILBOX_INVALID_PARAMS because we're not in encrypted firmware mode
-    let result = model.mailbox_execute(
-        u32::from(CommandId::CM_AES_GCM_DECRYPT_DMA),
-        decrypt_cmd.as_bytes().unwrap(),
-    );
-    assert!(
-        result.is_err(),
-        "CM_AES_GCM_DECRYPT_DMA should fail in normal boot mode"
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_CMB_DMA_NOT_SUBSYSTEM_MODE,
+        err,
     );
 }
