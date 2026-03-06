@@ -143,7 +143,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         let mut usage = KeyUsage::default().set_hmac_key_en();
         let usage = match S::SIGNATURE_ALGORITHM {
             SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384) => usage.set_ecc_key_gen_seed_en(),
-            SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
+            SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
 
@@ -175,7 +175,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         let mut usage = KeyUsage::default();
         let usage = match S::SIGNATURE_ALGORITHM {
             SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384) => usage.set_ecc_key_gen_seed_en(),
-            SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
+            SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         hmac_kdf(
@@ -206,7 +206,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
                 )));
                 Ok((key_id, pub_key))
             }
-            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+            (SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
                 let pub_key = mldsa
                     .key_pair(
@@ -216,7 +216,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
                     )
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)));
                 let pub_key = okref(&pub_key)?;
-                Ok((KEY_ID_TMP, PubKey::MlDsa(MldsaPublicKey(pub_key.into()))))
+                Ok((KEY_ID_TMP, PubKey::Mldsa(MldsaPublicKey(pub_key.into()))))
             }
             _ => Err(CryptoError::MismatchedAlgorithm),
         }
@@ -287,7 +287,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let priv_key = Mldsa87Seed::Key(priv_key_args);
 
-        let PubKey::MlDsa(MldsaPublicKey(pub_key)) = pub_key else {
+        let PubKey::Mldsa(MldsaPublicKey(pub_key)) = pub_key else {
             return Err(CryptoError::MismatchedAlgorithm);
         };
         let pub_key = Mldsa87PubKey::from(pub_key);
@@ -307,7 +307,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
 
         let mut dpe_sig = [0u8; 4627];
         dpe_sig.copy_from_slice(&sig.as_bytes()[..4627]);
-        Ok(Signature::MlDsa(MldsaSignature(dpe_sig)))
+        Ok(Signature::Mldsa(MldsaSignature(dpe_sig)))
     }
 
     fn sign_helper(
@@ -322,7 +322,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
             (SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384), Signer::Ec(ecc384)) => {
                 Self::sign_ec(ecc384, sha2_512_384, trng, data, priv_key, pub_key)
             }
-            (SignatureAlgorithm::MlDsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+            (SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
                 Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key)
             }

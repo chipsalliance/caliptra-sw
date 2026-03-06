@@ -1523,7 +1523,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cfc9a713882ca562a0ae6565198129e6da121a42#cfc9a713882ca562a0ae6565198129e6da121a42"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -1710,7 +1710,7 @@ dependencies = [
 [[package]]
 name = "dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cfc9a713882ca562a0ae6565198129e6da121a42#cfc9a713882ca562a0ae6565198129e6da121a42"
 dependencies = [
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
@@ -2984,7 +2984,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=337f7e4151f60add8e97445f71fc1393afc661a8#337f7e4151f60add8e97445f71fc1393afc661a8"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cfc9a713882ca562a0ae6565198129e6da121a42#cfc9a713882ca562a0ae6565198129e6da121a42"
 dependencies = [
  "arrayvec",
  "cfg-if",
