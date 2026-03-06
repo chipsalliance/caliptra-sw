@@ -22,8 +22,8 @@ pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeEcTypes, DisableAttestationCmd, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
-    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeProfile, CptraDpeEcTypes, DisableAttestationCmd, DpePlatform, Mailbox,
+    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
@@ -564,6 +564,7 @@ impl Drivers {
         let mut env = DpeEnv::<CptraDpeEcTypes> {
             crypto,
             platform: DpePlatform::new(
+                CaliptraDpeProfile::Ecc384,
                 CALIPTRA_LOCALITY,
                 hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
