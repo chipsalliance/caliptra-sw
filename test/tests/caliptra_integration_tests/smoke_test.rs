@@ -244,6 +244,7 @@ fn test_golden_ldevid_pubkey_matches_generated() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn smoke_test() {
     const ALGORITHM_TYPES: [AlgorithmType; 2] = [AlgorithmType::Ecc384, AlgorithmType::Mldsa87];
 

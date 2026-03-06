@@ -69,6 +69,7 @@ fn get_idevid_pubkey_mldsa() -> openssl::pkey::PKey<openssl::pkey::Public> {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn fake_boot_test() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         for algorithm_type in ALGORITHM_TYPES.iter() {

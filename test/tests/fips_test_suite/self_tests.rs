@@ -322,6 +322,7 @@ pub fn kat_sha1_digest_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha1_digest_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA1_DIGEST_FAILURE,
@@ -339,6 +340,7 @@ pub fn kat_sha1_digest_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha1_digest_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA1_CORRUPT_DIGEST,
@@ -356,6 +358,7 @@ pub fn kat_sha256_digest_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha256_digest_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA256_DIGEST_FAILURE,
@@ -373,6 +376,7 @@ pub fn kat_sha256_digest_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha256_digest_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA256_CORRUPT_DIGEST,
@@ -390,6 +394,7 @@ pub fn kat_sha384_digest_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha384_digest_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA384_DIGEST_FAILURE,
@@ -407,6 +412,7 @@ pub fn kat_sha384_digest_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha384_digest_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA384_CORRUPT_DIGEST,
@@ -424,6 +430,7 @@ pub fn kat_sha2_512_384acc_digest_start_op_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha2_512_384acc_digest_start_op_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
@@ -441,6 +448,7 @@ pub fn kat_sha2_512_384acc_digest_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha2_512_384acc_digest_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
@@ -458,6 +466,7 @@ pub fn kat_sha2_512_384acc_digest_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_sha2_512_384acc_digest_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
@@ -475,6 +484,7 @@ pub fn kat_ecc384_signature_generate_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_ecc384_signature_generate_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
@@ -492,6 +502,7 @@ pub fn kat_ecc384_signature_verify_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_ecc384_signature_verify_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_CORRUPT_SIGNATURE,
@@ -509,6 +520,7 @@ pub fn kat_ecc384_deterministic_key_gen_generate_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_ecc384_deterministic_key_gen_generate_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_KEY_PAIR_GENERATE_FAILURE,
@@ -526,6 +538,7 @@ pub fn kat_ecc384_deterministic_key_gen_verify_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_ecc384_deterministic_key_gen_verify_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
@@ -543,6 +556,7 @@ pub fn kat_hmac384_failure_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_hmac384_failure_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::HMAC384_FAILURE,
@@ -560,6 +574,7 @@ pub fn kat_hmac384_tag_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_hmac384_tag_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::HMAC384_CORRUPT_TAG,
@@ -577,6 +592,7 @@ pub fn kat_lms_digest_mismatch_rom() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 pub fn kat_lms_digest_mismatch_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::LMS_CORRUPT_INPUT,
