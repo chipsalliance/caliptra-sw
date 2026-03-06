@@ -161,11 +161,11 @@ impl RtAliasLayer {
     ///
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
-        let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
+        let ecc_auth_pub = *HandOff::fmc_ecc_pub_key(env);
         let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
         let ecc_auth_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
 
-        let mldsa_auth_pub = HandOff::fmc_mldsa_pub_key(env);
+        let mldsa_auth_pub = *HandOff::fmc_mldsa_pub_key(env);
         let mldsa_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
         let mldsa_auth_key_id =
             x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
