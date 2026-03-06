@@ -21,6 +21,9 @@ on:
       ocp-lock:
         default: true
         type: boolean
+      flash-boot:
+        default: true
+        type: boolean
       hw-version:
         default: "latest"
         type: string
@@ -204,8 +207,11 @@ jobs:
             if [ "${{ inputs.ocp-lock }}" == "true" ]; then
               FEATURES="${FEATURES},ocp-lock"
             fi
+            if [ "${{ inputs.flash-boot }}" == "true" ]; then
+              FEATURES="${FEATURES},flash-boot"
+            fi
           else
-            FEATURES=fpga_subsystem,itrng,ocp-lock
+            FEATURES=fpga_subsystem,itrng,ocp-lock,flash-boot
           fi
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
