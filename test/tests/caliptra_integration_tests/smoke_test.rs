@@ -786,14 +786,9 @@ fn smoke_test() {
             let rt_alias_cert = openssl::x509::X509::from_der(rt_alias_cert_der).unwrap();
             let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
-            println!(
-                "Manifest Runtime digest is {:02x?}",
-                image.manifest.runtime.digest.as_bytes()
-            );
             let expected_rt_alias_key = RtAliasKey::derive(
                 &PcrRtCurrentInput {
                     runtime_digest: image.manifest.runtime.digest,
-                    manifest: image.manifest,
                 },
                 &expected_fmc_alias_key,
             );
@@ -1183,6 +1178,11 @@ fn test_rt_wdt_timeout() {
         ..Default::default()
     };
 
+    let image_options = ImageOptions {
+        pqc_key_type,
+        ..Default::default()
+    };
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &if cfg!(feature = "fpga_subsystem") {
@@ -1190,10 +1190,7 @@ fn test_rt_wdt_timeout() {
         } else {
             APP_WITH_UART
         },
-        ImageOptions {
-            pqc_key_type,
-            ..Default::default()
-        },
+        image_options.clone(),
     )
     .unwrap();
 
@@ -1231,7 +1228,12 @@ fn test_rt_wdt_timeout() {
         ..Default::default()
     };
 
-    let mut hw = run_test(None, None, Some(init_params), Some(boot_params));
+    let mut hw = run_test(
+        None,
+        Some(image_options),
+        Some(init_params),
+        Some(boot_params),
+    );
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
@@ -1292,7 +1294,7 @@ fn test_fmc_wdt_timeout() {
             } else {
                 APP_WITH_UART
             },
-            image_options,
+            image_options.clone(),
         )
         .unwrap();
 
@@ -1331,7 +1333,12 @@ fn test_fmc_wdt_timeout() {
             ..Default::default()
         };
 
-        let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+        let mut hw = caliptra_test::run_test(
+            None,
+            Some(image_options),
+            Some(init_params),
+            Some(boot_params),
+        );
 
         hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
         assert_eq!(

@@ -1249,9 +1249,9 @@ impl CaliptraError {
             "Runtime Error: Context already tagged"
         ),
         (
-            RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED,
+            RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED,
             0x000E0021,
-            "Runtime Error: Add valid pauser measurement to DPE failed"
+            "Runtime Error: Add CCIV Measurement to DPE Failed"
         ),
         (
             RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE,
@@ -1817,6 +1817,16 @@ impl CaliptraError {
             RUNTIME_CMB_DMA_NOT_SUBSYSTEM_MODE,
             0x000E0092,
             "Runtime Error: CM AES GCM decrypt DMA requires subsystem mode"
+        ),
+        (
+            RUNTIME_CCIV_CONTEXT_NOT_FOUND,
+            0x000E0093,
+            "Runtime Error: CCIV context not found"
+        ),
+        (
+            RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND,
+            0x000E0094,
+            "Runtime Error: Multiple CCIV contexts found"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
