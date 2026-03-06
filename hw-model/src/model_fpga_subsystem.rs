@@ -2172,6 +2172,11 @@ impl HwModel for ModelFpgaSubsystem {
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
     }
+
+    fn boot_complete_mcu(&mut self) -> bool {
+        self.mci_boot_milestones()
+            .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {
