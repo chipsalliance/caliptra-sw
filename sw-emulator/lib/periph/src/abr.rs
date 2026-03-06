@@ -741,7 +741,7 @@ impl Abr {
     }
 
     fn mldsa_sign_mu(&mut self, sk_bytes: [u8; SK_LEN]) -> Vec<u8> {
-        let secret_key = SigningKey::<MlDsa87>::decode(sk_bytes.as_slice().try_into().unwrap());
+        let secret_key = SigningKey::<MlDsa87>::from_seed(sk_bytes.as_slice().try_into().unwrap());
         secret_key
             .sign_mu_deterministic(self.mldsa_external_mu.as_bytes().try_into().unwrap())
             .encode()
