@@ -28,7 +28,7 @@ use caliptra_hw_model::{
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
-use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
@@ -125,6 +125,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
+    pub key_type: Option<FwVerificationPqcKeyType>,
 }
 
 // clippy gets confused about cfg(feature = "...")
@@ -146,16 +147,17 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
+            key_type: None,
         }
     }
 }
 
-pub fn run_rt_test_pqc(
+pub fn run_rt_test_pqc_return_fw(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
-) -> DefaultHwModel {
+) -> (DefaultHwModel, ImageBundle) {
     let successful_reach_rt = args.successful_reach_rt;
-    let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
+    let (mut model, image_bundle) = start_rt_test_pqc_model(args, pqc_key_type);
     if successful_reach_rt {
         model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
     } else {
@@ -167,6 +169,14 @@ pub fn run_rt_test_pqc(
         });
     }
 
+    (model, image_bundle)
+}
+
+pub fn run_rt_test_pqc(
+    args: RuntimeTestArgs,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> DefaultHwModel {
+    let (model, _bundle) = run_rt_test_pqc_return_fw(args, pqc_key_type);
     model
 }
 
@@ -198,7 +208,7 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
 pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
-) -> (DefaultHwModel, Vec<u8>) {
+) -> (DefaultHwModel, ImageBundle) {
     let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &APP_WITH_UART_FPGA
     } else {
@@ -233,9 +243,9 @@ pub fn start_rt_test_pqc_model(
 
     let rom = rom_for_fw_integration_tests().unwrap();
 
-    let image =
+    let image_bundle =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
-    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
 
     let mut init_params = args.init_params.unwrap_or_else(|| InitParams {
         rom: &rom,
@@ -264,7 +274,7 @@ pub fn start_rt_test_pqc_model(
         0
     };
 
-    let image = image.to_bytes().unwrap();
+    let image = image_bundle.to_bytes().unwrap();
 
     let default_manifest_bytes;
     let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
@@ -287,13 +297,20 @@ pub fn start_rt_test_pqc_model(
     )
     .unwrap();
 
-    (model, image)
+    (model, image_bundle)
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
-    run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
+    let (model, _bundle) = run_rt_test_return_fw(args);
+    model
+}
+
+pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
+    // TODO(clundin): Do we want to use MLDSA by default?
+    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::LMS);
+    run_rt_test_pqc_return_fw(args, key_type)
 }
 
 pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
@@ -561,4 +578,46 @@ pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp 
     let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
+}
+
+pub fn calculate_cptra_config_init_vals_hash<T: HwModel>(
+    model: &mut T,
+    image_bundle: &ImageBundle,
+) -> [u8; 48] {
+    use sha2::{Digest, Sha384};
+
+    const PAUSER_COUNT: usize = 5;
+
+    let mut hasher = Sha384::new();
+
+    // Hash locked pausers
+    for i in 0..PAUSER_COUNT {
+        if model
+            .soc_ifc()
+            .cptra_mbox_axi_user_lock()
+            .at(i)
+            .read()
+            .lock()
+        {
+            hasher.update(
+                model
+                    .soc_ifc()
+                    .cptra_mbox_valid_axi_user()
+                    .at(i)
+                    .read()
+                    .as_bytes(),
+            );
+        }
+    }
+
+    // Hash manifest fields
+    let manifest = &image_bundle.manifest;
+    hasher.update(manifest.header.pl0_pauser.as_bytes());
+    hasher.update(manifest.header.flags.as_bytes());
+    hasher.update(manifest.fmc.load_addr.as_bytes());
+    hasher.update(manifest.fmc.entry_point.as_bytes());
+    hasher.update(manifest.runtime.load_addr.as_bytes());
+    hasher.update(manifest.runtime.entry_point.as_bytes());
+
+    hasher.finalize().into()
 }

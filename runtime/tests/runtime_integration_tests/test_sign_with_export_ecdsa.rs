@@ -236,7 +236,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         handle: ContextHandle::default(),
         data: [0xa; DPE_PROFILE.get_tci_size()],
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: u32::from_be_bytes(*b"MBVP"),
+        tci_type: u32::from_be_bytes(*b"CCIV"),
         target_locality: 0,
     };
 
@@ -316,7 +316,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
         handle: ContextHandle::default(),
         data: [0xa; DPE_PROFILE.get_tci_size()],
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: u32::from_be_bytes(*b"MBVP"),
+        tci_type: u32::from_be_bytes(*b"CCIV"),
         target_locality: 0,
     };
 
