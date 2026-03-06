@@ -19,10 +19,9 @@ This is a combined runtime and FMC release.
 - Encrypted Firmware Support (Subsystem Mode):
   - CM_AES_GCM_DECRYPT_DMA command for in-place AES-256-GCM decryption of data at an AXI address, with SHA384 integrity check of ciphertext before decryption.
   - Works with the ROM RI_DOWNLOAD_ENCRYPTED_FIRMWARE command to support encrypted MCU firmware booting.
-- DPE Updates for MLDSA:
-  - Full MLDSA87 certificate chain: GET_IDEV_MLDSA87_CERT, POPULATE_IDEV_MLDSA87_CERT, GET_IDEV_MLDSA87_INFO, GET_LDEV_MLDSA87_CERT, GET_FMC_ALIAS_MLDSA87_CERT, GET_RT_ALIAS_MLDSA87_CERT. GET_CERTIFICATE_CHAIN also returns ML-DSA DPE leaf certificates and CSRs.
+  - Full MLDSA87 certificate chain: GET_IDEV_MLDSA87_CERT, POPULATE_IDEV_MLDSA87_CERT, GET_IDEV_MLDSA87_INFO, GET_LDEV_MLDSA87_CERT, GET_FMC_ALIAS_MLDSA87_CERT, GET_RT_ALIAS_MLDSA87_CERT, and ML-DSA DPE leaf certificates and CSRs through INVOKE_DPE_MLDSA87.
+  - INVOKE_DPE_MLDSA87 command for all DPE operations with ML-DSA-87 support.
   - CERTIFY_KEY_EXTENDED_MLDSA87 command for producing ML-DSA-87 DPE leaf certificates or CSRs with custom extensions.
-  - INVOKE_DPE_MLDSA87 command for DPE operations with MLDSA87 signing support.
 - MLKEM & SHAKE Mailbox Commands:
   - ML-KEM-1024 (FIPS 203): CM_MLKEM_KEY_GEN, CM_MLKEM_ENCAPSULATE, CM_MLKEM_DECAPSULATE for post-quantum key encapsulation.
   - SHAKE256 streaming hash: CM_SHAKE256_INIT, CM_SHAKE256_UPDATE, CM_SHAKE256_FINAL for extendable-output hashing with encrypted session context.
