@@ -18,6 +18,9 @@ on:
       fpga-itrng:
         default: true
         type: boolean
+      ocp-lock:
+        default: true
+        type: boolean
       hw-version:
         default: "latest"
         type: string
@@ -35,6 +38,9 @@ on:
   workflow_dispatch:
     inputs:
       fpga-itrng:
+        default: true
+        type: boolean
+      ocp-lock:
         default: true
         type: boolean
 
@@ -146,6 +152,9 @@ jobs:
 
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_realtime,${{ inputs.extra-features }}
+            if [ "${{ inputs.ocp-lock }}" == "true" ]; then
+              FEATURES="${FEATURES},ocp-lock"
+            fi
           else
             FEATURES=fpga_realtime,itrng
           fi
