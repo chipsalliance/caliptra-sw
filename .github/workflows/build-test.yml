@@ -229,6 +229,16 @@ jobs:
         run: |
           (cd test/dpe_verification && make run)
 
+      - name: Rust HW_Model Build Integration Test
+        run: |
+          mkdir /tmp/dep-test
+          cd /tmp/dep-test
+          cargo init
+          cat >> Cargo.toml <<EOF
+          caliptra-hw-model = { git = "file://${GITHUB_WORKSPACE}", default-features = false }
+          EOF
+          cargo build
+
   all_checks_passed:
     needs: [build, test_unit, test_compliance, test_rom, test_integration]
     runs-on: ubuntu-24.04
