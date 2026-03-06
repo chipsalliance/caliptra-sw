@@ -103,7 +103,7 @@ fn main() {
         let (fmc_type, app_type) = if args.contains_id("zeros") {
             (firmware::FMC_ZEROS, firmware::APP_ZEROS)
         } else {
-            (firmware::FMC_WITH_UART, firmware::APP_WITH_UART)
+            (firmware::FMC_WITH_UART, firmware::APP_WITH_UART_OCP_LOCK)
         };
 
         // Generate Image Bundle
@@ -150,7 +150,7 @@ fn main() {
         // Generate Image Bundle
         let image = caliptra_builder::build_and_sign_image(
             &firmware::FMC_FAKE_WITH_UART,
-            &firmware::APP_WITH_UART,
+            &firmware::APP_WITH_UART_OCP_LOCK,
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
