@@ -63,8 +63,9 @@ fn test_rt_journey_pcr_validation() {
     )
     .unwrap();
 
-    // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    while !model.boot_complete() {
+        model.step();
+    }
 
     let _ = model
         .mailbox_execute(0xD000_0000, &[0u8; TCI_SIZE])
@@ -132,8 +133,9 @@ fn test_rt_current_pcr_validation() {
     )
     .unwrap();
 
-    // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    while !model.boot_complete() {
+        model.step();
+    }
 
     let _ = model
         .mailbox_execute(0xD000_0001, &[0u8; TCI_SIZE])
@@ -302,13 +304,7 @@ fn test_warm_reset_debug_unlocked() {
         ..Default::default()
     });
 
-    // Wait for runtime
-    while !model
-        .soc_ifc()
-        .cptra_flow_status()
-        .read()
-        .ready_for_runtime()
-    {
+    while !model.boot_complete() {
         model.step();
     }
 

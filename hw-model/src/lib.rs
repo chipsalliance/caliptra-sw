@@ -1005,6 +1005,23 @@ pub trait HwModel: SocManager {
     /// should come via a caliptra_top wire rather than an APB register.
     fn ready_for_fw(&self) -> bool;
 
+    // TODO: refactor all uses of ready_for_fw() to use this method,
+    // since otherwise resets can be flaky.
+    /// Returns true if Caliptra core (and MCU if applicable) have completed
+    /// their boot flows.
+    fn boot_complete(&mut self) -> bool {
+        self.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_runtime()
+            && self.boot_complete_mcu()
+    }
+
+    /// Returns true if MCU (if present) has complete its firmware boot flow.
+    fn boot_complete_mcu(&mut self) -> bool {
+        true
+    }
+
     /// Initializes the fuse values and locks them in until the next reset. This
     /// function can only be called during early boot, shortly after the model
     /// is created with `new_unbooted()`.
