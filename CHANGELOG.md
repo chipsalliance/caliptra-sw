@@ -1,3 +1,22 @@
+# fw-2.1.0
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.0 Release Notes
+
+### Features
+
+- OCP LOCK:
+  - Support for [OCP LOCK v1.0rc2](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf).
+    - The specification will be updated to match the implementation
+  - Introduced 16 new mailbox commands to handle the complete OCP LOCK lifecycle:
+    - MEK Management: INITIALIZE_MEK_SECRET, GENERATE_MEK, DERIVE_MEK, LOAD_MEK, UNLOAD_MEK
+    - MPK Management: GENERATE_MPK, ENABLE_MPK, MIX_MPK, REWRAP_MPK
+    - Access Control & HPKE: ENUMERATE_HPKE_HANDLES, GET_HPKE_PUB_KEY, ROTATE_HPKE_KEY, TEST_ACCESS_KEY
+    - Hardware Engine & Status: CLEAR_KEY_CACHE, GET_STATUS, GET_ALGORITHMS
+  - Encryption Engine: Integrates with the Encryption Engine to securely release keys over DMA, handle execution timeouts, and perform hardware-backed key zeroization.
+  - OCP LOCK is gated behind the ocp-lock compile-time feature flag.
+
 # rom-2.1.0
 
 ## Caliptra ROM 2.1.0 Release Notes
