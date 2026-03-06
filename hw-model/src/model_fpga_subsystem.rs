@@ -2492,6 +2492,11 @@ impl HwModel for ModelFpgaSubsystem {
         }
         Some(OcpLockState { mek })
     }
+
+    fn boot_complete_mcu(&mut self) -> bool {
+        self.mci_boot_milestones()
+            .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {
