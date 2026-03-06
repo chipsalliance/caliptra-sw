@@ -73,6 +73,7 @@ const SIGNATURE_S: [u8; 48] = [
 ];
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_invalid_manifest_marker() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -112,6 +113,7 @@ fn test_invalid_manifest_marker() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_invalid_manifest_size() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -653,6 +655,7 @@ fn test_preamble_dot_owner_pubkey_digest_success() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -733,6 +736,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_preamble_vendor_lms_pubkey_revocation() {
     // this test is too slow to run in the verilator nightly
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
@@ -1744,6 +1748,7 @@ fn test_toc_fmc_size_zero() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_toc_fmc_range_overlap() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {

@@ -70,6 +70,7 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_fw_info() {
     let fpga = cfg!(feature = "fpga_subsystem");
     let app = if fpga {

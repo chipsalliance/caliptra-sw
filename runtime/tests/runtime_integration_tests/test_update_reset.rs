@@ -540,6 +540,7 @@ fn assert_target_svn_too_large(model: &mut DefaultHwModel, target_svn: u32) {
 const MAX_SVN: u32 = 128;
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_key_ladder_cold_boot() {
     let mut model = run_rt_test(RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
@@ -573,6 +574,7 @@ fn test_key_ladder_cold_boot() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_key_ladder_runtime_update() {
     let mut model = run_rt_test(RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
