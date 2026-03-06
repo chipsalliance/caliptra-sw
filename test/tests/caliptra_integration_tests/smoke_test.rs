@@ -738,14 +738,9 @@ fn smoke_test() {
             let rt_alias_cert = openssl::x509::X509::from_der(rt_alias_cert_der).unwrap();
             let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
-            println!(
-                "Manifest Runtime digest is {:02x?}",
-                image.manifest.runtime.digest.as_bytes()
-            );
             let expected_rt_alias_key = RtAliasKey::derive(
                 &PcrRtCurrentInput {
                     runtime_digest: image.manifest.runtime.digest,
-                    manifest: image.manifest,
                 },
                 &expected_fmc_alias_key,
             );
@@ -1120,7 +1115,12 @@ fn test_rt_wdt_timeout() {
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let init_params = caliptra_hw_model::InitParams {
+        fuses: Fuses {
+            fuse_pqc_key_type: pqc_key_type as u32,
+            ..Default::default()
+        },
         rom: &rom,
         security_state,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
@@ -1128,10 +1128,15 @@ fn test_rt_wdt_timeout() {
         ..Default::default()
     };
 
+    let image_options = ImageOptions {
+        pqc_key_type,
+        ..Default::default()
+    };
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
-        ImageOptions::default(),
+        image_options.clone(),
     )
     .unwrap();
 
@@ -1163,7 +1168,12 @@ fn test_rt_wdt_timeout() {
         ..Default::default()
     };
 
-    let mut hw = run_test(None, None, Some(init_params), Some(boot_params));
+    let mut hw = run_test(
+        None,
+        Some(image_options),
+        Some(init_params),
+        Some(boot_params),
+    );
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
@@ -1215,9 +1225,12 @@ fn test_fmc_wdt_timeout() {
             ..Default::default()
         };
 
-        let image =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
+        let image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options.clone(),
+        )
+        .unwrap();
 
         let mut hw = caliptra_hw_model::new(
             init_params,
@@ -1254,7 +1267,12 @@ fn test_fmc_wdt_timeout() {
             ..Default::default()
         };
 
-        let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+        let mut hw = caliptra_test::run_test(
+            None,
+            Some(image_options),
+            Some(init_params),
+            Some(boot_params),
+        );
 
         hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
         assert_eq!(

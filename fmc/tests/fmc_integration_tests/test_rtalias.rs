@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
+    firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -131,7 +131,6 @@ fn test_pcr_log() {
             &FMC_WITH_UART,
             &MOCK_RT_INTERACTIVE,
             ImageOptions {
-                app_version: 1,
                 pqc_key_type: *pqc_key_type,
                 ..Default::default()
             },
@@ -139,9 +138,8 @@ fn test_pcr_log() {
         .unwrap();
         let image2 = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
-            &MOCK_RT_INTERACTIVE,
+            &APP_WITH_UART,
             ImageOptions {
-                app_version: 2,
                 pqc_key_type: *pqc_key_type,
                 ..Default::default()
             },
@@ -175,22 +173,13 @@ fn test_pcr_log() {
         );
 
         let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest);
-        let manifest_digest1 = openssl::sha::sha384(image1.manifest.as_bytes());
-
-        check_pcr_log_entry(
-            &pcr_entry_arr,
-            fht.pcr_log_index - 2,
-            PcrLogEntryId::RtTci,
-            PCR2_AND_PCR3_EXTENDED_ID,
-            rt_tci1.as_bytes(),
-        );
 
         check_pcr_log_entry(
             &pcr_entry_arr,
             fht.pcr_log_index - 1,
-            PcrLogEntryId::FwImageManifest,
+            PcrLogEntryId::RtTci,
             PCR2_AND_PCR3_EXTENDED_ID,
-            &manifest_digest1,
+            rt_tci1.as_bytes(),
         );
 
         // Fetch and validate PCR values against the log.
@@ -208,8 +197,23 @@ fn test_pcr_log() {
         assert_eq!(pcr2_from_log, pcr2_from_hw);
         assert_eq!(pcr3_from_log, pcr3_from_hw);
 
-        // Trigger an update reset with "new" firmware
-        hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image2.to_bytes().unwrap())
+        // Trigger an update reset with new firmware
+        // This FW has to be different for the PCR to be updated
+        hw.mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &image2.to_bytes().unwrap(),
+        )
+        .unwrap();
+
+        // Calculate expected journey PCR value after the update reset
+        let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
+        let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
+        hasher.update(&pcr3_from_log).unwrap();
+        hasher.update(rt_tci2.as_bytes()).unwrap();
+        let pcr3_after_image2: [u8; 48] = hasher.finish().unwrap().as_ref().try_into().unwrap();
+
+        // Trigger an update reset back to original FW with test commands
+        hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image1.to_bytes().unwrap())
             .unwrap();
 
         if cfg!(not(feature = "fpga_realtime")) {
@@ -232,27 +236,16 @@ fn test_pcr_log() {
             (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
         );
 
-        let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
-        let manifest_digest2 = openssl::sha::sha384(image2.manifest.as_bytes());
-
-        check_pcr_log_entry(
-            &pcr_entry_arr,
-            fht.pcr_log_index - 2,
-            PcrLogEntryId::RtTci,
-            PCR2_AND_PCR3_EXTENDED_ID,
-            rt_tci2.as_bytes(),
-        );
-
         check_pcr_log_entry(
             &pcr_entry_arr,
             fht.pcr_log_index - 1,
-            PcrLogEntryId::FwImageManifest,
+            PcrLogEntryId::RtTci,
             PCR2_AND_PCR3_EXTENDED_ID,
-            &manifest_digest2,
+            rt_tci1.as_bytes(),
         );
 
         let pcr2_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId2);
-        let pcr3_from_log = hash_pcr_log_entries(&pcr3_from_log, &pcr_entry_arr, PcrId::PcrId3);
+        let pcr3_from_log = hash_pcr_log_entries(&pcr3_after_image2, &pcr_entry_arr, PcrId::PcrId3);
 
         // Fetch and validate PCR values against the log.
         let pcrs = hw.mailbox_execute(0x1000_0002, &[]).unwrap().unwrap();
