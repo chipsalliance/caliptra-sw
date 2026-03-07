@@ -11,6 +11,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::HwModel;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
+use caliptra_test::DEFAULT_MCU_FW;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -81,6 +82,11 @@ fn test_stash_measurement() {
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
+    if model.subsystem_mode() {
+        let mut mcu_hasher = Sha384::new();
+        mcu_hasher.update(DEFAULT_MCU_FW);
+        hasher.update(mcu_hasher.finalize());
+    }
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();
 

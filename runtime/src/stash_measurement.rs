@@ -26,6 +26,8 @@ use dpe::{
 };
 use zerocopy::{FromBytes, IntoBytes};
 
+const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
+
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -46,6 +48,13 @@ impl StashMeasurementCmd {
                 }
             }
 
+            // Check for MCU FW ID and swap it's TCI type
+            let tci_type = if metadata == &[2, 0, 0, 0] {
+                MCU_TCI_TYPE
+            } else {
+                u32::from_ne_bytes(*metadata)
+            };
+
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
@@ -59,7 +68,7 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                     | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type: u32::from_ne_bytes(*metadata),
+                tci_type,
                 target_locality: locality,
                 svn,
             };

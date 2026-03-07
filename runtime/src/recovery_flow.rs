@@ -110,6 +110,8 @@ impl RecoveryFlow {
             fw_id: [2, 0, 0, 0],
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
+            // We want to make sure this measurement is not skipped.
+            flags: 0,
             ..Default::default()
         };
 

@@ -43,6 +43,50 @@ use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
 use zerocopy::{FromBytes, IntoBytes};
 
+#[derive(asn1::Asn1Read)]
+struct Fwid<'a> {
+    pub(crate) _hash_alg: asn1::ObjectIdentifier,
+    pub(crate) _digest: &'a [u8],
+}
+
+#[derive(asn1::Asn1Read)]
+struct IntegrityRegister<'a> {
+    #[implicit(0)]
+    _register_name: Option<asn1::IA5String<'a>>,
+    #[implicit(1)]
+    _register_num: Option<u64>,
+    #[implicit(2)]
+    _register_digests: Option<asn1::SequenceOf<'a, Fwid<'a>>>,
+}
+
+#[derive(asn1::Asn1Read)]
+struct TcbInfo<'a> {
+    #[implicit(0)]
+    _vendor: Option<asn1::Utf8String<'a>>,
+    #[implicit(1)]
+    _model: Option<asn1::Utf8String<'a>>,
+    #[implicit(2)]
+    _version: Option<asn1::Utf8String<'a>>,
+    #[implicit(3)]
+    _svn: Option<u64>,
+    #[implicit(4)]
+    _layer: Option<u64>,
+    #[implicit(5)]
+    _index: Option<u64>,
+    #[implicit(6)]
+    _fwids: Option<asn1::SequenceOf<'a, Fwid<'a>>>,
+    #[implicit(7)]
+    _flags: Option<asn1::BitString<'a>>,
+    #[implicit(8)]
+    _vendor_info: Option<&'a [u8]>,
+    #[implicit(9)]
+    pub tci_type: Option<&'a [u8]>,
+    #[implicit(10)]
+    _operational_flags_mask: Option<asn1::BitString<'a>>,
+    #[implicit(11)]
+    _integrity_registers: Option<asn1::SequenceOf<'a, IntegrityRegister<'a>>>,
+}
+
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -681,4 +725,59 @@ fn test_subsystem_response_buffer_limits() {
 
     let resp_bytes = resp.as_bytes_partial().unwrap();
     check_dpe_status(resp_bytes, DpeErrorCode::InvalidMutRefBuf);
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_subsystem_leaf_cert_contains_mcfw_tci_type() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile,
+            format: CertifyKeyCommand::FORMAT_X509,
+            ..Default::default()
+        });
+
+        let certify_key_resp = execute_dpe_cmd(
+            &mut model,
+            profile,
+            &mut Command::from(&certify_key_cmd),
+            DpeResult::Success,
+        )
+        .unwrap();
+
+        let Response::CertifyKey(certify_key_resp) = certify_key_resp else {
+            panic!("Wrong response type!");
+        };
+
+        let cert_bytes = certify_key_resp.cert().unwrap();
+
+        let (_, cert) = X509CertificateParser::new()
+            .with_deep_parse_extensions(true)
+            .parse(cert_bytes)
+            .unwrap();
+
+        let multi_tcb_info_oid = x509_parser::oid_registry::asn1_rs::oid!(2.23.133 .5 .4 .5);
+        let ext = cert
+            .get_extension_unique(&multi_tcb_info_oid)
+            .unwrap()
+            .expect("MultiTcbInfo extension missing");
+
+        let parsed_tcb_infos = asn1::parse_single::<asn1::SequenceOf<TcbInfo>>(ext.value).unwrap();
+
+        let mcu_tci_type = u32::from_be_bytes(*b"MCFW");
+        let found_mcfw = parsed_tcb_infos
+            .filter(|tcb_info| tcb_info.tci_type == Some(mcu_tci_type.as_bytes()))
+            .count()
+            == 1;
+        assert!(found_mcfw);
+    }
 }

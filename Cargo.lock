@@ -974,6 +974,7 @@ dependencies = [
  "aes-gcm",
  "anyhow",
  "arrayvec",
+ "asn1",
  "bitfield",
  "bitflags 2.11.0",
  "caliptra-api",

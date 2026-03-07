@@ -224,6 +224,11 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
+    if model.subsystem_mode() {
+        let mut mcu_hasher = Sha384::new();
+        mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
+        hasher.update(mcu_hasher.finalize());
+    }
     let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
@@ -284,6 +289,11 @@ fn test_authorize_and_stash_cmd_success() {
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
     hasher.update(valid_pauser_hash);
+    if model.subsystem_mode() {
+        let mut mcu_hasher = Sha384::new();
+        mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
+        hasher.update(mcu_hasher.finalize());
+    }
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
 

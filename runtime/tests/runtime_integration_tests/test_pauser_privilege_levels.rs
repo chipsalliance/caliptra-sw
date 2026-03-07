@@ -632,7 +632,12 @@ fn test_stash_measurement_pl_context_thresholds() {
     });
 
     // Root node and RT journey (which is technically the Caliptra locality) count as PL0
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2;
+    // In subsystem mode, the MCU FW is also measured into a PL0 context.
+    let num_iterations = if model.subsystem_mode() {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    };
     let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],

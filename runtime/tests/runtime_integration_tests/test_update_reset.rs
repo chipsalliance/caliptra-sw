@@ -411,7 +411,13 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
     // the mbox valid pausers measurement and RT journey measurement already count as PL0
     // so creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD suffices
-    for i in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) {
+    let num_iterations = if model.subsystem_mode() {
+        // Subsystem uses a context for MCU FW
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
+    };
+    for i in 0..num_iterations {
         // skip first two contexts measured by RT
         let idx = i + 2;
         // create simulation contexts in PL0
