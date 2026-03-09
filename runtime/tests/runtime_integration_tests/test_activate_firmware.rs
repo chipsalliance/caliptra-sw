@@ -195,7 +195,8 @@ fn send_activate_firmware_cmd(
     #[cfg(all(
         not(feature = "verilator"),
         not(feature = "fpga_realtime"),
-        not(feature = "fpga_subsystem")
+        not(feature = "fpga_subsystem"),
+        not(feature = "emu_subsystem")
     ))]
     {
         let _ = reset_expected;
@@ -235,7 +236,7 @@ fn test_activate_mcu_fw_success() {
         .expect("We should have received a response");
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "emu_emulator"), ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {

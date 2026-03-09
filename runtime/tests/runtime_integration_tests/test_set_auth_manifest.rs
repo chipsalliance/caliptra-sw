@@ -849,7 +849,7 @@ fn test_set_auth_manifest_svn_eq_128() {
 
 #[test]
 // Subsystem load soc_manifest via RRI and it will never be to succeed verification
-#[cfg(not(feature = "fpga_subsystem"))]
+#[cfg(not(feature = "fpga_subsystem", feature = "emu_subsystem"))]
 fn test_set_auth_manifest_svn_gt_128() {
     let rt_args = RuntimeTestArgs {
         security_state: Some(
