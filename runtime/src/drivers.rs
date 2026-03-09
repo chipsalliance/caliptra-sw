@@ -595,6 +595,10 @@ impl Drivers {
     /// Initialize DPE with measurements and store in Drivers
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
+        // NOTE: All initialization in this function is done using the ECC P384 profile because
+        // these operations are profile agnostic. Using the ML-DSA-87 profile would have an equal
+        // outcome.
+
         let manifest = drivers.persistent_data.get().rom.manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
