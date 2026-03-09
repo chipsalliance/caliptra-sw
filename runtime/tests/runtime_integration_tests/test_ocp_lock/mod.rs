@@ -235,6 +235,26 @@ struct ValidatedHpkeHandle {
     pub_key: Vec<u8>,
 }
 
+impl ValidatedHpkeHandle {
+    pub fn overwrite_encap_key(&mut self) {
+        self.pub_key = match self.hpke_handle.hpke_algorithm {
+            HpkeAlgorithms::ML_KEM_1024_HKDF_SHA384_AES_256_GCM => {
+                let hpke = hpke::HpkeMlKem1024::generate_key_pair();
+                hpke.serialize_ek()
+            }
+            HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+                let hpke = hpke::HpkeHybrid::generate_key_pair();
+                hpke.serialize_ek()
+            }
+            HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM => {
+                let hpke = hpke::HpkeP384::generate_key_pair();
+                hpke.serialize_ek()
+            }
+            _ => panic!("Unknown HPKE algorithm"),
+        }
+    }
+}
+
 fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<HpkeHandle> {
     let mut cmd =
         MailboxReq::OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq::default());

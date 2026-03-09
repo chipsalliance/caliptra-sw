@@ -56,8 +56,7 @@ fn test_generate_mpk() {
     });
 }
 
-// TODO(clundin): Update default HEK / pass in explicitly to make pass on emu.
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_generate_mpk_invalid_hpke_key() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -67,9 +66,8 @@ fn test_generate_mpk_invalid_hpke_key() {
     });
 
     let mut endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
-
-    // Scramble pub key so shared secret is incorrect.
-    endorsed_handle.pub_key[5..10].clone_from_slice(&[0xAA; 5]);
+    // Overwrite Caliptra's pub key with a random one.
+    endorsed_handle.overwrite_encap_key();
 
     let info = [0xDE; 256];
     let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];

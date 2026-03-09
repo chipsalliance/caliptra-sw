@@ -90,7 +90,7 @@ fn test_rewrap_mpk() {
     assert_eq!(mpk1, mpk2);
 }
 
-#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_rewrap_invalid_hpke_key() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -118,10 +118,11 @@ fn test_rewrap_invalid_hpke_key() {
     })
     .unwrap();
 
-    // Scramble pub key so shared secret is incorrect.
-    endorsed_handle.pub_key[5..10].clone_from_slice(&[0xAA; 5]);
-
     let new_access_key = [0xCD; 32];
+
+    // Overwrite Caliptra's pub key with a random one.
+    endorsed_handle.overwrite_encap_key();
+
     let cmd = create_rewrap_mpk_req(
         &endorsed_handle,
         &info,
