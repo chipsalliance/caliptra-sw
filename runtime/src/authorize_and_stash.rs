@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::manifest::find_metadata_entry;
-use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
+use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -39,10 +39,20 @@ impl AuthorizeAndStashCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        let caller_privilege_level = drivers.caller_privilege_level();
+        match caller_privilege_level {
+            // Only PL0 can call STASH_MEASUREMENT
+            PauserPrivileges::PL0 => (),
+            PauserPrivileges::PL1 => {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
+        }
+        let locality = drivers.mbox.id();
+
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
             let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
-            resp.auth_req_result = Self::authorize_and_stash(drivers, cmd)?;
+            resp.auth_req_result = Self::authorize_and_stash(drivers, cmd, locality)?;
             Ok(core::mem::size_of::<AuthorizeAndStashResp>())
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
@@ -54,6 +64,7 @@ impl AuthorizeAndStashCmd {
     pub(crate) fn authorize_and_stash(
         drivers: &mut Drivers,
         cmd: &AuthorizeAndStashReq,
+        locality: u32,
     ) -> CaliptraResult<u32> {
         let source = ImageHashSource::from(cmd.source);
         if source == ImageHashSource::Invalid {
@@ -133,6 +144,8 @@ impl AuthorizeAndStashCmd {
                     &cmd.fw_id,
                     &cmd.measurement,
                     cmd.svn,
+                    drivers.caller_privilege_level(),
+                    locality,
                 )?;
                 if dpe_result != DpeErrorCode::NoError {
                     drivers

@@ -670,7 +670,8 @@ impl Drivers {
 
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
-        let derive_context_resp = &mut [0u8; size_of::<DeriveContextResp>()];
+        let mut derive_context_resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
+        let derive_context_resp = derive_context_resp_buf.as_mut_bytes();
         let result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(<[u8; 48]>::from(initialization_values_hash)),

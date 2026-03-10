@@ -103,6 +103,14 @@ impl RecoveryFlow {
             (digest, mcu_size_bytes)
         };
 
+        let pl0_pauser_locality = drivers
+            .persistent_data
+            .get()
+            .rom
+            .manifest1
+            .header
+            .pl0_pauser;
+
         let digest: [u8; 48] = digest.into();
         cprintln!("[rt] Verifying MCU digest: {}", HexBytes(&digest));
         // verify the digest
@@ -110,10 +118,16 @@ impl RecoveryFlow {
             fw_id: [2, 0, 0, 0],
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
+            // We want to make sure this measurement is not skipped.
+            flags: 0,
             ..Default::default()
         };
 
-        let auth_result = AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)?;
+        let auth_result = AuthorizeAndStashCmd::authorize_and_stash(
+            drivers,
+            &auth_and_stash_req,
+            pl0_pauser_locality,
+        )?;
 
         {
             let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();

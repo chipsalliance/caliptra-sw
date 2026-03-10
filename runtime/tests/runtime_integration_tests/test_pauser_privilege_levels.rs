@@ -72,7 +72,12 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     // 2 PL0 contexts are used by default by Caliptra. When we initialize DPE, we measure mailbox valid pausers in pl0_pauser's locality.
     // The RT Journey measurement also is counted against PL0's limit. Thus, we can call derive child
     // from PL0 exactly 14 times, and the last iteration of this loop, is expected to throw a threshold reached error.
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1;
+    let num_iterations = if model.subsystem_mode() {
+        // Subsystem uses a context for the MCU FW
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
+    };
     for i in 0..num_iterations {
         let derive_context_cmd = DeriveContextCmd {
             handle,
@@ -191,7 +196,11 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
     });
 
     // 2 PL0 contexts are used by Caliptra
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1;
+    let num_iterations = if model.subsystem_mode() {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
+    };
     for i in 0..num_iterations {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
 
@@ -632,7 +641,12 @@ fn test_stash_measurement_pl_context_thresholds() {
     });
 
     // Root node and RT journey (which is technically the Caliptra locality) count as PL0
-    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2;
+    // In subsystem mode, the MCU FW is also measured into a PL0 context.
+    let num_iterations = if model.subsystem_mode() {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    };
     let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],
@@ -677,7 +691,13 @@ fn test_measurement_log_pl_context_threshold() {
     // Upload (PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) measurements to measurement log
     // Since 2 measurements taken by Caliptra upon startup, this will cause
     // the PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD to be breached.
-    for idx in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) as u8 {
+    let invocations = if model.subsystem_mode() {
+        // MCU uses an extra DPE context
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+    } else {
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
+    };
+    for idx in 0..invocations as u8 {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
             hdr: MailboxReqHeader { chksum: 0 },
@@ -691,7 +711,7 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement_req = MailboxReq::StashMeasurement(measurement);
         measurement_req.populate_chksum().unwrap();
 
-        if idx == PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD as u8 - 2 {
+        if idx as usize == invocations - 1 {
             model
                 .upload_measurement(measurement_req.as_bytes().unwrap())
                 .unwrap_err();

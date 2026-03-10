@@ -215,9 +215,20 @@ impl ActivateFirmwareCmd {
                 ..Default::default()
             };
 
-            AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)
-                .map(|_| ())
-                .map_err(|_| ())?;
+            let pl0_pauser_locality = drivers
+                .persistent_data
+                .get()
+                .rom
+                .manifest1
+                .header
+                .pl0_pauser;
+            AuthorizeAndStashCmd::authorize_and_stash(
+                drivers,
+                &auth_and_stash_req,
+                pl0_pauser_locality,
+            )
+            .map(|_| ())
+            .map_err(|_| ())?;
 
             drivers.persistent_data.get_mut().fw.mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }

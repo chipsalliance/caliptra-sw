@@ -415,23 +415,50 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
-    // make dpe.contexts[1].handle non-default in order to pass dpe state validation
-    dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
-    // the mbox valid pausers measurement and RT journey measurement already count as PL0
-    // so creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD suffices
-    for i in 0..(PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) {
-        // skip first two contexts measured by RT
-        let idx = i + 2;
-        // create simulation contexts in PL0
-        dpe.contexts[idx].state = ContextState::Active;
-        dpe.contexts[idx].context_type = ContextType::Simulation;
-        dpe.contexts[idx].locality = pl0_pauser;
-        dpe.contexts[idx].tci.locality = pl0_pauser;
-        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; TCI_SIZE]);
-        dpe.contexts[idx].tci.tci_cumulative = TciMeasurement([idx as u8; TCI_SIZE]);
-        dpe.contexts[idx].handle = ContextHandle([idx as u8; ContextHandle::SIZE]);
+
+    // Count currently active PL0 contexts
+    let mut pl0_context_count = 0;
+    let mut last_pl0_idx = 0;
+    for (idx, context) in dpe.contexts.iter().enumerate() {
+        if context.state == ContextState::Active && context.locality == pl0_pauser {
+            pl0_context_count += 1;
+            last_pl0_idx = idx;
+        }
+    }
+
+    // Add more PL0 contexts until we hit the threshold
+    let mut current_idx = 0;
+    while pl0_context_count < PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD {
+        if dpe.contexts[current_idx].state == ContextState::Inactive {
+            let idx = current_idx;
+            dpe.contexts[idx].state = ContextState::Active;
+            dpe.contexts[idx].context_type = ContextType::Normal;
+            dpe.contexts[idx].locality = pl0_pauser;
+            dpe.contexts[idx].tci.locality = pl0_pauser;
+            dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; TCI_SIZE]);
+            dpe.contexts[idx].tci.tci_cumulative = TciMeasurement([idx as u8; TCI_SIZE]);
+
+            // Ensure the parent (which might have been the default) now has a non-default handle
+            if dpe.contexts[last_pl0_idx].handle.is_default() {
+                dpe.contexts[last_pl0_idx].handle = ContextHandle([0xEE; ContextHandle::SIZE]);
+            }
+
+            // Use a unique non-default handle
+            let mut handle = [0u8; ContextHandle::SIZE];
+            handle[0] = 0xFF; // Ensure non-default
+            handle[1] = idx as u8;
+            dpe.contexts[idx].handle = ContextHandle(handle);
+
+            // link to previous PL0 context
+            dpe.contexts[idx].parent_idx = last_pl0_idx as u8;
+            dpe.contexts[last_pl0_idx].children.add_child(idx).unwrap();
+
+            last_pl0_idx = idx;
+            pl0_context_count += 1;
+        }
+        current_idx += 1;
+        assert!(current_idx < dpe::MAX_HANDLES);
     }
     let _ = model
         .mailbox_execute(0xB000_0000, dpe.as_bytes())
