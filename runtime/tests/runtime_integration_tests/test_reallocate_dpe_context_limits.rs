@@ -21,15 +21,13 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
         ..Default::default()
     };
 
-    // MAX_HANDLES contexts = 1 root node (PL0)+
-    //               1 rt_journey (PL0)
-    //               (pl0_limit - 2) PL0 contexts in loop +
-    //               1 PL1 context as transition +
-    //               (pl1_limit - 1) PL1 contexts in loop
+    // In subsystem mode, Caliptra uses 3 base PL0 contexts (root + RT journey + MCU FW);
+    // otherwise, 2 (root + RT journey).
+    let caliptra_base_pl0: u32 = if model.subsystem_mode() { 3 } else { 2 };
 
     // Fill PL0 contexts
     println!("Filling PL0 contexts up to limit {}", pl0_limit);
-    for _ in 0..(pl0_limit - 2) {
+    for _ in 0..(pl0_limit - caliptra_base_pl0) {
         let _ = execute_dpe_cmd(
             model,
             &mut Command::from(&base_derive_context_cmd),
@@ -98,7 +96,13 @@ fn reallocate_pl0_pl1_dpe_contexts(
 
 #[test]
 fn test_pl0_pl1_reallocation_range() {
-    for pl0_limit in 2..dpe::MAX_HANDLES as u32 {
+    // In subsystem mode, Caliptra uses 3 base PL0 contexts (root + RT journey + MCU FW);
+    // we cannot reallocate below the used count.
+    let first_model = run_rt_test(RuntimeTestArgs::default());
+    let min_pl0_limit: u32 = if first_model.subsystem_mode() { 3 } else { 2 };
+    drop(first_model);
+
+    for pl0_limit in min_pl0_limit..dpe::MAX_HANDLES as u32 {
         println!("\n\n\tPL0 Limit {}\n\n", pl0_limit);
         let mut model = run_rt_test(RuntimeTestArgs::default());
         let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, pl0_limit)
@@ -273,8 +277,11 @@ fn test_pl0_pl1_reallocation_warm_reset() {
         .unwrap();
 
     // Use the rest of the PL0 contexts
-    // (2 contexts are used by Caliptra)
-    for _ in 0..10 {
+    // In subsystem mode, 3 contexts are used by Caliptra (root + RT journey + MCU FW);
+    // otherwise, 2 contexts are used (root + RT journey).
+    let caliptra_contexts: u32 = if model.subsystem_mode() { 3 } else { 2 };
+    let remaining = 24 - caliptra_contexts - 12;
+    for _ in 0..remaining {
         let _ = execute_dpe_cmd(
             &mut model,
             &mut Command::from(&derive_context_cmd),

@@ -33,6 +33,10 @@ retries = 3 # the fpga subsystem is a bit flaky with typically 1 test randomly f
 filter = 'test(test_rt_journey_pcr_validation)'
 slow-timeout = { period = "30s", terminate-after = 10 }
 
+[[profile.fpga-subsystem.overrides]]
+filter = 'test(test_preamble_vendor_lms_pubkey_revocation)'
+slow-timeout = { period = "30s", terminate-after = 10 }
+
 [profile.fpga-subsystem.junit]
 path = "/tmp/junit.xml"
 store-success-output = true
