@@ -118,7 +118,11 @@ register_bitfields! [
         STATUS OFFSET(0) NUMBITS(23) [],
         LDEVID_CERT_READY OFFSET(23) NUMBITS(1) [],
         IDEVID_CSR_READY OFFSET(24) NUMBITS(1) [],
-        BOOT_FSM_PS OFFSET(25) NUMBITS(3) [],
+        BOOT_FSM_PS OFFSET(25) NUMBITS(3) [
+            BOOT_IDLE = 0,
+            BOOT_FUSE = 1,
+            BOOT_DONE = 4,
+        ],
         READY_FOR_FW OFFSET(28) NUMBITS(1) [],
         READY_FOR_RT OFFSET(29) NUMBITS(1) [],
         READY_FOR_FUSES OFFSET(30) NUMBITS(1) [],
@@ -923,7 +927,7 @@ impl SocRegistersImpl {
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
-        flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
+        flow_status.write(FlowStatus::READY_FOR_FUSES::SET + FlowStatus::BOOT_FSM_PS::BOOT_FUSE);
 
         let cptra_offset = 0x3000_0000u64;
         let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
@@ -1181,7 +1185,7 @@ impl SocRegistersImpl {
 
             self.cptra_flow_status
                 .reg
-                .modify(FlowStatus::READY_FOR_FUSES::CLEAR);
+                .modify(FlowStatus::READY_FOR_FUSES::CLEAR + FlowStatus::BOOT_FSM_PS::BOOT_DONE);
         }
         Ok(())
     }
