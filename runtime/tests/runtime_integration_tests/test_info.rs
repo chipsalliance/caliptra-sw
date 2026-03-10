@@ -172,9 +172,20 @@ fn test_fw_info() {
         };
 
         let update_to = |model: &mut DefaultHwModel, image: &[u8]| {
-            model
-                .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image)
-                .unwrap();
+            // In subsystem mode, the MCU ROM may hold the mailbox lock
+            // (e.g., for self-measurement hash computation via Caliptra).
+            // Retry until the lock is available.
+            let mut retries = 2000;
+            loop {
+                match model.mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image) {
+                    Ok(_) => break,
+                    Err(ModelError::UnableToLockMailbox) if retries > 0 => {
+                        retries -= 1;
+                        model.step();
+                    }
+                    Err(e) => panic!("FIRMWARE_LOAD failed: {e}"),
+                }
+            }
 
             model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
         };

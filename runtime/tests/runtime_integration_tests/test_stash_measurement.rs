@@ -1,5 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::{
+    calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW,
+};
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
@@ -13,8 +16,6 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
-
-use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
 
 #[test]
 fn test_stash_measurement() {
@@ -82,6 +83,11 @@ fn test_stash_measurement() {
     let mut hasher = Sha384::new();
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
+    if model.subsystem_mode() {
+        let mut mcu_hasher = Sha384::new();
+        mcu_hasher.update(DEFAULT_MCU_FW);
+        hasher.update(mcu_hasher.finalize());
+    }
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();
 

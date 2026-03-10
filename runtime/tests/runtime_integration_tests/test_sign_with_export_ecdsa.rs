@@ -226,7 +226,11 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: u32::from_be_bytes(*b"CCIV"),
+        tci_type: if model.subsystem_mode() {
+            u32::from_be_bytes(*b"MCFW")
+        } else {
+            u32::from_be_bytes(*b"CCIV")
+        },
         ..Default::default()
     };
 
@@ -302,7 +306,11 @@ fn test_sign_with_exported_cdi_measurement_update() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: u32::from_be_bytes(*b"CCIV"),
+        tci_type: if model.subsystem_mode() {
+            u32::from_be_bytes(*b"MCFW")
+        } else {
+            u32::from_be_bytes(*b"CCIV")
+        },
         ..Default::default()
     };
 
