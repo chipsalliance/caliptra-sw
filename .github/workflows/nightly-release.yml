@@ -178,9 +178,17 @@ jobs:
         with:
           path: /tmp/artifacts
 
-      - name: Package all test artifacts for release
+      - name: Package test artifacts per artifact directory
         run: |
-          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
+          TAG="${{ needs.find-latest-release-2-x.outputs.new_release_tag }}"
+          cd /tmp/artifacts
+          ls -lh
+          du -sh .
+          for dir in */; do
+            dirname="${dir%/}"
+            echo "Zipping ${dirname}"
+            zip -qr "$GITHUB_WORKSPACE/release/test_artifacts_${TAG}_${dirname}.zip" "$dirname"
+          done
 
       - name: Tag repo with new release number
         run: |
@@ -194,7 +202,7 @@ jobs:
         with:
           files: |
             ./release/caliptra_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
-            ./release/test_artifacts_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_*.zip
           tag_name: ${{ needs.find-latest-release-2-x.outputs.new_release_tag }}
           prerelease: true
           # Release as draft. Since immutable releases are enabled we must first create a release as draft so we can upload artifacts and then tag it.
