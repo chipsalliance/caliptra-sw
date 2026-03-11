@@ -199,7 +199,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest), and [`AUTHORIZE_AND_STASH`](#authorize_and_stash).
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -1265,8 +1265,8 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `SET_AUTH_MANIFEST` input arguments*
 
-| **Name**            | **Type**  | **Description**
-| --------            | --------  | ---------------
+| **Name**            | **Type**  | **Description** |
+| --------            | --------  | --------------- |
 | chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
 | manifest size                 | u32          | The size of the full Authentication Manifest                                |
 | preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
@@ -1300,16 +1300,16 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | **Name**               | **Type** | **Description** |
 |------------------------|---------|----------------|
 | Image Hash              | u8[48]      | SHA2-384 hash of a SOC image. |
-| Image_id                | u32            | This corresponds to the `Image Identifier` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Component_id            | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| flags                   | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image_id                | u32            | This corresponds to the `Image Identifier` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Component_id            | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| flags                   | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 
 ### VERIFY_AUTH_MANIFEST
 
@@ -1331,11 +1331,11 @@ Command Code: `0x4154_5348` ("ATSH")
 
 *Table: `AUTHORIZE_AND_STASH` input arguments*
 
-| **Name**    | **Type** | **Description**
-| ------------| -------- | ---------------
+| **Name**    | **Type** | **Description** |
+| ------------| -------- | --------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
 | fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
-| measurement | u8[48]   | Digest of the image requested for authorization. The `source` field needs to be set to '1` for InRequest, otherwise<br />this field is ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| measurement | u8[48]   | Digest of the image requested for authorization. The `source` field needs to be set to '1` for InRequest, otherwise<br />this field is ignored. |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | The version of the image |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
@@ -1352,7 +1352,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB)
+| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) |
 
 ### GET_IMAGE_INFO
 
@@ -1365,7 +1365,7 @@ Command Code: `0x494D_4530` ("IME0")
 | **Name** | **Type** | **Description**                                                                                                                                                                                   |
 | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.                                                                                                                             |
-| fw_id          | u32            | Firmware id of the image, in little-endian format
+| fw_id          | u32            | Firmware id of the image, in little-endian format |
 
 *Table: `GET_IMAGE_INFO` output arguments*
 
@@ -1373,15 +1373,15 @@ Command Code: `0x494D_4530` ("IME0")
 | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.                                                                                                                                    |
 | fips_status    | u32            | Indicates if the command is FIPS approved or an error.                                                                                                                                                        |
-| Component_id      | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| flags          | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
-| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Component_id      | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| flags          | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 
 ### GET\_MCU\_FW\_SIZE
 
@@ -2568,15 +2568,15 @@ Command Code: `0x434D_4453` ("CMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 | key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
 | info          | u8[32]   | Data to use in the key derivation. |
 
 *Table: `CM_DERIVE_STABLE_KEY` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | cmk           | CMK      | CMK that stores the stable key material |
 
@@ -2663,13 +2663,13 @@ Command Code: `0x4944_4352` ("IDCR")
 
 *Table: `GET_IDEV_ECC384_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
 *Table: `GET_IDEV_ECC384_CSR` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded ECC384 IDevID certificate signing request.                     |
@@ -2680,13 +2680,13 @@ Command Code: `0x4944_4d52` ("IDMR")
 
 *Table: `GET_IDEV_MLDSA87_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
 *Table: `GET_IDEV_MLDSA87_CSR` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded MLDSA87 IDevID certificate signing request.                    |
@@ -2705,13 +2705,13 @@ Command Code: `0x464D_4352` ("FMCR")
 
 *Table: `GET_FMC_ALIAS_ECC384_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
 *Table: `GET_FMC_ALIAS_ECC384_CSR` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded ECC384 FMC Alias certificate signing request.                  |
@@ -2722,13 +2722,13 @@ Command Code: `0x464d_4452` ("FMDR")
 
 *Table: `GET_FMC_ALIAS_MLDSA87_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
 *Table: `GET_FMC_ALIAS_MLDSA87_CSR` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded MLDSA87 FMC Alias certificate signing request.                 |
@@ -2741,16 +2741,16 @@ Command Code: `0x4145_4352` ("AECR")
 
 *Table: `GET_ATTESTED_ECC384_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 | key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
 | nonce         | u8[32]   | Nonce to be included in the CSR EAT.|
 
 *Table: `GET_ATTESTED_ECC384_CSR` output arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size     | u32      | Length in bytes of the valid data in the data field.                      |
 | data          | u8[...]  | DER-encoded ECC384 attested certificate signing request.            |
@@ -2763,16 +2763,16 @@ Command Code: `0x414D_4352` ("AMCR")
 
 *Table: `GET_ATTESTED_MLDSA87_CSR` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 | key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
 | nonce         | u8[32]   | Nonce to be included in the CSR EAT. |
 
 *Table: `GET_ATTESTED_MLDSA87_CSR` output arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size     | u32      | Length in bytes of the valid data in the data field.                      |
 | data          | u8[...]  | DER-encoded MLDSA87 attested certificate signing request.            |
@@ -2785,15 +2785,15 @@ Command Code: `0x5357_4545` ("SWEE")
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
-| **Name**             | **Type** | **Description**
-| --------             | -------- | ---------------
+| **Name**             | **Type** | **Description** |
+| --------             | -------- | --------------- |
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
 | tbs                  | u8[48]   | The bytes to be signed. Little endian.                                              |
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` output arguments*
-| **Name**           | **Type** | **Description**
-| --------           | -------- | ---------------
+| **Name**           | **Type** | **Description** |
+| --------           | -------- | --------------- |
 | derived_pubkey_x   | u8[48]   | The X BigNum of the ECDSA public key associated with the signing key.      |
 | derived_pubkey_y   | u8[48]   | The Y BigNum of the ECDSA public key associated with the signing key.      |
 | signature_r        | u8[48]   | The R BigNum of an ECDSA signature.                                        |
@@ -2809,8 +2809,8 @@ Command Code: `5256_4348` ("RVCH")
 
 *Table: `REVOKE_EXPORTED_CDI_HANDLE` input arguments*
 
-| **Name**             | **Type** | **Description**
-| --------             | -------- | ---------------
+| **Name**             | **Type** | **Description** |
+| --------             | -------- | --------------- |
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
 
@@ -2837,8 +2837,8 @@ That external command will still need its own checksum, if applicable.
 
 *Table: `EXTERNAL_MAILBOX_CMD` input arguments*
 
-| **Name**             | **Type** | **Description**
-| --------             | -------- | ---------------
+| **Name**             | **Type** | **Description** |
+| --------             | -------- | --------------- |
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
 | command_id           | u32      | Command ID for the mailbox command to be executed. Little endian.                     |
 | command_size         | u32      | Size of the mailbox command to be executed. Little endian.                               |
@@ -2855,14 +2855,14 @@ Command Code: '5243_5458` ("RCTX")
 
 *Table: `REALLOCATE_DPE_CONTEXT_LIMITS` input arguments*
 
-| **Name**           | **Type** | **Description**
-| --------           | -------- | ---------------
+| **Name**           | **Type** | **Description** |
+| --------           | -------- | --------------- |
 | chksum             | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | pl0_context_limit  | u32      | Number of contexts to allocate to PL0. PL1 will receive remaining contexts. |
 
 *Table: `REALLOCATE_DPE_CONTEXT_LIMITS` output arguments*
-| **Name**              | **Type** | **Description**
-| --------              | -------- | ---------------
+| **Name**              | **Type** | **Description** |
+| --------              | -------- | --------------- |
 | chksum                | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status           | u32      | Indicates if the command is FIPS approved or an error.                     |
 | new_pl0_context_limit | u32      | Number of contexts assigned to PL0 after the reallocation                  |
