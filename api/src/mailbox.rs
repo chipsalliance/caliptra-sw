@@ -5486,7 +5486,7 @@ pub struct OcpLockTestAccessKeyReq {
 }
 
 impl Request for OcpLockTestAccessKeyReq {
-    const ID: CommandId = CommandId::OCP_LOCK_ENABLE_MPK;
+    const ID: CommandId = CommandId::OCP_LOCK_TEST_ACCESS_KEY;
     type Resp = OcpLockTestAccessKeyResp;
 }
 
