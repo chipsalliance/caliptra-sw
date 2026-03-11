@@ -1795,6 +1795,10 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
+        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
+        // to the FPGA block RAM fail with a SIGBUS fault.
+        let zeroed_otp = vec![0u8; OTP_SIZE];
+        m.otp_slice().copy_from_slice(&zeroed_otp);
         m.init_otp(Some(&params.security_state))?;
 
         println!("Clearing fifo");
