@@ -113,7 +113,7 @@ jobs:
       rom-version: ${{ matrix.hw_config.rom }}
 
   fpga-subsystem:
-    name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
+    name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }}), ${{ matrix.flash_boot.name }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
     permissions:
