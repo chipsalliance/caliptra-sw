@@ -78,9 +78,43 @@ impl CborEncodable for IntegrityRegisterEntry<'_> {
     }
 }
 
+/// Version map per CoRIM CDDL:
+///   version-map = {
+///     &(version: 0) => text
+///     ? &(version-scheme: 1) => $version-scheme
+///   }
+#[derive(Debug, Clone, Copy)]
+pub struct VersionMap<'a> {
+    pub version: &'a str,
+    pub version_scheme: Option<u64>,
+}
+
+impl CborEncodable for VersionMap<'_> {
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
+        let entries = if self.version_scheme.is_some() {
+            2u64
+        } else {
+            1u64
+        };
+        encoder.encode_map_header(entries)?;
+
+        // Key 0: version (text)
+        encoder.encode_int(0)?;
+        encoder.encode_text(self.version)?;
+
+        // Key 1: version-scheme (optional uint)
+        if let Some(scheme) = self.version_scheme {
+            encoder.encode_int(1)?;
+            encoder.encode_uint(scheme)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MeasurementValue<'a> {
-    pub version: Option<&'a str>,
+    pub version: Option<VersionMap<'a>>,
     pub svn: Option<u64>, // Security Version Number
     pub digests: Option<&'a [DigestEntry<'a>]>,
     pub integrity_registers: Option<&'a [IntegrityRegisterEntry<'a>]>, // Map of register ID -> digests
@@ -118,7 +152,7 @@ impl CborEncodable for MeasurementValue<'_> {
         // Key 0: version
         if let Some(version) = self.version {
             encoder.encode_int(0)?;
-            encoder.encode_text(version)?;
+            version.encode(encoder)?;
         }
 
         // Key 1: svn
@@ -733,6 +767,60 @@ mod tests {
     }
 
     #[test]
+    fn test_version_map_encode_without_scheme() {
+        let vm = VersionMap {
+            version: "1.0.0",
+            version_scheme: None,
+        };
+
+        let mut buffer = [0u8; 64];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        vm.encode(&mut encoder).expect("Encoding failed");
+
+        let encoded_len = encoder.len();
+
+        // Expected: map(1) + uint(0) + text("1.0.0")
+        let expected_size = CborEncoder::estimate_uint_size(1) // map header
+            + CborEncoder::estimate_uint_size(0) // key 0
+            + CborEncoder::estimate_text_string_size(5); // "1.0.0"
+        assert_eq!(encoded_len, expected_size);
+
+        // Verify map header with 1 entry
+        assert_eq!(
+            buffer[0],
+            crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Map, 1)
+        );
+    }
+
+    #[test]
+    fn test_version_map_encode_with_scheme() {
+        let vm = VersionMap {
+            version: "2.0",
+            version_scheme: Some(1), // semver
+        };
+
+        let mut buffer = [0u8; 64];
+        let mut encoder = CborEncoder::new(&mut buffer);
+        vm.encode(&mut encoder).expect("Encoding failed");
+
+        let encoded_len = encoder.len();
+
+        // Expected: map(2) + uint(0) + text("2.0") + uint(1) + uint(1)
+        let expected_size = CborEncoder::estimate_uint_size(2) // map header
+            + CborEncoder::estimate_uint_size(0) // key 0
+            + CborEncoder::estimate_text_string_size(3) // "2.0"
+            + CborEncoder::estimate_uint_size(1) // key 1
+            + CborEncoder::estimate_uint_size(1); // scheme value
+        assert_eq!(encoded_len, expected_size);
+
+        // Verify map header with 2 entries
+        assert_eq!(
+            buffer[0],
+            crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Map, 2)
+        );
+    }
+
+    #[test]
     fn test_measurement_value_with_digests() {
         let digest = [0xCD; 32];
         let digest_entry = DigestEntry {
@@ -784,7 +872,10 @@ mod tests {
         let raw_mask = [0xFF; 16];
 
         let measurement = MeasurementValue {
-            version: Some("1.0.0"),
+            version: Some(VersionMap {
+                version: "1.0.0",
+                version_scheme: None,
+            }),
             svn: Some(5),
             digests: Some(&digests_array),
             integrity_registers: None,
@@ -800,7 +891,9 @@ mod tests {
 
         // Calculate expected size: map(5) + version + svn + digests + raw_value + raw_value_mask
         let expected_size = CborEncoder::estimate_uint_size(5) + // map header
-                           CborEncoder::estimate_uint_size(0) + CborEncoder::estimate_text_string_size(5) + // version
+                           CborEncoder::estimate_uint_size(0) + // version key
+                           CborEncoder::estimate_uint_size(1) + // version-map header (1 entry)
+                           CborEncoder::estimate_uint_size(0) + CborEncoder::estimate_text_string_size(5) + // version-map: key 0 + "1.0.0"
                            CborEncoder::estimate_uint_size(1) + CborEncoder::estimate_uint_size(5) + // svn
                            CborEncoder::estimate_uint_size(2) + CborEncoder::estimate_uint_size(1) + // digests key + array
                            CborEncoder::estimate_uint_size(2) + CborEncoder::estimate_int_size(-16) + CborEncoder::estimate_bytes_string_size(32) + // digest entry
@@ -1127,7 +1220,10 @@ mod tests {
         let digests_array = [digest_entry];
 
         let measurement_value = MeasurementValue {
-            version: Some("2.0"),
+            version: Some(VersionMap {
+                version: "2.0",
+                version_scheme: None,
+            }),
             svn: None,
             digests: Some(&digests_array),
             integrity_registers: None,
@@ -1332,7 +1428,10 @@ mod tests {
         let digests_array = [digest_entry];
 
         let measurement_value = MeasurementValue {
-            version: Some("3.0"),
+            version: Some(VersionMap {
+                version: "3.0",
+                version_scheme: None,
+            }),
             svn: Some(7),
             digests: Some(&digests_array),
             integrity_registers: None,
