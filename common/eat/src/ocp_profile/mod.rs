@@ -13,5 +13,5 @@ pub use eat::{
 pub use concise_evidence::{
     ClassIdTypeChoice, ClassMap, ConciseEvidence, ConciseEvidenceMap, DigestEntry, EnvironmentMap,
     EvTriplesMap, EvidenceTripleRecord, IntegrityRegisterEntry, IntegrityRegisterIdChoice,
-    MeasurementMap, MeasurementValue, TaggedConciseEvidence,
+    MeasurementMap, MeasurementValue, TaggedConciseEvidence, VersionMap,
 };
