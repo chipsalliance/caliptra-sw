@@ -119,6 +119,7 @@ pub use ocp_profile::{
     // OCP EAT claims and metadata
     OcpEatClaims, // Complete OCP EAT token payload
     PrivateClaim, // Custom private claims (keys < -65536)
+    VersionMap,   // Version map with version string and optional scheme
 };
 
 // Re-export Attested CSR EAT types for provisioning workflows
