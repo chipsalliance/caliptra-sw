@@ -741,7 +741,14 @@ impl Abr {
     }
 
     fn mldsa_sign_mu(&mut self, sk_bytes: [u8; SK_LEN]) -> Vec<u8> {
-        let secret_key = SigningKey::<MlDsa87>::decode(sk_bytes.as_slice().try_into().unwrap());
+        //note: we use the deprecated ::from_expanded function here because the ::decode function it replaces
+        //was not given a direct replacement, and the ::from_seed function reccomended as a replacement does
+        //not take the raw key bytes as an input.  If this function is removed in a future release, thought
+        //may need to be put into how to best replace it as it seems like creating a signing key from raw bytes
+        //is not something the maintainers are particularly interested in supporting.
+        #[allow(deprecated)]
+        let secret_key =
+            SigningKey::<MlDsa87>::from_expanded(sk_bytes.as_slice().try_into().unwrap());
         secret_key
             .sign_mu_deterministic(self.mldsa_external_mu.as_bytes().try_into().unwrap())
             .encode()
