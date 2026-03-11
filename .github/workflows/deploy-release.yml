@@ -39,6 +39,6 @@ jobs:
 
       - name: Run xtask release deploy
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo xtask release deploy ${{ inputs.tag }}

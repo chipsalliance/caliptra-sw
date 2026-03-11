@@ -380,21 +380,16 @@ impl GitHubReleaseManager {
         );
         let runs: WorkflowRuns = self.crab.get(url, None::<&()>).await?;
 
-        let run = runs.workflow_runs.into_iter().next().ok_or_else(|| {
-            anyhow!(
-                "No nightly workflow run found for commit {}",
+        let passed_nightly = runs
+            .workflow_runs
+            .iter()
+            .any(|run| run.conclusion == Some("success".to_owned()));
+        if !passed_nightly {
+            bail!(
+                "No passing nightly workflow run found for commit {}",
                 self.head_commit
             )
-        })?;
-
-        let conclusion = run.conclusion.unwrap_or_else(|| "in_progress".to_string());
-        if conclusion != "success" {
-            bail!(
-                "Nightly workflow for commit {} did not succeed (status: '{}'). Cannot deploy.",
-                self.head_commit,
-                conclusion
-            );
-        }
+        };
         Ok(())
     }
 
@@ -404,9 +399,7 @@ impl GitHubReleaseManager {
             self.head_commit
         );
 
-        // Do we need to iterate through more than 100 releases? I doubt we
-        // want to tag a job from that far back.
-        let page = self
+        let mut page = self
             .crab
             .repos(&self.owner, &self.repo)
             .releases()
@@ -415,27 +408,39 @@ impl GitHubReleaseManager {
             .send()
             .await?;
 
-        let found_release = page
-            .items
-            .iter()
-            .find(|r| r.tag_name == self.nightly_tag)
-            .ok_or(anyhow!(
+        let mut release = None;
+        loop {
+            if let Some(matching_release) =
+                page.items.iter().find(|r| r.tag_name == self.nightly_tag)
+            {
+                release = Some(matching_release.clone());
+                break;
+            }
+
+            if let Ok(Some(next_page)) = self.crab.get_page(&page.next).await {
+                info!("Checking next page");
+                page = next_page;
+            } else {
+                break;
+            }
+        }
+
+        let release = release.ok_or_else(|| {
+            anyhow!(
                 "Could not find a release for {}. Did the commit pass a nightly?",
                 self.head_commit
-            ))?;
+            )
+        })?;
 
         let release_name = self.tag.release_name();
         let release_body = extract_changelog(&release_name)?;
 
-        info!(
-            "Updating existing GitHub release (ID: {})...",
-            found_release.id
-        );
+        info!("Updating existing GitHub release (ID: {})...", release.id);
         let release = self
             .crab
             .repos(&self.owner, &self.repo)
             .releases()
-            .update(found_release.id.0)
+            .update(release.id.0)
             .tag_name(&release_name)
             .name(&release_name)
             .body(&release_body)
