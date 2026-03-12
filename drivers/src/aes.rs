@@ -212,6 +212,22 @@ impl Aes {
         Self { aes, aes_clp }
     }
 
+    /// Seed the AES Trivium stream cipher primitive with fresh entropy.
+    ///
+    /// After reset, the Trivium primitive is initialized to a netlist constant
+    /// and produces deterministic output. Firmware must provide a new 288-bit
+    /// seed after every reset by writing all 9 `entropy_if_seed` registers.
+    pub fn seed_entropy_if(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let entropy = trng.generate()?;
+        self.with_aes(|_aes, aes_clp| {
+            let seeds = aes_clp.entropy_if_seed();
+            for i in 0..9 {
+                seeds.at(i).write(|_| entropy.0[i]);
+            }
+        });
+        Ok(())
+    }
+
     // Ensures that only one copy of the AES registers are used
     // in any given context to ensure exclusive access.
     fn with_aes<T>(
@@ -1452,17 +1468,21 @@ pub struct AesGcm {
 impl AesGcm {
     /// Create a new AesGcm driver after running the GCM KAT.
     ///
+    /// Seeds the AES Trivium stream cipher with fresh entropy from the TRNG,
+    /// then runs the GCM and CMAC-KDF KATs.
+    ///
     /// # Arguments
     ///
     /// * `aes` - AES register block
     /// * `aes_clp` - AES CLP register block
-    /// * `trng` - TRNG driver (used for KAT only)
+    /// * `trng` - TRNG driver (used for entropy seeding and KATs)
     ///
     /// # Returns
     ///
     /// * `CaliptraResult<Self>` - The AesGcm driver if KATs pass
     pub fn new(aes: AesReg, aes_clp: AesClpReg, trng: &mut Trng) -> CaliptraResult<Self> {
         let mut aes = Aes::new_gcm(aes, aes_clp);
+        aes.seed_entropy_if(trng)?;
         crate::kats::execute_gcm_kat(&mut aes, trng)?;
         crate::kats::execute_cmackdf_kat(&mut aes)?;
         Ok(Self { aes })
