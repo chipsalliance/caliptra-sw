@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license.
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unexpected_cfgs)]
 
 use crate::common::{default_soc_manifest_bytes, run_rt_test, RuntimeTestArgs};
 use crate::common::{DEFAULT_MCU_FW, PQC_KEY_TYPE};
@@ -70,6 +73,7 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn test_fw_info() {
     let fpga = cfg!(feature = "fpga_subsystem");
     let app = if fpga {

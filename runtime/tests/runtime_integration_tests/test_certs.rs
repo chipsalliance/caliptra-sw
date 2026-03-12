@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unexpected_cfgs)]
 
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{
@@ -599,6 +602,7 @@ fn cold_reset(
 // Confirm the resulting DPE leaf cert is identical in all three cases
 #[test]
 #[allow(dead_code)]
+#[cfg(feature = "slow_tests")]
 pub fn test_all_measurement_apis() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {

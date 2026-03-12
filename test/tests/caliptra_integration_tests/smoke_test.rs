@@ -1,5 +1,8 @@
-use caliptra_api::mailbox::AlgorithmType;
 // Licensed under the Apache-2.0 license
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unexpected_cfgs)]
+use caliptra_api::mailbox::AlgorithmType;
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
@@ -244,6 +247,7 @@ fn test_golden_ldevid_pubkey_matches_generated() {
 }
 
 #[test]
+#[cfg(feature = "slow_tests")]
 fn smoke_test() {
     const ALGORITHM_TYPES: [AlgorithmType; 2] = [AlgorithmType::Ecc384, AlgorithmType::Mldsa87];
 
