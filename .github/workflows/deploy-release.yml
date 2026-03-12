@@ -23,22 +23,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit }}
           submodules: 'true'
           fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config --global user.name "GitHub CI"
-          git config --global user.email "username@users.noreply.github.com"
-
-          git fetch --depth 1 origin ${{ inputs.commit }}
-          git reset --hard ${{ inputs.commit }}
-
-          git remote rename origin release-repo
 
       - name: Run xtask release deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo xtask release deploy ${{ inputs.tag }}
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+
+          # Build xtask before switching commits.
+          cargo build -p xtask
+
+          git fetch --depth 1 origin ${{ inputs.commit }}
+          git reset --hard ${{ inputs.commit }}
+          git remote rename origin release-repo
+
+          ./target/debug/xtask release deploy ${{ inputs.tag }}
