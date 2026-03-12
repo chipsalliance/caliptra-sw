@@ -6,6 +6,8 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
+use crate::util::run_command;
+
 // TODO(clundin): This is based on the `./ci.sh` script, should instead call the builder library
 // directly
 fn build_rom_images(work_dir: &Path) -> Result<()> {
@@ -21,22 +23,19 @@ fn build_rom_images(work_dir: &Path) -> Result<()> {
 
     let build_rom = |path: &std::path::Path, flag: &str| -> Result<()> {
         let _ = fs::remove_dir_all(&target_elf_dir);
-        let output = std::process::Command::new("cargo")
-            .env("CALIPTRA_IMAGE_NO_GIT_REVISION", "1")
-            .args([
-                "--config",
-                extra_cargo_config,
-                "run",
-                "-p",
-                "caliptra-builder",
-                "--",
-                flag,
-                path.to_str().unwrap(),
-            ])
-            .output()?;
-        if !output.status.success() {
-            error!("{}", String::from_utf8_lossy(&output.stdout));
-            error!("{}", String::from_utf8_lossy(&output.stderr));
+        let mut cmd = std::process::Command::new("cargo");
+        cmd.env("CALIPTRA_IMAGE_NO_GIT_REVISION", "1").args([
+            "--config",
+            extra_cargo_config,
+            "run",
+            "-p",
+            "caliptra-builder",
+            "--",
+            flag,
+            path.to_str().unwrap(),
+        ]);
+        if let Err(e) = run_command(&mut cmd) {
+            error!("{}", e);
             bail!("Failed to build ROM with {}", flag);
         }
         Ok(())
