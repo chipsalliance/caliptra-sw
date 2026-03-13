@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use anyhow::{bail, Result};
-use log::info;
+use log::{error, info};
 use std::process::Command;
 
+use crate::util::run_command;
 use crate::PROJECT_ROOT;
 
 pub(crate) fn clippy() -> Result<()> {
@@ -21,15 +22,13 @@ fn clippy_all() -> Result<()> {
         "-D",
         "warnings",
     ];
-    let output = Command::new("cargo")
-        .current_dir(&*PROJECT_ROOT)
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(&*PROJECT_ROOT)
         .args(args)
-        .env("RUSTFLAGS", "-Dwarnings")
-        .output()?;
+        .env("RUSTFLAGS", "-Dwarnings");
 
-    if !output.status.success() {
-        log::error!("{}", String::from_utf8_lossy(&output.stdout));
-        log::error!("{}", String::from_utf8_lossy(&output.stderr));
+    if let Err(e) = run_command(&mut cmd) {
+        error!("{}", e);
         bail!("cargo clippy failed");
     }
 

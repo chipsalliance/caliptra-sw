@@ -8,14 +8,21 @@ use std::{
     sync::LazyLock,
 };
 
+mod cargo_lock;
 mod clippy;
+mod format;
+mod license;
 mod precheckin;
 mod release;
 mod update_frozen_images;
+mod util;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Xtask {
+    /// Enable verbose logging
+    #[arg(short, long, global = true)]
+    verbose: bool,
     #[command(subcommand)]
     xtask: Commands,
 }
@@ -66,8 +73,13 @@ pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
 });
 
 fn main() {
-    let _ = SimpleLogger::new().with_level(LevelFilter::Info).init();
     let cli = Xtask::parse();
+    let level = if cli.verbose {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
+    let _ = SimpleLogger::new().with_level(level).init();
     let result = match &cli.xtask {
         Commands::Clippy => clippy::clippy(),
         Commands::Precheckin => precheckin::precheckin(),

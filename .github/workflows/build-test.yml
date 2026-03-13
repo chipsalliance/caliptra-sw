@@ -36,30 +36,8 @@ jobs:
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
-      - name: Check that Cargo.lock doesn't need to be updated
-          # Note: this isn't the same as checking that Cargo.lock is up to date
-          # (cargo update --locked), which makes sure that every package is the
-          # latest published version. This is just ensuring that every
-          # dependency has an entry in Cargo.lock that is compatible with the
-          # version requirements in all Cargo.toml files.
-        run: |
-          # This works because cargo tree requires a Cargo.lock with no required updates
-          cargo tree --locked > /dev/null || (
-            echo "Please include required changes to Cargo.lock in your pull request"
-            # Without the --locked flag, cargo will do the minimal possible update to Cargo.lock
-            cargo tree > /dev/null 2> /dev/null
-            # Print out the differences to ease debugging
-            git diff Cargo.lock
-            exit 1
-          )
-
-      - name: Check source-code formatting (run "cargo fmt" if this fails)
-        run: |
-          cargo fmt --check --all
-
-      - name: Check license headers
-        run: |
-          cargo run -p caliptra-file-header-fix --locked -- --check
+      - name: Run precheckin checks
+        run: cargo xtask precheckin
 
   build:
     needs: lint
@@ -72,14 +50,9 @@ jobs:
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
-      - name: Install required packages
-        run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
-
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
-          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" build --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
@@ -103,15 +76,6 @@ jobs:
             echo "Building with $feature"
             cargo build --locked --features $feature
           done
-
-      # Clippy needs to build crates as part of the check, so do it after the
-      # build.
-      - name: Clippy lint check
-        run: |
-          # Clippy doesn't look at --config, so manually set RUSTFLAGS to the
-          # same as the build steps to avoid invalidating the cargo cache.
-          RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
-          CARGO_TARGET_DIR=target RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets --manifest-path ci-tools/fpga-boss/Cargo.toml -- -D warnings
 
       - name: Check x509 templates are up to date
         run: |
@@ -152,17 +116,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v5
 
-      - name: Install required packages
-        run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
-
       - name: Run tests
         run: |
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" run --manifest-path ./coverage/Cargo.toml
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test -p caliptra-runtime --features ocp-lock test_ocp_lock --locked
-
-          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
 
   test_compliance:
     needs: lint
@@ -183,10 +141,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-
-      - name: Install required packages
-        run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
 
       - name: Build ROM artifacts
         run: |
@@ -215,7 +169,7 @@ jobs:
 
       - name: Install required packages
         run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
+          sudo apt-get update -qy && sudo apt-get install golang-1.21-go
 
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |

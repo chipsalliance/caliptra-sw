@@ -11,10 +11,6 @@ exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
 
-  # fpga-boss depends on crates with annoying system deps like libusb and
-  # libftdi, so keep it in its own workspace
-  "ci-tools/fpga-boss",
-
   # test-matrix depends on octocrab (github API), which is very heavyweight.
   "ci-tools/test-matrix",
 
