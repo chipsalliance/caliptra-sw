@@ -14,6 +14,7 @@ mod format;
 mod license;
 mod precheckin;
 mod release;
+mod update_dpe;
 mod update_frozen_images;
 mod util;
 
@@ -37,6 +38,12 @@ enum Commands {
     Release {
         #[command(subcommand)]
         command: ReleaseCommands,
+    },
+    /// Update the DPE references
+    UpdateDpe {
+        /// The git revision to update DPE to (tag, branch, or git hash)
+        #[arg(short, long, default_value = "main")]
+        rev: String,
     },
     /// Build ROM images and update the FROZEN_IMAGES.sha384sum file
     UpdateFrozenImages,
@@ -87,6 +94,7 @@ fn main() {
             ReleaseCommands::Check { tag } => release::check(tag),
             ReleaseCommands::Deploy { tag } => release::deploy(tag),
         },
+        Commands::UpdateDpe { rev } => update_dpe::update_dpe(rev),
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
     };
     result.unwrap_or_else(|e| {

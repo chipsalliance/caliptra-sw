@@ -17,3 +17,4 @@ octocrab = "0.38.0"
 serde = { workspace = true, features = ["derive"] }
 simple_logger.workspace = true
 tokio = { version = "1.49.0", features = ["rt", "macros"] }
+toml_edit.workspace = true
