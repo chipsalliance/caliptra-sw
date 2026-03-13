@@ -46,6 +46,8 @@ impl GetImageInfoCmd {
             resp.image_load_address_low = metadata.image_load_address.lo;
             resp.image_staging_address_high = metadata.image_staging_address.hi;
             resp.image_staging_address_low = metadata.image_staging_address.lo;
+            resp.svn = 0;
+            resp.digest = metadata.digest;
             Ok(core::mem::size_of::<GetImageInfoResp>())
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
