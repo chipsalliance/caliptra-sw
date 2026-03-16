@@ -211,6 +211,22 @@ impl Aes {
         Self { aes, aes_clp }
     }
 
+    /// Seed the AES Trivium stream cipher primitive with fresh entropy.
+    ///
+    /// After reset, the Trivium primitive is initialized to a netlist constant
+    /// and produces deterministic output. Firmware must provide a new 288-bit
+    /// seed after every reset by writing all 9 `entropy_if_seed` registers.
+    pub fn seed_entropy_if(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let entropy = trng.generate()?;
+        self.with_aes(|_aes, aes_clp| {
+            let seeds = aes_clp.entropy_if_seed();
+            for i in 0..9 {
+                seeds.at(i).write(|_| entropy.0[i]);
+            }
+        });
+        Ok(())
+    }
+
     // Ensures that only one copy of the AES registers are used
     // in any given context to ensure exclusive access.
     fn with_aes<T>(
