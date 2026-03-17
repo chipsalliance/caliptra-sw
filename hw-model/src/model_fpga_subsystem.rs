@@ -468,6 +468,7 @@ pub struct ModelFpgaSubsystem {
     saved_num_prod_dbg_unlock_pk_hashes: u32,
     saved_ocp_lock_en: bool,
     saved_security_state: SecurityState,
+    saved_lc_state: Option<LifecycleControllerState>,
 }
 
 impl ModelFpgaSubsystem {
@@ -550,6 +551,7 @@ impl ModelFpgaSubsystem {
         let num_prod_dbg = self.saved_num_prod_dbg_unlock_pk_hashes;
         let ocp_lock_en = self.saved_ocp_lock_en;
         let security_state = self.saved_security_state;
+        let lc_state = self.saved_lc_state;
 
         println!(
             "Setting input wires {:x} {:x}",
@@ -574,7 +576,7 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
-        self.init_otp(Some(&security_state))
+        self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to initialize OTP");
 
         println!("Clearing fifo");
@@ -1502,6 +1504,14 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn init_otp(&self, security_state: Option<&SecurityState>) -> Result<(), Box<dyn Error>> {
+        self.init_otp_with_lc_override(security_state, None)
+    }
+
+    pub fn init_otp_with_lc_override(
+        &self,
+        security_state: Option<&SecurityState>,
+        lc_state_override: Option<LifecycleControllerState>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut otp_data = self.otp_slice().to_vec();
         if !self.otp_init.is_empty() {
             // write the initial contents of the OTP memory
@@ -1516,13 +1526,21 @@ impl ModelFpgaSubsystem {
             otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
         }
 
-        if let Some(security_state) = security_state {
-            let lc_state = match security_state.device_lifecycle() {
+        // Determine the LC state: explicit override takes priority.
+        let lc_state = if let Some(lc) = lc_state_override {
+            Some(lc)
+        } else if let Some(security_state) = security_state {
+            Some(match security_state.device_lifecycle() {
                 DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
                 DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
                 DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
                 DeviceLifecycle::Production => LifecycleControllerState::Prod,
-            };
+            })
+        } else {
+            None
+        };
+
+        if let Some(lc_state) = lc_state {
             println!("Provisioning lifecycle partition (State: {}).", lc_state);
             let mem = lc_generate_memory(lc_state, 1)?;
             let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
@@ -1935,6 +1953,7 @@ impl HwModel for ModelFpgaSubsystem {
                 .num_prod_dbg_unlock_pk_hashes,
             saved_ocp_lock_en: params.ocp_lock_en,
             saved_security_state: params.security_state,
+            saved_lc_state: params.ss_init_params.lc_state,
         };
 
         println!("AXI reset");
