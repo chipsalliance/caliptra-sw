@@ -1385,6 +1385,14 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn init_otp(&self, security_state: Option<&SecurityState>) -> Result<(), Box<dyn Error>> {
+        self.init_otp_with_lc_override(security_state, None)
+    }
+
+    pub fn init_otp_with_lc_override(
+        &self,
+        security_state: Option<&SecurityState>,
+        lc_state_override: Option<LifecycleControllerState>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut otp_data = self.otp_slice().to_vec();
         if !self.otp_init.is_empty() {
             // write the initial contents of the OTP memory
@@ -1399,13 +1407,21 @@ impl ModelFpgaSubsystem {
             otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
         }
 
-        if let Some(security_state) = security_state {
-            let lc_state = match security_state.device_lifecycle() {
+        // Determine the LC state: explicit override takes priority.
+        let lc_state = if let Some(lc) = lc_state_override {
+            Some(lc)
+        } else if let Some(security_state) = security_state {
+            Some(match security_state.device_lifecycle() {
                 DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
                 DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
                 DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
                 DeviceLifecycle::Production => LifecycleControllerState::Prod,
-            };
+            })
+        } else {
+            None
+        };
+
+        if let Some(lc_state) = lc_state {
             println!("Provisioning lifecycle partition (State: {}).", lc_state);
             let mem = lc_generate_memory(lc_state, 1)?;
             let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
@@ -1799,7 +1815,7 @@ impl HwModel for ModelFpgaSubsystem {
         // to the FPGA block RAM fail with a SIGBUS fault.
         let zeroed_otp = vec![0u8; OTP_SIZE];
         m.otp_slice().copy_from_slice(&zeroed_otp);
-        m.init_otp(Some(&params.security_state))?;
+        m.init_otp_with_lc_override(Some(&params.security_state), params.ss_init_params.lc_state)?;
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
