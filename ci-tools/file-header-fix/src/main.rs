@@ -24,7 +24,7 @@ const IGNORED_PATHS: &[&str] = &[
     "./ci-tools/fpga-image/out",
 ];
 
-const IGNORED_DIRS: &[&str] = &[".git", "caliptra-rtl", "out", "target"];
+const IGNORED_DIRS: &[&str] = &[".git", "caliptra-rtl", "out", "target", ".venv"];
 
 fn add_path(path: &Path) -> impl Fn(Error) -> Error + Copy + '_ {
     move |e: Error| Error::new(e.kind(), format!("{path:?}: {e}"))
