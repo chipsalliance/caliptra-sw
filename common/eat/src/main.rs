@@ -19,7 +19,7 @@ use ocp_eat::{
 use ocp_eat::ocp_profile::{
     ClassIdTypeChoice, ClassMap, ConciseEvidence, ConciseEvidenceMap, DebugStatus, DigestEntry,
     EnvironmentMap, EvTriplesMap, EvidenceTripleRecord, MeasurementFormat, MeasurementMap,
-    MeasurementValue, OcpEatClaims, TaggedConciseEvidence,
+    MeasurementValue, OcpEatClaims, TaggedConciseEvidence, VersionMap,
 };
 
 // Cryptographic imports for signature generation (only available with crypto feature)
@@ -294,7 +294,10 @@ fn create_mock_concise_evidence_structured() -> ConciseEvidence<'static> {
     static FIRMWARE_MEASUREMENT: [MeasurementMap<'static>; 1] = [MeasurementMap {
         key: 0,
         mval: MeasurementValue {
-            version: Some("1.2.3"),
+            version: Some(VersionMap {
+                version: "1.2.3",
+                version_scheme: None,
+            }),
             svn: Some(1),
             digests: Some(&[DigestEntry {
                 alg_id: 7, // SHA-384
