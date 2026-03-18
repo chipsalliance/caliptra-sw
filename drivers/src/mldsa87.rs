@@ -99,6 +99,14 @@ impl Mldsa87 {
         Self { mldsa87 }
     }
 
+    /// Seed the MLDSA entropy registers with fresh randomness to
+    /// provide side-channel attack countermeasures.
+    pub fn seed_entropy(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let entropy = trng.generate16()?;
+        entropy.write_to_reg(self.mldsa87.regs_mut().entropy());
+        Ok(())
+    }
+
     fn generate_iv(trng: &mut Trng) -> CaliptraResult<LEArray4x16> {
         let iv = trng.generate16()?;
         Ok(LEArray4x16::from(iv))
