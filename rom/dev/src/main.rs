@@ -98,6 +98,11 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    // Seed the ABR entropy registers for SCA countermeasures
+    if let Err(e) = env.abr.seed_entropy(&mut env.trng) {
+        handle_fatal_error(e.into());
+    }
+
     // Check if TRNG is correctly sourced as per hw config.
     validate_trng_config(&mut env);
 

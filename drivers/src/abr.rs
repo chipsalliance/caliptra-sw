@@ -15,7 +15,7 @@ Abstract:
 
 use caliptra_registers::abr::AbrReg;
 
-use crate::{MlKem1024, Mldsa87};
+use crate::{CaliptraResult, MlKem1024, Mldsa87, Trng};
 
 /// ABR (Adams Bridge) hardware driver.
 ///
@@ -36,6 +36,14 @@ impl Abr {
     /// * `abr` - The ABR register block
     pub fn new(abr: AbrReg) -> Self {
         Self { abr }
+    }
+
+    /// Seed the ABR entropy registers with fresh randomness to
+    /// provide side-channel attack countermeasures.
+    pub fn seed_entropy(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let entropy = trng.generate16()?;
+        entropy.write_to_reg(self.abr.regs_mut().entropy());
+        Ok(())
     }
 
     /// Get a mutable reference to the ABR register block.
