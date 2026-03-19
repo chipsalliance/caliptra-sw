@@ -869,9 +869,8 @@ fn test_svn_preserved_in_rom_stash_measurement() {
     .unwrap();
 
     //
-    // 1. ROM STASH MEASUREMENT path (SVN gets dropped — the bug)
+    // 1. ROM STASH MEASUREMENT path
     //    Send STASH_MEASUREMENT with svn=42 before FW upload, then boot to runtime.
-    //    initialize_dpe() replays the measurement with svn: 0.
     //
     let fuses = Fuses {
         fuse_pqc_key_type: pqc_key_type as u32,
@@ -904,7 +903,7 @@ fn test_svn_preserved_in_rom_stash_measurement() {
         .unwrap()
         .unwrap();
 
-    // Boot to runtime (triggers initialize_dpe which replays measurement with svn: 0)
+    // Boot to runtime (triggers initialize_dpe which replays ROM measurement into DPE)
     crate::common::test_upload_firmware(&mut hw, &fw_image, pqc_key_type);
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
@@ -938,55 +937,20 @@ fn test_svn_preserved_in_rom_stash_measurement() {
     let rom_tcb_entries = parse_multi_tcb_info_for_svn(&rom_stash_cert);
     let rt_tcb_entries = parse_multi_tcb_info_for_svn(&rt_stash_cert);
 
-    eprintln!("\n=== SVN Bug Reproduction ===");
-    eprintln!("ROM-stash path TcbInfo entries:");
-    for (tci_type_bytes, svn_val) in &rom_tcb_entries {
-        eprintln!(
-            "  tci_type: {} ({:02x?}), svn: {:?}",
-            String::from_utf8_lossy(tci_type_bytes),
-            tci_type_bytes,
-            svn_val
-        );
-    }
-    eprintln!("RT-stash path TcbInfo entries:");
-    for (tci_type_bytes, svn_val) in &rt_tcb_entries {
-        eprintln!(
-            "  tci_type: {} ({:02x?}), svn: {:?}",
-            String::from_utf8_lossy(tci_type_bytes),
-            tci_type_bytes,
-            svn_val
-        );
-    }
-
     // Find the "TEST" TcbInfo entry in each cert.
-    // DPE encodes tci_type as big-endian bytes in the cert.
-    let test_tci_be = u32::from_ne_bytes(tci_type).to_be_bytes().to_vec();
+    // tci_type bytes round-trip through u32::from_ne_bytes then as_bytes(),
+    // so the cert contains the original metadata bytes.
     let rom_test_entry = rom_tcb_entries
         .iter()
-        .find(|(t, _)| *t == test_tci_be)
-        .unwrap_or_else(|| {
-            // Also try raw bytes in case encoding differs
-            rom_tcb_entries
-                .iter()
-                .find(|(t, _)| *t == tci_type)
-                .expect("ROM-stash cert should have a TEST TcbInfo entry")
-        });
+        .find(|(t, _)| t.as_slice() == tci_type)
+        .expect("ROM-stash cert should have a TEST TcbInfo entry");
     let rt_test_entry = rt_tcb_entries
         .iter()
-        .find(|(t, _)| *t == test_tci_be)
-        .unwrap_or_else(|| {
-            rt_tcb_entries
-                .iter()
-                .find(|(t, _)| *t == tci_type)
-                .expect("RT-stash cert should have a TEST TcbInfo entry")
-        });
+        .find(|(t, _)| t.as_slice() == tci_type)
+        .expect("RT-stash cert should have a TEST TcbInfo entry");
 
     let rom_svn = rom_test_entry.1.unwrap_or(0);
     let rt_svn = rt_test_entry.1.unwrap_or(0);
-
-    eprintln!("\n=== SVN Values for 'TEST' measurement ===");
-    eprintln!("  ROM-stash SVN: {} (expected: 42)", rom_svn);
-    eprintln!("  RT-stash  SVN: {} (expected: 42)", rt_svn);
 
     // Both paths should propagate SVN=42 to the DPE cert
     assert_eq!(
