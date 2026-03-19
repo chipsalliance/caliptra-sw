@@ -61,6 +61,11 @@ const ROM_EXP_2_0_1: RomExpVals = RomExpVals {
     ..ROM_EXP_2_0_0
 };
 
+const ROM_EXP_2_0_2: RomExpVals = RomExpVals {
+    rom_version: 0x1002, // 2.0.2
+    ..ROM_EXP_2_0_0
+};
+
 const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_1 };
 
 // ===  RUNTIME  ===
@@ -108,6 +113,7 @@ impl RomExpVals {
                 // Add more versions here
                 "2_0_0" => ROM_EXP_2_0_0,
                 "2_0_1" => ROM_EXP_2_0_1,
+                "2_0_2" => ROM_EXP_2_0_2,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
