@@ -1379,9 +1379,7 @@ Command Code: `0x494D_4530` ("IME0")
 | Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 | Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 | Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
-| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
-| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
-| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| digest                  | u8[48]       | SHA-384 digest of the image. **Only present in FW 2.1.1+.** |
 
 ### GET\_MCU\_FW\_SIZE
 

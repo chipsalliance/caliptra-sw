@@ -3261,7 +3261,7 @@ impl Request for GetImageInfoReq {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetImageInfoResp {
     pub hdr: MailboxRespHeader,
     pub component_id: u32,
@@ -3270,6 +3270,21 @@ pub struct GetImageInfoResp {
     pub image_load_address_low: u32,
     pub image_staging_address_high: u32,
     pub image_staging_address_low: u32,
+    pub digest: [u8; 48],
+}
+impl Default for GetImageInfoResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            component_id: 0,
+            flags: 0,
+            image_load_address_high: 0,
+            image_load_address_low: 0,
+            image_staging_address_high: 0,
+            image_staging_address_low: 0,
+            digest: [0u8; 48],
+        }
+    }
 }
 impl Response for GetImageInfoResp {}
 
