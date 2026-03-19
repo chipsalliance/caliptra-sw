@@ -1,3 +1,19 @@
+# rom-2.1.1
+
+## Caliptra ROM 2.1.1 Release Notes
+
+Release notes for changes introduced since ROM 2.1.0.
+
+### Fixes
+
+- rom: Seed ABR_ENTROPY on startup for SCA protection (#3507)
+- rom: Randomize AES ENTROPY_IF_SEED on reset (#3487)
+- drivers: handle mailbox FSM error state and unexpected DataReady (#3393)
+- Consolidate ABR register usage across MLDSA and MLKEM drivers (#3447)
+- Remove duplicate CFI Git library to reduce code size (#3368)
+- [drivers]: Zeroize hardware on error (#3346)
+- [OCP-LOCK]: Add more CFI to ROM flow (#3265)
+
 # fw-2.1.0
 
 This is a combined runtime and FMC release.
