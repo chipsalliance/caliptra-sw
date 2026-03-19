@@ -1282,9 +1282,7 @@ Command Code: `0x494D_4530` ("IME0")
 | Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/caliptra-2.0/auth-manifest/README.md) |
 | Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/caliptra-2.0/auth-manifest/README.md) |
 | Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/caliptra-2.0/auth-manifest/README.md) |
-| digest                  | u8[48]       | SHA-384 digest of the image. **Only present in FW 2.1.1+.** |
-
-
+| digest                  | u8[48]       | SHA-384 digest of the image. **Only present in FW 2.0.2+ and 2.1.1+.** |
 
 ### ACTIVATE_FIRMWARE
 
