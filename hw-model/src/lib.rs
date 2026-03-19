@@ -43,6 +43,7 @@ mod model_emulated;
 pub mod openocd;
 pub mod otp_digest;
 pub mod otp_provision;
+pub use otp_provision::LifecycleControllerState;
 mod recovery;
 pub mod xi3c;
 
@@ -191,6 +192,10 @@ pub struct SubsystemInitParams<'a> {
 
     // Initial contents of the primary flash memory (for flash-based boot testing)
     pub primary_flash_initial_contents: Option<&'a [u8]>,
+
+    // Override the lifecycle state provisioned into OTP. When set, this
+    // takes priority over the security_state-derived lifecycle mapping.
+    pub lc_state: Option<LifecycleControllerState>,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -203,6 +208,7 @@ impl Default for SubsystemInitParams<'_> {
             num_prod_dbg_unlock_pk_hashes: Default::default(),
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
             primary_flash_initial_contents: None,
+            lc_state: None,
         }
     }
 }
