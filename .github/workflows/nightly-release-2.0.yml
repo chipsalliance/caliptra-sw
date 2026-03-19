@@ -182,6 +182,7 @@ jobs:
             ./release/test_artifacts_${{ needs.find-latest-release-2-0.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release-2-0.outputs.new_release_tag }}
           prerelease: true
+          draft: true
 
       - name: Write artifact to workflow with release info
         run: |
