@@ -22,6 +22,18 @@ pub const FW_ID_1: u32 = 1;
 pub const FW_ID_2: u32 = 2;
 pub const FW_ID_BAD: u32 = 3;
 
+const DIGEST1: [u8; 48] = [
+    0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3, 0x6A,
+    0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6, 0xE1, 0xDA,
+    0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48, 0x98, 0xB9, 0x5B,
+];
+
+const DIGEST2: [u8; 48] = [
+    0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50, 0x07,
+    0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF, 0x5B, 0xED,
+    0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA, 0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7,
+];
+
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions {
@@ -82,6 +94,7 @@ fn test_get_image_info_success() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_1,
             flags: flags1.0,
+            digest: DIGEST1,
             image_staging_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
@@ -91,6 +104,7 @@ fn test_get_image_info_success() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_2,
             flags: flags2.0,
+            digest: DIGEST2,
             image_staging_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
@@ -122,6 +136,7 @@ fn test_get_image_info_success() {
     assert_eq!(get_image_info_resp.image_staging_address_low, 0x0050_0000);
     assert_eq!(get_image_info_resp.image_load_address_high, 0u32);
     assert_eq!(get_image_info_resp.image_load_address_low, 0u32);
+    assert_eq!(get_image_info_resp.digest, DIGEST1);
 }
 
 #[test]
@@ -137,6 +152,7 @@ fn test_get_image_info_2() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_1,
             flags: flags1.0,
+            digest: DIGEST1,
             image_staging_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
@@ -146,6 +162,7 @@ fn test_get_image_info_2() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_2,
             flags: flags2.0,
+            digest: DIGEST2,
             image_load_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
@@ -177,6 +194,7 @@ fn test_get_image_info_2() {
     assert_eq!(get_image_info_resp.image_staging_address_low, 0u32);
     assert_eq!(get_image_info_resp.image_load_address_high, 0u32);
     assert_eq!(get_image_info_resp.image_load_address_low, 0x0050_0000);
+    assert_eq!(get_image_info_resp.digest, DIGEST2);
 }
 
 #[test]
@@ -192,6 +210,7 @@ fn test_get_image_info_non_existent() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_1,
             flags: flags1.0,
+            digest: DIGEST1,
             image_staging_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
@@ -201,6 +220,7 @@ fn test_get_image_info_non_existent() {
         AuthManifestImageMetadata {
             fw_id: FW_ID_2,
             flags: flags2.0,
+            digest: DIGEST2,
             image_load_address: Addr64 {
                 lo: 0x0050_0000,
                 hi: 0x0000_0000,
