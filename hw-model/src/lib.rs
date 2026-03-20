@@ -41,6 +41,8 @@ pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+#[cfg(unix)]
+//openocd uses linux specifc crates to spawn the server process
 pub mod openocd;
 pub mod otp_digest;
 pub mod otp_provision;

@@ -134,7 +134,7 @@ pub use mailbox::{
 pub use ml_kem::{
     MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey, MlKem1024Message,
     MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, MlKemResult,
+    MlKem1024SharedKeyOut, MlKemPctKvContext, MlKemResult,
 };
 pub use mldsa87::{
     Mldsa87, Mldsa87Msg, Mldsa87Mu, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,

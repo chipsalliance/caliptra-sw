@@ -24,6 +24,15 @@ use caliptra_common::{
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 
+use caliptra_dpe::{
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
+        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+    },
+    context::ContextHandle,
+    response::{DpeErrorCode, Response, ResponseHdr},
+};
+use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -35,15 +44,6 @@ use caliptra_image_types::ImageBundle;
 use caliptra_runtime::CaliptraDpeProfile;
 pub use caliptra_test::{
     default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware, DEFAULT_MCU_FW,
-};
-use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
-use dpe::{
-    commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
-        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
-    },
-    context::ContextHandle,
-    response::{DpeErrorCode, Response, ResponseHdr},
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time, Asn1TimeRef},

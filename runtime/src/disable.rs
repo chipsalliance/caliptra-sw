@@ -15,11 +15,11 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_EXPORTED_DPE_CDI;
+use caliptra_dpe::U8Bool;
 use caliptra_drivers::{
     hmac_kdf, Array4x12, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyId, KeyReadArgs,
     KeyUsage, KeyWriteArgs,
 };
-use dpe::U8Bool;
 
 pub struct DisableAttestationCmd;
 impl DisableAttestationCmd {

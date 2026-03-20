@@ -27,6 +27,7 @@ use caliptra_cfi_lib::{
 use caliptra_registers::abr::{AbrReg, RegisterBlock};
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
+use zeroize::Zeroize;
 
 #[must_use]
 #[repr(u32)]
@@ -115,11 +116,6 @@ impl<'a> Mldsa87<'a> {
         Self { mldsa87 }
     }
 
-    fn generate_iv(trng: &mut Trng) -> CaliptraResult<LEArray4x16> {
-        let iv = trng.generate16()?;
-        Ok(LEArray4x16::from(iv))
-    }
-
     // Wait on the provided condition OR the error condition defined in this function
     // In the event of the error condition being set, clear the error bits and return an error
     fn wait<F>(regs: RegisterBlock<ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
@@ -164,6 +160,28 @@ impl<'a> Mldsa87<'a> {
         trng: &mut Trng,
         priv_key_out: Option<&mut Mldsa87PrivKey>,
     ) -> CaliptraResult<Mldsa87PubKey> {
+        let pubkey = self.key_pair_internal(seed, trng, priv_key_out)?;
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pubkey = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::MLDSA87_PAIRWISE_CONSISTENCY_ERROR,
+                &pubkey,
+            )
+        };
+
+        self.pct(seed, &pubkey, trng)?;
+        Ok(pubkey)
+    }
+
+    /// Raw key pair generation without PCT.
+    #[inline(never)]
+    fn key_pair_internal(
+        &mut self,
+        seed: Mldsa87Seed,
+        trng: &mut Trng,
+        priv_key_out: Option<&mut Mldsa87PrivKey>,
+    ) -> CaliptraResult<Mldsa87PubKey> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -181,9 +199,8 @@ impl<'a> Mldsa87<'a> {
             Mldsa87Seed::PrivKey(_) => Err(CaliptraError::DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE)?,
         }
 
-        // Generate an IV.
-        let iv = Self::generate_iv(trng)?;
-        iv.write_to_reg(mldsa.entropy());
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.mldsa_ctrl().write(|w| w.ctrl(KEYGEN));
@@ -203,7 +220,30 @@ impl<'a> Mldsa87<'a> {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         Ok(pubkey)
-        // TODO check that pubkey is valid?
+    }
+
+    /// Pairwise consistency test: sign a zero message with the seed and
+    /// verify against the public key.
+    #[inline(never)]
+    fn pct(
+        &mut self,
+        seed: Mldsa87Seed,
+        pubkey: &Mldsa87PubKey,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
+        let pct_msg = Mldsa87Msg::default();
+        let pct_sign_rnd = Mldsa87SignRnd::default();
+
+        match self.sign(seed, pubkey, &pct_msg, &pct_sign_rnd, trng) {
+            Ok(mut sig) => {
+                sig.zeroize();
+            }
+            Err(_) => {
+                return Err(CaliptraError::DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
+        }
+
+        Ok(())
     }
 
     fn sign_internal(
@@ -245,9 +285,8 @@ impl<'a> Mldsa87<'a> {
         // Sign RND, TODO do we want deterministic?
         sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
 
-        // Generate an IV.
-        let iv = Self::generate_iv(trng)?;
-        iv.write_to_reg(mldsa.entropy());
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.mldsa_ctrl().write(|w| {
@@ -386,9 +425,8 @@ impl<'a> Mldsa87<'a> {
         // Sign RND.
         sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
 
-        // Generate an IV.
-        let iv = Self::generate_iv(trng)?;
-        iv.write_to_reg(mldsa.entropy());
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
 
         // Copy seed or the private key to the hardware
         match seed {
@@ -574,9 +612,8 @@ impl<'a> Mldsa87<'a> {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
-        // Generate an IV.
-        let iv = Self::generate_iv(trng)?;
-        iv.write_to_reg(mldsa.entropy());
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
 
         mldsa
             .mldsa_ctrl()

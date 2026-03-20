@@ -286,6 +286,37 @@ impl Ecc384 {
         )
     }
 
+    /// Generate ECC-384 Key Pair for ECDH key agreement.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - Seed for deterministic ECC Key Pair generation
+    /// * `nonce` - Nonce for deterministic ECC Key Pair generation
+    /// * `trng` - TRNG driver instance
+    /// * `priv_key` - Generated ECC-384 Private key
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384PubKey` - Generated ECC-384 Public Key
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    pub fn ecdh_key_pair(
+        &mut self,
+        seed: Ecc384Seed,
+        nonce: &Array4x12,
+        trng: &mut Trng,
+        priv_key: &mut Ecc384Scalar,
+    ) -> CaliptraResult<Ecc384PubKey> {
+        let pub_key = self.key_pair_base(
+            seed,
+            nonce,
+            trng,
+            Ecc384PrivKeyOut::Array4x12(priv_key),
+            None,
+        )?;
+        self.ecdh_pct(Ecc384PrivKeyIn::Array4x12(priv_key), &pub_key, trng)?;
+        Ok(pub_key)
+    }
+
     /// Private base function to generate ECC-384 Key Pair
     /// pct_sig should only be provided in the KAT use case
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -400,6 +431,85 @@ impl Ecc384 {
         };
 
         Ok(pub_key)
+    }
+
+    /// ECDH pairwise consistency test.
+    ///
+    /// Must be called after key pair generation when the key pair will be
+    /// used for ECDH key agreement. Generates an ephemeral key pair,
+    /// computes ECDH from both sides, and verifies the shared secrets match.
+    ///
+    /// # Arguments
+    ///
+    /// * `priv_key` - Private key to test
+    /// * `pub_key` - Public key to test
+    /// * `trng` - TRNG driver instance
+    fn ecdh_pct(
+        &mut self,
+        priv_key: Ecc384PrivKeyIn,
+        pub_key: &Ecc384PubKey,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
+        // Generate an ephemeral key pair for the PCT.
+        let eph_seed = trng.generate()?;
+        let eph_nonce = Array4x12::new([0u32; 12]);
+        let mut eph_priv_key = Array4x12::default();
+        let eph_pub_key = {
+            let ecc = self.ecc.regs_mut();
+
+            Ecc384::wait(ecc, || ecc.status().read().ready())?;
+            KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?;
+            KvAccess::copy_from_arr(&eph_seed, ecc.seed())?;
+            KvAccess::copy_from_arr(&eph_nonce, ecc.nonce())?;
+            let iv = trng.generate()?;
+            KvAccess::copy_from_arr(&iv, ecc.iv())?;
+            ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
+            Ecc384::wait(ecc, || ecc.status().read().valid())?;
+            KvAccess::end_copy_to_arr(ecc.privkey_out(), &mut eph_priv_key)?;
+            Ecc384PubKey {
+                x: Array4x12::read_from_reg(ecc.pubkey_x()),
+                y: Array4x12::read_from_reg(ecc.pubkey_y()),
+            }
+        };
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pub_key = &unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR,
+                pub_key,
+            )
+        };
+
+        // ECDH(priv_A, pub_B)
+        let mut shared_secret_a = Array4x12::default();
+        self.ecdh(
+            priv_key,
+            &eph_pub_key,
+            trng,
+            Ecc384PrivKeyOut::Array4x12(&mut shared_secret_a),
+        )
+        .map_err(|_| CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE)?;
+
+        // ECDH(priv_B, pub_A)
+        let mut shared_secret_b = Array4x12::default();
+        self.ecdh(
+            Ecc384PrivKeyIn::Array4x12(&eph_priv_key),
+            pub_key,
+            trng,
+            Ecc384PrivKeyOut::Array4x12(&mut shared_secret_b),
+        )
+        .map_err(|_| CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE)?;
+
+        // Shared secrets must match
+        if shared_secret_a != shared_secret_b {
+            return Err(CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE);
+        }
+
+        shared_secret_a.zeroize();
+        shared_secret_b.zeroize();
+        eph_priv_key.zeroize();
+
+        Ok(())
     }
 
     /// Sign the PCR digest with PCR signing private key in keyvault slot 7 (KV7).

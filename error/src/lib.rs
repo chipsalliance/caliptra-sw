@@ -324,6 +324,11 @@ impl CaliptraError {
             "Driver Error: ECC384 hardware error"
         ),
         (
+            DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00050012,
+            "Driver Error: ECC384 ECDH pairwise consistency failure"
+        ),
+        (
             DRIVER_MLDSA87_READ_SEED_KV_READ,
             0x00058000,
             "Driver Error: MLDSA87 read seed KV read"
@@ -359,6 +364,11 @@ impl CaliptraError {
             "Driver Error: MLDSA87 signature is not supported"
         ),
         (
+            DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00058007,
+            "Driver Error: MLDSA87 key generation pairwise consistency failure"
+        ),
+        (
             DRIVER_MLKEM_READ_SEED_KV_READ,
             0x00059000,
             "Driver Error: ML-KEM read seed KV read"
@@ -392,6 +402,11 @@ impl CaliptraError {
             DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
             0x00059006,
             "Driver Error: ML-KEM read message KV unknown"
+        ),
+        (
+            DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00059007,
+            "Driver Error: ML-KEM key generation pairwise consistency failure"
         ),
         (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,

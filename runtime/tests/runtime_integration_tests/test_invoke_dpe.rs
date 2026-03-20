@@ -13,6 +13,14 @@ use caliptra_api::{
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
+use caliptra_dpe::{
+    commands::{
+        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
+        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
+    },
+    context::ContextHandle,
+    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
+};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
@@ -20,14 +28,6 @@ use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
     signed_data::{SignedData, SignerIdentifier},
-};
-use dpe::{
-    commands::{
-        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
-        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
-    },
-    context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
 };
 use ml_dsa_01::{
     signature::Verifier, EncodedSignature, EncodedVerifyingKey, Signature, VerifyingKey,

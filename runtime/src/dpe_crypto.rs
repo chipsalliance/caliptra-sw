@@ -17,6 +17,16 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
+use caliptra_dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
+use caliptra_dpe_crypto::{
+    ecdsa::{
+        curve_384::{Curve384, EcdsaPub384, EcdsaSignature384},
+        EcdsaPubKey, EcdsaSignature,
+    },
+    ml_dsa::{ExternalMu, MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    Cdi, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, Mu, PubKey,
+    SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
+};
 use caliptra_drivers::{
     hmac_kdf, okref,
     sha2_512_384::{Sha2DigestOpTrait, Sha384},
@@ -28,58 +38,26 @@ use caliptra_drivers::{
 use caliptra_registers::abr::AbrReg;
 use constant_time_eq::constant_time_eq;
 use core::marker::PhantomData;
-use crypto::{
-    ecdsa::{
-        curve_384::{Curve384, EcdsaPub384, EcdsaSignature384},
-        EcdsaPubKey, EcdsaSignature,
-    },
-    ml_dsa::{ExternalMu, MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
-    Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, Mu, PubKey,
-    SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
-};
-use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 use zerocopy::IntoBytes;
 
-pub type DpeEcCrypto<'a> = DpeCrypto<'a, Curve384, crypto::Sha384, crypto::Sha384>;
-impl CryptoSuite for DpeEcCrypto<'_> {}
-impl SignatureType for DpeEcCrypto<'_> {
-    const SIGNATURE_ALGORITHM: SignatureAlgorithm = Curve384::SIGNATURE_ALGORITHM;
-}
-impl DigestType for DpeEcCrypto<'_> {
-    const DIGEST_ALGORITHM: DigestAlgorithm = crypto::Sha384::DIGEST_ALGORITHM;
-}
-impl SignDataType for DpeEcCrypto<'_> {
-    const SIGN_DATA_ALGORITHM: SignDataAlgorithm = crypto::Sha384::SIGN_DATA_ALGORITHM;
-}
-
-pub type DpeMldsaCrypto<'a> = DpeCrypto<'a, ExternalMu, crypto::Sha384, Mu>;
-impl CryptoSuite for DpeMldsaCrypto<'_> {}
-impl SignatureType for DpeMldsaCrypto<'_> {
-    const SIGNATURE_ALGORITHM: SignatureAlgorithm = ExternalMu::SIGNATURE_ALGORITHM;
-}
-impl DigestType for DpeMldsaCrypto<'_> {
-    const DIGEST_ALGORITHM: DigestAlgorithm = crypto::Sha384::DIGEST_ALGORITHM;
-}
-impl SignDataType for DpeMldsaCrypto<'_> {
-    const SIGN_DATA_ALGORITHM: SignDataAlgorithm = Mu::SIGN_DATA_ALGORITHM;
-}
-
-pub struct DpeCrypto<'a, S: SignatureType, D: DigestType, SD: SignDataType> {
+pub struct DpeCrypto<'a> {
     sha2_512_384: &'a mut Sha2_512_384,
     trng: &'a mut Trng,
     hmac: &'a mut Hmac,
     key_vault: &'a mut KeyVault,
     signer: Signer<'a>,
+    hash_op: Option<Sha2DigestOp<'a, Sha384>>,
+    cdi: Option<KeyId>,
+    derived_key: Option<(KeyId, PubKey)>,
     rt_pub_key: PubKey,
     key_id_rt_cdi: KeyId,
     key_id_rt_priv_key: KeyId,
     exported_cdi_slots: &'a mut ExportedCdiHandles,
-    _pd: PhantomData<(S, D, SD)>,
 }
 
-impl<'a> DpeEcCrypto<'a> {
+impl<'a> DpeCrypto<'a> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new_ecc384(
         sha2_512_384: &'a mut Sha2_512_384,
         trng: &'a mut Trng,
         ecc384: &'a mut Ecc384,
@@ -89,25 +67,25 @@ impl<'a> DpeEcCrypto<'a> {
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
-    ) -> DpeEcCrypto<'a> {
-        DpeEcCrypto {
+    ) -> DpeCrypto<'a> {
+        DpeCrypto {
             sha2_512_384,
             trng,
             hmac,
             key_vault,
             signer: Signer::Ec(ecc384),
+            hash_op: None,
+            cdi: None,
+            derived_key: None,
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             exported_cdi_slots,
-            _pd: PhantomData,
         }
     }
-}
 
-impl<'a> DpeMldsaCrypto<'a> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new_mldsa87(
         sha2_512_384: &'a mut Sha2_512_384,
         trng: &'a mut Trng,
         abr_reg: &'a mut AbrReg,
@@ -117,37 +95,64 @@ impl<'a> DpeMldsaCrypto<'a> {
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
-    ) -> DpeMldsaCrypto<'a> {
-        DpeMldsaCrypto {
+    ) -> DpeCrypto<'a> {
+        DpeCrypto {
             sha2_512_384,
             trng,
             hmac,
             key_vault,
             signer: Signer::Mldsa(abr_reg),
+            hash_op: None,
+            cdi: None,
+            derived_key: None,
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             exported_cdi_slots,
-            _pd: PhantomData,
         }
     }
 }
 
-impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> {
+impl CryptoSuite for DpeCrypto<'_> {}
+
+impl SignatureType for DpeCrypto<'_> {
+    fn signature_algorithm(&self) -> SignatureAlgorithm {
+        match self.signer {
+            Signer::Ec(_) => SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384),
+            Signer::Mldsa(_) => SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87),
+        }
+    }
+}
+
+impl DigestType for DpeCrypto<'_> {
+    fn digest_algorithm(&self) -> DigestAlgorithm {
+        DigestAlgorithm::Sha384
+    }
+}
+
+impl SignDataType for DpeCrypto<'_> {
+    fn digest_algorithm(&self) -> SignDataAlgorithm {
+        match self.signer {
+            Signer::Ec(_) => SignDataAlgorithm::Sha384,
+            Signer::Mldsa(_) => SignDataAlgorithm::Mu,
+        }
+    }
+}
+
+impl DpeCrypto<'_> {
     fn derive_cdi_inner(
         &mut self,
         measurement: &Digest,
         info: &[u8],
         key_id: KeyId,
-    ) -> Result<<Self as crypto::Crypto>::Cdi, CryptoError> {
+    ) -> Result<KeyId, CryptoError> {
         let mut usage = KeyUsage::default().set_hmac_key_en();
-        let usage = match S::SIGNATURE_ALGORITHM {
-            SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384) => usage.set_ecc_key_gen_seed_en(),
-            SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
-            _ => return Err(CryptoError::MismatchedAlgorithm),
+        let usage = match self.signer {
+            Signer::Ec(_) => usage.set_ecc_key_gen_seed_en(),
+            Signer::Mldsa(_) => usage.set_mldsa_key_gen_seed_en(),
         };
 
-        let mut hasher = self.hash_initialize()?;
+        let mut hasher = self.hasher()?;
         hasher.update(measurement.as_slice())?;
         hasher.update(info)?;
         let context = hasher.finish()?;
@@ -173,10 +178,9 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         key_id: KeyId,
     ) -> Result<(KeyId, PubKey), CryptoError> {
         let mut usage = KeyUsage::default();
-        let usage = match S::SIGNATURE_ALGORITHM {
-            SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384) => usage.set_ecc_key_gen_seed_en(),
-            SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87) => usage.set_mldsa_key_gen_seed_en(),
-            _ => return Err(CryptoError::MismatchedAlgorithm),
+        let usage = match self.signer {
+            Signer::Ec(_) => usage.set_ecc_key_gen_seed_en(),
+            Signer::Mldsa(_) => usage.set_mldsa_key_gen_seed_en(),
         };
         hmac_kdf(
             self.hmac,
@@ -189,8 +193,8 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         )
         .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
-        match (S::SIGNATURE_ALGORITHM, &mut self.signer) {
-            (SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384), Signer::Ec(ecc384)) => {
+        match &mut self.signer {
+            Signer::Ec(ecc384) => {
                 let pub_key = ecc384
                     .key_pair(
                         Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
@@ -206,7 +210,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
                 )));
                 Ok((key_id, pub_key))
             }
-            (SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+            Signer::Mldsa(abr_reg) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
                 let pub_key = mldsa
                     .key_pair(
@@ -218,7 +222,6 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
                 let pub_key = okref(&pub_key)?;
                 Ok((KEY_ID_TMP, PubKey::Mldsa(MldsaPublicKey(pub_key.into()))))
             }
-            _ => Err(CryptoError::MismatchedAlgorithm),
         }
     }
 
@@ -261,7 +264,9 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
             y: Ecc384Scalar::from(y),
         };
         let digest = match data {
-            SignData::Digest(Digest::Sha384(crypto::Sha384(digest))) => Ecc384Scalar::from(digest),
+            SignData::Digest(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest))) => {
+                Ecc384Scalar::from(digest)
+            }
             SignData::Raw(msg) => sha2_512_384
                 .sha384_digest(msg)
                 .map_err(|_| CryptoError::HashError(0))?,
@@ -318,11 +323,11 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         priv_key: &KeyId,
         pub_key: &PubKey,
     ) -> Result<Signature, CryptoError> {
-        match (S::SIGNATURE_ALGORITHM, signer) {
-            (SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384), Signer::Ec(ecc384)) => {
+        match (signer) {
+            (Signer::Ec(ecc384)) => {
                 Self::sign_ec(ecc384, sha2_512_384, trng, data, priv_key, pub_key)
             }
-            (SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87), Signer::Mldsa(abr_reg)) => {
+            (Signer::Mldsa(abr_reg)) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
                 Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key)
             }
@@ -331,7 +336,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
     }
 }
 
-impl<S: SignatureType, D: DigestType, SD: SignDataType> Drop for DpeCrypto<'_, S, D, SD> {
+impl Drop for DpeCrypto<'_> {
     fn drop(&mut self) {
         let _ = self.key_vault.erase_key(KEY_ID_DPE_CDI);
         let _ = self.key_vault.erase_key(KEY_ID_DPE_PRIV_KEY);
@@ -339,40 +344,34 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Drop for DpeCrypto<'_, S
     }
 }
 
-pub struct DpeHasher<'a> {
-    op: Sha2DigestOp<'a, Sha384>,
-}
-
-impl<'a> DpeHasher<'a> {
-    pub fn new(op: Sha2DigestOp<'a, Sha384>) -> Self {
-        Self { op }
+impl Hasher for DpeCrypto<'_> {
+    fn initialize(&mut self) -> Result<(), CryptoError> {
+        let op = self
+            .sha2_512_384
+            .sha384_digest_init()
+            .map_err(|e| CryptoError::HashError(u32::from(e)))?;
+        self.hash_op = Some(op);
+        Ok(())
     }
-}
 
-impl Hasher for DpeHasher<'_> {
     fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
-        self.op
-            .update(bytes)
+        let Some(op) = self.hash_op.as_mut() else {
+            return Err(CryptoError::HashError(0));
+        };
+        op.update(bytes)
             .map_err(|e| CryptoError::HashError(u32::from(e)))
     }
 
-    fn finish(self) -> Result<Digest, CryptoError> {
+    fn finish(&mut self) -> Result<Digest, CryptoError> {
+        let op = self.hash_op.take().ok_or(CryptoError::HashError(1))?;
         let mut digest = Array4x12::default();
-        self.op
-            .finalize(&mut digest)
+        op.finalize(&mut digest)
             .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        Ok(Digest::Sha384(crypto::Sha384(digest.into())))
+        Ok(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest.into())))
     }
 }
 
-impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_, S, D, SD> {
-    type Cdi = KeyId;
-    type Hasher<'b>
-        = DpeHasher<'b>
-    where
-        Self: 'b;
-    type PrivKey = KeyId;
-
+impl Crypto for DpeCrypto<'_> {
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
         for chunk in dst.chunks_mut(48) {
             let trng_bytes = <[u8; 48]>::from(
@@ -385,12 +384,8 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         Ok(())
     }
 
-    fn hash_initialize(&mut self) -> Result<Self::Hasher<'_>, CryptoError> {
-        let op = self
-            .sha2_512_384
-            .sha384_digest_init()
-            .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        Ok(DpeHasher::new(op))
+    fn hasher(&mut self) -> Result<&mut dyn Hasher, CryptoError> {
+        Ok(self)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -442,18 +437,13 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_cdi(&mut self, measurement: &Digest, info: &[u8]) -> Result<Self::Cdi, CryptoError> {
-        self.derive_cdi_inner(measurement, info, KEY_ID_DPE_CDI)
-    }
-
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_key_pair(
+    fn derive_cdi(
         &mut self,
-        cdi: &Self::Cdi,
-        label: &[u8],
+        measurement: &Digest,
         info: &[u8],
-    ) -> Result<(Self::PrivKey, PubKey), CryptoError> {
-        self.derive_key_pair_inner(cdi, label, info, KEY_ID_DPE_PRIV_KEY)
+    ) -> Result<&mut dyn Cdi, CryptoError> {
+        self.cdi = Some(self.derive_cdi_inner(measurement, info, KEY_ID_DPE_CDI)?);
+        Ok(self)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -462,7 +452,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
         exported_handle: &ExportedCdiHandle,
         label: &[u8],
         info: &[u8],
-    ) -> Result<(Self::PrivKey, PubKey), CryptoError> {
+    ) -> Result<&mut dyn Signer, CryptoError> {
         let cdi = {
             let mut cdi = None;
             for cdi_slot in self.exported_cdi_slots.entries.iter() {
@@ -493,13 +483,41 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
             &self.rt_pub_key,
         )
     }
+}
 
-    fn sign_with_derived(
+impl Cdi for DpeCrypto<'_> {
+    fn derive_key_pair(
         &mut self,
-        data: &SignData,
-        priv_key: &Self::PrivKey,
-        pub_key: &PubKey,
-    ) -> Result<Signature, CryptoError> {
+        label: &[u8],
+        info: &[u8],
+    ) -> Result<&mut dyn caliptra_dpe_crypto::Signer, CryptoError> {
+        let cdi = self.cdi.take().ok_or(CryptoError::CryptoLibError(1))?;
+        self.derived_key =
+            Some(self.derive_key_pair_inner(&cdi, label, info, KEY_ID_DPE_PRIV_KEY)?);
+        Ok(self)
+    }
+
+    fn derive_key_pair_exported(
+        &mut self,
+        exported_handle: &ExportedCdiHandle,
+        label: &[u8],
+        info: &[u8],
+    ) -> Result<&mut dyn caliptra_dpe_crypto::Signer, CryptoError> {
+        let cdi = self.cdi.take().ok_or(CryptoError::CryptoLibError(2))?;
+        self.derived_key = Some(self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)?);
+        Ok(self)
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        unimplemented!("Intentionally unimplemented because this is for test only purposes")
+    }
+}
+
+impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
+    fn sign(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+        let Some((priv_key, pub_key)) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(3));
+        };
         Self::sign_helper(
             &mut self.signer,
             self.sha2_512_384,
@@ -508,6 +526,13 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> Crypto for DpeCrypto<'_,
             priv_key,
             pub_key,
         )
+    }
+
+    fn public_key(&self) -> Result<PubKey, CryptoError> {
+        let Some((_, pub_key)) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(4));
+        };
+        Ok(pub_key.clone())
     }
 }
 

@@ -9,6 +9,9 @@ use caliptra_builder::firmware::{
 use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
+use caliptra_dpe::response::{CertifyKeyResp, SignResp};
+use caliptra_dpe::DpeProfile;
+use caliptra_dpe::{commands::*, context::ContextHandle, response::Response};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
@@ -16,9 +19,6 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_image_types::ImageManifest;
 use common::*;
-use dpe::response::{CertifyKeyResp, SignResp};
-use dpe::DpeProfile;
-use dpe::{commands::*, context::ContextHandle, response::Response};
 use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 

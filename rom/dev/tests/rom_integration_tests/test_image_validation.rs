@@ -33,7 +33,7 @@ use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVen
 use caliptra_image_types::{
     FwVerificationPqcKeyType, ImageBundle, ImageEccPubKey, ImageLmsPublicKey, ImageLmsSignature,
     ImageManifest, ImageMldsaPubKey, ImageMldsaSignature, ImagePqcPubKey, ImageSignData,
-    MLDSA87_SIGNATURE_WORD_SIZE, PQC_PUB_KEY_BYTE_SIZE, VENDOR_ECC_MAX_KEY_COUNT,
+    IMAGE_BYTE_SIZE, MLDSA87_SIGNATURE_WORD_SIZE, PQC_PUB_KEY_BYTE_SIZE, VENDOR_ECC_MAX_KEY_COUNT,
     VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
 };
 use openssl::{
@@ -3444,4 +3444,29 @@ fn test_preamble_vendor_mldsa_pubkey_out_of_bounds() {
         &image_bundle.to_bytes().unwrap(),
         CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS,
     );
+}
+
+#[test]
+fn test_fw_padded_256k() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        let mut fw_bytes = image_bundle.to_bytes().unwrap();
+        assert!(
+            fw_bytes.len() <= IMAGE_BYTE_SIZE,
+            "image already exceeds 256KB"
+        );
+        fw_bytes.resize(IMAGE_BYTE_SIZE, 0);
+
+        crate::helpers::test_upload_firmware(&mut hw, &fw_bytes, *pqc_key_type);
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+    }
 }

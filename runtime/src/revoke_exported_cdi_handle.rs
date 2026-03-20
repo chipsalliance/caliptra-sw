@@ -11,8 +11,8 @@ use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
 use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use caliptra_dpe::U8Bool;
 use constant_time_eq::constant_time_eq;
-use dpe::U8Bool;
 use zerocopy::FromBytes;
 use zeroize::Zeroize;
 

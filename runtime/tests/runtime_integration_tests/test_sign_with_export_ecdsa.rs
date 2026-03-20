@@ -7,11 +7,7 @@ use caliptra_api::{
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError, SecurityState};
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, TciMeasurement};
-use crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
     context::ContextHandle,
     response::{
@@ -19,6 +15,10 @@ use dpe::{
     },
     TCI_SIZE,
 };
+use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{HwModel, ModelError, SecurityState};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, TciMeasurement};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},

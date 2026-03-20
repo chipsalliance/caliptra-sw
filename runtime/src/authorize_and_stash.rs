@@ -21,9 +21,9 @@ use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
+use caliptra_dpe::response::DpeErrorCode;
 use caliptra_drivers::{AesDmaMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
-use dpe::response::DpeErrorCode;
 use zerocopy::FromBytes;
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.

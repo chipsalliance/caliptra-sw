@@ -8,11 +8,13 @@ Release notes for changes introduced since ROM 2.1.0.
 
 - rom: Seed ABR_ENTROPY on startup for SCA protection (#3507)
 - rom: Randomize AES ENTROPY_IF_SEED on reset (#3487)
+- drivers: Add MLDSA pairwise consistency test (#3547)
 - drivers: handle mailbox FSM error state and unexpected DataReady (#3393)
 - Consolidate ABR register usage across MLDSA and MLKEM drivers (#3447)
 - Remove duplicate CFI Git library to reduce code size (#3368)
 - [drivers]: Zeroize hardware on error (#3346)
 - [OCP-LOCK]: Add more CFI to ROM flow (#3265)
+- [OCP-LOCK]: Simplified HEK Seed States (#3541)
 
 # fw-2.1.0
 

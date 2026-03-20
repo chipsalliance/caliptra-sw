@@ -8,38 +8,26 @@
 # Stop spewing kernel noise to the UART
 echo 3 > /proc/sys/kernel/printk
 
-# TODO(clundin): There are a lot of hacks that get cleaned up if using initrd.
-
 # The VCK-190 image currently always has the same MAC. Do this for now until 
 # a better option is found.
 ip link set dev end0 down
 macchanger -r end0 || true
 ip link set dev end0 up
 
-# Overlay exists so we can proceed.
+# Load the IO module if it exists
+if [[ -f "/home/runner/io-module.ko" ]]; then
+    echo "Installing io-module.ko..."
+    insmod /home/runner/io-module.ko
+fi
+
+# Developer mode (mutable filesystem)
 if [[ -f "/etc/no_overlayfs" ]]; then
-    echo "Skipping overlayfs setup for development image."
-    mount -o rw,remount /
+    echo "Developer mode: Skipping CI startup logic."
     systemctl start resize-rootfs
-    insmod /home/runner/io-module.ko
     login -f root
-elif grep -q "overlay" /proc/mounts; then
-    mount -o rw,remount /
-
-    # TODO(clundin): Get this at job runtime instead.
-    insmod /home/runner/io-module.ko
-
-    HOST="google.com"
-    while ! ping -c 1 "$HOST" &> /dev/null; do
-      echo "Connection to $HOST failed. Retrying in 1 second..."
-      sleep 1
-    done
-
-    # Update time. This requires a R/W file system, so it failed earlier.
-    timedatectl set-ntp true
-    systemctl restart systemd-timesyncd
-
-    sleep 15s
+else
+    # CI mode (overlaid writable filesystem)
+    echo "CI mode: Starting command loop..."
 
     function runner_jitconfig() {
       echo "Executing GHA runner"
@@ -63,42 +51,12 @@ elif grep -q "overlay" /proc/mounts; then
     else
         echo "Unknown command ${cmd}"
     fi
+
     # Emit a sentinel that tells fpga-boss (listening via UART)
     # that we are done and can be reset.
     echo "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE"
 
-    # Run a root shell that can be used to debug any problems while the artifacts
-    # are still in the filesystem.
+    # Run a root shell for debugging
     login -f root
     shutdown -h now
-else
-   # We need to mount the squashfs in an overlayfs. To spare myself more pain
-   # wrestling with petalinux I will mount the overlay here (why not). Eventually
-   # I want to do this the proper way but this will do for now.
-  
-   LOWER_DIR="/mnt/root_base"
-   MERGED_DIR="/mnt/new_root"
-   UPPER_MNT="/mnt/root_overlay"
-
-   UPPER_DIR="${UPPER_MNT}/upper"
-   WORK_DIR="${UPPER_MNT}/work"
-
-   mount --bind / "${LOWER_DIR}"
-   mount -t tmpfs tmpfs "${UPPER_MNT}"
-   mkdir -p "${UPPER_DIR}" "${WORK_DIR}"
-   mount -t overlay overlay \
-     -o lowerdir="${LOWER_DIR}",upperdir="${UPPER_DIR}",workdir="${WORK_DIR}" \
-     "${MERGED_DIR}"
-
-   mount --make-rprivate /
-   for m in dev proc sys run; do
-     mount --move "/${m}" "${MERGED_DIR}/${m}"
-   done
-
-   mkdir -p "${MERGED_DIR}/old_root"
-   cd "${MERGED_DIR}"
-   pivot_root . old_root
-
-   # Recursively call startup-script
-   /usr/bin/startup-script.sh
 fi

@@ -2866,7 +2866,7 @@ Command Code: '5243_5458` ("RCTX")
 | new_pl0_context_limit | u32      | Number of contexts assigned to PL0 after the reallocation                  |
 | new_pl1_context_limit | u32      | Number of contexts assigned to PL1 after the reallocation                  |
 
-This allows the user to reallocate the 32 DPE contexts between PL0 and PL1. By default, each gets 16 contexts.
+This allows the user to reallocate the 64 DPE contexts between PL0 and PL1. By default, each gets 32 contexts.
 
 **Note**: 2 PL0 contexts are used by Caliptra itself during initialization.
 
@@ -3069,14 +3069,14 @@ by repeatedly calling the aforementioned DPE commands with certain flags set.
 To prevent this, we establish active context limits for each PAUSER
 privilege level:
 
-* PL0 - 16 active contexts
-* PL1 - 16 active contexts
+* PL0 - 32 active contexts
+* PL1 - 32 active contexts
 
 If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
 
-At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 16) to DeriveContext for:
+At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 32) to DeriveContext for:
    - RTFW Journey (RTFJ) Measurement (1)
    - Caliptra Configured Initialization Values digest (CCIV) (1)
    - ROM Stashed Measurements (max 8)

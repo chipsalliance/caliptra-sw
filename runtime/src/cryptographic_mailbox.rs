@@ -1729,11 +1729,11 @@ impl Commands {
         let seed = drivers.trng.generate()?;
         let nonce = drivers.trng.generate()?;
         let mut priv_key_out = Array4x12::default();
-        let pub_key = drivers.ecc384.key_pair(
+        let pub_key = drivers.ecc384.ecdh_key_pair(
             Ecc384Seed::Array4x12(&seed),
             &nonce,
             &mut drivers.trng,
-            Ecc384PrivKeyOut::Array4x12(&mut priv_key_out),
+            &mut priv_key_out,
         )?;
 
         let mut plaintext_context = [0u8; CMB_ECDH_CONTEXT_SIZE];
@@ -2473,7 +2473,7 @@ impl Commands {
         let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
-        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds)?;
+        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds, None)?;
 
         let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();

@@ -16,12 +16,14 @@ Abstract:
 use crate::{
     array::{LEArray4x392, LEArray4x792, LEArray4x8},
     kv_access::{KvAccess, KvAccessErr},
-    wait, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    wait, Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage,
+    KeyWriteArgs, AES_BLOCK_SIZE_BYTES,
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::abr::{AbrReg, RegisterBlock};
+use zeroize::Zeroize;
 
 #[must_use]
 #[repr(u32)]
@@ -127,6 +129,20 @@ impl From<KeyWriteArgs> for MlKem1024SharedKeyOut<'_> {
     }
 }
 
+/// Context for ML-KEM pairwise consistency test when seeds come from Key Vault.
+/// When seeds are in KV, the decapsulation key register is not readable.
+/// This context provides resources to verify key pair consistency by routing
+/// shared secrets through a scratch KV slot and using AES-ECB encryption as a
+/// comparison function: both encapsulate and keygen_decapsulate produce shared
+/// secrets routed to the same KV slot. AES-ECB encrypting a zero block with
+/// each shared secret as the key produces ciphertexts that can be compared.
+pub struct MlKemPctKvContext<'a> {
+    /// AES driver for encrypting with the shared secret.
+    pub aes: &'a mut Aes,
+    /// Scratch KV slot for the shared secret (used as AES key).
+    pub shared_key_id: KeyId,
+}
+
 /// ML-KEM-1024 API
 pub struct MlKem1024<'a> {
     mlkem: &'a mut AbrReg,
@@ -175,6 +191,9 @@ impl<'a> MlKem1024<'a> {
     /// # Arguments
     ///
     /// * `seeds` - Either arrays of seed_d and seed_z or a key vault key containing both seeds.
+    /// * `pct_kv` - Context for pairwise consistency test when seeds come from KV.
+    ///   Required when seeds are `MlKem1024Seeds::Key`. When seeds are arrays,
+    ///   the decapsulation key is directly readable and this is not needed.
     ///
     /// # Returns
     ///
@@ -182,7 +201,10 @@ impl<'a> MlKem1024<'a> {
     pub fn key_pair(
         &mut self,
         seeds: MlKem1024Seeds,
+        pct_kv: Option<MlKemPctKvContext<'_>>,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
+        let kv_seeds = matches!(seeds, MlKem1024Seeds::Key(_));
+
         self.zeroize_internal()?;
 
         let mlkem = self.mlkem.regs_mut();
@@ -211,10 +233,138 @@ impl<'a> MlKem1024<'a> {
         let encaps_key = MlKem1024EncapsKey::read_from_reg(mlkem.mlkem_encaps_key());
         let decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
 
-        // Clear the hardware when done
+        // Clear the keygen hardware state before PCT operations.
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
 
+        self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv)?;
+
         Ok((encaps_key, decaps_key))
+    }
+
+    /// Pairwise consistency test: verify that the generated encapsulation
+    /// and decapsulation keys are consistent.
+    fn pct(
+        &mut self,
+        encaps_key: &MlKem1024EncapsKey,
+        decaps_key: &MlKem1024DecapsKey,
+        kv_seeds: bool,
+        seeds: MlKem1024Seeds,
+        pct_kv: Option<MlKemPctKvContext<'_>>,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        let encaps_key = &unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::MLKEM_PAIRWISE_CONSISTENCY_ERROR,
+                encaps_key,
+            )
+        };
+
+        if kv_seeds {
+            let pct =
+                pct_kv.ok_or(CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)?;
+            self.pct_kv(encaps_key, seeds, pct)?;
+        } else {
+            self.pct_direct(encaps_key, decaps_key)?;
+        }
+
+        Ok(())
+    }
+
+    /// Direct PCT: encapsulate then decapsulate and compare shared secrets.
+    fn pct_direct(
+        &mut self,
+        encaps_key: &MlKem1024EncapsKey,
+        decaps_key: &MlKem1024DecapsKey,
+    ) -> CaliptraResult<()> {
+        let pct_msg = MlKem1024Message::default();
+        let mut pct_shared_key_enc = MlKem1024SharedKey::default();
+        let mut pct_shared_key_dec = MlKem1024SharedKey::default();
+
+        let result = (|| {
+            let pct_ciphertext = self
+                .encapsulate(
+                    encaps_key,
+                    MlKem1024MessageSource::Array(&pct_msg),
+                    MlKem1024SharedKeyOut::Array(&mut pct_shared_key_enc),
+                )
+                .map_err(|_| CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)?;
+
+            self.decapsulate(
+                decaps_key,
+                &pct_ciphertext,
+                MlKem1024SharedKeyOut::Array(&mut pct_shared_key_dec),
+            )
+            .map_err(|_| CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)?;
+
+            if pct_shared_key_enc != pct_shared_key_dec {
+                return Err(CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
+
+            Ok(())
+        })();
+
+        pct_shared_key_enc.zeroize();
+        pct_shared_key_dec.zeroize();
+        result
+    }
+
+    /// KV-based PCT: route shared secrets to a scratch KV slot, then encrypt
+    /// a zero block with AES-ECB using each shared secret as the key. If both
+    /// ciphertexts match, the shared secrets were identical and the key pair
+    /// is consistent.
+    fn pct_kv(
+        &mut self,
+        encaps_key: &MlKem1024EncapsKey,
+        seeds: MlKem1024Seeds,
+        pct: MlKemPctKvContext<'_>,
+    ) -> CaliptraResult<()> {
+        let pct_msg = MlKem1024Message::default();
+        let sk_slot = pct.shared_key_id;
+
+        // Encapsulate → shared secret to scratch KV slot
+        let pct_ciphertext = self.encapsulate(
+            encaps_key,
+            MlKem1024MessageSource::Array(&pct_msg),
+            MlKem1024SharedKeyOut::Key(KeyWriteArgs {
+                id: sk_slot,
+                usage: KeyUsage::default().set_aes_key_en(),
+            }),
+        )?;
+
+        // AES-ECB encrypt a zero block with the encapsulated shared secret
+        let ct_enc = Self::pct_aes_ecb(pct.aes, sk_slot)?;
+
+        // keygen_decapsulate → shared secret to scratch KV slot
+        self.keygen_decapsulate(
+            seeds,
+            &pct_ciphertext,
+            MlKem1024SharedKeyOut::Key(KeyWriteArgs {
+                id: sk_slot,
+                usage: KeyUsage::default().set_aes_key_en(),
+            }),
+        )?;
+
+        // AES-ECB encrypt a zero block with the decapsulated shared secret
+        let ct_dec = Self::pct_aes_ecb(pct.aes, sk_slot)?;
+
+        if ct_enc != ct_dec {
+            return Err(CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+        }
+
+        Ok(())
+    }
+
+    /// Helper: AES-256-ECB encrypt a zero block using a key from KV.
+    fn pct_aes_ecb(aes: &mut Aes, key_id: KeyId) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
+        let plaintext = [0u8; AES_BLOCK_SIZE_BYTES];
+        let mut ciphertext = [0u8; AES_BLOCK_SIZE_BYTES];
+        aes.aes_256_ecb(
+            AesKey::KV(KeyReadArgs::new(key_id)),
+            AesOperation::Encrypt,
+            &plaintext,
+            &mut ciphertext,
+        )?;
+        Ok(ciphertext)
     }
 
     /// Encapsulate a shared secret
@@ -266,8 +416,8 @@ impl<'a> MlKem1024<'a> {
                         .hmac_key_dest_valid(key.usage.hmac_key())
                         .hmac_block_dest_valid(key.usage.hmac_data())
                         .mldsa_seed_dest_valid(key.usage.mldsa_seed())
-                        .ecc_pkey_dest_valid(key.usage.ecc_key_gen_seed())
-                        .ecc_seed_dest_valid(key.usage.ecc_private_key())
+                        .ecc_pkey_dest_valid(key.usage.ecc_private_key())
+                        .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                         .aes_key_dest_valid(key.usage.aes_key())
                         .mlkem_seed_dest_valid(key.usage.mlkem_seed())
                         .mlkem_msg_dest_valid(key.usage.mlkem_msg())
@@ -427,8 +577,8 @@ impl<'a> MlKem1024<'a> {
                         .hmac_key_dest_valid(key.usage.hmac_key())
                         .hmac_block_dest_valid(key.usage.hmac_data())
                         .mldsa_seed_dest_valid(key.usage.mldsa_seed())
-                        .ecc_pkey_dest_valid(key.usage.ecc_key_gen_seed())
-                        .ecc_seed_dest_valid(key.usage.ecc_private_key())
+                        .ecc_pkey_dest_valid(key.usage.ecc_private_key())
+                        .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                         .aes_key_dest_valid(key.usage.aes_key())
                         .mlkem_seed_dest_valid(key.usage.mlkem_seed())
                         .mlkem_msg_dest_valid(key.usage.mlkem_msg())
