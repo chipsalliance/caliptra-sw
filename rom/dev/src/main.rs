@@ -93,10 +93,6 @@ pub extern "C" fn rom_entry() -> ! {
         handle_fatal_error(err.into());
     }
 
-    if let Err(err) = env.mldsa87.seed_entropy(&mut env.trng) {
-        handle_fatal_error(err.into());
-    }
-
     // Check if HW version is supported.
     let cptra_gen = env.soc_ifc.caliptra_generation();
     if !is_supported_hw_version(&cptra_gen) {
