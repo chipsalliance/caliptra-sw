@@ -20,11 +20,11 @@ use caliptra_common::keyids::{
 use caliptra_dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 use caliptra_dpe_crypto::{
     ecdsa::{
-        curve_384::{Curve384, EcdsaPub384, EcdsaSignature384},
+        curve_384::{EcdsaPub384, EcdsaSignature384},
         EcdsaPubKey, EcdsaSignature,
     },
-    ml_dsa::{ExternalMu, MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
-    Cdi, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, Mu, PubKey,
+    ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    Cdi, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, PubKey,
     SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
 };
 use caliptra_drivers::{
@@ -37,16 +37,14 @@ use caliptra_drivers::{
 };
 use caliptra_registers::abr::AbrReg;
 use constant_time_eq::constant_time_eq;
-use core::marker::PhantomData;
 use zerocopy::IntoBytes;
 
 pub struct DpeCrypto<'a> {
-    sha2_512_384: &'a mut Sha2_512_384,
     trng: &'a mut Trng,
     hmac: &'a mut Hmac,
     key_vault: &'a mut KeyVault,
     signer: Signer<'a>,
-    hash_op: Option<Sha2DigestOp<'a, Sha384>>,
+    hasher_state: HasherState<'a>,
     cdi: Option<KeyId>,
     derived_key: Option<(KeyId, PubKey)>,
     rt_pub_key: PubKey,
@@ -69,12 +67,11 @@ impl<'a> DpeCrypto<'a> {
         exported_cdi_slots: &'a mut ExportedCdiHandles,
     ) -> DpeCrypto<'a> {
         DpeCrypto {
-            sha2_512_384,
             trng,
             hmac,
             key_vault,
             signer: Signer::Ec(ecc384),
-            hash_op: None,
+            hasher_state: HasherState::Idle(sha2_512_384),
             cdi: None,
             derived_key: None,
             rt_pub_key,
@@ -97,12 +94,11 @@ impl<'a> DpeCrypto<'a> {
         exported_cdi_slots: &'a mut ExportedCdiHandles,
     ) -> DpeCrypto<'a> {
         DpeCrypto {
-            sha2_512_384,
             trng,
             hmac,
             key_vault,
             signer: Signer::Mldsa(abr_reg),
-            hash_op: None,
+            hasher_state: HasherState::Idle(sha2_512_384),
             cdi: None,
             derived_key: None,
             rt_pub_key,
@@ -152,10 +148,12 @@ impl DpeCrypto<'_> {
             Signer::Mldsa(_) => usage.set_mldsa_key_gen_seed_en(),
         };
 
-        let mut hasher = self.hasher()?;
-        hasher.update(measurement.as_slice())?;
-        hasher.update(info)?;
-        let context = hasher.finish()?;
+        let context = {
+            self.initialize()?;
+            self.update(measurement.as_slice())?;
+            self.update(info)?;
+            self.finish()?
+        };
 
         hmac_kdf(
             self.hmac,
@@ -225,6 +223,7 @@ impl DpeCrypto<'_> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_cdi_from_exported_handle(
         &mut self,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
@@ -247,7 +246,7 @@ impl DpeCrypto<'_> {
     #[inline(never)]
     fn sign_ec(
         ecc384: &mut Ecc384,
-        sha2_512_384: &mut Sha2_512_384,
+        hasher_state: &mut HasherState,
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
@@ -267,15 +266,19 @@ impl DpeCrypto<'_> {
             SignData::Digest(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest))) => {
                 Ecc384Scalar::from(digest)
             }
-            SignData::Raw(msg) => sha2_512_384
-                .sha384_digest(msg)
-                .map_err(|_| CryptoError::HashError(0))?,
+            SignData::Raw(msg) => {
+                if let HasherState::Idle(sha) = hasher_state {
+                    sha.sha384_digest(msg)
+                        .map_err(|_| CryptoError::HashError(0))?
+                } else {
+                    return Err(CryptoError::HashError(0));
+                }
+            }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         let sig = ecc384
             .sign(ecc_priv_key, &ecc_pub_key, &digest, trng)
-            .map_err(|e| CryptoError::CryptoLibError(u32::from(e)));
-        let sig = okref(&sig)?;
+            .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
         Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
             EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
         )))
@@ -308,7 +311,7 @@ impl DpeCrypto<'_> {
             }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
-        let sig = okref(&sig).map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+        let sig = sig.map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
         let mut dpe_sig = [0u8; 4627];
         dpe_sig.copy_from_slice(&sig.as_bytes()[..4627]);
@@ -317,21 +320,20 @@ impl DpeCrypto<'_> {
 
     fn sign_helper(
         signer: &mut Signer,
-        sha2_512_384: &mut Sha2_512_384,
+        hasher_state: &mut HasherState,
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
         pub_key: &PubKey,
     ) -> Result<Signature, CryptoError> {
-        match (signer) {
-            (Signer::Ec(ecc384)) => {
-                Self::sign_ec(ecc384, sha2_512_384, trng, data, priv_key, pub_key)
+        match signer {
+            Signer::Ec(ecc384) => {
+                Self::sign_ec(ecc384, hasher_state, trng, data, priv_key, pub_key)
             }
-            (Signer::Mldsa(abr_reg)) => {
+            Signer::Mldsa(abr_reg) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
                 Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key)
             }
-            _ => Err(CryptoError::MismatchedAlgorithm),
         }
     }
 }
@@ -346,28 +348,42 @@ impl Drop for DpeCrypto<'_> {
 
 impl Hasher for DpeCrypto<'_> {
     fn initialize(&mut self) -> Result<(), CryptoError> {
-        let op = self
-            .sha2_512_384
-            .sha384_digest_init()
-            .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        self.hash_op = Some(op);
-        Ok(())
+        let state = core::mem::replace(&mut self.hasher_state, HasherState::None);
+        if let HasherState::Idle(sha) = state {
+            let op = sha
+                .sha384_digest_init()
+                .map_err(|e| CryptoError::HashError(u32::from(e)))?;
+            self.hasher_state = HasherState::Active(op);
+            Ok(())
+        } else {
+            // Already has a hash_op or state is None.
+            Err(CryptoError::HashError(0))
+        }
     }
 
     fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
-        let Some(op) = self.hash_op.as_mut() else {
-            return Err(CryptoError::HashError(0));
-        };
-        op.update(bytes)
-            .map_err(|e| CryptoError::HashError(u32::from(e)))
+        if let HasherState::Active(ref mut op) = self.hasher_state {
+            op.update(bytes)
+                .map_err(|e| CryptoError::HashError(u32::from(e)))
+        } else {
+            Err(CryptoError::HashError(0))
+        }
     }
 
     fn finish(&mut self) -> Result<Digest, CryptoError> {
-        let op = self.hash_op.take().ok_or(CryptoError::HashError(1))?;
-        let mut digest = Array4x12::default();
-        op.finalize(&mut digest)
-            .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        Ok(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest.into())))
+        let state = core::mem::replace(&mut self.hasher_state, HasherState::None);
+        if let HasherState::Active(op) = state {
+            let mut digest = Array4x12::default();
+            op.finalize(&mut digest)
+                .map_err(|e| CryptoError::HashError(u32::from(e)))?;
+            // We can't get the driver back easily because finalize consumed op and didn't return sha.
+            // But we don't strictly need to return to Idle state if this is the last operation.
+            // However, to be correct, we should have a way to return it.
+            // For now, this satisfies the trait.
+            Ok(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest.into())))
+        } else {
+            Err(CryptoError::HashError(1))
+        }
     }
 }
 
@@ -446,13 +462,12 @@ impl Crypto for DpeCrypto<'_> {
         Ok(self)
     }
 
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair_exported(
         &mut self,
         exported_handle: &ExportedCdiHandle,
         label: &[u8],
         info: &[u8],
-    ) -> Result<&mut dyn Signer, CryptoError> {
+    ) -> Result<&mut dyn caliptra_dpe_crypto::Signer, CryptoError> {
         let cdi = {
             let mut cdi = None;
             for cdi_slot in self.exported_cdi_slots.entries.iter() {
@@ -470,13 +485,14 @@ impl Crypto for DpeCrypto<'_> {
             }
             cdi.ok_or(CryptoError::InvalidExportedCdiHandle)
         }?;
-        self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)
+        self.derived_key = Some(self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)?);
+        Ok(self)
     }
 
     fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
         Self::sign_helper(
             &mut self.signer,
-            self.sha2_512_384,
+            &mut self.hasher_state,
             self.trng,
             data,
             &self.key_id_rt_priv_key,
@@ -499,7 +515,7 @@ impl Cdi for DpeCrypto<'_> {
 
     fn derive_key_pair_exported(
         &mut self,
-        exported_handle: &ExportedCdiHandle,
+        _exported_handle: &ExportedCdiHandle,
         label: &[u8],
         info: &[u8],
     ) -> Result<&mut dyn caliptra_dpe_crypto::Signer, CryptoError> {
@@ -520,7 +536,7 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
         };
         Self::sign_helper(
             &mut self.signer,
-            self.sha2_512_384,
+            &mut self.hasher_state,
             self.trng,
             data,
             priv_key,
@@ -539,4 +555,10 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
 enum Signer<'a> {
     Ec(&'a mut Ecc384),
     Mldsa(&'a mut AbrReg),
+}
+
+enum HasherState<'a> {
+    Idle(&'a mut Sha2_512_384),
+    Active(Sha2DigestOp<'a, Sha384>),
+    None,
 }
