@@ -386,8 +386,14 @@ impl Mldsa87 {
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::KEYGEN)
             | Some(Control::CTRL::Value::SIGNING)
-            | Some(Control::CTRL::Value::VERIFYING)
             | Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
+                // Entropy must be written with non-zero values before these operations
+                // to provide SCA countermeasures.
+                assert!(
+                    self.entropy.iter().any(|&v| v != 0),
+                    "MLDSA_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+                );
+
                 // Reset the Ready and Valid status bits
                 self.status
                     .reg
@@ -399,10 +405,25 @@ impl Mldsa87 {
                     && (self.control.reg.read_as_enum(Control::CTRL)
                         == Some(Control::CTRL::Value::SIGNING)
                         || self.control.reg.read_as_enum(Control::CTRL)
-                            == Some(Control::CTRL::Value::VERIFYING)
-                        || self.control.reg.read_as_enum(Control::CTRL)
                             == Some(Control::CTRL::Value::KEYGEN_AND_SIGN))
                 {
+                    // Clear any previous streamed message
+                    self.streamed_msg.clear();
+                    self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
+                    // Schedule an action to set the MSG_STREAM_READY bit after a short delay
+                    self.op_msg_stream_ready_action = Some(self.timer.schedule_poll_in(10));
+                } else {
+                    // Not waiting for message streaming, proceed with operation
+                    self.op_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
+                }
+            }
+            Some(Control::CTRL::Value::VERIFYING) => {
+                // Reset the Ready and Valid status bits
+                self.status
+                    .reg
+                    .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+
+                if self.control.reg.is_set(Control::STREAM_MSG) {
                     // Clear any previous streamed message
                     self.streamed_msg.clear();
                     self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
@@ -769,6 +790,7 @@ mod tests {
     const OFFSET_VERSION1: RvAddr = 0xC;
     const OFFSET_CONTROL: RvAddr = 0x10;
     const OFFSET_STATUS: RvAddr = 0x14;
+    const OFFSET_ENTROPY: RvAddr = 0x18;
     const OFFSET_SEED: RvAddr = 0x58;
     const OFFSET_SIGN_RND: RvAddr = 0x78;
     const OFFSET_MSG: RvAddr = 0x98;
@@ -780,6 +802,19 @@ mod tests {
     const OFFSET_PRIVKEY_IN: RvAddr = 0x6000;
     const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
     const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x8004;
+
+    /// Write non-zero entropy to the MLDSA_ENTROPY registers.
+    fn write_entropy(ml_dsa87: &mut Mldsa87) {
+        for i in 0..(ML_DSA87_IV_SIZE / 4) {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_ENTROPY + (i * 4) as RvAddr,
+                    rand::thread_rng().gen::<u32>() | 1, // ensure non-zero
+                )
+                .unwrap();
+        }
+    }
 
     #[test]
     fn test_name() {
@@ -854,6 +889,8 @@ mod tests {
                 .unwrap();
         }
 
+        write_entropy(&mut ml_dsa87);
+
         ml_dsa87
             .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
             .unwrap();
@@ -925,6 +962,8 @@ mod tests {
                 )
                 .unwrap();
         }
+
+        write_entropy(&mut ml_dsa87);
 
         ml_dsa87
             .write(
@@ -1156,6 +1195,8 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
             }
 
+            write_entropy(&mut ml_dsa87);
+
             ml_dsa87
                 .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
                 .unwrap();
@@ -1217,6 +1258,8 @@ mod tests {
         // Save public key for later verification
         let mut keygen_rng = SeedOnlyRng::new(seed);
         let (pk, _sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+
+        write_entropy(&mut ml_dsa87);
 
         // Enable key generation and signing with streaming message mode in one operation
         let ctrl_value = Control::CTRL::KEYGEN_AND_SIGN.value | Control::STREAM_MSG::SET.value;
@@ -1363,6 +1406,8 @@ mod tests {
                 .unwrap();
         }
 
+        write_entropy(&mut ml_dsa87);
+
         // Start signing operation with streaming mode
         let ctrl_value = Control::CTRL::SIGNING.value | Control::STREAM_MSG::SET.value;
         ml_dsa87
@@ -1446,5 +1491,156 @@ mod tests {
             !result_wrong_ctx,
             "Signature shouldn't verify with wrong context"
         );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "MLDSA_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_keygen_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+
+        let seed = rand::thread_rng().gen::<[u8; 32]>();
+        for (i, chunk) in seed.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_SEED + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "MLDSA_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_signing_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::SIGNING.into())
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "MLDSA_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_keygen_and_sign_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::CTRL::KEYGEN_AND_SIGN.into(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn test_verify_without_entropy_succeeds() {
+        // Verify operations should NOT require entropy
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+
+        let msg: [u8; 64] = {
+            let part0 = rand::thread_rng().gen::<[u8; 32]>();
+            let part1 = rand::thread_rng().gen::<[u8; 32]>();
+            let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
+            concat.as_slice().try_into().unwrap()
+        };
+
+        let seed = rand::thread_rng().gen::<[u8; 32]>();
+        let mut keygen_rng = SeedOnlyRng::new(seed);
+        let (pk_from_lib, sk_from_lib) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+        let signature_from_lib = sk_from_lib
+            .try_sign_with_seed(&[0u8; 32], &msg, &[])
+            .unwrap();
+
+        for (i, chunk) in msg.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_MSG + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        let pk_for_hw = pk_from_lib.into_bytes();
+        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_PK + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        let sig_for_hw = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature_from_lib);
+            sig
+        };
+
+        for (i, chunk) in sig_for_hw.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        // Do NOT write entropy — verify should still work
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::CTRL::VERIFYING.into(),
+            )
+            .unwrap();
+
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
+        }
+
+        let result = bytes_from_words_le(&ml_dsa87.verify_res);
+        assert_eq!(result, &sig_for_hw[..ML_DSA87_VERIFICATION_SIZE_BYTES]);
     }
 }
