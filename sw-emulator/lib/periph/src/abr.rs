@@ -519,8 +519,14 @@ impl Abr {
         match self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL) {
             Some(MlDsaControl::CTRL::Value::KEYGEN)
             | Some(MlDsaControl::CTRL::Value::SIGNING)
-            | Some(MlDsaControl::CTRL::Value::VERIFYING)
             | Some(MlDsaControl::CTRL::Value::KEYGEN_AND_SIGN) => {
+                // Entropy must be written with non-zero values before these operations
+                // to provide SCA countermeasures.
+                assert!(
+                    self.abr_entropy.iter().any(|&v| v != 0),
+                    "ABR_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+                );
+
                 // Reset the Ready and Valid status bits
                 self.mldsa_status
                     .reg
@@ -532,10 +538,28 @@ impl Abr {
                     && (self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
                         == Some(MlDsaControl::CTRL::Value::SIGNING)
                         || self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
-                            == Some(MlDsaControl::CTRL::Value::VERIFYING)
-                        || self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
                             == Some(MlDsaControl::CTRL::Value::KEYGEN_AND_SIGN))
                 {
+                    // Clear any previous streamed message
+                    self.mldsa_streamed_msg.clear();
+                    self.mldsa_status
+                        .reg
+                        .modify(MlDsaStatus::MSG_STREAM_READY::CLEAR);
+                    // Schedule an action to set the MSG_STREAM_READY bit after a short delay
+                    self.mldsa_op_msg_stream_ready_action = Some(self.timer.schedule_poll_in(10));
+                } else {
+                    // Not waiting for message streaming, proceed with operation
+                    self.mldsa_op_complete_action =
+                        Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
+                }
+            }
+            Some(MlDsaControl::CTRL::Value::VERIFYING) => {
+                // Reset the Ready and Valid status bits
+                self.mldsa_status
+                    .reg
+                    .modify(MlDsaStatus::READY::CLEAR + MlDsaStatus::VALID::CLEAR);
+
+                if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
                     // Clear any previous streamed message
                     self.mldsa_streamed_msg.clear();
                     self.mldsa_status
@@ -974,6 +998,13 @@ impl Abr {
             | Some(MlKemControl::CTRL::Value::ENCAPS)
             | Some(MlKemControl::CTRL::Value::DECAPS)
             | Some(MlKemControl::CTRL::Value::KEYGEN_DECAPS) => {
+                // Entropy must be written with non-zero values before these operations
+                // to provide SCA countermeasures.
+                assert!(
+                    self.abr_entropy.iter().any(|&v| v != 0),
+                    "ABR_ENTROPY registers must be written with non-zero values before MLKEM operations"
+                );
+
                 // Reset the Ready and Valid status bits
                 self.mlkem_status.reg.modify(
                     MlKemStatus::READY::CLEAR
@@ -1410,6 +1441,7 @@ mod tests {
     const OFFSET_MLDSA_VERSION1: RvAddr = 0xC;
     const OFFSET_MLDSA_CONTROL: RvAddr = 0x10;
     const OFFSET_MLDSA_STATUS: RvAddr = 0x14;
+    const OFFSET_ABR_ENTROPY: RvAddr = 0x18;
     const OFFSET_MLDSA_SEED: RvAddr = 0x58;
     const OFFSET_MLDSA_SIGN_RND: RvAddr = 0x78;
     const OFFSET_MLDSA_MSG: RvAddr = 0x98;
@@ -1432,6 +1464,18 @@ mod tests {
     const OFFSET_MLKEM_DECAPS_KEY: RvAddr = 0xA000;
     const OFFSET_MLKEM_ENCAPS_KEY: RvAddr = 0xB000;
     const OFFSET_MLKEM_CIPHERTEXT: RvAddr = 0xB800;
+
+    /// Write non-zero entropy to the ABR_ENTROPY registers (shared by MLDSA and MLKEM).
+    fn write_abr_entropy(abr: &mut Abr) {
+        for i in 0..(ML_DSA87_IV_SIZE / 4) {
+            abr.write(
+                RvSize::Word,
+                OFFSET_ABR_ENTROPY + (i * 4) as RvAddr,
+                rand::thread_rng().gen::<u32>() | 1, // ensure non-zero
+            )
+            .unwrap();
+        }
+    }
 
     #[test]
     fn test_mldsa_name() {
@@ -1509,6 +1553,8 @@ mod tests {
                 .unwrap();
         }
 
+        write_abr_entropy(&mut ml_dsa87);
+
         ml_dsa87
             .write(
                 RvSize::Word,
@@ -1584,6 +1630,8 @@ mod tests {
                 )
                 .unwrap();
         }
+
+        write_abr_entropy(&mut ml_dsa87);
 
         ml_dsa87
             .write(
@@ -1819,6 +1867,8 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
             }
 
+            write_abr_entropy(&mut ml_dsa87);
+
             ml_dsa87
                 .write(
                     RvSize::Word,
@@ -1884,6 +1934,8 @@ mod tests {
         // Save public key for later verification
         let mut keygen_rng = SeedOnlyRng::new(seed);
         let (pk, _sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+
+        write_abr_entropy(&mut ml_dsa87);
 
         // Enable key generation and signing with streaming message mode in one operation
         let ctrl_value =
@@ -2035,6 +2087,8 @@ mod tests {
                 .unwrap();
         }
 
+        write_abr_entropy(&mut ml_dsa87);
+
         // Start signing operation with streaming mode
         let ctrl_value = MlDsaControl::CTRL::SIGNING.value | MlDsaControl::STREAM_MSG::SET.value;
         ml_dsa87
@@ -2125,6 +2179,165 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_mldsa_keygen_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+
+        let seed = rand::thread_rng().gen::<[u8; 32]>();
+        for (i, chunk) in seed.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_SEED + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::KEYGEN.into(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_mldsa_signing_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::SIGNING.into(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before KEYGEN/SIGNING/KEYGEN_AND_SIGN operations"
+    )]
+    fn test_mldsa_keygen_and_sign_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::KEYGEN_AND_SIGN.into(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn test_mldsa_verify_without_entropy_succeeds() {
+        // Verify operations should NOT require entropy
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+
+        let msg: [u8; 64] = {
+            let part0 = rand::thread_rng().gen::<[u8; 32]>();
+            let part1 = rand::thread_rng().gen::<[u8; 32]>();
+            let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
+            concat.as_slice().try_into().unwrap()
+        };
+
+        let seed = rand::thread_rng().gen::<[u8; 32]>();
+        let mut keygen_rng = SeedOnlyRng::new(seed);
+        let (pk_from_lib, sk_from_lib) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+        let signature_from_lib = sk_from_lib
+            .try_sign_with_seed(&[0u8; 32], &msg, &[])
+            .unwrap();
+
+        for (i, chunk) in msg.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_MSG + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        let pk_for_hw = pk_from_lib.into_bytes();
+        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_PK + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        let sig_for_hw = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature_from_lib);
+            sig
+        };
+
+        for (i, chunk) in sig_for_hw.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_SIGNATURE + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+
+        // Do NOT write entropy — verify should still work
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::VERIFYING.into(),
+            )
+            .unwrap();
+
+        loop {
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+            );
+
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
+        }
+
+        let result = bytes_from_words_le(&ml_dsa87.mldsa_verify_res);
+        assert_eq!(result, &sig_for_hw[..ML_DSA87_VERIFICATION_SIZE_BYTES]);
+    }
+
+    #[test]
     fn test_mlkem_keygen() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
@@ -2153,6 +2366,8 @@ mod tests {
             )
             .unwrap();
         }
+
+        write_abr_entropy(&mut abr);
 
         // Trigger keygen
         abr.write(
@@ -2221,6 +2436,8 @@ mod tests {
             .unwrap();
         }
 
+        write_abr_entropy(&mut abr);
+
         // Trigger encapsulation
         abr.write(
             RvSize::Word,
@@ -2281,6 +2498,8 @@ mod tests {
             )
             .unwrap();
         }
+
+        write_abr_entropy(&mut abr);
 
         // Trigger decapsulation (ciphertext should already be set from encaps)
         abr.write(
@@ -2361,6 +2580,8 @@ mod tests {
             .unwrap();
         }
 
+        write_abr_entropy(&mut abr);
+
         // Trigger keygen + decapsulation
         abr.write(
             RvSize::Word,
@@ -2393,5 +2614,85 @@ mod tests {
         let encaps_key_hw = bytes_from_words_le(&abr.mlkem_encaps_key);
         let expected_ek_bytes = ek.as_bytes();
         assert_eq!(encaps_key_hw, expected_ek_bytes);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before MLKEM operations"
+    )]
+    fn test_mlkem_keygen_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::KEYGEN.into(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before MLKEM operations"
+    )]
+    fn test_mlkem_encaps_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::ENCAPS.into(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before MLKEM operations"
+    )]
+    fn test_mlkem_decaps_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::DECAPS.into(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "ABR_ENTROPY registers must be written with non-zero values before MLKEM operations"
+    )]
+    fn test_mlkem_keygen_decaps_without_entropy_panics() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+
+        // Do NOT write entropy — this should panic
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::KEYGEN_DECAPS.into(),
+        )
+        .unwrap();
     }
 }
