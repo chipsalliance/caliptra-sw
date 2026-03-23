@@ -432,8 +432,6 @@ impl ModelVerilated {
             self.v.input.itrng_valid = false;
         }
     }
-<<<<<<< HEAD
-
     fn put_firmware_in_rri(
         &mut self,
         _firmware: &[u8],
@@ -467,31 +465,4 @@ impl ModelVerilated {
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
     }
-||||||| parent of 41229db4f (Restore Verilator support for Caliptra 2.0)
-
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        todo!()
-    }
-
-    fn events_from_caliptra(&mut self) -> Vec<Event> {
-        todo!()
-    }
-
-    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
-        todo!()
-    }
-
-    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
-        todo!()
-    }
-
-    fn fuses(&self) -> &Fuses {
-        &self.fuses
-    }
-
-    fn set_fuses(&mut self, fuses: Fuses) {
-        self.fuses = fuses;
-    }
-=======
->>>>>>> 41229db4f (Restore Verilator support for Caliptra 2.0)
 }

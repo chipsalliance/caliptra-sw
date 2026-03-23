@@ -39,6 +39,41 @@ jobs:
         with:
           submodules: 'true'
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qy
+          sudo apt-get install -qy flex bison libfl2 libfl-dev help2man
+
+      - name: Install verilator
+        run: |
+          if [ -d "/opt/verilator" ]; then
+            exit
+          fi
+          cd /tmp/
+          git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
+          cd verilator
+          autoconf
+          ./configure --prefix=/opt/verilator
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Install cargo-nextest
+        run: cargo install cargo-nextest --locked
+
+      - name: Setup verilator path
+        run: |
+          echo /opt/verilator/bin >> $GITHUB_PATH
+          echo PKG_CONFIG_PATH=/opt/verilator/share/pkgconfig >> $GITHUB_ENV
+
+      - name: Run driver tests in Verilator
+        run: |
+          export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
+          cargo nextest run \
+            -p caliptra-drivers \
+            --release \
+            --features=verilator,itrng \
+            --profile=default
+
       # - name: Restore sccache binary
       #   uses: actions/cache/restore@v3
       #   id: sccache_bin_restore
