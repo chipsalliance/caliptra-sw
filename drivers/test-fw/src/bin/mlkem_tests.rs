@@ -45,6 +45,25 @@ const MESSAGE: [u32; 8] = [
 
 const KEY_ID: KeyId = KeyId::KeyId2;
 
+/// Seed the ABR entropy registers with fresh randomness.
+/// This must be called before any MLKEM (or MLDSA) operation.
+fn seed_abr_entropy() {
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let regs = abr_reg.regs_mut();
+    let entropy = trng.generate16().unwrap();
+    entropy.write_to_reg(regs.entropy());
+}
+
 fn test_mlkem_name() {
     let mut trng = unsafe {
         Trng::new(
@@ -74,6 +93,7 @@ fn test_mlkem_name() {
 }
 
 fn test_key_pair_generation() {
+    seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
 
@@ -270,6 +290,7 @@ fn test_key_pair_generation() {
 }
 
 fn test_key_pair_generation_from_kv() {
+    seed_abr_entropy();
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -373,6 +394,7 @@ fn test_key_pair_generation_from_kv() {
 }
 
 fn test_encapsulate_and_decapsulate() {
+    seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
 
@@ -413,6 +435,7 @@ fn test_encapsulate_and_decapsulate() {
 }
 
 fn test_encapsulate_with_kv_message() {
+    seed_abr_entropy();
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -603,6 +626,7 @@ fn test_encapsulate_with_kv_message() {
 }
 
 fn test_encapsulate_with_kv_output() {
+    seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
 
@@ -635,6 +659,7 @@ fn test_encapsulate_with_kv_output() {
 }
 
 fn test_keygen_decapsulate() {
+    seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
 
@@ -673,6 +698,7 @@ fn test_keygen_decapsulate() {
 }
 
 fn test_keygen_decapsulate_with_kv() {
+    seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
 

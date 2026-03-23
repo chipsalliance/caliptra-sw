@@ -64,6 +64,7 @@ test_suite! {
 fn test_ml_kem_1024_test_vector() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
 
     // SAFETY: This API is unsafe to discourage usage in firmware. It's used here to verify the
     // HPKE implementation against a known test vector.
@@ -108,6 +109,7 @@ fn test_ml_kem_1024_test_vector() {
 fn test_ml_kem_1024_self_talk() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
 
     let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
     let mut kem = {
@@ -283,6 +285,7 @@ fn test_p384_public_key_curve_validation() {
 fn test_hybrid_test_vector() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
 
     let trad_priv_key = Ecc384Scalar::from(<[u8; 48]>::try_from(HYBRID_TRAD_DK).unwrap());
     let trad_pub_key = Ecc384PubKey {
@@ -352,6 +355,7 @@ fn test_hybrid_test_vector() {
 fn test_hybrid_self_talk() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
 
     let hpke = HpkeHybridContext::generate(&mut regs.trng).unwrap();
 
