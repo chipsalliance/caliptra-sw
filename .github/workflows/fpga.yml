@@ -292,6 +292,11 @@ jobs:
 
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
             VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+            # Map rom-version to the expected FIPS test ROM version
+            case "${{ inputs.rom-version }}" in
+              "2.1") VARS+=" FIPS_TEST_ROM_EXP_VERSION=2_1_0" ;;
+              *) echo "Unknown rom-version ${{ inputs.rom-version }} for FIPS_TEST_ROM_EXP_VERSION"; exit 1 ;;
+            esac
           fi
 
           echo VARS=${VARS}
