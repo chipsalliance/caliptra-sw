@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caliptra Emulator</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --surface: #2a2a3c;
+    --border: #3a3a4c;
+    --text: #cdd6f4;
+    --muted: #888;
+    --accent: #89b4fa;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+    --yellow: #f9e2af;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  label {
+    font-size: 0.85rem;
+    min-width: 120px;
+    color: var(--text);
+  }
+  input[type="text"], input[type="file"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    flex: 1;
+    min-width: 200px;
+  }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  input[type="file"] {
+    cursor: pointer;
+  }
+  .rom-info {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  button {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.85; }
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  button.stop {
+    background: var(--red);
+  }
+  button.reset {
+    background: var(--border);
+    color: var(--text);
+  }
+  .status {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-left: 8px;
+  }
+  .status.running { color: var(--green); }
+  .status.stopped { color: var(--yellow); }
+  .status.exited  { color: var(--red); }
+  .status.passed  { color: var(--green); }
+  #uart-output {
+    background: #11111b;
+    color: #a6e3a1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    width: 100%;
+    height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    resize: vertical;
+  }
+  #log-output {
+    background: #11111b;
+    color: #bac2de;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    width: 100%;
+    height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    resize: vertical;
+  }
+  .stats {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 8px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  details {
+    margin-top: 8px;
+  }
+  details summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .help {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  @media (max-width: 600px) {
+    .form-row { flex-direction: column; align-items: stretch; }
+    label { min-width: auto; }
+  }
+</style>
+</head>
+<body>
+
+<h1>⚙ Caliptra Emulator</h1>
+<p class="subtitle">RISC-V emulator running in WebAssembly</p>
+
+<!-- Configuration Panel -->
+<div class="panel">
+  <h2>Configuration</h2>
+
+  <div class="form-row">
+    <label for="rom-file">ROM Binary:</label>
+    <input type="file" id="rom-file" accept=".bin,.rom">
+    <span class="rom-info" id="rom-info">Loading default ROM...</span>
+  </div>
+
+  <div class="form-row">
+    <label for="vendor-pk">Vendor PK Hash:</label>
+    <input type="text" id="vendor-pk" placeholder="96 hex chars (48 bytes) or empty for zeros"
+           value="" spellcheck="false">
+  </div>
+
+  <div class="form-row">
+    <label for="owner-pk">Owner PK Hash:</label>
+    <input type="text" id="owner-pk" placeholder="96 hex chars (48 bytes) or empty for zeros"
+           value="" spellcheck="false">
+  </div>
+
+  <p class="help">
+    Leave PK hashes empty for all-zeros (unprovisioned mode).
+    The default ROM binary is the frozen 2.1 release with UART logging enabled.
+  </p>
+</div>
+
+<!-- Controls -->
+<div class="panel">
+  <h2>Controls</h2>
+  <div class="btn-row">
+    <button id="btn-run" disabled>▶ Run</button>
+    <button id="btn-stop" class="stop" disabled>■ Stop</button>
+    <button id="btn-reset" class="reset" disabled>↻ Reset</button>
+    <span class="status" id="status">Initializing WASM...</span>
+  </div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<!-- UART Output -->
+<div class="panel">
+  <h2>UART Output</h2>
+  <div id="uart-output"></div>
+</div>
+
+<!-- Log Output (collapsible) -->
+<div class="panel">
+  <details>
+    <summary>Timestamped Log Output</summary>
+    <div id="log-output" style="margin-top: 8px;"></div>
+  </details>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

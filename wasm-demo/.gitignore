@@ -1,0 +1,6 @@
+/target/
+/pkg/
+/www/caliptra_wasm_demo_bg.wasm
+/www/caliptra_wasm_demo.js
+/www/default-rom.bin
+Cargo.lock

@@ -16,6 +16,9 @@ exclude = [
 
   # Don't pull unnecessary tools into the workspace
   "ci-tools/test-printer",
+
+  # WASM demo uses wasm-specific target and dependencies
+  "wasm-demo",
 ]
 
 members = [

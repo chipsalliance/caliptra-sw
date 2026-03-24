@@ -41,6 +41,7 @@ pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+#[cfg(feature = "platform-specific")]
 pub mod openocd;
 pub mod otp_digest;
 pub mod otp_provision;

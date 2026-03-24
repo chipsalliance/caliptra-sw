@@ -8,14 +8,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["coverage"]
-verilator = ["dep:caliptra-verilated"]
-fpga_realtime = ["dep:uio"]
-fpga_subsystem  = ["dep:uio"]
+default = ["coverage", "platform-specific"]
+verilator = ["dep:caliptra-verilated", "platform-specific"]
+fpga_realtime = ["dep:uio", "platform-specific"]
+fpga_subsystem  = ["dep:uio", "platform-specific"]
 itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
 # Defaults `InitParams` to enable OCP LOCK.
 ocp-lock = []
+# Platform-specific deps (nix, libc, rustix, regex) needed for openocd, FPGA, etc.
+# Disable for wasm32 builds.
+platform-specific = ["dep:nix", "dep:libc", "dep:rustix", "dep:regex"]
 
 [dependencies]
 anyhow.workspace = true
@@ -34,8 +37,8 @@ caliptra-image-fake-keys.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 once_cell.workspace = true
 rand.workspace = true
-regex.workspace = true
-rustix.workspace = true
+regex = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true }
 scopeguard.workspace = true
 serde = {workspace = true, features = ['derive']}
 sha2.workspace = true
@@ -45,8 +48,8 @@ thiserror.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true
-nix.workspace = true
-libc.workspace = true
+nix = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
 tock-registers.workspace = true

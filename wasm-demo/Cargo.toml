@@ -1,0 +1,29 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-wasm-demo"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+caliptra-hw-model = { path = "../hw-model", default-features = false }
+caliptra-api-types = { path = "../api/types" }
+caliptra-hw-model-types = { path = "../hw-model/types" }
+caliptra-emu-periph = { path = "../sw-emulator/lib/periph" }
+rand = { version = "0.8", features = ["std_rng"] }
+rand_core = "0.6"
+getrandom = { version = "0.2", features = ["js"] }
+
+# Patch caliptra-cfi-lib with a no-asm shim for WASM (CFI uses inline asm
+# that doesn't compile for wasm32; CFI is a firmware security feature not
+# needed by the emulator).
+[patch."https://github.com/chipsalliance/caliptra-cfi.git"]
+caliptra-cfi-lib = { path = "cfi-shim" }
+
+[profile.release]
+opt-level = "s"
+lto = true

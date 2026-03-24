@@ -1,0 +1,17 @@
+# Licensed under the Apache-2.0 license
+# No-assembly shim of caliptra-cfi-lib for WASM builds.
+# CFI is a firmware security feature not needed by the emulator.
+
+[package]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[features]
+default = []
+cfi = []
+cfi-counter = []
+cfi-test = []
