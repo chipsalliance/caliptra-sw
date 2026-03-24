@@ -3,13 +3,16 @@
 //! WASM wrapper for the Caliptra hardware emulator.
 //!
 //! Provides a JavaScript-friendly API to initialize and run the Caliptra
-//! emulator with custom ROM, vendor/owner PK hashes, and UART output capture.
+//! emulator with custom ROM, vendor/owner PK hashes, FW image, and UART
+//! output capture.
 
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use caliptra_api_types::{DeviceLifecycle, Fuses, SecurityState, DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY};
+use caliptra_api_types::{
+    DeviceLifecycle, Fuses, SecurityState, DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY,
+};
 use caliptra_emu_periph::MailboxRequester;
 use caliptra_hw_model::{BootParams, ExitStatus, HwModel, InitParams, ModelEmulated, TrngMode};
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
@@ -40,7 +43,10 @@ fn parse_pk_hash(hex: &str) -> Result<[u32; 12], String> {
     }
 
     // Strip optional "0x" prefix
-    let hex = hex.strip_prefix("0x").or_else(|| hex.strip_prefix("0X")).unwrap_or(hex);
+    let hex = hex
+        .strip_prefix("0x")
+        .or_else(|| hex.strip_prefix("0X"))
+        .unwrap_or(hex);
 
     if hex.len() != 96 {
         return Err(format!(
@@ -52,7 +58,8 @@ fn parse_pk_hash(hex: &str) -> Result<[u32; 12], String> {
     let mut result = [0u32; 12];
     for (i, chunk) in hex.as_bytes().chunks(8).enumerate() {
         let s = std::str::from_utf8(chunk).map_err(|e| format!("Invalid UTF-8: {e}"))?;
-        result[i] = u32::from_str_radix(s, 16).map_err(|e| format!("Invalid hex at word {i}: {e}"))?;
+        result[i] =
+            u32::from_str_radix(s, 16).map_err(|e| format!("Invalid hex at word {i}: {e}"))?;
     }
     Ok(result)
 }
@@ -73,11 +80,15 @@ impl CaliptraEmulator {
     /// * `rom` - The ROM binary image (96KB expected)
     /// * `vendor_pk_hash_hex` - Vendor PK hash as 96-char hex string (or empty for zeros)
     /// * `owner_pk_hash_hex` - Owner PK hash as 96-char hex string (or empty for zeros)
+    /// * `fw_image` - Optional firmware image bundle (serialized ImageBundle)
+    /// * `soc_manifest` - Optional SoC manifest (authorization manifest bytes)
     #[wasm_bindgen(constructor)]
     pub fn new(
         rom: &[u8],
         vendor_pk_hash_hex: &str,
         owner_pk_hash_hex: &str,
+        fw_image: Option<Vec<u8>>,
+        soc_manifest: Option<Vec<u8>>,
     ) -> Result<CaliptraEmulator, JsValue> {
         // Parse PK hashes
         let vendor_pk_hash =
@@ -118,7 +129,11 @@ impl CaliptraEmulator {
             ..Default::default()
         };
 
-        let boot_params = BootParams::default();
+        let boot_params = BootParams {
+            fw_image: fw_image.as_deref(),
+            soc_manifest: soc_manifest.as_deref(),
+            ..Default::default()
+        };
 
         let model = caliptra_hw_model::ModelEmulated::new(init_params, boot_params)
             .map_err(|e| JsValue::from_str(&format!("Failed to initialize emulator: {e}")))?;

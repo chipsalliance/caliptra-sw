@@ -34,6 +34,34 @@ else
     echo "You will need to upload a ROM manually in the UI."
 fi
 
+# Build default FW image bundle (uses fake/test keys)
+echo "Building default FW image bundle..."
+FW_TMP="$(mktemp)"
+cd "$SCRIPT_DIR/.."
+cargo run -p caliptra-builder -- --fw "$FW_TMP" 2>/dev/null
+cp "$FW_TMP" "$SCRIPT_DIR/www/default-fw.bin"
+echo "Built default FW bundle ($(wc -c < "$FW_TMP") bytes)"
+
+# Extract PK hashes from the FW image
+echo "Extracting PK hashes from FW image..."
+cd "$SCRIPT_DIR/tools"
+HASHES=$(cargo run --quiet -- "$FW_TMP" 2>/dev/null)
+rm -f "$FW_TMP"
+
+VENDOR_PK_HASH=$(echo "$HASHES" | grep VENDOR_PK_HASH | cut -d= -f2)
+OWNER_PK_HASH=$(echo "$HASHES" | grep OWNER_PK_HASH | cut -d= -f2)
+echo "  Vendor PK hash: $VENDOR_PK_HASH"
+echo "  Owner PK hash:  $OWNER_PK_HASH"
+
+# Write defaults JSON for the web UI
+cat > "$SCRIPT_DIR/www/defaults.json" << JSONEOF
+{
+  "vendor_pk_hash": "$VENDOR_PK_HASH",
+  "owner_pk_hash": "$OWNER_PK_HASH"
+}
+JSONEOF
+echo "Wrote www/defaults.json"
+
 echo ""
 echo "Build complete! To run:"
 echo "  cd $SCRIPT_DIR/www"

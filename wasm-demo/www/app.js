@@ -4,6 +4,10 @@ import init, { CaliptraEmulator } from "./caliptra_wasm_demo.js";
 // DOM elements
 const romFileInput = document.getElementById("rom-file");
 const romInfo = document.getElementById("rom-info");
+const fwFileInput = document.getElementById("fw-file");
+const fwInfo = document.getElementById("fw-info");
+const socManifestFileInput = document.getElementById("soc-manifest-file");
+const socManifestInfo = document.getElementById("soc-manifest-info");
 const vendorPkInput = document.getElementById("vendor-pk");
 const ownerPkInput = document.getElementById("owner-pk");
 const btnRun = document.getElementById("btn-run");
@@ -20,28 +24,49 @@ let running = false;
 let animFrameId = null;
 let defaultRom = null;
 let customRom = null;
+let defaultFw = null;
+let customFw = null;
+let customSocManifest = null;
 let startTime = 0;
 
 // Steps per animation frame — balance between speed and UI responsiveness
 const STEPS_PER_FRAME = 50_000;
 
-// Initialize WASM module and load default ROM
+// Initialize WASM module and load defaults
 async function startup() {
   try {
     await init();
-    setStatus("Loading default ROM...", "");
+    setStatus("Loading defaults...", "");
 
-    // Try to load the default ROM
-    try {
-      const resp = await fetch("default-rom.bin");
-      if (resp.ok) {
-        defaultRom = new Uint8Array(await resp.arrayBuffer());
-        romInfo.textContent = `Default ROM loaded (${(defaultRom.length / 1024).toFixed(0)} KB)`;
-      } else {
-        romInfo.textContent = "No default ROM — please upload one";
-      }
-    } catch {
+    // Load default ROM, FW, and hash defaults in parallel
+    const [romResp, fwResp, defaultsResp] = await Promise.allSettled([
+      fetch("default-rom.bin"),
+      fetch("default-fw.bin"),
+      fetch("defaults.json"),
+    ]);
+
+    if (romResp.status === "fulfilled" && romResp.value.ok) {
+      defaultRom = new Uint8Array(await romResp.value.arrayBuffer());
+      romInfo.textContent = `Default ROM loaded (${(defaultRom.length / 1024).toFixed(0)} KB)`;
+    } else {
       romInfo.textContent = "No default ROM — please upload one";
+    }
+
+    if (fwResp.status === "fulfilled" && fwResp.value.ok) {
+      defaultFw = new Uint8Array(await fwResp.value.arrayBuffer());
+      fwInfo.textContent = `Default FW loaded (${(defaultFw.length / 1024).toFixed(0)} KB)`;
+    } else {
+      fwInfo.textContent = "(optional) No default FW";
+    }
+
+    if (defaultsResp.status === "fulfilled" && defaultsResp.value.ok) {
+      const defaults = await defaultsResp.value.json();
+      if (defaults.vendor_pk_hash) {
+        vendorPkInput.value = defaults.vendor_pk_hash;
+      }
+      if (defaults.owner_pk_hash && defaults.owner_pk_hash !== "0".repeat(96)) {
+        ownerPkInput.value = defaults.owner_pk_hash;
+      }
     }
 
     setStatus("Ready", "");
@@ -65,9 +90,39 @@ romFileInput.addEventListener("change", (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-// Get the ROM to use (custom upload takes priority)
+// Handle custom FW file upload
+fwFileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    customFw = new Uint8Array(reader.result);
+    fwInfo.textContent = `${file.name} (${(customFw.length / 1024).toFixed(0)} KB)`;
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Handle SoC manifest file upload
+socManifestFileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    customSocManifest = new Uint8Array(reader.result);
+    socManifestInfo.textContent = `${file.name} (${(customSocManifest.length / 1024).toFixed(0)} KB)`;
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Get the ROM/FW to use (custom upload takes priority)
 function getRom() {
   return customRom || defaultRom;
+}
+function getFw() {
+  return customFw || defaultFw || null;
+}
+function getSocManifest() {
+  return customSocManifest || null;
 }
 
 // Create emulator instance
@@ -80,6 +135,8 @@ function createEmulator() {
 
   const vendorPk = vendorPkInput.value.trim();
   const ownerPk = ownerPkInput.value.trim();
+  const fw = getFw();
+  const socManifest = getSocManifest();
 
   try {
     // Free previous emulator if any
@@ -87,7 +144,7 @@ function createEmulator() {
       emulator.free();
       emulator = null;
     }
-    emulator = new CaliptraEmulator(rom, vendorPk, ownerPk);
+    emulator = new CaliptraEmulator(rom, vendorPk, ownerPk, fw, socManifest);
     uartOutput.textContent = "";
     logOutput.textContent = "";
     statsEl.textContent = "";
@@ -153,6 +210,8 @@ btnRun.addEventListener("click", () => {
   btnRun.disabled = true;
   btnStop.disabled = false;
   romFileInput.disabled = true;
+  fwFileInput.disabled = true;
+  socManifestFileInput.disabled = true;
   vendorPkInput.disabled = true;
   ownerPkInput.disabled = true;
 
@@ -187,6 +246,8 @@ btnReset.addEventListener("click", () => {
   btnRun.disabled = false;
   btnStop.disabled = true;
   romFileInput.disabled = false;
+  fwFileInput.disabled = false;
+  socManifestFileInput.disabled = false;
   vendorPkInput.disabled = false;
   ownerPkInput.disabled = false;
 });

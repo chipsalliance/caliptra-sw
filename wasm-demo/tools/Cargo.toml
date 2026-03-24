@@ -1,0 +1,16 @@
+# Licensed under the Apache-2.0 license
+# Helper tool to extract PK hashes from a Caliptra FW image bundle.
+
+[package]
+name = "caliptra-wasm-hash-tool"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "extract-pk-hashes"
+path = "src/main.rs"
+
+[dependencies]
+caliptra-image-types = { path = "../../image/types" }
+sha2 = "0.10"
+zerocopy = { version = "0.8", features = ["derive"] }

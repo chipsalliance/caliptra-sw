@@ -3,4 +3,7 @@
 /www/caliptra_wasm_demo_bg.wasm
 /www/caliptra_wasm_demo.js
 /www/default-rom.bin
+/www/default-fw.bin
+/www/defaults.json
+/tools/target/
 Cargo.lock

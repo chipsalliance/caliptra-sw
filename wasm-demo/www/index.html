@@ -195,6 +195,18 @@
   </div>
 
   <div class="form-row">
+    <label for="fw-file">FW Bundle:</label>
+    <input type="file" id="fw-file" accept=".bin,.bundle">
+    <span class="rom-info" id="fw-info">Loading default FW...</span>
+  </div>
+
+  <div class="form-row">
+    <label for="soc-manifest-file">SoC Manifest:</label>
+    <input type="file" id="soc-manifest-file" accept=".bin,.manifest">
+    <span class="rom-info" id="soc-manifest-info">(optional)</span>
+  </div>
+
+  <div class="form-row">
     <label for="vendor-pk">Vendor PK Hash:</label>
     <input type="text" id="vendor-pk" placeholder="96 hex chars (48 bytes) or empty for zeros"
            value="" spellcheck="false">
@@ -208,7 +220,9 @@
 
   <p class="help">
     Leave PK hashes empty for all-zeros (unprovisioned mode).
-    The default ROM binary is the frozen 2.1 release with UART logging enabled.
+    Default ROM is the frozen 2.1 release with UART logging.
+    Default FW bundle is built with test keys (vendor PK hash pre-filled).
+    SoC manifest is only needed for subsystem mode.
   </p>
 </div>
 
