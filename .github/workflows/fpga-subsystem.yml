@@ -373,7 +373,7 @@ jobs:
               --partition count:${{ matrix.partition }}/4 \
               --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
 
-          sudo ${VARS} cargo-nextest nextest run \
+          sudo env ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
               --partition count:${{ matrix.partition }}/4 \
               --test-threads=1 \
