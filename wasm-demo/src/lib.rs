@@ -70,6 +70,7 @@ pub struct CaliptraEmulator {
     model: ModelEmulated,
     log_buffer: SharedBuffer,
     total_steps: u64,
+    boot_error: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -82,6 +83,7 @@ impl CaliptraEmulator {
     /// * `owner_pk_hash_hex` - Owner PK hash as 96-char hex string (or empty for zeros)
     /// * `fw_image` - Optional firmware image bundle (serialized ImageBundle)
     /// * `soc_manifest` - Optional SoC manifest (authorization manifest bytes)
+    /// * `lifecycle` - Device lifecycle: "unprovisioned", "manufacturing", or "production"
     #[wasm_bindgen(constructor)]
     pub fn new(
         rom: &[u8],
@@ -89,6 +91,7 @@ impl CaliptraEmulator {
         owner_pk_hash_hex: &str,
         fw_image: Option<Vec<u8>>,
         soc_manifest: Option<Vec<u8>>,
+        lifecycle: &str,
     ) -> Result<CaliptraEmulator, JsValue> {
         // Parse PK hashes
         let vendor_pk_hash =
@@ -97,6 +100,13 @@ impl CaliptraEmulator {
             parse_pk_hash(owner_pk_hash_hex).map_err(|e| JsValue::from_str(&e))?;
 
         let log_buffer = SharedBuffer(Rc::new(RefCell::new(Vec::new())));
+
+        let device_lifecycle = match lifecycle.to_lowercase().as_str() {
+            "unprovisioned" => DeviceLifecycle::Unprovisioned,
+            "manufacturing" => DeviceLifecycle::Manufacturing,
+            "production" => DeviceLifecycle::Production,
+            _ => DeviceLifecycle::Manufacturing,
+        };
 
         // Use a fixed seed for deterministic TRNG in the browser
         let trng_seed: u64 = 42;
@@ -108,7 +118,7 @@ impl CaliptraEmulator {
         let fuses = Fuses {
             vendor_pk_hash,
             owner_pk_hash,
-            life_cycle: DeviceLifecycle::Unprovisioned,
+            life_cycle: device_lifecycle,
             ..Default::default()
         };
 
@@ -117,7 +127,7 @@ impl CaliptraEmulator {
             fuses,
             log_writer: Box::new(log_buffer.clone()),
             security_state: *SecurityState::default()
-                .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+                .set_device_lifecycle(device_lifecycle),
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
@@ -135,14 +145,27 @@ impl CaliptraEmulator {
             ..Default::default()
         };
 
-        let model = caliptra_hw_model::ModelEmulated::new(init_params, boot_params)
-            .map_err(|e| JsValue::from_str(&format!("Failed to initialize emulator: {e}")))?;
+        // Use new_unbooted + boot separately so we keep the model even if
+        // boot fails (e.g., PK hash mismatch). This lets the user see UART
+        // output and logs from the failed boot attempt.
+        let mut model = caliptra_hw_model::ModelEmulated::new_unbooted(init_params)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create emulator: {e}")))?;
 
-        Ok(CaliptraEmulator {
+        let boot_error = model.boot(boot_params).err();
+
+        let mut emu = CaliptraEmulator {
             model,
             log_buffer,
             total_steps: 0,
-        })
+            boot_error: None,
+        };
+
+        if let Some(e) = boot_error {
+            let msg = format!("[WASM] Boot error: {e}\n");
+            emu.boot_error = Some(msg);
+        }
+
+        Ok(emu)
     }
 
     /// Step the emulator by `n` clock cycles. Returns true if the emulator
@@ -185,5 +208,10 @@ impl CaliptraEmulator {
     /// Check if the emulator exited with a PASS status.
     pub fn passed(&mut self) -> bool {
         self.model.output().exit_status() == Some(ExitStatus::Passed)
+    }
+
+    /// Get the boot error message, if boot failed.
+    pub fn boot_error(&self) -> Option<String> {
+        self.boot_error.clone()
     }
 }

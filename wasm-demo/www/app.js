@@ -10,6 +10,7 @@ const socManifestFileInput = document.getElementById("soc-manifest-file");
 const socManifestInfo = document.getElementById("soc-manifest-info");
 const vendorPkInput = document.getElementById("vendor-pk");
 const ownerPkInput = document.getElementById("owner-pk");
+const lifecycleSelect = document.getElementById("lifecycle");
 const btnRun = document.getElementById("btn-run");
 const btnStop = document.getElementById("btn-stop");
 const btnReset = document.getElementById("btn-reset");
@@ -137,6 +138,7 @@ function createEmulator() {
   const ownerPk = ownerPkInput.value.trim();
   const fw = getFw();
   const socManifest = getSocManifest();
+  const lifecycle = lifecycleSelect.value;
 
   try {
     // Free previous emulator if any
@@ -144,9 +146,18 @@ function createEmulator() {
       emulator.free();
       emulator = null;
     }
-    emulator = new CaliptraEmulator(rom, vendorPk, ownerPk, fw, socManifest);
-    uartOutput.textContent = "";
-    logOutput.textContent = "";
+    emulator = new CaliptraEmulator(rom, vendorPk, ownerPk, fw, socManifest, lifecycle);
+
+    // Check for boot error — show logs even if boot failed
+    const bootErr = emulator.boot_error();
+    if (bootErr) {
+      uartOutput.textContent = bootErr;
+      const log = emulator.get_log();
+      if (log) logOutput.textContent = log;
+    } else {
+      uartOutput.textContent = "";
+      logOutput.textContent = "";
+    }
     statsEl.textContent = "";
     return true;
   } catch (err) {
@@ -214,6 +225,7 @@ btnRun.addEventListener("click", () => {
   socManifestFileInput.disabled = true;
   vendorPkInput.disabled = true;
   ownerPkInput.disabled = true;
+  lifecycleSelect.disabled = true;
 
   animFrameId = requestAnimationFrame(runLoop);
 });
@@ -250,6 +262,7 @@ btnReset.addEventListener("click", () => {
   socManifestFileInput.disabled = false;
   vendorPkInput.disabled = false;
   ownerPkInput.disabled = false;
+  lifecycleSelect.disabled = false;
 });
 
 function setStatus(text, className) {

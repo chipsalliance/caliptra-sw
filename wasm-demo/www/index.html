@@ -75,6 +75,19 @@
     outline: none;
     border-color: var(--accent);
   }
+  select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
   input[type="file"] {
     cursor: pointer;
   }
@@ -218,11 +231,21 @@
            value="" spellcheck="false">
   </div>
 
+  <div class="form-row">
+    <label for="lifecycle">Device Lifecycle:</label>
+    <select id="lifecycle">
+      <option value="manufacturing" selected>Manufacturing</option>
+      <option value="unprovisioned">Unprovisioned</option>
+      <option value="production">Production</option>
+    </select>
+  </div>
+
   <p class="help">
     Leave PK hashes empty for all-zeros (unprovisioned mode).
     Default ROM is the frozen 2.1 release with UART logging.
     Default FW bundle is built with test keys (vendor PK hash pre-filled).
     SoC manifest is only needed for subsystem mode.
+    Manufacturing lifecycle validates PK hashes; Unprovisioned skips validation.
   </p>
 </div>
 
