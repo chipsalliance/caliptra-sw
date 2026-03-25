@@ -6,19 +6,14 @@ use caliptra_api::mailbox::{
 };
 use caliptra_builder::firmware::ROM_FPGA_WITH_UART;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
-use caliptra_drivers::{CaliptraError, HekSeedState};
-use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError, SecurityState};
+use caliptra_drivers::HekSeedState;
+use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, SecurityState};
 use zerocopy::{FromBytes, IntoBytes};
 
 const ALL_HEK_SEED_STATES: &[HekSeedState] = &[
-    HekSeedState::Unused,
     HekSeedState::Programmed,
-    HekSeedState::ProgrammedPendingReset,
-    HekSeedState::ProgrammedCorrupted,
-    HekSeedState::Permanent,
-    HekSeedState::Sanitized,
-    HekSeedState::SanitizedPendingReset,
-    HekSeedState::SanitizedCorrupted,
+    HekSeedState::ProgrammedEmpty,
+    HekSeedState::Unavailable,
 ];
 
 /// NOTE: These tests assume that `ss_ocp_lock_en` is set to true in the Caliptra bitstream.
@@ -29,21 +24,14 @@ fn test_hek_seed_states() {
     // Test PROD HEK seed states that allow HEK usage
     hek_seed_state_helper(
         DeviceLifecycle::Production,
-        &[HekSeedState::Programmed, HekSeedState::Permanent],
+        &[HekSeedState::Programmed, HekSeedState::ProgrammedEmpty],
         true,
         [0xABDEu32; 8],
     );
     // Test PROD HEK seed states that disallow HEK usage
     hek_seed_state_helper(
         DeviceLifecycle::Production,
-        &[
-            HekSeedState::Unused,
-            HekSeedState::ProgrammedPendingReset,
-            HekSeedState::ProgrammedCorrupted,
-            HekSeedState::Sanitized,
-            HekSeedState::SanitizedPendingReset,
-            HekSeedState::SanitizedCorrupted,
-        ],
+        &[HekSeedState::Unavailable],
         false,
         [0xABDEu32; 8],
     );
@@ -82,6 +70,8 @@ fn test_invalid_hek_seed_state() {
     let mut hw = caliptra_hw_model::new(
         caliptra_hw_model::InitParams {
             rom: &rom,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -93,24 +83,33 @@ fn test_invalid_hek_seed_state() {
         return;
     }
 
-    let first_invalid_hek_seed_state: u16 = u16::from(HekSeedState::SanitizedCorrupted) + 1;
-    // Check that an unknown HEK Seed state returns an error
-    for seed_state in first_invalid_hek_seed_state..first_invalid_hek_seed_state + 3 {
+    // Check that an unknown HEK Seed state returns HEK unavailable
+    for seed_state in 0..10 {
+        let state = HekSeedState::from(seed_state);
+        if state == HekSeedState::Programmed || state == HekSeedState::ProgrammedEmpty {
+            continue;
+        }
+
         let mut cmd = MailboxReq::OcpLockReportHekMetadata(OcpLockReportHekMetadataReq {
             hdr: MailboxReqHeader { chksum: 0 },
             seed_state,
             ..Default::default()
         });
         cmd.populate_chksum().unwrap();
-        let response = hw.mailbox_execute(
-            CommandId::OCP_LOCK_REPORT_HEK_METADATA.into(),
-            cmd.as_bytes().unwrap(),
-        );
-        assert_eq!(
-            response.unwrap_err(),
-            ModelError::MailboxCmdFailed(
-                CaliptraError::DRIVER_OCP_LOCK_COLD_RESET_INVALID_HEK_SEED.into(),
+        let response = hw
+            .mailbox_execute(
+                CommandId::OCP_LOCK_REPORT_HEK_METADATA.into(),
+                cmd.as_bytes().unwrap(),
             )
+            .unwrap()
+            .unwrap();
+        let response = OcpLockReportHekMetadataResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert!(
+            !response
+                .flags
+                .contains(OcpLockReportHekMetadataRespFlags::HEK_AVAILABLE),
+            "HEK should be unavailable for seed_state 0x{:x}",
+            seed_state
         );
     }
 }
