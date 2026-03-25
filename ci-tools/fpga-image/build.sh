@@ -27,7 +27,8 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   # Jobs need to act as root to install an FPGA bitstream. We don't care
   # if they mess up the rootfs because it's going to be re-flashed after the job
   # terminates anyways.
-  echo "runner ALL=(ALL) NOPASSWD:ALL" > out/rootfs/etc/sudoers.d/runner
+  echo "runner ALL=(ALL) NOPASSWD: SETENV: ALL" > out/rootfs/etc/sudoers.d/runner
+  chroot out/rootfs chmod 0440 /etc/sudoers.d/runner
 
   chroot out/rootfs mkdir /mnt/root_base
   chroot out/rootfs mkdir /mnt/root_overlay
