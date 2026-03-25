@@ -93,7 +93,7 @@ pub fn handle_report_hek_metadata(
     req: &OcpLockReportHekMetadataReq,
     hek_seed: &Array4x8,
 ) -> CaliptraResult<OcpLockReportHekMetadataResp> {
-    let hek_seed_state = HekSeedState::try_from(req.seed_state)?;
+    let hek_seed_state = HekSeedState::from(req.seed_state);
     let hek_available = hek_seed_state.hek_is_available(lifecycle_state, hek_seed);
 
     pdata.rom.ocp_lock_metadata.hek_available = hek_available;
