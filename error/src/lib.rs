@@ -364,6 +364,11 @@ impl CaliptraError {
             "Driver Error: MLDSA87 signature is not supported"
         ),
         (
+            DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00058007,
+            "Driver Error: MLDSA87 key generation pairwise consistency failure"
+        ),
+        (
             DRIVER_MLKEM_READ_SEED_KV_READ,
             0x00059000,
             "Driver Error: ML-KEM read seed KV read"
