@@ -699,3 +699,21 @@ pub fn ecc384_ecdh_pairwise_consistency_error_rt() {
         u32::from(CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE),
     );
 }
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn mldsa87_pairwise_consistency_error_rom() {
+    self_test_failure_flow_rom(
+        FipsTestHook::MLDSA87_PAIRWISE_CONSISTENCY_ERROR,
+        u32::from(CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE),
+    );
+}
+
+#[test]
+#[cfg(feature = "slow_tests")]
+pub fn mldsa87_pairwise_consistency_error_rt() {
+    self_test_failure_flow_rt(
+        FipsTestHook::MLDSA87_PAIRWISE_CONSISTENCY_ERROR,
+        u32::from(CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE),
+    );
+}
