@@ -27,6 +27,7 @@ use caliptra_cfi_lib::{
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
+use zeroize::Zeroize;
 
 #[must_use]
 #[repr(u32)]
@@ -142,6 +143,28 @@ impl Mldsa87 {
         trng: &mut Trng,
         priv_key_out: Option<&mut Mldsa87PrivKey>,
     ) -> CaliptraResult<Mldsa87PubKey> {
+        let pubkey = self.key_pair_internal(seed, trng, priv_key_out)?;
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pubkey = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::MLDSA87_PAIRWISE_CONSISTENCY_ERROR,
+                &pubkey,
+            )
+        };
+
+        self.pct(seed, &pubkey, trng)?;
+        Ok(pubkey)
+    }
+
+    /// Raw key pair generation without PCT.
+    #[inline(never)]
+    fn key_pair_internal(
+        &mut self,
+        seed: Mldsa87Seed,
+        trng: &mut Trng,
+        priv_key_out: Option<&mut Mldsa87PrivKey>,
+    ) -> CaliptraResult<Mldsa87PubKey> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -178,7 +201,30 @@ impl Mldsa87 {
         mldsa.ctrl().write(|w| w.zeroize(true));
 
         Ok(pubkey)
-        // TODO check that pubkey is valid?
+    }
+
+    /// Pairwise consistency test: sign a zero message with the seed and
+    /// verify against the public key.
+    #[inline(never)]
+    fn pct(
+        &mut self,
+        seed: Mldsa87Seed,
+        pubkey: &Mldsa87PubKey,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
+        let pct_msg = Mldsa87Msg::default();
+        let pct_sign_rnd = Mldsa87SignRnd::default();
+
+        match self.sign(seed, pubkey, &pct_msg, &pct_sign_rnd, trng) {
+            Ok(mut sig) => {
+                sig.zeroize();
+            }
+            Err(_) => {
+                return Err(CaliptraError::DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
+        }
+
+        Ok(())
     }
 
     /// Sign the digest with specified private key. To defend against glitching
