@@ -111,11 +111,11 @@ impl P384 {
     ) -> CaliptraResult<Self> {
         let seed = Ecc384Scalar::from(seed);
         let mut priv_key = Ecc384Scalar::default();
-        let pub_key = ctx.ecc.key_pair(
+        let pub_key = ctx.ecc.ecdh_key_pair(
             Ecc384Seed::Array4x12(&seed),
             &Array4x12::default(),
             ctx.trng,
-            Ecc384PrivKeyOut::Array4x12(&mut priv_key),
+            &mut priv_key,
         )?;
         Ok(Self { pub_key, priv_key })
     }
@@ -244,11 +244,11 @@ impl Kem<{ P384::NSK }, { P384::NENC }, { P384::NPK }, { P384::NSECRET }> for P3
 
         let seed = Ecc384Scalar::from(okm);
         let mut priv_key = Ecc384Scalar::default();
-        let pub_key = ctx.ecc.key_pair(
+        let pub_key = ctx.ecc.ecdh_key_pair(
             Ecc384Seed::Array4x12(&seed),
             &Array4x12::default(),
             ctx.trng,
-            Ecc384PrivKeyOut::Array4x12(&mut priv_key),
+            &mut priv_key,
         )?;
 
         Ok(Self { pub_key, priv_key })

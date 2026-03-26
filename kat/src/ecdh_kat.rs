@@ -71,7 +71,24 @@ impl EcdhKat {
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
     pub fn execute(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
-        self.ecdh(ecc, trng)
+        self.ecdh(ecc, trng)?;
+
+        // When FIPS test hooks are enabled, also exercise the ECDH key pair
+        // generation path (which includes the ECDH PCT) so that the
+        // ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR hook can be tested.
+        #[cfg(feature = "fips-test-hooks")]
+        {
+            use caliptra_drivers::{Ecc384Scalar, Ecc384Seed};
+            let mut priv_key = Ecc384Scalar::default();
+            let _pub_key = ecc.ecdh_key_pair(
+                Ecc384Seed::Array4x12(&trng.generate()?),
+                &Array4x12::default(),
+                trng,
+                &mut priv_key,
+            )?;
+        }
+
+        Ok(())
     }
 
     fn ecdh(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
