@@ -204,8 +204,8 @@ register_bitfields! [
     KeyWrCtrl[
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
-        USAGE OFFSET(6) NUMBITS(6) [],
-        RSVD OFFSET(12) NUMBITS(20) [],
+        USAGE OFFSET(6) NUMBITS(9) [],
+        RSVD OFFSET(15) NUMBITS(17) [],
     ]
 ];
 
@@ -1087,18 +1087,9 @@ impl Abr {
 
         self.kv_mlkem_sharedkey_wr_ctrl.reg.set(val);
 
-        if self
-            .kv_mlkem_sharedkey_wr_ctrl
-            .reg
-            .is_set(KeyWrCtrl::KEY_WRITE_EN)
-        {
-            self.kv_mlkem_sharedkey_wr_status
-                .reg
-                .modify(KvStatus::READY::CLEAR + KvStatus::VALID::CLEAR + KvStatus::ERROR::CLEAR);
-
-            self.mlkem_sharedkey_write_complete_action =
-                Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        }
+        // Don't schedule an immediate write — the actual write to KV will be
+        // triggered by mlkem_op_complete after the operation produces the
+        // shared key.
 
         Ok(())
     }
@@ -1325,10 +1316,41 @@ impl Abr {
     }
 
     fn mlkem_keygen_decaps(&mut self) {
-        // First generate keys
-        self.mlkem_gen_key();
+        // Generate key pair directly so we always have the dk internally,
+        // even when seeds come from KV (mlkem_gen_key suppresses the dk
+        // register write for KV seeds, but we need it for decapsulation).
+        // This matches RTL behavior where the hardware has the dk internally
+        // for the combined KEYGEN_DECAPS command.
+        let seed_d = bytes_from_words_le(&self.mlkem_seed_d);
+        let seed_z = bytes_from_words_le(&self.mlkem_seed_z);
+        let mut rng = SeedOnlyRng::new_with_seeds(vec![seed_d, seed_z]);
+        let (dk, ek) = MlKem1024::generate(&mut rng);
 
-        // Then perform decapsulation
+        // Always write encapsulation key to register
+        let ek_bytes = ek.as_bytes();
+        for (i, chunk) in ek_bytes.chunks(4).enumerate() {
+            if i < self.mlkem_encaps_key.len() {
+                let mut word = [0u8; 4];
+                word[..chunk.len()].copy_from_slice(chunk);
+                self.mlkem_encaps_key[i] = u32::from_le_bytes(word);
+            }
+        }
+
+        // Always write decapsulation key internally for the decaps step.
+        // Per RTL, the DK register is only readable when seeds are not from KV,
+        // but the hardware uses it internally for decapsulation regardless.
+        let dk_bytes = dk.as_bytes();
+        for (i, chunk) in dk_bytes.chunks(4).enumerate() {
+            if i < self.mlkem_decaps_key.len() {
+                let mut word = [0u8; 4];
+                word[..chunk.len()].copy_from_slice(chunk);
+                self.mlkem_decaps_key[i] = u32::from_le_bytes(word);
+            }
+        }
+
+        // Perform decapsulation using the internally-stored dk.
+        // mlkem_decaps handles register masking based on KV control flags,
+        // matching RTL behavior.
         self.mlkem_decaps();
     }
 
@@ -1339,6 +1361,16 @@ impl Abr {
             Some(MlKemControl::CTRL::Value::DECAPS) => self.mlkem_decaps(),
             Some(MlKemControl::CTRL::Value::KEYGEN_DECAPS) => self.mlkem_keygen_decaps(),
             _ => panic!("Invalid value in ML-KEM Control"),
+        }
+
+        // Write the shared key to KV synchronously after the operation has
+        // produced it in mlkem_shared_key_internal.
+        if self
+            .kv_mlkem_sharedkey_wr_ctrl
+            .reg
+            .is_set(KeyWrCtrl::KEY_WRITE_EN)
+        {
+            self.mlkem_sharedkey_write_complete();
         }
 
         self.mlkem_status

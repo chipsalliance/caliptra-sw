@@ -26,6 +26,7 @@ impl FipsTestHook {
     pub const ECC384_CORRUPT_KEY_PAIR: u8 = 0x2C;
     pub const ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x2D;
     pub const MLDSA87_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x2E;
+    pub const MLKEM_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x2F;
 
     pub const SHA1_DIGEST_FAILURE: u8 = 0x40;
     pub const SHA256_DIGEST_FAILURE: u8 = 0x41;

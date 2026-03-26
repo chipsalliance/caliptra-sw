@@ -139,7 +139,7 @@ impl MlKem {
         };
 
         let derived_ikm = MlKem1024Seeds::Arrays(&a, &b);
-        ctx.ml_kem.key_pair(derived_ikm)
+        ctx.ml_kem.key_pair(derived_ikm, None)
     }
 }
 
