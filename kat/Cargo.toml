@@ -13,6 +13,7 @@ doctest = false
 default = []
 # When building for ROM, skip AES KATs since ROM uses AesGcm::new() which runs its own KAT
 rom = ["caliptra-drivers/rom"]
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
 
 [dependencies]
 caliptra-drivers.workspace = true
