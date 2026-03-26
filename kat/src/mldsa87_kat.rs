@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Array4x16, CaliptraError, CaliptraResult, LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87Seed,
-    Mldsa87SignRnd, Sha2_512_384, Trng,
+    Array4x16, CaliptraError, CaliptraResult, LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey,
+    Mldsa87Seed, Mldsa87SignRnd, Sha2_512_384, Trng,
 };
 use caliptra_registers::sha512::Sha512Reg;
 
@@ -66,9 +66,18 @@ impl Mldsa87Kat {
         mldsa87: &mut Mldsa87,
         trng: &mut Trng,
     ) -> CaliptraResult<()> {
+        let (pub_key, _priv_key_digest) = Self::kat_keygen(mldsa87, trng)?;
+        Self::kat_sign_verify(mldsa87, trng, &pub_key)
+    }
+
+    /// Keygen phase: generate key pair (includes PCT) and verify key digests.
+    #[inline(never)]
+    fn kat_keygen(
+        mldsa87: &mut Mldsa87,
+        trng: &mut Trng,
+    ) -> CaliptraResult<(Mldsa87PubKey, Array4x16)> {
         // Compare SHA-512 hashes of the keys and signature to save on ROM space.
         let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
-
         let mut priv_key = Mldsa87PrivKey::default();
         let pub_key = mldsa87
             .key_pair(Mldsa87Seed::Array4x8(&SEED), trng, Some(&mut priv_key))
@@ -85,10 +94,22 @@ impl Mldsa87Kat {
             Err(CaliptraError::KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE)?;
         }
 
+        Ok((pub_key, priv_key_digest))
+    }
+
+    /// Sign phase: sign with the seed and verify the signature digest.
+    #[inline(never)]
+    fn kat_sign_verify(
+        mldsa87: &mut Mldsa87,
+        trng: &mut Trng,
+        pub_key: &Mldsa87PubKey,
+    ) -> CaliptraResult<()> {
+        let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
+
         let signature = mldsa87
             .sign(
-                Mldsa87Seed::PrivKey(&priv_key),
-                &pub_key,
+                Mldsa87Seed::Array4x8(&SEED),
+                pub_key,
                 &KAT_MESSAGE.into(),
                 &Mldsa87SignRnd::default(),
                 trng,

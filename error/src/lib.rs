@@ -344,6 +344,11 @@ impl CaliptraError {
             "Driver Error: MLDSA87 signature is not supported"
         ),
         (
+            DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00058007,
+            "Driver Error: MLDSA87 key generation pairwise consistency failure"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"
