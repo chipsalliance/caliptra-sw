@@ -796,6 +796,22 @@ pub fn otp_generate_sw_manuf_partition_mem(
     Ok(output)
 }
 
+/// Generate OTP fuse value for linear majority fuse fields that fit in one word
+pub fn otp_generate_linear_majority_vote(bits: usize, dupe: usize, value: u32) -> Result<u32> {
+    if bits * dupe > 32 {
+        bail!("OTP linear majority value too large")
+    }
+
+    let one = (1 << dupe) - 1;
+    let mut raw = 0;
+    for i in 0..bits {
+        let bit = (value >> i) & 1;
+        let raw_bit = if bit == 1 { one } else { 0 };
+        raw |= raw_bit << (i * dupe);
+    }
+    Ok(raw)
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -884,5 +900,33 @@ mod tests {
             0x9b, 0x2d, 0x8c, 0x4d,
         ];
         assert_eq!(memory, expected);
+    }
+
+    #[test]
+    fn test_otp_generate_linear_majority_vote() {
+        // bits = 1, dupe = 3, value = 1 => 0b111
+        assert_eq!(otp_generate_linear_majority_vote(1, 3, 1).unwrap(), 0b111);
+
+        // bits = 2, dupe = 3, value = 2 (0b10) => 0b111_000
+        assert_eq!(
+            otp_generate_linear_majority_vote(2, 3, 2).unwrap(),
+            0b111_000
+        );
+
+        // bits = 4, dupe = 2, value = 0b1010 => 0b11_00_11_00
+        assert_eq!(
+            otp_generate_linear_majority_vote(4, 2, 0b1010).unwrap(),
+            0b11_00_11_00
+        );
+
+        // bits = 8, dupe = 4, value = 0xAA (0b1010_1010) => 0b1111_0000_1111_0000_1111_0000_1111_0000
+        assert_eq!(
+            otp_generate_linear_majority_vote(8, 4, 0xAA).unwrap(),
+            0b1111_0000_1111_0000_1111_0000_1111_0000
+        );
+
+        // error case
+        assert!(otp_generate_linear_majority_vote(33, 1, 1).is_err());
+        assert!(otp_generate_linear_majority_vote(17, 2, 1).is_err());
     }
 }
