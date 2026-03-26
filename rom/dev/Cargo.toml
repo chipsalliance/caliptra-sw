@@ -86,6 +86,7 @@ slow_tests = []
 fips-test-hooks = [
   "caliptra-drivers/fips-test-hooks",
   "caliptra-image-verify/fips-test-hooks",
+  "caliptra-kat/fips-test-hooks",
 ]
 
 [[bin]]

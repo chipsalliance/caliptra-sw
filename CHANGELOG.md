@@ -2,12 +2,14 @@
 
 ## Caliptra ROM 2.0.2 Release Notes
 
-Release notes for changes introduced since ROM 2.0.1 (`3824083e`) through `15ef7902` on the `caliptra-2.0` branch.
+Release notes for changes introduced since ROM 2.0.1 (`3824083e`) through TODO on the `caliptra-2.0` branch.
 
 ### Fixes
 
 - **Randomize AES ENTROPY_IF_SEED on reset** ([#3487](https://github.com/chipsalliance/caliptra-sw/pull/3487), [#3495](https://github.com/chipsalliance/caliptra-sw/pull/3495))
 - **Handle mailbox FSM error state and unexpected DataReady** ([#3393](https://github.com/chipsalliance/caliptra-sw/pull/3393), [#3516](https://github.com/chipsalliance/caliptra-sw/pull/3516))
+- **Add MLDSA pairwise consistency test (PCT)** ([#TODO](https://github.com/chipsalliance/caliptra-sw/pull/TODO))
+- **Refactor x509 TBS to be split around public key** ([#TODO](https://github.com/chipsalliance/caliptra-sw/pull/TODO))
 
 # rom-2.0.1
 

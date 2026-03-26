@@ -155,10 +155,16 @@ impl Ecc384 {
         pub_key_reversed.x.to_little_endian();
         pub_key_reversed.y.to_little_endian();
 
-        // Convert to p384 types
-        let secret_key = SecretKey::from_slice(&priv_key_reversed).unwrap();
+        // Convert to p384 types, returning zeros if the key is invalid
+        let secret_key = match SecretKey::from_slice(&priv_key_reversed) {
+            Ok(k) => k,
+            Err(_) => return [0u8; ECC_384_COORD_SIZE],
+        };
         let verifying_key =
-            VerifyingKey::from_encoded_point(&EncodedPoint::from(pub_key_reversed)).unwrap();
+            match VerifyingKey::from_encoded_point(&EncodedPoint::from(pub_key_reversed)) {
+                Ok(k) => k,
+                Err(_) => return [0u8; ECC_384_COORD_SIZE],
+            };
 
         // Compute shared secret using ECDH
         // We use the public key point and multiply it by our private key scalar

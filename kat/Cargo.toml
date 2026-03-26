@@ -9,6 +9,10 @@ edition = "2021"
 test = false
 doctest = false
 
+[features]
+default = []
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+
 [dependencies]
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true

@@ -585,3 +585,21 @@ pub fn integrity_check_failure_rom() {
 //         u32::from(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE),
 //     );
 // }
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn ecc384_ecdh_pairwise_consistency_error_rom() {
+    self_test_failure_flow_rom(
+        FipsTestHook::ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR,
+        u32::from(CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE),
+    );
+}
+
+#[test]
+#[cfg(feature = "slow_tests")]
+pub fn ecc384_ecdh_pairwise_consistency_error_rt() {
+    self_test_failure_flow_rt(
+        FipsTestHook::ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR,
+        u32::from(CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE),
+    );
+}
