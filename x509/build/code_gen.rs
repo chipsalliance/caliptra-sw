@@ -97,6 +97,7 @@ impl CodeGen {
                 const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [#(#after_key,)*];
 
                 #[cfg(test)]
+                #[allow(dead_code)]
                 const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
                     let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
                     let before = Self::TBS_TEMPLATE_BEFORE_KEY;
