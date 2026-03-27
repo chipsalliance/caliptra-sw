@@ -1,17 +1,18 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "caliptra-size-history"
+name = "caliptra-size-history-bin"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "caliptra-size-history"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 caliptra-builder.workspace = true
-ghac = "0.2.0"
-prost = "=0.13.2"
-prost-derive = "=0.13.2"
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-tinytemplate.workspace = true
+
+size-history = { git = "https://github.com/leongross/caliptra-infra.git", package = "caliptra-size-history", branch = "leongross/size-history-refactor" }
+
