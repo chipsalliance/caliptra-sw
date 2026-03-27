@@ -53,6 +53,26 @@ impl TbsTemplate {
     pub fn params(&self) -> &[TbsParam] {
         &self.params
     }
+
+    /// Find the PUBLIC_KEY param and return (offset, len)
+    pub fn public_key_info(&self) -> Option<(usize, usize)> {
+        self.params
+            .iter()
+            .find(|p| p.name == "PUBLIC_KEY")
+            .map(|p| (p.offset, p.len))
+    }
+
+    /// Get the TBS bytes before the public key
+    pub fn tbs_before_key(&self) -> Option<&[u8]> {
+        self.public_key_info()
+            .map(|(offset, _)| &self.buf[..offset])
+    }
+
+    /// Get the TBS bytes after the public key
+    pub fn tbs_after_key(&self) -> Option<&[u8]> {
+        self.public_key_info()
+            .map(|(offset, len)| &self.buf[offset + len..])
+    }
 }
 
 /// Initialize template parameter with its offset
