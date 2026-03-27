@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use std::{env, error::Error};
+use std::{env, error::Error, io, path::Path};
 
-use caliptra_builder::firmware;
-use caliptra_size_history::{
-    Cache, CaliptraFirmwareBuilder, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
+use caliptra_builder::{elf_size, firmware, FwId};
+use size_history::{
+    ArtifactBuilder, Cache, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
     OutputDestination, SizeHistory, Stdout,
 };
 
@@ -60,4 +60,40 @@ fn create_cache() -> Result<Box<dyn Cache>, Box<dyn Error>> {
 
 fn box_cache(val: impl Cache + 'static) -> Box<dyn Cache> {
     Box::new(val)
+}
+
+/// Builds Caliptra firmware using caliptra_builder and measures ELF size.
+struct CaliptraFirmwareBuilder {
+    name: String,
+    fwid: FwId<'static>,
+}
+
+impl CaliptraFirmwareBuilder {
+    fn new(name: impl Into<String>, fwid: FwId<'static>) -> Self {
+        Self {
+            name: name.into(),
+            fwid,
+        }
+    }
+
+    fn build_elf(&self, workspace: &Path) -> io::Result<u64> {
+        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(Some(workspace), &self.fwid)?;
+        elf_size(&elf_bytes)
+    }
+}
+
+impl ArtifactBuilder for CaliptraFirmwareBuilder {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn build_and_measure(&self, workspace: &Path) -> Option<u64> {
+        match self.build_elf(workspace) {
+            Ok(size) => Some(size),
+            Err(err) => {
+                println!("Error building {}: {err}", self.name);
+                None
+            }
+        }
+    }
 }
