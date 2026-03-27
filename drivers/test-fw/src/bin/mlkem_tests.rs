@@ -17,11 +17,13 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
+    Aes, Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seeds,
-    MlKem1024SharedKey, MlKem1024SharedKeyOut, PersistentDataAccessor, Trng,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, MlKemPctKvContext, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
+use caliptra_registers::aes::AesReg;
+use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
@@ -101,7 +103,7 @@ fn test_key_pair_generation() {
     let seed_d = LEArray4x8::from(SEED_D);
     let seed_z = LEArray4x8::from(SEED_Z);
     let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-    let (encaps_key, decaps_key) = mlkem.key_pair(seeds).unwrap();
+    let (encaps_key, decaps_key) = mlkem.key_pair(seeds, None).unwrap();
 
     // Keys should be non-zero (basic sanity check)
     assert_ne!(encaps_key.0, [0u32; 392]);
@@ -305,6 +307,7 @@ fn test_key_pair_generation_from_kv() {
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut aes = Aes::new(unsafe { AesReg::new() }, unsafe { AesClpReg::new() }).unwrap();
 
     // Store seeds in key vault
     let key_out = KeyWriteArgs {
@@ -321,9 +324,17 @@ fn test_key_pair_generation_from_kv() {
     )
     .unwrap();
 
-    // Test key pair generation from key vault
+    // Test key pair generation from key vault with KV-based PCT
     let seeds = MlKem1024Seeds::Key(KeyReadArgs::new(KEY_ID));
-    let (encaps_key, decaps_key) = mlkem.key_pair(seeds).unwrap();
+    let (encaps_key, decaps_key) = mlkem
+        .key_pair(
+            seeds,
+            Some(MlKemPctKvContext {
+                aes: &mut aes,
+                shared_key_id: KeyId::KeyId3,
+            }),
+        )
+        .unwrap();
 
     // Encapsulation key should be non-zero (basic sanity check)
     assert_ne!(encaps_key.0, [0u32; 392]);
@@ -402,7 +413,7 @@ fn test_encapsulate_and_decapsulate() {
     let seed_d = LEArray4x8::from(SEED_D);
     let seed_z = LEArray4x8::from(SEED_Z);
     let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-    let (encaps_key, decaps_key) = mlkem.key_pair(seeds).unwrap();
+    let (encaps_key, decaps_key) = mlkem.key_pair(seeds, None).unwrap();
 
     // Test encapsulation with array message and array output
     let message = MlKem1024Message::from(MESSAGE);
@@ -455,7 +466,7 @@ fn test_encapsulate_with_kv_message() {
     let seed_d = LEArray4x8::from(SEED_D);
     let seed_z = LEArray4x8::from(SEED_Z);
     let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-    let (encaps_key, _decaps_key) = mlkem.key_pair(seeds).unwrap();
+    let (encaps_key, _decaps_key) = mlkem.key_pair(seeds, None).unwrap();
 
     // Store message in key vault
     let msg_key_id = KeyId::KeyId3;
@@ -634,7 +645,7 @@ fn test_encapsulate_with_kv_output() {
     let seed_d = LEArray4x8::from(SEED_D);
     let seed_z = LEArray4x8::from(SEED_Z);
     let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-    let (encaps_key, _decaps_key) = mlkem.key_pair(seeds).unwrap();
+    let (encaps_key, _decaps_key) = mlkem.key_pair(seeds, None).unwrap();
 
     // Test encapsulation with key vault shared key output
     let shared_key_id = KeyId::KeyId4;
@@ -667,7 +678,7 @@ fn test_keygen_decapsulate() {
     let seed_d = LEArray4x8::from(SEED_D);
     let seed_z = LEArray4x8::from(SEED_Z);
     let seeds_enc = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-    let (encaps_key, _) = mlkem.key_pair(seeds_enc).unwrap();
+    let (encaps_key, _) = mlkem.key_pair(seeds_enc, None).unwrap();
 
     // Encapsulate with the encaps key
     let message = MlKem1024Message::from(MESSAGE);
@@ -701,10 +712,19 @@ fn test_keygen_decapsulate_with_kv() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut aes = Aes::new(unsafe { AesReg::new() }, unsafe { AesClpReg::new() }).unwrap();
 
     // Generate key pair for encapsulation using KV
     let seeds_kv = MlKem1024Seeds::Key(KeyReadArgs::new(KEY_ID));
-    let (encaps_key, _) = mlkem.key_pair(seeds_kv).unwrap();
+    let (encaps_key, _) = mlkem
+        .key_pair(
+            seeds_kv,
+            Some(MlKemPctKvContext {
+                aes: &mut aes,
+                shared_key_id: KeyId::KeyId3,
+            }),
+        )
+        .unwrap();
 
     // Encapsulate
     let message = MlKem1024Message::from(MESSAGE);

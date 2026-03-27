@@ -404,6 +404,11 @@ impl CaliptraError {
             "Driver Error: ML-KEM read message KV unknown"
         ),
         (
+            DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
+            0x00059007,
+            "Driver Error: ML-KEM key generation pairwise consistency failure"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"

@@ -2473,7 +2473,7 @@ impl Commands {
         let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
-        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds)?;
+        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds, None)?;
 
         let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();

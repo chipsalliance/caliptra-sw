@@ -79,7 +79,7 @@ fn kat_keygen_encaps_decaps(
     // Generate keypair from seeds
     let seeds = MlKem1024Seeds::Arrays(&KEYGEN_SEED_D, &KEYGEN_SEED_Z);
     let (ek, dk) = mlkem
-        .key_pair(seeds)
+        .key_pair(seeds, None)
         .map_err(|_| CaliptraError::KAT_MLKEM1024_KEY_PAIR_GENERATE_FAILURE)?;
 
     // Verify keygen outputs via SHA-512 digests
