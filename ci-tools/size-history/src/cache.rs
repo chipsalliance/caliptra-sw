@@ -1,12 +1,22 @@
 // Licensed under the Apache-2.0 license
 
-use std::{fs, io, path::PathBuf};
+use std::{fs, io, ops::Deref, path::PathBuf};
 
 use crate::util::hex;
 
 pub trait Cache {
     fn set(&self, key: &str, val: &[u8]) -> io::Result<()>;
     fn get(&self, key: &str) -> io::Result<Option<Vec<u8>>>;
+}
+
+impl Cache for Box<dyn Cache> {
+    fn set(&self, key: &str, val: &[u8]) -> io::Result<()> {
+        self.deref().set(key, val)
+    }
+
+    fn get(&self, key: &str) -> io::Result<Option<Vec<u8>>> {
+        self.deref().get(key)
+    }
 }
 
 pub struct FsCache {
