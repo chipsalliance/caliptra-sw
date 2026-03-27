@@ -84,6 +84,7 @@ impl FmcAliasCsrTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 8u8, 70u8, 77u8, 67u8, 95u8, 73u8, 78u8, 70u8, 79u8,
     ];
     #[cfg(test)]
+    #[allow(dead_code)]
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
         let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
         let before = Self::TBS_TEMPLATE_BEFORE_KEY;

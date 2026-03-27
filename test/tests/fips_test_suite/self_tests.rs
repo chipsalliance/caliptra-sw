@@ -596,7 +596,7 @@ pub fn ecc384_ecdh_pairwise_consistency_error_rom() {
 }
 
 #[test]
-#[cfg(feature = "slow_tests")]
+#[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn ecc384_ecdh_pairwise_consistency_error_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR,
@@ -614,7 +614,7 @@ pub fn mldsa87_pairwise_consistency_error_rom() {
 }
 
 #[test]
-#[cfg(feature = "slow_tests")]
+#[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn mldsa87_pairwise_consistency_error_rt() {
     self_test_failure_flow_rt(
         FipsTestHook::MLDSA87_PAIRWISE_CONSISTENCY_ERROR,
