@@ -679,10 +679,8 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
                 image_options.vendor_config = vendor_config;
 
                 let fuses = caliptra_hw_model::Fuses {
-                    fuse_ecc_revocation: U4::try_from(
-                        1u32 << image_options.vendor_config.ecc_key_idx,
-                    )
-                    .unwrap(),
+                    fuse_ecc_revocation: U4::try_from(image_options.vendor_config.ecc_key_idx + 1)
+                        .unwrap(),
                     fuse_pqc_key_type: *pqc_key_type as u32,
                     life_cycle: *life_cycle,
                     ..Default::default()
@@ -753,7 +751,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         image_options.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
         let fuses = caliptra_hw_model::Fuses {
-            fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
+            fuse_lms_revocation: image_options.vendor_config.pqc_key_idx + 1,
             fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
             ..Default::default()
         };
@@ -815,7 +813,7 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
         let key_idx = image_options.vendor_config.pqc_key_idx;
 
         let fuses = caliptra_hw_model::Fuses {
-            fuse_mldsa_revocation: 1u32 << key_idx,
+            fuse_mldsa_revocation: key_idx + 1,
             ..Default::default()
         };
 
