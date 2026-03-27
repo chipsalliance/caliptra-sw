@@ -46,6 +46,8 @@ jobs:
           - bitstream_name: xsa_ss2p0_b9f8a767.xsa
             image_variant: subsystem
     env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 4a2c9f8c3d1e
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
       BITSTREAM_SHA256: ${{ matrix.bitstream_hash }}
@@ -62,7 +64,7 @@ jobs:
           path: |
             /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
             /tmp/io-module-${{ matrix.image_variant }}.ko
-          key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}
+          key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}-${{ env.CACHE_BUSTER }}
 
       - name: Install pre-requisites
         if: steps.cache-kernel.outputs.cache-hit != 'true'

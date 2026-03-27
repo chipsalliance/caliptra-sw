@@ -123,6 +123,8 @@ popd
 mv out/aarch64-unknown-linux-gnu/release/cargo-nextest out/rootfs/usr/bin/
 
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
+cp overlay-mount.sh out/rootfs/usr/sbin/
+chmod 755 out/rootfs/usr/sbin/overlay-mount.sh
 cp startup-script.sh out/rootfs/usr/bin/
 chroot out/rootfs systemctl set-default multi-user.target
 chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
