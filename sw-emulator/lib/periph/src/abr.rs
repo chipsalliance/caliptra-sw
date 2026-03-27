@@ -1095,9 +1095,6 @@ impl Abr {
             self.kv_mlkem_sharedkey_wr_status
                 .reg
                 .modify(KvStatus::READY::CLEAR + KvStatus::VALID::CLEAR + KvStatus::ERROR::CLEAR);
-
-            self.mlkem_sharedkey_write_complete_action =
-                Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
         }
 
         Ok(())
@@ -1132,7 +1129,9 @@ impl Abr {
             .unwrap();
 
             self.mlkem_seed_d = words_from_bytes_le(&seed_d_bytes);
+            self.mlkem_seed_d.reverse();
             self.mlkem_seed_z = words_from_bytes_le(&seed_z_bytes);
+            self.mlkem_seed_z.reverse();
         }
 
         seed_read_result
@@ -1163,15 +1162,18 @@ impl Abr {
                     .unwrap(),
             );
             self.mlkem_msg = temp;
+            self.mlkem_msg.reverse();
         }
 
         msg_read_result
     }
 
     fn mlkem_write_sharedkey_to_keyvault(&mut self, key_id: u32, key_usage: u32) -> u32 {
+        let mut key_words = words_from_bytes_le(&self.mlkem_shared_key_internal);
+        key_words.reverse();
         let result = self
             .key_vault
-            .write_key(key_id, &self.mlkem_shared_key_internal, key_usage);
+            .write_key(key_id, key_words.as_bytes(), key_usage);
 
         match result.err() {
             Some(BusError::LoadAccessFault)
@@ -1339,6 +1341,15 @@ impl Abr {
             Some(MlKemControl::CTRL::Value::DECAPS) => self.mlkem_decaps(),
             Some(MlKemControl::CTRL::Value::KEYGEN_DECAPS) => self.mlkem_keygen_decaps(),
             _ => panic!("Invalid value in ML-KEM Control"),
+        }
+
+        if self
+            .kv_mlkem_sharedkey_wr_ctrl
+            .reg
+            .is_set(KeyWrCtrl::KEY_WRITE_EN)
+        {
+            self.mlkem_sharedkey_write_complete_action =
+                Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
         }
 
         self.mlkem_status
