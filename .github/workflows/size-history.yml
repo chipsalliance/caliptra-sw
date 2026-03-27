@@ -42,4 +42,4 @@ jobs:
 
       - name: Run size analysis (look at workflow "Summary" tab for results)
         run: |
-          cargo run --release -p caliptra-size-history
+          cargo run --release -p caliptra-size-history-bin
