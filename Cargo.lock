@@ -473,6 +473,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
+source = "git+https://github.com/zhalvorsen/caliptra-dpe?branch=no-generics-crypto#b92796974d6b00cc9bbd1f5063012953de3f14ab"
 dependencies = [
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
@@ -489,6 +490,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
+source = "git+https://github.com/zhalvorsen/caliptra-dpe?branch=no-generics-crypto#b92796974d6b00cc9bbd1f5063012953de3f14ab"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -501,6 +503,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
+source = "git+https://github.com/zhalvorsen/caliptra-dpe?branch=no-generics-crypto#b92796974d6b00cc9bbd1f5063012953de3f14ab"
 dependencies = [
  "arrayvec",
  "cfg-if",
