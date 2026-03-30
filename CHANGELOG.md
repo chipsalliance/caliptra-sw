@@ -2,7 +2,7 @@
 
 ## Caliptra ROM 2.0.2 Release Notes
 
-Release notes for changes introduced since ROM 2.0.1 (`3824083e`) through TODO on the `caliptra-2.0` branch.
+Release notes for changes introduced since ROM 2.0.1 (`3824083e`) through `473ae255` on the `caliptra-2.0` branch.
 
 ### Fixes
 
