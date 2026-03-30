@@ -796,6 +796,23 @@ pub fn otp_generate_sw_manuf_partition_mem(
     Ok(output)
 }
 
+pub fn otp_generate_one_hot_linear_majority_vote(bits: usize, dupe: usize, value: u32) -> u32 {
+    let burned_value: u32 = if value >= 32 {
+        0xffff_ffff
+    } else {
+        (1 << value) - 1
+    };
+
+    let one = (1 << dupe) - 1;
+    let mut raw = 0;
+    for i in 0..bits {
+        let bit = (burned_value >> i) & 1;
+        let raw_bit = if bit == 1 { one } else { 0 };
+        raw |= raw_bit << (i * dupe);
+    }
+    raw
+}
+
 #[cfg(test)]
 mod tests {
 
