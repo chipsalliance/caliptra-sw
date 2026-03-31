@@ -10,8 +10,6 @@ use zerocopy::IntoBytes;
 
 use crate::helpers;
 
-const RT_READY_FOR_COMMANDS: u32 = 0x600;
-
 fn get_ldev_ecc_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -76,7 +74,7 @@ fn test_ldev_ecc384_cert() {
         &image_bundle.to_bytes().unwrap(),
         FwVerificationPqcKeyType::MLDSA,
     );
-    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    hw.step_until_ready_for_runtime();
 
     // Get the LDev ECC384 cert from RT
     let ldev_resp = get_ldev_ecc_cert(&mut hw);
@@ -114,7 +112,7 @@ fn test_ldev_mldsa87_cert() {
         &image_bundle.to_bytes().unwrap(),
         FwVerificationPqcKeyType::MLDSA,
     );
-    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    hw.step_until_ready_for_runtime();
 
     // Get the LDev MLDSA87 cert from RT
     let ldev_resp = get_ldev_mldsa_cert(&mut hw);

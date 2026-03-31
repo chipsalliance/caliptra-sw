@@ -2004,6 +2004,14 @@ impl HwModel for ModelFpgaSubsystem {
         true
     }
 
+    fn step_until_ready_for_runtime(&mut self) {
+        self.step_until(|m| {
+            m.mci_boot_milestones()
+                .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
+                || m.soc_ifc().cptra_fw_error_fatal().read() != 0
+        });
+    }
+
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
     }

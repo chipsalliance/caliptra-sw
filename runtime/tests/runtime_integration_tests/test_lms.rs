@@ -1,13 +1,11 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
-use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType, LmsPublicKey, LmsSignature};
-use caliptra_runtime::RtBootStatus;
 use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -814,9 +812,7 @@ fn execute_lms_cmd<T: HwModel>(
 fn test_lms_verify_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Message 1, key 1
     execute_lms_cmd(&mut model, &MSG_1, &MSG_1_PUB_KEY_1, &MSG_1_KEY_1_SIG_1).unwrap();
@@ -839,9 +835,7 @@ fn test_lms_verify_cmd() {
 fn test_lms_verify_failure() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let resp =
         execute_lms_cmd(&mut model, &MSG_1, &MSG_1_PUB_KEY_1, &MSG_1_KEY_2_SIG_1).unwrap_err();
@@ -857,9 +851,7 @@ fn test_lms_verify_failure() {
 fn test_lms_verify_invalid_sig_lms_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Select an invalid LMS type
     let mut signature =
@@ -880,9 +872,7 @@ fn test_lms_verify_invalid_sig_lms_type() {
 fn test_lms_verify_invalid_key_lms_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Select an invalid LMS type
     let mut pub_key = <LmsPublicKey<LMS_N>>::read_from_bytes(&MSG_1_PUB_KEY_1[..]).unwrap();
@@ -902,9 +892,7 @@ fn test_lms_verify_invalid_key_lms_type() {
 fn test_lms_verify_invalid_lmots_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Select an invalid otstype
     let mut pub_key = <LmsPublicKey<LMS_N>>::read_from_bytes(&MSG_1_PUB_KEY_1[..]).unwrap();

@@ -5,7 +5,6 @@ use caliptra_api::mailbox::{MailboxReq, MailboxReqHeader, MailboxRespHeader, Mld
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::HwModel;
-use caliptra_runtime::RtBootStatus;
 use ml_dsa::signature::Signer;
 use ml_dsa::{KeyGen, MlDsa87};
 use rand::thread_rng;
@@ -14,10 +13,7 @@ use zerocopy::{FromBytes, IntoBytes};
 #[test]
 fn test_mldsa_verify_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Generate keypair and sign a message using ml-dsa
     let mut rng = thread_rng();
