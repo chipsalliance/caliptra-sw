@@ -159,7 +159,7 @@ pub fn run_rt_test_pqc_return_fw(
     let successful_reach_rt = args.successful_reach_rt;
     let (mut model, image_bundle) = start_rt_test_pqc_model(args, pqc_key_type);
     if successful_reach_rt {
-        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+        model.step_until_ready_for_runtime();
     } else {
         model.step_until(|m| {
             m.soc_ifc()

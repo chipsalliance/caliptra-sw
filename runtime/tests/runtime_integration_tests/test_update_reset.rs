@@ -19,7 +19,7 @@ use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
+use caliptra_runtime::{ContextState, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
@@ -71,9 +71,7 @@ fn test_rt_pcr_updated_in_dpe() {
     };
     let mut model = run_rt_test(runtime_test_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // trigger update reset
     update_fw(&mut model, mbox_test_image(), image_options);
@@ -108,9 +106,7 @@ fn test_rt_journey_pcr_updated_with_good_fw() {
     };
     let mut model = run_rt_test(runtime_test_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let orig_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let orig_rt_journey_pcr: [u8; 48] = orig_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -118,9 +114,7 @@ fn test_rt_journey_pcr_updated_with_good_fw() {
     // trigger update reset
     update_fw(&mut model, mbox_test_image_without_uart(), image_options);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let new_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let new_rt_journey_pcr: [u8; 48] = new_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -142,9 +136,7 @@ fn test_rt_journey_pcr_not_updated_with_bad_fw() {
     };
     let mut model = run_rt_test(runtime_test_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let orig_rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let orig_rt_journey_pcr: [u8; 48] = orig_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -159,9 +151,7 @@ fn test_rt_journey_pcr_not_updated_with_bad_fw() {
         Err(ModelError::MailboxCmdFailed(expected_error))
     );
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
@@ -186,9 +176,7 @@ fn test_tags_persistence() {
     };
     let mut model = run_rt_test(runtime_test_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Tag default context in order to change the context tags in persistent data
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -469,9 +457,7 @@ fn test_pcr_reset_counter_persistence() {
     };
     let mut model = run_rt_test(runtime_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Increment counter for PCR0 in order to change the pcr reset counter in persistent data
     let mut cmd = MailboxReq::IncrementPcrResetCounter(IncrementPcrResetCounterReq {
@@ -830,9 +816,7 @@ fn test_cciv_updated_in_dpe() {
             &image_bundle_mbox.to_bytes().unwrap(),
         )
         .unwrap();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Get actual values from FW
     let cciv_current_resp = model.mailbox_execute(0x6000_0002, &[]).unwrap().unwrap();
@@ -853,9 +837,7 @@ fn test_cciv_updated_in_dpe() {
             &image_bundle_standard.to_bytes().unwrap(),
         )
         .unwrap();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Update CCIV journey measurement
     let cciv_journey_exp: [u8; 48] =
@@ -868,9 +850,7 @@ fn test_cciv_updated_in_dpe() {
             &image_bundle_mbox.to_bytes().unwrap(),
         )
         .unwrap();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Update expected CCIV journey measurement
     let cciv_journey_exp: [u8; 48] =

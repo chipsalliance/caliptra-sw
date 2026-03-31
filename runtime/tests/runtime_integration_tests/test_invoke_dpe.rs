@@ -10,7 +10,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, SecurityState};
-use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -40,9 +40,7 @@ use zerocopy::{FromBytes, IntoBytes};
 fn test_invoke_dpe_get_profile_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let resp = execute_dpe_cmd(&mut model, &mut Command::GetProfile, DpeResult::Success);
     let Some(Response::GetProfile(profile)) = resp else {
@@ -73,9 +71,7 @@ fn test_invoke_dpe_size_too_big() {
 fn test_invoke_dpe_get_certificate_chain_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let get_cert_chain_cmd = GetCertificateChainCmd {
         offset: 0,
@@ -147,9 +143,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 fn test_invoke_dpe_asymmetric_sign() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let sign_cmd = SignCmd {
         handle: ContextHandle::default(),
@@ -174,9 +168,7 @@ fn test_invoke_dpe_asymmetric_sign() {
 fn test_dpe_header_error_code() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // cannot initialize non-simulation contexts so expect DPE cmd to fail
     let init_ctx_cmd = InitCtxCmd::new_use_default();
@@ -198,9 +190,7 @@ fn test_dpe_header_error_code() {
 fn test_invoke_dpe_certify_key_csr() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let certify_key_cmd = CertifyKeyCmd {
         handle: ContextHandle::default(),
@@ -266,9 +256,7 @@ fn test_invoke_dpe_certify_key_csr() {
 fn test_invoke_dpe_rotate_context() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let rotate_ctx_cmd = RotateCtxCmd {
         handle: ContextHandle::default(),
@@ -342,9 +330,7 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
 fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
