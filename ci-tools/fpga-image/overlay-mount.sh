@@ -7,6 +7,8 @@ export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 # Path for the log file (in RAM)
 LOG_FILE="/run/overlay-mount.log"
 
+echo "--- Starting Caliptra Overlay Mount Script ---"
+
 # Check if we should skip overlay (Developer Mode)
 if [ -f /etc/no_overlayfs ]; then
     echo "Developer mode detected. Skipping overlay."
@@ -26,31 +28,37 @@ mount -t tmpfs tmpfs /run
 echo "Starting Overlay Mount Script..." > "${LOG_FILE}"
 
 # Setup the overlay
-echo "Mounting lower layer..." >> "${LOG_FILE}"
+echo "Mounting lower layer..." | tee -a "${LOG_FILE}"
 mount --bind / /mnt/root_base
 
-echo "Creating writable upper layer (tmpfs)..." >> "${LOG_FILE}"
+echo "Creating writable upper layer (tmpfs)..." | tee -a "${LOG_FILE}"
 mount -t tmpfs tmpfs /mnt/root_overlay
 mkdir -p /mnt/root_overlay/upper /mnt/root_overlay/work
 
-echo "Assembling overlayfs..." >> "${LOG_FILE}"
+echo "Assembling overlayfs..." | tee -a "${LOG_FILE}"
 mount -t overlay overlay \
   -o lowerdir=/mnt/root_base,upperdir=/mnt/root_overlay/upper,workdir=/mnt/root_overlay/work \
   /mnt/new_root
 
 # Move virtual filesystems to the new merged root
-echo "Moving virtual filesystems..." >> "${LOG_FILE}"
+echo "Moving virtual filesystems..." | tee -a "${LOG_FILE}"
 mount --move /dev /mnt/new_root/dev
 mount --move /proc /mnt/new_root/proc
 mount --move /sys /mnt/new_root/sys
 mount --move /run /mnt/new_root/run
 
 # Prepare to switch root
-echo "Switching to overlay root and starting systemd..." >> "${LOG_FILE}"
+echo "Switching to overlay root and starting systemd..." | tee -a "${LOG_FILE}"
 cd /mnt/new_root
 mkdir -p old_root
-pivot_root . old_root
+if ! pivot_root . old_root; then
+    echo "pivot_root failed! Dropping to shell."
+    exec /bin/sh
+fi
 
 # Hand off to real init (systemd)
-# We are now inside the new root, so paths are relative to it
-exec /lib/systemd/systemd
+# If systemd is missing or fails, drop to shell to prevent panic
+exec /lib/systemd/systemd || {
+    echo "Failed to exec systemd! Dropping to shell."
+    exec /bin/sh
+}

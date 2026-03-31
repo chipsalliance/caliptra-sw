@@ -5,9 +5,6 @@
 # Startup script that is executed against the zcu104 UART. fpga-boss will
 # connect to this UART (via on-board FTDI chip) and send commands.
 
-# Stop spewing kernel noise to the UART
-echo 3 > /proc/sys/kernel/printk
-
 # The VCK-190 image currently always has the same MAC. Do this for now until 
 # a better option is found.
 ip link set dev end0 down

@@ -47,8 +47,9 @@ jobs:
             image_variant: subsystem
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 4a2c9f8c3d1e
+      CACHE_BUSTER: 8e2f1a3d9c4b
       IMAGE_VARIANT: ${{ matrix.image_variant }}
+
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
       BITSTREAM_SHA256: ${{ matrix.bitstream_hash }}
     steps:
