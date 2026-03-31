@@ -5141,7 +5141,7 @@ bitflags! {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct AccessKeySizes(u32);
 
 bitflags! {
@@ -5371,7 +5371,7 @@ impl Response for OcpLockGetHpkePubKeyResp {}
 // OCP_LOCK_GENERATE_MPK
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Clone, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct SealedAccessKey {
     pub hpke_handle: HpkeHandle,
     pub access_key_len: u32,
