@@ -16,9 +16,9 @@ cp ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
+  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger,podman,rsync"
   if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
-    PACKAGES="$PACKAGES,ssh,rsync,tmux,cloud-guest-utils"
+    PACKAGES="$PACKAGES,ssh,tmux,cloud-guest-utils"
   fi
   debootstrap --include "$PACKAGES" --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
