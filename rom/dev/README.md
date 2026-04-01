@@ -56,7 +56,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
 | FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
-| FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
+| FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors. Stored as `[u32; 12]` — see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal). |
 | FUSE_ECC_REVOCATION             | 4            | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 4            | Manufacturer MLDSA Public Key Revocation Mask           |
@@ -69,7 +69,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 ### Architectural Registers
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
-| CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
+| CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash. Stored as `[u32; 12]` — see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal). |
 
 ### Entropy Source Configuration Registers
 
@@ -150,7 +150,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Reserved | 1 | Reserved  |
 | Key Hash Count | 1 | Number of valid public key hashes  |
-| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4 |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4. Each hash is stored in reversed-dword format (see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal)). |
 
 #### PQC Manufacturer Public Key Descriptor
 
@@ -159,7 +159,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Key Descriptor Version | 2 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
 | Key Type | 1 | Type of the key in the descriptor <br>  0x1 - MLDSA <br> 0x3 - LMS |
 | Key Hash Count | 1 | Number of valid public key hashes  |
-| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. LMS: n = 32, MLDSA: n = 4 |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. n = 32 for both LMS and MLDSA (the struct always allocates 32 slots; for MLDSA only the first 4 are populated and the rest are zero). Each hash is stored in reversed-dword format (see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal)). |
 
 #### Header
 
@@ -1164,6 +1164,389 @@ The following are the pre-conditions that should be satisfied:
 - The validation process for owner public keys involves generating a SHA2-384 hash from the owner public keys within the preamble and comparing it to the hash stored in the fuse_owner_pk_hash register.
 - If the computed hash matches the value in fuse_owner_pk_hash, the owner public keys are deemed valid.
 - If there is a hash mismatch, the image validation process fails.
+
+### Public key hash byte ordering (dword reversal)
+
+**Important:** Hashes and ECC key coordinates stored in the firmware manifest and fuse registers use
+a **reversed-dword format** rather than the standard byte order defined by the SHA specification.
+
+In standard byte order, a SHA2-384 hash is a sequence of 48 bytes exactly as output by tools like
+OpenSSL or Python's `hashlib`. In reversed-dword format, the same 48 bytes are grouped into 12
+four-byte words (dwords) and the bytes within each dword are reversed.
+
+For example, if the standard SHA2-384 hash begins with `b1 7c a8 77 66 66 57 cc d1 00 e6 92 ...`:
+
+| Standard byte order  | → | Reversed-dword format |
+|----------------------|---|-----------------------|
+| `b1 7c a8 77`        |   | `77 a8 7c b1`         |
+| `66 66 57 cc`        |   | `cc 57 66 66`         |
+| `d1 00 e6 92`        |   | `92 e6 00 d1`         |
+| ...                   |   | ...                   |
+
+This reversed-dword format applies to:
+- **Individual public key hashes** in the ECC and PQC key descriptors within the preamble
+- **FUSE_VENDOR_PK_HASH** and **CPTRA_OWNER_PK_HASH** fuse/register values (which are `[u32; 12]` arrays)
+- **ECC public key coordinates** (X and Y), which are stored as `[u32; 12]` arrays in the preamble
+
+Note: LMS public key fields (`tree_type`, `otstype`, `id`, `digest`) follow the LMS specification
+encoding and are **not** subject to dword reversal. MLDSA public keys are stored as raw byte arrays
+and are also **not** subject to dword reversal.
+
+### Computing public key hashes: step-by-step example
+
+The following example walks through the computation of the **vendor PK descriptor hash**
+using the test public keys from `image/fake-keys/src/lib.rs` with PQC key type **LMS (type 3)**.
+
+#### Step 1: Hash each vendor ECC public key
+
+Each ECC-384 public key has X and Y coordinates, each stored as `[u32; 12]`. To hash a key,
+serialize the struct to 96 bytes by writing each `u32` word in reversed-dword format, then
+compute SHA2-384 of those 96 bytes.
+
+**ECC Key 0:**
+```
+X (standard byte order): c69fe67f 97ea3e42 21a7a603 6c2e070d 1657327b c3f1e7c1
+                          8dccb9e4 ffda5c3f 4db0a1c0 567e0973 17bf4484 39696a07
+Y (standard byte order): c126b913 5fc82572 8f1cd403 19109430 994fe3e8 74a8b026
+                          be14794d 27789964 7735fde8 328afd84 cd4d4aa8 72d40b42
+
+X (reversed-dword):      7fe69fc6 423eea97 03a6a721 0d072e6c 7b325716 c1e7f1c3
+                          e4b9cc8d 3f5cdaff c0a1b04d 73097e56 8444bf17 076a6939
+Y (reversed-dword):      13b926c1 7225c85f 03d41c8f 30941019 e8e34f99 26b0a874
+                          4d7914be 64997827 e8fd3577 84fd8a32 a84a4dcd 420bd472
+
+Input to SHA384 = X_reversed || Y_reversed (96 bytes)
+SHA384 (standard):       84facd34 227de869 1fbb7d33 49306e0f 250a3659 53a6cc6b
+                          629d4616 32f73cfd 768152bb 8a03a255 5a1b1f1f c3923faa
+SHA384 (reversed-dword): 34cdfa84 69e87d22 337dbb1f 0f6e3049 59360a25 6bcca653
+                          16469d62 fd3cf732 bb528176 55a2038a 1f1f1b5a aa3f92c3
+```
+
+**ECC Key 1:**
+```
+X (standard): a6309750 f0a05ddb 956a7f86 2812ec4f ec454e95 3b53dbfb
+              9eb54140 15ea7507 084af93c b7fa33fe 51811ad5 e754232e
+Y (standard): ef5a5987 7a0ce0be 2621d2a9 8bf3c5df af7b3d6d 97f24183
+              a4a42038 58c39b86 272ef548 e572b937 1ecf1994 1b8d4ea7
+
+SHA384 (standard):       fe89195f 7fab8ebb 2818d935 837493c2 378525ef 686ed220
+                          09b9a399 f23f1f42 2f5ae1f3 ba1c3083 1a68a456 9c01fc96
+SHA384 (reversed-dword): 5f1989fe bb8eab7f 35d91828 c2937483 ef258537 20d26e68
+                          99a3b909 421f3ff2 f3e15a2f 83301cba 56a4681a 96fc019c
+```
+
+**ECC Key 2:**
+```
+X (standard): a0d25693 c4251e48 185615b0 a6c27f6d e62c39f5 a9a32f75
+              9553226a 4d1926c1 7928910f b7adc1b6 89996733 10134881
+Y (standard): bbdf72d7 07c08100 d54fcdad b1567bb0 0522762b 76b8dc4a
+              846c175a 3fbd0501 9bdc8118 4be5f33c bb21b41d 93a8c523
+
+SHA384 (standard):       f397ba45 b5801ddf b732078d ffdf792f b584a73f b055acaf
+                          ef39f31d 5b88c7d5 2753a45a 0c76b098 90d8e335 7be87f26
+SHA384 (reversed-dword): 45ba97f3 df1d80b5 8d0732b7 2f79dfff 3fa784b5 afac55b0
+                          1df339ef d5c7885b 5aa45327 98b0760c 35e3d890 267fe87b
+```
+
+**ECC Key 3:**
+```
+X (standard): 002a82b6 8e03e9a0 fd3b4c14 ca2cb3e8 14350a71 0e43956d
+              21694fb4 f34485e8 f0e33583 f7ea142d 50e16f8b 0225bb95
+Y (standard): 5802641c 7c45a4a2 408e03a6 a4100a92 50fcc468 d238cd0d
+              449cc3e5 1abc25e7 0b05c426 843dcd6f 944ef6ff fa53ec5b
+
+SHA384 (standard):       8ba8acb6 b98da9dc 8ffce0bc eba86454 4acbbd6e 3f31466e
+                          5d532565 0bfc9e3b c8afb2b5 c33e20f5 06992143 83f33bc1
+SHA384 (reversed-dword): b6aca88b dca98db9 bce0fc8f 5464a8eb 6ebdcb4a 6e46313f
+                          6525535d 3b9efc0b b5b2afc8 f5203ec3 43219906 c13bf383
+```
+
+#### Step 2: Hash each vendor LMS public key
+
+Each LMS public key is a 48-byte struct: `tree_type` (u32), `otstype` (u32), `id` (16 bytes),
+`digest` (24 bytes). The binary serialization is hashed directly.
+
+**LMS Key 0:**
+```
+tree_type=0x0000000c, otstype=0x00000007
+id:     4908a17b cadb1829 1e289058 d5a8e3e8
+digest: 64ad3eb8 be6864f1 7ccda38b de35edaa 6c0da527 645407c6
+
+Serialized (48 bytes): 0000000c 00000007 4908a17b cadb1829 1e289058 d5a8e3e8
+                        64ad3eb8 be6864f1 7ccda38b de35edaa 6c0da527 645407c6
+SHA384 (standard):       fc2c1b6f 56f732d1 fd876f3f ef757cbb a2b1c64b cc148298
+                          d7508262 4bdf27cb 23d6b5b6 7169c46f 50b7fc19 92068fec
+SHA384 (reversed-dword): 6f1b2cfc d132f756 3f6f87fd bb7c75ef 4bc6b1a2 988214cc
+                          628250d7 cb27df4b b6b5d623 6fc46971 19fcb750 ec8f0692
+```
+
+**LMS Key 1:**
+```
+tree_type=0x0000000c, otstype=0x00000007
+id:     7cb5369d 64e4281d 046e977c 70d4d0a3
+digest: 8ea4701d adf7d700 0564b7d6 1d1c9587 9dd6475c 9c3aae0b
+
+SHA384 (standard):       7b5811fd 8d2b0cf8 9851f12d d2a7c239 f4f3abc5 d928dcc0
+                          3b4b891d abbdc67f c7b88436 432e1544 a408bc9c bb503f6b
+SHA384 (reversed-dword): fd11587b f80c2b8d 2df15198 39c2a7d2 c5abf3f4 c0dc28d9
+                          1d894b3b 7fc6bdab 3684b8c7 44152e43 9cbc08a4 6b3f50bb
+```
+
+**LMS Key 2:**
+```
+tree_type=0x0000000c, otstype=0x00000007
+id:     2bbb4b72 c5b41e05 d2fabe76 f41704bd
+digest: dcb53f96 24d4c7b3 c9ae4d4c 0e41e08e 3b159396 0fe6a277
+
+SHA384 (standard):       7e08a494 6933d35a 42c0d7b0 0236b10b db14c100 3f82f6a9
+                          7d401cb8 e420a7fa 5aab12b3 c4e96bec 49aec770 225a8f88
+SHA384 (reversed-dword): 94a4087e 5ad33369 b0d7c042 0bb13602 00c114db a9f6823f
+                          b81c407d faa720e4 b312ab5a ec6be9c4 70c7ae49 888f5a22
+```
+
+**LMS Key 3:**
+```
+tree_type=0x0000000c, otstype=0x00000007
+id:     42cba2e5 575b5235 7ea7aead ef54074c
+digest: 5aa60e27 69251599 3ae8e21f 27ccdded 8ffcd3d2 8efbdec2
+
+SHA384 (standard):       d3734fbc ee2893a3 b1b6519b 6ec78fb8 d7425327 cde1f7aa
+                          23012c64 c635219f d4ab1c4d 1b023252 00042884 2e463dbb
+SHA384 (reversed-dword): bc4f73d3 a39328ee 9b51b6b1 b88fc76e 275342d7 aaf7e1cd
+                          642c0123 9f2135c6 4d1cabd4 5232021b 84280400 bb3d462e
+```
+
+#### Step 3: Build the ECC key descriptor (196 bytes)
+
+Concatenate the 4-byte header with the 4 key hashes (each in reversed-dword format):
+
+```
+Header (4 bytes): 01 00 00 04     (version=1, reserved=0, key_hash_count=4)
+ECC key 0 hash (48 bytes, reversed-dword): 34cdfa84 69e87d22 ... aa3f92c3
+ECC key 1 hash (48 bytes, reversed-dword): 5f1989fe bb8eab7f ... 96fc019c
+ECC key 2 hash (48 bytes, reversed-dword): 45ba97f3 df1d80b5 ... 267fe87b
+ECC key 3 hash (48 bytes, reversed-dword): b6aca88b dca98db9 ... c13bf383
+
+Total: 4 + (4 × 48) = 196 bytes
+```
+
+#### Step 4: Build the PQC (LMS) key descriptor (1540 bytes)
+
+```
+Header (4 bytes): 01 00 03 20     (version=1, key_type=3=LMS, key_hash_count=32)
+LMS key 0 hash (48 bytes, reversed-dword): 6f1b2cfc d132f756 ... ec8f0692
+LMS key 1 hash (48 bytes, reversed-dword): fd11587b f80c2b8d ... 6b3f50bb
+LMS key 2 hash (48 bytes, reversed-dword): 94a4087e 5ad33369 ... 888f5a22
+LMS key 3 hash (48 bytes, reversed-dword): bc4f73d3 a39328ee ... bb3d462e
+  ... (keys 0-3 repeated 8 times to fill all 32 slots)
+
+Total: 4 + (32 × 48) = 1540 bytes
+```
+
+#### Step 5: Compute the vendor PK descriptor hash
+
+```
+Input = ECC descriptor (196 bytes) || PQC descriptor (1540 bytes) = 1736 bytes
+
+SHA384 (standard byte order):
+  b17ca877 666657cc d100e692 6c7206b6 0c995cb6 8992c6c9
+  baefce72 8af05441 dee1ff41 5adfc187 e1e4edb4 d3b2d909
+
+As [u32; 12] fuse register value:
+  [0xb17ca877, 0x666657cc, 0xd100e692, 0x6c7206b6,
+   0x0c995cb6, 0x8992c6c9, 0xbaefce72, 0x8af05441,
+   0xdee1ff41, 0x5adfc187, 0xe1e4edb4, 0xd3b2d909]
+```
+
+#### Owner PK hash
+
+The owner PK hash is SHA2-384 over the serialized `ImageOwnerPubKeys` struct, which contains:
+- `ecc_pub_key`: `{ x: [u32; 12], y: [u32; 12] }` — 96 bytes (in reversed-dword format)
+- `pqc_pub_key`: raw byte array of 2592 bytes (for LMS, only the first 48 bytes are meaningful;
+   the rest are zero-padded)
+
+Total: 2688 bytes. The SHA2-384 of these bytes is the owner PK hash.
+
+#### Summary of expected hash values using test keys
+
+Using the test keys from `image/fake-keys/src/lib.rs`:
+
+| Hash | PQC Type | Standard byte order (hex) |
+|------|----------|---------------------------|
+| Vendor PK descriptor hash | LMS (type 3) | `b17ca877666657ccd100e6926c7206b60c995cb68992c6c9baefce728af05441dee1ff415adfc187e1e4edb4d3b2d909` |
+| Vendor PK descriptor hash | MLDSA (type 1) | `30399676a17e3e973677b3ff862f4bf2d1932d884778453c376fe00dc93fb8aa0770f3ebf3411a0853e9c57ece8a2980` |
+| Owner PK hash | LMS (type 3) | `1b179390e4e6c44422ed553e256c7d675cd93190cb49d88d485aa4ef3906cd492ab3ee3d3ba5f2c990ad13390fed4de5` |
+| Owner PK hash | MLDSA (type 1) | `48afdb073c5e0d4ee46490468ef81f2cf57249b6e76a28f5fca4de696a7d3e2ed3efc4e6774318543e95307a54988bd7` |
+
+To convert any of these standard byte order hashes to the `[u32; 12]` fuse register format, group
+the hex string into 8-character (4-byte) chunks and interpret each as a 32-bit word:
+- `b17ca877666657cc...` → `[0xb17ca877, 0x666657cc, 0xd100e692, ...]`
+
+#### Python script to compute vendor and owner PK hashes
+
+The following Python script computes the vendor PK descriptor hash and owner PK hash from
+ECC PEM files and LMS or MLDSA binary key files:
+
+```python
+#!/usr/bin/env python3
+"""
+Compute the Caliptra vendor PK descriptor hash and owner PK hash
+from ECC (.pem) and LMS/MLDSA (.bin) public key files.
+
+Usage:
+  python3 compute_pk_hashes.py --pqc-key-type <1|3> \\
+      --vendor-ecc-pub-keys key0.pem key1.pem key2.pem key3.pem \\
+      --vendor-pqc-pub-keys pqc0.bin pqc1.bin ... \\
+      --owner-ecc-pub-key owner.pem \\
+      --owner-pqc-pub-key owner_pqc.bin
+
+PQC key type: 1 = MLDSA, 3 = LMS
+
+ECC public keys are PEM files (P-384).
+LMS public keys are 48-byte binary files (tree_type, otstype, id, digest).
+MLDSA public keys are 2592-byte binary files.
+"""
+import argparse
+import hashlib
+import struct
+import sys
+
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+# Sizes
+ECC_PUB_KEY_BYTES = 96          # 2 x 48-byte coordinates
+PQC_PUB_KEY_SLOT_BYTES = 2592   # MLDSA key size; LMS keys are 48 bytes, zero-padded
+LMS_PUB_KEY_BYTES = 48
+MLDSA_PUB_KEY_BYTES = 2592
+HASH_BYTES = 48                 # SHA2-384
+
+VENDOR_ECC_MAX_KEYS = 4
+VENDOR_LMS_MAX_KEYS = 32
+VENDOR_MLDSA_MAX_KEYS = 32  # struct always allocates 32 slots; only first 4 are populated
+KEY_DESCRIPTOR_VERSION = 1
+
+
+def ecc_pub_key_to_reversed_dwords(pem_path: str) -> bytes:
+    """Read an ECC P-384 PEM public key and return 96 bytes in reversed-dword format."""
+    with open(pem_path, 'rb') as f:
+        pub_key = load_pem_public_key(f.read())
+    nums = pub_key.public_numbers()
+    x_bytes = nums.x.to_bytes(48, 'big')
+    y_bytes = nums.y.to_bytes(48, 'big')
+    return to_reversed_dwords(x_bytes) + to_reversed_dwords(y_bytes)
+
+
+def to_reversed_dwords(standard_bytes: bytes) -> bytes:
+    """Convert bytes from standard byte order to reversed-dword format.
+
+    Groups the input into 4-byte dwords and reverses the bytes within each dword.
+    """
+    assert len(standard_bytes) % 4 == 0
+    result = bytearray()
+    for i in range(0, len(standard_bytes), 4):
+        result.extend(standard_bytes[i:i+4][::-1])
+    return bytes(result)
+
+
+def sha384_reversed_dwords(data: bytes) -> bytes:
+    """Compute SHA2-384 and return the hash in reversed-dword format."""
+    h = hashlib.sha384(data).digest()
+    return to_reversed_dwords(h)
+
+
+def build_ecc_key_descriptor(ecc_pem_paths: list) -> bytes:
+    """Build the ECC key descriptor: header + key hashes."""
+    n = len(ecc_pem_paths)
+    header = struct.pack('<HBB', KEY_DESCRIPTOR_VERSION, 0, n)
+    hashes = b''
+    for path in ecc_pem_paths:
+        key_bytes = ecc_pub_key_to_reversed_dwords(path)
+        hashes += sha384_reversed_dwords(key_bytes)
+    # Pad to VENDOR_ECC_MAX_KEYS slots
+    hashes += b'\x00' * (HASH_BYTES * (VENDOR_ECC_MAX_KEYS - n))
+    return header + hashes
+
+
+def build_pqc_key_descriptor(pqc_bin_paths: list, pqc_key_type: int) -> bytes:
+    """Build the PQC key descriptor: header + key hashes."""
+    n = len(pqc_bin_paths)
+    max_keys = VENDOR_LMS_MAX_KEYS if pqc_key_type == 3 else VENDOR_MLDSA_MAX_KEYS
+    header = struct.pack('<HBB', KEY_DESCRIPTOR_VERSION, pqc_key_type, n)
+    hashes = b''
+    for path in pqc_bin_paths:
+        with open(path, 'rb') as f:
+            key_bytes = f.read()
+        hashes += sha384_reversed_dwords(key_bytes)
+    # Pad to max slots
+    hashes += b'\x00' * (HASH_BYTES * (max_keys - n))
+    return header + hashes
+
+
+def build_owner_pub_keys(ecc_pem_path: str, pqc_bin_path: str) -> bytes:
+    """Build the serialized ImageOwnerPubKeys struct."""
+    ecc_bytes = ecc_pub_key_to_reversed_dwords(ecc_pem_path)
+    with open(pqc_bin_path, 'rb') as f:
+        pqc_bytes = f.read()
+    # Pad PQC key to full slot size
+    pqc_padded = pqc_bytes + b'\x00' * (PQC_PUB_KEY_SLOT_BYTES - len(pqc_bytes))
+    return ecc_bytes + pqc_padded
+
+
+def hash_to_fuse_words(standard_hash: bytes) -> list:
+    """Convert a standard byte order hash to [u32; 12] fuse word format."""
+    return [int.from_bytes(standard_hash[i:i+4], 'big') for i in range(0, 48, 4)]
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Compute Caliptra vendor PK descriptor hash and owner PK hash')
+    parser.add_argument('--pqc-key-type', type=int, required=True, choices=[1, 3],
+                        help='PQC key type: 1=MLDSA, 3=LMS')
+    parser.add_argument('--vendor-ecc-pub-keys', nargs='+', required=True,
+                        help='Vendor ECC P-384 public key PEM files')
+    parser.add_argument('--vendor-pqc-pub-keys', nargs='+', required=True,
+                        help='Vendor PQC (LMS .bin or MLDSA .bin) public key files')
+    parser.add_argument('--owner-ecc-pub-key',
+                        help='Owner ECC P-384 public key PEM file')
+    parser.add_argument('--owner-pqc-pub-key',
+                        help='Owner PQC (LMS .bin or MLDSA .bin) public key file')
+    args = parser.parse_args()
+
+    pqc_name = {1: 'MLDSA', 3: 'LMS'}[args.pqc_key_type]
+
+    # Build descriptors
+    ecc_desc = build_ecc_key_descriptor(args.vendor_ecc_pub_keys)
+    pqc_desc = build_pqc_key_descriptor(args.vendor_pqc_pub_keys, args.pqc_key_type)
+    vendor_pub_key_info = ecc_desc + pqc_desc
+
+    # Vendor PK descriptor hash (standard byte order)
+    vendor_hash = hashlib.sha384(vendor_pub_key_info).digest()
+    vendor_hex = vendor_hash.hex()
+    vendor_words = hash_to_fuse_words(vendor_hash)
+
+    print(f"PQC key type: {args.pqc_key_type} ({pqc_name})")
+    print()
+    print(f"Vendor PK descriptor hash (standard byte order):")
+    print(f"  {vendor_hex}")
+    print(f"Vendor PK descriptor hash (fuse [u32; 12]):")
+    print(f"  {['0x{:08x}'.format(w) for w in vendor_words]}")
+
+    if args.owner_ecc_pub_key and args.owner_pqc_pub_key:
+        owner_bytes = build_owner_pub_keys(args.owner_ecc_pub_key, args.owner_pqc_pub_key)
+        owner_hash = hashlib.sha384(owner_bytes).digest()
+        owner_hex = owner_hash.hex()
+        owner_words = hash_to_fuse_words(owner_hash)
+
+        print()
+        print(f"Owner PK hash (standard byte order):")
+        print(f"  {owner_hex}")
+        print(f"Owner PK hash (fuse [u32; 12]):")
+        print(f"  {['0x{:08x}'.format(w) for w in owner_words]}")
+
+
+if __name__ == '__main__':
+    main()
+```
 
 ## Preamble validation steps
 
