@@ -878,6 +878,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-ocp-eat"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "ecdsa",
+ "minicbor",
+ "p384",
+ "rand",
+ "sha2",
+]
+
+[[package]]
 name = "caliptra-okref"
 version = "0.1.0"
 
@@ -998,6 +1010,7 @@ dependencies = [
  "caliptra-image-verify",
  "caliptra-kat",
  "caliptra-lms-types",
+ "caliptra-ocp-eat",
  "caliptra-registers",
  "caliptra-test",
  "caliptra-ureg",
@@ -1018,7 +1031,6 @@ dependencies = [
  "memoffset 0.8.0",
  "ml-dsa 0.0.4",
  "ml-dsa 0.1.0-rc.7",
- "ocp-eat",
  "openssl",
  "p384",
  "platform",
@@ -2762,18 +2774,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "ocp-eat"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "ecdsa",
- "minicbor",
- "p384",
- "rand",
- "sha2",
 ]
 
 [[package]]

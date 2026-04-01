@@ -1,16 +1,12 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "ocp-eat"
+name = "caliptra-ocp-eat"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "ocp_eat"
-path = "src/lib.rs"
-
 [[bin]]
-name = "ocp-eat"
+name = "caliptra_ocp_eat"
 path = "src/main.rs"
 
 
