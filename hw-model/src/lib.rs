@@ -74,9 +74,9 @@ pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
 
+use caliptra_ureg::MmioMut;
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
-use ureg::MmioMut;
 
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::ModelFpgaRealtime;

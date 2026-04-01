@@ -28,7 +28,7 @@ impl MboxCsr {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl MboxCsr {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl MboxCsr {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -81,9 +81,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mbox::regs::LockReadVal`]; Write value: [`mbox::regs::LockWriteVal`]
     #[inline(always)]
-    pub fn lock(&self) -> ureg::RegRef<crate::mbox::meta::Lock, &TMmio> {
+    pub fn lock(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Lock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -95,9 +95,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn user(&self) -> ureg::RegRef<crate::mbox::meta::User, &TMmio> {
+    pub fn user(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::User, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -110,9 +110,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn cmd(&self) -> ureg::RegRef<crate::mbox::meta::Cmd, &TMmio> {
+    pub fn cmd(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Cmd, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -125,9 +125,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn dlen(&self) -> ureg::RegRef<crate::mbox::meta::Dlen, &TMmio> {
+    pub fn dlen(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Dlen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -140,9 +140,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn datain(&self) -> ureg::RegRef<crate::mbox::meta::Datain, &TMmio> {
+    pub fn datain(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Datain, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -155,9 +155,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn dataout(&self) -> ureg::RegRef<crate::mbox::meta::Dataout, &TMmio> {
+    pub fn dataout(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Dataout, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -170,9 +170,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mbox::regs::ExecuteReadVal`]; Write value: [`mbox::regs::ExecuteWriteVal`]
     #[inline(always)]
-    pub fn execute(&self) -> ureg::RegRef<crate::mbox::meta::Execute, &TMmio> {
+    pub fn execute(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Execute, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -182,9 +182,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mbox::regs::StatusReadVal`]; Write value: [`mbox::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::mbox::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -196,9 +196,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mbox::regs::UnlockReadVal`]; Write value: [`mbox::regs::UnlockWriteVal`]
     #[inline(always)]
-    pub fn unlock(&self) -> ureg::RegRef<crate::mbox::meta::Unlock, &TMmio> {
+    pub fn unlock(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::Unlock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -210,9 +210,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mbox::regs::TapModeReadVal`]; Write value: [`mbox::regs::TapModeWriteVal`]
     #[inline(always)]
-    pub fn tap_mode(&self) -> ureg::RegRef<crate::mbox::meta::TapMode, &TMmio> {
+    pub fn tap_mode(&self) -> caliptra_ureg::RegRef<crate::mbox::meta::TapMode, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -658,29 +658,29 @@ pub mod enums {
     }
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type Lock = ureg::ReadOnlyReg32<crate::mbox::regs::LockReadVal>;
-    pub type User = ureg::ReadOnlyReg32<u32>;
-    pub type Cmd = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Dlen = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Datain = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Dataout = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Execute = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type Lock = caliptra_ureg::ReadOnlyReg32<crate::mbox::regs::LockReadVal>;
+    pub type User = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type Cmd = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dlen = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Datain = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dataout = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Execute = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mbox::regs::ExecuteReadVal,
         crate::mbox::regs::ExecuteWriteVal,
     >;
-    pub type Status = ureg::ReadWriteReg32<
+    pub type Status = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mbox::regs::StatusReadVal,
         crate::mbox::regs::StatusWriteVal,
     >;
-    pub type Unlock = ureg::ReadWriteReg32<
+    pub type Unlock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mbox::regs::UnlockReadVal,
         crate::mbox::regs::UnlockWriteVal,
     >;
-    pub type TapMode = ureg::ReadWriteReg32<
+    pub type TapMode = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mbox::regs::TapModeReadVal,
         crate::mbox::regs::TapModeWriteVal,

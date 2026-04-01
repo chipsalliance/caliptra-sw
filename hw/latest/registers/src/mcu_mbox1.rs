@@ -28,7 +28,7 @@ impl McuMbox1Csr {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl McuMbox1Csr {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl McuMbox1Csr {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -81,9 +81,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn mbox_sram(
         &self,
-    ) -> ureg::Array<524288, ureg::RegRef<crate::mcu_mbox1::meta::MboxSram, &TMmio>> {
+    ) -> caliptra_ureg::Array<524288, caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxSram, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -93,9 +94,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mcu_mbox1::regs::MboxLockReadVal`]; Write value: [`mcu_mbox1::regs::MboxLockWriteVal`]
     #[inline(always)]
-    pub fn mbox_lock(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxLock, &TMmio> {
+    pub fn mbox_lock(&self) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -106,9 +107,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn mbox_user(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxUser, &TMmio> {
+    pub fn mbox_user(&self) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxUser, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200004 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -119,9 +120,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn mbox_target_user(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetUser, &TMmio> {
+    pub fn mbox_target_user(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetUser, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200008 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -134,9 +137,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn mbox_target_user_valid(
         &self,
-    ) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetUserValid, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetUserValid, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x20000c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -147,9 +150,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn mbox_cmd(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxCmd, &TMmio> {
+    pub fn mbox_cmd(&self) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxCmd, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200010 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -160,9 +163,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn mbox_dlen(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxDlen, &TMmio> {
+    pub fn mbox_dlen(&self) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxDlen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200014 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -173,9 +176,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mcu_mbox1::regs::MboxExecuteReadVal`]; Write value: [`mcu_mbox1::regs::MboxExecuteWriteVal`]
     #[inline(always)]
-    pub fn mbox_execute(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxExecute, &TMmio> {
+    pub fn mbox_execute(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxExecute, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200018 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -188,9 +193,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn mbox_target_status(
         &self,
-    ) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxTargetStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x20001c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -201,9 +206,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mcu_mbox1::regs::MboxCmdStatusReadVal`]; Write value: [`mcu_mbox1::regs::MboxCmdStatusWriteVal`]
     #[inline(always)]
-    pub fn mbox_cmd_status(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxCmdStatus, &TMmio> {
+    pub fn mbox_cmd_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxCmdStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200020 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -214,9 +221,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mcu_mbox1::regs::MboxHwStatusReadVal`]; Write value: [`mcu_mbox1::regs::MboxHwStatusWriteVal`]
     #[inline(always)]
-    pub fn mbox_hw_status(&self) -> ureg::RegRef<crate::mcu_mbox1::meta::MboxHwStatus, &TMmio> {
+    pub fn mbox_hw_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_mbox1::meta::MboxHwStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr
                     .wrapping_add(0x200024 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
@@ -564,32 +573,33 @@ pub mod enums {
     }
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type MboxSram = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type MboxLock = ureg::ReadOnlyReg32<crate::mcu_mbox1::regs::MboxLockReadVal>;
-    pub type MboxUser = ureg::ReadOnlyReg32<u32>;
-    pub type MboxTargetUser = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type MboxTargetUserValid = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type MboxSram = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MboxLock = caliptra_ureg::ReadOnlyReg32<crate::mcu_mbox1::regs::MboxLockReadVal>;
+    pub type MboxUser = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type MboxTargetUser = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MboxTargetUserValid = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mcu_mbox1::regs::MboxTargetUserValidReadVal,
         crate::mcu_mbox1::regs::MboxTargetUserValidWriteVal,
     >;
-    pub type MboxCmd = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type MboxDlen = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type MboxExecute = ureg::ReadWriteReg32<
+    pub type MboxCmd = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MboxDlen = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MboxExecute = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mcu_mbox1::regs::MboxExecuteReadVal,
         crate::mcu_mbox1::regs::MboxExecuteWriteVal,
     >;
-    pub type MboxTargetStatus = ureg::ReadWriteReg32<
+    pub type MboxTargetStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mcu_mbox1::regs::MboxTargetStatusReadVal,
         crate::mcu_mbox1::regs::MboxTargetStatusWriteVal,
     >;
-    pub type MboxCmdStatus = ureg::ReadWriteReg32<
+    pub type MboxCmdStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::mcu_mbox1::regs::MboxCmdStatusReadVal,
         crate::mcu_mbox1::regs::MboxCmdStatusWriteVal,
     >;
-    pub type MboxHwStatus = ureg::ReadOnlyReg32<crate::mcu_mbox1::regs::MboxHwStatusReadVal>;
+    pub type MboxHwStatus =
+        caliptra_ureg::ReadOnlyReg32<crate::mcu_mbox1::regs::MboxHwStatusReadVal>;
 }

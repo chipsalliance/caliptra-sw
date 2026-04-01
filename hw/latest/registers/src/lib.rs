@@ -894,7 +894,7 @@ pub mod enums {
     }
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
+    //! Additional metadata needed by caliptra_ureg.
 }
 pub mod abr;
 pub mod aes;

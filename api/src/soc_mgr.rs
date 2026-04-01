@@ -9,8 +9,8 @@ use crate::{
     CaliptraApiError,
 };
 use caliptra_api_types::Fuses;
+use caliptra_ureg::MmioMut;
 use core::mem;
-use ureg::MmioMut;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub const NUM_PAUSERS: usize = 5;
@@ -21,7 +21,7 @@ pub const NUM_PAUSERS: usize = 5;
 ///
 /// ```rust
 /// use caliptra_api::SocManager;
-/// use ureg::RealMmioMut;
+/// use caliptra_ureg::RealMmioMut;
 /// struct RealSocManager;
 /// const CPTRA_SOC_IFC_ADDR: u32 = 0x3003_0000;
 /// const CPTRA_SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
@@ -47,7 +47,7 @@ pub const NUM_PAUSERS: usize = 5;
 ///
 ///     /// Returns a mutable reference to the memory-mapped I/O.
 ///     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
-///         ureg::RealMmioMut::default()
+///         caliptra_ureg::RealMmioMut::default()
 ///     }
 ///
 ///     /// Provides a delay function to be invoked when polling mailbox status.

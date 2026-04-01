@@ -28,7 +28,7 @@ impl I3ccsr {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl I3ccsr {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl I3ccsr {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -76,9 +76,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn dat(&self) -> ureg::Array<256, ureg::RegRef<crate::i3ccsr::meta::Dat, &TMmio>> {
+    pub fn dat(
+        &self,
+    ) -> caliptra_ureg::Array<256, caliptra_ureg::RegRef<crate::i3ccsr::meta::Dat, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x400 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -86,9 +88,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn dct(&self) -> ureg::Array<512, ureg::RegRef<crate::i3ccsr::meta::Dct, &TMmio>> {
+    pub fn dct(
+        &self,
+    ) -> caliptra_ureg::Array<512, caliptra_ureg::RegRef<crate::i3ccsr::meta::Dct, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x800 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -152,16 +156,18 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct I3cbaseBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct I3cbaseBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> I3cbaseBlock<TMmio> {
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hci_version(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseHciVersion, &TMmio> {
+    pub fn hci_version(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseHciVersion, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -169,9 +175,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::HcControlReadVal`]; Write value: [`i3ccsr::regs::HcControlWriteVal`]
     #[inline(always)]
-    pub fn hc_control(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseHcControl, &TMmio> {
+    pub fn hc_control(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseHcControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -181,9 +189,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn controller_device_addr(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseControllerDeviceAddr, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseControllerDeviceAddr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -193,9 +201,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn hc_capabilities(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseHcCapabilities, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseHcCapabilities, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -203,9 +211,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::ResetControlReadVal`]; Write value: [`i3ccsr::regs::ResetControlWriteVal`]
     #[inline(always)]
-    pub fn reset_control(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseResetControl, &TMmio> {
+    pub fn reset_control(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseResetControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -213,9 +223,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::PresentStateReadVal`]; Write value: [`i3ccsr::regs::PresentStateWriteVal`]
     #[inline(always)]
-    pub fn present_state(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbasePresentState, &TMmio> {
+    pub fn present_state(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbasePresentState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -223,9 +235,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::IntrStatusReadVal`]; Write value: [`i3ccsr::regs::IntrStatusWriteVal`]
     #[inline(always)]
-    pub fn intr_status(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrStatus, &TMmio> {
+    pub fn intr_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -235,9 +249,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn intr_status_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrStatusEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrStatusEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -247,9 +261,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn intr_signal_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrSignalEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrSignalEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -257,9 +271,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::IntrForceReadVal`]; Write value: [`i3ccsr::regs::IntrForceWriteVal`]
     #[inline(always)]
-    pub fn intr_force(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrForce, &TMmio> {
+    pub fn intr_force(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntrForce, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -269,9 +285,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn dat_section_offset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseDatSectionOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseDatSectionOffset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -281,9 +297,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn dct_section_offset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseDctSectionOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseDctSectionOffset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -293,9 +309,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn ring_headers_section_offset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseRingHeadersSectionOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseRingHeadersSectionOffset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -305,9 +321,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn pio_section_offset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbasePioSectionOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbasePioSectionOffset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -317,9 +333,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn ext_caps_section_offset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseExtCapsSectionOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseExtCapsSectionOffset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -329,9 +345,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn int_ctrl_cmds_en(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntCtrlCmdsEn, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIntCtrlCmdsEn, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -341,9 +357,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn ibi_notify_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIbiNotifyCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIbiNotifyCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -353,9 +369,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn ibi_data_abort_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseIbiDataAbortCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseIbiDataAbortCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -365,9 +381,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn dev_ctx_base_lo(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxBaseLo, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxBaseLo, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -377,9 +393,9 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     #[inline(always)]
     pub fn dev_ctx_base_hi(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxBaseHi, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxBaseHi, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -387,9 +403,11 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::DevCtxSgReadVal`]; Write value: [`i3ccsr::regs::DevCtxSgWriteVal`]
     #[inline(always)]
-    pub fn dev_ctx_sg(&self) -> ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxSg, &TMmio> {
+    pub fn dev_ctx_sg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cbaseDevCtxSg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x68 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -397,16 +415,18 @@ impl<TMmio: ureg::Mmio> I3cbaseBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct PiocontrolBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct PiocontrolBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> PiocontrolBlock<TMmio> {
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn command_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolCommandPort, &TMmio> {
+    pub fn command_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolCommandPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -416,9 +436,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn response_port(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolResponsePort, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolResponsePort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -426,9 +446,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn tx_data_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolTxDataPort, &TMmio> {
+    pub fn tx_data_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolTxDataPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -436,9 +458,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn rx_data_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolRxDataPort, &TMmio> {
+    pub fn rx_data_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolRxDataPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -446,9 +470,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn ibi_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolIbiPort, &TMmio> {
+    pub fn ibi_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolIbiPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -458,9 +484,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn queue_thld_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolQueueThldCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolQueueThldCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -470,9 +496,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn data_buffer_thld_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolDataBufferThldCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolDataBufferThldCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -480,9 +506,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::QueueSizeReadVal`]; Write value: [`i3ccsr::regs::QueueSizeWriteVal`]
     #[inline(always)]
-    pub fn queue_size(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolQueueSize, &TMmio> {
+    pub fn queue_size(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolQueueSize, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -492,9 +520,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn alt_queue_size(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolAltQueueSize, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolAltQueueSize, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -504,9 +532,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn pio_intr_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -516,9 +544,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn pio_intr_status_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrStatusEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrStatusEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -528,9 +556,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn pio_intr_signal_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrSignalEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrSignalEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -540,9 +568,9 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     #[inline(always)]
     pub fn pio_intr_force(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrForce, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioIntrForce, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -550,9 +578,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::PioControlReadVal`]; Write value: [`i3ccsr::regs::PioControlWriteVal`]
     #[inline(always)]
-    pub fn pio_control(&self) -> ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioControl, &TMmio> {
+    pub fn pio_control(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::PiocontrolPioControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -560,11 +590,11 @@ impl<TMmio: ureg::Mmio> PiocontrolBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct I3cEcBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct I3cEcBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> I3cEcBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> I3cEcBlock<TMmio> {
     /// Register after the last EC must advertise ID == 0.
     /// Termination register is added to guarantee that the discovery mechanism
     /// reaches termination value.
@@ -573,9 +603,9 @@ impl<TMmio: ureg::Mmio> I3cEcBlock<TMmio> {
     #[inline(always)]
     pub fn termination_extcap_header(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::I3cEcTerminationExtcapHeader, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::I3cEcTerminationExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -583,18 +613,18 @@ impl<TMmio: ureg::Mmio> I3cEcBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecfwrecoveryifBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecfwrecoveryifBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifExtcapHeader, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -602,9 +632,11 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn prot_cap_0(&self) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap0, &TMmio> {
+    pub fn prot_cap_0(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -612,9 +644,11 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn prot_cap_1(&self) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap1, &TMmio> {
+    pub fn prot_cap_1(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -622,9 +656,11 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::ProtCap2ReadVal`]; Write value: [`i3ccsr::regs::ProtCap2WriteVal`]
     #[inline(always)]
-    pub fn prot_cap_2(&self) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap2, &TMmio> {
+    pub fn prot_cap_2(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -632,9 +668,11 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::ProtCap3ReadVal`]; Write value: [`i3ccsr::regs::ProtCap3WriteVal`]
     #[inline(always)]
-    pub fn prot_cap_3(&self) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap3, &TMmio> {
+    pub fn prot_cap_3(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifProtCap3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -644,9 +682,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_0(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -656,9 +694,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_1(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -668,9 +706,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_2(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId2, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -680,9 +718,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_3(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -692,9 +730,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_4(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId4, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId4, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -704,9 +742,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_5(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId5, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceId5, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -716,9 +754,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_id_reserved(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceIdReserved, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceIdReserved, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -728,9 +766,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_status_0(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceStatus0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceStatus0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -740,9 +778,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_status_1(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceStatus1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceStatus1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -754,9 +792,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn device_reset(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceReset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifDeviceReset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -766,9 +804,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn recovery_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifRecoveryCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifRecoveryCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -778,9 +816,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn recovery_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifRecoveryStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifRecoveryStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -788,9 +826,11 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::HwStatusReadVal`]; Write value: [`i3ccsr::regs::HwStatusWriteVal`]
     #[inline(always)]
-    pub fn hw_status(&self) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifHwStatus, &TMmio> {
+    pub fn hw_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifHwStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -800,9 +840,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_ctrl_0(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoCtrl0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoCtrl0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -812,9 +852,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_ctrl_1(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoCtrl1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoCtrl1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -824,9 +864,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_status_0(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -836,9 +877,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_status_1(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -848,9 +890,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_status_2(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus2, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus2, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -860,9 +903,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_status_3(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus3, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -872,9 +916,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_status_4(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus4, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoStatus4, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -884,9 +929,10 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_reserved(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoReserved, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoReserved, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -898,9 +944,9 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     #[inline(always)]
     pub fn indirect_fifo_data(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoData, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SecfwrecoveryifIndirectFifoData, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x68 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -908,18 +954,18 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct StdbyctrlmodeBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct StdbyctrlmodeBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeExtcapHeader, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -929,9 +975,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_control(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrControl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -941,9 +987,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_device_addr(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDeviceAddr, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDeviceAddr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -953,9 +999,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_capabilities(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCapabilities, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCapabilities, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -965,9 +1011,10 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_virtual_device_char(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDeviceChar, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDeviceChar, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -977,9 +1024,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -989,9 +1036,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_device_char(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDeviceChar, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDeviceChar, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1001,9 +1048,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_device_pid_lo(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDevicePidLo, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrDevicePidLo, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1013,9 +1060,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_intr_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1025,9 +1072,10 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_virtual_device_pid_lo(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDevicePidLo, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtualDevicePidLo, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1040,9 +1088,10 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_intr_signal_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrSignalEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrSignalEnable, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1056,9 +1105,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_intr_force(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrForce, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrIntrForce, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1068,9 +1117,10 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_ccc_config_getcaps(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCccConfigGetcaps, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCccConfigGetcaps, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1080,9 +1130,10 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_ccc_config_rstact_params(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCccConfigRstactParams, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrCccConfigRstactParams, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1092,9 +1143,9 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     #[inline(always)]
     pub fn stby_cr_virt_device_addr(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtDeviceAddr, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrVirtDeviceAddr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1102,9 +1153,11 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn _rsvd_3(&self) -> ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeRsvd3, &TMmio> {
+    pub fn _rsvd_3(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeRsvd3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1112,16 +1165,18 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct TtiBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct TtiBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
-    pub fn extcap_header(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiExtcapHeader, &TMmio> {
+    pub fn extcap_header(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1131,9 +1186,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`i3ccsr::regs::ControlReadVal`]; Write value: [`i3ccsr::regs::ControlWriteVal`]
     #[inline(always)]
-    pub fn control(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiControl, &TMmio> {
+    pub fn control(&self) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1143,9 +1198,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`i3ccsr::regs::StatusReadVal`]; Write value: [`i3ccsr::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiStatus, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1157,9 +1212,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn tti_reset_control(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiResetControl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiResetControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1171,9 +1226,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn interrupt_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiInterruptStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1185,9 +1240,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn interrupt_enable(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiInterruptEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1197,9 +1252,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`i3ccsr::regs::InterruptForceReadVal`]; Write value: [`i3ccsr::regs::InterruptForceWriteVal`]
     #[inline(always)]
-    pub fn interrupt_force(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiInterruptForce, &TMmio> {
+    pub fn interrupt_force(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptForce, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1211,9 +1268,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn rx_desc_queue_port(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiRxDescQueuePort, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiRxDescQueuePort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1223,9 +1280,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn rx_data_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiRxDataPort, &TMmio> {
+    pub fn rx_data_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiRxDataPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1237,9 +1296,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn tx_desc_queue_port(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTxDescQueuePort, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTxDescQueuePort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1249,9 +1308,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn tx_data_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiTxDataPort, &TMmio> {
+    pub fn tx_data_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTxDataPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1261,9 +1322,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn tti_ibi_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiIbiPort, &TMmio> {
+    pub fn tti_ibi_port(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiIbiPort, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1273,9 +1336,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`i3ccsr::regs::TtiQueueSizeReadVal`]; Write value: [`i3ccsr::regs::TtiQueueSizeWriteVal`]
     #[inline(always)]
-    pub fn tti_queue_size(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueSize, &TMmio> {
+    pub fn tti_queue_size(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueSize, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1287,9 +1352,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn ibi_tti_queue_size(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiIbiTtiQueueSize, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiIbiTtiQueueSize, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1301,9 +1366,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn tti_queue_thld_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueThldCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueThldCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1315,9 +1380,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     #[inline(always)]
     pub fn tti_data_buffer_thld_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiDataBufferThldCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiDataBufferThldCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1325,18 +1390,18 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SocmgmtifBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SocmgmtifBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SocmgmtifBlock<TMmio> {
     /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifExtcapHeader, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1346,9 +1411,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_control(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtControl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1358,9 +1423,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_status(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1368,9 +1433,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::RecIntfCfgReadVal`]; Write value: [`i3ccsr::regs::RecIntfCfgWriteVal`]
     #[inline(always)]
-    pub fn rec_intf_cfg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfCfg, &TMmio> {
+    pub fn rec_intf_cfg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfCfg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1380,9 +1447,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn rec_intf_reg_w1_c_access(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfRegW1cAccess, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifRecIntfRegW1cAccess, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1392,9 +1459,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_rsvd_2(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd2, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1404,9 +1471,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_rsvd_3(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtRsvd3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1414,9 +1481,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::SocPadConfReadVal`]; Write value: [`i3ccsr::regs::SocPadConfWriteVal`]
     #[inline(always)]
-    pub fn soc_pad_conf(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadConf, &TMmio> {
+    pub fn soc_pad_conf(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadConf, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1424,9 +1493,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::SocPadAttrReadVal`]; Write value: [`i3ccsr::regs::SocPadAttrWriteVal`]
     #[inline(always)]
-    pub fn soc_pad_attr(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadAttr, &TMmio> {
+    pub fn soc_pad_attr(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadAttr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1436,9 +1507,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_feature_2(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtFeature2, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtFeature2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1448,9 +1519,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     #[inline(always)]
     pub fn soc_mgmt_feature_3(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtFeature3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocMgmtFeature3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1458,9 +1529,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TRRegReadVal`]; Write value: [`i3ccsr::regs::TRRegWriteVal`]
     #[inline(always)]
-    pub fn t_r_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTRReg, &TMmio> {
+    pub fn t_r_reg(&self) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTRReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1468,9 +1539,9 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TFRegReadVal`]; Write value: [`i3ccsr::regs::TFRegWriteVal`]
     #[inline(always)]
-    pub fn t_f_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTFReg, &TMmio> {
+    pub fn t_f_reg(&self) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTFReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1478,9 +1549,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TSuDatRegReadVal`]; Write value: [`i3ccsr::regs::TSuDatRegWriteVal`]
     #[inline(always)]
-    pub fn t_su_dat_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuDatReg, &TMmio> {
+    pub fn t_su_dat_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuDatReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1488,9 +1561,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::THdDatRegReadVal`]; Write value: [`i3ccsr::regs::THdDatRegWriteVal`]
     #[inline(always)]
-    pub fn t_hd_dat_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdDatReg, &TMmio> {
+    pub fn t_hd_dat_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdDatReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1498,9 +1573,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::THighRegReadVal`]; Write value: [`i3ccsr::regs::THighRegWriteVal`]
     #[inline(always)]
-    pub fn t_high_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHighReg, &TMmio> {
+    pub fn t_high_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHighReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1508,9 +1585,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TLowRegReadVal`]; Write value: [`i3ccsr::regs::TLowRegWriteVal`]
     #[inline(always)]
-    pub fn t_low_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTLowReg, &TMmio> {
+    pub fn t_low_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTLowReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1518,9 +1597,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::THdStaRegReadVal`]; Write value: [`i3ccsr::regs::THdStaRegWriteVal`]
     #[inline(always)]
-    pub fn t_hd_sta_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdStaReg, &TMmio> {
+    pub fn t_hd_sta_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdStaReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1528,9 +1609,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TSuStaRegReadVal`]; Write value: [`i3ccsr::regs::TSuStaRegWriteVal`]
     #[inline(always)]
-    pub fn t_su_sta_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStaReg, &TMmio> {
+    pub fn t_su_sta_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStaReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1538,9 +1621,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`i3ccsr::regs::TSuStoRegReadVal`]; Write value: [`i3ccsr::regs::TSuStoRegWriteVal`]
     #[inline(always)]
-    pub fn t_su_sto_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStoReg, &TMmio> {
+    pub fn t_su_sto_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStoReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1548,9 +1633,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn t_free_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTFreeReg, &TMmio> {
+    pub fn t_free_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTFreeReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1558,9 +1645,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn t_aval_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTAvalReg, &TMmio> {
+    pub fn t_aval_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTAvalReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1568,9 +1657,11 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn t_idle_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTIdleReg, &TMmio> {
+    pub fn t_idle_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTIdleReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1578,16 +1669,18 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct CtrlcfgBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct CtrlcfgBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> CtrlcfgBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> CtrlcfgBlock<TMmio> {
     /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
-    pub fn extcap_header(&self) -> ureg::RegRef<crate::i3ccsr::meta::CtrlcfgExtcapHeader, &TMmio> {
+    pub fn extcap_header(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::CtrlcfgExtcapHeader, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1597,9 +1690,9 @@ impl<TMmio: ureg::Mmio> CtrlcfgBlock<TMmio> {
     #[inline(always)]
     pub fn controller_config(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::CtrlcfgControllerConfig, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::CtrlcfgControllerConfig, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1629,7 +1722,7 @@ impl I3cbase {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1638,7 +1731,7 @@ impl I3cbase {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1668,7 +1761,7 @@ impl Piocontrol {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1677,7 +1770,7 @@ impl Piocontrol {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1707,7 +1800,7 @@ impl I3cEc {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1716,7 +1809,7 @@ impl I3cEc {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1746,7 +1839,7 @@ impl Secfwrecoveryif {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1755,7 +1848,7 @@ impl Secfwrecoveryif {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -7939,371 +8032,381 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type Dat = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Dct = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type I3cbaseHciVersion = ureg::ReadOnlyReg32<u32>;
-    pub type I3cbaseHcControl = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type Dat = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dct = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type I3cbaseHciVersion = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type I3cbaseHcControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::HcControlReadVal,
         crate::i3ccsr::regs::HcControlWriteVal,
     >;
-    pub type I3cbaseControllerDeviceAddr = ureg::ReadWriteReg32<
+    pub type I3cbaseControllerDeviceAddr = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::ControllerDeviceAddrReadVal,
         crate::i3ccsr::regs::ControllerDeviceAddrWriteVal,
     >;
     pub type I3cbaseHcCapabilities =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::HcCapabilitiesReadVal>;
-    pub type I3cbaseResetControl = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::HcCapabilitiesReadVal>;
+    pub type I3cbaseResetControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::ResetControlReadVal,
         crate::i3ccsr::regs::ResetControlWriteVal,
     >;
-    pub type I3cbasePresentState = ureg::ReadOnlyReg32<crate::i3ccsr::regs::PresentStateReadVal>;
-    pub type I3cbaseIntrStatus = ureg::ReadWriteReg32<
+    pub type I3cbasePresentState =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::PresentStateReadVal>;
+    pub type I3cbaseIntrStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IntrStatusReadVal,
         crate::i3ccsr::regs::IntrStatusWriteVal,
     >;
-    pub type I3cbaseIntrStatusEnable = ureg::ReadWriteReg32<
+    pub type I3cbaseIntrStatusEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IntrStatusEnableReadVal,
         crate::i3ccsr::regs::IntrStatusEnableWriteVal,
     >;
-    pub type I3cbaseIntrSignalEnable = ureg::ReadWriteReg32<
+    pub type I3cbaseIntrSignalEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IntrSignalEnableReadVal,
         crate::i3ccsr::regs::IntrSignalEnableWriteVal,
     >;
-    pub type I3cbaseIntrForce = ureg::WriteOnlyReg32<0, crate::i3ccsr::regs::IntrForceWriteVal>;
+    pub type I3cbaseIntrForce =
+        caliptra_ureg::WriteOnlyReg32<0, crate::i3ccsr::regs::IntrForceWriteVal>;
     pub type I3cbaseDatSectionOffset =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::DatSectionOffsetReadVal>;
-    pub type I3cbaseDctSectionOffset = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::DatSectionOffsetReadVal>;
+    pub type I3cbaseDctSectionOffset = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DctSectionOffsetReadVal,
         crate::i3ccsr::regs::DctSectionOffsetWriteVal,
     >;
     pub type I3cbaseRingHeadersSectionOffset =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::RingHeadersSectionOffsetReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::RingHeadersSectionOffsetReadVal>;
     pub type I3cbasePioSectionOffset =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::PioSectionOffsetReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::PioSectionOffsetReadVal>;
     pub type I3cbaseExtCapsSectionOffset =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtCapsSectionOffsetReadVal>;
-    pub type I3cbaseIntCtrlCmdsEn = ureg::ReadOnlyReg32<crate::i3ccsr::regs::IntCtrlCmdsEnReadVal>;
-    pub type I3cbaseIbiNotifyCtrl = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtCapsSectionOffsetReadVal>;
+    pub type I3cbaseIntCtrlCmdsEn =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::IntCtrlCmdsEnReadVal>;
+    pub type I3cbaseIbiNotifyCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IbiNotifyCtrlReadVal,
         crate::i3ccsr::regs::IbiNotifyCtrlWriteVal,
     >;
-    pub type I3cbaseIbiDataAbortCtrl = ureg::ReadWriteReg32<
+    pub type I3cbaseIbiDataAbortCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IbiDataAbortCtrlReadVal,
         crate::i3ccsr::regs::IbiDataAbortCtrlWriteVal,
     >;
-    pub type I3cbaseDevCtxBaseLo = ureg::ReadWriteReg32<
+    pub type I3cbaseDevCtxBaseLo = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DevCtxBaseLoReadVal,
         crate::i3ccsr::regs::DevCtxBaseLoWriteVal,
     >;
-    pub type I3cbaseDevCtxBaseHi = ureg::ReadWriteReg32<
+    pub type I3cbaseDevCtxBaseHi = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DevCtxBaseHiReadVal,
         crate::i3ccsr::regs::DevCtxBaseHiWriteVal,
     >;
-    pub type I3cbaseDevCtxSg = ureg::ReadOnlyReg32<crate::i3ccsr::regs::DevCtxSgReadVal>;
-    pub type PiocontrolCommandPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type PiocontrolResponsePort = ureg::ReadOnlyReg32<u32>;
-    pub type PiocontrolTxDataPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type PiocontrolRxDataPort = ureg::ReadOnlyReg32<u32>;
-    pub type PiocontrolIbiPort = ureg::ReadOnlyReg32<u32>;
-    pub type PiocontrolQueueThldCtrl = ureg::ReadWriteReg32<
+    pub type I3cbaseDevCtxSg = caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::DevCtxSgReadVal>;
+    pub type PiocontrolCommandPort = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type PiocontrolResponsePort = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type PiocontrolTxDataPort = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type PiocontrolRxDataPort = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type PiocontrolIbiPort = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type PiocontrolQueueThldCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::QueueThldCtrlReadVal,
         crate::i3ccsr::regs::QueueThldCtrlWriteVal,
     >;
-    pub type PiocontrolDataBufferThldCtrl = ureg::ReadWriteReg32<
+    pub type PiocontrolDataBufferThldCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DataBufferThldCtrlReadVal,
         crate::i3ccsr::regs::DataBufferThldCtrlWriteVal,
     >;
-    pub type PiocontrolQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::QueueSizeReadVal>;
-    pub type PiocontrolAltQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::AltQueueSizeReadVal>;
-    pub type PiocontrolPioIntrStatus = ureg::ReadWriteReg32<
+    pub type PiocontrolQueueSize =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::QueueSizeReadVal>;
+    pub type PiocontrolAltQueueSize =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::AltQueueSizeReadVal>;
+    pub type PiocontrolPioIntrStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::PioIntrStatusReadVal,
         crate::i3ccsr::regs::PioIntrStatusWriteVal,
     >;
-    pub type PiocontrolPioIntrStatusEnable = ureg::ReadWriteReg32<
+    pub type PiocontrolPioIntrStatusEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::PioIntrStatusEnableReadVal,
         crate::i3ccsr::regs::PioIntrStatusEnableWriteVal,
     >;
-    pub type PiocontrolPioIntrSignalEnable = ureg::ReadWriteReg32<
+    pub type PiocontrolPioIntrSignalEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::PioIntrSignalEnableReadVal,
         crate::i3ccsr::regs::PioIntrSignalEnableWriteVal,
     >;
     pub type PiocontrolPioIntrForce =
-        ureg::WriteOnlyReg32<0, crate::i3ccsr::regs::PioIntrForceWriteVal>;
-    pub type PiocontrolPioControl = ureg::ReadWriteReg32<
+        caliptra_ureg::WriteOnlyReg32<0, crate::i3ccsr::regs::PioIntrForceWriteVal>;
+    pub type PiocontrolPioControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::PioControlReadVal,
         crate::i3ccsr::regs::PioControlWriteVal,
     >;
     pub type I3cEcTerminationExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type SecfwrecoveryifExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
-    pub type SecfwrecoveryifProtCap0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifProtCap1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifProtCap2 = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+    pub type SecfwrecoveryifProtCap0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifProtCap1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifProtCap2 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::ProtCap2ReadVal,
         crate::i3ccsr::regs::ProtCap2WriteVal,
     >;
-    pub type SecfwrecoveryifProtCap3 = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifProtCap3 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::ProtCap3ReadVal,
         crate::i3ccsr::regs::ProtCap3WriteVal,
     >;
-    pub type SecfwrecoveryifDeviceId0 = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifDeviceId0 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DeviceId0ReadVal,
         crate::i3ccsr::regs::DeviceId0WriteVal,
     >;
-    pub type SecfwrecoveryifDeviceId1 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SecfwrecoveryifDeviceId2 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SecfwrecoveryifDeviceId3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SecfwrecoveryifDeviceId4 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SecfwrecoveryifDeviceId5 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SecfwrecoveryifDeviceIdReserved = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifDeviceStatus0 = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifDeviceId1 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifDeviceId2 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifDeviceId3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifDeviceId4 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifDeviceId5 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifDeviceIdReserved = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifDeviceStatus0 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DeviceStatus0ReadVal,
         crate::i3ccsr::regs::DeviceStatus0WriteVal,
     >;
-    pub type SecfwrecoveryifDeviceStatus1 = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifDeviceStatus1 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DeviceStatus1ReadVal,
         crate::i3ccsr::regs::DeviceStatus1WriteVal,
     >;
-    pub type SecfwrecoveryifDeviceReset = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifDeviceReset = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::DeviceResetReadVal,
         crate::i3ccsr::regs::DeviceResetWriteVal,
     >;
-    pub type SecfwrecoveryifRecoveryCtrl = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifRecoveryCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::RecoveryCtrlReadVal,
         crate::i3ccsr::regs::RecoveryCtrlWriteVal,
     >;
-    pub type SecfwrecoveryifRecoveryStatus = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifRecoveryStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::RecoveryStatusReadVal,
         crate::i3ccsr::regs::RecoveryStatusWriteVal,
     >;
-    pub type SecfwrecoveryifHwStatus = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifHwStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::HwStatusReadVal,
         crate::i3ccsr::regs::HwStatusWriteVal,
     >;
-    pub type SecfwrecoveryifIndirectFifoCtrl0 = ureg::ReadWriteReg32<
+    pub type SecfwrecoveryifIndirectFifoCtrl0 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::IndirectFifoCtrl0ReadVal,
         crate::i3ccsr::regs::IndirectFifoCtrl0WriteVal,
     >;
-    pub type SecfwrecoveryifIndirectFifoCtrl1 = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SecfwrecoveryifIndirectFifoCtrl1 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
     pub type SecfwrecoveryifIndirectFifoStatus0 =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::IndirectFifoStatus0ReadVal>;
-    pub type SecfwrecoveryifIndirectFifoStatus1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoStatus2 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoStatus3 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoStatus4 = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoReserved = ureg::ReadOnlyReg32<u32>;
-    pub type SecfwrecoveryifIndirectFifoData = ureg::ReadOnlyReg32<u32>;
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::IndirectFifoStatus0ReadVal>;
+    pub type SecfwrecoveryifIndirectFifoStatus1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifIndirectFifoStatus2 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifIndirectFifoStatus3 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifIndirectFifoStatus4 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifIndirectFifoReserved = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecfwrecoveryifIndirectFifoData = caliptra_ureg::ReadOnlyReg32<u32>;
     pub type StdbyctrlmodeExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
-    pub type StdbyctrlmodeStbyCrControl = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+    pub type StdbyctrlmodeStbyCrControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrControlReadVal,
         crate::i3ccsr::regs::StbyCrControlWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrDeviceAddr = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrDeviceAddr = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrDeviceAddrReadVal,
         crate::i3ccsr::regs::StbyCrDeviceAddrWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrCapabilities =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrCapabilitiesReadVal>;
-    pub type StdbyctrlmodeStbyCrVirtualDeviceChar = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrCapabilitiesReadVal>;
+    pub type StdbyctrlmodeStbyCrVirtualDeviceChar = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrVirtualDeviceCharReadVal,
         crate::i3ccsr::regs::StbyCrVirtualDeviceCharWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrStatus = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrStatusReadVal,
         crate::i3ccsr::regs::StbyCrStatusWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrDeviceChar = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrDeviceChar = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrDeviceCharReadVal,
         crate::i3ccsr::regs::StbyCrDeviceCharWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrDevicePidLo = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type StdbyctrlmodeStbyCrIntrStatus = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrDevicePidLo = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type StdbyctrlmodeStbyCrIntrStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrIntrStatusReadVal,
         crate::i3ccsr::regs::StbyCrIntrStatusWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrVirtualDevicePidLo = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type StdbyctrlmodeStbyCrIntrSignalEnable = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrVirtualDevicePidLo = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type StdbyctrlmodeStbyCrIntrSignalEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrIntrSignalEnableReadVal,
         crate::i3ccsr::regs::StbyCrIntrSignalEnableWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrIntrForce = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrIntrForce = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrIntrForceReadVal,
         crate::i3ccsr::regs::StbyCrIntrForceWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrCccConfigGetcaps = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrCccConfigGetcaps = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrCccConfigGetcapsReadVal,
         crate::i3ccsr::regs::StbyCrCccConfigGetcapsWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrCccConfigRstactParams = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrCccConfigRstactParams = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrCccConfigRstactParamsReadVal,
         crate::i3ccsr::regs::StbyCrCccConfigRstactParamsWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrVirtDeviceAddr = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeStbyCrVirtDeviceAddr = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::StbyCrVirtDeviceAddrReadVal,
         crate::i3ccsr::regs::StbyCrVirtDeviceAddrWriteVal,
     >;
-    pub type StdbyctrlmodeRsvd3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TtiExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
-    pub type TtiControl = ureg::ReadWriteReg32<
+    pub type StdbyctrlmodeRsvd3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type TtiExtcapHeader =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+    pub type TtiControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::ControlReadVal,
         crate::i3ccsr::regs::ControlWriteVal,
     >;
-    pub type TtiStatus = ureg::ReadOnlyReg32<crate::i3ccsr::regs::StatusReadVal>;
-    pub type TtiTtiResetControl = ureg::ReadWriteReg32<
+    pub type TtiStatus = caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::StatusReadVal>;
+    pub type TtiTtiResetControl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TtiResetControlReadVal,
         crate::i3ccsr::regs::TtiResetControlWriteVal,
     >;
-    pub type TtiInterruptStatus = ureg::ReadWriteReg32<
+    pub type TtiInterruptStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::InterruptStatusReadVal,
         crate::i3ccsr::regs::InterruptStatusWriteVal,
     >;
-    pub type TtiInterruptEnable = ureg::ReadWriteReg32<
+    pub type TtiInterruptEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::InterruptEnableReadVal,
         crate::i3ccsr::regs::InterruptEnableWriteVal,
     >;
-    pub type TtiInterruptForce = ureg::ReadWriteReg32<
+    pub type TtiInterruptForce = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::InterruptForceReadVal,
         crate::i3ccsr::regs::InterruptForceWriteVal,
     >;
-    pub type TtiRxDescQueuePort = ureg::ReadOnlyReg32<u32>;
-    pub type TtiRxDataPort = ureg::ReadOnlyReg32<u32>;
-    pub type TtiTxDescQueuePort = ureg::WriteOnlyReg32<0, u32>;
-    pub type TtiTxDataPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type TtiTtiIbiPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type TtiTtiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::TtiQueueSizeReadVal>;
-    pub type TtiIbiTtiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::IbiTtiQueueSizeReadVal>;
-    pub type TtiTtiQueueThldCtrl = ureg::ReadWriteReg32<
+    pub type TtiRxDescQueuePort = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type TtiRxDataPort = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type TtiTxDescQueuePort = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type TtiTxDataPort = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type TtiTtiIbiPort = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type TtiTtiQueueSize =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::TtiQueueSizeReadVal>;
+    pub type TtiIbiTtiQueueSize =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::IbiTtiQueueSizeReadVal>;
+    pub type TtiTtiQueueThldCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TtiQueueThldCtrlReadVal,
         crate::i3ccsr::regs::TtiQueueThldCtrlWriteVal,
     >;
-    pub type TtiTtiDataBufferThldCtrl = ureg::ReadWriteReg32<
+    pub type TtiTtiDataBufferThldCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TtiDataBufferThldCtrlReadVal,
         crate::i3ccsr::regs::TtiDataBufferThldCtrlWriteVal,
     >;
-    pub type SocmgmtifExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
-    pub type SocmgmtifSocMgmtControl = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocMgmtStatus = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifRecIntfCfg = ureg::ReadWriteReg32<
+    pub type SocmgmtifExtcapHeader =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+    pub type SocmgmtifSocMgmtControl = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifSocMgmtStatus = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifRecIntfCfg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::RecIntfCfgReadVal,
         crate::i3ccsr::regs::RecIntfCfgWriteVal,
     >;
-    pub type SocmgmtifRecIntfRegW1cAccess = ureg::ReadWriteReg32<
+    pub type SocmgmtifRecIntfRegW1cAccess = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::RecIntfRegW1cAccessReadVal,
         crate::i3ccsr::regs::RecIntfRegW1cAccessWriteVal,
     >;
-    pub type SocmgmtifSocMgmtRsvd2 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocMgmtRsvd3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocPadConf = ureg::ReadWriteReg32<
+    pub type SocmgmtifSocMgmtRsvd2 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifSocMgmtRsvd3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifSocPadConf = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::SocPadConfReadVal,
         crate::i3ccsr::regs::SocPadConfWriteVal,
     >;
-    pub type SocmgmtifSocPadAttr = ureg::ReadWriteReg32<
+    pub type SocmgmtifSocPadAttr = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::SocPadAttrReadVal,
         crate::i3ccsr::regs::SocPadAttrWriteVal,
     >;
-    pub type SocmgmtifSocMgmtFeature2 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifSocMgmtFeature3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifTRReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifSocMgmtFeature2 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifSocMgmtFeature3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifTRReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TRRegReadVal,
         crate::i3ccsr::regs::TRRegWriteVal,
     >;
-    pub type SocmgmtifTFReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTFReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TFRegReadVal,
         crate::i3ccsr::regs::TFRegWriteVal,
     >;
-    pub type SocmgmtifTSuDatReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTSuDatReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TSuDatRegReadVal,
         crate::i3ccsr::regs::TSuDatRegWriteVal,
     >;
-    pub type SocmgmtifTHdDatReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTHdDatReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::THdDatRegReadVal,
         crate::i3ccsr::regs::THdDatRegWriteVal,
     >;
-    pub type SocmgmtifTHighReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTHighReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::THighRegReadVal,
         crate::i3ccsr::regs::THighRegWriteVal,
     >;
-    pub type SocmgmtifTLowReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTLowReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TLowRegReadVal,
         crate::i3ccsr::regs::TLowRegWriteVal,
     >;
-    pub type SocmgmtifTHdStaReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTHdStaReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::THdStaRegReadVal,
         crate::i3ccsr::regs::THdStaRegWriteVal,
     >;
-    pub type SocmgmtifTSuStaReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTSuStaReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TSuStaRegReadVal,
         crate::i3ccsr::regs::TSuStaRegWriteVal,
     >;
-    pub type SocmgmtifTSuStoReg = ureg::ReadWriteReg32<
+    pub type SocmgmtifTSuStoReg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::TSuStoRegReadVal,
         crate::i3ccsr::regs::TSuStoRegWriteVal,
     >;
-    pub type SocmgmtifTFreeReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifTAvalReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SocmgmtifTIdleReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CtrlcfgExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
+    pub type SocmgmtifTFreeReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifTAvalReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifTIdleReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CtrlcfgExtcapHeader =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type CtrlcfgControllerConfig =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ControllerConfigReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ControllerConfigReadVal>;
 }

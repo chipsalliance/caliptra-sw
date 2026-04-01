@@ -208,7 +208,7 @@ tock-registers = { git = "https://github.com/tock/tock.git", rev = "release-2.2"
 toml = "0.7.0"
 ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
 uio = { version = "0.4.0" }
-ureg = { path = "ureg" }
+caliptra-ureg = { path = "ureg" }
 ureg-codegen = { path = "ureg/lib/codegen" }
 ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }

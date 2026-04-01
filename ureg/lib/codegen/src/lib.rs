@@ -572,7 +572,7 @@ fn generate_array_type(
         Some(array_dimension) => {
             let array_dimension = Literal::u64_unsuffixed(array_dimension);
             let inner = generate_array_type(remaining_dimensions, reg_type_tokens);
-            quote! { ureg::Array<#array_dimension, #inner> }
+            quote! { caliptra_ureg::Array<#array_dimension, #inner> }
         }
         None => reg_type_tokens,
     }
@@ -606,39 +606,39 @@ fn generate_block_registers(
 
         if ty.width == RegisterWidth::_32 && can_read && !needs_write {
             meta_tokens.extend(quote! {
-                pub type #reg_meta_name = ureg::ReadOnlyReg32<#read_type>;
+                pub type #reg_meta_name = caliptra_ureg::ReadOnlyReg32<#read_type>;
             });
         } else if ty.width == RegisterWidth::_32 && !can_read && needs_write {
             meta_tokens.extend(quote! {
-                pub type #reg_meta_name = ureg::WriteOnlyReg32<#default_val, #write_type>;
+                pub type #reg_meta_name = caliptra_ureg::WriteOnlyReg32<#default_val, #write_type>;
             });
         } else if ty.width == RegisterWidth::_32 && can_read && needs_write {
             meta_tokens.extend(quote! {
-                pub type #reg_meta_name = ureg::ReadWriteReg32<#default_val, #read_type, #write_type>;
+                pub type #reg_meta_name = caliptra_ureg::ReadWriteReg32<#default_val, #read_type, #write_type>;
             });
         } else {
             meta_tokens.extend(quote! {
                 #[derive(Clone, Copy)]
                 pub struct #reg_meta_name();
-                impl ureg::RegType for #reg_meta_name {
+                impl caliptra_ureg::RegType for #reg_meta_name {
                     type Raw = #reg_raw_type;
                 }
             });
             if can_read {
                 meta_tokens.extend(quote! {
-                    impl ureg::ReadableReg for #reg_meta_name {
+                    impl caliptra_ureg::ReadableReg for #reg_meta_name {
                         type ReadVal = #read_type;
                     }
                 });
             }
             if can_write || can_clear || can_set {
                 meta_tokens.extend(quote! {
-                    impl ureg::WritableReg for #reg_meta_name {
+                    impl caliptra_ureg::WritableReg for #reg_meta_name {
                         type WriteVal = #write_type;
                     }
                 });
                 meta_tokens.extend(quote! {
-                    impl ureg::ResettableReg for #reg_meta_name {
+                    impl caliptra_ureg::ResettableReg for #reg_meta_name {
                         const RESET_VAL: Self::Raw = #default_val;
                     }
                 });
@@ -661,13 +661,13 @@ fn generate_block_registers(
         let result_type = generate_array_type(
             reg.array_dimensions.iter().cloned(),
             quote! {
-                ureg::RegRef<#module_path::meta::#reg_meta_name, &TMmio>
+                caliptra_ureg::RegRef<#module_path::meta::#reg_meta_name, &TMmio>
             },
         );
         let constructor = if reg.array_dimensions.is_empty() {
-            quote! { ureg::RegRef::new_with_mmio }
+            quote! { caliptra_ureg::RegRef::new_with_mmio }
         } else {
-            quote! { ureg::Array::new_with_mmio }
+            quote! { caliptra_ureg::Array::new_with_mmio }
         };
 
         block_tokens.extend(quote!{
@@ -827,7 +827,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     /// Returns a register block that can be used to read
                     /// registers from this peripheral, but cannot write.
                     #[inline(always)]
-                    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+                    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
                         RegisterBlock{
                             ptr: Self::PTR,
                             mmio: core::default::Default::default(),
@@ -837,7 +837,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     /// Return a register block that can be used to read and
                     /// write this peripheral's registers.
                     #[inline(always)]
-                    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+                    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
                         RegisterBlock{
                             ptr: Self::PTR,
                             mmio: core::default::Default::default(),
@@ -869,11 +869,11 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         block_tokens = quote! {
             #[allow(dead_code)]
             #[derive(Clone, Copy)]
-            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
+            pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>{
                 ptr: *mut #raw_ptr_type,
                 mmio: TMmio,
             }
-            impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+            impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
                 /// # Safety
                 ///
                 /// The caller is responsible for ensuring that ptr is valid for
@@ -887,7 +887,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     }
                 }
             }
-            impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+            impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
                 /// # Safety
                 ///
                 /// The caller is responsible for ensuring that ptr is valid for
@@ -937,7 +937,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         }
 
         pub mod meta {
-            //! Additional metadata needed by ureg.
+            //! Additional metadata needed by caliptra_ureg.
             #meta_tokens
         }
 
@@ -992,7 +992,7 @@ fn generate_subblock_code(
                 /// Returns a register block that can be used to read
                 /// registers from this peripheral, but cannot write.
                 #[inline(always)]
-                pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+                pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
                     RegisterBlock{
                         ptr: Self::PTR,
                         mmio: core::default::Default::default(),
@@ -1002,7 +1002,7 @@ fn generate_subblock_code(
                 /// Return a register block that can be used to read and
                 /// write this peripheral's registers.
                 #[inline(always)]
-                pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+                pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
                     RegisterBlock{
                         ptr: Self::PTR,
                         mmio: core::default::Default::default(),
@@ -1025,11 +1025,11 @@ fn generate_subblock_code(
 
     subblock_type_tokens.extend(quote! {
         #[derive(Clone, Copy)]
-        pub struct #subblock_name<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
+        pub struct #subblock_name<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>{
             ptr: *mut #raw_ptr_type,
             mmio: TMmio,
         }
-        impl<TMmio: ureg::Mmio> #subblock_name<TMmio> {
+        impl<TMmio: caliptra_ureg::Mmio> #subblock_name<TMmio> {
             #subblock_tokens
         }
     });

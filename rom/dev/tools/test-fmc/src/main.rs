@@ -23,10 +23,10 @@ use caliptra_drivers::{
 };
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_ureg::RealMmioMut;
 use caliptra_x509::{
     Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbsEcc384, LocalDevIdCertTbsEcc384,
 };
-use ureg::RealMmioMut;
 use zerocopy::IntoBytes;
 
 #[cfg(not(feature = "std"))]

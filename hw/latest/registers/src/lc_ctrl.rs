@@ -28,7 +28,7 @@ impl LcCtrl {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl LcCtrl {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl LcCtrl {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -76,9 +76,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`lc_ctrl::regs::AlertTestReadVal`]; Write value: [`lc_ctrl::regs::AlertTestWriteVal`]
     #[inline(always)]
-    pub fn alert_test(&self) -> ureg::RegRef<crate::lc_ctrl::meta::AlertTest, &TMmio> {
+    pub fn alert_test(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::AlertTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -86,9 +86,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`lc_ctrl::regs::StatusReadVal`]; Write value: [`lc_ctrl::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::lc_ctrl::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -100,9 +100,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn claim_transition_if_regwen(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::ClaimTransitionIfRegwen, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ClaimTransitionIfRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -114,9 +114,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn claim_transition_if(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::ClaimTransitionIf, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ClaimTransitionIf, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -128,9 +128,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_regwen(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionRegwen, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -140,9 +140,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::TransitionCmdReadVal`]; Write value: [`lc_ctrl::regs::TransitionCmdWriteVal`]
     #[inline(always)]
-    pub fn transition_cmd(&self) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionCmd, &TMmio> {
+    pub fn transition_cmd(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionCmd, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -152,9 +154,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::TransitionCtrlReadVal`]; Write value: [`lc_ctrl::regs::TransitionCtrlWriteVal`]
     #[inline(always)]
-    pub fn transition_ctrl(&self) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionCtrl, &TMmio> {
+    pub fn transition_ctrl(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -166,9 +170,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_token_0(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionToken0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionToken0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -180,9 +184,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_token_1(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionToken1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionToken1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -194,9 +198,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_token_2(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionToken2, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionToken2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -208,9 +212,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_token_3(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionToken3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionToken3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -222,9 +226,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn transition_target(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::TransitionTarget, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::TransitionTarget, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -236,9 +240,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn otp_vendor_test_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::OtpVendorTestCtrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::OtpVendorTestCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -250,9 +254,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn otp_vendor_test_status(
         &self,
-    ) -> ureg::RegRef<crate::lc_ctrl::meta::OtpVendorTestStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::OtpVendorTestStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -262,9 +266,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::LcStateReadVal`]; Write value: [`lc_ctrl::regs::LcStateWriteVal`]
     #[inline(always)]
-    pub fn lc_state(&self) -> ureg::RegRef<crate::lc_ctrl::meta::LcState, &TMmio> {
+    pub fn lc_state(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::LcState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -274,9 +278,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::LcTransitionCntReadVal`]; Write value: [`lc_ctrl::regs::LcTransitionCntWriteVal`]
     #[inline(always)]
-    pub fn lc_transition_cnt(&self) -> ureg::RegRef<crate::lc_ctrl::meta::LcTransitionCnt, &TMmio> {
+    pub fn lc_transition_cnt(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::LcTransitionCnt, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -286,9 +292,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn lc_id_state(&self) -> ureg::RegRef<crate::lc_ctrl::meta::LcIdState, &TMmio> {
+    pub fn lc_id_state(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::LcIdState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -298,9 +304,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::HwRevision0ReadVal`]; Write value: [`lc_ctrl::regs::HwRevision0WriteVal`]
     #[inline(always)]
-    pub fn hw_revision0(&self) -> ureg::RegRef<crate::lc_ctrl::meta::HwRevision0, &TMmio> {
+    pub fn hw_revision0(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::HwRevision0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -310,9 +316,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`lc_ctrl::regs::HwRevision1ReadVal`]; Write value: [`lc_ctrl::regs::HwRevision1WriteVal`]
     #[inline(always)]
-    pub fn hw_revision1(&self) -> ureg::RegRef<crate::lc_ctrl::meta::HwRevision1, &TMmio> {
+    pub fn hw_revision1(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::HwRevision1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -322,9 +328,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_0(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId0, &TMmio> {
+    pub fn device_id_0(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -334,9 +340,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_1(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId1, &TMmio> {
+    pub fn device_id_1(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -346,9 +352,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_2(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId2, &TMmio> {
+    pub fn device_id_2(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -358,9 +364,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_3(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId3, &TMmio> {
+    pub fn device_id_3(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -370,9 +376,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_4(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId4, &TMmio> {
+    pub fn device_id_4(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId4, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -382,9 +388,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_5(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId5, &TMmio> {
+    pub fn device_id_5(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId5, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -394,9 +400,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_6(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId6, &TMmio> {
+    pub fn device_id_6(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId6, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -406,9 +412,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn device_id_7(&self) -> ureg::RegRef<crate::lc_ctrl::meta::DeviceId7, &TMmio> {
+    pub fn device_id_7(&self) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::DeviceId7, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x68 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -418,9 +424,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_0(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState0, &TMmio> {
+    pub fn manuf_state_0(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x6c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -430,9 +438,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_1(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState1, &TMmio> {
+    pub fn manuf_state_1(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x70 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -442,9 +452,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_2(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState2, &TMmio> {
+    pub fn manuf_state_2(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x74 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -454,9 +466,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_3(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState3, &TMmio> {
+    pub fn manuf_state_3(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -466,9 +480,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_4(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState4, &TMmio> {
+    pub fn manuf_state_4(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState4, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -478,9 +494,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_5(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState5, &TMmio> {
+    pub fn manuf_state_5(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState5, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -490,9 +508,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_6(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState6, &TMmio> {
+    pub fn manuf_state_6(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState6, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -502,9 +522,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn manuf_state_7(&self) -> ureg::RegRef<crate::lc_ctrl::meta::ManufState7, &TMmio> {
+    pub fn manuf_state_7(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::lc_ctrl::meta::ManufState7, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -986,60 +1008,62 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type AlertTest = ureg::WriteOnlyReg32<0, crate::lc_ctrl::regs::AlertTestWriteVal>;
-    pub type Status = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::StatusReadVal>;
-    pub type ClaimTransitionIfRegwen = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type AlertTest = caliptra_ureg::WriteOnlyReg32<0, crate::lc_ctrl::regs::AlertTestWriteVal>;
+    pub type Status = caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::StatusReadVal>;
+    pub type ClaimTransitionIfRegwen = caliptra_ureg::ReadWriteReg32<
         0,
         crate::lc_ctrl::regs::ClaimTransitionIfRegwenReadVal,
         crate::lc_ctrl::regs::ClaimTransitionIfRegwenWriteVal,
     >;
-    pub type ClaimTransitionIf = ureg::ReadWriteReg32<
+    pub type ClaimTransitionIf = caliptra_ureg::ReadWriteReg32<
         0,
         crate::lc_ctrl::regs::ClaimTransitionIfReadVal,
         crate::lc_ctrl::regs::ClaimTransitionIfWriteVal,
     >;
-    pub type TransitionRegwen = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::TransitionRegwenReadVal>;
-    pub type TransitionCmd = ureg::ReadWriteReg32<
+    pub type TransitionRegwen =
+        caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::TransitionRegwenReadVal>;
+    pub type TransitionCmd = caliptra_ureg::ReadWriteReg32<
         0,
         crate::lc_ctrl::regs::TransitionCmdReadVal,
         crate::lc_ctrl::regs::TransitionCmdWriteVal,
     >;
-    pub type TransitionCtrl = ureg::ReadWriteReg32<
+    pub type TransitionCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::lc_ctrl::regs::TransitionCtrlReadVal,
         crate::lc_ctrl::regs::TransitionCtrlWriteVal,
     >;
-    pub type TransitionToken0 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TransitionToken1 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TransitionToken2 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TransitionToken3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TransitionTarget = ureg::ReadWriteReg32<
+    pub type TransitionToken0 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type TransitionToken1 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type TransitionToken2 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type TransitionToken3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type TransitionTarget = caliptra_ureg::ReadWriteReg32<
         0,
         crate::lc_ctrl::regs::TransitionTargetReadVal,
         crate::lc_ctrl::regs::TransitionTargetWriteVal,
     >;
-    pub type OtpVendorTestCtrl = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type OtpVendorTestStatus = ureg::ReadOnlyReg32<u32>;
-    pub type LcState = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::LcStateReadVal>;
-    pub type LcTransitionCnt = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::LcTransitionCntReadVal>;
-    pub type LcIdState = ureg::ReadOnlyReg32<u32>;
-    pub type HwRevision0 = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::HwRevision0ReadVal>;
-    pub type HwRevision1 = ureg::ReadOnlyReg32<crate::lc_ctrl::regs::HwRevision1ReadVal>;
-    pub type DeviceId0 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId1 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId2 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId3 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId4 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId5 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId6 = ureg::ReadOnlyReg32<u32>;
-    pub type DeviceId7 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState0 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState1 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState2 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState3 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState4 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState5 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState6 = ureg::ReadOnlyReg32<u32>;
-    pub type ManufState7 = ureg::ReadOnlyReg32<u32>;
+    pub type OtpVendorTestCtrl = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type OtpVendorTestStatus = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type LcState = caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::LcStateReadVal>;
+    pub type LcTransitionCnt =
+        caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::LcTransitionCntReadVal>;
+    pub type LcIdState = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type HwRevision0 = caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::HwRevision0ReadVal>;
+    pub type HwRevision1 = caliptra_ureg::ReadOnlyReg32<crate::lc_ctrl::regs::HwRevision1ReadVal>;
+    pub type DeviceId0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId2 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId3 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId4 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId5 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId6 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DeviceId7 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState2 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState3 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState4 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState5 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState6 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ManufState7 = caliptra_ureg::ReadOnlyReg32<u32>;
 }

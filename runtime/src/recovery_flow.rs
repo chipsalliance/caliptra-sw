@@ -26,7 +26,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::{printer::HexBytes, AesDmaMode, BootMode, DmaMmio, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
-use ureg::MmioMut;
+use caliptra_ureg::MmioMut;
 use zerocopy::IntoBytes;
 
 const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;

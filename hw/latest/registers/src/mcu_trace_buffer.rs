@@ -28,7 +28,7 @@ impl McuTraceBufferCsr {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl McuTraceBufferCsr {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl McuTraceBufferCsr {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -78,9 +78,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`mcu_trace_buffer::regs::StatusReadVal`]; Write value: [`mcu_trace_buffer::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::mcu_trace_buffer::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::mcu_trace_buffer::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -90,9 +90,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn config(&self) -> ureg::RegRef<crate::mcu_trace_buffer::meta::Config, &TMmio> {
+    pub fn config(&self) -> caliptra_ureg::RegRef<crate::mcu_trace_buffer::meta::Config, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -102,9 +102,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn data(&self) -> ureg::RegRef<crate::mcu_trace_buffer::meta::Data, &TMmio> {
+    pub fn data(&self) -> caliptra_ureg::RegRef<crate::mcu_trace_buffer::meta::Data, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -114,9 +114,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn write_ptr(&self) -> ureg::RegRef<crate::mcu_trace_buffer::meta::WritePtr, &TMmio> {
+    pub fn write_ptr(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_trace_buffer::meta::WritePtr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -126,9 +128,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn read_ptr(&self) -> ureg::RegRef<crate::mcu_trace_buffer::meta::ReadPtr, &TMmio> {
+    pub fn read_ptr(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::mcu_trace_buffer::meta::ReadPtr, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -169,10 +173,10 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type Status = ureg::ReadOnlyReg32<crate::mcu_trace_buffer::regs::StatusReadVal>;
-    pub type Config = ureg::ReadOnlyReg32<u32>;
-    pub type Data = ureg::ReadOnlyReg32<u32>;
-    pub type WritePtr = ureg::ReadOnlyReg32<u32>;
-    pub type ReadPtr = ureg::ReadWriteReg32<0, u32, u32>;
+    //! Additional metadata needed by caliptra_ureg.
+    pub type Status = caliptra_ureg::ReadOnlyReg32<crate::mcu_trace_buffer::regs::StatusReadVal>;
+    pub type Config = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type Data = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type WritePtr = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ReadPtr = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
 }

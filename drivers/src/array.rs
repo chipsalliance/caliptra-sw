@@ -55,10 +55,10 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[inline(always)]
     #[allow(unused)]
     pub fn read_from_reg<
-        TReg: ureg::ReadableReg<ReadVal = u32, Raw = u32>,
-        TMmio: ureg::Mmio + Copy,
+        TReg: caliptra_ureg::ReadableReg<ReadVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::Mmio + Copy,
     >(
-        reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
+        reg_array: caliptra_ureg::Array<W, caliptra_ureg::RegRef<TReg, TMmio>>,
     ) -> Self {
         reg_array.read().into()
     }
@@ -66,11 +66,11 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[inline(always)]
     #[allow(unused)]
     pub fn write_to_reg<
-        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32, Raw = u32>,
-        TMmio: ureg::MmioMut + Copy,
+        TReg: caliptra_ureg::ResettableReg + caliptra_ureg::WritableReg<WriteVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::MmioMut + Copy,
     >(
         &self,
-        reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
+        reg_array: caliptra_ureg::Array<W, caliptra_ureg::RegRef<TReg, TMmio>>,
     ) {
         reg_array.write(&self.0);
     }
@@ -188,10 +188,10 @@ impl<const W: usize, const B: usize> LEArray4xN<W, B> {
     #[inline(always)]
     #[allow(unused)]
     pub fn read_from_reg<
-        TReg: ureg::ReadableReg<ReadVal = u32, Raw = u32>,
-        TMmio: ureg::Mmio + Copy,
+        TReg: caliptra_ureg::ReadableReg<ReadVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::Mmio + Copy,
     >(
-        reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
+        reg_array: caliptra_ureg::Array<W, caliptra_ureg::RegRef<TReg, TMmio>>,
     ) -> Self {
         reg_array.read().into()
     }
@@ -199,11 +199,11 @@ impl<const W: usize, const B: usize> LEArray4xN<W, B> {
     #[inline(always)]
     #[allow(unused)]
     pub fn write_to_reg<
-        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32, Raw = u32>,
-        TMmio: ureg::MmioMut + Copy,
+        TReg: caliptra_ureg::ResettableReg + caliptra_ureg::WritableReg<WriteVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::MmioMut + Copy,
     >(
         &self,
-        reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
+        reg_array: caliptra_ureg::Array<W, caliptra_ureg::RegRef<TReg, TMmio>>,
     ) {
         reg_array.write(&self.0);
     }

@@ -220,7 +220,7 @@ impl Csrng {
 }
 
 fn check_for_alert_state(
-    entropy_src: entropy_src::RegisterBlock<ureg::RealMmio>,
+    entropy_src: entropy_src::RegisterBlock<caliptra_ureg::RealMmio>,
 ) -> CaliptraResult<()> {
     // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
     // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
@@ -389,7 +389,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
 }
 
 fn read_entropy_configuration(
-    soc_ifc: &soc_ifc::RegisterBlock<ureg::RealMmio>,
+    soc_ifc: &soc_ifc::RegisterBlock<caliptra_ureg::RealMmio>,
     mut persistent_data: PersistentDataAccessor,
 ) -> EntropyConfiguration {
     // Some of the entropy config registers are not lockable,
@@ -501,7 +501,7 @@ fn read_entropy_configuration(
 
 /// Configure thresholds for the NIST health checks.
 fn set_health_check_thresholds(
-    e: entropy_src::RegisterBlock<ureg::RealMmioMut>,
+    e: entropy_src::RegisterBlock<caliptra_ureg::RealMmioMut>,
     entropy_cfg: EntropyConfiguration,
 ) {
     // configure the alert threshold and its inverse as required

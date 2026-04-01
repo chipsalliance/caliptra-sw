@@ -118,9 +118,9 @@ Test suites for various portions of the Caliptra implementation.
 
 A library for building self-contained test firmware binaries. This sets up minimal infrastructure for panic-handling and provides macros for defining test cases in firmware.
 
-### [ureg](/ureg)
+### [caliptra-ureg](/ureg)
 
-Register abstraction and code generator to create register libraries. The `registers` directory has a binary that creates the register code that includes ureg.
+Register abstraction and code generator to create register libraries. The `registers` directory has a binary that creates the register code that includes caliptra-ureg.
 
 ### [x509](/x509)
 

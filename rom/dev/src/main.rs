@@ -278,7 +278,7 @@ fn run_fips_tests(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDriver
 fn rom_integrity_test(env: &mut KatsEnv<'_, '_>, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
     // WARNING: It is undefined behavior to dereference a zero (null) pointer in
     // rust code. This is only safe because the dereference is being done by an
-    // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather
+    // an assembly routine ([`caliptra_ureg::opt_riscv::copy_16_words`]) rather
     // than dereferencing directly in Rust.
     #[allow(clippy::zero_ptr)]
     let rom_start = 0 as *const [u32; 16];
