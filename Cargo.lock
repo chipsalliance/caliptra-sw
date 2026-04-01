@@ -328,7 +328,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-image-types",
  "caliptra-registers",
- "ureg",
+ "caliptra-ureg",
  "zerocopy",
 ]
 
@@ -340,8 +340,8 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra-ureg",
  "cfg-if",
- "ureg",
  "zerocopy",
 ]
 
@@ -491,11 +491,11 @@ dependencies = [
  "caliptra-okref",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra-ureg",
  "cfg-if",
  "dpe",
  "openssl",
  "ufmt",
- "ureg",
  "zerocopy",
  "zeroize",
 ]
@@ -544,8 +544,8 @@ name = "caliptra-emu-bus"
 version = "0.1.0"
 dependencies = [
  "caliptra-emu-types",
+ "caliptra-ureg",
  "tock-registers",
- "ureg",
 ]
 
 [[package]]
@@ -682,6 +682,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test-harness-types",
+ "caliptra-ureg",
  "caliptra-verilated",
  "libc",
  "nix",
@@ -697,7 +698,6 @@ dependencies = [
  "thiserror 2.0.16",
  "tock-registers",
  "uio",
- "ureg",
  "zerocopy",
 ]
 
@@ -724,8 +724,8 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra-ureg",
  "ufmt",
- "ureg",
 ]
 
 [[package]]
@@ -892,7 +892,7 @@ dependencies = [
 name = "caliptra-registers-latest"
 version = "0.1.0"
 dependencies = [
- "ureg",
+ "caliptra-ureg",
 ]
 
 [[package]]
@@ -947,11 +947,11 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-registers",
+ "caliptra-ureg",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
  "ufmt",
- "ureg",
  "zerocopy",
 ]
 
@@ -1000,6 +1000,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra-ureg",
  "caliptra-x509",
  "caliptra_common",
  "cbc",
@@ -1026,7 +1027,6 @@ dependencies = [
  "sha3 0.10.8",
  "spki 0.7.3",
  "ufmt",
- "ureg",
  "wycheproof",
  "x509-cert",
  "x509-parser",
@@ -1092,6 +1092,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-runtime",
+ "caliptra-ureg",
  "caliptra_common",
  "der 0.7.10",
  "dpe",
@@ -1108,7 +1109,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "sha3 0.10.8",
- "ureg",
  "zerocopy",
 ]
 
@@ -1122,6 +1122,10 @@ dependencies = [
 
 [[package]]
 name = "caliptra-test-harness-types"
+version = "0.1.0"
+
+[[package]]
+name = "caliptra-ureg"
 version = "0.1.0"
 
 [[package]]
@@ -4152,10 +4156,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "ureg"
-version = "0.1.0"
 
 [[package]]
 name = "ureg-codegen"

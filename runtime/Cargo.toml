@@ -34,7 +34,7 @@ caliptra-image-verify = { workspace = true, default-features = false }
 zeroize.workspace = true
 bitflags.workspace = true
 memoffset.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 ocp-eat.workspace = true
 
 [build-dependencies]

@@ -271,7 +271,7 @@ impl Csrng {
     }
 
     fn alert_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        // Don't have a `AlertFailCountsWriteVal` from ureg, so let's pack counts manually.
+        // Don't have a `AlertFailCountsWriteVal` from caliptra_ureg, so let's pack counts manually.
         // Bit positions from entropy_src register definitions:
         // - repcnt_fail_count: bits [7:4]
         // - adaptp_hi_fail_count: bits [11:8]

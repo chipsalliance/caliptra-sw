@@ -28,7 +28,7 @@ impl SocIfcReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl SocIfcReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl SocIfcReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -87,9 +87,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_hw_error_fatal(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorFatal, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorFatal, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -117,9 +117,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_hw_error_non_fatal(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorNonFatal, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorNonFatal, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -138,9 +138,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_error_fatal(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorFatal, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorFatal, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -168,9 +168,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_error_non_fatal(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorNonFatal, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorNonFatal, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -185,9 +185,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_hw_error_enc(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorEnc, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwErrorEnc, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -202,9 +202,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_error_enc(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorEnc, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwErrorEnc, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -218,9 +218,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_extended_error_info(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::soc_ifc::meta::CptraFwExtendedErrorInfo, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        8,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwExtendedErrorInfo, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -233,9 +236,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn cptra_boot_status(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraBootStatus, &TMmio> {
+    pub fn cptra_boot_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraBootStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -247,9 +252,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraFlowStatusReadVal`]; Write value: [`soc_ifc::regs::CptraFlowStatusWriteVal`]
     #[inline(always)]
-    pub fn cptra_flow_status(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraFlowStatus, &TMmio> {
+    pub fn cptra_flow_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFlowStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -264,9 +271,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_reset_reason(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraResetReason, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraResetReason, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -280,9 +287,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_security_state(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraSecurityState, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraSecurityState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -297,9 +304,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_mbox_valid_axi_user(
         &self,
-    ) -> ureg::Array<5, ureg::RegRef<crate::soc_ifc::meta::CptraMboxValidAxiUser, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        5,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraMboxValidAxiUser, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -316,9 +326,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_mbox_axi_user_lock(
         &self,
-    ) -> ureg::Array<5, ureg::RegRef<crate::soc_ifc::meta::CptraMboxAxiUserLock, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        5,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraMboxAxiUserLock, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -333,9 +346,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_trng_valid_axi_user(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngValidAxiUser, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraTrngValidAxiUser, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x70 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -353,9 +366,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_trng_axi_user_lock(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngAxiUserLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraTrngAxiUserLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x74 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -365,9 +378,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraTrngCtrlReadVal`]; Write value: [`soc_ifc::regs::CptraTrngCtrlWriteVal`]
     #[inline(always)]
-    pub fn cptra_trng_ctrl(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngCtrl, &TMmio> {
+    pub fn cptra_trng_ctrl(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraTrngCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -381,9 +396,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fuse_wr_done(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFuseWrDone, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFuseWrDone, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -399,9 +414,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_timer_config(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraTimerConfig, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraTimerConfig, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -414,9 +429,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraBootfsmGoReadVal`]; Write value: [`soc_ifc::regs::CptraBootfsmGoWriteVal`]
     #[inline(always)]
-    pub fn cptra_bootfsm_go(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraBootfsmGo, &TMmio> {
+    pub fn cptra_bootfsm_go(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraBootfsmGo, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -440,9 +457,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_dbg_manuf_service_reg(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraDbgManufServiceReg, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraDbgManufServiceReg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xbc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -456,9 +473,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_clk_gating_en(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraClkGatingEn, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraClkGatingEn, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -472,9 +489,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_generic_input_wires(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraGenericInputWires, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        2,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraGenericInputWires, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0xc4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -488,9 +508,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_generic_output_wires(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraGenericOutputWires, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        2,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraGenericOutputWires, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0xcc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -503,9 +526,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraHwRevIdReadVal`]; Write value: [`soc_ifc::regs::CptraHwRevIdWriteVal`]
     #[inline(always)]
-    pub fn cptra_hw_rev_id(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwRevId, &TMmio> {
+    pub fn cptra_hw_rev_id(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwRevId, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xd4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -519,9 +544,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_rev_id(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraFwRevId, &TMmio>> {
+    ) -> caliptra_ureg::Array<2, caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwRevId, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0xd8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -533,9 +559,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraHwConfigReadVal`]; Write value: [`soc_ifc::regs::CptraHwConfigWriteVal`]
     #[inline(always)]
-    pub fn cptra_hw_config(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwConfig, &TMmio> {
+    pub fn cptra_hw_config(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwConfig, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xe0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -549,9 +577,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer1_en(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1En, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1En, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xe4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -565,9 +593,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer1_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1Ctrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1Ctrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xe8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -581,10 +609,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer1_timeout_period(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1TimeoutPeriod, &TMmio>>
-    {
+    ) -> caliptra_ureg::Array<
+        2,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer1TimeoutPeriod, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0xec / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -598,9 +628,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer2_en(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2En, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2En, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xf4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -614,9 +644,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer2_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2Ctrl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2Ctrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xf8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -630,10 +660,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_timer2_timeout_period(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2TimeoutPeriod, &TMmio>>
-    {
+    ) -> caliptra_ureg::Array<
+        2,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtTimer2TimeoutPeriod, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0xfc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -645,9 +677,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraWdtStatusReadVal`]; Write value: [`soc_ifc::regs::CptraWdtStatusWriteVal`]
     #[inline(always)]
-    pub fn cptra_wdt_status(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraWdtStatus, &TMmio> {
+    pub fn cptra_wdt_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -662,9 +696,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fuse_valid_axi_user(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFuseValidAxiUser, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFuseValidAxiUser, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -682,9 +716,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fuse_axi_user_lock(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFuseAxiUserLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFuseAxiUserLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -698,9 +732,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_wdt_cfg(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraWdtCfg, &TMmio>> {
+    ) -> caliptra_ureg::Array<2, caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraWdtCfg, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x110 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -714,9 +749,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_i_trng_entropy_config_0(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraItrngEntropyConfig0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraItrngEntropyConfig0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x118 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -730,9 +765,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_i_trng_entropy_config_1(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraItrngEntropyConfig1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraItrngEntropyConfig1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x11c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -746,9 +781,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_rsvd_reg(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraRsvdReg, &TMmio>> {
+    ) -> caliptra_ureg::Array<2, caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraRsvdReg, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x120 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -763,9 +799,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_hw_capabilities(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwCapabilities, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraHwCapabilities, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x128 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -780,9 +816,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_fw_capabilities(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraFwCapabilities, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraFwCapabilities, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x12c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -796,9 +832,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::CptraXxxxxxxkReadVal`]; Write value: [`soc_ifc::regs::CptraXxxxxxxkWriteVal`]
     #[inline(always)]
-    pub fn cptra_cap_lock(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraCapLock, &TMmio> {
+    pub fn cptra_cap_lock(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraCapLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x130 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -812,9 +850,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_owner_pk_hash(
         &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::CptraOwnerPkHash, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        12,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraOwnerPkHash, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x140 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -828,9 +869,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_owner_pk_hash_lock(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::CptraOwnerPkHashLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::CptraOwnerPkHashLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x170 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -844,9 +885,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_uds_seed(
         &self,
-    ) -> ureg::Array<16, ureg::RegRef<crate::soc_ifc::meta::FuseUdsSeed, &TMmio>> {
+    ) -> caliptra_ureg::Array<16, caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseUdsSeed, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -860,9 +902,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_field_entropy(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::soc_ifc::meta::FuseFieldEntropy, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        8,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseFieldEntropy, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x240 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -876,9 +921,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_vendor_pk_hash(
         &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::FuseVendorPkHash, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        12,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseVendorPkHash, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x260 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -892,9 +940,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_ecc_revocation(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseEccRevocation, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseEccRevocation, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x290 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -908,9 +956,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_fmc_key_manifest_svn(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseFmcKeyManifestSvn, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseFmcKeyManifestSvn, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2b4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -924,9 +972,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_runtime_svn(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseRuntimeSvn, &TMmio>> {
+    ) -> caliptra_ureg::Array<4, caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseRuntimeSvn, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x2b8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -940,9 +989,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_anti_rollback_disable(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseAntiRollbackDisable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseAntiRollbackDisable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -956,9 +1005,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_idevid_cert_attr(
         &self,
-    ) -> ureg::Array<24, ureg::RegRef<crate::soc_ifc::meta::FuseIdevidCertAttr, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        24,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseIdevidCertAttr, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x2cc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -972,9 +1024,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_idevid_manuf_hsm_id(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseIdevidManufHsmId, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        4,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseIdevidManufHsmId, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x32c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -988,9 +1043,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_lms_revocation(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseLmsRevocation, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseLmsRevocation, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x340 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1004,9 +1059,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_mldsa_revocation(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseMldsaRevocation, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseMldsaRevocation, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x344 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1020,9 +1075,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_soc_stepping_id(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseSocSteppingId, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseSocSteppingId, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x348 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1036,9 +1091,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_manuf_dbg_unlock_token(
         &self,
-    ) -> ureg::Array<16, ureg::RegRef<crate::soc_ifc::meta::FuseManufDbgUnlockToken, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        16,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseManufDbgUnlockToken, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x34c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1055,9 +1113,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::FusePqcKeyTypeReadVal`]; Write value: [`soc_ifc::regs::FusePqcKeyTypeWriteVal`]
     #[inline(always)]
-    pub fn fuse_pqc_key_type(&self) -> ureg::RegRef<crate::soc_ifc::meta::FusePqcKeyType, &TMmio> {
+    pub fn fuse_pqc_key_type(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FusePqcKeyType, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1071,9 +1131,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_soc_manifest_svn(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseSocManifestSvn, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        4,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseSocManifestSvn, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x390 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1087,9 +1150,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_soc_manifest_max_svn(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::FuseSocManifestMaxSvn, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseSocManifestMaxSvn, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3a0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1103,9 +1166,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_hek_seed(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::soc_ifc::meta::FuseHekSeed, &TMmio>> {
+    ) -> caliptra_ureg::Array<8, caliptra_ureg::RegRef<crate::soc_ifc::meta::FuseHekSeed, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x3c0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1121,9 +1185,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_caliptra_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsCaliptraBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsCaliptraBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x500 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1139,9 +1203,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_caliptra_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsCaliptraBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsCaliptraBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x504 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1155,9 +1219,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn ss_mci_base_addr_l(&self) -> ureg::RegRef<crate::soc_ifc::meta::SsMciBaseAddrL, &TMmio> {
+    pub fn ss_mci_base_addr_l(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsMciBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x508 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1171,9 +1237,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn ss_mci_base_addr_h(&self) -> ureg::RegRef<crate::soc_ifc::meta::SsMciBaseAddrH, &TMmio> {
+    pub fn ss_mci_base_addr_h(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsMciBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x50c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1189,9 +1257,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_recovery_ifc_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsRecoveryIfcBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsRecoveryIfcBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x510 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1207,9 +1275,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_recovery_ifc_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsRecoveryIfcBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsRecoveryIfcBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x514 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1225,9 +1293,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_otp_fc_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsOtpFcBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsOtpFcBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x518 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1243,9 +1311,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_otp_fc_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsOtpFcBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsOtpFcBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x51c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1260,9 +1328,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_uds_seed_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsUdsSeedBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsUdsSeedBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x520 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1277,9 +1345,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_uds_seed_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsUdsSeedBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsUdsSeedBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x524 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1295,9 +1363,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsProdDebugUnlockAuthPkHashRegBankOffset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsProdDebugUnlockAuthPkHashRegBankOffset, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x528 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1312,9 +1381,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_num_of_prod_debug_unlock_auth_pk_hashes(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsNumOfProdDebugUnlockAuthPkHashes, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsNumOfProdDebugUnlockAuthPkHashes, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x52c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1327,9 +1397,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::SsDebugIntentReadVal`]; Write value: [`soc_ifc::regs::SsDebugIntentWriteVal`]
     #[inline(always)]
-    pub fn ss_debug_intent(&self) -> ureg::RegRef<crate::soc_ifc::meta::SsDebugIntent, &TMmio> {
+    pub fn ss_debug_intent(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsDebugIntent, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x530 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1345,9 +1417,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_caliptra_dma_axi_user(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsCaliptraDmaAxiUser, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsCaliptraDmaAxiUser, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x534 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1362,9 +1434,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_external_staging_area_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsExternalStagingAreaBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsExternalStagingAreaBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x538 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1379,9 +1451,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_external_staging_area_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsExternalStagingAreaBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsExternalStagingAreaBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x53c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1398,9 +1470,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_key_release_base_addr_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseBaseAddrL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseBaseAddrL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x540 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1417,9 +1489,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_key_release_base_addr_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseBaseAddrH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseBaseAddrH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x544 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1435,9 +1507,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_key_release_size(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseSize, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsKeyReleaseSize, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x548 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1451,9 +1523,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`soc_ifc::regs::SsOcpLockCtrlReadVal`]; Write value: [`soc_ifc::regs::SsOcpLockCtrlWriteVal`]
     #[inline(always)]
-    pub fn ss_ocp_lock_ctrl(&self) -> ureg::RegRef<crate::soc_ifc::meta::SsOcpLockCtrl, &TMmio> {
+    pub fn ss_ocp_lock_ctrl(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsOcpLockCtrl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x54c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1468,9 +1542,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_strap_generic(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::SsStrapGeneric, &TMmio>> {
+    ) -> caliptra_ureg::Array<4, caliptra_ureg::RegRef<crate::soc_ifc::meta::SsStrapGeneric, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x5a0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1483,9 +1558,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_dbg_service_reg_req(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsDbgServiceRegReq, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsDbgServiceRegReq, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1501,9 +1576,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_dbg_service_reg_rsp(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::SsDbgServiceRegRsp, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::SsDbgServiceRegRsp, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1519,9 +1594,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_soc_dbg_unlock_level(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::SsSocDbgUnlockLevel, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        2,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::SsSocDbgUnlockLevel, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x5c8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1539,9 +1617,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn ss_generic_fw_exec_ctrl(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::SsGenericFwExecCtrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        4,
+        caliptra_ureg::RegRef<crate::soc_ifc::meta::SsGenericFwExecCtrl, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x5d0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1555,9 +1636,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_obf_key(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::soc_ifc::meta::InternalObfKey, &TMmio>> {
+    ) -> caliptra_ureg::Array<8, caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalObfKey, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1573,9 +1655,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_iccm_lock(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalIccmLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalIccmLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x620 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1591,9 +1673,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_fw_update_reset(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateReset, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateReset, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x624 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1607,9 +1689,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_fw_update_reset_wait_cycles(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateResetWaitCycles, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateResetWaitCycles, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x628 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1625,9 +1707,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_nmi_vector(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalNmiVector, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalNmiVector, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x62c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1653,9 +1735,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_hw_error_fatal_mask(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalHwErrorFatalMask, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalHwErrorFatalMask, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x630 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1689,9 +1771,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_hw_error_non_fatal_mask(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalHwErrorNonFatalMask, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalHwErrorNonFatalMask, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x634 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1717,9 +1799,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_fw_error_fatal_mask(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwErrorFatalMask, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalFwErrorFatalMask, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x638 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1753,9 +1835,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_fw_error_non_fatal_mask(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwErrorNonFatalMask, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalFwErrorNonFatalMask, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x63c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1770,9 +1852,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_rv_mtime_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimeL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimeL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x640 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1787,9 +1869,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_rv_mtime_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimeH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimeH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x644 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1803,9 +1885,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_rv_mtimecmp_l(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimecmpL, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimecmpL, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x648 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1819,9 +1901,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn internal_rv_mtimecmp_h(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimecmpH, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::InternalRvMtimecmpH, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1836,20 +1918,20 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct IntrBlockRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct IntrBlockRfBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Dedicated register with one bit for each event type that may produce an interrupt.
     ///
     /// Read value: [`sha512_acc::regs::GlobalIntrEnTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrEnTWriteVal`]
     #[inline(always)]
     pub fn global_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1861,9 +1943,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1875,9 +1957,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1897,9 +1979,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1919,9 +2001,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1934,9 +2016,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1949,9 +2031,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1967,9 +2049,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1985,9 +2067,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2001,9 +2083,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_internal_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2017,9 +2100,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_inv_dev_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountR, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2033,9 +2116,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_cmd_fail_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2049,9 +2133,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_bad_fuse_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2065,9 +2150,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_iccm_blocked_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x110 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2081,9 +2167,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_mbox_ecc_unc_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x114 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2097,10 +2184,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_wdt_timer1_timeout_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountR, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x118 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2114,10 +2203,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_wdt_timer2_timeout_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountR, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x11c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2131,9 +2222,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_avail_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2147,9 +2239,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_mbox_ecc_cor_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x184 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2163,9 +2256,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_debug_locked_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x188 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2179,9 +2273,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_scan_mode_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifScanModeIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifScanModeIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2195,9 +2290,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_soc_req_lock_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x190 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2211,9 +2307,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_gen_in_toggle_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGenInToggleIntrCountR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGenInToggleIntrCountR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x194 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2232,9 +2329,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_internal_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2253,9 +2351,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_inv_dev_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2274,9 +2373,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_cmd_fail_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2295,9 +2395,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_bad_fuse_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2316,9 +2417,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_iccm_blocked_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountIncrR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2337,9 +2441,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_mbox_ecc_unc_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x214 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2358,10 +2463,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_wdt_timer1_timeout_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountIncrR, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountIncrR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x218 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2380,10 +2487,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_wdt_timer2_timeout_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountIncrR, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountIncrR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x21c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2402,9 +2511,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_avail_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x220 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2423,9 +2533,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_mbox_ecc_cor_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x224 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2444,9 +2555,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_debug_locked_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountIncrR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x228 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2465,9 +2579,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_scan_mode_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifScanModeIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifScanModeIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x22c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2486,9 +2601,10 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_soc_req_lock_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountIncrR, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x230 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2507,9 +2623,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_gen_in_toggle_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGenInToggleIntrCountIncrR, &TMmio> {
+    ) -> caliptra_ureg::RegRef<
+        crate::soc_ifc::meta::IntrBlockRfNotifGenInToggleIntrCountIncrR,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x234 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -2539,7 +2658,7 @@ impl IntrBlockRf {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2548,7 +2667,7 @@ impl IntrBlockRf {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -5142,322 +5261,327 @@ pub mod enums {
     }
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type CptraHwErrorFatal = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type CptraHwErrorFatal = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraHwErrorFatalReadVal,
         crate::soc_ifc::regs::CptraHwErrorFatalWriteVal,
     >;
-    pub type CptraHwErrorNonFatal = ureg::ReadWriteReg32<
+    pub type CptraHwErrorNonFatal = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraHwErrorNonFatalReadVal,
         crate::soc_ifc::regs::CptraHwErrorNonFatalWriteVal,
     >;
-    pub type CptraFwErrorFatal = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraFwErrorNonFatal = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraHwErrorEnc = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraFwErrorEnc = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraFwExtendedErrorInfo = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraBootStatus = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraFlowStatus = ureg::ReadWriteReg32<
+    pub type CptraFwErrorFatal = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwErrorNonFatal = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwErrorEnc = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwErrorEnc = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwExtendedErrorInfo = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraBootStatus = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFlowStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraFlowStatusReadVal,
         crate::soc_ifc::regs::CptraFlowStatusWriteVal,
     >;
-    pub type CptraResetReason = ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraResetReasonReadVal>;
+    pub type CptraResetReason =
+        caliptra_ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraResetReasonReadVal>;
     pub type CptraSecurityState =
-        ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraSecurityStateReadVal>;
-    pub type CptraMboxValidAxiUser = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
-    pub type CptraMboxAxiUserLock = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraSecurityStateReadVal>;
+    pub type CptraMboxValidAxiUser = caliptra_ureg::ReadWriteReg32<0xffffffff, u32, u32>;
+    pub type CptraMboxAxiUserLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockReadVal,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockWriteVal,
     >;
-    pub type CptraTrngValidAxiUser = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
-    pub type CptraTrngAxiUserLock = ureg::ReadWriteReg32<
+    pub type CptraTrngValidAxiUser = caliptra_ureg::ReadWriteReg32<0xffffffff, u32, u32>;
+    pub type CptraTrngAxiUserLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockReadVal,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockWriteVal,
     >;
-    pub type CptraTrngCtrl = ureg::ReadWriteReg32<
+    pub type CptraTrngCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraTrngCtrlReadVal,
         crate::soc_ifc::regs::CptraTrngCtrlWriteVal,
     >;
-    pub type CptraFuseWrDone = ureg::ReadWriteReg32<
+    pub type CptraFuseWrDone = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraFuseWrDoneReadVal,
         crate::soc_ifc::regs::CptraFuseWrDoneWriteVal,
     >;
-    pub type CptraTimerConfig = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraBootfsmGo = ureg::ReadWriteReg32<
+    pub type CptraTimerConfig = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraBootfsmGo = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraBootfsmGoReadVal,
         crate::soc_ifc::regs::CptraBootfsmGoWriteVal,
     >;
-    pub type CptraDbgManufServiceReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraClkGatingEn = ureg::ReadWriteReg32<
+    pub type CptraDbgManufServiceReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraClkGatingEn = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraClkGatingEnReadVal,
         crate::soc_ifc::regs::CptraClkGatingEnWriteVal,
     >;
-    pub type CptraGenericInputWires = ureg::ReadOnlyReg32<u32>;
-    pub type CptraGenericOutputWires = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraHwRevId = ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraHwRevIdReadVal>;
-    pub type CptraFwRevId = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraHwConfig = ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraHwConfigReadVal>;
-    pub type CptraWdtTimer1En = ureg::ReadWriteReg32<
+    pub type CptraGenericInputWires = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type CptraGenericOutputWires = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwRevId = caliptra_ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraHwRevIdReadVal>;
+    pub type CptraFwRevId = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwConfig =
+        caliptra_ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraHwConfigReadVal>;
+    pub type CptraWdtTimer1En = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraWdtTimer1EnReadVal,
         crate::soc_ifc::regs::CptraWdtTimer1EnWriteVal,
     >;
-    pub type CptraWdtTimer1Ctrl = ureg::ReadWriteReg32<
+    pub type CptraWdtTimer1Ctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraWdtTimer1CtrlReadVal,
         crate::soc_ifc::regs::CptraWdtTimer1CtrlWriteVal,
     >;
-    pub type CptraWdtTimer1TimeoutPeriod = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
-    pub type CptraWdtTimer2En = ureg::ReadWriteReg32<
+    pub type CptraWdtTimer1TimeoutPeriod = caliptra_ureg::ReadWriteReg32<0xffffffff, u32, u32>;
+    pub type CptraWdtTimer2En = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraWdtTimer2EnReadVal,
         crate::soc_ifc::regs::CptraWdtTimer2EnWriteVal,
     >;
-    pub type CptraWdtTimer2Ctrl = ureg::ReadWriteReg32<
+    pub type CptraWdtTimer2Ctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraWdtTimer2CtrlReadVal,
         crate::soc_ifc::regs::CptraWdtTimer2CtrlWriteVal,
     >;
-    pub type CptraWdtTimer2TimeoutPeriod = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
-    pub type CptraWdtStatus = ureg::ReadWriteReg32<
+    pub type CptraWdtTimer2TimeoutPeriod = caliptra_ureg::ReadWriteReg32<0xffffffff, u32, u32>;
+    pub type CptraWdtStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraWdtStatusReadVal,
         crate::soc_ifc::regs::CptraWdtStatusWriteVal,
     >;
-    pub type CptraFuseValidAxiUser = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
-    pub type CptraFuseAxiUserLock = ureg::ReadWriteReg32<
+    pub type CptraFuseValidAxiUser = caliptra_ureg::ReadWriteReg32<0xffffffff, u32, u32>;
+    pub type CptraFuseAxiUserLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockReadVal,
         crate::soc_ifc::regs::CptraXxxxAxiUserLockWriteVal,
     >;
-    pub type CptraWdtCfg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraItrngEntropyConfig0 = ureg::ReadWriteReg32<
+    pub type CptraWdtCfg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraItrngEntropyConfig0 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraItrngEntropyConfig0ReadVal,
         crate::soc_ifc::regs::CptraItrngEntropyConfig0WriteVal,
     >;
-    pub type CptraItrngEntropyConfig1 = ureg::ReadWriteReg32<
+    pub type CptraItrngEntropyConfig1 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraItrngEntropyConfig1ReadVal,
         crate::soc_ifc::regs::CptraItrngEntropyConfig1WriteVal,
     >;
-    pub type CptraRsvdReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraHwCapabilities = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraFwCapabilities = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraCapLock = ureg::ReadWriteReg32<
+    pub type CptraRsvdReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwCapabilities = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwCapabilities = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraCapLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraXxxxxxxkReadVal,
         crate::soc_ifc::regs::CptraXxxxxxxkWriteVal,
     >;
-    pub type CptraOwnerPkHash = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraOwnerPkHashLock = ureg::ReadWriteReg32<
+    pub type CptraOwnerPkHash = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraOwnerPkHashLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::CptraXxxxxxxkReadVal,
         crate::soc_ifc::regs::CptraXxxxxxxkWriteVal,
     >;
-    pub type FuseUdsSeed = ureg::WriteOnlyReg32<0, u32>;
-    pub type FuseFieldEntropy = ureg::WriteOnlyReg32<0, u32>;
-    pub type FuseVendorPkHash = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseEccRevocation = ureg::ReadWriteReg32<
+    pub type FuseUdsSeed = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type FuseFieldEntropy = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type FuseVendorPkHash = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseEccRevocation = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FuseEccRevocationReadVal,
         crate::soc_ifc::regs::FuseEccRevocationWriteVal,
     >;
-    pub type FuseFmcKeyManifestSvn = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseRuntimeSvn = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseAntiRollbackDisable = ureg::ReadWriteReg32<
+    pub type FuseFmcKeyManifestSvn = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseRuntimeSvn = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseAntiRollbackDisable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FuseAntiRollbackDisableReadVal,
         crate::soc_ifc::regs::FuseAntiRollbackDisableWriteVal,
     >;
-    pub type FuseIdevidCertAttr = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseIdevidManufHsmId = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseLmsRevocation = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseMldsaRevocation = ureg::ReadWriteReg32<
+    pub type FuseIdevidCertAttr = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseIdevidManufHsmId = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseLmsRevocation = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseMldsaRevocation = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FuseMldsaRevocationReadVal,
         crate::soc_ifc::regs::FuseMldsaRevocationWriteVal,
     >;
-    pub type FuseSocSteppingId = ureg::ReadWriteReg32<
+    pub type FuseSocSteppingId = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FuseSocSteppingIdReadVal,
         crate::soc_ifc::regs::FuseSocSteppingIdWriteVal,
     >;
-    pub type FuseManufDbgUnlockToken = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FusePqcKeyType = ureg::ReadWriteReg32<
+    pub type FuseManufDbgUnlockToken = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FusePqcKeyType = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FusePqcKeyTypeReadVal,
         crate::soc_ifc::regs::FusePqcKeyTypeWriteVal,
     >;
-    pub type FuseSocManifestSvn = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type FuseSocManifestMaxSvn = ureg::ReadWriteReg32<
+    pub type FuseSocManifestSvn = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseSocManifestMaxSvn = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::FuseSocManifestMaxSvnReadVal,
         crate::soc_ifc::regs::FuseSocManifestMaxSvnWriteVal,
     >;
-    pub type FuseHekSeed = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsCaliptraBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsCaliptraBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsMciBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsMciBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsRecoveryIfcBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsRecoveryIfcBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsOtpFcBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsOtpFcBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsUdsSeedBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsUdsSeedBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsProdDebugUnlockAuthPkHashRegBankOffset = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsNumOfProdDebugUnlockAuthPkHashes = ureg::ReadWriteReg32<8, u32, u32>;
-    pub type SsDebugIntent = ureg::ReadOnlyReg32<crate::soc_ifc::regs::SsDebugIntentReadVal>;
-    pub type SsCaliptraDmaAxiUser = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsExternalStagingAreaBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsExternalStagingAreaBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsKeyReleaseBaseAddrL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsKeyReleaseBaseAddrH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsKeyReleaseSize = ureg::ReadWriteReg32<
+    pub type FuseHekSeed = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsCaliptraBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsCaliptraBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsMciBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsMciBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsRecoveryIfcBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsRecoveryIfcBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsOtpFcBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsOtpFcBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsUdsSeedBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsUdsSeedBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsProdDebugUnlockAuthPkHashRegBankOffset = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsNumOfProdDebugUnlockAuthPkHashes = caliptra_ureg::ReadWriteReg32<8, u32, u32>;
+    pub type SsDebugIntent =
+        caliptra_ureg::ReadOnlyReg32<crate::soc_ifc::regs::SsDebugIntentReadVal>;
+    pub type SsCaliptraDmaAxiUser = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsExternalStagingAreaBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsExternalStagingAreaBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsKeyReleaseBaseAddrL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsKeyReleaseBaseAddrH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsKeyReleaseSize = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::SsKeyReleaseSizeReadVal,
         crate::soc_ifc::regs::SsKeyReleaseSizeWriteVal,
     >;
-    pub type SsOcpLockCtrl = ureg::ReadWriteReg32<
+    pub type SsOcpLockCtrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::SsOcpLockCtrlReadVal,
         crate::soc_ifc::regs::SsOcpLockCtrlWriteVal,
     >;
-    pub type SsStrapGeneric = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsDbgServiceRegReq = ureg::ReadWriteReg32<
+    pub type SsStrapGeneric = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsDbgServiceRegReq = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::SsDbgServiceRegReqReadVal,
         crate::soc_ifc::regs::SsDbgServiceRegReqWriteVal,
     >;
-    pub type SsDbgServiceRegRsp = ureg::ReadWriteReg32<
+    pub type SsDbgServiceRegRsp = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::SsDbgServiceRegRspReadVal,
         crate::soc_ifc::regs::SsDbgServiceRegRspWriteVal,
     >;
-    pub type SsSocDbgUnlockLevel = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SsGenericFwExecCtrl = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalObfKey = ureg::WriteOnlyReg32<0, u32>;
-    pub type InternalIccmLock = ureg::ReadWriteReg32<
+    pub type SsSocDbgUnlockLevel = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SsGenericFwExecCtrl = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalObfKey = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type InternalIccmLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::InternalIccmLockReadVal,
         crate::soc_ifc::regs::InternalIccmLockWriteVal,
     >;
-    pub type InternalFwUpdateReset = ureg::ReadWriteReg32<
+    pub type InternalFwUpdateReset = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::InternalFwUpdateResetReadVal,
         crate::soc_ifc::regs::InternalFwUpdateResetWriteVal,
     >;
-    pub type InternalFwUpdateResetWaitCycles = ureg::ReadWriteReg32<
+    pub type InternalFwUpdateResetWaitCycles = caliptra_ureg::ReadWriteReg32<
         5,
         crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesReadVal,
         crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesWriteVal,
     >;
-    pub type InternalNmiVector = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalHwErrorFatalMask = ureg::ReadWriteReg32<
+    pub type InternalNmiVector = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalHwErrorFatalMask = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::InternalHwErrorFatalMaskReadVal,
         crate::soc_ifc::regs::InternalHwErrorFatalMaskWriteVal,
     >;
-    pub type InternalHwErrorNonFatalMask = ureg::ReadWriteReg32<
+    pub type InternalHwErrorNonFatalMask = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::InternalHwErrorNonFatalMaskReadVal,
         crate::soc_ifc::regs::InternalHwErrorNonFatalMaskWriteVal,
     >;
-    pub type InternalFwErrorFatalMask = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalFwErrorNonFatalMask = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalRvMtimeL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalRvMtimeH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalRvMtimecmpL = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type InternalRvMtimecmpH = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
+    pub type InternalFwErrorFatalMask = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalFwErrorNonFatalMask = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalRvMtimeL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalRvMtimeH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalRvMtimecmpL = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type InternalRvMtimecmpH = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfGlobalIntrEnR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::sha512_acc::regs::GlobalIntrEnTReadVal,
         crate::sha512_acc::regs::GlobalIntrEnTWriteVal,
     >;
-    pub type IntrBlockRfErrorIntrEnR = ureg::ReadWriteReg32<
+    pub type IntrBlockRfErrorIntrEnR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::ErrorIntrEnTReadVal,
         crate::soc_ifc::regs::ErrorIntrEnTWriteVal,
     >;
-    pub type IntrBlockRfNotifIntrEnR = ureg::ReadWriteReg32<
+    pub type IntrBlockRfNotifIntrEnR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::NotifIntrEnTReadVal,
         crate::soc_ifc::regs::NotifIntrEnTWriteVal,
     >;
     pub type IntrBlockRfErrorGlobalIntrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
     pub type IntrBlockRfNotifGlobalIntrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
-    pub type IntrBlockRfErrorInternalIntrR = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
+    pub type IntrBlockRfErrorInternalIntrR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::ErrorIntrTReadVal,
         crate::soc_ifc::regs::ErrorIntrTWriteVal,
     >;
-    pub type IntrBlockRfNotifInternalIntrR = ureg::ReadWriteReg32<
+    pub type IntrBlockRfNotifInternalIntrR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::NotifIntrTReadVal,
         crate::soc_ifc::regs::NotifIntrTWriteVal,
     >;
-    pub type IntrBlockRfErrorIntrTrigR = ureg::ReadWriteReg32<
+    pub type IntrBlockRfErrorIntrTrigR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::ErrorIntrTrigTReadVal,
         crate::soc_ifc::regs::ErrorIntrTrigTWriteVal,
     >;
-    pub type IntrBlockRfNotifIntrTrigR = ureg::ReadWriteReg32<
+    pub type IntrBlockRfNotifIntrTrigR = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::NotifIntrTrigTReadVal,
         crate::soc_ifc::regs::NotifIntrTrigTWriteVal,
     >;
-    pub type IntrBlockRfErrorInternalIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorInvDevIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorCmdFailIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorBadFuseIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorIccmBlockedIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorMboxEccUncIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorWdtTimer1TimeoutIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfErrorWdtTimer2TimeoutIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifCmdAvailIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifMboxEccCorIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifDebugLockedIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifScanModeIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifSocReqLockIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfNotifGenInToggleIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInternalIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInvDevIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorCmdFailIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorBadFuseIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorIccmBlockedIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorMboxEccUncIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorWdtTimer1TimeoutIntrCountR =
+        caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorWdtTimer2TimeoutIntrCountR =
+        caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifCmdAvailIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifMboxEccCorIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifDebugLockedIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifScanModeIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifSocReqLockIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifGenInToggleIntrCountR = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfErrorInternalIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorInvDevIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorCmdFailIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorBadFuseIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorIccmBlockedIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorMboxEccUncIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorWdtTimer1TimeoutIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfErrorWdtTimer2TimeoutIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifCmdAvailIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifMboxEccCorIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifDebugLockedIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifScanModeIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifSocReqLockIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifGenInToggleIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
 }

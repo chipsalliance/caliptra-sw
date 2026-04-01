@@ -28,7 +28,7 @@ impl DvReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl DvReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl DvReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -80,9 +80,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn sticky_data_vault_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::dv::meta::Stickydatavaultctrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<10, caliptra_ureg::RegRef<crate::dv::meta::Stickydatavaultctrl, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -92,10 +93,15 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn sticky_data_vault_entry(
         &self,
-    ) -> ureg::Array<10, ureg::Array<12, ureg::RegRef<crate::dv::meta::StickyDataVaultEntry, &TMmio>>>
-    {
+    ) -> caliptra_ureg::Array<
+        10,
+        caliptra_ureg::Array<
+            12,
+            caliptra_ureg::RegRef<crate::dv::meta::StickyDataVaultEntry, &TMmio>,
+        >,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -107,9 +113,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn data_vault_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::dv::meta::Datavaultctrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<10, caliptra_ureg::RegRef<crate::dv::meta::Datavaultctrl, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -119,10 +126,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn data_vault_entry(
         &self,
-    ) -> ureg::Array<10, ureg::Array<12, ureg::RegRef<crate::dv::meta::DataVaultEntry, &TMmio>>>
-    {
+    ) -> caliptra_ureg::Array<
+        10,
+        caliptra_ureg::Array<12, caliptra_ureg::RegRef<crate::dv::meta::DataVaultEntry, &TMmio>>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x230 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -134,9 +143,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn lockable_scratch_reg_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::dv::meta::Lockablescratchregctrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        10,
+        caliptra_ureg::RegRef<crate::dv::meta::Lockablescratchregctrl, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x410 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -148,9 +160,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn lockable_scratch_reg(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::dv::meta::Lockablescratchreg, &TMmio>> {
+    ) -> caliptra_ureg::Array<10, caliptra_ureg::RegRef<crate::dv::meta::Lockablescratchreg, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x438 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -160,9 +173,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn non_sticky_generic_scratch_reg(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::dv::meta::Nonstickygenericscratchreg, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        8,
+        caliptra_ureg::RegRef<crate::dv::meta::Nonstickygenericscratchreg, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x460 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -174,9 +190,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn sticky_lockable_scratch_reg_ctrl(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::dv::meta::Stickylockablescratchregctrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        8,
+        caliptra_ureg::RegRef<crate::dv::meta::Stickylockablescratchregctrl, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x480 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -188,9 +207,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn sticky_lockable_scratch_reg(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::dv::meta::Stickylockablescratchreg, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        8,
+        caliptra_ureg::RegRef<crate::dv::meta::Stickylockablescratchreg, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x4a0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -299,30 +321,30 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type Stickydatavaultctrl = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type Stickydatavaultctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::dv::regs::DatavaultctrlReadVal,
         crate::dv::regs::DatavaultctrlWriteVal,
     >;
-    pub type StickyDataVaultEntry = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Datavaultctrl = ureg::ReadWriteReg32<
+    pub type StickyDataVaultEntry = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Datavaultctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::dv::regs::DatavaultctrlReadVal,
         crate::dv::regs::DatavaultctrlWriteVal,
     >;
-    pub type DataVaultEntry = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Lockablescratchregctrl = ureg::ReadWriteReg32<
+    pub type DataVaultEntry = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Lockablescratchregctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::dv::regs::LockablescratchregctrlReadVal,
         crate::dv::regs::LockablescratchregctrlWriteVal,
     >;
-    pub type Lockablescratchreg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Nonstickygenericscratchreg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Stickylockablescratchregctrl = ureg::ReadWriteReg32<
+    pub type Lockablescratchreg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Nonstickygenericscratchreg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Stickylockablescratchregctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::dv::regs::LockablescratchregctrlReadVal,
         crate::dv::regs::LockablescratchregctrlWriteVal,
     >;
-    pub type Stickylockablescratchreg = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Stickylockablescratchreg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
 }

@@ -3,15 +3,15 @@ Licensed under the Apache-2.0 license.
 --*/
 mod error;
 
+use caliptra_ureg::{RegisterSubBlock, RegisterType};
 pub use error::Error;
-use ureg::{RegisterSubBlock, RegisterType};
 
 use std::rc::Rc;
 
 use caliptra_systemrdl::{self as systemrdl, Value};
 use caliptra_systemrdl::{ComponentType, ScopeType};
 use systemrdl::{AccessType, InstanceRef, ParentScope, RdlError};
-use ureg_schema::{self as ureg, FieldType, RegisterField, RegisterWidth};
+use ureg_schema::{self as caliptra_ureg, FieldType, RegisterField, RegisterWidth};
 use ureg_schema::{RegisterBlock, RegisterBlockInstance};
 
 fn unpad_description(desc: &str) -> String {
@@ -55,13 +55,13 @@ fn expect_instance_type(scope: systemrdl::ParentScope, ty: ScopeType) -> Result<
     }
 }
 
-fn translate_access_type(ty: systemrdl::AccessType) -> Result<ureg::FieldType, Error> {
+fn translate_access_type(ty: systemrdl::AccessType) -> Result<caliptra_ureg::FieldType, Error> {
     match ty {
-        systemrdl::AccessType::Rw => Ok(ureg::FieldType::RW),
-        systemrdl::AccessType::R => Ok(ureg::FieldType::RO),
-        systemrdl::AccessType::W => Ok(ureg::FieldType::WO),
-        systemrdl::AccessType::Rw1 => Ok(ureg::FieldType::RW),
-        systemrdl::AccessType::W1 => Ok(ureg::FieldType::WO),
+        systemrdl::AccessType::Rw => Ok(caliptra_ureg::FieldType::RW),
+        systemrdl::AccessType::R => Ok(caliptra_ureg::FieldType::RO),
+        systemrdl::AccessType::W => Ok(caliptra_ureg::FieldType::WO),
+        systemrdl::AccessType::Rw1 => Ok(caliptra_ureg::FieldType::RW),
+        systemrdl::AccessType::W1 => Ok(caliptra_ureg::FieldType::WO),
         systemrdl::AccessType::Na => Err(Error::AccessTypeNaUnsupported),
     }
 }
@@ -81,7 +81,7 @@ fn field_width(field: &systemrdl::Instance) -> Result<u64, Error> {
     Ok(field.dimension_sizes[0])
 }
 
-fn translate_enum(name: &str, enm: systemrdl::ParentScope) -> Result<ureg::Enum, Error> {
+fn translate_enum(name: &str, enm: systemrdl::ParentScope) -> Result<caliptra_ureg::Enum, Error> {
     let wrap_err = |err: Error| Error::EnumError {
         enum_name: name.into(),
         err: Box::new(err),
@@ -103,19 +103,19 @@ fn translate_enum(name: &str, enm: systemrdl::ParentScope) -> Result<ureg::Enum,
             return Err(wrap_err(Error::ValueNotDefined));
         };
         width = u64::max(width, reset.w());
-        variants.push(ureg::EnumVariant {
+        variants.push(caliptra_ureg::EnumVariant {
             name: variant.name.clone(),
             value: reset.val() as u32,
         })
     }
-    Ok(ureg::Enum {
+    Ok(caliptra_ureg::Enum {
         name: Some(name.to_string()),
         variants,
         bit_width: width as u8,
     })
 }
 
-fn translate_field(iref: systemrdl::InstanceRef) -> Result<ureg::RegisterField, Error> {
+fn translate_field(iref: systemrdl::InstanceRef) -> Result<caliptra_ureg::RegisterField, Error> {
     let wrap_err = |err: Error| Error::FieldError {
         field_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -141,7 +141,7 @@ fn translate_field(iref: systemrdl::InstanceRef) -> Result<ureg::RegisterField, 
         .property_val_opt("desc")
         .unwrap()
         .unwrap_or_default();
-    let result = ureg::RegisterField {
+    let result = caliptra_ureg::RegisterField {
         name: inst.name.clone(),
         ty: translate_access_type(access_ty).map_err(wrap_err)?,
         default_val: inst.reset.map(|b| b.val()).unwrap_or_default(),
@@ -160,7 +160,7 @@ fn translate_field(iref: systemrdl::InstanceRef) -> Result<ureg::RegisterField, 
 fn translate_register(
     iref: systemrdl::InstanceRef,
     default_offset: Option<u64>,
-) -> Result<ureg::Register, Error> {
+) -> Result<caliptra_ureg::Register, Error> {
     let wrap_err = |err: Error| Error::RegisterError {
         register_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -203,7 +203,10 @@ fn translate_register(
 }
 
 // Translates a memory into a register array
-fn translate_mem(iref: systemrdl::InstanceRef, start_offset: u64) -> Result<ureg::Register, Error> {
+fn translate_mem(
+    iref: systemrdl::InstanceRef,
+    start_offset: u64,
+) -> Result<caliptra_ureg::Register, Error> {
     let wrap_err = |err: Error| Error::RegisterError {
         register_name: iref.instance.name.clone(),
         err: Box::new(err),

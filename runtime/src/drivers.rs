@@ -56,6 +56,7 @@ use caliptra_registers::{
     pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
     soc_ifc_trng::SocIfcTrngReg,
 };
+use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::ecdsa::curve_384::EcdsaPub384;
 use crypto::ecdsa::EcdsaPubKey;
@@ -72,7 +73,6 @@ use dpe::{
     dpe_instance::{DpeEnv, DpeInstance},
 };
 use dpe::{DpeFlags, DpeProfile};
-use ureg::MmioMut;
 
 use core::cmp::Ordering::{Equal, Greater};
 use zerocopy::IntoBytes;

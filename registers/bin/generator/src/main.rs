@@ -222,7 +222,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             "} mbox_lock;",
             "} mbox_lock @0x0020_0000;",
         ),
-        // Remove includes which ureg isn't able to handle correctly.
+        // Remove includes which caliptra_ureg isn't able to handle correctly.
         (
             caliptra_ss_dir.join("src/mci/rtl/mci_top.rdl"),
             r#"

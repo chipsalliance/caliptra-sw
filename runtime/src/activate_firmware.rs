@@ -23,7 +23,7 @@ use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use caliptra_drivers::{AesDmaMode, AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
-use ureg::Mmio;
+use caliptra_ureg::Mmio;
 
 pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;

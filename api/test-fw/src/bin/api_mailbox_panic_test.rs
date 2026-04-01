@@ -15,9 +15,9 @@
 
 use caliptra_api::mailbox::StashMeasurementReq;
 use caliptra_api::SocManager;
+use caliptra_ureg::RealMmioMut;
 use core::hint::black_box;
 use core::panic::PanicInfo;
-use ureg::RealMmioMut;
 
 // Force the test harness to be linked, which provides start.S.
 extern crate caliptra_test_harness;

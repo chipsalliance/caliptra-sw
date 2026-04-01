@@ -28,7 +28,7 @@ impl KvReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl KvReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl KvReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -78,9 +78,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
     #[inline(always)]
-    pub fn key_ctrl(&self) -> ureg::Array<24, ureg::RegRef<crate::kv::meta::KeyCtrl, &TMmio>> {
+    pub fn key_ctrl(
+        &self,
+    ) -> caliptra_ureg::Array<24, caliptra_ureg::RegRef<crate::kv::meta::KeyCtrl, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -92,9 +94,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn key_entry(
         &self,
-    ) -> ureg::Array<24, ureg::Array<16, ureg::RegRef<crate::kv::meta::KeyEntry, &TMmio>>> {
+    ) -> caliptra_ureg::Array<
+        24,
+        caliptra_ureg::Array<16, caliptra_ureg::RegRef<crate::kv::meta::KeyEntry, &TMmio>>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -102,9 +107,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`kv::regs::ClearSecretsReadVal`]; Write value: [`kv::regs::ClearSecretsWriteVal`]
     #[inline(always)]
-    pub fn clear_secrets(&self) -> ureg::RegRef<crate::kv::meta::ClearSecrets, &TMmio> {
+    pub fn clear_secrets(&self) -> caliptra_ureg::RegRef<crate::kv::meta::ClearSecrets, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc00 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -282,11 +287,14 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type KeyCtrl =
-        ureg::ReadWriteReg32<0, crate::kv::regs::KvctrlReadVal, crate::kv::regs::KvctrlWriteVal>;
-    pub type KeyEntry = ureg::WriteOnlyReg32<0, u32>;
-    pub type ClearSecrets = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type KeyCtrl = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::KvctrlReadVal,
+        crate::kv::regs::KvctrlWriteVal,
+    >;
+    pub type KeyEntry = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type ClearSecrets = caliptra_ureg::ReadWriteReg32<
         0,
         crate::kv::regs::ClearSecretsReadVal,
         crate::kv::regs::ClearSecretsWriteVal,

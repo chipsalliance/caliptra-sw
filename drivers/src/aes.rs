@@ -184,7 +184,7 @@ const MASK: u32 = 0x1234_5678;
 
 /// Wait for the AES engine to be idle.
 /// Necessary before writing control registers.
-fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<'_>>) {
+fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<caliptra_ureg::RealMmioMut<'_>>) {
     while !aes.status().read().idle() {}
 }
 
@@ -233,8 +233,8 @@ impl Aes {
     fn with_aes<T>(
         &mut self,
         f: impl FnOnce(
-            caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<'_>>,
-            caliptra_registers::aes_clp::RegisterBlock<ureg::RealMmioMut<'_>>,
+            caliptra_registers::aes::RegisterBlock<caliptra_ureg::RealMmioMut<'_>>,
+            caliptra_registers::aes_clp::RegisterBlock<caliptra_ureg::RealMmioMut<'_>>,
         ) -> T,
     ) -> T {
         let aes = self.aes.regs_mut();

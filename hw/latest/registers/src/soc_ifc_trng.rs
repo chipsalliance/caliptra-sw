@@ -28,7 +28,7 @@ impl SocIfcTrngReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +37,7 @@ impl SocIfcTrngReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -46,11 +46,11 @@ impl SocIfcTrngReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -64,7 +64,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -82,9 +82,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_trng_data(
         &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc_trng::meta::CptraTrngData, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        12,
+        caliptra_ureg::RegRef<crate::soc_ifc_trng::meta::CptraTrngData, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -96,9 +99,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn cptra_trng_status(
         &self,
-    ) -> ureg::RegRef<crate::soc_ifc_trng::meta::CptraTrngStatus, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::soc_ifc_trng::meta::CptraTrngStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xac / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -180,9 +183,9 @@ pub mod enums {
     pub mod selector {}
 }
 pub mod meta {
-    //! Additional metadata needed by ureg.
-    pub type CptraTrngData = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraTrngStatus = ureg::ReadWriteReg32<
+    //! Additional metadata needed by caliptra_ureg.
+    pub type CptraTrngData = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraTrngStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::soc_ifc_trng::regs::CptraTrngStatusReadVal,
         crate::soc_ifc_trng::regs::CptraTrngStatusWriteVal,

@@ -160,7 +160,7 @@ impl<'a> MlKem1024<'a> {
 
     // Wait on the provided condition OR the error condition defined in this function
     // In the event of the error condition being set, clear the error bits and return an error
-    fn wait<F>(regs: RegisterBlock<ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
+    fn wait<F>(regs: RegisterBlock<caliptra_ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
     where
         F: Fn() -> bool,
     {

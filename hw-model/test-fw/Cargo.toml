@@ -17,7 +17,7 @@ caliptra-registers.workspace = true
 caliptra-test-harness.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 ufmt.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 
 [[bin]]
 name = "test_iccm_unaligned_write"
