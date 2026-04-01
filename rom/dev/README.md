@@ -1151,11 +1151,12 @@ The following are the pre-conditions that should be satisfied:
 ### Preamble validation: Manufacturing key validation
 
 - fuse_ecc_revocation serves as the bitmask for revoking ECC keys.
-  - If bit-n is set, the nth key is disabled. All other higher bits that are zeros indicate the keys are still enabled.
+  - If bit-n is set, the nth key is disabled. All other bits that are zeros indicate the keys are still enabled.
   - If all the bits are zeros, all ECC keys remain enabled.
 - Ensure that the Active Key Index in the preamble is not disabled by the fuse_ecc_revocation fuse.
   - If the key is disabled, the validation process fails.
-- Repeat the above procedure for LMS or MLDSA keys using the fuse_lms_revocation or fuse_mldsa_revocation fuses, respectively, for key revocation.
+  - **Note: The last key index is never revoked, regardless of the fuse value.**
+- Repeat the above procedure for LMS or MLDSA keys using the fuse_lms_revocation or fuse_mldsa_revocation fuses, respectively, for key revocation. The last key index for PQC keys is also never revoked.
 
 ### Preamble validation: Validate the Owner key
 
