@@ -324,7 +324,7 @@ impl<'a> CborEncoder<'a> {
 /// # Usage
 ///
 /// ```
-/// use ocp_eat::TaggedOid;
+/// use caliptra_ocp_eat::TaggedOid;
 ///
 /// let oid_bytes = &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x01];
 /// let tagged_oid = TaggedOid::new(oid_bytes);
@@ -382,7 +382,7 @@ impl CborEncodable for TaggedOid<'_> {
 /// # Usage
 ///
 /// ```
-/// use ocp_eat::TaggedUuid;
+/// use caliptra_ocp_eat::TaggedUuid;
 ///
 /// let uuid_bytes = [
 ///     0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4,
