@@ -1638,3 +1638,140 @@ fn test_write_lms_keys() {
     file.write_all(OWNER_PUBLIC_KEYS.lms_pub_key.as_bytes())
         .unwrap();
 }
+
+/// Verify that the documented vendor PK descriptor hash and owner PK hash values
+/// in rom/dev/README.md are correct for the test keys.
+///
+/// These hashes are computed by:
+/// 1. Building the ImageVendorPubKeyInfo struct (ECC + PQC key descriptors with hashes)
+/// 2. Hashing the serialized struct with SHA2-384
+/// 3. Converting the result from hw format to standard byte order
+#[test]
+fn test_documented_pk_hash_values() {
+    use caliptra_image_crypto::OsslCrypto;
+    use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
+    use caliptra_image_types::*;
+
+    let crypto = OsslCrypto::default();
+
+    let ecc_pub_keys = [
+        VENDOR_ECC_KEY_0_PUBLIC,
+        VENDOR_ECC_KEY_1_PUBLIC,
+        VENDOR_ECC_KEY_2_PUBLIC,
+        VENDOR_ECC_KEY_3_PUBLIC,
+    ];
+
+    let mut ecc_key_hashes = ImageEccKeyHashes::default();
+    for i in 0..4 {
+        ecc_key_hashes[i] = crypto.sha384_digest(ecc_pub_keys[i].as_bytes()).unwrap();
+    }
+    let ecc_desc = ImageEccKeyDescriptor {
+        version: KEY_DESCRIPTOR_VERSION,
+        reserved: 0,
+        key_hash_count: 4,
+        key_hash: ecc_key_hashes,
+    };
+
+    // --- LMS (pqc_key_type = 3) ---
+    let lms_pub_keys = VENDOR_PUBLIC_KEYS.lms_pub_keys;
+    let mut lms_key_hashes = ImagePqcKeyHashes::default();
+    for i in 0..32 {
+        lms_key_hashes[i] = crypto.sha384_digest(lms_pub_keys[i].as_bytes()).unwrap();
+    }
+    let pqc_desc_lms = ImagePqcKeyDescriptor {
+        version: KEY_DESCRIPTOR_VERSION,
+        key_type: FwVerificationPqcKeyType::LMS.into(),
+        key_hash_count: 32,
+        key_hash: lms_key_hashes,
+    };
+    let vendor_info_lms = ImageVendorPubKeyInfo {
+        ecc_key_descriptor: ecc_desc,
+        pqc_key_descriptor: pqc_desc_lms,
+    };
+    let vendor_hash_lms_hw = crypto.sha384_digest(vendor_info_lms.as_bytes()).unwrap();
+    let vendor_hash_lms = from_hw_format(&vendor_hash_lms_hw);
+    assert_eq!(
+        vendor_hash_lms,
+        // Documented in rom/dev/README.md "Expected hash values using test keys"
+        [
+            0xb1, 0x7c, 0xa8, 0x77, 0x66, 0x66, 0x57, 0xcc, 0xd1, 0x00, 0xe6, 0x92, 0x6c, 0x72,
+            0x06, 0xb6, 0x0c, 0x99, 0x5c, 0xb6, 0x89, 0x92, 0xc6, 0xc9, 0xba, 0xef, 0xce, 0x72,
+            0x8a, 0xf0, 0x54, 0x41, 0xde, 0xe1, 0xff, 0x41, 0x5a, 0xdf, 0xc1, 0x87, 0xe1, 0xe4,
+            0xed, 0xb4, 0xd3, 0xb2, 0xd9, 0x09
+        ],
+        "LMS vendor PK descriptor hash mismatch",
+    );
+
+    // LMS owner PK hash
+    let mut owner_pqc_lms = [0u8; PQC_PUB_KEY_BYTE_SIZE];
+    let lms_bytes = OWNER_PUBLIC_KEYS.lms_pub_key.as_bytes();
+    owner_pqc_lms[..lms_bytes.len()].copy_from_slice(lms_bytes);
+    let owner_keys_lms = ImageOwnerPubKeys {
+        ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+        pqc_pub_key: ImagePqcPubKey(owner_pqc_lms),
+    };
+    let owner_hash_lms_hw = crypto.sha384_digest(owner_keys_lms.as_bytes()).unwrap();
+    let owner_hash_lms = from_hw_format(&owner_hash_lms_hw);
+    assert_eq!(
+        owner_hash_lms,
+        [
+            0x1b, 0x17, 0x93, 0x90, 0xe4, 0xe6, 0xc4, 0x44, 0x22, 0xed, 0x55, 0x3e, 0x25, 0x6c,
+            0x7d, 0x67, 0x5c, 0xd9, 0x31, 0x90, 0xcb, 0x49, 0xd8, 0x8d, 0x48, 0x5a, 0xa4, 0xef,
+            0x39, 0x06, 0xcd, 0x49, 0x2a, 0xb3, 0xee, 0x3d, 0x3b, 0xa5, 0xf2, 0xc9, 0x90, 0xad,
+            0x13, 0x39, 0x0f, 0xed, 0x4d, 0xe5
+        ],
+        "LMS owner PK hash mismatch",
+    );
+
+    // --- MLDSA (pqc_key_type = 1) ---
+    let mldsa_pub_keys = VENDOR_PUBLIC_KEYS.mldsa_pub_keys;
+    let mut mldsa_key_hashes = ImagePqcKeyHashes::default();
+    for i in 0..4 {
+        mldsa_key_hashes[i] = crypto.sha384_digest(mldsa_pub_keys[i].as_bytes()).unwrap();
+    }
+    let pqc_desc_mldsa = ImagePqcKeyDescriptor {
+        version: KEY_DESCRIPTOR_VERSION,
+        key_type: FwVerificationPqcKeyType::MLDSA.into(),
+        key_hash_count: 4,
+        key_hash: mldsa_key_hashes,
+    };
+    let vendor_info_mldsa = ImageVendorPubKeyInfo {
+        ecc_key_descriptor: ecc_desc,
+        pqc_key_descriptor: pqc_desc_mldsa,
+    };
+    let vendor_hash_mldsa_hw = crypto.sha384_digest(vendor_info_mldsa.as_bytes()).unwrap();
+    let vendor_hash_mldsa = from_hw_format(&vendor_hash_mldsa_hw);
+    assert_eq!(
+        vendor_hash_mldsa,
+        [
+            0x30, 0x39, 0x96, 0x76, 0xa1, 0x7e, 0x3e, 0x97, 0x36, 0x77, 0xb3, 0xff, 0x86, 0x2f,
+            0x4b, 0xf2, 0xd1, 0x93, 0x2d, 0x88, 0x47, 0x78, 0x45, 0x3c, 0x37, 0x6f, 0xe0, 0x0d,
+            0xc9, 0x3f, 0xb8, 0xaa, 0x07, 0x70, 0xf3, 0xeb, 0xf3, 0x41, 0x1a, 0x08, 0x53, 0xe9,
+            0xc5, 0x7e, 0xce, 0x8a, 0x29, 0x80
+        ],
+        "MLDSA vendor PK descriptor hash mismatch",
+    );
+
+    // MLDSA owner PK hash
+    let owner_keys_mldsa = ImageOwnerPubKeys {
+        ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+        pqc_pub_key: ImagePqcPubKey({
+            let mut arr = [0u8; PQC_PUB_KEY_BYTE_SIZE];
+            let key_bytes = OWNER_PUBLIC_KEYS.mldsa_pub_key.as_bytes();
+            arr[..key_bytes.len()].copy_from_slice(key_bytes);
+            arr
+        }),
+    };
+    let owner_hash_mldsa_hw = crypto.sha384_digest(owner_keys_mldsa.as_bytes()).unwrap();
+    let owner_hash_mldsa = from_hw_format(&owner_hash_mldsa_hw);
+    assert_eq!(
+        owner_hash_mldsa,
+        [
+            0x48, 0xaf, 0xdb, 0x07, 0x3c, 0x5e, 0x0d, 0x4e, 0xe4, 0x64, 0x90, 0x46, 0x8e, 0xf8,
+            0x1f, 0x2c, 0xf5, 0x72, 0x49, 0xb6, 0xe7, 0x6a, 0x28, 0xf5, 0xfc, 0xa4, 0xde, 0x69,
+            0x6a, 0x7d, 0x3e, 0x2e, 0xd3, 0xef, 0xc4, 0xe6, 0x77, 0x43, 0x18, 0x54, 0x3e, 0x95,
+            0x30, 0x7a, 0x54, 0x98, 0x8b, 0xd7
+        ],
+        "MLDSA owner PK hash mismatch",
+    );
+}
