@@ -16,7 +16,7 @@ cp ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger,podman,rsync"
+  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
   if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
     PACKAGES="$PACKAGES,ssh,tmux,cloud-guest-utils"
   fi
@@ -101,6 +101,20 @@ RemainAfterExit=true
 WantedBy=multi-user.target
 EOF
       chroot out/rootfs systemctl enable resize-rootfs.service
+  else
+      # Stub developer dependencies to work around xtask checks.
+      chroot out/rootfs bash -c 'echo "#!/bin/sh" > /usr/bin/podman'
+      chroot out/rootfs bash -c 'echo "echo stub" >> /usr/bin/podman'
+
+      chroot out/rootfs bash -c 'echo "#!/bin/sh" > /usr/bin/rsync'
+      chroot out/rootfs bash -c 'echo "echo stub" >> /usr/bin/rsync'
+
+      chroot out/rootfs bash -c 'echo "#!/bin/sh" > /usr/bin/cargo-nextest'
+      chroot out/rootfs bash -c 'echo "echo stub" >> /usr/bin/cargo-nextest'
+
+      chroot out/rootfs chmod +x /usr/bin/rsync
+      chroot out/rootfs chmod +x /usr/bin/podman
+      chroot out/rootfs chmod +x /usr/bin/cargo-nextest
   fi
 
   # Comment this line out if you don't trust folks with physical access to the
