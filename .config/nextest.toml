@@ -19,7 +19,7 @@ package(caliptra-size-history) +
 package(caliptra-systemrdl) +
 package(caliptra-verilated) +
 package(caliptra-x509) +
-package(ureg) +
+package(caliptra-ureg) +
 package(ureg-codegen) +
 package(ureg-schema) +
 package(ureg-systemrdl)

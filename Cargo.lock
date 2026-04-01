@@ -237,7 +237,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-image-types",
  "caliptra-registers",
- "ureg",
+ "caliptra-ureg",
  "zerocopy",
 ]
 
@@ -249,8 +249,8 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra-ureg",
  "cfg-if",
- "ureg",
  "zerocopy",
 ]
 
@@ -422,11 +422,11 @@ dependencies = [
  "caliptra-okref",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra-ureg",
  "cfg-if",
  "dpe",
  "openssl",
  "ufmt",
- "ureg",
  "zerocopy",
  "zeroize",
 ]
@@ -470,8 +470,8 @@ name = "caliptra-emu-bus"
 version = "0.1.0"
 dependencies = [
  "caliptra-emu-types",
+ "caliptra-ureg",
  "tock-registers",
- "ureg",
 ]
 
 [[package]]
@@ -601,6 +601,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test-harness-types",
+ "caliptra-ureg",
  "caliptra-verilated",
  "caliptra_common",
  "libc",
@@ -617,7 +618,6 @@ dependencies = [
  "thiserror 2.0.16",
  "tock-registers",
  "uio",
- "ureg",
  "zerocopy",
 ]
 
@@ -644,8 +644,8 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra-ureg",
  "ufmt",
- "ureg",
 ]
 
 [[package]]
@@ -812,7 +812,7 @@ dependencies = [
 name = "caliptra-registers-latest"
 version = "0.1.0"
 dependencies = [
- "ureg",
+ "caliptra-ureg",
 ]
 
 [[package]]
@@ -867,11 +867,11 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-registers",
+ "caliptra-ureg",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
  "ufmt",
- "ureg",
  "zerocopy",
 ]
 
@@ -918,6 +918,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra-ureg",
  "caliptra-x509",
  "caliptra_common",
  "cbc",
@@ -940,7 +941,6 @@ dependencies = [
  "sha2",
  "spki",
  "ufmt",
- "ureg",
  "wycheproof",
  "x509-cert",
  "x509-parser",
@@ -1002,6 +1002,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-runtime",
+ "caliptra-ureg",
  "caliptra_common",
  "der",
  "dpe",
@@ -1009,7 +1010,6 @@ dependencies = [
  "openssl",
  "rand",
  "regex",
- "ureg",
  "zerocopy",
 ]
 
@@ -1023,6 +1023,10 @@ dependencies = [
 
 [[package]]
 name = "caliptra-test-harness-types"
+version = "0.1.0"
+
+[[package]]
+name = "caliptra-ureg"
 version = "0.1.0"
 
 [[package]]
@@ -2937,10 +2941,6 @@ dependencies = [
  "crypto-common",
  "subtle",
 ]
-
-[[package]]
-name = "ureg"
-version = "0.1.0"
 
 [[package]]
 name = "ureg-codegen"

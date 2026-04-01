@@ -22,7 +22,7 @@ caliptra-registers.workspace = true
 cfg-if.workspace = true
 dpe = { workspace = true, optional = true }
 ufmt.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }

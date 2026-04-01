@@ -10,7 +10,7 @@ use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, Securi
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::ImageManifest;
-use ureg::{Mmio, MmioMut};
+use caliptra_ureg::{Mmio, MmioMut};
 
 use common::*;
 use zerocopy::FromBytes;

@@ -22,8 +22,8 @@ use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
 use caliptra_registers::otp_ctrl::RegisterBlock as FuseCtrlRegisterBlock;
 use caliptra_registers::sha512_acc::enums::ShaCmdE;
 use caliptra_registers::sha512_acc::RegisterBlock as ShaAccRegisterBlock;
+use caliptra_ureg::{Mmio, MmioMut, RealMmioMut};
 use core::{cell::Cell, mem::size_of, ops::Add};
-use ureg::{Mmio, MmioMut, RealMmioMut};
 
 const I3C_BLOCK_SIZE: u32 = 64;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
@@ -402,9 +402,9 @@ impl<'a> DmaMmio<'a> {
 
 impl Mmio for &DmaMmio<'_> {
     #[inline(always)]
-    unsafe fn read_volatile<T: ureg::Uint>(&self, src: *const T) -> T {
+    unsafe fn read_volatile<T: caliptra_ureg::Uint>(&self, src: *const T) -> T {
         // we only support 32-bit reads
-        if T::TYPE != ureg::UintType::U32 {
+        if T::TYPE != caliptra_ureg::UintType::U32 {
             unreachable!();
         }
         let offset = src as usize;
@@ -416,9 +416,9 @@ impl Mmio for &DmaMmio<'_> {
 
 impl MmioMut for &DmaMmio<'_> {
     #[inline(always)]
-    unsafe fn write_volatile<T: ureg::Uint>(&self, dst: *mut T, src: T) {
+    unsafe fn write_volatile<T: caliptra_ureg::Uint>(&self, dst: *mut T, src: T) {
         // we only support 32-bit writes
-        if T::TYPE != ureg::UintType::U32 {
+        if T::TYPE != caliptra_ureg::UintType::U32 {
             unreachable!();
         }
         // this will always work because we only support u32

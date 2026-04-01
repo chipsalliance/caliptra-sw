@@ -38,7 +38,7 @@ impl<TBus: Bus> BusMmio<TBus> {
         self.bus.into_inner()
     }
 }
-impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
+impl<TBus: Bus> caliptra_ureg::Mmio for BusMmio<TBus> {
     /// Loads from address `src` on the bus and returns the value.
     ///
     /// # Panics
@@ -64,7 +64,7 @@ impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
     }
 }
 
-impl<TBus: Bus> ureg::MmioMut for BusMmio<TBus> {
+impl<TBus: Bus> caliptra_ureg::MmioMut for BusMmio<TBus> {
     /// Stores `src` to address `dst` on the bus.
     ///
     /// # Panics
@@ -86,7 +86,7 @@ impl<TBus: Bus> ureg::MmioMut for BusMmio<TBus> {
 #[cfg(test)]
 mod tests {
     use crate::Ram;
-    use ureg::{Mmio, MmioMut};
+    use caliptra_ureg::{Mmio, MmioMut};
 
     use super::*;
 

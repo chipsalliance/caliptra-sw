@@ -193,7 +193,7 @@ pub mod fips_self_test_cmd {
 
         // WARNING: It is undefined behavior to dereference a zero (null) pointer in
         // rust code. This is only safe because the dereference is being done by an
-        // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather
+        // an assembly routine ([`caliptra_ureg::opt_riscv::copy_16_words`]) rather
         // than dereferencing directly in Rust.
         #[allow(clippy::zero_ptr)]
         let rom_start = 0 as *const [u32; 16];

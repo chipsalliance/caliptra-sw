@@ -8,8 +8,8 @@ use caliptra_image_types::{
     SHA512_DIGEST_BYTE_SIZE,
 };
 use caliptra_registers::mbox;
+use caliptra_ureg::MmioMut;
 use core::mem::size_of;
-use ureg::MmioMut;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.

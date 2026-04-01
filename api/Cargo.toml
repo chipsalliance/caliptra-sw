@@ -14,7 +14,7 @@ zerocopy.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-api-types.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 
 [dev-dependencies]

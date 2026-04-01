@@ -27,7 +27,7 @@ impl McuSram {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl McuSram {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl McuSram {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for

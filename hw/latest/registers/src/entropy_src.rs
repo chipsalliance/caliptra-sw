@@ -27,7 +27,7 @@ impl EntropySrcReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl EntropySrcReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl EntropySrcReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -77,9 +77,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn interrupt_state(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::InterruptState, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::InterruptState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -89,9 +89,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn interrupt_enable(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::InterruptEnable, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::InterruptEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -99,9 +99,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::InterruptTestReadVal`]; Write value: [`entropy_src::regs::InterruptTestWriteVal`]
     #[inline(always)]
-    pub fn interrupt_test(&self) -> ureg::RegRef<crate::entropy_src::meta::InterruptTest, &TMmio> {
+    pub fn interrupt_test(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::InterruptTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -109,9 +111,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::AlertTestReadVal`]; Write value: [`entropy_src::regs::AlertTestWriteVal`]
     #[inline(always)]
-    pub fn alert_test(&self) -> ureg::RegRef<crate::entropy_src::meta::AlertTest, &TMmio> {
+    pub fn alert_test(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AlertTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -119,9 +121,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::MeRegwenReadVal`]; Write value: [`entropy_src::regs::MeRegwenWriteVal`]
     #[inline(always)]
-    pub fn me_regwen(&self) -> ureg::RegRef<crate::entropy_src::meta::MeRegwen, &TMmio> {
+    pub fn me_regwen(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MeRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -129,9 +131,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::SwRegupdReadVal`]; Write value: [`entropy_src::regs::SwRegupdWriteVal`]
     #[inline(always)]
-    pub fn sw_regupd(&self) -> ureg::RegRef<crate::entropy_src::meta::SwRegupd, &TMmio> {
+    pub fn sw_regupd(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::SwRegupd, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -139,9 +141,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::RegwenReadVal`]; Write value: [`entropy_src::regs::RegwenWriteVal`]
     #[inline(always)]
-    pub fn regwen(&self) -> ureg::RegRef<crate::entropy_src::meta::Regwen, &TMmio> {
+    pub fn regwen(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::Regwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -149,9 +151,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::RevReadVal`]; Write value: [`entropy_src::regs::RevWriteVal`]
     #[inline(always)]
-    pub fn rev(&self) -> ureg::RegRef<crate::entropy_src::meta::Rev, &TMmio> {
+    pub fn rev(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::Rev, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -159,9 +161,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::ModuleEnableReadVal`]; Write value: [`entropy_src::regs::ModuleEnableWriteVal`]
     #[inline(always)]
-    pub fn module_enable(&self) -> ureg::RegRef<crate::entropy_src::meta::ModuleEnable, &TMmio> {
+    pub fn module_enable(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ModuleEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -169,9 +173,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::ConfReadVal`]; Write value: [`entropy_src::regs::ConfWriteVal`]
     #[inline(always)]
-    pub fn conf(&self) -> ureg::RegRef<crate::entropy_src::meta::Conf, &TMmio> {
+    pub fn conf(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::Conf, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -181,9 +185,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn entropy_control(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::EntropyControl, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::EntropyControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -191,9 +195,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn entropy_data(&self) -> ureg::RegRef<crate::entropy_src::meta::EntropyData, &TMmio> {
+    pub fn entropy_data(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::EntropyData, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -203,9 +209,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn health_test_windows(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::HealthTestWindows, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::HealthTestWindows, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -215,9 +221,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnt_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -227,9 +233,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnts_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntsThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntsThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -239,9 +245,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_hi_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpHiThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpHiThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -251,9 +257,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_lo_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpLoThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpLoThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -263,9 +269,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn bucket_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::BucketThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::BucketThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -275,9 +281,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_hi_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovHiThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovHiThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -287,9 +293,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_lo_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovLoThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovLoThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -299,9 +305,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_hi_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtHiThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtHiThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -311,9 +317,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_lo_thresholds(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtLoThresholds, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtLoThresholds, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -323,9 +329,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnt_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -335,9 +341,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnts_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntsHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntsHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -347,9 +353,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -359,9 +365,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_lo_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpLoWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpLoWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -371,9 +377,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x68 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -383,9 +389,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_lo_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtLoWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtLoWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x6c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -395,9 +401,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn bucket_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::BucketHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::BucketHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x70 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -407,9 +413,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_hi_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovHiWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovHiWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x74 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -419,9 +425,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_lo_watermarks(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovLoWatermarks, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovLoWatermarks, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -431,9 +437,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnt_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -443,9 +449,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn repcnts_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::RepcntsTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RepcntsTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -455,9 +461,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_hi_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpHiTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpHiTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -467,9 +473,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn adaptp_lo_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AdaptpLoTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AdaptpLoTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -479,9 +485,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn bucket_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::BucketTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::BucketTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x8c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -491,9 +497,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_hi_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovHiTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovHiTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x90 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -503,9 +509,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn markov_lo_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::MarkovLoTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MarkovLoTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x94 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -515,9 +521,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_hi_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtHiTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtHiTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -527,9 +533,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_lo_total_fails(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtLoTotalFails, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtLoTotalFails, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x9c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -539,9 +545,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn alert_threshold(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AlertThreshold, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AlertThreshold, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -551,9 +557,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn alert_summary_fail_counts(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AlertSummaryFailCounts, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AlertSummaryFailCounts, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -563,9 +569,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn alert_fail_counts(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::AlertFailCounts, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::AlertFailCounts, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -575,9 +581,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn extht_fail_counts(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ExthtFailCounts, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ExthtFailCounts, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xac / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -585,9 +591,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::FwOvControlReadVal`]; Write value: [`entropy_src::regs::FwOvControlWriteVal`]
     #[inline(always)]
-    pub fn fw_ov_control(&self) -> ureg::RegRef<crate::entropy_src::meta::FwOvControl, &TMmio> {
+    pub fn fw_ov_control(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvControl, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -597,9 +605,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fw_ov_sha3_start(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::FwOvSha3Start, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvSha3Start, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -609,9 +617,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fw_ov_wr_fifo_full(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::FwOvWrFifoFull, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvWrFifoFull, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xb8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -621,9 +629,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fw_ov_rd_fifo_overflow(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::FwOvRdFifoOverflow, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvRdFifoOverflow, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xbc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -631,9 +639,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn fw_ov_rd_data(&self) -> ureg::RegRef<crate::entropy_src::meta::FwOvRdData, &TMmio> {
+    pub fn fw_ov_rd_data(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvRdData, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -641,9 +651,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn fw_ov_wr_data(&self) -> ureg::RegRef<crate::entropy_src::meta::FwOvWrData, &TMmio> {
+    pub fn fw_ov_wr_data(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::FwOvWrData, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -653,9 +665,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn observe_fifo_thresh(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ObserveFifoThresh, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ObserveFifoThresh, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -665,9 +677,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn observe_fifo_depth(
         &self,
-    ) -> ureg::RegRef<crate::entropy_src::meta::ObserveFifoDepth, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ObserveFifoDepth, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xcc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -675,9 +687,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::DebugStatusReadVal`]; Write value: [`entropy_src::regs::DebugStatusWriteVal`]
     #[inline(always)]
-    pub fn debug_status(&self) -> ureg::RegRef<crate::entropy_src::meta::DebugStatus, &TMmio> {
+    pub fn debug_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::DebugStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xd0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -685,9 +699,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::RecovAlertStsReadVal`]; Write value: [`entropy_src::regs::RecovAlertStsWriteVal`]
     #[inline(always)]
-    pub fn recov_alert_sts(&self) -> ureg::RegRef<crate::entropy_src::meta::RecovAlertSts, &TMmio> {
+    pub fn recov_alert_sts(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::RecovAlertSts, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xd4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -695,9 +711,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::ErrCodeReadVal`]; Write value: [`entropy_src::regs::ErrCodeWriteVal`]
     #[inline(always)]
-    pub fn err_code(&self) -> ureg::RegRef<crate::entropy_src::meta::ErrCode, &TMmio> {
+    pub fn err_code(&self) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ErrCode, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xd8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -705,9 +721,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::ErrCodeTestReadVal`]; Write value: [`entropy_src::regs::ErrCodeTestWriteVal`]
     #[inline(always)]
-    pub fn err_code_test(&self) -> ureg::RegRef<crate::entropy_src::meta::ErrCodeTest, &TMmio> {
+    pub fn err_code_test(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::ErrCodeTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xdc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -715,9 +733,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`entropy_src::regs::MainSmStateReadVal`]; Write value: [`entropy_src::regs::MainSmStateWriteVal`]
     #[inline(always)]
-    pub fn main_sm_state(&self) -> ureg::RegRef<crate::entropy_src::meta::MainSmState, &TMmio> {
+    pub fn main_sm_state(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::entropy_src::meta::MainSmState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xe0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -3358,168 +3378,172 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type InterruptState = ureg::ReadWriteReg32<
+    pub type InterruptState = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::InterruptStateReadVal,
         crate::entropy_src::regs::InterruptStateWriteVal,
     >;
-    pub type InterruptEnable = ureg::ReadWriteReg32<
+    pub type InterruptEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::InterruptEnableReadVal,
         crate::entropy_src::regs::InterruptEnableWriteVal,
     >;
     pub type InterruptTest =
-        ureg::WriteOnlyReg32<0, crate::entropy_src::regs::InterruptTestWriteVal>;
-    pub type AlertTest = ureg::WriteOnlyReg32<0, crate::entropy_src::regs::AlertTestWriteVal>;
-    pub type MeRegwen = ureg::ReadWriteReg32<
+        caliptra_ureg::WriteOnlyReg32<0, crate::entropy_src::regs::InterruptTestWriteVal>;
+    pub type AlertTest =
+        caliptra_ureg::WriteOnlyReg32<0, crate::entropy_src::regs::AlertTestWriteVal>;
+    pub type MeRegwen = caliptra_ureg::ReadWriteReg32<
         1,
         crate::entropy_src::regs::MeRegwenReadVal,
         crate::entropy_src::regs::MeRegwenWriteVal,
     >;
-    pub type SwRegupd = ureg::ReadWriteReg32<
+    pub type SwRegupd = caliptra_ureg::ReadWriteReg32<
         1,
         crate::entropy_src::regs::SwRegupdReadVal,
         crate::entropy_src::regs::SwRegupdWriteVal,
     >;
-    pub type Regwen = ureg::ReadOnlyReg32<crate::entropy_src::regs::RegwenReadVal>;
-    pub type Rev = ureg::ReadOnlyReg32<crate::entropy_src::regs::RevReadVal>;
-    pub type ModuleEnable = ureg::ReadWriteReg32<
+    pub type Regwen = caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::RegwenReadVal>;
+    pub type Rev = caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::RevReadVal>;
+    pub type ModuleEnable = caliptra_ureg::ReadWriteReg32<
         9,
         crate::entropy_src::regs::ModuleEnableReadVal,
         crate::entropy_src::regs::ModuleEnableWriteVal,
     >;
-    pub type Conf = ureg::ReadWriteReg32<
+    pub type Conf = caliptra_ureg::ReadWriteReg32<
         0x2649999,
         crate::entropy_src::regs::ConfReadVal,
         crate::entropy_src::regs::ConfWriteVal,
     >;
-    pub type EntropyControl = ureg::ReadWriteReg32<
+    pub type EntropyControl = caliptra_ureg::ReadWriteReg32<
         0x99,
         crate::entropy_src::regs::EntropyControlReadVal,
         crate::entropy_src::regs::EntropyControlWriteVal,
     >;
-    pub type EntropyData = ureg::ReadOnlyReg32<u32>;
-    pub type HealthTestWindows = ureg::ReadWriteReg32<
+    pub type EntropyData = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type HealthTestWindows = caliptra_ureg::ReadWriteReg32<
         0x600200,
         crate::entropy_src::regs::HealthTestWindowsReadVal,
         crate::entropy_src::regs::HealthTestWindowsWriteVal,
     >;
-    pub type RepcntThresholds = ureg::ReadWriteReg32<
+    pub type RepcntThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::RepcntThresholdsReadVal,
         crate::entropy_src::regs::RepcntThresholdsWriteVal,
     >;
-    pub type RepcntsThresholds = ureg::ReadWriteReg32<
+    pub type RepcntsThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::RepcntsThresholdsReadVal,
         crate::entropy_src::regs::RepcntsThresholdsWriteVal,
     >;
-    pub type AdaptpHiThresholds = ureg::ReadWriteReg32<
+    pub type AdaptpHiThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::AdaptpHiThresholdsReadVal,
         crate::entropy_src::regs::AdaptpHiThresholdsWriteVal,
     >;
-    pub type AdaptpLoThresholds = ureg::ReadWriteReg32<
+    pub type AdaptpLoThresholds = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::AdaptpLoThresholdsReadVal,
         crate::entropy_src::regs::AdaptpLoThresholdsWriteVal,
     >;
-    pub type BucketThresholds = ureg::ReadWriteReg32<
+    pub type BucketThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::BucketThresholdsReadVal,
         crate::entropy_src::regs::BucketThresholdsWriteVal,
     >;
-    pub type MarkovHiThresholds = ureg::ReadWriteReg32<
+    pub type MarkovHiThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::MarkovHiThresholdsReadVal,
         crate::entropy_src::regs::MarkovHiThresholdsWriteVal,
     >;
-    pub type MarkovLoThresholds = ureg::ReadWriteReg32<
+    pub type MarkovLoThresholds = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::MarkovLoThresholdsReadVal,
         crate::entropy_src::regs::MarkovLoThresholdsWriteVal,
     >;
-    pub type ExthtHiThresholds = ureg::ReadWriteReg32<
+    pub type ExthtHiThresholds = caliptra_ureg::ReadWriteReg32<
         0xffffffff,
         crate::entropy_src::regs::ExthtHiThresholdsReadVal,
         crate::entropy_src::regs::ExthtHiThresholdsWriteVal,
     >;
-    pub type ExthtLoThresholds = ureg::ReadWriteReg32<
+    pub type ExthtLoThresholds = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::ExthtLoThresholdsReadVal,
         crate::entropy_src::regs::ExthtLoThresholdsWriteVal,
     >;
     pub type RepcntHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::RepcntHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::RepcntHiWatermarksReadVal>;
     pub type RepcntsHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::RepcntsHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::RepcntsHiWatermarksReadVal>;
     pub type AdaptpHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::AdaptpHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::AdaptpHiWatermarksReadVal>;
     pub type AdaptpLoWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::AdaptpLoWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::AdaptpLoWatermarksReadVal>;
     pub type ExthtHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtHiWatermarksReadVal>;
     pub type ExthtLoWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtLoWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtLoWatermarksReadVal>;
     pub type BucketHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::BucketHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::BucketHiWatermarksReadVal>;
     pub type MarkovHiWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::MarkovHiWatermarksReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::MarkovHiWatermarksReadVal>;
     pub type MarkovLoWatermarks =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::MarkovLoWatermarksReadVal>;
-    pub type RepcntTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type RepcntsTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type AdaptpHiTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type AdaptpLoTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type BucketTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type MarkovHiTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type MarkovLoTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type ExthtHiTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type ExthtLoTotalFails = ureg::ReadOnlyReg32<u32>;
-    pub type AlertThreshold = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::MarkovLoWatermarksReadVal>;
+    pub type RepcntTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type RepcntsTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type AdaptpHiTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type AdaptpLoTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type BucketTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type MarkovHiTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type MarkovLoTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ExthtHiTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type ExthtLoTotalFails = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type AlertThreshold = caliptra_ureg::ReadWriteReg32<
         0xfffd0002,
         crate::entropy_src::regs::AlertThresholdReadVal,
         crate::entropy_src::regs::AlertThresholdWriteVal,
     >;
     pub type AlertSummaryFailCounts =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::AlertSummaryFailCountsReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::AlertSummaryFailCountsReadVal>;
     pub type AlertFailCounts =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::AlertFailCountsReadVal>;
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::AlertFailCountsReadVal>;
     pub type ExthtFailCounts =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtFailCountsReadVal>;
-    pub type FwOvControl = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtFailCountsReadVal>;
+    pub type FwOvControl = caliptra_ureg::ReadWriteReg32<
         0x99,
         crate::entropy_src::regs::FwOvControlReadVal,
         crate::entropy_src::regs::FwOvControlWriteVal,
     >;
-    pub type FwOvSha3Start = ureg::ReadWriteReg32<
+    pub type FwOvSha3Start = caliptra_ureg::ReadWriteReg32<
         9,
         crate::entropy_src::regs::FwOvSha3StartReadVal,
         crate::entropy_src::regs::FwOvSha3StartWriteVal,
     >;
-    pub type FwOvWrFifoFull = ureg::ReadOnlyReg32<crate::entropy_src::regs::FwOvWrFifoFullReadVal>;
+    pub type FwOvWrFifoFull =
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::FwOvWrFifoFullReadVal>;
     pub type FwOvRdFifoOverflow =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::FwOvRdFifoOverflowReadVal>;
-    pub type FwOvRdData = ureg::ReadOnlyReg32<u32>;
-    pub type FwOvWrData = ureg::WriteOnlyReg32<0, u32>;
-    pub type ObserveFifoThresh = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::FwOvRdFifoOverflowReadVal>;
+    pub type FwOvRdData = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type FwOvWrData = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type ObserveFifoThresh = caliptra_ureg::ReadWriteReg32<
         0x10,
         crate::entropy_src::regs::ObserveFifoThreshReadVal,
         crate::entropy_src::regs::ObserveFifoThreshWriteVal,
     >;
     pub type ObserveFifoDepth =
-        ureg::ReadOnlyReg32<crate::entropy_src::regs::ObserveFifoDepthReadVal>;
-    pub type DebugStatus = ureg::ReadOnlyReg32<crate::entropy_src::regs::DebugStatusReadVal>;
-    pub type RecovAlertSts = ureg::ReadWriteReg32<
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::ObserveFifoDepthReadVal>;
+    pub type DebugStatus =
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::DebugStatusReadVal>;
+    pub type RecovAlertSts = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::RecovAlertStsReadVal,
         crate::entropy_src::regs::RecovAlertStsWriteVal,
     >;
-    pub type ErrCode = ureg::ReadOnlyReg32<crate::entropy_src::regs::ErrCodeReadVal>;
-    pub type ErrCodeTest = ureg::ReadWriteReg32<
+    pub type ErrCode = caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::ErrCodeReadVal>;
+    pub type ErrCodeTest = caliptra_ureg::ReadWriteReg32<
         0,
         crate::entropy_src::regs::ErrCodeTestReadVal,
         crate::entropy_src::regs::ErrCodeTestWriteVal,
     >;
-    pub type MainSmState = ureg::ReadOnlyReg32<crate::entropy_src::regs::MainSmStateReadVal>;
+    pub type MainSmState =
+        caliptra_ureg::ReadOnlyReg32<crate::entropy_src::regs::MainSmStateReadVal>;
 }
