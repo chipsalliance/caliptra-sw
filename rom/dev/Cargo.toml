@@ -13,7 +13,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
   "cfi-counter",
 ] }
 caliptra-cfi-derive.workspace = true
-caliptra_common = { workspace = true, default-features = false, features = [
+caliptra-common = { workspace = true, default-features = false, features = [
   "rom",
 ] }
 caliptra-drivers.workspace = true
@@ -30,7 +30,7 @@ zeroize.workspace = true
 memoffset.workspace = true
 
 [build-dependencies]
-caliptra_common = { workspace = true, default-features = false, features = ["std"] }
+caliptra-common = { workspace = true, default-features = false, features = ["std"] }
 cfg-if.workspace = true
 const-gen.workspace = true
 hex.workspace = true
@@ -69,7 +69,7 @@ riscv = []
 default = ["std"]
 emu = ["caliptra-drivers/emu"]
 std = [
-  "caliptra_common/std",
+  "caliptra-common/std",
   "caliptra-image-types/std",
   "caliptra-image-verify/std",
   "caliptra-x509/std",
