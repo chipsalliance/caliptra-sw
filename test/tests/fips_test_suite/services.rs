@@ -1,16 +1,35 @@
 // Licensed under the Apache-2.0 license
 use crate::common;
+use crate::crypto_verify_vectors::*;
 
+use caliptra_api::mailbox::ImageHashSource;
+use caliptra_api::SocManager;
+use caliptra_auth_man_gen::{
+    AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
+};
+use caliptra_auth_man_types::{
+    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
+    ImageMetadataFlags,
+};
 use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
+use caliptra_drivers::MfgFlags;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_fake_keys::*;
 use caliptra_image_types::ImageManifest;
+use caliptra_lms_types::{LmsPublicKey, LmsSignature};
 use common::*;
-use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
+use dpe::{
+    commands::*,
+    context::ContextHandle,
+    response::{DeriveContextExportedCdiResp, Response},
+    DPE_PROFILE,
+};
 use openssl::sha::{sha384, sha512};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -52,7 +71,10 @@ pub fn exec_cmd_version<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u
     assert_eq!(
         version_resp.fips_rev,
         [
-            HwExpVals::get().hw_revision,
+            {
+                let hw_exp = HwExpVals::get();
+                ((hw_exp.soc_stepping_id as u32) << 16) | (hw_exp.hw_revision as u32)
+            },
             fw_version_0_expected,
             app_version
         ]
@@ -131,6 +153,33 @@ pub fn exec_cmd_get_idev_cert<T: HwModel>(hw: &mut T) {
     assert!(contains_some_data(
         &cert_resp.cert[..cert_resp.cert_size as usize]
     ));
+}
+
+pub fn exec_cmd_get_idev_csr<T: HwModel>(hw: &mut T) {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+    };
+
+    if RomExpVals::get().supports_get_idev_csr {
+        let resp = mbx_send_and_check_resp_hdr::<_, GetIdevCsrResp>(
+            hw,
+            u32::from(CommandId::GET_IDEV_CSR),
+            payload.as_bytes(),
+        )
+        .unwrap();
+
+        assert!(resp.data_size > 0);
+        assert!(contains_some_data(&resp.data[..resp.data_size as usize]));
+    } else {
+        let err = hw
+            .mailbox_execute(u32::from(CommandId::GET_IDEV_CSR), payload.as_bytes())
+            .unwrap_err();
+        // Expected response when runtime supports the command but ROM doesn't support populating the IDEVID CSR
+        assert_eq!(
+            err,
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM.into())
+        );
+    }
 }
 
 pub fn exec_cmd_get_idev_info<T: HwModel>(hw: &mut T) {
@@ -254,49 +303,16 @@ pub fn exec_cmd_capabilities<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_cmd_ecdsa_verify<T: HwModel>(hw: &mut T) {
-    // Message to hash
-    let msg: &[u8] = &[
-        0x9d, 0xd7, 0x89, 0xea, 0x25, 0xc0, 0x47, 0x45, 0xd5, 0x7a, 0x38, 0x1f, 0x22, 0xde, 0x01,
-        0xfb, 0x0a, 0xbd, 0x3c, 0x72, 0xdb, 0xde, 0xfd, 0x44, 0xe4, 0x32, 0x13, 0xc1, 0x89, 0x58,
-        0x3e, 0xef, 0x85, 0xba, 0x66, 0x20, 0x44, 0xda, 0x3d, 0xe2, 0xdd, 0x86, 0x70, 0xe6, 0x32,
-        0x51, 0x54, 0x48, 0x01, 0x55, 0xbb, 0xee, 0xbb, 0x70, 0x2c, 0x75, 0x78, 0x1a, 0xc3, 0x2e,
-        0x13, 0x94, 0x18, 0x60, 0xcb, 0x57, 0x6f, 0xe3, 0x7a, 0x05, 0xb7, 0x57, 0xda, 0x5b, 0x5b,
-        0x41, 0x8f, 0x6d, 0xd7, 0xc3, 0x0b, 0x04, 0x2e, 0x40, 0xf4, 0x39, 0x5a, 0x34, 0x2a, 0xe4,
-        0xdc, 0xe0, 0x56, 0x34, 0xc3, 0x36, 0x25, 0xe2, 0xbc, 0x52, 0x43, 0x45, 0x48, 0x1f, 0x7e,
-        0x25, 0x3d, 0x95, 0x51, 0x26, 0x68, 0x23, 0x77, 0x1b, 0x25, 0x17, 0x05, 0xb4, 0xa8, 0x51,
-        0x66, 0x02, 0x2a, 0x37, 0xac, 0x28, 0xf1, 0xbd,
-    ];
-
-    // Stream to SHA ACC
-    hw.compute_sha512_acc_digest(msg, ShaAccMode::Sha384Stream)
+    // Stream message to SHA ACC
+    hw.compute_sha512_acc_digest(&ECDSA384_MSG, ShaAccMode::Sha384Stream)
         .unwrap();
 
     let mut payload = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        pub_key_x: [
-            0xcb, 0x90, 0x8b, 0x1f, 0xd5, 0x16, 0xa5, 0x7b, 0x8e, 0xe1, 0xe1, 0x43, 0x83, 0x57,
-            0x9b, 0x33, 0xcb, 0x15, 0x4f, 0xec, 0xe2, 0x0c, 0x50, 0x35, 0xe2, 0xb3, 0x76, 0x51,
-            0x95, 0xd1, 0x95, 0x1d, 0x75, 0xbd, 0x78, 0xfb, 0x23, 0xe0, 0x0f, 0xef, 0x37, 0xd7,
-            0xd0, 0x64, 0xfd, 0x9a, 0xf1, 0x44,
-        ],
-        pub_key_y: [
-            0xcd, 0x99, 0xc4, 0x6b, 0x58, 0x57, 0x40, 0x1d, 0xdc, 0xff, 0x2c, 0xf7, 0xcf, 0x82,
-            0x21, 0x21, 0xfa, 0xf1, 0xcb, 0xad, 0x9a, 0x01, 0x1b, 0xed, 0x8c, 0x55, 0x1f, 0x6f,
-            0x59, 0xb2, 0xc3, 0x60, 0xf7, 0x9b, 0xfb, 0xe3, 0x2a, 0xdb, 0xca, 0xa0, 0x95, 0x83,
-            0xbd, 0xfd, 0xf7, 0xc3, 0x74, 0xbb,
-        ],
-        signature_r: [
-            0x33, 0xf6, 0x4f, 0xb6, 0x5c, 0xd6, 0xa8, 0x91, 0x85, 0x23, 0xf2, 0x3a, 0xea, 0x0b,
-            0xbc, 0xf5, 0x6b, 0xba, 0x1d, 0xac, 0xa7, 0xaf, 0xf8, 0x17, 0xc8, 0x79, 0x1d, 0xc9,
-            0x24, 0x28, 0xd6, 0x05, 0xac, 0x62, 0x9d, 0xe2, 0xe8, 0x47, 0xd4, 0x3c, 0xee, 0x55,
-            0xba, 0x9e, 0x4a, 0x0e, 0x83, 0xba,
-        ],
-        signature_s: [
-            0x44, 0x28, 0xbb, 0x47, 0x8a, 0x43, 0xac, 0x73, 0xec, 0xd6, 0xde, 0x51, 0xdd, 0xf7,
-            0xc2, 0x8f, 0xf3, 0xc2, 0x44, 0x16, 0x25, 0xa0, 0x81, 0x71, 0x43, 0x37, 0xdd, 0x44,
-            0xfe, 0xa8, 0x01, 0x1b, 0xae, 0x71, 0x95, 0x9a, 0x10, 0x94, 0x7b, 0x6e, 0xa3, 0x3f,
-            0x77, 0xe1, 0x28, 0xd3, 0xc6, 0xae,
-        ],
+        pub_key_x: ECDSA384_PUB_KEY_X,
+        pub_key_y: ECDSA384_PUB_KEY_Y,
+        signature_r: ECDSA384_SIGNATURE_R,
+        signature_s: ECDSA384_SIGNATURE_S,
     });
     payload.populate_chksum().unwrap();
 
@@ -533,8 +549,13 @@ pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_rotate_ctx<T: HwModel>(hw: &mut T) {
+    // Create a simulation context to rotate (the default handle may not be available).
+    let init_resp = execute_dpe_cmd(hw, &mut Command::InitCtx(&InitCtxCmd::new_simulation()));
+    let Response::InitCtx(init_ctx_resp) = init_resp else {
+        panic!("Wrong response type!");
+    };
     let rotate_ctx_cmd = RotateCtxCmd {
-        handle: ContextHandle::default(),
+        handle: init_ctx_resp.handle,
         flags: RotateCtxFlags::empty(),
     };
     let resp = execute_dpe_cmd(hw, &mut Command::RotateCtx(&rotate_ctx_cmd));
@@ -560,8 +581,13 @@ pub fn exec_get_cert_chain<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_destroy_ctx<T: HwModel>(hw: &mut T) {
+    // Create a simulation context to destroy (the default handle may not be available).
+    let init_resp = execute_dpe_cmd(hw, &mut Command::InitCtx(&InitCtxCmd::new_simulation()));
+    let Response::InitCtx(init_ctx_resp) = init_resp else {
+        panic!("Wrong response type!");
+    };
     let destroy_ctx_cmd = DestroyCtxCmd {
-        handle: ContextHandle::default(),
+        handle: init_ctx_resp.handle,
     };
     execute_dpe_cmd(hw, &mut Command::DestroyCtx(&destroy_ctx_cmd));
 }
@@ -593,6 +619,340 @@ pub fn exec_cmd_shutdown<T: HwModel>(hw: &mut T) {
         payload.as_bytes(),
     )
     .unwrap();
+}
+
+pub fn exec_cmd_lms_verify<T: HwModel>(hw: &mut T) {
+    let pub_key = <LmsPublicKey<LMS_N>>::read_from_bytes(&LMS_PUB_KEY).unwrap();
+    let signature = <LmsSignature<LMS_N, LMS_P, LMS_H>>::read_from_bytes(&LMS_SIG).unwrap();
+
+    let mut payload = MailboxReq::LmsVerify(LmsVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pub_key_tree_type: u32::from(pub_key.tree_type.0),
+        pub_key_ots_type: u32::from(pub_key.otstype.0),
+        pub_key_id: pub_key.id,
+        pub_key_digest: (*(pub_key.digest.as_bytes())).try_into().unwrap(),
+        signature_q: u32::from(signature.q),
+        signature_ots: (*(signature.ots.as_bytes())).try_into().unwrap(),
+        signature_tree_type: u32::from(signature.tree_type.0),
+        signature_tree_path: (*(signature.tree_path.as_bytes())).try_into().unwrap(),
+    });
+    payload.populate_chksum().unwrap();
+
+    // Stream message to SHA ACC
+    hw.compute_sha512_acc_digest(&LMS_MSG, ShaAccMode::Sha384Stream)
+        .unwrap();
+
+    mbx_send_and_check_resp_hdr::<_, MailboxRespHeader>(
+        hw,
+        u32::from(CommandId::LMS_VERIFY),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+}
+
+pub fn exec_cmd_add_subject_alt_name<T: HwModel>(hw: &mut T) {
+    let dmtf_device_info_utf8 = "ChipsAlliance:Caliptra:0123456789";
+    let dmtf_device_info_bytes = dmtf_device_info_utf8.as_bytes();
+    let mut dmtf_device_info = [0u8; AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN];
+    dmtf_device_info[..dmtf_device_info_bytes.len()].copy_from_slice(dmtf_device_info_bytes);
+
+    let mut payload = MailboxReq::AddSubjectAltName(AddSubjectAltNameReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        dmtf_device_info_size: dmtf_device_info_bytes.len() as u32,
+        dmtf_device_info,
+    });
+    payload.populate_chksum().unwrap();
+
+    mbx_send_and_check_resp_hdr::<_, MailboxRespHeader>(
+        hw,
+        u32::from(CommandId::ADD_SUBJECT_ALT_NAME),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+}
+
+pub fn exec_cmd_certify_key_extended<T: HwModel>(hw: &mut T) {
+    pub const TEST_LABEL: [u8; 48] = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+
+    let mut payload = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        flags: CertifyKeyExtendedFlags::empty(),
+        certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, CertifyKeyExtendedResp>(
+        hw,
+        u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    assert!(contains_some_data(&resp.certify_key_resp));
+}
+
+const FIPS_TEST_IMAGE_DIGEST: [u8; 48] = [
+    0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3, 0x6A,
+    0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6, 0xE1, 0xDA,
+    0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48, 0x98, 0xB9, 0x5B,
+];
+fn create_auth_manifest_for_fips() -> caliptra_auth_man_types::AuthorizationManifest {
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(caliptra_api::mailbox::ImageHashSource::InRequest as u32);
+
+    let image_metadata_list = vec![AuthManifestImageMetadata {
+        fw_id: 1,
+        flags: flags.0,
+        digest: FIPS_TEST_IMAGE_DIGEST,
+    }];
+
+    let vendor_fw_key_info = Some(AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+        }),
+    });
+
+    let vendor_man_key_info = Some(AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+        }),
+    });
+
+    let owner_fw_key_info = Some(AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+            lms_pub_key: OWNER_LMS_KEY_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+            lms_priv_key: OWNER_LMS_KEY_PRIVATE,
+        }),
+    });
+
+    let owner_man_key_info = Some(AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+            lms_pub_key: OWNER_LMS_KEY_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+            lms_priv_key: OWNER_LMS_KEY_PRIVATE,
+        }),
+    });
+
+    let gen_config = AuthManifestGeneratorConfig {
+        vendor_fw_key_info,
+        vendor_man_key_info,
+        owner_fw_key_info,
+        owner_man_key_info,
+        image_metadata_list,
+        version: 1,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+    };
+
+    let gen = AuthManifestGenerator::new(Crypto::default());
+    gen.generate(&gen_config).unwrap()
+}
+
+pub fn exec_cmd_set_auth_manifest<T: HwModel>(hw: &mut T) {
+    let auth_manifest = create_auth_manifest_for_fips();
+    let buf = auth_manifest.as_bytes();
+    let mut manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut payload = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: manifest_slice,
+    });
+    payload.populate_chksum().unwrap();
+
+    mbx_send_and_check_resp_hdr::<_, MailboxRespHeader>(
+        hw,
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+}
+
+pub fn exec_cmd_authorize_and_stash<T: HwModel>(hw: &mut T) {
+    let mut payload = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: [0x01, 0x00, 0x00, 0x00],
+        measurement: FIPS_TEST_IMAGE_DIGEST,
+        source: ImageHashSource::InRequest as u32,
+        flags: 1, // skip stash (avoid conflicts with other DPE commands)
+        ..Default::default()
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, AuthorizeAndStashResp>(
+        hw,
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(resp.auth_req_result, caliptra_runtime::IMAGE_AUTHORIZED);
+}
+
+pub fn exec_cmd_get_fmc_alias_csr<T: HwModel>(hw: &mut T) {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_FMC_ALIAS_CSR),
+            &[],
+        ),
+    };
+
+    let resp = mbx_send_and_check_resp_hdr::<_, GetFmcAliasCsrResp>(
+        hw,
+        u32::from(CommandId::GET_FMC_ALIAS_CSR),
+        payload.as_bytes(),
+    )
+    .unwrap();
+
+    assert!(resp.data_size > 0);
+    assert!(contains_some_data(&resp.data[..resp.data_size as usize]));
+}
+
+pub fn exec_cmd_get_pcr_log<T: HwModel>(hw: &mut T) {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PCR_LOG), &[]),
+    };
+
+    let resp = mbx_send_and_check_resp_hdr::<_, GetPcrLogResp>(
+        hw,
+        u32::from(CommandId::GET_PCR_LOG),
+        payload.as_bytes(),
+    )
+    .unwrap();
+
+    assert!(resp.data_size > 0);
+    assert!(contains_some_data(&resp.data[..resp.data_size as usize]));
+}
+
+fn derive_context_export_cdi<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdiResp {
+    // Build an INVOKE_DPE request for DeriveContext with EXPORT_CDI | CREATE_CERTIFICATE
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0u8; 48],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let cmd_hdr = CommandHdr::new_for_test(Command::DERIVE_CONTEXT);
+    let mut cmd_data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    let cmd_body_buf = derive_context_cmd.as_bytes();
+    cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + cmd_body_buf.len()]
+        .copy_from_slice(cmd_body_buf);
+
+    let mut payload = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data: cmd_data,
+        data_size: (cmd_hdr_buf.len() + cmd_body_buf.len()) as u32,
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, InvokeDpeResp>(
+        hw,
+        u32::from(CommandId::INVOKE_DPE),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    let resp_bytes = &resp.data[..resp.data_size as usize];
+    DeriveContextExportedCdiResp::read_from_bytes(resp_bytes).unwrap()
+}
+
+pub fn exec_cmd_sign_with_exported_ecdsa<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdiResp {
+    // Derive a context with EXPORT_CDI to get an exported CDI handle
+    let exported_cdi_resp = derive_context_export_cdi(hw);
+
+    let tbs: [u8; 48] = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    ];
+
+    let mut payload = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        exported_cdi_handle: exported_cdi_resp.exported_cdi,
+        tbs,
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, SignWithExportedEcdsaResp>(
+        hw,
+        u32::from(CommandId::SIGN_WITH_EXPORTED_ECDSA),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    assert!(contains_some_data(&resp.derived_pubkey_x));
+    assert!(contains_some_data(&resp.derived_pubkey_y));
+    assert!(contains_some_data(&resp.signature_r));
+    assert!(contains_some_data(&resp.signature_s));
+
+    exported_cdi_resp
+}
+
+pub fn exec_cmd_revoke_exported_cdi_handle<T: HwModel>(
+    hw: &mut T,
+    exported_cdi_resp: DeriveContextExportedCdiResp,
+) {
+    let mut payload = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        exported_cdi_handle: exported_cdi_resp.exported_cdi,
+    });
+    payload.populate_chksum().unwrap();
+
+    mbx_send_and_check_resp_hdr::<_, RevokeExportedCdiHandleResp>(
+        hw,
+        u32::from(CommandId::REVOKE_EXPORTED_CDI_HANDLE),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+}
+
+pub fn exec_cmd_reallocate_dpe_context_limits<T: HwModel>(hw: &mut T) {
+    let mut payload = MailboxReq::ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pl0_context_limit: 16,
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, ReallocateDpeContextLimitsResp>(
+        hw,
+        u32::from(CommandId::REALLOCATE_DPE_CONTEXT_LIMITS),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(resp.new_pl0_context_limit, 16);
+    assert_eq!(resp.new_pl1_context_limit, 16);
 }
 
 #[test]
@@ -640,7 +1000,25 @@ pub fn version_info_update() {
 
 #[test]
 pub fn execute_all_services_rom() {
-    let mut hw = fips_test_init_to_rom(None, None);
+    // Boot with GENERATE_IDEVID_CSR so the CSR is provisioned before reaching ready_for_fw.
+    let mut hw = fips_test_init_to_boot_start(
+        None,
+        Some(BootParams {
+            initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
+            ..fips_default_boot_params()
+        }),
+    );
+
+    // Step until ROM signals the CSR is ready for download.
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
+    // Receive and discard the raw CSR bytes from the mailbox, then acknowledge.
+    let mut txn = hw.wait_for_mailbox_receive().unwrap();
+    let _ = core::mem::take(&mut txn.req.data);
+    txn.respond_success();
+    // Clear the flag so ROM continues to ready_for_fw.
+    hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+    // Wait for ready_for_fw
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
     // SHA accelerator engine
     exec_cmd_sha_acc(&mut hw);
@@ -661,6 +1039,11 @@ pub fn execute_all_services_rom() {
     // STASH MEASUREMENT
     exec_cmd_stash_measurement(&mut hw);
 
+    // GET_IDEV_CSR
+    if RomExpVals::get().supports_get_idev_csr {
+        exec_cmd_get_idev_csr(&mut hw);
+    }
+
     // SHUTDOWN
     // (Do this last)
     exec_cmd_shutdown(&mut hw);
@@ -673,7 +1056,9 @@ pub fn execute_all_services_rt() {
         None,
         Some(BootParams {
             fw_image: Some(&fw_image),
-            ..Default::default()
+            // GENERATE_IDEVID_CSR is needed for GET_IDEV_CSR
+            initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
+            ..fips_default_boot_params()
         }),
     );
 
@@ -697,6 +1082,11 @@ pub fn execute_all_services_rt() {
     // GET_IDEV_CERT
     exec_cmd_get_idev_cert(&mut hw);
 
+    // GET_IDEV_CSR
+    if RtExpVals::get().supports_get_idev_csr {
+        exec_cmd_get_idev_csr(&mut hw);
+    }
+
     // GET_IDEV_INFO
     exec_cmd_get_idev_info(&mut hw);
 
@@ -714,6 +1104,11 @@ pub fn execute_all_services_rt() {
 
     // ECDSA384_VERIFY
     exec_cmd_ecdsa_verify(&mut hw);
+
+    // LMS_VERIFY
+    if RtExpVals::get().supports_lms_verify {
+        exec_cmd_lms_verify(&mut hw);
+    }
 
     // STASH_MEASUREMENT
     exec_cmd_stash_measurement(&mut hw);
@@ -736,15 +1131,55 @@ pub fn execute_all_services_rt() {
     // EXTEND_PCR
     exec_cmd_extend_pcr(&mut hw);
 
+    // GET_PCR_LOG
+    if RtExpVals::get().supports_get_pcr_log {
+        exec_cmd_get_pcr_log(&mut hw);
+    }
+
     // INVOKE_DPE
     exec_dpe_get_profile(&mut hw);
     exec_dpe_init_ctx(&mut hw);
     exec_dpe_derive_ctx(&mut hw);
     exec_dpe_certify_key(&mut hw);
     exec_dpe_sign(&mut hw);
-    exec_rotate_ctx(&mut hw);
     exec_get_cert_chain(&mut hw);
+    exec_rotate_ctx(&mut hw);
     exec_destroy_ctx(&mut hw);
+
+    // ADD_SUBJECT_ALT_NAME
+    if RtExpVals::get().supports_add_subject_alt_name {
+        exec_cmd_add_subject_alt_name(&mut hw);
+    }
+
+    // CERTIFY_KEY_EXTENDED (must use default handle)
+    if RtExpVals::get().supports_certify_key_extended {
+        exec_cmd_certify_key_extended(&mut hw);
+    }
+
+    // SIGN_WITH_EXPORTED_ECDSA + REVOKE_EXPORTED_CDI_HANDLE
+    // (derive_context_export_cdi uses default handle with EXPORT_CDI, which consumes it)
+    if RtExpVals::get().supports_sign_with_exported_ecdsa {
+        let exported_cdi_resp = exec_cmd_sign_with_exported_ecdsa(&mut hw);
+        if RtExpVals::get().supports_revoke_exported_cdi_handle {
+            exec_cmd_revoke_exported_cdi_handle(&mut hw, exported_cdi_resp);
+        }
+    }
+
+    // SET_AUTH_MANIFEST
+    if RtExpVals::get().supports_auth_manifest {
+        exec_cmd_set_auth_manifest(&mut hw);
+        exec_cmd_authorize_and_stash(&mut hw);
+    }
+
+    // GET_FMC_ALIAS_CSR
+    if RtExpVals::get().supports_get_fmc_alias_csr {
+        exec_cmd_get_fmc_alias_csr(&mut hw);
+    }
+
+    // REALLOCATE_DPE_CONTEXT_LIMITS
+    if RtExpVals::get().supports_reallocate_dpe_context_limits {
+        exec_cmd_reallocate_dpe_context_limits(&mut hw);
+    }
 
     // (Do these last)
     // DISABLE_ATTESTATION
@@ -774,7 +1209,7 @@ pub fn zeroize_halt_check_no_output() {
             fw_image: Some(&fw_image),
             initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
                 << HOOK_CODE_OFFSET,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
 

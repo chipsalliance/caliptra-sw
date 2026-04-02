@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 mod common;
+mod crypto_verify_vectors;
 mod fw_load;
 #[cfg(feature = "fpga_realtime")]
 mod jtag_locked;
