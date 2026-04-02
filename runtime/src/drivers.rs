@@ -50,6 +50,7 @@ use caliptra_registers::{
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
     sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
+use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::dpe_instance::DpeInstanceFlags;
@@ -61,7 +62,6 @@ use dpe::{
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
 };
-use ureg::MmioMut;
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::CryptoBuf;

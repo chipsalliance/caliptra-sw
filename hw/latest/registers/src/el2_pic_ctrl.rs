@@ -27,7 +27,7 @@ impl El2PicCtrl {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl El2PicCtrl {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl El2PicCtrl {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -84,9 +84,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn meipl(
         &self,
-    ) -> ureg::Array<256, ureg::RegRef<crate::el2_pic_ctrl::meta::Meipl, &TMmio>> {
+    ) -> caliptra_ureg::Array<256, caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Meipl, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -101,9 +102,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`el2_pic_ctrl::regs::MeipReadVal`]; Write value: [`el2_pic_ctrl::regs::MeipWriteVal`]
     #[inline(always)]
-    pub fn meip(&self) -> ureg::Array<256, ureg::RegRef<crate::el2_pic_ctrl::meta::Meip, &TMmio>> {
+    pub fn meip(
+        &self,
+    ) -> caliptra_ureg::Array<256, caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Meip, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x1000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -116,9 +120,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`el2_pic_ctrl::regs::MeieReadVal`]; Write value: [`el2_pic_ctrl::regs::MeieWriteVal`]
     #[inline(always)]
-    pub fn meie(&self) -> ureg::Array<256, ureg::RegRef<crate::el2_pic_ctrl::meta::Meie, &TMmio>> {
+    pub fn meie(
+        &self,
+    ) -> caliptra_ureg::Array<256, caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Meie, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x2000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -129,9 +136,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`el2_pic_ctrl::regs::MpiccfgReadVal`]; Write value: [`el2_pic_ctrl::regs::MpiccfgWriteVal`]
     #[inline(always)]
-    pub fn mpiccfg(&self) -> ureg::RegRef<crate::el2_pic_ctrl::meta::Mpiccfg, &TMmio> {
+    pub fn mpiccfg(&self) -> caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Mpiccfg, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -147,9 +154,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn meigwctrl(
         &self,
-    ) -> ureg::Array<256, ureg::RegRef<crate::el2_pic_ctrl::meta::Meigwctrl, &TMmio>> {
+    ) -> caliptra_ureg::Array<
+        256,
+        caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Meigwctrl, &TMmio>,
+    > {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x4000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -165,9 +175,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn meigwclr(
         &self,
-    ) -> ureg::Array<256, ureg::RegRef<crate::el2_pic_ctrl::meta::Meigwclr, &TMmio>> {
+    ) -> caliptra_ureg::Array<256, caliptra_ureg::RegRef<crate::el2_pic_ctrl::meta::Meigwclr, &TMmio>>
+    {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x5000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -414,26 +425,26 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type Meipl = ureg::ReadWriteReg32<
+    pub type Meipl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::el2_pic_ctrl::regs::MeiplReadVal,
         crate::el2_pic_ctrl::regs::MeiplWriteVal,
     >;
-    pub type Meip = ureg::ReadOnlyReg32<crate::el2_pic_ctrl::regs::MeipReadVal>;
-    pub type Meie = ureg::ReadWriteReg32<
+    pub type Meip = caliptra_ureg::ReadOnlyReg32<crate::el2_pic_ctrl::regs::MeipReadVal>;
+    pub type Meie = caliptra_ureg::ReadWriteReg32<
         0,
         crate::el2_pic_ctrl::regs::MeieReadVal,
         crate::el2_pic_ctrl::regs::MeieWriteVal,
     >;
-    pub type Mpiccfg = ureg::ReadWriteReg32<
+    pub type Mpiccfg = caliptra_ureg::ReadWriteReg32<
         0,
         crate::el2_pic_ctrl::regs::MpiccfgReadVal,
         crate::el2_pic_ctrl::regs::MpiccfgWriteVal,
     >;
-    pub type Meigwctrl = ureg::ReadWriteReg32<
+    pub type Meigwctrl = caliptra_ureg::ReadWriteReg32<
         0,
         crate::el2_pic_ctrl::regs::MeigwctrlReadVal,
         crate::el2_pic_ctrl::regs::MeigwctrlWriteVal,
     >;
-    pub type Meigwclr = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Meigwclr = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
 }

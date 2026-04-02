@@ -27,7 +27,7 @@ impl OtpCtrl {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl OtpCtrl {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl OtpCtrl {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -75,9 +75,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::InterruptStateReadVal`]; Write value: [`otp_ctrl::regs::InterruptStateWriteVal`]
     #[inline(always)]
-    pub fn interrupt_state(&self) -> ureg::RegRef<crate::otp_ctrl::meta::InterruptState, &TMmio> {
+    pub fn interrupt_state(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::InterruptState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -85,9 +87,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::InterruptEnableReadVal`]; Write value: [`otp_ctrl::regs::InterruptEnableWriteVal`]
     #[inline(always)]
-    pub fn interrupt_enable(&self) -> ureg::RegRef<crate::otp_ctrl::meta::InterruptEnable, &TMmio> {
+    pub fn interrupt_enable(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::InterruptEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -95,9 +99,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::InterruptTestReadVal`]; Write value: [`otp_ctrl::regs::InterruptTestWriteVal`]
     #[inline(always)]
-    pub fn interrupt_test(&self) -> ureg::RegRef<crate::otp_ctrl::meta::InterruptTest, &TMmio> {
+    pub fn interrupt_test(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::InterruptTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -105,9 +111,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::AlertTestReadVal`]; Write value: [`otp_ctrl::regs::AlertTestWriteVal`]
     #[inline(always)]
-    pub fn alert_test(&self) -> ureg::RegRef<crate::otp_ctrl::meta::AlertTest, &TMmio> {
+    pub fn alert_test(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::AlertTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -115,9 +121,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::StatusReadVal`]; Write value: [`otp_ctrl::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -129,9 +135,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_regwen(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessRegwen, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DirectAccessRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -143,9 +149,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_cmd(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessCmd, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DirectAccessCmd, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -157,9 +163,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_address(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DirectAccessAddress, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DirectAccessAddress, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -171,9 +177,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn check_trigger_regwen(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTriggerRegwen, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::CheckTriggerRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -183,9 +189,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::CheckTriggerReadVal`]; Write value: [`otp_ctrl::regs::CheckTriggerWriteVal`]
     #[inline(always)]
-    pub fn check_trigger(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTrigger, &TMmio> {
+    pub fn check_trigger(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::CheckTrigger, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -195,9 +203,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::CheckRegwenReadVal`]; Write value: [`otp_ctrl::regs::CheckRegwenWriteVal`]
     #[inline(always)]
-    pub fn check_regwen(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckRegwen, &TMmio> {
+    pub fn check_regwen(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::CheckRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -207,9 +217,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn check_timeout(&self) -> ureg::RegRef<crate::otp_ctrl::meta::CheckTimeout, &TMmio> {
+    pub fn check_timeout(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::CheckTimeout, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -221,9 +233,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn integrity_check_period(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::IntegrityCheckPeriod, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::IntegrityCheckPeriod, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -235,9 +247,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn consistency_check_period(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::ConsistencyCheckPeriod, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ConsistencyCheckPeriod, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x8c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -249,9 +261,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn sw_manuf_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionReadLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x90 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -263,9 +275,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn svn_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SvnPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SvnPartitionReadLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x94 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -277,9 +289,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_test_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionReadLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -291,9 +303,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_hashes_manuf_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionReadLock, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x9c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -305,9 +318,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_hashes_prod_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionReadLock, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -319,9 +333,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_revocations_prod_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorRevocationsProdPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorRevocationsProdPartitionReadLock, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -333,9 +348,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_non_secret_prod_partition_read_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorNonSecretProdPartitionReadLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorNonSecretProdPartitionReadLock, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -347,9 +363,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn vendor_pk_hash_volatile_lock(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorPkHashVolatileLock, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorPkHashVolatileLock, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xac / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -357,9 +373,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr0ReadVal`]; Write value: [`otp_ctrl::regs::Csr0WriteVal`]
     #[inline(always)]
-    pub fn csr0(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr0, &TMmio> {
+    pub fn csr0(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x120 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -367,9 +383,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr1ReadVal`]; Write value: [`otp_ctrl::regs::Csr1WriteVal`]
     #[inline(always)]
-    pub fn csr1(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr1, &TMmio> {
+    pub fn csr1(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x124 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -377,9 +393,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr2ReadVal`]; Write value: [`otp_ctrl::regs::Csr2WriteVal`]
     #[inline(always)]
-    pub fn csr2(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr2, &TMmio> {
+    pub fn csr2(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x128 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -387,9 +403,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr3ReadVal`]; Write value: [`otp_ctrl::regs::Csr3WriteVal`]
     #[inline(always)]
-    pub fn csr3(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr3, &TMmio> {
+    pub fn csr3(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x12c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -397,9 +413,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr4ReadVal`]; Write value: [`otp_ctrl::regs::Csr4WriteVal`]
     #[inline(always)]
-    pub fn csr4(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr4, &TMmio> {
+    pub fn csr4(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr4, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x130 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -407,9 +423,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr5ReadVal`]; Write value: [`otp_ctrl::regs::Csr5WriteVal`]
     #[inline(always)]
-    pub fn csr5(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr5, &TMmio> {
+    pub fn csr5(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr5, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x134 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -417,9 +433,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr6ReadVal`]; Write value: [`otp_ctrl::regs::Csr6WriteVal`]
     #[inline(always)]
-    pub fn csr6(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr6, &TMmio> {
+    pub fn csr6(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr6, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x138 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -427,9 +443,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`otp_ctrl::regs::Csr7ReadVal`]; Write value: [`otp_ctrl::regs::Csr7WriteVal`]
     #[inline(always)]
-    pub fn csr7(&self) -> ureg::RegRef<crate::otp_ctrl::meta::Csr7, &TMmio> {
+    pub fn csr7(&self) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::Csr7, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x13c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -570,11 +586,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct ErrCodeRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct ErrCodeRfBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> ErrCodeRfBlock<TMmio> {
     /// This register holds information about error conditions that occurred in the agents
     /// interacting with the OTP macr via the internal bus. The error codes should be checked
     /// if the partitions, DAI or LCI flag an error in the !!STATUS register, or when an
@@ -584,9 +600,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_0(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode0, &TMmio> {
+    pub fn err_code_0(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -601,9 +619,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_1(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode1, &TMmio> {
+    pub fn err_code_1(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -618,9 +638,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_2(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode2, &TMmio> {
+    pub fn err_code_2(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode2, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -635,9 +657,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_3(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode3, &TMmio> {
+    pub fn err_code_3(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode3, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -652,9 +676,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_4(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode4, &TMmio> {
+    pub fn err_code_4(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode4, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -669,9 +695,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_5(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode5, &TMmio> {
+    pub fn err_code_5(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode5, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -686,9 +714,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_6(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode6, &TMmio> {
+    pub fn err_code_6(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode6, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -703,9 +733,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_7(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode7, &TMmio> {
+    pub fn err_code_7(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode7, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -720,9 +752,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_8(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode8, &TMmio> {
+    pub fn err_code_8(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode8, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -737,9 +771,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_9(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode9, &TMmio> {
+    pub fn err_code_9(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode9, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -754,9 +790,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_10(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode10, &TMmio> {
+    pub fn err_code_10(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode10, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -771,9 +809,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_11(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode11, &TMmio> {
+    pub fn err_code_11(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode11, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -788,9 +828,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_12(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode12, &TMmio> {
+    pub fn err_code_12(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode12, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -805,9 +847,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_13(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode13, &TMmio> {
+    pub fn err_code_13(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode13, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -822,9 +866,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_14(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode14, &TMmio> {
+    pub fn err_code_14(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode14, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -839,9 +885,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_15(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode15, &TMmio> {
+    pub fn err_code_15(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode15, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -856,9 +904,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_16(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode16, &TMmio> {
+    pub fn err_code_16(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode16, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -873,9 +923,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     ///
     /// Read value: [`otp_ctrl::regs::ErrCodeRegTReadVal`]; Write value: [`otp_ctrl::regs::ErrCodeRegTWriteVal`]
     #[inline(always)]
-    pub fn err_code_17(&self) -> ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode17, &TMmio> {
+    pub fn err_code_17(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::ErrCodeRfErrCode17, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -883,11 +935,11 @@ impl<TMmio: ureg::Mmio> ErrCodeRfBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct DaiWdataRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct DaiWdataRfBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> DaiWdataRfBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> DaiWdataRfBlock<TMmio> {
     /// Write data for direct accesses.
     /// Hardware automatically determines the access granule (32bit or 64bit) based on which
     /// partition is being written to.
@@ -896,9 +948,9 @@ impl<TMmio: ureg::Mmio> DaiWdataRfBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_wdata_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DaiWdataRfDirectAccessWdata0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DaiWdataRfDirectAccessWdata0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -912,9 +964,9 @@ impl<TMmio: ureg::Mmio> DaiWdataRfBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_wdata_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DaiWdataRfDirectAccessWdata1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DaiWdataRfDirectAccessWdata1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -922,11 +974,11 @@ impl<TMmio: ureg::Mmio> DaiWdataRfBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct DaiRdataRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct DaiRdataRfBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> DaiRdataRfBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> DaiRdataRfBlock<TMmio> {
     /// Read data for direct accesses.
     /// Hardware automatically determines the access granule (32bit or 64bit) based on which
     /// partition is read from.
@@ -935,9 +987,9 @@ impl<TMmio: ureg::Mmio> DaiRdataRfBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_rdata_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DaiRdataRfDirectAccessRdata0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DaiRdataRfDirectAccessRdata0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -951,9 +1003,9 @@ impl<TMmio: ureg::Mmio> DaiRdataRfBlock<TMmio> {
     #[inline(always)]
     pub fn direct_access_rdata_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::DaiRdataRfDirectAccessRdata1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::DaiRdataRfDirectAccessRdata1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -961,11 +1013,13 @@ impl<TMmio: ureg::Mmio> DaiRdataRfBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretTestUnlockPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretTestUnlockPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -975,9 +1029,10 @@ impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -992,9 +1047,10 @@ impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretTestUnlockPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1002,11 +1058,12 @@ impl<TMmio: ureg::Mmio> SecretTestUnlockPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretManufPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretManufPartitionDigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretManufPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretManufPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1016,9 +1073,10 @@ impl<TMmio: ureg::Mmio> SecretManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretManufPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretManufPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1033,9 +1091,10 @@ impl<TMmio: ureg::Mmio> SecretManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretManufPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretManufPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1043,11 +1102,12 @@ impl<TMmio: ureg::Mmio> SecretManufPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretProdPartition0DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretProdPartition0DigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretProdPartition0DigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretProdPartition0DigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1057,9 +1117,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition0DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition0DigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition0DigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1074,9 +1135,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition0DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition0DigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition0DigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1084,11 +1146,12 @@ impl<TMmio: ureg::Mmio> SecretProdPartition0DigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretProdPartition1DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretProdPartition1DigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretProdPartition1DigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretProdPartition1DigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1098,9 +1161,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition1DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition1DigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition1DigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1115,9 +1179,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition1DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition1DigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition1DigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1125,11 +1190,12 @@ impl<TMmio: ureg::Mmio> SecretProdPartition1DigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretProdPartition2DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretProdPartition2DigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretProdPartition2DigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretProdPartition2DigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1139,9 +1205,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition2DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition2DigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition2DigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1156,9 +1223,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition2DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition2DigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition2DigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1166,11 +1234,12 @@ impl<TMmio: ureg::Mmio> SecretProdPartition2DigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretProdPartition3DigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretProdPartition3DigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretProdPartition3DigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretProdPartition3DigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1180,9 +1249,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition3DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition3DigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition3DigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1197,9 +1267,10 @@ impl<TMmio: ureg::Mmio> SecretProdPartition3DigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition3DigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SecretProdPartition3DigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1207,11 +1278,11 @@ impl<TMmio: ureg::Mmio> SecretProdPartition3DigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SwManufPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SwManufPartitionDigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SwManufPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SwManufPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1221,9 +1292,9 @@ impl<TMmio: ureg::Mmio> SwManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionDigestDigest0, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1238,9 +1309,9 @@ impl<TMmio: ureg::Mmio> SwManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::SwManufPartitionDigestDigest1, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1248,11 +1319,13 @@ impl<TMmio: ureg::Mmio> SwManufPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct SecretLcTransitionPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct SecretLcTransitionPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> SecretLcTransitionPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> SecretLcTransitionPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1262,9 +1335,12 @@ impl<TMmio: ureg::Mmio> SecretLcTransitionPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretLcTransitionPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::SecretLcTransitionPartitionDigestDigest0,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1279,9 +1355,12 @@ impl<TMmio: ureg::Mmio> SecretLcTransitionPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::SecretLcTransitionPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::SecretLcTransitionPartitionDigestDigest1,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1289,11 +1368,12 @@ impl<TMmio: ureg::Mmio> SecretLcTransitionPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct VendorTestPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct VendorTestPartitionDigestBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>>
+{
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorTestPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorTestPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1303,9 +1383,10 @@ impl<TMmio: ureg::Mmio> VendorTestPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1320,9 +1401,10 @@ impl<TMmio: ureg::Mmio> VendorTestPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorTestPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1330,11 +1412,13 @@ impl<TMmio: ureg::Mmio> VendorTestPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct VendorHashesManufPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct VendorHashesManufPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorHashesManufPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorHashesManufPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1344,9 +1428,10 @@ impl<TMmio: ureg::Mmio> VendorHashesManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1361,9 +1446,10 @@ impl<TMmio: ureg::Mmio> VendorHashesManufPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesManufPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1371,11 +1457,13 @@ impl<TMmio: ureg::Mmio> VendorHashesManufPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct VendorHashesProdPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct VendorHashesProdPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorHashesProdPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorHashesProdPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1385,9 +1473,10 @@ impl<TMmio: ureg::Mmio> VendorHashesProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1402,9 +1491,10 @@ impl<TMmio: ureg::Mmio> VendorHashesProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorHashesProdPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1413,12 +1503,12 @@ impl<TMmio: ureg::Mmio> VendorHashesProdPartitionDigestBlock<TMmio> {
 }
 #[derive(Clone, Copy)]
 pub struct VendorRevocationsProdPartitionDigestBlock<
-    TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>,
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
 > {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorRevocationsProdPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorRevocationsProdPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1428,10 +1518,12 @@ impl<TMmio: ureg::Mmio> VendorRevocationsProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorRevocationsProdPartitionDigestDigest0, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::VendorRevocationsProdPartitionDigestDigest0,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1446,10 +1538,12 @@ impl<TMmio: ureg::Mmio> VendorRevocationsProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorRevocationsProdPartitionDigestDigest1, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::VendorRevocationsProdPartitionDigestDigest1,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1457,11 +1551,13 @@ impl<TMmio: ureg::Mmio> VendorRevocationsProdPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct VendorSecretProdPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct VendorSecretProdPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorSecretProdPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorSecretProdPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1471,9 +1567,10 @@ impl<TMmio: ureg::Mmio> VendorSecretProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorSecretProdPartitionDigestDigest0, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorSecretProdPartitionDigestDigest0, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1488,9 +1585,10 @@ impl<TMmio: ureg::Mmio> VendorSecretProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorSecretProdPartitionDigestDigest1, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::otp_ctrl::meta::VendorSecretProdPartitionDigestDigest1, &TMmio>
+    {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1498,12 +1596,13 @@ impl<TMmio: ureg::Mmio> VendorSecretProdPartitionDigestBlock<TMmio> {
     }
 }
 #[derive(Clone, Copy)]
-pub struct VendorNonSecretProdPartitionDigestBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>
-{
+pub struct VendorNonSecretProdPartitionDigestBlock<
+    TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>,
+> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio> VendorNonSecretProdPartitionDigestBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> VendorNonSecretProdPartitionDigestBlock<TMmio> {
     /// Integrity digest for partition.
     /// The integrity digest is 0 by default. Software must write this
     /// digest value via the direct access interface in order to lock the partition.
@@ -1513,10 +1612,12 @@ impl<TMmio: ureg::Mmio> VendorNonSecretProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_0(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorNonSecretProdPartitionDigestDigest0, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::VendorNonSecretProdPartitionDigestDigest0,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1531,10 +1632,12 @@ impl<TMmio: ureg::Mmio> VendorNonSecretProdPartitionDigestBlock<TMmio> {
     #[inline(always)]
     pub fn digest_1(
         &self,
-    ) -> ureg::RegRef<crate::otp_ctrl::meta::VendorNonSecretProdPartitionDigestDigest1, &TMmio>
-    {
+    ) -> caliptra_ureg::RegRef<
+        crate::otp_ctrl::meta::VendorNonSecretProdPartitionDigestDigest1,
+        &TMmio,
+    > {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1564,7 +1667,7 @@ impl ErrCodeRf {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1573,7 +1676,7 @@ impl ErrCodeRf {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1603,7 +1706,7 @@ impl DaiWdataRf {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1612,7 +1715,7 @@ impl DaiWdataRf {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1642,7 +1745,7 @@ impl DaiRdataRf {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1651,7 +1754,7 @@ impl DaiRdataRf {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1681,7 +1784,7 @@ impl SecretTestUnlockPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1690,7 +1793,7 @@ impl SecretTestUnlockPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1720,7 +1823,7 @@ impl SecretManufPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1729,7 +1832,7 @@ impl SecretManufPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1759,7 +1862,7 @@ impl SecretProdPartition0Digest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1768,7 +1871,7 @@ impl SecretProdPartition0Digest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1798,7 +1901,7 @@ impl SecretProdPartition1Digest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1807,7 +1910,7 @@ impl SecretProdPartition1Digest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1837,7 +1940,7 @@ impl SecretProdPartition2Digest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1846,7 +1949,7 @@ impl SecretProdPartition2Digest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1876,7 +1979,7 @@ impl SecretProdPartition3Digest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1885,7 +1988,7 @@ impl SecretProdPartition3Digest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1915,7 +2018,7 @@ impl SwManufPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1924,7 +2027,7 @@ impl SwManufPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1954,7 +2057,7 @@ impl SecretLcTransitionPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1963,7 +2066,7 @@ impl SecretLcTransitionPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -1993,7 +2096,7 @@ impl VendorTestPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2002,7 +2105,7 @@ impl VendorTestPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2032,7 +2135,7 @@ impl VendorHashesManufPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2041,7 +2144,7 @@ impl VendorHashesManufPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2071,7 +2174,7 @@ impl VendorHashesProdPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2080,7 +2183,7 @@ impl VendorHashesProdPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2110,7 +2213,7 @@ impl VendorRevocationsProdPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2119,7 +2222,7 @@ impl VendorRevocationsProdPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2149,7 +2252,7 @@ impl VendorSecretProdPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2158,7 +2261,7 @@ impl VendorSecretProdPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2188,7 +2291,7 @@ impl VendorNonSecretProdPartitionDigest {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2197,7 +2300,7 @@ impl VendorNonSecretProdPartitionDigest {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -3634,161 +3737,182 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type InterruptState = ureg::ReadWriteReg32<
+    pub type InterruptState = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::InterruptStateReadVal,
         crate::otp_ctrl::regs::InterruptStateWriteVal,
     >;
-    pub type InterruptEnable = ureg::ReadWriteReg32<
+    pub type InterruptEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::InterruptEnableReadVal,
         crate::otp_ctrl::regs::InterruptEnableWriteVal,
     >;
-    pub type InterruptTest = ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::InterruptTestWriteVal>;
-    pub type AlertTest = ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::AlertTestWriteVal>;
-    pub type Status = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::StatusReadVal>;
-    pub type DirectAccessRegwen = ureg::ReadWriteReg32<
+    pub type InterruptTest =
+        caliptra_ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::InterruptTestWriteVal>;
+    pub type AlertTest = caliptra_ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::AlertTestWriteVal>;
+    pub type Status = caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::StatusReadVal>;
+    pub type DirectAccessRegwen = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::DirectAccessRegwenReadVal,
         crate::otp_ctrl::regs::DirectAccessRegwenWriteVal,
     >;
     pub type DirectAccessCmd =
-        ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::DirectAccessCmdWriteVal>;
-    pub type DirectAccessAddress = ureg::ReadWriteReg32<
+        caliptra_ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::DirectAccessCmdWriteVal>;
+    pub type DirectAccessAddress = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::DirectAccessAddressReadVal,
         crate::otp_ctrl::regs::DirectAccessAddressWriteVal,
     >;
-    pub type CheckTriggerRegwen = ureg::ReadWriteReg32<
+    pub type CheckTriggerRegwen = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::CheckTriggerRegwenReadVal,
         crate::otp_ctrl::regs::CheckTriggerRegwenWriteVal,
     >;
-    pub type CheckTrigger = ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::CheckTriggerWriteVal>;
-    pub type CheckRegwen = ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::CheckRegwenWriteVal>;
-    pub type CheckTimeout = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntegrityCheckPeriod = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type ConsistencyCheckPeriod = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type SwManufPartitionReadLock = ureg::ReadWriteReg32<
+    pub type CheckTrigger =
+        caliptra_ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::CheckTriggerWriteVal>;
+    pub type CheckRegwen =
+        caliptra_ureg::WriteOnlyReg32<0, crate::otp_ctrl::regs::CheckRegwenWriteVal>;
+    pub type CheckTimeout = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntegrityCheckPeriod = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type ConsistencyCheckPeriod = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SwManufPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::SwManufPartitionReadLockReadVal,
         crate::otp_ctrl::regs::SwManufPartitionReadLockWriteVal,
     >;
-    pub type SvnPartitionReadLock = ureg::ReadWriteReg32<
+    pub type SvnPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::SvnPartitionReadLockReadVal,
         crate::otp_ctrl::regs::SvnPartitionReadLockWriteVal,
     >;
-    pub type VendorTestPartitionReadLock = ureg::ReadWriteReg32<
+    pub type VendorTestPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::VendorTestPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorTestPartitionReadLockWriteVal,
     >;
-    pub type VendorHashesManufPartitionReadLock = ureg::ReadWriteReg32<
+    pub type VendorHashesManufPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::VendorHashesManufPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorHashesManufPartitionReadLockWriteVal,
     >;
-    pub type VendorHashesProdPartitionReadLock = ureg::ReadWriteReg32<
+    pub type VendorHashesProdPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::VendorHashesProdPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorHashesProdPartitionReadLockWriteVal,
     >;
-    pub type VendorRevocationsProdPartitionReadLock = ureg::ReadWriteReg32<
+    pub type VendorRevocationsProdPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::VendorRevocationsProdPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorRevocationsProdPartitionReadLockWriteVal,
     >;
-    pub type VendorNonSecretProdPartitionReadLock = ureg::ReadWriteReg32<
+    pub type VendorNonSecretProdPartitionReadLock = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::VendorNonSecretProdPartitionReadLockReadVal,
         crate::otp_ctrl::regs::VendorNonSecretProdPartitionReadLockWriteVal,
     >;
-    pub type VendorPkHashVolatileLock = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Csr0 = ureg::ReadWriteReg32<
+    pub type VendorPkHashVolatileLock = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Csr0 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr0ReadVal,
         crate::otp_ctrl::regs::Csr0WriteVal,
     >;
-    pub type Csr1 = ureg::ReadWriteReg32<
+    pub type Csr1 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr1ReadVal,
         crate::otp_ctrl::regs::Csr1WriteVal,
     >;
-    pub type Csr2 = ureg::ReadWriteReg32<
+    pub type Csr2 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr2ReadVal,
         crate::otp_ctrl::regs::Csr2WriteVal,
     >;
-    pub type Csr3 = ureg::ReadWriteReg32<
+    pub type Csr3 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr3ReadVal,
         crate::otp_ctrl::regs::Csr3WriteVal,
     >;
-    pub type Csr4 = ureg::ReadWriteReg32<
+    pub type Csr4 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr4ReadVal,
         crate::otp_ctrl::regs::Csr4WriteVal,
     >;
-    pub type Csr5 = ureg::ReadWriteReg32<
+    pub type Csr5 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr5ReadVal,
         crate::otp_ctrl::regs::Csr5WriteVal,
     >;
-    pub type Csr6 = ureg::ReadWriteReg32<
+    pub type Csr6 = caliptra_ureg::ReadWriteReg32<
         0,
         crate::otp_ctrl::regs::Csr6ReadVal,
         crate::otp_ctrl::regs::Csr6WriteVal,
     >;
-    pub type Csr7 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::Csr7ReadVal>;
-    pub type ErrCodeRfErrCode0 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode1 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode2 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode3 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode4 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode5 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode6 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode7 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode8 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode9 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode10 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode11 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode12 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode13 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode14 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode15 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode16 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type ErrCodeRfErrCode17 = ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type DaiWdataRfDirectAccessWdata0 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type DaiWdataRfDirectAccessWdata1 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type DaiRdataRfDirectAccessRdata0 = ureg::ReadOnlyReg32<u32>;
-    pub type DaiRdataRfDirectAccessRdata1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretTestUnlockPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretTestUnlockPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretManufPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretManufPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition0DigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition0DigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition1DigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition1DigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition2DigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition2DigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition3DigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretProdPartition3DigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SwManufPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SwManufPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretLcTransitionPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type SecretLcTransitionPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorTestPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorTestPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorHashesManufPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorHashesManufPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorHashesProdPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorHashesProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorRevocationsProdPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorRevocationsProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorSecretProdPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorSecretProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorNonSecretProdPartitionDigestDigest0 = ureg::ReadOnlyReg32<u32>;
-    pub type VendorNonSecretProdPartitionDigestDigest1 = ureg::ReadOnlyReg32<u32>;
+    pub type Csr7 = caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::Csr7ReadVal>;
+    pub type ErrCodeRfErrCode0 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode1 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode2 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode3 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode4 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode5 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode6 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode7 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode8 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode9 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode10 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode11 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode12 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode13 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode14 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode15 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode16 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type ErrCodeRfErrCode17 =
+        caliptra_ureg::ReadOnlyReg32<crate::otp_ctrl::regs::ErrCodeRegTReadVal>;
+    pub type DaiWdataRfDirectAccessWdata0 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type DaiWdataRfDirectAccessWdata1 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type DaiRdataRfDirectAccessRdata0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type DaiRdataRfDirectAccessRdata1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretTestUnlockPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretTestUnlockPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretManufPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretManufPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition0DigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition0DigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition1DigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition1DigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition2DigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition2DigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition3DigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretProdPartition3DigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SwManufPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SwManufPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretLcTransitionPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type SecretLcTransitionPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorTestPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorTestPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorHashesManufPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorHashesManufPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorHashesProdPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorHashesProdPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorRevocationsProdPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorRevocationsProdPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorSecretProdPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorSecretProdPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorNonSecretProdPartitionDigestDigest0 = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type VendorNonSecretProdPartitionDigestDigest1 = caliptra_ureg::ReadOnlyReg32<u32>;
 }

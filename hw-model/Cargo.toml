@@ -42,7 +42,7 @@ sha3.workspace = true
 smlang.workspace = true
 thiserror.workspace = true
 uio = { workspace = true, optional = true }
-ureg.workspace = true
+caliptra-ureg.workspace = true
 zerocopy.workspace = true
 nix.workspace = true
 libc.workspace = true

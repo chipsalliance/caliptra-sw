@@ -27,7 +27,7 @@ impl AesReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl AesReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl AesReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -75,9 +75,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn key_share0(&self) -> ureg::Array<8, ureg::RegRef<crate::aes::meta::KeyShare0, &TMmio>> {
+    pub fn key_share0(
+        &self,
+    ) -> caliptra_ureg::Array<8, caliptra_ureg::RegRef<crate::aes::meta::KeyShare0, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -85,9 +87,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn key_share1(&self) -> ureg::Array<8, ureg::RegRef<crate::aes::meta::KeyShare1, &TMmio>> {
+    pub fn key_share1(
+        &self,
+    ) -> caliptra_ureg::Array<8, caliptra_ureg::RegRef<crate::aes::meta::KeyShare1, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -95,9 +99,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn iv(&self) -> ureg::Array<4, ureg::RegRef<crate::aes::meta::Iv, &TMmio>> {
+    pub fn iv(
+        &self,
+    ) -> caliptra_ureg::Array<4, caliptra_ureg::RegRef<crate::aes::meta::Iv, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -105,9 +111,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn data_in(&self) -> ureg::Array<4, ureg::RegRef<crate::aes::meta::DataIn, &TMmio>> {
+    pub fn data_in(
+        &self,
+    ) -> caliptra_ureg::Array<4, caliptra_ureg::RegRef<crate::aes::meta::DataIn, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -115,9 +123,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn data_out(&self) -> ureg::Array<4, ureg::RegRef<crate::aes::meta::DataOut, &TMmio>> {
+    pub fn data_out(
+        &self,
+    ) -> caliptra_ureg::Array<4, caliptra_ureg::RegRef<crate::aes::meta::DataOut, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -125,9 +135,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::CtrlShadowedReadVal`]; Write value: [`aes::regs::CtrlShadowedWriteVal`]
     #[inline(always)]
-    pub fn ctrl_shadowed(&self) -> ureg::RegRef<crate::aes::meta::CtrlShadowed, &TMmio> {
+    pub fn ctrl_shadowed(&self) -> caliptra_ureg::RegRef<crate::aes::meta::CtrlShadowed, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x74 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -135,9 +145,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::CtrlAuxShadowedReadVal`]; Write value: [`aes::regs::CtrlAuxShadowedWriteVal`]
     #[inline(always)]
-    pub fn ctrl_aux_shadowed(&self) -> ureg::RegRef<crate::aes::meta::CtrlAuxShadowed, &TMmio> {
+    pub fn ctrl_aux_shadowed(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::aes::meta::CtrlAuxShadowed, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -145,9 +157,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::CtrlAuxRegwenReadVal`]; Write value: [`aes::regs::CtrlAuxRegwenWriteVal`]
     #[inline(always)]
-    pub fn ctrl_aux_regwen(&self) -> ureg::RegRef<crate::aes::meta::CtrlAuxRegwen, &TMmio> {
+    pub fn ctrl_aux_regwen(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::aes::meta::CtrlAuxRegwen, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -155,9 +169,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::TriggerReadVal`]; Write value: [`aes::regs::TriggerWriteVal`]
     #[inline(always)]
-    pub fn trigger(&self) -> ureg::RegRef<crate::aes::meta::Trigger, &TMmio> {
+    pub fn trigger(&self) -> caliptra_ureg::RegRef<crate::aes::meta::Trigger, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -165,9 +179,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::StatusReadVal`]; Write value: [`aes::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::aes::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::aes::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -175,9 +189,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`aes::regs::CtrlGcmShadowedReadVal`]; Write value: [`aes::regs::CtrlGcmShadowedWriteVal`]
     #[inline(always)]
-    pub fn ctrl_gcm_shadowed(&self) -> ureg::RegRef<crate::aes::meta::CtrlGcmShadowed, &TMmio> {
+    pub fn ctrl_gcm_shadowed(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::aes::meta::CtrlGcmShadowed, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -688,29 +704,29 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type KeyShare0 = ureg::WriteOnlyReg32<0, u32>;
-    pub type KeyShare1 = ureg::WriteOnlyReg32<0, u32>;
-    pub type Iv = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type DataIn = ureg::WriteOnlyReg32<0, u32>;
-    pub type DataOut = ureg::ReadOnlyReg32<u32>;
-    pub type CtrlShadowed = ureg::ReadWriteReg32<
+    pub type KeyShare0 = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type KeyShare1 = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type Iv = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type DataIn = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type DataOut = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type CtrlShadowed = caliptra_ureg::ReadWriteReg32<
         0,
         crate::aes::regs::CtrlShadowedReadVal,
         crate::aes::regs::CtrlShadowedWriteVal,
     >;
-    pub type CtrlAuxShadowed = ureg::ReadWriteReg32<
+    pub type CtrlAuxShadowed = caliptra_ureg::ReadWriteReg32<
         0,
         crate::aes::regs::CtrlAuxShadowedReadVal,
         crate::aes::regs::CtrlAuxShadowedWriteVal,
     >;
-    pub type CtrlAuxRegwen = ureg::ReadWriteReg32<
+    pub type CtrlAuxRegwen = caliptra_ureg::ReadWriteReg32<
         0,
         crate::aes::regs::CtrlAuxRegwenReadVal,
         crate::aes::regs::CtrlAuxRegwenWriteVal,
     >;
-    pub type Trigger = ureg::WriteOnlyReg32<0, crate::aes::regs::TriggerWriteVal>;
-    pub type Status = ureg::ReadOnlyReg32<crate::aes::regs::StatusReadVal>;
-    pub type CtrlGcmShadowed = ureg::ReadWriteReg32<
+    pub type Trigger = caliptra_ureg::WriteOnlyReg32<0, crate::aes::regs::TriggerWriteVal>;
+    pub type Status = caliptra_ureg::ReadOnlyReg32<crate::aes::regs::StatusReadVal>;
+    pub type CtrlGcmShadowed = caliptra_ureg::ReadWriteReg32<
         0,
         crate::aes::regs::CtrlGcmShadowedReadVal,
         crate::aes::regs::CtrlGcmShadowedWriteVal,

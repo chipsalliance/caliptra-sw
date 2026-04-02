@@ -31,7 +31,7 @@ elf.workspace = true
 openssl.workspace = true
 rand.workspace = true
 regex.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]

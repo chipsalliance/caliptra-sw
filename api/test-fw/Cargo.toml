@@ -11,7 +11,7 @@ caliptra-drivers = { workspace = true, features = ["emu"] }
 caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
-ureg.workspace = true
+caliptra-ureg.workspace = true
 zerocopy.workspace = true
 
 [features]

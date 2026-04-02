@@ -14,7 +14,7 @@ use caliptra_test_harness;
 use caliptra_drivers::{Dma, DmaMmio, SocIfc};
 use caliptra_registers::{self, soc_ifc::SocIfcReg};
 use caliptra_test_harness::println;
-use ureg::{Mmio, MmioMut};
+use caliptra_ureg::{Mmio, MmioMut};
 
 const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 const MCI_TOP_REG_RESET_STATUS_OFFSET: u32 = 0x3c;

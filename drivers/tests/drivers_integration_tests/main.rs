@@ -21,8 +21,8 @@ use caliptra_test::{
     crypto::derive_ecdsa_keypair,
     derive::{DoeInput, DoeOutput},
 };
+use caliptra_ureg::ResettableReg;
 use openssl::{hash::MessageDigest, pkey::PKey};
-use ureg::ResettableReg;
 use zerocopy::{FromBytes, IntoBytes};
 
 fn default_init_params() -> InitParams<'static> {

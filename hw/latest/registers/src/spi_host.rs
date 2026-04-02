@@ -27,7 +27,7 @@ impl SpiHostReg {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -36,7 +36,7 @@ impl SpiHostReg {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -45,11 +45,11 @@ impl SpiHostReg {
 }
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+pub struct RegisterBlock<TMmio: caliptra_ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -63,7 +63,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
         }
     }
 }
-impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
+impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
@@ -75,9 +75,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::InterruptStateReadVal`]; Write value: [`spi_host::regs::InterruptStateWriteVal`]
     #[inline(always)]
-    pub fn interrupt_state(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptState, &TMmio> {
+    pub fn interrupt_state(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::InterruptState, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -85,9 +85,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::InterruptEnableReadVal`]; Write value: [`spi_host::regs::InterruptEnableWriteVal`]
     #[inline(always)]
-    pub fn interrupt_enable(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptEnable, &TMmio> {
+    pub fn interrupt_enable(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::InterruptEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -95,9 +95,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::InterruptTestReadVal`]; Write value: [`spi_host::regs::InterruptTestWriteVal`]
     #[inline(always)]
-    pub fn interrupt_test(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptTest, &TMmio> {
+    pub fn interrupt_test(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::InterruptTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -105,9 +105,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::AlertTestReadVal`]; Write value: [`spi_host::regs::AlertTestWriteVal`]
     #[inline(always)]
-    pub fn alert_test(&self) -> ureg::RegRef<crate::spi_host::meta::AlertTest, &TMmio> {
+    pub fn alert_test(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::AlertTest, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -115,9 +115,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::ControlReadVal`]; Write value: [`spi_host::regs::ControlWriteVal`]
     #[inline(always)]
-    pub fn control(&self) -> ureg::RegRef<crate::spi_host::meta::Control, &TMmio> {
+    pub fn control(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Control, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -125,9 +125,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::StatusReadVal`]; Write value: [`spi_host::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::spi_host::meta::Status, &TMmio> {
+    pub fn status(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Status, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -137,9 +137,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn configopts(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::spi_host::meta::Configopts, &TMmio>> {
+    ) -> caliptra_ureg::Array<2, caliptra_ureg::RegRef<crate::spi_host::meta::Configopts, &TMmio>> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            caliptra_ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -147,9 +147,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn csid(&self) -> ureg::RegRef<crate::spi_host::meta::Csid, &TMmio> {
+    pub fn csid(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Csid, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -157,9 +157,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::CommandReadVal`]; Write value: [`spi_host::regs::CommandWriteVal`]
     #[inline(always)]
-    pub fn command(&self) -> ureg::RegRef<crate::spi_host::meta::Command, &TMmio> {
+    pub fn command(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Command, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -167,9 +167,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn rxdata(&self) -> ureg::RegRef<crate::spi_host::meta::Rxdata, &TMmio> {
+    pub fn rxdata(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Rxdata, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -177,9 +177,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn txdata(&self) -> ureg::RegRef<crate::spi_host::meta::Txdata, &TMmio> {
+    pub fn txdata(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::Txdata, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -187,9 +187,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::ErrorEnableReadVal`]; Write value: [`spi_host::regs::ErrorEnableWriteVal`]
     #[inline(always)]
-    pub fn error_enable(&self) -> ureg::RegRef<crate::spi_host::meta::ErrorEnable, &TMmio> {
+    pub fn error_enable(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::ErrorEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -197,9 +197,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::ErrorStatusReadVal`]; Write value: [`spi_host::regs::ErrorStatusWriteVal`]
     #[inline(always)]
-    pub fn error_status(&self) -> ureg::RegRef<crate::spi_host::meta::ErrorStatus, &TMmio> {
+    pub fn error_status(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::ErrorStatus, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -207,9 +207,9 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     }
     /// Read value: [`spi_host::regs::EventEnableReadVal`]; Write value: [`spi_host::regs::EventEnableWriteVal`]
     #[inline(always)]
-    pub fn event_enable(&self) -> ureg::RegRef<crate::spi_host::meta::EventEnable, &TMmio> {
+    pub fn event_enable(&self) -> caliptra_ureg::RegRef<crate::spi_host::meta::EventEnable, &TMmio> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
@@ -1145,44 +1145,44 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type InterruptState = ureg::ReadWriteReg32<
+    pub type InterruptState = caliptra_ureg::ReadWriteReg32<
         0,
         crate::spi_host::regs::InterruptStateReadVal,
         crate::spi_host::regs::InterruptStateWriteVal,
     >;
-    pub type InterruptEnable = ureg::ReadWriteReg32<
+    pub type InterruptEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::spi_host::regs::InterruptEnableReadVal,
         crate::spi_host::regs::InterruptEnableWriteVal,
     >;
-    pub type InterruptTest = ureg::WriteOnlyReg32<0, crate::spi_host::regs::InterruptTestWriteVal>;
-    pub type AlertTest = ureg::WriteOnlyReg32<0, crate::spi_host::regs::AlertTestWriteVal>;
-    pub type Control = ureg::ReadWriteReg32<
+    pub type InterruptTest = caliptra_ureg::WriteOnlyReg32<0, crate::spi_host::regs::InterruptTestWriteVal>;
+    pub type AlertTest = caliptra_ureg::WriteOnlyReg32<0, crate::spi_host::regs::AlertTestWriteVal>;
+    pub type Control = caliptra_ureg::ReadWriteReg32<
         0x7f,
         crate::spi_host::regs::ControlReadVal,
         crate::spi_host::regs::ControlWriteVal,
     >;
-    pub type Status = ureg::ReadOnlyReg32<crate::spi_host::regs::StatusReadVal>;
-    pub type Configopts = ureg::ReadWriteReg32<
+    pub type Status = caliptra_ureg::ReadOnlyReg32<crate::spi_host::regs::StatusReadVal>;
+    pub type Configopts = caliptra_ureg::ReadWriteReg32<
         0,
         crate::spi_host::regs::ConfigoptsReadVal,
         crate::spi_host::regs::ConfigoptsWriteVal,
     >;
-    pub type Csid = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Command = ureg::WriteOnlyReg32<0, crate::spi_host::regs::CommandWriteVal>;
-    pub type Rxdata = ureg::ReadOnlyReg32<u32>;
-    pub type Txdata = ureg::WriteOnlyReg32<0, u32>;
-    pub type ErrorEnable = ureg::ReadWriteReg32<
+    pub type Csid = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Command = caliptra_ureg::WriteOnlyReg32<0, crate::spi_host::regs::CommandWriteVal>;
+    pub type Rxdata = caliptra_ureg::ReadOnlyReg32<u32>;
+    pub type Txdata = caliptra_ureg::WriteOnlyReg32<0, u32>;
+    pub type ErrorEnable = caliptra_ureg::ReadWriteReg32<
         0x1f,
         crate::spi_host::regs::ErrorEnableReadVal,
         crate::spi_host::regs::ErrorEnableWriteVal,
     >;
-    pub type ErrorStatus = ureg::ReadWriteReg32<
+    pub type ErrorStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::spi_host::regs::ErrorStatusReadVal,
         crate::spi_host::regs::ErrorStatusWriteVal,
     >;
-    pub type EventEnable = ureg::ReadWriteReg32<
+    pub type EventEnable = caliptra_ureg::ReadWriteReg32<
         0,
         crate::spi_host::regs::EventEnableReadVal,
         crate::spi_host::regs::EventEnableWriteVal,
