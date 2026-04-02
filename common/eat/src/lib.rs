@@ -17,7 +17,7 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! use ocp_eat::{
+//! use caliptra_ocp_eat::{
 //!     ConciseEvidenceMap, EnvironmentMap, ClassMap, ClassIdTypeChoice, TaggedOid,
 //!     MeasurementMap, MeasurementValue, MeasurementFormat, EvidenceTripleRecord,
 //!     EvTriplesMap, ConciseEvidence

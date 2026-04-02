@@ -4,8 +4,8 @@ use crate::Drivers;
 use caliptra_common::x509;
 use caliptra_drivers::{KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use ocp_eat::csr_eat::{oids, CsrEatClaims};
-use ocp_eat::{cbor::TaggedOid, cbor_tags, CborEncoder, CoseSign1, ProtectedHeader};
+use caliptra_ocp_eat::csr_eat::{oids, CsrEatClaims};
+use caliptra_ocp_eat::{cbor::TaggedOid, cbor_tags, CborEncoder, CoseSign1, ProtectedHeader};
 
 mod fmc_alias;
 mod ldevid;

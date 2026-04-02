@@ -10,13 +10,13 @@ use std::io::Write;
 #[cfg(feature = "std")]
 use std::path::Path;
 
-// Use the ocp_eat library (defined in lib.rs) instead of recompiling modules
-use ocp_eat::{
+// Use the caliptra_ocp_eat library (defined in lib.rs) instead of recompiling modules
+use caliptra_ocp_eat::{
     cbor_tags, header_params, CborEncoder, CoseHeaderPair, CoseSign1, EatError, ProtectedHeader,
 };
 
 #[cfg(feature = "crypto")]
-use ocp_eat::ocp_profile::{
+use caliptra_ocp_eat::ocp_profile::{
     ClassIdTypeChoice, ClassMap, ConciseEvidence, ConciseEvidenceMap, DebugStatus, DigestEntry,
     EnvironmentMap, EvTriplesMap, EvidenceTripleRecord, MeasurementFormat, MeasurementMap,
     MeasurementValue, OcpEatClaims, TaggedConciseEvidence, VersionMap,
@@ -325,7 +325,7 @@ fn create_mock_concise_evidence_structured() -> ConciseEvidence<'static> {
     // Create RATS CoRIM compliant evidence structure with 2 environments
     static ENVIRONMENT_MAP_1: EnvironmentMap<'static> = EnvironmentMap {
         class: ClassMap {
-            class_id: ClassIdTypeChoice::TaggedOid(ocp_eat::TaggedOid::new(b"0x0001")),
+            class_id: ClassIdTypeChoice::TaggedOid(caliptra_ocp_eat::TaggedOid::new(b"0x0001")),
             vendor: Some("Example Corp"),
             model: Some("ExampleChip-v1.0"),
         },
@@ -333,7 +333,7 @@ fn create_mock_concise_evidence_structured() -> ConciseEvidence<'static> {
 
     static ENVIRONMENT_MAP_2: EnvironmentMap<'static> = EnvironmentMap {
         class: ClassMap {
-            class_id: ClassIdTypeChoice::TaggedOid(ocp_eat::TaggedOid::new(b"0x0002")),
+            class_id: ClassIdTypeChoice::TaggedOid(caliptra_ocp_eat::TaggedOid::new(b"0x0002")),
             vendor: Some("Example Corp"),
             model: Some("ExampleChip-v1.0"),
         },
