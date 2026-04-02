@@ -774,6 +774,12 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         )
         .unwrap();
 
+        if hw.subsystem_mode() && idx >= 16 {
+            // Caliptra subsystem only supports 16 keys due to requiring
+            // redundancy in LMS revocation encoding
+            break;
+        }
+
         let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
         if key_idx == LAST_KEY_IDX {
@@ -823,6 +829,10 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
             InitParams {
                 fuses,
                 rom: &rom,
+                ss_init_params: SubsystemInitParams {
+                    enable_mcu_uart_log: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             BootParams {
