@@ -1066,6 +1066,27 @@ name = "caliptra-ureg"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-ureg-codegen"
+version = "0.1.0"
+dependencies = [
+ "caliptra-ureg-schema",
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "caliptra-ureg-schema"
+version = "0.1.0"
+
+[[package]]
+name = "caliptra-ureg-systemrdl"
+version = "0.1.0"
+dependencies = [
+ "caliptra-systemrdl",
+ "caliptra-ureg-schema",
+]
+
+[[package]]
 name = "caliptra-verilated"
 version = "0.1.0"
 dependencies = [
@@ -1108,10 +1129,10 @@ name = "caliptra_registers_generator"
 version = "0.1.0"
 dependencies = [
  "caliptra-systemrdl",
+ "caliptra-ureg-codegen",
+ "caliptra-ureg-schema",
+ "caliptra-ureg-systemrdl",
  "quote",
- "ureg-codegen",
- "ureg-schema",
- "ureg-systemrdl",
 ]
 
 [[package]]
@@ -2940,27 +2961,6 @@ checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
 dependencies = [
  "crypto-common",
  "subtle",
-]
-
-[[package]]
-name = "ureg-codegen"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "ureg-schema",
-]
-
-[[package]]
-name = "ureg-schema"
-version = "0.1.0"
-
-[[package]]
-name = "ureg-systemrdl"
-version = "0.1.0"
-dependencies = [
- "caliptra-systemrdl",
- "ureg-schema",
 ]
 
 [[package]]

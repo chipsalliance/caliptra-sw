@@ -359,9 +359,9 @@ jobs:
               -E 'package(caliptra-verilated)'
               -E 'package(caliptra-x509)'
               -E 'package(caliptra-ureg)'
-              -E 'package(ureg-codegen)'
-              -E 'package(ureg-schema)'
-              -E 'package(ureg-systemrdl)'
+              -E 'package(caliptra-ureg-codegen)'
+              -E 'package(caliptra-ureg-schema)'
+              -E 'package(caliptra-ureg-systemrdl)'
           )
 
           cargo-nextest nextest list \

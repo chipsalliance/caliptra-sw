@@ -7,9 +7,9 @@ use std::process::Stdio;
 use std::rc::Rc;
 use std::{error::Error, path::Path, process::Command};
 
+use caliptra_ureg_schema::{Enum, EnumVariant, Register, RegisterBlock, RegisterBlockInstance};
 use quote::__private::TokenStream;
 use quote::{format_ident, quote};
-use ureg_schema::{Enum, EnumVariant, Register, RegisterBlock, RegisterBlockInstance};
 
 static HEADER_PREFIX: &str = r"/*
 Licensed under the Apache-2.0 license.
@@ -278,18 +278,19 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     // These are types like kv_read_ctrl_reg that are used by multiple crates
     let root_block = RegisterBlock {
-        declared_register_types: ureg_systemrdl::translate_types(scope)?,
+        declared_register_types: caliptra_ureg_systemrdl::translate_types(scope)?,
         ..Default::default()
     };
     let mut root_block = root_block.validate_and_dedup()?;
 
     let mut extern_types = HashMap::new();
-    ureg_codegen::build_extern_types(&root_block, quote! { crate }, &mut extern_types);
+    caliptra_ureg_codegen::build_extern_types(&root_block, quote! { crate }, &mut extern_types);
 
     let addrmap_tops = vec!["clp", "clp2", "mci_top"];
     let mut blocks = Vec::<RegisterBlock>::new();
     for top in addrmap_tops {
-        let mut block = ureg_systemrdl::translate_addrmap(scope.lookup_typedef(top).unwrap())?;
+        let mut block =
+            caliptra_ureg_systemrdl::translate_addrmap(scope.lookup_typedef(top).unwrap())?;
         blocks.append(&mut block);
     }
 
@@ -405,7 +406,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         }
 
         let module_ident = format_ident!("{}", block.block().name);
-        ureg_codegen::build_extern_types(
+        caliptra_ureg_codegen::build_extern_types(
             &block,
             quote! { crate::#module_ident },
             &mut extern_types,
@@ -417,7 +418,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let mut all_blocks: Vec<_> = std::iter::once(&mut root_block)
         .chain(validated_blocks.iter_mut())
         .collect();
-    ureg_schema::filter_unused_types(&mut all_blocks);
+    caliptra_ureg_schema::filter_unused_types(&mut all_blocks);
 
     for block in validated_blocks {
         // rust expects modules and files in lowercase naming
@@ -425,9 +426,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         let module_ident = format_ident!("{}", block_name);
         let dest_file = dest_dir.join(format!("{}.rs", block_name));
 
-        let tokens = ureg_codegen::generate_code(
+        let tokens = caliptra_ureg_codegen::generate_code(
             &block,
-            ureg_codegen::Options {
+            caliptra_ureg_codegen::Options {
                 extern_types: extern_types.clone(),
                 module: quote! { #module_ident },
             },
@@ -438,9 +439,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             &rustfmt(&(header.clone() + &tokens.to_string()))?,
         )?;
     }
-    let root_type_tokens = ureg_codegen::generate_code(
+    let root_type_tokens = caliptra_ureg_codegen::generate_code(
         &root_block,
-        ureg_codegen::Options {
+        caliptra_ureg_codegen::Options {
             extern_types: extern_types.clone(),
             ..Default::default()
         },
