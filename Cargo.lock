@@ -445,6 +445,29 @@ version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
 
 [[package]]
+name = "caliptra-common"
+version = "0.1.0"
+dependencies = [
+ "bitfield",
+ "bitflags 2.11.0",
+ "caliptra-api",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
+ "caliptra-cpu",
+ "caliptra-drivers",
+ "caliptra-error",
+ "caliptra-image-types",
+ "caliptra-image-verify",
+ "caliptra-registers",
+ "caliptra-x509",
+ "memoffset 0.8.0",
+ "riscv",
+ "ufmt",
+ "zerocopy",
+ "zeroize",
+]
+
+[[package]]
 name = "caliptra-coverage"
 version = "0.1.0"
 dependencies = [
@@ -635,6 +658,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-common",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -646,7 +670,6 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test",
  "caliptra-x509",
- "caliptra_common",
  "cfg-if",
  "openssl",
  "ufmt",
@@ -658,7 +681,7 @@ dependencies = [
 name = "caliptra-gen-linker-scripts"
 version = "0.1.0"
 dependencies = [
- "caliptra_common",
+ "caliptra-common",
 ]
 
 [[package]]
@@ -845,10 +868,10 @@ dependencies = [
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-common",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-registers",
- "caliptra_common",
  "memoffset 0.8.0",
  "zerocopy",
 ]
@@ -918,6 +941,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-common",
  "caliptra-drivers",
  "caliptra-emu-cpu",
  "caliptra-error",
@@ -934,7 +958,6 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test",
  "caliptra-x509",
- "caliptra_common",
  "cfg-if",
  "const-gen",
  "elf",
@@ -956,12 +979,12 @@ dependencies = [
 name = "caliptra-rom-test-fmc"
 version = "0.1.0"
 dependencies = [
+ "caliptra-common",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-ureg",
  "caliptra-x509",
- "caliptra_common",
  "cfg-if",
  "ufmt",
  "zerocopy",
@@ -995,6 +1018,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-common",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-emu-bus",
@@ -1015,7 +1039,6 @@ dependencies = [
  "caliptra-test",
  "caliptra-ureg",
  "caliptra-x509",
- "caliptra_common",
  "cbc",
  "cfg-if",
  "cipher",
@@ -1050,13 +1073,13 @@ dependencies = [
 name = "caliptra-runtime-test-bin"
 version = "0.1.0"
 dependencies = [
+ "caliptra-common",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-gen-linker-scripts",
  "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
- "caliptra_common",
  "cfg-if",
  "dpe",
  "ufmt",
@@ -1092,6 +1115,7 @@ dependencies = [
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",
+ "caliptra-common",
  "caliptra-coverage",
  "caliptra-drivers",
  "caliptra-emu-cpu",
@@ -1105,7 +1129,6 @@ dependencies = [
  "caliptra-image-verify",
  "caliptra-runtime",
  "caliptra-ureg",
- "caliptra_common",
  "der 0.7.10",
  "dpe",
  "elf",
@@ -1181,35 +1204,12 @@ version = "0.1.0"
 dependencies = [
  "caliptra-api",
  "caliptra-builder",
+ "caliptra-common",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
- "caliptra_common",
  "cfg-if",
-]
-
-[[package]]
-name = "caliptra_common"
-version = "0.1.0"
-dependencies = [
- "bitfield",
- "bitflags 2.11.0",
- "caliptra-api",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
- "caliptra-cpu",
- "caliptra-drivers",
- "caliptra-error",
- "caliptra-image-types",
- "caliptra-image-verify",
- "caliptra-registers",
- "caliptra-x509",
- "memoffset 0.8.0",
- "riscv",
- "ufmt",
- "zerocopy",
- "zeroize",
 ]
 
 [[package]]

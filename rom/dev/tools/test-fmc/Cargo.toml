@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra_common = { workspace = true, default-features = false }
+caliptra-common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
@@ -24,5 +24,5 @@ emu = ["caliptra-drivers/emu"]
 cfi = ["caliptra-drivers/cfi"]
 interactive_test_fmc = []
 riscv = ["caliptra-cpu/riscv"]
-std = ["ufmt/std", "caliptra_common/std"]
+std = ["ufmt/std", "caliptra-common/std"]
 fake-fmc = []
