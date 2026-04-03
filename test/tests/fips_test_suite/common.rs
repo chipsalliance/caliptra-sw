@@ -5,7 +5,9 @@ use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{get_ci_rom_version, version, CiRomVersion, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{
+    BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError, ShaAccMode,
+};
 use caliptra_test::swap_word_bytes_inplace;
 use dpe::{
     commands::*,
@@ -31,17 +33,26 @@ pub const HOOK_CODE_OFFSET: u32 = 16;
 
 // ===  RTL  ===
 pub struct HwExpVals {
-    pub hw_revision: u32,
+    pub hw_revision: u16,
+    pub soc_stepping_id: u16,
 }
 
-const HW_EXP_1_0_0: HwExpVals = HwExpVals { hw_revision: 0x1 };
+const HW_EXP_1_0_0: HwExpVals = HwExpVals {
+    hw_revision: 0x1,
+    soc_stepping_id: 0,
+};
+const HW_EXP_1_1_0: HwExpVals = HwExpVals {
+    hw_revision: 0x11,
+    ..HW_EXP_1_0_0
+};
 
-const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x11 };
+const HW_EXP_CURRENT: HwExpVals = HwExpVals { ..HW_EXP_1_1_0 };
 
 // ===  ROM  ===
 pub struct RomExpVals {
     pub rom_version: u16,
     pub capabilities: [u8; 16],
+    pub supports_get_idev_csr: bool,
 }
 
 const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
@@ -49,11 +60,17 @@ const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
     capabilities: [
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
     ],
+    supports_get_idev_csr: false,
+};
+
+const ROM_EXP_1_0_2: RomExpVals = RomExpVals {
+    rom_version: 0x802, // 1.0.2
+    ..ROM_EXP_1_0_1
 };
 
 const ROM_EXP_1_0_3: RomExpVals = RomExpVals {
     rom_version: 0x803, // 1.0.3
-    ..ROM_EXP_1_0_1
+    ..ROM_EXP_1_0_2
 };
 
 const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
@@ -68,6 +85,7 @@ const ROM_EXP_1_1_1: RomExpVals = RomExpVals {
 
 const ROM_EXP_1_2_0: RomExpVals = RomExpVals {
     rom_version: 0x880, // 1.2.0
+    supports_get_idev_csr: true,
     ..ROM_EXP_1_1_0
 };
 
@@ -77,41 +95,77 @@ const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_2_0 };
 pub struct RtExpVals {
     pub fmc_version: u16,
     pub fw_version: u32,
+    pub supports_get_idev_csr: bool,
+    pub supports_lms_verify: bool,
+    pub supports_add_subject_alt_name: bool,
+    pub supports_certify_key_extended: bool,
+    pub supports_auth_manifest: bool,
+    pub supports_get_fmc_alias_csr: bool,
+    pub supports_sign_with_exported_ecdsa: bool,
+    pub supports_revoke_exported_cdi_handle: bool,
+    pub supports_reallocate_dpe_context_limits: bool,
+    pub supports_get_pcr_log: bool,
 }
 
 const RT_EXP_1_0_0: RtExpVals = RtExpVals {
     fmc_version: 0x800,      // 1.0.0
     fw_version: 0x0100_0000, // 1.0.0
+    supports_get_idev_csr: false,
+    supports_lms_verify: false,
+    supports_add_subject_alt_name: false,
+    supports_certify_key_extended: false,
+    supports_auth_manifest: false,
+    supports_get_fmc_alias_csr: false,
+    supports_sign_with_exported_ecdsa: false,
+    supports_revoke_exported_cdi_handle: false,
+    supports_reallocate_dpe_context_limits: false,
+    supports_get_pcr_log: false,
 };
 
 const RT_EXP_1_1_0: RtExpVals = RtExpVals {
     fmc_version: 0x840,      // 1.1.0
     fw_version: 0x0101_0000, // 1.1.0
+    supports_lms_verify: true,
+    supports_add_subject_alt_name: true,
+    supports_certify_key_extended: true,
+    ..RT_EXP_1_0_0
 };
 
 const RT_EXP_1_2_0: RtExpVals = RtExpVals {
     fmc_version: 0x880,      // 1.2.0
     fw_version: 0x0102_0000, // 1.2.0
+    supports_get_idev_csr: true,
+    supports_auth_manifest: true,
+    supports_get_fmc_alias_csr: true,
+    supports_sign_with_exported_ecdsa: true,
+    ..RT_EXP_1_1_0
 };
 
 const RT_EXP_1_2_1: RtExpVals = RtExpVals {
     fmc_version: 0x881,      // 1.2.1
     fw_version: 0x0102_0001, // 1.2.1
+    supports_revoke_exported_cdi_handle: true,
+    ..RT_EXP_1_2_0
 };
 
 const RT_EXP_1_2_2: RtExpVals = RtExpVals {
     fmc_version: 0x882,      // 1.2.2
     fw_version: 0x0102_0002, // 1.2.2
+    ..RT_EXP_1_2_1
 };
 
 const RT_EXP_1_2_3: RtExpVals = RtExpVals {
     fmc_version: 0x883,      // 1.2.3
     fw_version: 0x0102_0003, // 1.2.3
+    supports_reallocate_dpe_context_limits: true,
+    ..RT_EXP_1_2_2
 };
 
 const RT_EXP_1_2_4: RtExpVals = RtExpVals {
     fmc_version: 0x884,      // 1.2.4
     fw_version: 0x0102_0004, // 1.2.4
+    supports_get_pcr_log: true,
+    ..RT_EXP_1_2_3
 };
 
 const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_2_4 };
@@ -122,10 +176,11 @@ const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_2_4 };
 //       Or we can just do a macro to generate a list of the valid versions and const names to use here
 impl HwExpVals {
     pub fn get() -> HwExpVals {
-        if let Ok(version) = std::env::var("FIPS_TEST_HW_EXP_VERSION") {
+        let mut vals = if let Ok(version) = std::env::var("FIPS_TEST_HW_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
                 "1_0_0" => HW_EXP_1_0_0,
+                "1_1_0" => HW_EXP_1_1_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected HW values ({})",
                     version
@@ -135,7 +190,20 @@ impl HwExpVals {
             HW_EXP_1_0_0
         } else {
             HW_EXP_CURRENT
+        };
+
+        // Override soc stepping to the integrator-specific value if provided
+        if let Ok(s) = std::env::var("FIPS_TEST_SOC_STEPPING_ID") {
+            let hex_str = s.trim().trim_start_matches("0x").trim_start_matches("0X");
+            vals.soc_stepping_id = u16::from_str_radix(hex_str, 16).unwrap_or_else(|_| {
+                panic!(
+                    "FIPS Test: FIPS_TEST_SOC_STEPPING_ID must be a 16-bit hex value (e.g. 0x1234), got '{}'",
+                    s
+                )
+            });
         }
+
+        vals
     }
 }
 impl RomExpVals {
@@ -144,6 +212,7 @@ impl RomExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_1" => ROM_EXP_1_0_1,
+                "1_0_2" => ROM_EXP_1_0_2,
                 "1_0_3" => ROM_EXP_1_0_3,
                 "1_1_0" => ROM_EXP_1_1_0,
                 "1_1_1" => ROM_EXP_1_1_1,
@@ -186,6 +255,22 @@ impl RtExpVals {
 }
 
 // =================================
+//       DEFAULT OVERRIDES
+// =================================
+
+// If needed, fusing and boot params defaults can be overridden across all tests
+pub fn fips_default_fuses() -> Fuses {
+    Fuses { ..Fuses::default() }
+}
+
+pub fn fips_default_boot_params() -> BootParams<'static> {
+    BootParams {
+        fuses: fips_default_fuses(),
+        ..BootParams::default()
+    }
+}
+
+// =================================
 //       HELPER FUNCTIONS
 // =================================
 
@@ -222,7 +307,7 @@ pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
 
 fn fips_test_boot<T: HwModel>(hw: &mut T, boot_params: Option<BootParams>) {
     // Create params if not provided
-    let boot_params = boot_params.unwrap_or(BootParams::default());
+    let boot_params = boot_params.unwrap_or(fips_default_boot_params());
 
     // Boot
     hw.boot(boot_params).unwrap();
@@ -279,7 +364,7 @@ pub fn fips_test_init_to_rt(
     boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
     // Create params if not provided
-    let mut boot_params = boot_params.unwrap_or(BootParams::default());
+    let mut boot_params = boot_params.unwrap_or(fips_default_boot_params());
 
     if boot_params.fw_image.is_some() {
         fips_test_init_base(init_params, Some(boot_params))

@@ -19,7 +19,10 @@ caliptra-drivers = { workspace = true, features = ["fips-test-hooks"] }
 caliptra-hw-model-types.workspace = true
 caliptra-image-crypto.workspace = true
 caliptra-image-elf.workspace = true
+caliptra-auth-man-gen.workspace = true
+caliptra-auth-man-types.workspace = true
 caliptra-image-fake-keys.workspace = true
+caliptra-lms-types.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-types.workspace = true
 caliptra-image-verify = { workspace = true, default-features = false }

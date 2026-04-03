@@ -129,7 +129,7 @@ pub fn attempt_ssp_access_rom() {
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
         key_manifest_pk_hash: [0x55555555u32; 12],
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     let security_state = *SecurityState::default()
@@ -143,7 +143,7 @@ pub fn attempt_ssp_access_rom() {
         }),
         Some(BootParams {
             fuses,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
 
@@ -166,7 +166,7 @@ pub fn attempt_ssp_access_fw_load() {
         //field_entropy
         key_manifest_pk_hash: vendor_pubkey_digest,
         life_cycle: DeviceLifecycle::Production,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     let security_state = *SecurityState::default()
@@ -182,7 +182,7 @@ pub fn attempt_ssp_access_fw_load() {
         Some(BootParams {
             fuses,
             initial_dbg_manuf_service_reg: (FipsTestHook::HALT_FW_LOAD as u32) << HOOK_CODE_OFFSET,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
 
@@ -217,7 +217,7 @@ pub fn attempt_ssp_access_rt() {
         //field_entropy
         key_manifest_pk_hash: vendor_pubkey_digest,
         life_cycle: DeviceLifecycle::Production,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     let security_state = *SecurityState::default()
@@ -232,7 +232,7 @@ pub fn attempt_ssp_access_rt() {
         Some(BootParams {
             fw_image: Some(&fw_image),
             fuses,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
 

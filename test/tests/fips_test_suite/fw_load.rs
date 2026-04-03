@@ -104,7 +104,7 @@ fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
     Fuses {
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
-        ..Default::default()
+        ..fips_default_fuses()
     }
 }
 
@@ -161,7 +161,7 @@ fn fw_load_error_flow_base(
     initial_dbg_manuf_service_reg: Option<u32>,
 ) {
     // Use defaults if not provided
-    let fuses = fuses.unwrap_or(Fuses::default());
+    let fuses = fuses.unwrap_or(fips_default_fuses());
     let fw_image = fw_image.unwrap_or(build_fw_image(ImageOptions::default()));
 
     // Attempt to load the FW
@@ -174,7 +174,7 @@ fn fw_load_error_flow_base(
         Some(BootParams {
             fuses,
             initial_dbg_manuf_service_reg: initial_dbg_manuf_service_reg.unwrap_or_default(),
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
 
@@ -210,7 +210,7 @@ fn fw_load_error_flow_base(
 
             hw.boot(BootParams {
                 fuses: safe_fuses(&clean_fw_image),
-                ..Default::default()
+                ..fips_default_boot_params()
             })
             .unwrap();
 
@@ -275,7 +275,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         key_manifest_pk_hash: [0u32; 12],
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -293,7 +293,7 @@ fn fw_load_error_vendor_pub_key_digest_failure() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         key_manifest_pk_hash: [0xDEADBEEF; 12],
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow_with_test_hooks(
@@ -310,7 +310,7 @@ fn fw_load_error_vendor_pub_key_digest_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         key_manifest_pk_hash: [0xDEADBEEF; 12],
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -337,7 +337,7 @@ fn fw_load_error_owner_pub_key_digest_mismatch() {
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
         owner_pk_hash: [0xDEADBEEF; 12],
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -373,7 +373,7 @@ fn fw_load_error_vendor_ecc_pub_key_revoked() {
     let fuses = caliptra_hw_model::Fuses {
         key_manifest_pk_hash_mask: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
             .unwrap(),
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     // Generate image
@@ -812,7 +812,7 @@ fn fw_load_error_fmc_svn_greater_than_max_supported() {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
         key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -843,7 +843,7 @@ fn fw_load_error_fmc_svn_less_than_fuse() {
         anti_rollback_disable: false,
         key_manifest_pk_hash: vendor_pubkey_digest,
         fmc_key_manifest_svn: 0b11, // fuse svn = 2
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -931,7 +931,7 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
         key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -962,7 +962,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
         anti_rollback_disable: false,
         key_manifest_pk_hash: vendor_pubkey_digest,
         runtime_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -999,7 +999,7 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -1016,7 +1016,7 @@ fn fw_load_error_vendor_lms_verify_failure() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow_with_test_hooks(
@@ -1037,7 +1037,7 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -1059,7 +1059,7 @@ fn fw_load_error_vendor_lms_signature_invalid() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -1091,7 +1091,7 @@ fn fw_load_error_owner_lms_verify_failure() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow_with_test_hooks(
@@ -1112,7 +1112,7 @@ fn fw_load_error_owner_lms_signature_invalid() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     fw_load_error_flow(
@@ -1137,7 +1137,7 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
         fuse_lms_revocation: 1u32 << image_options.vendor_config.lms_key_idx,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     // Generate image
@@ -1196,7 +1196,7 @@ fn fw_load_error_update_reset_vendor_lms_pub_key_idx_mismatch() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     update_fw_error_flow(
@@ -1282,7 +1282,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
         key_manifest_pk_hash: vendor_pk_hash_words,
         owner_pk_hash: owner_pk_hash_words,
         lms_verify: true,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     // Load the FW
@@ -1293,7 +1293,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
         }),
         Some(BootParams {
             fuses,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
     let fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
@@ -1389,7 +1389,7 @@ fn fw_load_blank_pub_key_hashes() {
     // Don't populate pub key hashes
     let fuses = Fuses {
         life_cycle: DeviceLifecycle::Production,
-        ..Default::default()
+        ..fips_default_fuses()
     };
 
     // Load the FW
@@ -1400,7 +1400,7 @@ fn fw_load_blank_pub_key_hashes() {
         }),
         Some(BootParams {
             fuses,
-            ..Default::default()
+            ..fips_default_boot_params()
         }),
     );
     let fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));

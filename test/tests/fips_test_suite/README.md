@@ -19,9 +19,12 @@ cargo test --test fips_test_suite
 | FIPS_TEST_HW_EXP_VERSION  | HW release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
 | FIPS_TEST_ROM_EXP_VERSION | ROM release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
 | FIPS_TEST_RT_EXP_VERSION  | Runtime release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
+| FIPS_TEST_SOC_STEPPING_ID | Integrator-specific 16 bit SoC Stepping ID value to expect in the HW version (specified in hex)
 
 Options are environment variables. One way to specify them at the command line when calling cargo test:
     OPTION_NAME=VALUE cargo test --test fips_test_suite
+
+Default fuse values and/or boot params may also be specified in fips_default_fuses and fips_default_boot_params in common.rs if needed.
 
 ## Test Environment Limitations
 
