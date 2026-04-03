@@ -128,6 +128,7 @@ caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
+caliptra-ocp-eat = { path = "common/eat", default-features = false }
 caliptra-okref = { path = "common/okref" }
 caliptra-registers = { path = "registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
@@ -136,6 +137,10 @@ caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
+caliptra-ureg = { path = "ureg" }
+caliptra-ureg-codegen = { path = "ureg/lib/codegen" }
+caliptra-ureg-schema = { path = "ureg/lib/schema" }
+caliptra-ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
@@ -181,7 +186,6 @@ memoffset = "0.8.0"
 ml-kem = { version = "0.2.1", features = ["deterministic"] }
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
-caliptra-ocp-eat = { path = "common/eat", default-features = false }
 p384 = "0.13.0"
 proc-macro2 = "1.0.66"
 quote = "1.0"
@@ -208,10 +212,6 @@ tock-registers = { git = "https://github.com/tock/tock.git", rev = "release-2.2"
 toml = "0.7.0"
 ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
 uio = { version = "0.4.0" }
-caliptra-ureg = { path = "ureg" }
-ureg-codegen = { path = "ureg/lib/codegen" }
-ureg-schema = { path = "ureg/lib/schema" }
-ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = { git = "https://github.com/randombit/wycheproof-rs", rev = "5120390a605bb6fd950048928981dc7a52937379" }
 x509-cert = { version = "0.2.5", features = ["builder", "hazmat"] }
 x509-parser = "0.15.0"
