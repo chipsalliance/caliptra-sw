@@ -217,6 +217,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 2)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
             name: "TCB_INFO_RT_TCI",
             fwid: Fwid {
@@ -235,6 +236,7 @@ fn gen_rt_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 2)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
             name: "TCB_INFO_RT_TCI",
             fwid: Fwid {
