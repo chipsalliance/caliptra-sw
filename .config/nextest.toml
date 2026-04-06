@@ -61,6 +61,10 @@ filter = 'test(test_preamble_vendor_lms_pubkey_revocation)'
 slow-timeout = { period = "30s", terminate-after = 10 }
 
 [[profile.fpga-subsystem.overrides]]
+filter = 'test(test_rt_journey_pcr_validation)'
+slow-timeout = { period = "30s", terminate-after = 10 }
+
+[[profile.fpga-subsystem.overrides]]
 filter = 'test(test_stress_update)'
 slow-timeout = { period = "30s", terminate-after = 100 }
 
