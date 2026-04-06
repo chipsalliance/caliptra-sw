@@ -4,12 +4,12 @@ Licensed under the Apache-2.0 license.
 
 use std::{collections::HashMap, rc::Rc, str::FromStr};
 
-use proc_macro2::{Ident, Literal, TokenStream};
-use quote::{format_ident, quote};
-use ureg_schema::{
+use caliptra_ureg_schema::{
     Enum, EnumVariant, FieldType, Register, RegisterBlock, RegisterSubBlock, RegisterType,
     RegisterWidth, ValidatedRegisterBlock,
 };
+use proc_macro2::{Ident, Literal, TokenStream};
+use quote::{format_ident, quote};
 
 fn tweak_keywords(s: &str) -> &str {
     match s {
@@ -268,7 +268,7 @@ fn generate_enums<'a>(enums: impl Iterator<Item = &'a Enum>) -> TokenStream {
 
 #[cfg(test)]
 mod generate_enums_test {
-    use ureg_schema::EnumVariant;
+    use caliptra_ureg_schema::EnumVariant;
 
     use crate::*;
 

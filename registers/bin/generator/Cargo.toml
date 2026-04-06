@@ -10,6 +10,6 @@ edition = "2021"
 [dependencies]
 caliptra-systemrdl.workspace = true
 quote.workspace = true
-ureg-codegen.workspace = true
-ureg-schema.workspace = true
-ureg-systemrdl.workspace = true
+caliptra-ureg-codegen.workspace = true
+caliptra-ureg-schema.workspace = true
+caliptra-ureg-systemrdl.workspace = true
