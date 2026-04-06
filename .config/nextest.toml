@@ -20,9 +20,9 @@ package(caliptra-systemrdl) +
 package(caliptra-verilated) +
 package(caliptra-x509) +
 package(caliptra-ureg) +
-package(ureg-codegen) +
-package(ureg-schema) +
-package(ureg-systemrdl)
+package(caliptra-ureg-codegen) +
+package(caliptra-ureg-schema) +
+package(caliptra-ureg-systemrdl)
 """
 failure-output = "immediate-final"
 fail-fast = false

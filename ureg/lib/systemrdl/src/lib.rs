@@ -10,9 +10,9 @@ use std::rc::Rc;
 
 use caliptra_systemrdl::{self as systemrdl, Value};
 use caliptra_systemrdl::{ComponentType, ScopeType};
+use caliptra_ureg_schema::{self as ureg, FieldType, RegisterField, RegisterWidth};
+use caliptra_ureg_schema::{RegisterBlock, RegisterBlockInstance};
 use systemrdl::{AccessType, InstanceRef, ParentScope, RdlError};
-use ureg_schema::{self as ureg, FieldType, RegisterField, RegisterWidth};
-use ureg_schema::{RegisterBlock, RegisterBlockInstance};
 
 fn unpad_description(desc: &str) -> String {
     let ltrim = desc
@@ -178,7 +178,7 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
 
     let ty = translate_register_ty(inst.type_name.clone(), iref.scope)?;
 
-    let result = ureg_schema::Register {
+    let result = caliptra_ureg_schema::Register {
         name: inst.name.clone(),
         offset: inst
             .offset
@@ -265,7 +265,7 @@ fn translate_mem(iref: systemrdl::InstanceRef, start_offset: u64) -> Result<ureg
         width: (ty.width.in_bytes() * 8) as u8,
     });
 
-    let result = ureg_schema::Register {
+    let result = caliptra_ureg_schema::Register {
         name: inst.name.clone(),
         offset: inst.offset.unwrap_or(start_offset),
         default_val: 0,
@@ -280,7 +280,7 @@ fn translate_mem(iref: systemrdl::InstanceRef, start_offset: u64) -> Result<ureg
 fn translate_register_ty(
     type_name: Option<String>,
     scope: ParentScope,
-) -> Result<Rc<ureg_schema::RegisterType>, Error> {
+) -> Result<Rc<caliptra_ureg_schema::RegisterType>, Error> {
     let wrap_err = |err: Error| {
         if let Some(ref type_name) = type_name {
             Error::RegisterTypeError {
@@ -293,13 +293,13 @@ fn translate_register_ty(
     };
 
     let regwidth = match get_property_opt(scope.scope, "regwidth").map_err(wrap_err)? {
-        Some(8) => ureg_schema::RegisterWidth::_8,
-        Some(16) => ureg_schema::RegisterWidth::_16,
-        Some(32) => ureg_schema::RegisterWidth::_32,
-        Some(64) => ureg_schema::RegisterWidth::_64,
-        Some(128) => ureg_schema::RegisterWidth::_128,
+        Some(8) => caliptra_ureg_schema::RegisterWidth::_8,
+        Some(16) => caliptra_ureg_schema::RegisterWidth::_16,
+        Some(32) => caliptra_ureg_schema::RegisterWidth::_32,
+        Some(64) => caliptra_ureg_schema::RegisterWidth::_64,
+        Some(128) => caliptra_ureg_schema::RegisterWidth::_128,
         Some(other) => return Err(wrap_err(Error::UnsupportedRegWidth(other))),
-        None => ureg_schema::RegisterWidth::_32,
+        None => caliptra_ureg_schema::RegisterWidth::_32,
     };
 
     let mut fields = vec![];
@@ -315,7 +315,7 @@ fn translate_register_ty(
             }
         }
     }
-    Ok(Rc::new(ureg_schema::RegisterType {
+    Ok(Rc::new(caliptra_ureg_schema::RegisterType {
         name: type_name,
         fields,
         width: regwidth,
