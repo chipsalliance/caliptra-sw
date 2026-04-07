@@ -208,6 +208,8 @@ struct caliptra_fw_info_resp
     uint8_t rom_revision[20];
     uint8_t fmc_revision[20];
     uint8_t runtime_revision[20];
+    // Digest and hash fields below use big-endian word order.
+    // See runtime/README.md "Byte order of cryptographic fields" for conversion details.
     uint32_t rom_sha256_digest[8];
     uint32_t fmc_sha384_digest[12];
     uint32_t runtime_sha384_digest[12];

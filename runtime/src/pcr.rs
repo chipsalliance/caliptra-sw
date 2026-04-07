@@ -77,7 +77,8 @@ impl GetPcrQuoteCmd {
                 }
                 resp.reset_ctrs = drivers.persistent_data.get().fw.pcr_reset.all_counters();
 
-                // Change the word endianness for ECC verification. Take lower 48 bytes.
+                // ECC uses big-endian word order; take lower 48 bytes of the SHA2-512/384 digest.
+                // See runtime/README.md#byte-order-of-cryptographic-fields.
                 resp.digest
                     .copy_from_slice((&<[_; 64]>::from(pcr_hash))[..48].as_ref());
 
