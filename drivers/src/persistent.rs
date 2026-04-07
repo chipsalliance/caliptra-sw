@@ -18,6 +18,7 @@ use zeroize::Zeroize;
 use crate::sha2_512_384::SHA384_HASH_SIZE;
 use crate::{
     fuse_log::FuseLogEntry,
+    hand_off::HandOffDataHandle,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
     DataVault, FirmwareHandoffTable, FmcAliasCsrs, Mldsa87PubKey, Mldsa87Signature,
@@ -375,6 +376,11 @@ pub struct PersistentData {
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
     pub reserved12: [u8; 2], // Pad to 4 byte boundary
+
+    /// RT MLDSA keypair seed KV handle, stored here (not in FHT) to avoid
+    /// changing the frozen ROM binary. FMC writes this during handoff,
+    /// runtime reads it for MLDSA signing operations.
+    pub rt_mldsa_keypair_seed_kv_hdl: HandOffDataHandle,
 }
 
 impl PersistentData {

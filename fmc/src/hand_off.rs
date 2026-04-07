@@ -193,6 +193,10 @@ impl HandOff {
         Self::fht_mut(env).rt_priv_key_kv_hdl =
             Self::key_id_to_handle(out.ecc_subj_key_pair.priv_key);
         Self::fht_mut(env).rt_dice_ecc_pub_key = out.ecc_subj_key_pair.pub_key;
+        // Store RT MLDSA keypair seed handle in PersistentData (not FHT)
+        // to avoid changing the frozen ROM binary layout.
+        env.persistent_data.get_mut().rt_mldsa_keypair_seed_kv_hdl =
+            Self::key_id_to_handle(out.mldsa_subj_key_pair.key_pair_seed);
         Ok(())
     }
 
