@@ -14,6 +14,7 @@ bitfield.workspace = true
 bitflags.workspace = true
 caliptra-api.workspace = true
 caliptra-dpe = { workspace = true, optional = true }
+caliptra-dpe-crypto = { workspace = true, optional = true }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
@@ -37,7 +38,7 @@ std = []
 emu = []
 riscv = []
 rom = []
-runtime = ["dep:caliptra-dpe"]
+runtime = ["dep:caliptra-dpe", "dep:caliptra-dpe-crypto"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 fpga_subsystem = ["caliptra-hw-model/fpga_subsystem"]

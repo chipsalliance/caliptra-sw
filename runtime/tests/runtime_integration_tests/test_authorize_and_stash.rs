@@ -396,7 +396,7 @@ fn test_authorize_and_stash_cmd_success_skip_auth() {
         fw_id: FW_ID_2,
         measurement: IMAGE_DIGEST_BAD,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -582,7 +582,7 @@ fn test_authorize_and_stash_after_update_reset() {
         fw_id: FW_ID_0,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -611,7 +611,7 @@ fn test_authorize_and_stash_after_update_reset() {
         fw_id: FW_ID_0,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -785,7 +785,7 @@ fn test_authorize_and_stash_after_update_reset_skip_auth() {
         fw_id: FW_ID_2,
         measurement: IMAGE_DIGEST_BAD,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -813,7 +813,7 @@ fn test_authorize_and_stash_after_update_reset_skip_auth() {
         fw_id: FW_ID_2,
         measurement: IMAGE_DIGEST_BAD,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -854,7 +854,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_0,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -876,7 +876,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_127,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -912,7 +912,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_0,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -934,7 +934,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_127,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -989,7 +989,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_127,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -1011,7 +1011,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: FW_ID_0,
         measurement: IMAGE_DIGEST1,
         source: ImageHashSource::InRequest as u32,
-        flags: 0, // Don't skip stash
+        flags: 1, // Skip stash
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
