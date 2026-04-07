@@ -1,12 +1,12 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_hw_model::DefaultHwModel;
-use caliptra_runtime::CaliptraDpeProfile;
-use dpe::{
+use caliptra_dpe::{
     commands::{CertifyKeyCommand, CertifyKeyFlags, Command},
     context::ContextHandle,
     response::{CertifyKeyResp, Response},
 };
+use caliptra_hw_model::DefaultHwModel;
+use caliptra_runtime::CaliptraDpeProfile;
 use openssl::x509::X509;
 
 use super::*;

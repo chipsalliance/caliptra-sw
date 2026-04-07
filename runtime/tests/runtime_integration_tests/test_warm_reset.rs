@@ -5,12 +5,12 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
+use caliptra_dpe::TCI_SIZE;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
 };
 use caliptra_test::image_pk_desc_hash;
-use dpe::TCI_SIZE;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 

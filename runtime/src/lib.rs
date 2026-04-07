@@ -61,14 +61,14 @@ use caliptra_cfi_lib::{
 };
 use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
-use crypto::ecdsa::curve_384::EcdsaPub384;
-use crypto::ecdsa::EcdsaPubKey;
-use crypto::ml_dsa::MldsaPublicKey;
-use crypto::PubKey;
+use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
+use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
+use caliptra_dpe_crypto::ml_dsa::MldsaPublicKey;
+use caliptra_dpe_crypto::PubKey;
+use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
-use platform::MAX_OTHER_NAME_SIZE;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
@@ -111,13 +111,15 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{okref, AxiAddr, CaliptraError, CaliptraResult, ResetReason};
-use caliptra_registers::mbox::enums::MboxStatusE;
-pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
-use dpe::{
+pub use caliptra_dpe::{
+    context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES,
+};
+use caliptra_dpe::{
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
 };
+use caliptra_drivers::{okref, AxiAddr, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_registers::mbox::enums::MboxStatusE;
 
 use crate::{
     dice::GetRtAliasCertCmd,
