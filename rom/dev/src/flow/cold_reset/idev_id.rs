@@ -248,6 +248,11 @@ impl InitDevIdLayer {
         }
         let ecc_keypair = result?;
 
+        let ecc_pub_x: [u8; 48] = (&ecc_keypair.pub_key.x).into();
+        let ecc_pub_y: [u8; 48] = (&ecc_keypair.pub_key.y).into();
+        cprintln!("[idev] PubX={}", HexBytes(&ecc_pub_x));
+        cprintln!("[idev] PubY={}", HexBytes(&ecc_pub_y));
+
         // Derive the MLDSA Key Pair.
         let result = Crypto::mldsa87_key_gen(
             &mut env.mldsa87,
