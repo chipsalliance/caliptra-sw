@@ -228,7 +228,7 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra caliptra-bitstream-downloader --root /tmp/bitstream-downloader
+          cargo install --git https://github.com/chipsalliance/caliptra-infra caliptra-bitstream-downloader --root /tmp/bitstream-downloader --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
           /tmp/bitstream-downloader/bin/caliptra-bitstream-downloader --bitstream-manifest hw/fpga/bitstream_manifests/subsystem.toml
           mv subsystem.pdi /tmp/caliptra-bitstream.pdi
 
@@ -409,7 +409,7 @@ jobs:
 
       - name: Print results
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer
+          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           for xml in /tmp/junit/junit-*.xml; do
             /tmp/test-printer/bin/test-printer --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
