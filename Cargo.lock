@@ -1100,14 +1100,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "caliptra-size-history-bin"
-version = "0.1.0"
-dependencies = [
- "caliptra-builder",
- "caliptra-size-history",
-]
-
-[[package]]
 name = "caliptra-systemrdl"
 version = "0.1.0"
 
@@ -4654,6 +4646,8 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "caliptra-builder",
+ "caliptra-size-history",
  "clap",
  "log",
  "octocrab",

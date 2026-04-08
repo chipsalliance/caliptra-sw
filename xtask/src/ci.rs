@@ -10,8 +10,8 @@ use size_history::{
 
 const CACHE_FORMAT_VERSION: &str = "v4";
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let cache = create_cache()?;
+pub(crate) fn size_history() -> Result<(), anyhow::Error> {
+    let cache = create_cache().map_err(|e| anyhow::anyhow!("{}", e))?;
     let reporter = HtmlTableReport::new("https://github.com/chipsalliance/caliptra-sw");
     let output: Box<dyn OutputDestination> = if env::var("GITHUB_STEP_SUMMARY").is_ok() {
         Box::new(GitHubStepSummary)
@@ -43,9 +43,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "App with OCP LOCK size",
             firmware::APP_WITH_UART_OCP_LOCK,
         )))
-        .run()?;
-
-    Ok(())
+        .run()
+        .map(|_| Ok(()))
+        .map_err(|e| anyhow::anyhow!("{}", e))?
 }
 
 fn create_cache() -> Result<Box<dyn Cache>, Box<dyn Error>> {
