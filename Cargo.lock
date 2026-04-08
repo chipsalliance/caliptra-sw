@@ -1089,14 +1089,22 @@ dependencies = [
 [[package]]
 name = "caliptra-size-history"
 version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-infra.git?rev=64e75e17e1a2eb07ff8dd6698932af82182da85e#64e75e17e1a2eb07ff8dd6698932af82182da85e"
 dependencies = [
- "caliptra-builder",
  "ghac",
  "prost",
  "prost-derive",
  "serde",
  "serde_json",
  "tinytemplate",
+]
+
+[[package]]
+name = "caliptra-size-history-bin"
+version = "0.1.0"
+dependencies = [
+ "caliptra-builder",
+ "caliptra-size-history",
 ]
 
 [[package]]

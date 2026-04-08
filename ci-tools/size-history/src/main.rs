@@ -1,204 +1,99 @@
 // Licensed under the Apache-2.0 license
 
-use std::{
-    env::{self},
-    fs, io,
-    path::Path,
-};
+use std::{env, error::Error, io, path::Path};
 
 use caliptra_builder::{elf_size, firmware, FwId};
-use serde::{Deserialize, Serialize};
+use size_history::{
+    ArtifactBuilder, Cache, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
+    OutputDestination, SizeHistory, Stdout,
+};
 
-mod cache;
-mod cache_gha;
-mod git;
-mod html;
-mod http;
-mod process;
-mod util;
+const CACHE_FORMAT_VERSION: &str = "v4";
 
-use crate::cache::{Cache, FsCache};
-use crate::{cache_gha::GithubActionCache, util::other_err};
+fn main() -> Result<(), Box<dyn Error>> {
+    let cache = create_cache()?;
+    let reporter = HtmlTableReport::new("https://github.com/chipsalliance/caliptra-sw");
+    let output: Box<dyn OutputDestination> = if env::var("GITHUB_STEP_SUMMARY").is_ok() {
+        Box::new(GitHubStepSummary)
+    } else {
+        Box::new(Stdout)
+    };
 
-// Increment with non-backwards-compatible changes are made to the cache record
-// format
-const CACHE_FORMAT_VERSION: &str = "v3";
+    SizeHistory::new(reporter, output, cache)
+        .worktree_path("/tmp/caliptra-size-history-wt")
+        .cache_version(CACHE_FORMAT_VERSION)
+        .with_pr_squashing(true)
+        .add_builder(Box::new(CaliptraFirmwareBuilder::new(
+            "ROM prod size",
+            firmware::ROM,
+        )))
+        .add_builder(Box::new(CaliptraFirmwareBuilder::new(
+            "ROM with-uart size",
+            firmware::ROM_WITH_UART,
+        )))
+        .add_builder(Box::new(CaliptraFirmwareBuilder::new(
+            "FMC size",
+            firmware::FMC_WITH_UART,
+        )))
+        .add_builder(Box::new(CaliptraFirmwareBuilder::new(
+            "App size",
+            firmware::APP_WITH_UART,
+        )))
+        .add_builder(Box::new(CaliptraFirmwareBuilder::new(
+            "App with OCP LOCK size",
+            firmware::APP_WITH_UART_OCP_LOCK,
+        )))
+        .run()?;
 
-#[derive(Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
-struct Sizes {
-    rom_size_with_uart: Option<u64>,
-    rom_size_prod: Option<u64>,
-    fmc_size_with_uart: Option<u64>,
-    app_size_with_uart: Option<u64>,
-    app_size_with_uart_ocp_lock: Option<u64>,
-}
-impl Sizes {
-    fn update_from(&mut self, other: &Sizes) {
-        self.rom_size_with_uart = other.rom_size_with_uart.or(self.rom_size_with_uart);
-        self.rom_size_prod = other.rom_size_prod.or(self.rom_size_prod);
-        self.fmc_size_with_uart = other.fmc_size_with_uart.or(self.fmc_size_with_uart);
-        self.app_size_with_uart = other.app_size_with_uart.or(self.app_size_with_uart);
-        self.app_size_with_uart_ocp_lock = other
-            .app_size_with_uart_ocp_lock
-            .or(self.app_size_with_uart_ocp_lock);
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-struct SizeRecord {
-    commit: git::CommitInfo,
-    sizes: Sizes,
-}
-
-fn main() {
-    if let Err(e) = real_main() {
-        println!("Fatal Error: {e}");
-        std::process::exit(1);
-    }
+    Ok(())
 }
 
-fn real_main() -> io::Result<()> {
-    let cache = GithubActionCache::new().map(box_cache).or_else(|e| {
+fn create_cache() -> Result<Box<dyn Cache>, Box<dyn Error>> {
+    Ok(GithubActionCache::new().map(box_cache).or_else(|e| {
         let fs_cache_path = "/tmp/caliptra-size-cache";
         println!(
             "Unable to create github action cache: {e}; using fs-cache instead at {fs_cache_path}"
         );
         FsCache::new(fs_cache_path.into()).map(box_cache)
-    })?;
-
-    let worktree = git::WorkTree::new(Path::new("/tmp/caliptra-size-history-wt"))?;
-    let head_commit = worktree.head_commit_id()?;
-
-    let is_pr = env::var("EVENT_NAME").is_ok_and(|name| name == "pull_request")
-        && env::var("PR_BASE_COMMIT").is_ok();
-
-    // require linear history for PRs; non-linear is OK for main branches
-    if is_pr && !worktree.is_log_linear()? {
-        println!("git history is not linear; attempting to squash PR");
-        let (Ok(pull_request_title), Ok(base_ref)) =
-            (env::var("PR_TITLE"), env::var("PR_BASE_COMMIT"))
-        else {
-            return Err(other_err("cannot attempt squash outside of a PR"));
-        };
-        let mut rebase_onto: String = base_ref;
-        for merge_parents in worktree.merge_log()? {
-            for parent in merge_parents {
-                if worktree.is_ancestor(&parent, "remotes/origin/main")?
-                    && !worktree.is_ancestor(&parent, &rebase_onto)?
-                {
-                    println!(
-                        "Found more recent merge from main; will rebase onto {}",
-                        parent
-                    );
-                    rebase_onto = parent;
-                }
-            }
-        }
-        println!("Resetting to {}", rebase_onto);
-        worktree.reset_hard(&rebase_onto)?;
-        println!("Set fs contents to {}", head_commit);
-        worktree.set_fs_contents(&head_commit)?;
-        println!("Committing squashed commit {pull_request_title:?}");
-        worktree.commit(&pull_request_title)?;
-
-        // we can't guarantee linear history even after squashing, so we can't check here
-    }
-
-    let git_commits = worktree.commit_log()?;
-
-    env::set_current_dir(worktree.path)?;
-
-    let mut records = vec![];
-
-    let mut cached_commit = None;
-    for commit in git_commits.iter() {
-        match cache.get(&format_cache_key(&commit.id)) {
-            Ok(Some(cached_records)) => {
-                if let Ok(cached_records) =
-                    serde_json::from_slice::<Vec<SizeRecord>>(&cached_records)
-                {
-                    println!("Found cache entry for remaining commits at {}", commit.id);
-                    records.extend(cached_records);
-                    cached_commit = Some(commit.id.clone());
-                    break;
-                } else {
-                    println!(
-                        "Error parsing cache entry {:?}",
-                        String::from_utf8_lossy(&cached_records)
-                    );
-                }
-            }
-            Ok(None) => {} // not found
-            Err(e) => println!("Error reading from cache: {e}"),
-        }
-        println!(
-            "Building firmware at commit {}: {}",
-            commit.id, commit.title
-        );
-        worktree.checkout(&commit.id)?;
-        worktree.submodule_update()?;
-
-        records.push(SizeRecord {
-            commit: commit.clone(),
-            sizes: compute_size(&worktree, &commit.id),
-        });
-    }
-    for (i, record) in records.iter().enumerate() {
-        if Some(&record.commit.id) == cached_commit.as_ref() {
-            break;
-        }
-        if let Err(e) = cache.set(
-            &format_cache_key(&record.commit.id),
-            &serde_json::to_vec(&records[i..]).unwrap(),
-        ) {
-            println!(
-                "Unable to write to cache for commit {}: {e}",
-                record.commit.id
-            );
-        }
-    }
-
-    let html = html::format_records(&records)?;
-
-    if let Ok(file) = env::var("GITHUB_STEP_SUMMARY") {
-        fs::write(file, &html)?;
-    } else {
-        println!("{html}");
-    }
-
-    Ok(())
-}
-
-fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
-    // TODO: consider using caliptra_builder from the same repo as the firmware
-    let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
-        let workspace_dir = Some(worktree.path);
-        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(workspace_dir, fwid)?;
-        elf_size(&elf_bytes)
-    };
-    let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {
-        match fwid_elf_size(fwid) {
-            Ok(result) => Some(result),
-            Err(err) => {
-                println!("Error building commit {}: {err}", commit_id);
-                None
-            }
-        }
-    };
-
-    Sizes {
-        rom_size_with_uart: fwid_elf_size_or_none(&firmware::ROM_WITH_UART),
-        rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
-        fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
-        app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
-        app_size_with_uart_ocp_lock: fwid_elf_size_or_none(&firmware::APP_WITH_UART_OCP_LOCK),
-    }
+    })?)
 }
 
 fn box_cache(val: impl Cache + 'static) -> Box<dyn Cache> {
     Box::new(val)
 }
 
-fn format_cache_key(commit: &str) -> String {
-    format!("{CACHE_FORMAT_VERSION}-{commit}")
+/// Builds Caliptra firmware using caliptra_builder and measures ELF size.
+struct CaliptraFirmwareBuilder {
+    name: String,
+    fwid: FwId<'static>,
+}
+
+impl CaliptraFirmwareBuilder {
+    fn new(name: impl Into<String>, fwid: FwId<'static>) -> Self {
+        Self {
+            name: name.into(),
+            fwid,
+        }
+    }
+
+    fn build_elf(&self, workspace: &Path) -> io::Result<u64> {
+        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(Some(workspace), &self.fwid)?;
+        elf_size(&elf_bytes)
+    }
+}
+
+impl ArtifactBuilder for CaliptraFirmwareBuilder {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn build_and_measure(&self, workspace: &Path) -> Option<u64> {
+        match self.build_elf(workspace) {
+            Ok(size) => Some(size),
+            Err(err) => {
+                println!("Error building {}: {err}", self.name);
+                None
+            }
+        }
+    }
 }
