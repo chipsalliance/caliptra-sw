@@ -1579,6 +1579,16 @@ impl CaliptraError {
             "Runtime Error: RT current PCR validation failed"
         ),
         (
+            RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR,
+            0x000E0090,
+            "Runtime Error: Attested CSR EAT encoding error"
+        ),
+        (
+            RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR,
+            0x000E0091,
+            "Runtime Error: Attested CSR COSE Sign1 encoding error"
+        ),
+        (
             RUNTIME_CCIV_CONTEXT_NOT_FOUND,
             0x000E0093,
             "Runtime Error: CCIV context not found"
