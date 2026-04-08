@@ -323,10 +323,10 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
  "caliptra-api-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-emu-types",
- "caliptra-error 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-error",
+ "caliptra-image-types",
  "caliptra-registers",
  "ureg",
  "zerocopy",
@@ -349,7 +349,7 @@ dependencies = [
 name = "caliptra-api-types"
 version = "0.1.0"
 dependencies = [
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
 ]
 
 [[package]]
@@ -359,10 +359,10 @@ dependencies = [
  "anyhow",
  "bitflags 2.11.0",
  "caliptra-auth-man-types",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",
 ]
@@ -374,9 +374,9 @@ dependencies = [
  "arbitrary",
  "bitfield",
  "bitflags 2.11.0",
- "caliptra-error 0.1.0",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
+ "caliptra-error",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",
  "zeroize",
@@ -390,11 +390,11 @@ dependencies = [
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-drivers",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-gen 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-gen",
  "caliptra-image-serde",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "chrono",
  "clap",
  "hex",
@@ -409,36 +409,11 @@ name = "caliptra-builder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
- "clap",
- "elf",
- "fslock",
- "hex",
- "memoffset 0.8.0",
- "once_cell",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2",
- "toml 0.7.8",
- "zerocopy",
-]
-
-[[package]]
-name = "caliptra-builder"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "anyhow",
- "caliptra-image-crypto 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-elf 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-fake-keys 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-gen 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-types",
  "clap",
  "elf",
  "fslock",
@@ -475,9 +450,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bit-vec",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-drivers",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "elf",
  "hex",
  "rand",
@@ -504,15 +479,15 @@ dependencies = [
  "bitflags 2.11.0",
  "caliptra-api",
  "caliptra-auth-man-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers-test-bin",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "caliptra-okref",
  "caliptra-registers",
  "caliptra-test",
@@ -531,9 +506,9 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cfi-lib",
  "caliptra-drivers",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-kat",
- "caliptra-lms-types 0.1.0",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if",
@@ -648,11 +623,6 @@ name = "caliptra-error"
 version = "0.1.0"
 
 [[package]]
-name = "caliptra-error"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-
-[[package]]
 name = "caliptra-file-header-fix"
 version = "0.1.0"
 
@@ -662,16 +632,16 @@ version = "0.1.0"
 dependencies = [
  "caliptra-api",
  "caliptra-auth-man-gen",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-types",
  "caliptra-kat",
  "caliptra-registers",
  "caliptra-test",
@@ -701,15 +671,15 @@ dependencies = [
  "bitflags 2.11.0",
  "caliptra-api",
  "caliptra-api-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-coverage",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-fake-keys",
+ "caliptra-image-types",
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
@@ -772,11 +742,11 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "caliptra-drivers",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-gen 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-gen",
  "caliptra-image-serde",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "chrono",
  "clap",
  "hex",
@@ -791,9 +761,9 @@ name = "caliptra-image-crypto"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "cfg-if",
  "ecdsa",
  "fips204",
@@ -806,38 +776,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "caliptra-image-crypto"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "anyhow",
- "caliptra-image-gen 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-lms-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "cfg-if",
- "fips204",
- "openssl",
- "zerocopy",
-]
-
-[[package]]
 name = "caliptra-image-elf"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
- "elf",
-]
-
-[[package]]
-name = "caliptra-image-elf"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "anyhow",
- "caliptra-image-gen 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
+ "caliptra-image-gen",
+ "caliptra-image-types",
  "elf",
 ]
 
@@ -845,21 +789,10 @@ dependencies = [
 name = "caliptra-image-fake-keys"
 version = "0.1.0"
 dependencies = [
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
- "zerocopy",
-]
-
-[[package]]
-name = "caliptra-image-fake-keys"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "caliptra-image-gen 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-image-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-lms-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
+ "caliptra-image-crypto",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "zerocopy",
 ]
 
@@ -869,25 +802,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitflags 2.11.0",
- "caliptra-image-types 0.1.0",
- "caliptra-lms-types 0.1.0",
- "fips204",
- "memoffset 0.8.0",
- "rand",
- "serde",
- "serde_derive",
- "zerocopy",
-]
-
-[[package]]
-name = "caliptra-image-gen"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "anyhow",
- "bitflags 2.11.0",
- "caliptra-image-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-lms-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
+ "caliptra-image-types",
+ "caliptra-lms-types",
  "fips204",
  "memoffset 0.8.0",
  "rand",
@@ -901,7 +817,7 @@ name = "caliptra-image-serde"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "memoffset 0.8.0",
  "zerocopy",
 ]
@@ -913,24 +829,8 @@ dependencies = [
  "arbitrary",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
- "caliptra-error 0.1.0",
- "caliptra-lms-types 0.1.0",
- "memoffset 0.8.0",
- "serde",
- "serde_derive",
- "zerocopy",
- "zeroize",
-]
-
-[[package]]
-name = "caliptra-image-types"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
- "caliptra-error 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
- "caliptra-lms-types 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
+ "caliptra-error",
+ "caliptra-lms-types",
  "memoffset 0.8.0",
  "serde",
  "serde_derive",
@@ -946,7 +846,7 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "caliptra-registers",
  "caliptra_common",
  "memoffset 0.8.0",
@@ -958,7 +858,7 @@ name = "caliptra-kat"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
- "caliptra-lms-types 0.1.0",
+ "caliptra-lms-types",
  "caliptra-registers",
  "ufmt",
  "zerocopy",
@@ -969,19 +869,6 @@ name = "caliptra-lms-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
- "serde",
- "serde_derive",
- "zerocopy",
- "zeroize",
-]
-
-[[package]]
-name = "caliptra-lms-types"
-version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df#dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df"
-dependencies = [
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "serde",
@@ -1016,22 +903,22 @@ dependencies = [
  "caliptra-api",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-emu-cpu",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
- "caliptra-lms-types 0.1.0",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
  "caliptra-x509",
@@ -1074,7 +961,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "cfg-if",
  "ufmt",
 ]
@@ -1093,24 +980,24 @@ dependencies = [
  "caliptra-api",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-emu-bus",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-gen 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
  "caliptra-image-serde",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
- "caliptra-lms-types 0.1.0",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
  "caliptra-x509",
@@ -1167,9 +1054,8 @@ dependencies = [
 [[package]]
 name = "caliptra-size-history"
 version = "0.1.0"
-source = "git+https://github.com/leongross/caliptra-infra.git?branch=leongross%2Fsize-history-refactor#ca9d2a065087ab209de5c0dc9b4426ed4be424b4"
+source = "git+https://github.com/chipsalliance/caliptra-infra.git?rev=64e75e17e1a2eb07ff8dd6698932af82182da85e#64e75e17e1a2eb07ff8dd6698932af82182da85e"
 dependencies = [
- "caliptra-builder 0.1.0 (git+https://github.com/chipsalliance/caliptra-sw.git?rev=dcdb3932812f42c7c93fe9aa796ecc1fe60ca2df)",
  "ghac",
  "prost",
  "prost-derive",
@@ -1182,7 +1068,7 @@ dependencies = [
 name = "caliptra-size-history-bin"
 version = "0.1.0"
 dependencies = [
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-size-history",
 ]
 
@@ -1201,17 +1087,17 @@ dependencies = [
  "caliptra-api-types",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-coverage",
  "caliptra-drivers",
  "caliptra-emu-cpu",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
- "caliptra-image-crypto 0.1.0",
- "caliptra-image-elf 0.1.0",
- "caliptra-image-fake-keys 0.1.0",
- "caliptra-image-gen 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-runtime",
  "caliptra_common",
@@ -1286,9 +1172,9 @@ name = "caliptra-zeros"
 version = "0.1.0"
 dependencies = [
  "caliptra-api",
- "caliptra-builder 0.1.0",
+ "caliptra-builder",
  "caliptra-drivers",
- "caliptra-error 0.1.0",
+ "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra_common",
@@ -1306,8 +1192,8 @@ dependencies = [
  "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",
- "caliptra-error 0.1.0",
- "caliptra-image-types 0.1.0",
+ "caliptra-error",
+ "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-registers",
  "caliptra-x509",
