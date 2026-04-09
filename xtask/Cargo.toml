@@ -15,6 +15,7 @@ clap.workspace = true
 log.workspace = true
 caliptra-builder.workspace = true
 size-history.workspace = true
+bitstream-downloader.workspace = true
 octocrab = "0.38.0"
 serde = { workspace = true, features = ["derive"] }
 simple_logger.workspace = true

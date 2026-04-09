@@ -237,6 +237,7 @@ platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cfc9a
 
 # infra dependecies for CI
 size-history = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-size-history", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
+bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
 
 [profile.firmware]
 inherits = "release"

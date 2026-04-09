@@ -74,12 +74,11 @@ pub enum ReleaseCommands {
 pub enum CICommands {
     /// Run size-history tool.
     SizeHistory,
-    BitstreamDownloader,
-    TestMatrix,
-    FileHeaderFix {
-        /// Run the file header fixing tool in check-only mode (no file modificaitons).
-        check: bool,
+    /// Run the bitstream downloader tool.
+    BitstreamDownloader {
+        path: String,
     },
+    TestMatrix,
 }
 
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -117,9 +116,8 @@ fn main() {
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
         Commands::CI { command } => match command {
             CICommands::SizeHistory => ci::size_history(),
-            CICommands::BitstreamDownloader => Ok(()),
+            CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
             CICommands::TestMatrix => Ok(()),
-            CICommands::FileHeaderFix { check } => Ok(()),
         },
     };
     result.unwrap_or_else(|e| {

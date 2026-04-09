@@ -2,6 +2,7 @@
 
 use std::{env, error::Error, io, path::Path};
 
+use anyhow::anyhow;
 use caliptra_builder::{elf_size, firmware, FwId};
 use size_history::{
     ArtifactBuilder, Cache, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
@@ -96,4 +97,14 @@ impl ArtifactBuilder for CaliptraFirmwareBuilder {
             }
         }
     }
+}
+
+pub fn bitstream_download(manifest_path: String) -> Result<(), anyhow::Error> {
+    let out_path = bitstream_downloader::download_bitstream(Path::new(manifest_path.as_str()))
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let out = out_path
+        .to_str()
+        .ok_or_else(|| anyhow!("invalid output file path"))?;
+    println!("Download path bitstream: {}", out);
+    Ok(())
 }
