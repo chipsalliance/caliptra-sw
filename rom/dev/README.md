@@ -361,10 +361,10 @@ The following flows are conducted when the ROM is operating in the production mo
 | Unlock Level             | 1            | Debug unlock Level (Number 1-8).                                                      |
 | Reserved                 | 3            | Reserved field.                                                                       |
 | Challenge                | 48           | Random number sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.          |
-| ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian)                         |
-| MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature.                             |
-| ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes).                                                                                   |
-| MLDSA Signature          | 4628         | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
+| ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
+| MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature. See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
+| ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
+| MLDSA Signature          | 4628         | MLDSA-87 signature of the Message hashed using SHA2-512 (4627 bytes + 1 Reserved byte). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
 
 7. On receiving this payload, ROM performs the following validations:
     - Ensures the value in the `Length` field matches the size of the payload.
@@ -1192,6 +1192,11 @@ This reversed-dword format applies to:
 Note: LMS public key fields (`tree_type`, `otstype`, `id`, `digest`) follow the LMS specification
 encoding and are **not** subject to dword reversal. MLDSA public keys are stored as raw byte arrays
 and are also **not** subject to dword reversal.
+
+For a detailed description of byte ordering conventions for all mailbox cryptographic fields
+(including ECC, ML-DSA, and SHA digest fields with OpenSSL examples), see the
+[Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields)
+section in the Runtime README.
 
 ### Computing public key hashes: step-by-step example
 

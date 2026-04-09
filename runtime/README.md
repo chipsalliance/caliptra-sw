@@ -314,6 +314,68 @@ Relevant registers:
 Mailbox user 0xFFFF_FFFF is reserved for Caliptra internal use. All mailbox
 commands from that user will fail.
 
+### Byte order of cryptographic fields
+
+Several mailbox commands include ECC P-384 and ML-DSA-87 public keys,
+signatures, and SHA digest values stored as `[u32]` arrays.
+The "big endian" / "little endian" labels in individual command tables describe
+how the **standard byte representation** produced by cryptographic
+tools maps to those `u32` words.
+
+Generally, any fields specified as **little-endian** byte representation will match the standard byte representation of the cryptographic protocols, since the RISC-V processor is a little-endian processor.
+
+#### ECC P-384 fields (big-endian words)
+
+Each 4-byte group from the standard representation is byte-reversed on the
+wire.
+
+Example — suppose OpenSSL produces a 48-byte X coordinate starting with:
+
+```
+OpenSSL raw bytes:  AB CD EF 01  23 45 67 89  ...
+                    ~~~~~~~~~~~  ~~~~~~~~~~~
+Mailbox bytes:      01 EF CD AB  89 67 45 23  ...
+```
+
+In other words: split the tool output into 4-byte groups, then reverse each
+group.
+
+#### ML-DSA-87 fields (little-endian words)
+
+No conversion is needed. Copy the raw bytes produced by an ML-DSA-87
+implementation (e.g., OpenSSL 3.5+, the `fips204` crate, or the NIST reference
+implementation) directly into the mailbox buffer.
+
+```
+openssl pkey output: AB CD EF 01  23 45 67 89  ...
+Mailbox bytes:       AB CD EF 01  23 45 67 89  ...  (identical)
+```
+
+#### SHA digest fields (big-endian words)
+
+Hash digests stored as `u32[N]` arrays use the same big-endian word convention
+as ECC fields. Each 4-byte group of the standard hash output is byte-reversed
+on the wire.
+
+Example — suppose `openssl dgst -sha384` produces a digest starting with:
+
+```
+openssl output:     A1 B2 C3 D4  E5 F6 07 18  ...
+                    ~~~~~~~~~~~  ~~~~~~~~~~~
+Mailbox u32[12]:    D4 C3 B2 A1  18 07 F6 E5  ...
+```
+
+#### u8 byte-array fields (no conversion needed)
+
+When ECC P-384 keys, signatures, or SHA digests are declared as `u8[48]` (rather
+than `u32[12]`), they use standard big-endian byte order — the same format
+produced by OpenSSL and other cryptographic tools. No byte-swapping is required.
+
+For example, the `ECDSA384_SIGNATURE_VERIFY` input fields (`pub_key_x`,
+`pub_key_y`, `signature_r`, `signature_s`, `hash`) and the `QUOTE_PCRS_ECC384`
+output fields (`digest`, `signature_r`, `signature_s`) can be used directly with
+`openssl` or OpenSSL's `BN_bin2bn()` without any conversion.
+
 ### FW\_LOAD
 
 The `FIRMWARE_LOAD` command is handled by both ROM and Runtime Firmware.
@@ -755,7 +817,7 @@ Command Code: `0x4F57_4E50` ("OWNP")
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| digest    | u32[12]       | Owner public key hash.
+| digest    | u32[12]       | Owner public key hash. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
 
 *Table: `INSTALL_OWNER_PK_HASH` output arguments*
 
@@ -943,8 +1005,36 @@ PcrValue is defined as u8[48]
 | PCRs               | PcrValue[32] | Values of all PCRs.
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
-| digest             | u8[64]       | Return the SHA2-512 digest over the PCR values and the nonce, in byte reversed order.
+| digest             | u8[64]       | SHA2-512 digest over the PCR values and the nonce, in DWORD-reversed order with per-word byte swap. See note below.
 | signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
+
+**Digest byte order:** The `digest` field has two transformations applied relative
+to the standard `openssl dgst -sha512` output: (1) the 16 u32 words are in
+reversed order, and (2) the bytes within each word are reversed. For example, if
+`openssl dgst -sha512` produces `A1 B2 C3 D4  E5 F6 07 18  ...  P1 P2 P3 P4`,
+the mailbox response contains `P4 P3 P2 P1  ...  18 07 F6 E5  D4 C3 B2 A1`.
+
+To **independently recompute** this digest from PCR values and nonce, compute the
+SHA2-512 hash, then apply two steps:
+
+```
+openssl dgst -sha512 output (64 bytes, shown as 16 four-byte groups):
+  A1 B2 C3 D4 | E5 F6 07 18 | ... | M1 M2 M3 M4 | P1 P2 P3 P4
+
+Step 1 — reverse the bytes within each 4-byte group:
+  D4 C3 B2 A1 | 18 07 F6 E5 | ... | M4 M3 M2 M1 | P4 P3 P2 P1
+
+Step 2 — reverse the order of all 16 groups:
+  P4 P3 P2 P1 | M4 M3 M2 M1 | ... | 18 07 F6 E5 | D4 C3 B2 A1
+  ^^^^^^^^^^^^                                       ^^^^^^^^^^^^
+  (last group from Step 1 is now first)    (first group is now last)
+
+Mailbox digest = result of Step 2
+```
+
+To **verify the signature** with an external tool such as OpenSSL, pass the `digest`
+bytes as-is as the pre-hashed message to ML-DSA-87 verification — no conversion
+is needed because the signature was computed over these exact bytes.
 
 ### EXTEND\_PCR
 
@@ -1087,11 +1177,11 @@ Command Code: `0x494E_464F` ("INFO")
 | rom_revision           | u8[20]         | Revision (Git commit ID) of ROM build.
 | fmc_revision           | u8[20]         | Revision (Git commit ID) of FMC build.
 | runtime_revision       | u8[20]         | Revision (Git commit ID) of runtime build.
-| rom_sha256_digest      | u32[8]         | Digest of ROM binary.
-| fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
-| runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
-| owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
-| authman_sha384_digest  | u32[12]        | Hash of the authorization manifest provided by SET_AUTH_MANIFEST.
+| rom_sha256_digest      | u32[8]         | Digest of ROM binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| fmc_sha384_digest      | u32[12]        | Digest of FMC binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| runtime_sha384_digest  | u32[12]        | Digest of runtime binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| authman_sha384_digest  | u32[12]        | Hash of the authorization manifest provided by SET_AUTH_MANIFEST. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
 | most_recent_fw_error   | u32            | Most recent FW non-fatal error (shows current non-fatal error if non-zero)
 
 ### VERSION
@@ -1273,18 +1363,18 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | preamble\_size                | u32          | Size of the preamble                                                        |
 | preamble\_version             | u32          | Version of the preamble                                                     |
 | preamble\_flags               | u32          | Manifest flags. See AUTH_MANIFEST_FLAGS below |
-| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
-| preamble\_vendor\_pqc\_key    | u32[648]       | Vendor MLDSA-87 or LMS-SHA192-H15 key                                                   |
-| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
-| preamble\_vendor\_PQC\_sig    | u32[1157]    | Vendor MLDSA-87 or LMOTS-SHA192-W4 signature                                            |
-| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
-| preamble\_owner\_pqc\_key     | u32[648]       | Owner MLDSA-87 or LMS-SHA192-H15 key                                                    |
-| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
-| preamble\_owner\_PQC\_sig     | u32[1157]    | Owner MLDSA-87 or LMOTS-SHA192-W4 signature                                             |
-| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
-| metadata\_vendor\_PQC\_sig    | u32[1157]    | Metadata Vendor MLDSA-87 or LMOTS-SHA192-W4 signature                                   |
-| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
-| metadata\_owner\_PQC\_sig     | u32[1157]    | Metadata Owner MLDSA-87 or LMOTS-SHA192-W4 signature                                    |
+| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_vendor\_pqc\_key    | u32[648]       | Vendor MLDSA-87 or LMS-SHA192-H15 key. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_vendor\_PQC\_sig    | u32[1157]    | Vendor MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_owner\_pqc\_key     | u32[648]       | Owner MLDSA-87 or LMS-SHA192-H15 key. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| preamble\_owner\_PQC\_sig     | u32[1157]    | Owner MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| metadata\_vendor\_PQC\_sig    | u32[1157]    | Metadata Vendor MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| metadata\_owner\_PQC\_sig     | u32[1157]    | Metadata Owner MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
 | metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
 
@@ -2920,8 +3010,8 @@ Command Code: `0x5044_5552` ("PDUR")
 | chksum                      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status                | u32      | Indicates if the command is FIPS approved or an error.
 | length                      | u32      | Length of the response payload in DWORDs.
-| unique\_device\_identifier  | u8[32]   | Device identifier of the Caliptra device.
-| challenge                   | u8[48]   | Random challenge number generated by Caliptra.
+| unique\_device\_identifier  | u8[32]   | Device identifier of the Caliptra device. Byte array; pass through as-is to the token command.
+| challenge                   | u8[48]   | Random challenge number generated by Caliptra. Byte array; pass through as-is to the token command.
 
 ### PRODUCTION\_AUTH\_DEBUG\_UNLOCK\_TOKEN
 
@@ -2949,14 +3039,18 @@ Command Code: `0x5044_5554` ("PDUT")
 | --------                    | --------  | ---------------
 | chksum                      | u32       | Checksum over other input arguments, computed by the caller. Little endian.
 | length                      | u32       | Length of the payload in DWORDs.
-| unique\_device\_identifier  | u8[32]    | Device identifier (must match value from challenge response).
+| unique\_device\_identifier  | u8[32]    | Device identifier (must match value from challenge response). Byte array; copied verbatim from the challenge response.
 | unlock\_level               | u8        | Debug unlock level (1–8, must match the original request).
 | reserved                    | u8[3]     | Reserved.
-| challenge                   | u8[48]    | Challenge (must match value from challenge response).
-| ecc\_public\_key            | u8[96]    | ECC P-384 public key.
-| mldsa\_public\_key          | u8[2592]  | ML-DSA-87 public key.
-| ecc\_signature              | u8[96]    | ECC P-384 signature of the message hashed using SHA2-384. R (48 bytes) &#124; S (48 bytes).
-| mldsa\_signature            | u8[4628]  | ML-DSA-87 signature of the message hashed using SHA2-512 (4627 bytes + 1 reserved byte).
+| challenge                   | u8[48]    | Challenge (must match value from challenge response). Byte array; copied verbatim from the challenge response.
+| ecc\_public\_key            | u8[96]    | ECC P-384 public key (X &#124;&#124; Y, 48 bytes each). See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| mldsa\_public\_key          | u8[2592]  | ML-DSA-87 public key. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| ecc\_signature              | u8[96]    | ECC P-384 signature over the SHA2-384 message digest. R (48 bytes) &#124; S (48 bytes). See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+| mldsa\_signature            | u8[4628]  | ML-DSA-87 signature over the SHA2-512 message digest (4627 bytes + 1 reserved byte). See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).
+
+The signed message for both ECC and ML-DSA signatures is the hash of the concatenation:
+`unique_device_identifier || unlock_level || reserved || challenge` (all as raw bytes).
+ECC uses SHA2-384; ML-DSA uses SHA2-512.
 
 `PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN` returns no output arguments other than the mailbox
 response header.

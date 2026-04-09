@@ -351,7 +351,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
         pub_key: &ImageMldsaPubKey,
         sig: &ImageMldsaSignature,
     ) -> CaliptraResult<Mldsa87Result> {
-        // Public Key is received in hw format from the image. No conversion needed.
+        // MLDSA public key is stored as raw bytes in the image; no byte-order conversion needed.
         let pub_key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] = pub_key
             .0
             .as_bytes()
@@ -361,7 +361,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
             CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
         ))?;
 
-        // Signature is received in hw format from the image. No conversion needed.
+        // MLDSA signature is stored as raw bytes in the image; no byte-order conversion needed.
         let sig_bytes: [u8; MLDSA87_SIGNATURE_BYTE_SIZE] = sig
             .0
             .as_bytes()

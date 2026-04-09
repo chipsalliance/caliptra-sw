@@ -2565,12 +2565,14 @@ pub struct ProductionAuthDebugUnlockToken {
     pub unlock_level: u8,                   // Debug unlock Level (1-8)
     pub reserved: [u8; 3],                  // Reserved
     pub challenge: [u8; 48],                // Random number
-    pub ecc_public_key: [u32; 24], // ECC public key (in hardware format i.e. little endian)
-    pub mldsa_public_key: [u32; 648], // MLDSA public key (in hardware format i.e. little endian)
-    // ECC P-384 signature of the Message hashed using SHA2-384 (in hardware format i.e. little endian)
+    pub ecc_public_key: [u32; 24], // ECC public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    pub mldsa_public_key: [u32; 648], // MLDSA public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    // ECC P-384 signature of the Message hashed using SHA2-384
     // R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
+    // See runtime/README.md#byte-order-of-cryptographic-fields
     pub ecc_signature: [u32; 24],
-    // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte) (in hardware format i.e. little endian)
+    // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte)
+    // See runtime/README.md#byte-order-of-cryptographic-fields
     pub mldsa_signature: [u32; 1157],
 }
 impl Default for ProductionAuthDebugUnlockToken {
