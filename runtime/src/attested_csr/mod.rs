@@ -44,11 +44,6 @@ enum CryptoType {
     MLDSA87,
 }
 
-pub(crate) struct CsrData {
-    pub data: [u8; MAX_CSR_SIZE],
-    pub len: usize,
-}
-
 pub(crate) enum DevIdKeyType {
     LdevId = 1,
     FmcAlias = 2,
@@ -79,54 +74,47 @@ impl DevIdKeyType {
         }
     }
 
-    pub fn generate_ecc_csr(&self, drivers: &mut Drivers) -> CaliptraResult<CsrData> {
-        let mut csr_data = [0u8; MAX_CSR_SIZE];
-
-        let csr_len: usize = match self {
-            DevIdKeyType::LdevId => generate_ldevid_ecc_csr(drivers, &mut csr_data),
-            DevIdKeyType::FmcAlias => generate_fmc_alias_ecc_csr(drivers, &mut csr_data),
-            DevIdKeyType::RtAlias => generate_rt_alias_ecc_csr(drivers, &mut csr_data),
-        }?;
-
-        Ok(CsrData {
-            data: csr_data,
-            len: csr_len,
-        })
+    pub fn generate_ecc_csr(
+        &self,
+        drivers: &mut Drivers,
+        csr_buf: &mut [u8; MAX_CSR_SIZE],
+    ) -> CaliptraResult<usize> {
+        match self {
+            DevIdKeyType::LdevId => generate_ldevid_ecc_csr(drivers, csr_buf),
+            DevIdKeyType::FmcAlias => generate_fmc_alias_ecc_csr(drivers, csr_buf),
+            DevIdKeyType::RtAlias => generate_rt_alias_ecc_csr(drivers, csr_buf),
+        }
     }
 
-    pub fn generate_mldsa_csr(&self, drivers: &mut Drivers) -> CaliptraResult<CsrData> {
-        let mut csr_data = [0u8; MAX_CSR_SIZE];
-
-        let csr_len: usize = match self {
-            DevIdKeyType::LdevId => generate_ldevid_mldsa_csr(drivers, &mut csr_data),
-            DevIdKeyType::FmcAlias => generate_fmc_alias_mldsa_csr(drivers, &mut csr_data),
-            DevIdKeyType::RtAlias => generate_rt_alias_mldsa_csr(drivers, &mut csr_data),
-        }?;
-
-        Ok(CsrData {
-            data: csr_data,
-            len: csr_len,
-        })
+    pub fn generate_mldsa_csr(
+        &self,
+        drivers: &mut Drivers,
+        csr_buf: &mut [u8; MAX_CSR_SIZE],
+    ) -> CaliptraResult<usize> {
+        match self {
+            DevIdKeyType::LdevId => generate_ldevid_mldsa_csr(drivers, csr_buf),
+            DevIdKeyType::FmcAlias => generate_fmc_alias_mldsa_csr(drivers, csr_buf),
+            DevIdKeyType::RtAlias => generate_rt_alias_mldsa_csr(drivers, csr_buf),
+        }
     }
 
     fn generate_csr_eat_claims(
         &self,
         drivers: &mut Drivers,
         nonce: &[u8; 32],
+        csr_buf: &mut [u8; MAX_CSR_SIZE],
         eat_buffer: &mut [u8],
         crypto: CryptoType,
     ) -> CaliptraResult<usize> {
         let attributes = [self.to_kda_oid()];
-        // generate CSR for key identified by key_id
-        let csr_data = match crypto {
-            CryptoType::ECC384 => self.generate_ecc_csr(drivers),
-            CryptoType::MLDSA87 => self.generate_mldsa_csr(drivers),
+        let csr_len = match crypto {
+            CryptoType::ECC384 => self.generate_ecc_csr(drivers, csr_buf),
+            CryptoType::MLDSA87 => self.generate_mldsa_csr(drivers, csr_buf),
         }?;
 
         let attested_csr = CsrEatClaims::with_nonce(
-            csr_data
-                .data
-                .get(..csr_data.len)
+            csr_buf
+                .get(..csr_len)
                 .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?,
             &attributes,
             nonce,
@@ -145,6 +133,7 @@ impl DevIdKeyType {
         drivers: &mut Drivers,
         payload: &[u8],
         rt_key_id: &[u8; 20],
+        sign_ctx_buf: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
         signed_eat_buffer: &mut [u8],
     ) -> CaliptraResult<usize> {
         // Get RT public key
@@ -158,13 +147,12 @@ impl DevIdKeyType {
             .protected_header(&protected_header)
             .payload(payload);
 
-        let mut signature_ctx_buffer = [0u8; MAX_SIGN_CONTEXT_SIZE];
         let sign_ctx_len = cose_sign1
-            .get_signature_context(&mut signature_ctx_buffer)
+            .get_signature_context(sign_ctx_buf)
             .map_err(|_| CaliptraError::RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR)?;
 
         // Hash the signature context using SHA384
-        let signature_slice = &signature_ctx_buffer
+        let signature_slice = &sign_ctx_buf
             .get(..sign_ctx_len)
             .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR)?;
         let digest = drivers.sha2_512_384.sha384_digest(signature_slice);
@@ -201,6 +189,7 @@ impl DevIdKeyType {
         drivers: &mut Drivers,
         payload: &[u8],
         rt_key_id: &[u8; 20],
+        sign_ctx_buf: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
         signed_eat_buffer: &mut [u8],
     ) -> CaliptraResult<usize> {
         // Get RT public key
@@ -214,13 +203,12 @@ impl DevIdKeyType {
             .protected_header(&protected_header)
             .payload(payload);
 
-        let mut signature_ctx_buffer = [0u8; MAX_SIGN_CONTEXT_SIZE];
         let sign_ctx_len = cose_sign1
-            .get_signature_context(&mut signature_ctx_buffer)
+            .get_signature_context(sign_ctx_buf)
             .map_err(|_| CaliptraError::RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR)?;
 
         // Hash the signature context using SHA384
-        let signature_slice = &signature_ctx_buffer
+        let signature_slice = &sign_ctx_buf
             .get(..sign_ctx_len)
             .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR)?;
         let digest = drivers.sha2_512_384.sha384_digest(signature_slice);
@@ -272,10 +260,14 @@ impl AttestedEccCsrCmd {
         // Extract key_id and nonce
         let key_type = DevIdKeyType::try_from(cmd.key_id)?;
         let nonce = cmd.nonce;
+
+        // Single scratch buffer reused: first as CSR temp, then as signature context
+        let mut scratch = [0u8; MAX_CSR_SIZE];
         let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
         let csr_eat_len = key_type.generate_csr_eat_claims(
             drivers,
             &nonce,
+            &mut scratch,
             &mut env_csr_eat,
             CryptoType::ECC384,
         )?;
@@ -288,6 +280,7 @@ impl AttestedEccCsrCmd {
         )?;
 
         // Sign EAT using COSE Sign1 with RT Alias private key
+        // Reuse scratch buffer for signature context
         let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
         let csr_slice = &env_csr_eat
             .get(..csr_eat_len)
@@ -296,6 +289,7 @@ impl AttestedEccCsrCmd {
             drivers,
             csr_slice,
             &rt_subj_sn,
+            &mut scratch,
             resp.data.as_mut(),
         )?;
 
@@ -321,10 +315,14 @@ impl AttestedMldsaCsrCmd {
         // Extract key_id and nonce
         let key_type = DevIdKeyType::try_from(cmd.key_id)?;
         let nonce = cmd.nonce;
+
+        // Single scratch buffer reused: first as CSR temp, then as signature context
+        let mut scratch = [0u8; MAX_CSR_SIZE];
         let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
         let csr_eat_len = key_type.generate_csr_eat_claims(
             drivers,
             &nonce,
+            &mut scratch,
             &mut env_csr_eat,
             CryptoType::MLDSA87,
         )?;
@@ -337,6 +335,7 @@ impl AttestedMldsaCsrCmd {
         )?;
 
         // Sign EAT using COSE Sign1 with RT Alias private key
+        // Reuse scratch buffer for signature context
         let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
         let csr_slice = &env_csr_eat
             .get(..csr_eat_len)
@@ -345,6 +344,7 @@ impl AttestedMldsaCsrCmd {
             drivers,
             csr_slice,
             &rt_subj_sn,
+            &mut scratch,
             resp.data.as_mut(),
         )?;
 
