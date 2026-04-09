@@ -317,11 +317,12 @@ commands from that user will fail.
 ### Byte order of cryptographic fields
 
 Several mailbox commands include ECC P-384 and ML-DSA-87 public keys,
-signatures, and SHA digest values stored as `[u32]` arrays. These `u32` words
-are stored on the mailbox in Caliptra's native **little-endian** byte order.
+signatures, and SHA digest values stored as `[u32]` arrays.
 The "big endian" / "little endian" labels in individual command tables describe
-how the **standard (big-endian) byte representation** produced by cryptographic
+how the **standard byte representation** produced by cryptographic
 tools maps to those `u32` words.
+
+Generally, any fields specified as **little-endian** byte representation will match the standard byte representation of the cryptographic protocols, since the RISC-V processor is a little-endian processor.
 
 #### ECC P-384 fields (big-endian words)
 

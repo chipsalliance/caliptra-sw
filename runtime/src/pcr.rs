@@ -77,7 +77,8 @@ impl GetPcrQuoteCmd {
                 }
                 resp.reset_ctrs = drivers.persistent_data.get().fw.pcr_reset.all_counters();
 
-                // ECC uses big-endian word order; take lower 48 bytes of the SHA2-512/384 digest.
+                // ECC uses big-endian word order; return the first 48 bytes of the 64-byte
+                // SHA-512 output in the ECC-384 response digest field.
                 // See runtime/README.md#byte-order-of-cryptographic-fields.
                 resp.digest
                     .copy_from_slice((&<[_; 64]>::from(pcr_hash))[..48].as_ref());
