@@ -27,7 +27,7 @@ impl RewrapMpkCmd {
         let cmd = OcpLockRewrapMpkReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        let sek = Sek(cmd.sek);
+        let sek = Sek::new(cmd.sek)?;
         let hpke_handle = HpkeHandle::from(cmd.sealed_access_key.hpke_handle.handle);
         let current_locked_mpk = LockedMpk::try_from(&cmd.current_locked_mpk)?;
         let enc = &cmd.sealed_access_key.kem_ciphertext.clone();

@@ -27,7 +27,7 @@ impl EnableMpkCmd {
         let cmd = OcpLockEnableMpkReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        let sek = Sek(cmd.sek);
+        let sek = Sek::new(cmd.sek)?;
         let hpke_handle = HpkeHandle::from(cmd.sealed_access_key.hpke_handle.handle);
         // Mailbox memory must always have aligned accesses. Copy onto stack to prevent unaligned
         // access.

@@ -51,7 +51,7 @@ impl GenerateMpkCmd {
             .get(cmd.sealed_access_key.access_key_len as usize..)
             .and_then(|tag| <[u8; Aes256GCM::NT]>::ref_from_bytes(tag).ok())
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let sek = Sek(cmd.sek);
+        let sek = Sek::new(cmd.sek)?;
 
         let access_key = drivers.ocp_lock_context.decapsulate_access_key(
             &mut drivers.sha3,

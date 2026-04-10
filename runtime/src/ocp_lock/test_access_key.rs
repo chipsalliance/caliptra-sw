@@ -50,7 +50,7 @@ impl TestAccessKeyCmd {
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let nonce = &cmd.nonce;
-        let sek = Sek(cmd.sek);
+        let sek = Sek::new(cmd.sek)?;
         let locked_mpk = LockedMpk::try_from(&cmd.locked_mpk)?;
 
         let access_key = drivers.ocp_lock_context.decapsulate_access_key(
