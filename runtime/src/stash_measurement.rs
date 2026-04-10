@@ -20,7 +20,8 @@ use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::DpeErrorCode,
-    DpeInstance,
+    tci::TciMeasurement,
+    DpeInstance, DpeProfile,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -52,7 +53,7 @@ impl StashMeasurementCmd {
 
             let cmd = DeriveContextCmd {
                 handle: ContextHandle::default(),
-                data: *measurement,
+                data: TciMeasurement(*measurement),
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
@@ -63,7 +64,8 @@ impl StashMeasurementCmd {
             };
 
             let derive_context_resp = with_dpe_env(drivers, None, None, |env| {
-                Ok(cmd.execute(&mut DpeInstance::initialized(), env, locality))
+                let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+                Ok(cmd.execute(dpe, env, locality))
             })?;
 
             match derive_context_resp {

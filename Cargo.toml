@@ -10,11 +10,6 @@ resolver = "2"
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
-  "dpe/dpe",
-  "dpe/crypto",
-  "dpe/platform",
-  "dpe/simulator",
-  "dpe/tools",
 
   # fpga-boss depends on crates with annoying system deps like libusb and
   # libftdi, so keep it in its own workspace
@@ -169,9 +164,14 @@ convert_case = "0.6.0"
 cms = "0.2.2"
 ctr = "0.9.2"
 der = { version = "0.7.10", features = ["derive", "alloc"] }
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
-crypto = { path = "dpe/crypto", default-features = false }
-platform = { path = "dpe/platform", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false, features = ["p384"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "4986ac50d82b415d69eb73a44dfff1d776d5f762", default-features = false }
+
+# local DPE dependency; useful when developing
+# dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["p384"] }
+# crypto = { path = "../caliptra-dpe/crypto", default-features = false }
+# platform = { path = "../caliptra-dpe/platform", default-features = false }
 elf = "0.7.2"
 fips204 = "0.4.6"
 fslock = "0.2.1"

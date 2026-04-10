@@ -17,9 +17,9 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
+    commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{Response, ResponseHdr},
+    response::ResponseHdr,
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
 use zerocopy::IntoBytes;
@@ -44,12 +44,12 @@ impl InvokeDpeCmd {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let command =
-                Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
+                &Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
                     .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
 
             // Determine the target privilege level of a new context then check if we exceed thresholds
             let new_context_privilege_level = match command {
-                Command::DeriveContext(cmd) if DeriveContextCmd::changes_locality(cmd) => {
+                Command::DeriveContext(cmd) if cmd.flags.changes_locality() => {
                     drivers.privilege_level_from_locality(cmd.target_locality)
                 }
                 _ => caller_privilege_level,
@@ -63,13 +63,9 @@ impl InvokeDpeCmd {
             let locality = drivers.mbox.id();
             let mut env = dpe_env(drivers, None, Some(ueid))?;
 
-            let dpe = &mut DpeInstance::initialized();
-
+            let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
             let resp = match command {
-                Command::GetProfile => Ok(Response::GetProfile(
-                    dpe.get_profile(&mut env.platform, env.state.support)
-                        .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
-                )),
+                Command::GetProfile(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(cmd) {
@@ -78,23 +74,22 @@ impl InvokeDpeCmd {
                     cmd.execute(dpe, &mut env, locality)
                 }
                 Command::DeriveContext(cmd) => {
+                    let flags = cmd.flags;
                     // If the recursive flag is not set, DeriveContext will generate a new context.
                     // If recursive _is_ set, it will extend the existing one, which will not count
                     // against the context threshold.
-                    if !DeriveContextCmd::is_recursive(cmd) {
+                    if !flags.is_recursive() {
                         // Takes target locality into consideration if applicable. See above
                         dpe_context_threshold_err?;
                     }
-                    if DeriveContextCmd::changes_locality(cmd)
+                    if flags.changes_locality()
                         && cmd.target_locality == pl0_pauser
                         && caller_privilege_level != PauserPrivileges::PL0
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
 
-                    if DeriveContextCmd::exports_cdi(cmd)
-                        && caller_privilege_level != PauserPrivileges::PL0
-                    {
+                    if flags.exports_cdi() && caller_privilege_level != PauserPrivileges::PL0 {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
 
@@ -102,7 +97,7 @@ impl InvokeDpeCmd {
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
-                    if cmd.format == CertifyKeyCmd::FORMAT_X509
+                    if cmd.format() == CertifyKeyCommand::FORMAT_X509
                         && caller_privilege_level != PauserPrivileges::PL0
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
@@ -135,7 +130,11 @@ impl InvokeDpeCmd {
                 Ok(ref r) => {
                     let resp_bytes = r.as_bytes();
                     let data_size = resp_bytes.len();
-                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+                    let buf = invoke_resp
+                        .data
+                        .get_mut(..data_size)
+                        .ok_or(CaliptraError::RUNTIME_INVOKE_DPE_RESPONSE_TOO_LARGE)?;
+                    buf.copy_from_slice(resp_bytes);
                     invoke_resp.data_size = data_size as u32;
                 }
                 Err(ref e) => {
