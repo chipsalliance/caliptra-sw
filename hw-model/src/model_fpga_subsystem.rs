@@ -1808,8 +1808,8 @@ impl HwModel for ModelFpgaSubsystem {
             m.wrapper.regs().cptra_obf_field_entropy[i].set(fei);
         }
 
-        // Currently not using strap UDS and FE
-        m.set_secrets_valid(false);
+        // Use strap UDS and FE for deterministic IDevID on FPGA
+        m.set_secrets_valid(true);
 
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
