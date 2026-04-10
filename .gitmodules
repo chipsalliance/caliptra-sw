@@ -5,10 +5,6 @@
 	path = hw/latest/rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
 	branch = main
-[submodule "dpe"]
-	path = dpe
-	url = https://github.com/chipsalliance/caliptra-dpe.git
-	branch = main
 [submodule "hw/latest/i3c-core-rtl"]
 	path = hw/latest/i3c-core-rtl
 	url = https://github.com/chipsalliance/i3c-core.git

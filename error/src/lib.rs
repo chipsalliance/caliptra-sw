@@ -1598,6 +1598,11 @@ impl CaliptraError {
             0x000E0094,
             "Runtime Error: Multiple CCIV contexts found"
         ),
+        (
+            RUNTIME_INVOKE_DPE_RESPONSE_TOO_LARGE,
+            0x000E008D,
+            "Runtime Error: DPE response too large"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

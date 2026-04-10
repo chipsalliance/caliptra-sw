@@ -1376,10 +1376,12 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=4986ac50d82b415d69eb73a44dfff1d776d5f762#4986ac50d82b415d69eb73a44dfff1d776d5f762"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib-git",
+ "constant_time_eq",
  "zerocopy",
  "zeroize",
 ]
@@ -1519,6 +1521,7 @@ dependencies = [
 [[package]]
 name = "dpe"
 version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=4986ac50d82b415d69eb73a44dfff1d776d5f762#4986ac50d82b415d69eb73a44dfff1d776d5f762"
 dependencies = [
  "bitflags 2.9.1",
  "caliptra-cfi-derive-git",
@@ -2314,6 +2317,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "platform"
 version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=4986ac50d82b415d69eb73a44dfff1d776d5f762#4986ac50d82b415d69eb73a44dfff1d776d5f762"
 dependencies = [
  "arrayvec",
  "cfg-if",
@@ -3417,9 +3421,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.8.1"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
+checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 dependencies = [
  "zeroize_derive",
 ]

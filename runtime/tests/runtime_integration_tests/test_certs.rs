@@ -19,9 +19,13 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
+        DeriveContextCmd, DeriveContextFlags,
+    },
     context::ContextHandle,
-    response::{CertifyKeyResp, Response},
+    response::{CertifyKeyP384Resp, CertifyKeyResp, Response},
+    tci::TciMeasurement,
 };
 use openssl::{
     asn1::Asn1Time,
@@ -441,14 +445,14 @@ fn test_dpe_leaf_cert() {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
     let dpe_leaf_cert: X509 =
@@ -535,19 +539,19 @@ fn test_full_cert_chain_mldsa87() {
         .unwrap();
 }
 
-fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
+fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyP384Resp {
     let certify_key_cmd = CertifyKeyCmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
     certify_key_resp
@@ -698,7 +702,7 @@ pub fn test_all_measurement_apis() {
         // Send derive context call
         let derive_context_cmd = DeriveContextCmd {
             handle: ContextHandle::default(),
-            data: measurement,
+            data: TciMeasurement(measurement),
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                 | DeriveContextFlags::INPUT_ALLOW_X509,
@@ -708,7 +712,7 @@ pub fn test_all_measurement_apis() {
         };
         let resp = execute_dpe_cmd(
             &mut hw,
-            &mut Command::DeriveContext(&derive_context_cmd),
+            &mut Command::from(&derive_context_cmd),
             DpeResult::Success,
         );
         let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {

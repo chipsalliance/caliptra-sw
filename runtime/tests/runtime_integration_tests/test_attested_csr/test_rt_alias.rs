@@ -2,9 +2,9 @@
 
 use caliptra_hw_model::DefaultHwModel;
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command},
+    commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command},
     context::ContextHandle,
-    response::Response,
+    response::{CertifyKeyResp, Response},
 };
 use openssl::x509::X509;
 
@@ -17,14 +17,14 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
         handle: ContextHandle::default(),
         flags: CertifyKeyFlags::empty(),
         label: TEST_LABEL,
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
     X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])

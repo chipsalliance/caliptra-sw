@@ -19,11 +19,11 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCmd, CommandExecution},
+    commands::{CertifyKeyP384Cmd as CertifyKeyCmd, CommandExecution},
     response::Response,
-    DpeInstance,
+    DpeInstance, DpeProfile,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
@@ -60,7 +60,8 @@ impl CertifyKeyExtendedCmd {
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;
         let resp = with_dpe_env(drivers, dmtf_device_info, None, |env| {
-            Ok(certify_key_cmd.execute(&mut DpeInstance::initialized(), env, locality))
+            let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+            Ok(certify_key_cmd.execute(dpe, env, locality))
         })?;
 
         let certify_key_resp = match resp {

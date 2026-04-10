@@ -54,16 +54,17 @@ use caliptra_registers::{
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
+use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
-use dpe::DpeFlags;
 use dpe::MAX_HANDLES;
 use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
+    commands::{CommandExecution, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
 };
+use dpe::{DpeFlags, DpeProfile};
 
 use core::cmp::Ordering::{Equal, Greater};
 use zerocopy::IntoBytes;
@@ -589,10 +590,14 @@ impl Drivers {
         };
 
         // Initialize DPE with the RT current PCR
-        let current_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR));
-        let mut dpe =
-            DpeInstance::new_auto_init(&mut env, u32::from_be_bytes(*b"RTMR"), current_pcr)
-                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+        let current_pcr = TciMeasurement(drivers.pcr_bank.read_pcr(RT_FW_CURRENT_PCR).into());
+        let mut dpe = DpeInstance::new_auto_init(
+            &mut env,
+            DpeProfile::P384Sha384,
+            u32::from_be_bytes(*b"RTMR"),
+            &current_pcr,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
         // DPE internally extends the current measurement to set the cumulative measurement. Set it
         // to the journey PCR so it follows the hardware.
@@ -602,9 +607,10 @@ impl Drivers {
 
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
+        let initialization_values_hash: [u8; 48] = <[u8; 48]>::from(initialization_values_hash);
         let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
-            data: <[u8; 48]>::from(initialization_values_hash),
+            data: TciMeasurement(initialization_values_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
                 | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
@@ -642,9 +648,11 @@ impl Drivers {
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
             let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
-                data: measurement_data
-                    .try_into()
-                    .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
+                data: TciMeasurement(
+                    measurement_data
+                        .try_into()
+                        .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
+                ),
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT

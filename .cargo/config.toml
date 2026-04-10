@@ -1,6 +1,5 @@
 # Licensed under the Apache-2.0 license
 [env]
-ARBITRARY_MAX_HANDLES = "32"
 RUST_MIN_STACK="16777216" # 16MB
 
 [target.riscv32imc-unknown-none-elf]
