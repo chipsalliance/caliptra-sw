@@ -54,17 +54,22 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 ### Fuse Registers
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
-| FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
+| FUSE_UDS_SEED                   | 512          | Obfuscated UDS. Stored as `[u32; 16]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
+| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy. Stored as `[u32; 8]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
 | FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors. Stored as `[u32; 12]` — see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal). |
 | FUSE_ECC_REVOCATION             | 4            | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 4            | Manufacturer MLDSA Public Key Revocation Mask           |
-| FUSE_FIRMWARE_SVN               | 128          | Firmware Security Version Number                        |
+| FUSE_FIRMWARE_SVN               | 128          | Firmware Security Version Number. 128-bit bitmap — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set       |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11**: UEID type as defined in the [IETF EAT specification](https://www.rfc-editor.org/rfc/rfc9711.html#section-4.2.1.1) <br> **Words 12,13,14,15**: Manufacturer Serial Number |
-| FUSE_MANUF_DEBUG_UNLOCK_TOKEN    | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization |
+| FUSE_MANUF_DEBUG_UNLOCK_TOKEN    | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization. Stored as `[u32; 16]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
 | FUSE_PQC_KEY_TYPE                | 2             | One-hot encoded selection of PQC key type for firmware validation. <br> **Bit 0**: MLDSA <br> **Bit 1**: LMS |
+| FUSE_HEK_SEED                   | 256           | OCP HEK Seed. Stored as `[u32; 8]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
+| FUSE_SOC_MANIFEST_SVN            | 128           | SoC Manifest Security Version Number. 128-bit bitmap — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
+| FUSE_SOC_MANIFEST_MAX_SVN        | 8             | Maximum SoC Manifest Security Version Number            |
+| FUSE_SOC_STEPPING_ID             | 16            | SoC Stepping Identifier                                 |
+| FUSE_IDEVID_MANUF_HSM_ID         | 128           | Manufacturer HSM Identifier. Stored as `[u32; 4]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
 
 ### Architectural Registers
 | Register                        | Width (bits) | Description                                             |
@@ -1553,6 +1558,143 @@ def main():
 if __name__ == '__main__':
     main()
 ```
+
+### Fuse value byte ordering
+
+This section documents the byte ordering convention for every multi-word fuse
+register. It uses the same style as the
+[Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields)
+section in the Runtime README: examples show the relationship between standard
+tool output (e.g. OpenSSL, Python `hashlib`) and the `u32` word values written
+to fuse registers.
+
+> **When adding a new multi-word fuse**, add an entry to the appropriate
+> category below so that SoC integrators have a single reference for all fuse
+> byte ordering.
+
+#### SHA digest fuses (big-endian words / reversed-dword)
+
+The following fuse registers store SHA digest values as `[u32; N]` arrays using
+the same **reversed-dword format** described in
+[Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal).
+Each 4-byte group from the standard hash output (as produced by `openssl dgst`
+or Python's `hashlib`) is byte-reversed when stored as a `u32` word.
+
+| Fuse Register | Array Type | Hash Algorithm |
+|---|---|---|
+| FUSE_VENDOR_PK_HASH | `[u32; 12]` | SHA2-384 of vendor public key descriptors |
+| FUSE_MANUF_DEBUG_UNLOCK_TOKEN | `[u32; 16]` | SHA-512 of the manufacturing debug unlock token |
+
+Example — suppose `openssl dgst -sha512` produces a digest starting with:
+
+```
+openssl output:     86 9B A8 D5  AD 0F CF 82  02 E5 60 80  ...
+                    ~~~~~~~~~~~  ~~~~~~~~~~~  ~~~~~~~~~~~
+Fuse register[0]:   0x869BA8D5   [1]: 0xAD0FCF82   [2]: 0x02E56080   ...
+```
+
+Each 4-byte group from the OpenSSL output maps directly to one fuse register
+word as a big-endian `u32` — the first byte of the group is the most-significant
+byte of the word.
+
+On the little-endian RISC-V bus the bytes within each register word appear
+reversed at byte addresses:
+
+```
+Fuse byte address:  0    1    2    3    4    5    6    7    8    9    A    B   ...
+Byte value:         D5   A8   9B   86   82   CF   0F   AD   80   60   E5   02  ...
+                    ── register[0] ──   ─── register[1] ──  ── register[2] ──
+```
+
+##### Manufacturing debug unlock token: step-by-step
+
+1. Choose a 32-byte random secret (the raw token). This is what the SoC sends
+   over the mailbox to unlock debug.
+
+2. Compute SHA-512 of the raw token:
+   ```
+   $ printf '\xd8\x92\x2c\x55\x79\x2b\x73\x7f\x29\x13\xf3\xe5\xcb\xe6\x54\x75' \
+            '\x62\x52\x01\x6e\xae\xe9\x63\xa1\xdd\x4e\x75\x3a\xf7\x87\xf0\x96' \
+       | openssl dgst -sha512 -binary | xxd -p -c 64
+   869ba8d5ad0fcf8202e560803281da659812ffa2fc28c2d5154cb645ee0c38ec
+   4fd9dd8bb0be7deb193f625381383a91ab40bd920fcd9425919e63723c0bf7a8
+   ```
+
+3. Split into 4-byte groups and interpret each as a big-endian `u32` to get the
+   fuse word values:
+   ```
+   Fuse [u32; 16] = {
+       0x869BA8D5, 0xAD0FCF82, 0x02E56080, 0x3281DA65,
+       0x9812FFA2, 0xFC28C2D5, 0x154CB645, 0xEE0C38EC,
+       0x4FD9DD8B, 0xB0BE7DEB, 0x193F6253, 0x81383A91,
+       0xAB40BD92, 0x0FCD9425, 0x919E6372, 0x3C0BF7A8,
+   }
+   ```
+
+4. Burn these 16 words into the `FUSE_MANUF_DEBUG_UNLOCK_TOKEN` registers.
+
+#### Architectural register: CPTRA_OWNER_PK_HASH (big-endian words)
+
+**CPTRA_OWNER_PK_HASH** (`[u32; 12]`) uses the same reversed-dword format as
+FUSE_VENDOR_PK_HASH. See
+[Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal)
+for details and worked examples.
+
+#### SVN fuses (little-endian 128-bit bitmap)
+
+**FUSE_FIRMWARE_SVN** and **FUSE_SOC_MANIFEST_SVN** are 128-bit bitmaps stored
+as `[u32; 4]`. These are **not** cryptographic values — the security version
+number equals the bit position of the highest set bit.
+
+The four words form a little-endian 128-bit integer: word\[0\] contains bits
+0–31, word\[1\] contains bits 32–63, and so on.
+
+Example — to program SVN 7, set bits 0 through 6:
+
+```
+FUSE_FIRMWARE_SVN[0] = 0x0000007F    (bits 0-6 set)
+FUSE_FIRMWARE_SVN[1] = 0x00000000
+FUSE_FIRMWARE_SVN[2] = 0x00000000
+FUSE_FIRMWARE_SVN[3] = 0x00000000
+```
+
+Example — SVN 40 means bits 0 through 39 are set:
+
+```
+FUSE_FIRMWARE_SVN[0] = 0xFFFFFFFF    (bits 0-31 set)
+FUSE_FIRMWARE_SVN[1] = 0x000000FF    (bits 32-39 set)
+FUSE_FIRMWARE_SVN[2] = 0x00000000
+FUSE_FIRMWARE_SVN[3] = 0x00000000
+```
+
+#### Obfuscated seed fuses (big-endian words)
+
+**FUSE_UDS_SEED** (`[u32; 16]`), **FUSE_FIELD_ENTROPY** (`[u32; 8]`), and
+**FUSE_HEK_SEED** (`[u32; 8]`) are obfuscated secret values. They use the same
+**big-endian word** ordering as SHA digest fuses — each `u32` word maps to 4
+bytes in big-endian order.
+
+These values are consumed through an AES de-obfuscation step and are typically
+programmed by the manufacturing toolchain. If replicating values for test or
+simulation, use the same big-endian word convention when converting between byte
+arrays and `[u32; N]` arrays.
+
+#### Scalar and per-word fuses (no byte-ordering concern)
+
+The following fuse registers are single words or per-word indexed values with no
+multi-word byte ordering:
+
+| Register | Width | Notes |
+|---|---|---|
+| FUSE_ECC_REVOCATION | 4 bits | Bitmask |
+| FUSE_LMS_REVOCATION | 32 bits | Bitmask |
+| FUSE_MLDSA_REVOCATION | 4 bits | Bitmask |
+| FUSE_ANTI_ROLLBACK_DISABLE | 1 bit | Boolean |
+| FUSE_PQC_KEY_TYPE | 2 bits | One-hot encoded |
+| FUSE_SOC_STEPPING_ID | 16 bits | Scalar |
+| FUSE_SOC_MANIFEST_MAX_SVN | 8 bits | Scalar |
+| FUSE_IDEVID_CERT_ATTR | 24 × u32 | Per-word indexed; each word accessed individually |
+| FUSE_IDEVID_MANUF_HSM_ID | 4 × u32 | Opaque identifier, used as-is |
 
 ## Preamble validation steps
 
