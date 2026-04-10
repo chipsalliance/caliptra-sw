@@ -10,7 +10,7 @@ use caliptra_auth_man_types::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
+use dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -78,7 +78,7 @@ pub struct ExportedCdiHandles {
 }
 
 #[cfg(feature = "runtime")]
-const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
+const DPE_DCCM_STORAGE: usize = size_of::<dpe::State>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
     + size_of::<U8Bool>()
@@ -324,7 +324,7 @@ pub struct PersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     #[cfg(feature = "runtime")]
-    pub dpe: DpeInstance,
+    pub state: dpe::State,
     #[cfg(feature = "runtime")]
     pub context_tags: [u32; MAX_HANDLES],
     #[cfg(feature = "runtime")]
@@ -484,6 +484,12 @@ impl PersistentData {
             );
 
             persistent_data_offset += FUSE_LOG_SIZE;
+            #[cfg(feature = "runtime")]
+            assert_eq!(
+                addr_of!((*P).state) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            #[cfg(not(feature = "runtime"))]
             assert_eq!(
                 addr_of!((*P).dpe) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

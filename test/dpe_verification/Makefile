@@ -26,4 +26,6 @@ $(FW_FILE) $(ROM_FILE):
 	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_DIR)/Cargo.toml --bin image -- --fw $(FW_FILE) --rom-no-log=$(ROM_FILE)
 
 run: $(LIBCALIPTRA) $(LIB_HW_MODEL) $(FW_FILE) $(ROM_FILE)
-	ROM_PATH=$(ROM_FILE) FW_PATH=$(FW_FILE) go test -v
+	# TODO: Re-enable CertifyKeyCsr after updating DPE to commit 4986ac5
+	# ("verification: Add ECA EKU and fix CSR signature verification (#510)")
+	ROM_PATH=$(ROM_FILE) FW_PATH=$(FW_FILE) go test -v -run 'TestRunAll/(CertifyKey$$|CertifyKeySimulation|GetCertificateChain|TPMPolicySigning|RotateContext|Sign|GetProfile|InitializeContext|CheckInvalidHandle|CheckWrongLocality|DeriveContext)'

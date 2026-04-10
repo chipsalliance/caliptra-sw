@@ -22,10 +22,11 @@ use zerocopy::FromBytes;
 fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: u32) {
     const BASE_DERIVE_CONTEXT_CMD: DeriveContextCmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     // 32 contexts = 1 root node (PL0)+
@@ -165,10 +166,11 @@ fn test_pl0_pl1_reallocation_pl0_less_than_used() {
 
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     // Use some PL0 contexts
@@ -196,10 +198,11 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
 
     const BASE_DERIVE_CONTEXT_CMD: DeriveContextCmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     // Use some PL1 contexts
@@ -253,10 +256,11 @@ fn test_pl0_pl1_reallocation_warm_reset() {
 
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     // Use some PL0 contexts

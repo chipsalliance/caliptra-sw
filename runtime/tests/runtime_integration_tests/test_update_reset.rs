@@ -25,7 +25,7 @@ use dpe::{
     response::DpeErrorCode,
     tci::TciMeasurement,
     validation::ValidationError,
-    DpeInstance, U8Bool, DPE_PROFILE, MAX_HANDLES,
+    U8Bool, DPE_PROFILE, MAX_HANDLES,
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
@@ -292,7 +292,7 @@ fn test_dpe_validation_deformed_structure() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating multiple normal connected components
     dpe.contexts[0].children = 0;
@@ -347,7 +347,7 @@ fn test_dpe_validation_illegal_state() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE state by messing up parent-child links
     dpe.contexts[1].children = 0b1;
@@ -400,7 +400,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
@@ -416,9 +416,8 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         dpe.contexts[idx].context_type = ContextType::Simulation;
         dpe.contexts[idx].locality = pl0_pauser;
         dpe.contexts[idx].tci.locality = pl0_pauser;
-        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
-        dpe.contexts[idx].tci.tci_cumulative =
-            TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
+        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; DPE_PROFILE.tci_size()]);
+        dpe.contexts[idx].tci.tci_cumulative = TciMeasurement([idx as u8; DPE_PROFILE.tci_size()]);
         dpe.contexts[idx].handle = ContextHandle([idx as u8; ContextHandle::SIZE]);
     }
     let _ = model

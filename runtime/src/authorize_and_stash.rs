@@ -127,8 +127,12 @@ impl AuthorizeAndStashCmd {
         if auth_result == IMAGE_AUTHORIZED {
             let flags: AuthAndStashFlags = cmd.flags.into();
             if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                let dpe_result =
-                    StashMeasurementCmd::stash_measurement(drivers, &cmd.fw_id, &cmd.measurement)?;
+                let dpe_result = StashMeasurementCmd::stash_measurement(
+                    drivers,
+                    &cmd.fw_id,
+                    &cmd.measurement,
+                    cmd.svn,
+                )?;
                 if dpe_result != DpeErrorCode::NoError {
                     drivers
                         .soc_ifc
