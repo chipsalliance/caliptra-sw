@@ -2,6 +2,7 @@
 
 use std::{env, error::Error, io, path::Path};
 
+use anyhow::anyhow;
 use caliptra_builder::{elf_size, firmware, FwId};
 use size_history::{
     ArtifactBuilder, Cache, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
@@ -10,8 +11,8 @@ use size_history::{
 
 const CACHE_FORMAT_VERSION: &str = "v4";
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let cache = create_cache()?;
+pub(crate) fn size_history() -> Result<(), anyhow::Error> {
+    let cache = create_cache().map_err(|e| anyhow::anyhow!("{}", e))?;
     let reporter = HtmlTableReport::new("https://github.com/chipsalliance/caliptra-sw");
     let output: Box<dyn OutputDestination> = if env::var("GITHUB_STEP_SUMMARY").is_ok() {
         Box::new(GitHubStepSummary)
@@ -43,9 +44,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "App with OCP LOCK size",
             firmware::APP_WITH_UART_OCP_LOCK,
         )))
-        .run()?;
-
-    Ok(())
+        .run()
+        .map_err(|e| anyhow::anyhow!("{}", e))
 }
 
 fn create_cache() -> Result<Box<dyn Cache>, Box<dyn Error>> {
@@ -91,9 +91,19 @@ impl ArtifactBuilder for CaliptraFirmwareBuilder {
         match self.build_elf(workspace) {
             Ok(size) => Some(size),
             Err(err) => {
-                println!("Error building {}: {err}", self.name);
+                log::error!("Error building {}: {err}", self.name);
                 None
             }
         }
     }
+}
+
+pub fn bitstream_download(manifest_path: String) -> Result<(), anyhow::Error> {
+    let out_path = bitstream_downloader::download_bitstream(Path::new(manifest_path.as_str()))
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let out = out_path
+        .to_str()
+        .ok_or_else(|| anyhow!("invalid output file path"))?;
+    log::info!("Download path bitstream: {}", out);
+    Ok(())
 }

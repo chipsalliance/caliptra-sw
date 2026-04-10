@@ -9,6 +9,7 @@ use std::{
 };
 
 mod cargo_lock;
+mod ci;
 mod clippy;
 mod format;
 mod license;
@@ -47,6 +48,12 @@ enum Commands {
     },
     /// Build ROM images and update the FROZEN_IMAGES.sha384sum file
     UpdateFrozenImages,
+
+    /// Run CI tools
+    CI {
+        #[command(subcommand)]
+        command: CICommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -61,6 +68,17 @@ pub enum ReleaseCommands {
         /// The release tag to deploy, formatted as component-major.minor.patch (e.g. fmc-2.0.0)
         tag: String,
     },
+}
+
+#[derive(Subcommand)]
+pub enum CICommands {
+    /// Run size-history tool.
+    SizeHistory,
+    /// Run the bitstream downloader tool.
+    BitstreamDownloader {
+        path: String,
+    },
+    TestMatrix,
 }
 
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -96,6 +114,11 @@ fn main() {
         },
         Commands::UpdateDpe { rev } => update_dpe::update_dpe(rev),
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
+        Commands::CI { command } => match command {
+            CICommands::SizeHistory => ci::size_history(),
+            CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
+            CICommands::TestMatrix => Ok(()),
+        },
     };
     result.unwrap_or_else(|e| {
         log::error!("Error: {}", e);
