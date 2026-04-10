@@ -55,5 +55,6 @@ caliptra-registers.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 caliptra-test-harness.workspace = true
 cfg-if.workspace = true
+dpe.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true

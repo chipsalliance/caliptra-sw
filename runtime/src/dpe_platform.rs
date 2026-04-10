@@ -21,19 +21,19 @@ use crypto::Digest;
 use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
-    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
+    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
 
 use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_ECC_CERT_CHAIN_SIZE};
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,
-    hashed_rt_pub_key: &'a Digest,
+    hashed_rt_pub_key: Digest,
     cert_chain: &'a ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
-    not_before: &'a NotBefore,
-    not_after: &'a NotAfter,
-    dmtf_device_info: Option<&'a [u8]>,
-    ueid: Option<&'a [u8; 17]>,
+    not_before: NotBefore,
+    not_after: NotAfter,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
@@ -42,12 +42,12 @@ pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
 impl<'a> DpePlatform<'a> {
     pub fn new(
         auto_init_locality: u32,
-        hashed_rt_pub_key: &'a Digest,
+        hashed_rt_pub_key: Digest,
         cert_chain: &'a ArrayVec<u8, 4096>,
-        not_before: &'a NotBefore,
-        not_after: &'a NotAfter,
-        dmtf_device_info: Option<&'a [u8]>,
-        ueid: Option<&'a [u8; 17]>,
+        not_before: NotBefore,
+        not_after: NotAfter,
+        dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+        ueid: Option<[u8; 17]>,
     ) -> Self {
         Self {
             auto_init_locality,
@@ -110,8 +110,23 @@ impl Platform for DpePlatform<'_> {
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
-        Digest::write_hex_str(self.hashed_rt_pub_key, &mut serial)
-            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
+        let src = self.hashed_rt_pub_key.as_slice();
+        if serial.len() != src.len() * 2 {
+            return Err(PlatformError::IssuerNameError(0));
+        }
+
+        let mut curr_idx = 0;
+        const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
+        for &b in src {
+            let h1 = (b >> 4) as usize;
+            let h2 = (b & 0xF) as usize;
+            if h1 >= HEX_CHARS.len() || h2 >= HEX_CHARS.len() || curr_idx + 1 >= serial.len() {
+                return Err(PlatformError::IssuerNameError(1));
+            }
+            serial[curr_idx] = HEX_CHARS[h1];
+            serial[curr_idx + 1] = HEX_CHARS[h2];
+            curr_idx += 2;
+        }
 
         let name = Name {
             cn: DirectoryString::Utf8String(CALIPTRA_CN),
@@ -128,7 +143,7 @@ impl Platform for DpePlatform<'_> {
     /// SubjectKeyIdentifier extension in the RT alias certificate.
     fn get_signer_identifier(&mut self) -> Result<SignerIdentifier, PlatformError> {
         let mut ski = [0u8; MAX_KEY_IDENTIFIER_SIZE];
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::SubjectKeyIdentifierError(0));
         }
@@ -144,7 +159,7 @@ impl Platform for DpePlatform<'_> {
         &mut self,
         out: &mut [u8; MAX_KEY_IDENTIFIER_SIZE],
     ) -> Result<(), PlatformError> {
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::IssuerKeyIdentifierError(0));
         }
@@ -190,7 +205,7 @@ impl Platform for DpePlatform<'_> {
     }
 
     fn get_ueid(&mut self) -> Result<Ueid, PlatformError> {
-        let buf = *self.ueid.ok_or(PlatformError::MissingUeidError)?;
+        let buf = self.ueid.ok_or(PlatformError::MissingUeidError)?;
         let buf_size = buf.len() as u32;
 
         let mut ueid = Ueid::default();
