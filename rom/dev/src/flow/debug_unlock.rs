@@ -157,7 +157,7 @@ fn handle_auth_debug_unlock_request(
 
     // Use common function to create challenge
     let challenge =
-        debug_unlock::create_debug_unlock_challenge(&mut env.trng, &env.soc_ifc, &request);
+        debug_unlock::create_debug_unlock_challenge(&mut env.trng, &env.soc_ifc, &mut env.dma, &request);
 
     // Send response
     match challenge {

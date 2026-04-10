@@ -43,6 +43,7 @@ use zerocopy::IntoBytes;
 pub fn create_debug_unlock_challenge(
     trng: &mut Trng,
     soc_ifc: &SocIfc,
+    dma: &mut Dma,
     request: &ProductionAuthDebugUnlockReq,
 ) -> CaliptraResult<ProductionAuthDebugUnlockChallenge> {
     // Validate payload
@@ -65,6 +66,18 @@ pub fn create_debug_unlock_challenge(
             soc_ifc.debug_unlock_pk_hash_count()
         );
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+    }
+
+    // Reject request if the PK hash fuse for this level is zeroized (i.e. all 1s).
+    let debug_auth_pk_offset =
+        soc_ifc.debug_unlock_pk_hash_offset(request.unlock_level as u32)? as u64;
+    let mci_base: AxiAddr = soc_ifc.mci_base_addr().into();
+    let debug_auth_pk_hash_base = mci_base + debug_auth_pk_offset;
+    let mut fuse_digest: [u32; 12] = [0; 12];
+    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
+    if Array4x12::from(fuse_digest) == Array4x12::from([0xFFFF_FFFFu32; 12]) {
+        crate::cprintln!("Prod debug unlock disabled: PK hash is all 1s (unprogrammed)");
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_DISABLED)?;
     }
 
     let length = ((size_of::<ProductionAuthDebugUnlockChallenge>()

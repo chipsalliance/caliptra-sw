@@ -464,6 +464,13 @@ impl Mci {
     pub fn cptra_request_mcu_reset(&self) {
         self.regs.borrow_mut().cptra_request_mcu_reset();
     }
+    /// Overwrite the raw fuse hash for a given debug unlock level (0-indexed).
+    /// This bypasses the SHA-384 computation and directly sets the hash value.
+    pub fn set_raw_fuse_hash(&self, level: usize, hash: &[u32; 12]) {
+        let mut regs = self.regs.borrow_mut();
+        let base_idx = level * (SS_MANUF_DBG_UNLOCK_FUSE_SIZE / core::mem::size_of::<u32>());
+        regs.fuses[base_idx..base_idx + 12].copy_from_slice(hash);
+    }
 }
 
 impl Bus for Mci {
