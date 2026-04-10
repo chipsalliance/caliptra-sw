@@ -320,6 +320,9 @@ jobs:
               --test-threads=1 \
               --no-fail-fast
 
+      - name: Copy junit.xml
+        if: success() || failure()
+        run: |
           sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
 
       - name: 'Upload test results'
