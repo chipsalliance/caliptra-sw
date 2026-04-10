@@ -45,8 +45,7 @@ pub(crate) fn size_history() -> Result<(), anyhow::Error> {
             firmware::APP_WITH_UART_OCP_LOCK,
         )))
         .run()
-        .map(|_| Ok(()))
-        .map_err(|e| anyhow::anyhow!("{}", e))?
+        .map_err(|e| anyhow::anyhow!("{}", e))
 }
 
 fn create_cache() -> Result<Box<dyn Cache>, Box<dyn Error>> {
@@ -92,7 +91,7 @@ impl ArtifactBuilder for CaliptraFirmwareBuilder {
         match self.build_elf(workspace) {
             Ok(size) => Some(size),
             Err(err) => {
-                println!("Error building {}: {err}", self.name);
+                log::error!("Error building {}: {err}", self.name);
                 None
             }
         }
@@ -105,6 +104,6 @@ pub fn bitstream_download(manifest_path: String) -> Result<(), anyhow::Error> {
     let out = out_path
         .to_str()
         .ok_or_else(|| anyhow!("invalid output file path"))?;
-    println!("Download path bitstream: {}", out);
+    log::info!("Download path bitstream: {}", out);
     Ok(())
 }
