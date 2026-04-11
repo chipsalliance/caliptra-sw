@@ -321,6 +321,7 @@ pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response 
         Command::Sign(SignCommand::P384(_)) => Response::Sign(SignResp::P384(
             SignP384Resp::try_read_from_bytes(resp_bytes).unwrap(),
         )),
+        _ => panic!("Unsupported DPE command variant"),
     }
 }
 

@@ -56,6 +56,11 @@ use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
+use caliptra_common::mailbox_api::MailboxReqHeader;
+use crypto::ecdsa::curve_384::EcdsaPub384;
+use crypto::ecdsa::EcdsaPubKey;
+use crypto::ml_dsa::MldsaPublicKey;
+use crypto::PubKey;
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
@@ -65,7 +70,9 @@ use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
+use crate::dpe_crypto::{DpeEcCrypto, DpeMldsaCrypto};
 pub use crate::hmac::Hmac;
+pub use crate::invoke_dpe::CaliptraDpeProfile;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
@@ -75,7 +82,6 @@ pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
-use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
@@ -101,7 +107,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{okref, AxiAddr, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
@@ -135,11 +141,11 @@ impl From<RtBootStatus> for u32 {
 
 pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_ECC_CERT_CHAIN_SIZE: usize = 4096;
-pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 31_000;
+pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 32 * 1024;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
-pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
-pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
+pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 32;
+pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 32;
 pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN: usize = 2;
 
 pub const CALIPTRA_LOCALITY: u32 = 0xFFFFFFFF;
@@ -154,10 +160,17 @@ pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
     Ok(resp)
 }
 
-pub struct CptraDpeTypes;
+pub struct CptraDpeEcTypes;
 
-impl DpeTypes for CptraDpeTypes {
-    type Crypto<'a> = DpeCrypto<'a>;
+impl DpeTypes for CptraDpeEcTypes {
+    type Crypto<'a> = DpeEcCrypto<'a>;
+    type Platform<'a> = DpePlatform<'a>;
+}
+
+pub struct CptraDpeMldsaTypes;
+
+impl DpeTypes for CptraDpeMldsaTypes {
+    type Crypto<'a> = DpeMldsaCrypto<'a>;
     type Platform<'a> = DpePlatform<'a>;
 }
 
@@ -185,6 +198,15 @@ fn enter_idle(drivers: &mut Drivers) {
     caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
 }
 
+fn human_readable_command(bytes: &[u8]) -> Option<&str> {
+    if bytes.len() == 4 && bytes.iter().all(|c| c.is_ascii_alphanumeric()) {
+        // Safety: we just checked that all bytes are ASCII.
+        Some(unsafe { core::str::from_utf8_unchecked(bytes) })
+    } else {
+        None
+    }
+}
+
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
 ///
 /// # Returns
@@ -198,37 +220,37 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
-        cfi_assert_eq(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
+        cfi_assert_eq(
+            u32::from(drivers.mbox.cmd()),
+            u32::from(CommandId::FIRMWARE_LOAD),
+        );
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
         // unexpected. Denote that the update failed.
         return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
     } else {
-        cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
+        cfi_assert_ne(
+            u32::from(drivers.mbox.cmd()),
+            u32::from(CommandId::FIRMWARE_LOAD),
+        );
     }
 
     if drivers.mbox.cmd() == CommandId::FIRMWARE_VERIFY {
         return firmware_verify::FirmwareVerifyCmd::execute(drivers);
     } else {
-        cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_VERIFY);
+        cfi_assert_ne(
+            u32::from(drivers.mbox.cmd()),
+            u32::from(CommandId::FIRMWARE_VERIFY),
+        );
     }
 
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
+    let cmd_id = req_packet.cmd;
 
-    // Create human-readable name of command.
-    let bytes = req_packet.cmd.to_be_bytes();
-    let ascii = {
-        if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
-            None
-        } else {
-            core::str::from_utf8(&bytes).ok()
-        }
-    };
-
-    if let Some(ascii) = ascii {
+    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
         cprintln!(
             "[rt] Received command=0x{:x} ({}), len={}",
             req_packet.cmd,
@@ -243,10 +265,18 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
+    execute_command(drivers, cmd_id, cmd_bytes)
+}
+
+fn execute_command(
+    drivers: &mut Drivers,
+    cmd_id: u32,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
     // stage the response once on the stack
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
-    let len = match CommandId::from(req_packet.cmd) {
+    let len = match CommandId::from(cmd_id) {
         CommandId::ACTIVATE_FIRMWARE => {
             activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
         }
@@ -272,7 +302,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_MLDSA87_CERT => {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
-        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::INVOKE_DPE_ECC384 => InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp),
+        CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp),
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
@@ -307,7 +338,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
+            CertifyKeyExtendedCmd::execute_ecc384(drivers, cmd_bytes, resp)
+        }
+        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
+            CertifyKeyExtendedCmd::execute_mldsa87(drivers, cmd_bytes, resp)
+        }
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
@@ -480,6 +516,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // should be impossible
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     }
+
     let mbox = &mut drivers.mbox;
     let resp = &mut resp[..len];
     // Generate response checksum
@@ -491,6 +528,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
+/// Handles an external mailbox command. If a valid external command was parsed,
+/// then Some is returned and the external mailbox command will be copied into
+#[inline(never)]
 #[cfg(feature = "riscv")]
 // TODO implement in emulator
 fn setup_mailbox_wfi(drivers: &mut Drivers) {
@@ -603,34 +643,40 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     //    Ok(())
 }
 
-fn dpe_env(
+fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<DpeEnv<CptraDpeTypes>> {
-    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+) -> CaliptraResult<DpeEnv<CptraDpeEcTypes>> {
+    let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
-    let crypto = DpeCrypto::new(
+    let rt_pub_key = &mut pdata.fht.rt_dice_ecc_pub_key;
+    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+        &rt_pub_key.x.into(),
+        &rt_pub_key.y.into(),
+    )));
+    let crypto = DpeEcCrypto::new(
         &mut drivers.sha2_512_384,
         &mut drivers.trng,
         &mut drivers.ecc384,
         &mut drivers.hmac,
         &mut drivers.key_vault,
-        &mut pdata.fht.rt_dice_ecc_pub_key,
+        rt_pub_key,
         key_id_rt_cdi,
         key_id_rt_priv_key,
         &mut pdata.exported_cdi_slots,
     );
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
-    Ok(DpeEnv::<CptraDpeTypes> {
+    Ok(DpeEnv::<CptraDpeEcTypes> {
         crypto,
         platform: DpePlatform::new(
+            CaliptraDpeProfile::Ecc384,
             pl0_pauser,
             hashed_rt_pub_key,
-            &drivers.ecc_cert_chain,
+            drivers.ecc_cert_chain.as_slice(),
             nb,
             nf,
             dmtf_device_info,
@@ -640,15 +686,43 @@ fn dpe_env(
     })
 }
 
-fn with_dpe_env<F, R>(
+fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-    f: F,
-) -> CaliptraResult<R>
-where
-    F: FnOnce(&mut DpeEnv<CptraDpeTypes>) -> CaliptraResult<R>,
-{
-    let mut dpe_env = dpe_env(drivers, dmtf_device_info, ueid)?;
-    f(&mut dpe_env)
+) -> CaliptraResult<DpeEnv<CptraDpeMldsaTypes>> {
+    let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
+    let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
+    let rt_pub_key = okref(&rt_pub_key)?;
+    let rt_pub_key = PubKey::MlDsa(MldsaPublicKey((*rt_pub_key).into()));
+    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    let key_id_rt_priv_key = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeMldsaCrypto::new(
+        &mut drivers.sha2_512_384,
+        &mut drivers.trng,
+        &mut drivers.mldsa87,
+        &mut drivers.hmac,
+        &mut drivers.key_vault,
+        rt_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_priv_key,
+        &mut pdata.exported_cdi_slots,
+    );
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    Ok(DpeEnv::<CptraDpeMldsaTypes> {
+        crypto,
+        platform: DpePlatform::new(
+            CaliptraDpeProfile::Mldsa87,
+            pl0_pauser,
+            hashed_rt_pub_key,
+            drivers.mldsa_cert_chain.as_slice(),
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.state,
+    })
 }
