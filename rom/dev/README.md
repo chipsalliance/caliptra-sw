@@ -1642,7 +1642,7 @@ for details and worked examples.
 
 #### SVN fuses (little-endian 128-bit bitmap)
 
-**FUSE_FIRMWARE_SVN** and **FUSE_SOC_MANIFEST_SVN** are 128-bit bitmaps stored
+**FUSE_FIRMWARE_SVN** and **FUSE_SOC_MANIFEST_SVN** are 128-bit one-hot encoded bitmaps stored
 as `[u32; 4]`. These are **not** cryptographic values — the security version
 number equals the bit position of the highest set bit.
 
