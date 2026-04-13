@@ -37,6 +37,8 @@ members = [
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
+  "common/crypto/mldsa",
+  "common/crypto/shake",
   "coverage",
   "cpu",
   "drivers",
@@ -130,10 +132,12 @@ caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
+caliptra-mldsa = { path = "common/crypto/mldsa" }
 caliptra-registers = { path = "registers" }
 caliptra-registers-1_0 = { path = "hw/1.0/registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }
+caliptra-shake = { path = "common/crypto/shake" }
 caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
