@@ -726,6 +726,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-mldsa"
+version = "0.1.0"
+dependencies = [
+ "caliptra-shake",
+ "hex",
+ "zerocopy",
+]
+
+[[package]]
 name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
@@ -864,6 +873,13 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-shake"
+version = "0.1.0"
+dependencies = [
  "zerocopy",
 ]
 
