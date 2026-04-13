@@ -1631,7 +1631,7 @@ Byte value:         D5   A8   9B   86   82   CF   0F   AD   80   60   E5   02  .
    }
    ```
 
-4. Burn these 16 words into the `FUSE_MANUF_DEBUG_UNLOCK_TOKEN` registers.
+4. MCU or SoC manager writes these 16 words into the `FUSE_MANUF_DEBUG_UNLOCK_TOKEN` registers from fuses.
 
 #### Architectural register: CPTRA_OWNER_PK_HASH (big-endian words)
 
