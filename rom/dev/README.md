@@ -1364,6 +1364,105 @@ As [u32; 12] fuse register value:
    0xdee1ff41, 0x5adfc187, 0xe1e4edb4, 0xd3b2d909]
 ```
 
+### Computing public key hashes: MLDSA step-by-step example
+
+The following example walks through the same computation as the LMS example above, but
+using PQC key type **MLDSA (type 1)** with the test keys from `image/fake-keys/src/lib.rs`.
+
+#### MLDSA Step 1: Hash each vendor ECC public key
+
+The ECC keys and their hashes are identical to the LMS example — see
+[Step 1 above](#step-1-hash-each-vendor-ecc-public-key). The ECC key descriptor is
+independent of the PQC key type.
+
+#### MLDSA Step 2: Hash each vendor MLDSA public key
+
+Each MLDSA-87 public key is a 2592-byte array (`[u32; 648]`). When serialized via
+`as_bytes()`, each `u32` word is written in little-endian byte order — for example, the
+Rust value `0x3bf1c072` becomes bytes `72 c0 f1 3b` in memory. Unlike LMS keys, MLDSA
+keys are not subject to any additional encoding — these raw bytes are hashed directly
+with SHA2-384.
+
+**MLDSA Key 0:**
+```
+Size: 2592 bytes (648 u32 words)
+First 24 bytes: 72c0f13b 7d937e22 69b6988d 6daadc3a e78acd11 940cfc0d ...
+
+SHA384 (standard):       f1097978 0adae470 dcd4eeb8 5749a2e4 2e70c055 ebac46e4
+                          07c2c404 b46473d8 189117ed 8c83dde4 9f941e6a 1b6c6d4c
+SHA384 (reversed-dword): 787909f1 70e4da0a b8eed4dc e4a24957 55c0702e e446aceb
+                          04c4c207 d87364b4 ed179118 e4dd838c 6a1e949f 4c6d6c1b
+```
+
+**MLDSA Key 1:**
+```
+Size: 2592 bytes (648 u32 words)
+First 24 bytes: f432346c 096d0ec9 04f8d925 1512236b e3fd1ccb bda9ed3a ...
+
+SHA384 (standard):       a57b6f71 ffab9844 de49e9f7 ad61476b 7446e140 517d07b1
+                          81447acb a6d7166f 7b89f199 b6e36174 2d0ab01c 540d26de
+SHA384 (reversed-dword): 716f7ba5 4498abff f7e949de 6b4761ad 40e14674 b1077d51
+                          cb7a4481 6f16d7a6 99f1897b 7461e3b6 1cb00a2d de260d54
+```
+
+**MLDSA Key 2:**
+```
+Size: 2592 bytes (648 u32 words)
+First 24 bytes: 2bc91a00 7d3e5a4f e6b3f2ec cb1aaa0d 278d9786 44b25fed ...
+
+SHA384 (standard):       7f2f3c55 e8dd2481 bbee17c1 5d5773a8 01a9c0a6 84b30e47
+                          0ae67ecd 1ec3e7ac 19273c71 feb6bb99 10d26dd0 4ace4298
+SHA384 (reversed-dword): 553c2f7f 8124dde8 c117eebb a873575d a6c0a901 470eb384
+                          cd7ee60a ace7c31e 713c2719 99bbb6fe d06dd210 9842ce4a
+```
+
+**MLDSA Key 3:**
+```
+Size: 2592 bytes (648 u32 words)
+First 24 bytes: 378dcb02 a6db3481 d51e9913 14da1567 a211290e f4c3d02f ...
+
+SHA384 (standard):       79fbeb0a 6ebc354b ccf48dd1 5b6c9142 a62af0c5 198c0de1
+                          365fbcb0 b2463ee5 103ccae3 4504ab83 04b37886 5c9a28ae
+SHA384 (reversed-dword): 0aebfb79 4b35bc6e d18df4cc 42916c5b c5f02aa6 e10d8c19
+                          b0bc5f36 e53e46b2 e3ca3c10 83ab0445 8678b304 ae289a5c
+```
+
+#### MLDSA Step 3: Build the ECC key descriptor (196 bytes)
+
+Same as the LMS example — the ECC descriptor is independent of PQC key type. See
+[Step 3 above](#step-3-build-the-ecc-key-descriptor-196-bytes).
+
+#### MLDSA Step 4: Build the PQC (MLDSA) key descriptor (1540 bytes)
+
+The PQC key descriptor struct always has 32 hash slots (`VENDOR_PQC_MAX_KEY_COUNT`).
+For MLDSA, only 4 keys are populated; the remaining 28 slots are zero-filled.
+
+```
+Header (4 bytes): 01 00 01 04     (version=1, key_type=1=MLDSA, key_hash_count=4)
+MLDSA key 0 hash (48 bytes, reversed-dword): 787909f1 70e4da0a ... 4c6d6c1b
+MLDSA key 1 hash (48 bytes, reversed-dword): 716f7ba5 4498abff ... de260d54
+MLDSA key 2 hash (48 bytes, reversed-dword): 553c2f7f 8124dde8 ... 9842ce4a
+MLDSA key 3 hash (48 bytes, reversed-dword): 0aebfb79 4b35bc6e ... ae289a5c
+  ... (keys 4-31 are zero-filled)
+
+Total: 4 + (32 × 48) = 1540 bytes
+```
+
+#### MLDSA Step 5: Compute the vendor PK descriptor hash
+
+```
+Input = ECC descriptor (196 bytes) || PQC descriptor (1540 bytes) = 1736 bytes
+
+SHA384 (standard byte order):
+  30399676 a17e3e97 3677b3ff 862f4bf2 d1932d88 4778453c
+  376fe00d c93fb8aa 0770f3eb f3411a08 53e9c57e ce8a2980
+
+As [u32; 12] fuse register value:
+  [0x30399676, 0xa17e3e97, 0x3677b3ff, 0x862f4bf2,
+   0xd1932d88, 0x4778453c, 0x376fe00d, 0xc93fb8aa,
+   0x0770f3eb, 0xf3411a08, 0x53e9c57e, 0xce8a2980]
+```
+
 #### Owner PK hash
 
 The owner PK hash is SHA2-384 over the serialized `ImageOwnerPubKeys` struct, which contains:
