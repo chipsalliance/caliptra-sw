@@ -580,11 +580,12 @@ impl Drivers {
             platform: DpePlatform::new(
                 CALIPTRA_LOCALITY,
                 hashed_rt_pub_key,
-                &drivers.ecc_cert_chain,
+                drivers.ecc_cert_chain.as_slice(),
                 nb,
                 nf,
                 None,
                 None,
+                crate::CaliptraDpeProfile::P384,
             ),
             state: &mut state,
         };
