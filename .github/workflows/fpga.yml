@@ -173,8 +173,7 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra caliptra-bitstream-downloader --root /tmp/bitstream-downloader --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
-          /tmp/bitstream-downloader/bin/caliptra-bitstream-downloader --bitstream-manifest hw/fpga/bitstream_manifests/core.toml
+          cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/core.toml
           mv core.pdi /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
@@ -321,6 +320,9 @@ jobs:
               --test-threads=1 \
               --no-fail-fast
 
+      - name: Copy junit.xml
+        if: success() || failure()
+        run: |
           sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
 
       - name: 'Upload test results'

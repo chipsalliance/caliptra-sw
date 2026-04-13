@@ -1764,6 +1764,16 @@ impl CaliptraError {
             "OCP LOCK Error: VEK is not available"
         ),
         (
+            RUNTIME_OCP_LOCK_SEK_INVALID,
+            0x000E0095,
+            "OCP LOCK Error: SEK is not valid"
+        ),
+        (
+            RUNTIME_OCP_LOCK_DPK_INVALID,
+            0x000E0096,
+            "OCP LOCK Error: DPK is not valid"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"

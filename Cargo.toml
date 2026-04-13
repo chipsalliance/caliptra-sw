@@ -27,7 +27,6 @@ members = [
   "auth-manifest/types",
   "builder",
   "ci-tools/file-header-fix",
-  "ci-tools/size-history",
   "common",
   "common/okref",
   "common/eat",
@@ -235,6 +234,10 @@ platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cfc9a
 # dpe = { path = "../caliptra-dpe/dpe", default-features = false, features = ["hybrid"] }
 # crypto = { path = "../caliptra-dpe/crypto", default-features = false }
 # platform = { path = "../caliptra-dpe/platform", default-features = false }
+
+# infra dependecies for CI
+size-history = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-size-history", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
+bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
 
 [profile.firmware]
 inherits = "release"
