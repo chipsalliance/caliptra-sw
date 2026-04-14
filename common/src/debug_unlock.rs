@@ -42,6 +42,7 @@ use zerocopy::IntoBytes;
 pub fn create_debug_unlock_challenge(
     trng: &mut Trng,
     soc_ifc: &SocIfc,
+    dma: &mut Dma,
     request: &ProductionAuthDebugUnlockReq,
 ) -> CaliptraResult<ProductionAuthDebugUnlockChallenge> {
     // Validate payload
@@ -57,13 +58,27 @@ pub fn create_debug_unlock_challenge(
 
     // Check if the debug level is valid.
     let dbg_level = request.unlock_level as u32;
-    if dbg_level > soc_ifc.debug_unlock_pk_hash_count() {
+    if dbg_level == 0 || dbg_level > soc_ifc.debug_unlock_pk_hash_count() {
         crate::cprintln!(
             "Invalid debug level: Received level: {}, Fuse PK Hash Count: {}",
             dbg_level,
             soc_ifc.debug_unlock_pk_hash_count()
         );
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+    }
+
+    // Reject request if the PK hash fuse for this level is zeroized.
+    // Check both all-0s (unprogrammed) and all-1s (zeroized).
+    let debug_auth_pk_offset =
+        soc_ifc.debug_unlock_pk_hash_offset(request.unlock_level as u32)? as u64;
+    let mci_base: AxiAddr = soc_ifc.mci_base_addr().into();
+    let debug_auth_pk_hash_base = mci_base + debug_auth_pk_offset;
+    let mut fuse_digest: [u32; 12] = [0; 12];
+    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
+    let digest = Array4x12::from(fuse_digest);
+    if digest == Array4x12::from([0xFFFF_FFFFu32; 12]) || digest == Array4x12::from([0u32; 12]) {
+        crate::cprintln!("Prod debug unlock disabled: PK hash fuse is zeroized/unprogrammed");
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_DISABLED)?;
     }
 
     let length = ((size_of::<ProductionAuthDebugUnlockChallenge>()
