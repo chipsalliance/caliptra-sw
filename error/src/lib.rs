@@ -2553,6 +2553,11 @@ impl CaliptraError {
             "Debug unlock error: Req bit not set in soc_ifc"
         ),
         (
+            SS_DBG_UNLOCK_PROD_DISABLED,
+            0xa000000c,
+            "Debug unlock error: Production debug unlock disabled"
+        ),
+        (
             RUNTIME_DRIVER_AES_READ_KEY_KV_READ,
             0xa004_0001,
             "Driver Error: AES read key KV read"

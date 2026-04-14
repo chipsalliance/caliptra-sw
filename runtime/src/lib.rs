@@ -544,6 +544,7 @@ fn execute_command(
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,
             &drivers.soc_ifc,
+            &mut drivers.dma,
             cmd_bytes,
             resp,
         ),
