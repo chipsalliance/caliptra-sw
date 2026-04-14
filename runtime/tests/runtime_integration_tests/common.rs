@@ -532,7 +532,7 @@ pub fn execute_dpe_cmd_raw(
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     } else {
         let resp = model
-            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>())
+            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>(), 0)
             .unwrap();
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
         check_header_checksum(resp_hdr.as_bytes_partial().unwrap()).unwrap();

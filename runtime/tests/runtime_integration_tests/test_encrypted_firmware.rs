@@ -90,7 +90,7 @@ fn test_encrypted_firmware_decrypt_dma() {
 
     // Read back the decrypted firmware from MCU SRAM and verify.
     let decrypted_fw = model
-        .read_payload_from_ss_staging_area(mcu_fw_plaintext.len())
+        .read_payload_from_ss_staging_area(mcu_fw_plaintext.len(), 0)
         .unwrap();
 
     assert_eq!(
