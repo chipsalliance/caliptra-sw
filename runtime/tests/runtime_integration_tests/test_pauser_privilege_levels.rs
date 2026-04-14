@@ -28,7 +28,7 @@ use caliptra_runtime::{
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
-use dpe::{
+use caliptra_dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
         DeriveContextCmd, DeriveContextFlags, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,

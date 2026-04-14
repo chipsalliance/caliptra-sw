@@ -11,10 +11,10 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
-use crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
-use crypto::{Crypto, Digest, PubKey, SignData, Signature};
-use dpe::MAX_EXPORTED_CDI_SIZE;
+use caliptra_dpe::MAX_EXPORTED_CDI_SIZE;
+use caliptra_dpe_crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
+use caliptra_dpe_crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
+use caliptra_dpe_crypto::{Crypto, Digest, PubKey, SignData, Signature};
 use zerocopy::FromBytes;
 
 pub struct SignWithExportedEcdsaCmd;
@@ -86,7 +86,7 @@ impl SignWithExportedEcdsaCmd {
             &mut pdata.fw.dpe.exported_cdi_slots,
         );
 
-        let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
+        let data = Digest::Sha384(caliptra_dpe_crypto::Sha384(cmd.tbs)).into();
         let (
             Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
             PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),

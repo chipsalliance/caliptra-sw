@@ -17,6 +17,16 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
+use caliptra_dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
+use caliptra_dpe_crypto::{
+    ecdsa::{
+        curve_384::{Curve384, EcdsaPub384, EcdsaSignature384},
+        EcdsaPubKey, EcdsaSignature,
+    },
+    ml_dsa::{ExternalMu, MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, Mu, PubKey,
+    SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
+};
 use caliptra_drivers::{
     hmac_kdf, okref,
     sha2_512_384::{Sha2DigestOpTrait, Sha384},
@@ -28,37 +38,28 @@ use caliptra_drivers::{
 use caliptra_registers::abr::AbrReg;
 use constant_time_eq::constant_time_eq;
 use core::marker::PhantomData;
-use crypto::{
-    ecdsa::{
-        curve_384::{Curve384, EcdsaPub384, EcdsaSignature384},
-        EcdsaPubKey, EcdsaSignature,
-    },
-    ml_dsa::{ExternalMu, MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
-    Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher, Mu, PubKey,
-    SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
-};
-use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 use zerocopy::IntoBytes;
 
-pub type DpeEcCrypto<'a> = DpeCrypto<'a, Curve384, crypto::Sha384, crypto::Sha384>;
+pub type DpeEcCrypto<'a> =
+    DpeCrypto<'a, Curve384, caliptra_dpe_crypto::Sha384, caliptra_dpe_crypto::Sha384>;
 impl CryptoSuite for DpeEcCrypto<'_> {}
 impl SignatureType for DpeEcCrypto<'_> {
     const SIGNATURE_ALGORITHM: SignatureAlgorithm = Curve384::SIGNATURE_ALGORITHM;
 }
 impl DigestType for DpeEcCrypto<'_> {
-    const DIGEST_ALGORITHM: DigestAlgorithm = crypto::Sha384::DIGEST_ALGORITHM;
+    const DIGEST_ALGORITHM: DigestAlgorithm = caliptra_dpe_crypto::Sha384::DIGEST_ALGORITHM;
 }
 impl SignDataType for DpeEcCrypto<'_> {
-    const SIGN_DATA_ALGORITHM: SignDataAlgorithm = crypto::Sha384::SIGN_DATA_ALGORITHM;
+    const SIGN_DATA_ALGORITHM: SignDataAlgorithm = caliptra_dpe_crypto::Sha384::SIGN_DATA_ALGORITHM;
 }
 
-pub type DpeMldsaCrypto<'a> = DpeCrypto<'a, ExternalMu, crypto::Sha384, Mu>;
+pub type DpeMldsaCrypto<'a> = DpeCrypto<'a, ExternalMu, caliptra_dpe_crypto::Sha384, Mu>;
 impl CryptoSuite for DpeMldsaCrypto<'_> {}
 impl SignatureType for DpeMldsaCrypto<'_> {
     const SIGNATURE_ALGORITHM: SignatureAlgorithm = ExternalMu::SIGNATURE_ALGORITHM;
 }
 impl DigestType for DpeMldsaCrypto<'_> {
-    const DIGEST_ALGORITHM: DigestAlgorithm = crypto::Sha384::DIGEST_ALGORITHM;
+    const DIGEST_ALGORITHM: DigestAlgorithm = caliptra_dpe_crypto::Sha384::DIGEST_ALGORITHM;
 }
 impl SignDataType for DpeMldsaCrypto<'_> {
     const SIGN_DATA_ALGORITHM: SignDataAlgorithm = Mu::SIGN_DATA_ALGORITHM;
@@ -139,7 +140,7 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
         measurement: &Digest,
         info: &[u8],
         key_id: KeyId,
-    ) -> Result<<Self as crypto::Crypto>::Cdi, CryptoError> {
+    ) -> Result<<Self as caliptra_dpe_crypto::Crypto>::Cdi, CryptoError> {
         let mut usage = KeyUsage::default().set_hmac_key_en();
         let usage = match S::SIGNATURE_ALGORITHM {
             SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384) => usage.set_ecc_key_gen_seed_en(),
@@ -261,7 +262,9 @@ impl<S: SignatureType, D: DigestType, SD: SignDataType> DpeCrypto<'_, S, D, SD> 
             y: Ecc384Scalar::from(y),
         };
         let digest = match data {
-            SignData::Digest(Digest::Sha384(crypto::Sha384(digest))) => Ecc384Scalar::from(digest),
+            SignData::Digest(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest))) => {
+                Ecc384Scalar::from(digest)
+            }
             SignData::Raw(msg) => sha2_512_384
                 .sha384_digest(msg)
                 .map_err(|_| CryptoError::HashError(0))?,
@@ -361,7 +364,7 @@ impl Hasher for DpeHasher<'_> {
         self.op
             .finalize(&mut digest)
             .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        Ok(Digest::Sha384(crypto::Sha384(digest.into())))
+        Ok(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest.into())))
     }
 }
 

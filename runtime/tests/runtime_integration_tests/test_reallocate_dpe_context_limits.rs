@@ -9,11 +9,11 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{MailboxReq, MailboxReqHeader};
+use caliptra_dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::CaliptraDpeProfile;
-use dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use zerocopy::FromBytes;
 
 fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: u32) {
@@ -104,7 +104,7 @@ fn reallocate_pl0_pl1_dpe_contexts(
 
 #[test]
 fn test_pl0_pl1_reallocation_range() {
-    for pl0_limit in 2..dpe::MAX_HANDLES as u32 {
+    for pl0_limit in 2..caliptra_dpe::MAX_HANDLES as u32 {
         println!("\n\n\tPL0 Limit {}\n\n", pl0_limit);
         let mut model = run_rt_test(RuntimeTestArgs::default());
         let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, pl0_limit)

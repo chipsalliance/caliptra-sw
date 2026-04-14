@@ -13,13 +13,13 @@ use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags,
     CertifyKeyExtendedResp, CommandId, MailboxReq, MailboxReqHeader,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_kat::CaliptraError;
-use caliptra_runtime::{AddSubjectAltNameCmd, CaliptraDpeProfile, RtBootStatus};
-use dpe::{
+use caliptra_dpe::{
     commands::Command,
     response::{CertifyKeyResp, Response},
 };
+use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_kat::CaliptraError;
+use caliptra_runtime::{AddSubjectAltNameCmd, CaliptraDpeProfile, RtBootStatus};
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };

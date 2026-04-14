@@ -37,6 +37,21 @@ use caliptra_common::cfi_check;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+use caliptra_dpe::commands::DeriveContextCmd;
+use caliptra_dpe::context::{Context, ContextState, ContextType};
+use caliptra_dpe::response::DeriveContextResp;
+use caliptra_dpe::tci::TciMeasurement;
+use caliptra_dpe::validation::DpeValidator;
+use caliptra_dpe::MAX_HANDLES;
+use caliptra_dpe::{
+    commands::{CommandExecution, DeriveContextFlags},
+    context::ContextHandle,
+    dpe_instance::{DpeEnv, DpeInstance},
+};
+use caliptra_dpe::{DpeFlags, DpeProfile};
+use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
+use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
+use caliptra_dpe_crypto::{Digest, PubKey};
 use caliptra_drivers::{
     cprintln,
     hand_off::DataStore,
@@ -58,21 +73,6 @@ use caliptra_registers::{
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::ecdsa::curve_384::EcdsaPub384;
-use crypto::ecdsa::EcdsaPubKey;
-use crypto::{Digest, PubKey};
-use dpe::commands::DeriveContextCmd;
-use dpe::context::{Context, ContextState, ContextType};
-use dpe::response::DeriveContextResp;
-use dpe::tci::TciMeasurement;
-use dpe::validation::DpeValidator;
-use dpe::MAX_HANDLES;
-use dpe::{
-    commands::{CommandExecution, DeriveContextFlags},
-    context::ContextHandle,
-    dpe_instance::{DpeEnv, DpeInstance},
-};
-use dpe::{DpeFlags, DpeProfile};
 
 use core::cmp::Ordering::{Equal, Greater};
 use zerocopy::IntoBytes;
@@ -283,7 +283,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the root DPE context
     #[inline(always)]
-    pub fn get_dpe_root_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_root_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
         let root_idx = dpe
             .contexts
@@ -313,7 +313,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the CCIV DPE context
     #[inline(always)]
-    pub fn get_dpe_cciv_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_cciv_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find the root context index using your existing helper
         let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
 
@@ -575,7 +575,7 @@ impl Drivers {
             .to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(caliptra_dpe_crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }
@@ -587,7 +587,7 @@ impl Drivers {
         let key = okref(&key)?;
 
         let rt_digest = self.sha256.digest(key.as_bytes())?;
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(caliptra_dpe_crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }
@@ -636,7 +636,7 @@ impl Drivers {
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.rom.manifest1);
-        let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
+        let mut state = caliptra_dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
         let mut env = DpeEnv::<CptraDpeEcTypes> {
             crypto,
             platform: DpePlatform::new(
@@ -858,7 +858,7 @@ impl Drivers {
 
     fn dpe_get_used_context_counts_helper(
         pl0_pauser: u32,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
     ) -> CaliptraResult<(usize, usize)> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
@@ -897,7 +897,7 @@ impl Drivers {
     fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
         caller_privilege_level: PauserPrivileges,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
         pl0_context_limit: usize,
         pl1_context_limit: usize,
     ) -> CaliptraResult<()> {

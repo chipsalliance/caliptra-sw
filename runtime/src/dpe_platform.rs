@@ -15,14 +15,14 @@ Abstract:
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
-use caliptra_drivers::cprintln;
-use caliptra_x509::{NotAfter, NotBefore};
-use crypto::Digest;
-use dpe::x509::{CertWriter, DirectoryString, Name};
-use platform::{
+use caliptra_dpe::x509::{CertWriter, DirectoryString, Name};
+use caliptra_dpe_crypto::Digest;
+use caliptra_dpe_platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
+use caliptra_drivers::cprintln;
+use caliptra_x509::{NotAfter, NotBefore};
 
 use crate::{subject_alt_name::AddSubjectAltNameCmd, CaliptraDpeProfile};
 

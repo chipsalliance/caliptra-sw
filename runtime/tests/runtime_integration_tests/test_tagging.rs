@@ -4,13 +4,13 @@ use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, Runti
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
-use caliptra_hw_model::HwModel;
-use caliptra_runtime::CaliptraDpeProfile;
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
 };
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::CaliptraDpeProfile;
 use zerocopy::FromBytes;
 
 const TAG: u32 = 1;

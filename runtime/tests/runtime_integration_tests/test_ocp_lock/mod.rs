@@ -14,6 +14,7 @@ use caliptra_api::{
     Capabilities,
 };
 use caliptra_builder::{firmware::runtime_tests, FwId};
+use caliptra_dpe::U8Bool;
 use caliptra_drivers::HekSeedState;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -21,7 +22,6 @@ use caliptra_hw_model::{
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::crypto::hpke::{self, Hpke};
-use dpe::U8Bool;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use zerocopy::{FromBytes, IntoBytes};
