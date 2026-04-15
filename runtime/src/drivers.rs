@@ -56,6 +56,7 @@ use caliptra_x509::{NotAfter, NotBefore};
 use crypto::{Digest, PubKey};
 use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::response::DeriveContextResp;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
@@ -626,7 +627,10 @@ impl Drivers {
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
         let initialization_values_hash: [u8; 48] = <[u8; 48]>::from(initialization_values_hash);
-        let derive_context_resp = DeriveContextCmd {
+        // Use execute_serialized with a small buffer instead of execute() to avoid
+        // allocating the full Response enum (~25KB) on the stack.
+        let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+        let derive_context_result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(initialization_values_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
@@ -637,8 +641,8 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
-        if let Err(e) = derive_context_resp {
+        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut resp_buf);
+        if let Err(e) = derive_context_result {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -664,7 +668,10 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
-            let derive_context_resp = DeriveContextCmd {
+            // Use execute_serialized with a small buffer instead of execute() to avoid
+            // allocating the full Response enum (~25KB) on the stack.
+            let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+            let derive_context_result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
                     measurement_data
@@ -679,8 +686,8 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_context_resp {
+            .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
+            if let Err(e) = derive_context_result {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
