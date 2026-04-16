@@ -40,6 +40,9 @@ use zeroize::Zeroize;
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
 const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
+/// Label used for HKDF-Extract (salt) and HKDF-Expand (info) when deriving the Stable Owner Root Key.
+const STABLE_OWNER_ROOT_KEY_LABEL: &[u8] = b"stable_owner_root_key";
+
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
 
@@ -218,7 +221,8 @@ impl InitDevIdLayer {
         // Step 1: HKDF-Extract — HMAC(key=fixed_salt, data=HEK_seed_in_KV)
         // The salt is a fixed domain-separation string zero-padded to 64 bytes.
         let mut salt_bytes = [0u8; 64];
-        salt_bytes[..21].copy_from_slice(b"stable_owner_root_key");
+        salt_bytes[..STABLE_OWNER_ROOT_KEY_LABEL.len()]
+            .copy_from_slice(STABLE_OWNER_ROOT_KEY_LABEL);
         let salt = Array4x16::from(salt_bytes);
 
         // HEK seed is read via HMAC_BLOCK (allowed by hardware).
@@ -239,7 +243,7 @@ impl InitDevIdLayer {
         hmac_kdf(
             &mut env.hmac,
             HmacKey::Key(KeyReadArgs::new(hek_seed_temp)),
-            b"stable_owner_root_key",
+            STABLE_OWNER_ROOT_KEY_LABEL,
             None,
             &mut env.trng,
             HmacTag::Key(KeyWriteArgs::new(
