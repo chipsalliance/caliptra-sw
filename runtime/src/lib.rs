@@ -56,7 +56,6 @@ use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
-use caliptra_common::mailbox_api::MailboxReqHeader;
 use crypto::ecdsa::curve_384::EcdsaPub384;
 use crypto::ecdsa::EcdsaPubKey;
 use crypto::ml_dsa::MldsaPublicKey;
