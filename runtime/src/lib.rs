@@ -78,7 +78,7 @@ pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use activate_firmware::ActivateFirmwareCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
+use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
@@ -276,7 +276,6 @@ const COMMON_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::AttestedCsr
 
 const _: () = {
     use caliptra_api::mailbox::*;
-    use caliptra_common::mailbox_api::*;
     let mut max = 0;
     let sizes = [
         size_of::<MailboxRespHeader>(),
