@@ -211,6 +211,7 @@ fn human_readable_command(bytes: &[u8]) -> Option<&str> {
 /// # Returns
 ///
 /// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
+#[inline(never)]
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Drop all commands for invalid PAUSER
     if drivers.mbox.id() == RESERVED_PAUSER {
@@ -268,11 +269,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 }
 
 /// Size of the staging response buffer used by [`execute_command`] for most
-/// mailbox commands. Excludes commands that need the full ~25KB
-/// `MailboxResp` size (driven by `CertifyKeyExtendedResp`); those are
-/// dispatched to dedicated functions so their large buffer only exists on
-/// the stack for that call path.
-const COMMON_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::AttestedCsrResp>();
+/// mailbox commands. Excludes commands that need a larger response buffer
+/// (e.g. `CERTIFY_KEY_EXTENDED_*`, `INVOKE_DPE_*`, `GET_ATTESTED_*_CSR`);
+/// those are dispatched through dedicated `#[inline(never)]` functions so
+/// their large buffers only exist on the stack for that call path.
+const COMMON_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::VarSizeDataResp>();
 
 const _: () = {
     use caliptra_api::mailbox::*;
@@ -297,7 +298,6 @@ const _: () = {
         size_of::<AuthorizeAndStashResp>(),
         size_of::<GetIdevCsrResp>(),
         size_of::<GetFmcAliasCsrResp>(),
-        size_of::<AttestedCsrResp>(),
         size_of::<SignWithExportedEcdsaResp>(),
         size_of::<RevokeExportedCdiHandleResp>(),
         size_of::<GetImageInfoResp>(),
@@ -316,6 +316,7 @@ const _: () = {
 
 const DPE_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::CertifyKeyExtendedResp>();
 
+#[inline(never)]
 fn execute_command(
     drivers: &mut Drivers,
     cmd_id: u32,
@@ -323,26 +324,39 @@ fn execute_command(
 ) -> CaliptraResult<MboxStatusE> {
     let cmd = CommandId::from(cmd_id);
 
-    // Commands that need the full ~25KB DPE response buffer are dispatched
-    // through dedicated functions so that buffer only exists on the stack
-    // for those paths. Other commands use a much smaller staging buffer
-    // (~12.8KB for `AttestedCsrResp`).
+    // Commands that need a larger response buffer (or whose heavy work
+    // must run without the common response buffer alive on the stack)
+    // are dispatched through dedicated `#[inline(never)]` functions so
+    // their buffers only exist on the stack for that call path.
     match cmd {
         CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
-            return execute_certify_key_extended_ecc384(drivers, cmd_bytes);
+            execute_certify_key_extended_ecc384(drivers, cmd_bytes)
         }
         CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
-            return execute_certify_key_extended_mldsa87(drivers, cmd_bytes);
+            execute_certify_key_extended_mldsa87(drivers, cmd_bytes)
         }
-        CommandId::INVOKE_DPE_ECC384 => {
-            return execute_invoke_dpe_ecc384(drivers, cmd_bytes);
+        CommandId::INVOKE_DPE_ECC384 => execute_invoke_dpe_ecc384(drivers, cmd_bytes),
+        CommandId::INVOKE_DPE_MLDSA87 => execute_invoke_dpe_mldsa87(drivers, cmd_bytes),
+        CommandId::GET_ATTESTED_ECC384_CSR => {
+            attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes)
         }
-        CommandId::INVOKE_DPE_MLDSA87 => {
-            return execute_invoke_dpe_mldsa87(drivers, cmd_bytes);
+        CommandId::GET_ATTESTED_MLDSA87_CSR => {
+            attested_csr::AttestedMldsaCsrCmd::execute(drivers, cmd_bytes)
         }
-        _ => {}
+        _ => execute_command_with_common_resp(drivers, cmd, cmd_bytes),
     }
+}
 
+/// Handles mailbox commands that share the common staging response
+/// buffer. Kept as a separate `#[inline(never)]` function so the buffer
+/// is only allocated on the stack for these command paths, not for
+/// commands dispatched through their own dedicated wrappers.
+#[inline(never)]
+fn execute_command_with_common_resp(
+    drivers: &mut Drivers,
+    cmd: CommandId,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; COMMON_RESP_BUF_SIZE][..];
 
     let len = match cmd {
@@ -445,12 +459,7 @@ fn execute_command(
         CommandId::GET_FMC_ALIAS_MLDSA87_CSR => {
             get_fmc_alias_csr::GetFmcAliasMldsaCsrCmd::execute(drivers, resp)
         }
-        CommandId::GET_ATTESTED_ECC384_CSR => {
-            attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes, resp)
-        }
-        CommandId::GET_ATTESTED_MLDSA87_CSR => {
-            attested_csr::AttestedMldsaCsrCmd::execute(drivers, cmd_bytes, resp)
-        }
+        // GET_ATTESTED_{ECC384,MLDSA87}_CSR are dispatched earlier (see above).
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes, resp)
@@ -578,7 +587,7 @@ fn execute_command(
 }
 
 #[inline(never)]
-fn finalize_response(
+pub(crate) fn finalize_response(
     drivers: &mut Drivers,
     resp: &mut [u8],
     len: usize,
