@@ -827,13 +827,12 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn i3c_target_configured(&mut self) -> bool {
-        u32::from(
-            self.i3c_core()
-                .unwrap()
-                .stdby_ctrl_mode()
-                .stby_cr_device_addr()
-                .read(),
-        ) != 0
+        self.i3c_core()
+            .unwrap()
+            .i3c_base()
+            .hc_control()
+            .read()
+            .bus_enable()
     }
 
     pub fn start_recovery_bmc(&mut self) {
