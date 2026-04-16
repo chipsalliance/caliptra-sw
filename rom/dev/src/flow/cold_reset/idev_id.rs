@@ -25,8 +25,8 @@ use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
     keyids::{
-        KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
-        KEY_ID_ROM_FMC_CDI, KEY_ID_UDS,
+        KEY_ID_FE, KEY_ID_HEK_SEED, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
+        KEY_ID_ROM_FMC_CDI, KEY_ID_STABLE_OWNER, KEY_ID_UDS,
     },
     x509,
     RomBootStatus::*,
@@ -76,11 +76,17 @@ impl InitDevIdLayer {
         // Decrypt the Field Entropy
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
+        // Decrypt the HEK Seed
+        Self::decrypt_hek_seed(env, KEY_ID_HEK_SEED)?;
+
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
+
+        // Derive stable owner root key from HEK seed (HKDF-Extract + Expand)
+        Self::derive_stable_owner_root_key(env, KEY_ID_HEK_SEED, KEY_ID_STABLE_OWNER)?;
 
         // Run the OCP LOCK Flow while the DICE CDI is available.
         ocp_lock::ocp_lock_cold_reset_flow(env)?;
@@ -167,6 +173,86 @@ impl InitDevIdLayer {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
+        Ok(())
+    }
+
+    /// Decrypt HEK Seed
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `key_id` - Key Vault slot to store the decrypted HEK seed in
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    fn decrypt_hek_seed(env: &mut RomEnvFips, key_id: KeyId) -> CaliptraResult<()> {
+        env.doe.decrypt_hek_seed(&DOE_IV, key_id)?;
+        report_boot_status(IDevIdDecryptHekSeedComplete.into());
+        Ok(())
+    }
+
+    /// Derive Stable Owner Root Key from HEK Seed via HKDF (RFC 5869).
+    ///
+    /// The DOE hardware restricts the HEK seed to HMAC_BLOCK only (cannot be
+    /// used as an HMAC key). We work around this with a two-step construction:
+    ///
+    /// 1. HKDF-Extract: HMAC(key=fixed_salt, data=hek_seed_kv) → PRK
+    ///    (hek_seed is read as HMAC block data, which is allowed)
+    /// 2. HKDF-Expand:  HMAC-KDF(key=PRK, label="stable_owner_root_key") → output
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `hek_seed_temp` - Temporary KV slot holding the DOE-decrypted HEK seed
+    /// * `stable_owner` - Persistent KV slot for the derived stable owner root key
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    fn derive_stable_owner_root_key(
+        env: &mut RomEnv,
+        hek_seed_temp: KeyId,
+        stable_owner: KeyId,
+    ) -> CaliptraResult<()> {
+        cprintln!(
+            "[idev] Deriving STABLE_OWNER_ROOT_KEY: temp={}, output={}",
+            hek_seed_temp as u8,
+            stable_owner as u8
+        );
+
+        // Step 1: HKDF-Extract — HMAC(key=fixed_salt, data=HEK_seed_in_KV)
+        // The salt is a fixed domain-separation string zero-padded to 64 bytes.
+        let mut salt_bytes = [0u8; 64];
+        salt_bytes[..21].copy_from_slice(b"stable_owner_root_key");
+        let salt = Array4x16::from(salt_bytes);
+
+        // HEK seed is read via HMAC_BLOCK (allowed by hardware).
+        // Output overwrites the temp slot with HMAC_KEY usage so Step 2 can
+        // read it as an HMAC key.
+        env.hmac.hmac(
+            HmacKey::Array4x16(&salt),
+            HmacData::Key(KeyReadArgs::new(hek_seed_temp)),
+            &mut env.trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                hek_seed_temp,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // Step 2: HKDF-Expand — HMAC-KDF(key=PRK, label) → stable owner root key
+        hmac_kdf(
+            &mut env.hmac,
+            HmacKey::Key(KeyReadArgs::new(hek_seed_temp)),
+            b"stable_owner_root_key",
+            None,
+            &mut env.trng,
+            HmacTag::Key(KeyWriteArgs::new(
+                stable_owner,
+                KeyUsage::default().set_aes_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // Erase the temporary HEK seed slot
+        env.key_vault.erase_key(hek_seed_temp)?;
+
+        report_boot_status(IDevIdStableOwnerRootKeyDerivationComplete.into());
         Ok(())
     }
 

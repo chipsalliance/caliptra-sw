@@ -1124,21 +1124,30 @@ impl FirmwareProcessor {
             CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(
                 caliptra_common::keyids::KEY_ID_STABLE_LDEV,
             )),
+            CmStableKeyType::OwnerKey => AesKey::KV(KeyReadArgs::new(
+                caliptra_common::keyids::KEY_ID_STABLE_OWNER,
+            )),
             CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
 
-        // Prepend "DOT Final" to info and use as label for HMAC KDF
-        const PREFIX: &[u8] = b"DOT Final";
-        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
-        data[..PREFIX.len()].copy_from_slice(PREFIX);
-        data[PREFIX.len()..].copy_from_slice(&request.info);
+        // Prepend a domain-separation prefix to info and use as label for HMAC KDF
+        const DOT_PREFIX: &[u8] = b"DOT Final";
+        const OWNER_PREFIX: &[u8] = b"Stable Owner Key";
+        let prefix = match key_type {
+            CmStableKeyType::OwnerKey => OWNER_PREFIX,
+            _ => DOT_PREFIX,
+        };
+        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + OWNER_PREFIX.len()];
+        data[..prefix.len()].copy_from_slice(prefix);
+        data[prefix.len()..prefix.len() + CM_STABLE_KEY_INFO_SIZE_BYTES]
+            .copy_from_slice(&request.info);
 
         let mut tag: Array4x16 = Array4x16::default();
         hmac_kdf(
             hmac,
             HmacKey::Array4x16(&Array4x16::from(k0)),
-            &data[..],
+            &data[..prefix.len() + CM_STABLE_KEY_INFO_SIZE_BYTES],
             None,
             trng,
             HmacTag::Array4x16(&mut tag),

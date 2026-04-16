@@ -47,8 +47,12 @@ pub const KEY_ID_DPE_PRIV_KEY: KeyId = KeyId::KeyId11;
 pub const KEY_ID_EXPORTED_DPE_CDI: KeyId = KeyId::KeyId12;
 pub const KEY_ID_STABLE_IDEV: KeyId = KeyId::KeyId0;
 pub const KEY_ID_STABLE_LDEV: KeyId = KeyId::KeyId1;
+pub const KEY_ID_STABLE_OWNER: KeyId = KeyId::KeyId15;
 
 pub const KEY_ID_TMP: KeyId = KeyId::KeyId3;
+
+#[cfg(feature = "rom")]
+pub const KEY_ID_HEK_SEED: KeyId = KeyId::KeyId14;
 
 pub mod ocp_lock {
     use super::KeyId;
