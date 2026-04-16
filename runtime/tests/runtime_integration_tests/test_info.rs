@@ -187,6 +187,15 @@ fn test_fw_info() {
         assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
         assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
         assert_eq!(info.most_recent_fw_error, 0x0);
+        assert_eq!(info.image_manifest_pqc_type, *pqc_key_type as u32);
+        assert_eq!(
+            info.vendor_ecc384_pub_key_index,
+            image.manifest.preamble.vendor_ecc_pub_key_idx
+        );
+        assert_eq!(
+            info.vendor_pqc_pub_key_index,
+            image.manifest.preamble.vendor_pqc_pub_key_idx
+        );
 
         // Make image with newer SVN.
         let mut image_opts20 = image_opts.clone();
@@ -204,6 +213,15 @@ fn test_fw_info() {
         assert_eq!(info.fw_svn, 20);
         assert_eq!(info.min_fw_svn, 10);
         assert_eq!(info.cold_boot_fw_svn, 10);
+        assert_eq!(info.image_manifest_pqc_type, *pqc_key_type as u32);
+        assert_eq!(
+            info.vendor_ecc384_pub_key_index,
+            image.manifest.preamble.vendor_ecc_pub_key_idx
+        );
+        assert_eq!(
+            info.vendor_pqc_pub_key_index,
+            image.manifest.preamble.vendor_pqc_pub_key_idx
+        );
 
         // Make image with older SVN.
         let mut image_opts5 = image_opts;
@@ -219,6 +237,15 @@ fn test_fw_info() {
         assert_eq!(info.fw_svn, 5);
         assert_eq!(info.min_fw_svn, 5);
         assert_eq!(info.cold_boot_fw_svn, 10);
+        assert_eq!(info.image_manifest_pqc_type, *pqc_key_type as u32);
+        assert_eq!(
+            info.vendor_ecc384_pub_key_index,
+            image.manifest.preamble.vendor_ecc_pub_key_idx
+        );
+        assert_eq!(
+            info.vendor_pqc_pub_key_index,
+            image.manifest.preamble.vendor_pqc_pub_key_idx
+        );
 
         // Go back to SVN 20
         update_to(&mut model, &image20);
@@ -226,6 +253,15 @@ fn test_fw_info() {
         assert_eq!(info.fw_svn, 20);
         assert_eq!(info.min_fw_svn, 5);
         assert_eq!(info.cold_boot_fw_svn, 10);
+        assert_eq!(info.image_manifest_pqc_type, *pqc_key_type as u32);
+        assert_eq!(
+            info.vendor_ecc384_pub_key_index,
+            image.manifest.preamble.vendor_ecc_pub_key_idx
+        );
+        assert_eq!(
+            info.vendor_pqc_pub_key_index,
+            image.manifest.preamble.vendor_pqc_pub_key_idx
+        );
     }
 }
 
