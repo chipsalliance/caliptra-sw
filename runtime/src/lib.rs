@@ -267,15 +267,86 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     execute_command(drivers, cmd_id, cmd_bytes)
 }
 
+/// Size of the staging response buffer used by [`execute_command`] for most
+/// mailbox commands. Excludes commands that need the full ~25KB
+/// `MailboxResp` size (driven by `CertifyKeyExtendedResp`); those are
+/// dispatched to dedicated functions so their large buffer only exists on
+/// the stack for that call path.
+const COMMON_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::AttestedCsrResp>();
+
+const _: () = {
+    use caliptra_api::mailbox::*;
+    use caliptra_common::mailbox_api::*;
+    let mut max = 0;
+    let sizes = [
+        size_of::<MailboxRespHeader>(),
+        size_of::<GetIdevCertResp>(),
+        size_of::<GetIdevEcc384InfoResp>(),
+        size_of::<GetIdevMldsa87InfoResp>(),
+        size_of::<GetLdevCertResp>(),
+        size_of::<StashMeasurementResp>(),
+        size_of::<InvokeDpeResp>(),
+        size_of::<GetFmcAliasEcc384CertResp>(),
+        size_of::<GetFmcAliasMlDsa87CertResp>(),
+        size_of::<FipsVersionResp>(),
+        size_of::<FwInfoResp>(),
+        size_of::<CapabilitiesResp>(),
+        size_of::<GetTaggedTciResp>(),
+        size_of::<GetRtAliasCertResp>(),
+        size_of::<QuotePcrsEcc384Resp>(),
+        size_of::<QuotePcrsMldsa87Resp>(),
+        size_of::<AuthorizeAndStashResp>(),
+        size_of::<GetIdevCsrResp>(),
+        size_of::<GetFmcAliasCsrResp>(),
+        size_of::<AttestedCsrResp>(),
+        size_of::<SignWithExportedEcdsaResp>(),
+        size_of::<RevokeExportedCdiHandleResp>(),
+        size_of::<GetImageInfoResp>(),
+        size_of::<GetPcrLogResp>(),
+        size_of::<ReallocateDpeContextLimitsResp>(),
+    ];
+    let mut i = 0;
+    while i < sizes.len() {
+        if sizes[i] > max {
+            max = sizes[i];
+        }
+        i += 1;
+    }
+    assert!(COMMON_RESP_BUF_SIZE >= max);
+};
+
+const DPE_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::CertifyKeyExtendedResp>();
+
 fn execute_command(
     drivers: &mut Drivers,
     cmd_id: u32,
     cmd_bytes: &[u8],
 ) -> CaliptraResult<MboxStatusE> {
-    // stage the response once on the stack
-    let resp = &mut [0u8; MAX_RESP_SIZE][..];
+    let cmd = CommandId::from(cmd_id);
 
-    let len = match CommandId::from(cmd_id) {
+    // Commands that need the full ~25KB DPE response buffer are dispatched
+    // through dedicated functions so that buffer only exists on the stack
+    // for those paths. Other commands use a much smaller staging buffer
+    // (~12.8KB for `AttestedCsrResp`).
+    match cmd {
+        CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
+            return execute_certify_key_extended_ecc384(drivers, cmd_bytes);
+        }
+        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
+            return execute_certify_key_extended_mldsa87(drivers, cmd_bytes);
+        }
+        CommandId::INVOKE_DPE_ECC384 => {
+            return execute_invoke_dpe_ecc384(drivers, cmd_bytes);
+        }
+        CommandId::INVOKE_DPE_MLDSA87 => {
+            return execute_invoke_dpe_mldsa87(drivers, cmd_bytes);
+        }
+        _ => {}
+    }
+
+    let resp = &mut [0u8; COMMON_RESP_BUF_SIZE][..];
+
+    let len = match cmd {
         CommandId::ACTIVATE_FIRMWARE => {
             activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
         }
@@ -301,8 +372,7 @@ fn execute_command(
         CommandId::GET_LDEV_MLDSA87_CERT => {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
-        CommandId::INVOKE_DPE_ECC384 => InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp),
-        CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp),
+        // INVOKE_DPE_{ECC384,MLDSA87} are dispatched earlier (see above).
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
@@ -337,12 +407,7 @@ fn execute_command(
             GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
-            CertifyKeyExtendedCmd::execute_ecc384(drivers, cmd_bytes, resp)
-        }
-        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
-            CertifyKeyExtendedCmd::execute_mldsa87(drivers, cmd_bytes, resp)
-        }
+        // CERTIFY_KEY_EXTENDED_{ECC384,MLDSA87} are dispatched earlier.
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
@@ -510,21 +575,66 @@ fn execute_command(
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 
+    finalize_response(drivers, resp, len)
+}
+
+#[inline(never)]
+fn finalize_response(
+    drivers: &mut Drivers,
+    resp: &mut [u8],
+    len: usize,
+) -> CaliptraResult<MboxStatusE> {
     let len = len.max(8); // guarantee it is big enough to hold the header
-    if len > MAX_RESP_SIZE {
+    if len > resp.len() {
         // should be impossible
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     }
-
     let mbox = &mut drivers.mbox;
     let resp = &mut resp[..len];
-    // Generate response checksum
     populate_checksum(resp);
-    // Send the payload
     mbox.write_response(resp)?;
-    // zero the original resp buffer so as not to leak sensitive data
     resp.fill(0);
     Ok(MboxStatusE::DataReady)
+}
+
+#[inline(never)]
+fn execute_certify_key_extended_ecc384(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
+    let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
+    let len = CertifyKeyExtendedCmd::execute_ecc384(drivers, cmd_bytes, resp)?;
+    finalize_response(drivers, resp, len)
+}
+
+#[inline(never)]
+fn execute_certify_key_extended_mldsa87(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
+    let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
+    let len = CertifyKeyExtendedCmd::execute_mldsa87(drivers, cmd_bytes, resp)?;
+    finalize_response(drivers, resp, len)
+}
+
+#[inline(never)]
+fn execute_invoke_dpe_ecc384(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
+    let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
+    let len = InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp)?;
+    finalize_response(drivers, resp, len)
+}
+
+#[inline(never)]
+fn execute_invoke_dpe_mldsa87(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
+    let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
+    let len = InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp)?;
+    finalize_response(drivers, resp, len)
 }
 
 /// Handles an external mailbox command. If a valid external command was parsed,
