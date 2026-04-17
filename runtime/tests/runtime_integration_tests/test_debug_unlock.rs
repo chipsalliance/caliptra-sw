@@ -1133,7 +1133,7 @@ fn test_dbg_unlock_prod_disabled_all_ones_pk_hash() {
     // Set the request bit
     model
         .soc_ifc()
-        .ss_dbg_service_reg_req()
+        .ss_dbg_manuf_service_reg_req()
         .write(|w| w.prod_dbg_unlock_req(true));
 
     let request = ProductionAuthDebugUnlockReq {
@@ -1259,7 +1259,7 @@ fn test_dbg_unlock_prod_disabled_all_zeros_pk_hash() {
     // Set the request bit
     model
         .soc_ifc()
-        .ss_dbg_service_reg_req()
+        .ss_dbg_manuf_service_reg_req()
         .write(|w| w.prod_dbg_unlock_req(true));
 
     let request = ProductionAuthDebugUnlockReq {
