@@ -615,14 +615,14 @@ The 17-byte UEID is placed in the TCG DICE "Ueid" X.509 extension (OID
 defined by the TCG DICE specification. The DER bytes written into the TBS
 template are:
 
-| DER bytes             | Meaning                                                   |
-|-----------------------|-----------------------------------------------------------|
-| `30 1F`               | `SEQUENCE`, length 31 — the `Extension`                   |
-| `06 06 67 81 05 05 04 04` | `OID 2.23.133.5.4.4` (`tcg-dice-Ueid`)                |
-| `04 15`               | `OCTET STRING`, length 21 — the `extnValue` wrapper       |
-| `30 13`               |   inner `SEQUENCE`, length 19 — the `TcgUeid` structure   |
-| `04 11`               |     inner `OCTET STRING`, length 17 — the UEID value      |
-| `XX XX … XX` (17 B)   |       the 17 UEID bytes assembled above                   |
+| DER bytes                 | Meaning                                                 |
+|---------------------------|---------------------------------------------------------|
+| `30 1F`                   | `SEQUENCE`, length 31 — the `Extension`                 |
+| `06 06 67 81 05 05 04 04` | `OID 2.23.133.5.4.4` (`tcg-dice-Ueid`)                  |
+| `04 15`                   | `OCTET STRING`, length 21 — the `extnValue` wrapper     |
+| `30 13`                   |   inner `SEQUENCE`, length 19 — the `TcgUeid` structure |
+| `04 11`                   |     inner `OCTET STRING`, length 17 — the UEID value    |
+| `XX XX … XX` (17 B)       |       the 17 UEID bytes assembled above                 |
 
 The template slot for the 17 UEID bytes sits at a fixed offset in the TBS
 template (e.g. `UEID_OFFSET = 312` for `InitDevIdCsrTbsEcc384`); the ROM copies
