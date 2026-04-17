@@ -1036,3 +1036,257 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         assert!(soc_debug_level == unlock_level);
     }
 }
+
+/// Test that production debug unlock fails when the PK hash fuse is all 1s
+/// (unprogrammed/erased OTP fuse). This simulates a device where the debug
+/// unlock PK hash was never provisioned or disabled.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_dbg_unlock_prod_disabled_all_ones_pk_hash() {
+    let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
+    let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
+    let ecc_pub_key_bytes = {
+        let mut pk = [0; 96];
+        let ecc_key = verifying_ecc_key.to_encoded_point(false);
+        pk[..48].copy_from_slice(ecc_key.x().unwrap());
+        pk[48..].copy_from_slice(ecc_key.y().unwrap());
+        pk
+    };
+
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
+    let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
+    let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
+
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+
+    let unlock_level = 5u8;
+    // Provide keypairs so that debug_unlock_pk_hash_count > 0
+    let mut prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])> =
+        vec![(&[0; 96], &[0; 2592]); 8];
+    prod_dbg_unlock_keypairs[(unlock_level - 1) as usize] = (
+        ecc_pub_key_bytes.try_into().unwrap(),
+        mldsa_pub_key_bytes.try_into().unwrap(),
+    );
+
+    let init_params = InitParams {
+        rom: &rom,
+        security_state,
+        prod_dbg_unlock_keypairs,
+        debug_intent: true,
+        subsystem_mode: true,
+        stack_info: Some(StackInfo::new(image_info)),
+        ..Default::default()
+    };
+
+    let mcu_fw = vec![1, 2, 3, 4];
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = soc_manifest.as_bytes();
+
+    let runtime_args = RuntimeTestArgs {
+        init_params: Some(init_params),
+        soc_manifest: Some(soc_manifest),
+        mcu_fw_image: Some(&mcu_fw),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    // Override the fuse hash for this unlock level to all-1s (unprogrammed OTP)
+    model
+        .mci
+        .set_raw_fuse_hash((unlock_level - 1) as usize, &[0xFFFF_FFFFu32; 12]);
+
+    // Set the request bit
+    model
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_req()
+        .write(|w| w.prod_dbg_unlock_req(true));
+
+    let request = ProductionAuthDebugUnlockReq {
+        length: {
+            let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
+            (req_len / size_of::<u32>()) as u32
+        },
+        unlock_level,
+        ..Default::default()
+    };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ),
+        &request.as_bytes()[4..],
+    );
+    let request = ProductionAuthDebugUnlockReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..request
+    };
+
+    // The REQ should fail immediately — no challenge issued, no token needed.
+    assert_eq!(
+        model.mailbox_execute(
+            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
+            request.as_bytes(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::SS_DBG_UNLOCK_PROD_DISABLED.into()
+        ))
+    );
+}
+
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_dbg_unlock_prod_disabled_all_zeros_pk_hash() {
+    let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
+    let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
+    let ecc_pub_key_bytes = {
+        let mut pk = [0; 96];
+        let ecc_key = verifying_ecc_key.to_encoded_point(false);
+        pk[..48].copy_from_slice(ecc_key.x().unwrap());
+        pk[48..].copy_from_slice(ecc_key.y().unwrap());
+        pk
+    };
+
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
+    let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
+    let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
+
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+
+    let unlock_level = 5u8;
+    // Provide keypairs so that debug_unlock_pk_hash_count > 0
+    let mut prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])> =
+        vec![(&[0; 96], &[0; 2592]); 8];
+    prod_dbg_unlock_keypairs[(unlock_level - 1) as usize] = (
+        ecc_pub_key_bytes.try_into().unwrap(),
+        mldsa_pub_key_bytes.try_into().unwrap(),
+    );
+
+    let init_params = InitParams {
+        rom: &rom,
+        security_state,
+        prod_dbg_unlock_keypairs,
+        debug_intent: true,
+        subsystem_mode: true,
+        stack_info: Some(StackInfo::new(image_info)),
+        ..Default::default()
+    };
+
+    let mcu_fw = vec![1, 2, 3, 4];
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = soc_manifest.as_bytes();
+
+    let runtime_args = RuntimeTestArgs {
+        init_params: Some(init_params),
+        soc_manifest: Some(soc_manifest),
+        mcu_fw_image: Some(&mcu_fw),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    // Override the fuse hash for this unlock level to all-0s (fuse controller may
+    // report zeros after zeroization instead of ones)
+    model
+        .mci
+        .set_raw_fuse_hash((unlock_level - 1) as usize, &[0u32; 12]);
+
+    // Set the request bit
+    model
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_req()
+        .write(|w| w.prod_dbg_unlock_req(true));
+
+    let request = ProductionAuthDebugUnlockReq {
+        length: {
+            let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
+            (req_len / size_of::<u32>()) as u32
+        },
+        unlock_level,
+        ..Default::default()
+    };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ),
+        &request.as_bytes()[4..],
+    );
+    let request = ProductionAuthDebugUnlockReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..request
+    };
+
+    // The REQ should fail immediately — no challenge issued, no token needed.
+    assert_eq!(
+        model.mailbox_execute(
+            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
+            request.as_bytes(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::SS_DBG_UNLOCK_PROD_DISABLED.into()
+        ))
+    );
+}

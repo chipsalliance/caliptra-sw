@@ -53,6 +53,7 @@ impl ProductionDebugUnlock {
         &mut self,
         trng: &mut caliptra_drivers::Trng,
         soc_ifc: &caliptra_drivers::SocIfc,
+        dma: &mut caliptra_drivers::Dma,
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
@@ -74,7 +75,7 @@ impl ProductionDebugUnlock {
 
         // Use common function to create challenge
         let challenge =
-            caliptra_common::debug_unlock::create_debug_unlock_challenge(trng, soc_ifc, &req)?;
+            caliptra_common::debug_unlock::create_debug_unlock_challenge(trng, soc_ifc, dma, &req)?;
 
         // Store the challenge for future token validation
         let stored_challenge = challenge.clone();
