@@ -570,6 +570,102 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
  | 🔒IDevID Cert MLDSA Signature |
  | 🔒IDevID MLDSA Pub Key        |
 
+#### UEID (Unique Endpoint Identifier)
+
+The UEID is a 17-byte identifier that is embedded (as an X.509 extension) in the
+IDevID CSR, the LDevID certificate, and the FMC Alias certificate. Its value is
+derived entirely from fuses.
+
+##### Source fuses
+
+The UEID is assembled from 5 consecutive 32-bit words of the
+`FUSE_IDEVID_CERT_ATTR` fuse bank (see the [Fuse Registers](#fuse-registers)
+table):
+
+| Fuse word | `IdevidCertAttr` variant      | Usage in UEID                           |
+|-----------|-------------------------------|-----------------------------------------|
+| 11        | `UeidType`                    | UEID type byte (see RFC 9711 §4.2.1.1)  |
+| 12        | `ManufacturerSerialNumber1`   | First 4 bytes of the endpoint serial    |
+| 13        | `ManufacturerSerialNumber2`   | Next 4 bytes of the endpoint serial     |
+| 14        | `ManufacturerSerialNumber3`   | Next 4 bytes of the endpoint serial     |
+| 15        | `ManufacturerSerialNumber4`   | Last 4 bytes of the endpoint serial     |
+
+Only the low byte of word 11 is used; the high 3 bytes of that word are
+discarded. Each of the four serial-number words is written to the UEID buffer
+in **little-endian** order (the natural byte order of the u32 register).
+
+##### Byte layout
+
+```
+     byte 0      byte 1 ─ byte 4   byte 5 ─ byte 8   byte 9 ─ byte 12   byte 13 ─ byte 16
+  ┌──────────┐ ┌────────────────┐ ┌────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+  │ UeidType │ │ MfgSerialNum1  │ │ MfgSerialNum2  │ │  MfgSerialNum3  │ │  MfgSerialNum4  │
+  │ (byte 0) │ │  (LE u32)      │ │  (LE u32)      │ │   (LE u32)      │ │   (LE u32)      │
+  └──────────┘ └────────────────┘ └────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+This assembly is implemented in `caliptra_drivers::FuseBank::ueid` in
+`drivers/src/fuse_bank.rs`, returning a `[u8; 17]`.
+
+##### Placement in the certificate / CSR
+
+The 17-byte UEID is placed in the TCG DICE "Ueid" X.509 extension (OID
+`2.23.133.5.4.4`, not marked critical). The extension's `extnValue`
+`OCTET STRING` contains a DER-encoded `SEQUENCE { ueid OCTET STRING }`, as
+defined by the TCG DICE specification. The DER bytes written into the TBS
+template are:
+
+| DER bytes                 | Meaning                                                 |
+|---------------------------|---------------------------------------------------------|
+| `30 1F`                   | `SEQUENCE`, length 31 — the `Extension`                 |
+| `06 06 67 81 05 05 04 04` | `OID 2.23.133.5.4.4` (`tcg-dice-Ueid`)                  |
+| `04 15`                   | `OCTET STRING`, length 21 — the `extnValue` wrapper     |
+| `30 13`                   |   inner `SEQUENCE`, length 19 — the `TcgUeid` structure |
+| `04 11`                   |     inner `OCTET STRING`, length 17 — the UEID value    |
+| `XX XX … XX` (17 B)       |       the 17 UEID bytes assembled above                 |
+
+The template slot for the 17 UEID bytes sits at a fixed offset in the TBS
+template (e.g. `UEID_OFFSET = 312` for `InitDevIdCsrTbsEcc384`); the ROM copies
+the UEID returned by `FuseBank::ueid` directly into that slot with no further
+transformation. See `x509/gen/src/x509.rs::make_tcg_ueid_ext` for the generator
+and `x509/build/*` for the resulting pre-baked templates.
+
+##### End-to-end example
+
+Given the following example fuse values (as programmed by the integration test
+`cert_test_with_ueid` in `rom/dev/tests/rom_integration_tests/test_image_validation.rs`):
+
+| Fuse word | Field                          | Value         |
+|-----------|--------------------------------|---------------|
+| 11        | `UeidType`                     | `0x0000_0001` |
+| 12        | `ManufacturerSerialNumber1`    | `0x0403_0201` |
+| 13        | `ManufacturerSerialNumber2`    | `0x0807_0605` |
+| 14        | `ManufacturerSerialNumber3`    | `0x0C0B_0A09` |
+| 15        | `ManufacturerSerialNumber4`    | `0x100F_0E0D` |
+
+Step-by-step:
+
+1. `FuseBank::ueid` reads the five fuse words and takes the low byte of word 11:
+   `ueid_type = 0x01`.
+2. Each serial-number word is converted to little-endian bytes:
+   - `0x04030201 → 01 02 03 04`
+   - `0x08070605 → 05 06 07 08`
+   - `0x0C0B0A09 → 09 0A 0B 0C`
+   - `0x100F0E0D → 0D 0E 0F 10`
+3. The 17-byte UEID is:
+   `01 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10`
+   (byte 0 is the type; bytes 1–16 are the endpoint serial).
+4. The UEID is wrapped in the DER framing shown above and emitted verbatim in
+   the IDevID CSR, LDevID certificate, and FMC Alias certificate. The resulting
+   bytes on the wire for the Ueid extension are:
+   `30 1F 06 06 67 81 05 05 04 04 04 15 30 13 04 11 01 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10`.
+
+The `cert_test_with_ueid` test programs exactly these fuses, boots the ROM,
+retrieves the IDevID ECC CSR, LDevID cert, and FMC Alias cert from the UART
+log, and asserts that the hex-encoded bytes
+`010102030405060708090A0B0C0D0E0F10` appear in all three — confirming both the
+fuse-to-UEID assembly and the DER placement described here.
+
 ### Local Device ID DICE layer
 
 Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
