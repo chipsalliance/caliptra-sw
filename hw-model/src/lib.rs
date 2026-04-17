@@ -251,8 +251,14 @@ pub struct InitParams<'a> {
 
     pub otp_direct_access_cmd_reg_offset: u32,
 
-    // Keypairs for production debug unlock levels, from low to high
-    // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
+    // Keypairs for production debug unlock levels, from low to high.
+    // These byte slices must match the exact bytes hashed into the production debug unlock
+    // public-key-hash fuses and sent in AUTH_DEBUG_UNLOCK_TOKEN.
+    // ECC384: 96 bytes in mailbox byte order, i.e. X||Y with each 4-byte group byte-reversed
+    // relative to the standard big-endian coordinate bytes. Example: if the raw ECC bytes begin
+    // `ab cd ef 01 23 45 67 89`, store them here as `01 ef cd ab 89 67 45 23`.
+    // MLDSA87: 2592 raw public-key bytes copied exactly as produced by the MLDSA implementation.
+    // Example: if the MLDSA bytes begin `72 c0 f1 3b 7d 93 7e 22`, store them here unchanged.
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
     // Whether or not to set the debug_intent signal.

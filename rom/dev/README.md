@@ -366,10 +366,10 @@ The following flows are conducted when the ROM is operating in the production mo
 | Unlock Level             | 1            | Debug unlock Level (Number 1-8).                                                      |
 | Reserved                 | 3            | Reserved field.                                                                       |
 | Challenge                | 48           | Random number sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.          |
-| ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
-| MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature. See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
-| ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
-| MLDSA Signature          | 4628         | MLDSA-87 signature of the Message hashed using SHA2-512 (4627 bytes + 1 Reserved byte). See [Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields). |
+| ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes). See [Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields). |
+| MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature. See [Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields). |
+| ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). See [Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields). |
+| MLDSA Signature          | 4628         | MLDSA-87 signature of the Message hashed using SHA2-512 (4627 bytes + 1 Reserved byte). See [Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields). |
 
 7. On receiving this payload, ROM performs the following validations:
     - Ensures the value in the `Length` field matches the size of the payload.
@@ -377,7 +377,7 @@ The following flows are conducted when the ROM is operating in the production mo
     - Calculates the address of the public key hash fuse as follows: <br>
         **SS_PROD_DEBUG_UNLOCK_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( (Debug Unlock Level - 1) * SHA2-384 hash size (48 bytes) )**
     - Retrieves the SHA2-384 hash (48 bytes) from the calculated address using DMA assist.
-    - Computes the SHA2-384 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
+    - Computes the SHA2-384 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload. See [Production debug unlock public key hashes: byte ordering](#production-debug-unlock-public-key-hashes-byte-ordering) for the exact byte order and fuse programming details.
     - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock request by setting the registers outlined in step 3.
     - Upon hash comparison failure, the ROM exits the payload validation flow and completes the mailbox command.
 
@@ -1200,7 +1200,7 @@ and are also **not** subject to dword reversal.
 
 For a detailed description of byte ordering conventions for all mailbox cryptographic fields
 (including ECC, ML-DSA, and SHA digest fields with OpenSSL examples), see the
-[Byte order of cryptographic fields](../runtime/README.md#byte-order-of-cryptographic-fields)
+[Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields)
 section in the Runtime README.
 
 ### Computing public key hashes: step-by-step example
@@ -1738,6 +1738,127 @@ Byte value:         D5   A8   9B   86   82   CF   0F   AD   80   60   E5   02  .
 FUSE_VENDOR_PK_HASH. See
 [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal)
 for details and worked examples.
+
+##### Production debug unlock public key hashes: byte ordering
+
+The production debug unlock flow uses SHA2-384 hashes of the concatenated
+ECC and MLDSA public keys to authenticate debug unlock tokens. These hashes
+are stored in the MCI register bank at addresses computed from
+`SS_PROD_DEBUG_UNLOCK_AUTH_PK_HASH_REG_BANK_OFFSET`.
+
+**Hash input construction:**
+
+The hash is SHA2-384 over the raw mailbox wire bytes of the concatenated
+ECC and MLDSA public keys from the `AUTH_DEBUG_UNLOCK_TOKEN` payload.
+The mailbox wire format for each key type is:
+
+- **ECC public key (96 bytes)**: Each 4-byte group of the X and Y
+  coordinates is **dword-reversed** from the standard OpenSSL output.
+
+  ```
+  openssl ec output:  AB CD EF 01  23 45 67 89  ...  (X, 48 bytes)
+                      11 22 33 44  55 66 77 88  ...  (Y, 48 bytes)
+
+  Hash input (= mailbox wire bytes):
+                      01 EF CD AB  89 67 45 23  ...  (X, dword-reversed)
+                      44 33 22 11  88 77 66 55  ...  (Y, dword-reversed)
+  ```
+
+- **MLDSA public key (2592 bytes)**: The native MLDSA key bytes are
+  used **as-is** — no conversion.
+
+  ```
+  MLDSA keygen output: 72 C0 F1 3B  7D 93 7E 22  ...
+
+  Hash input (= mailbox wire bytes):
+                       72 C0 F1 3B  7D 93 7E 22  ...  (identical)
+  ```
+
+To compute the same hash offline for fuse provisioning, reconstruct the
+mailbox wire bytes: dword-reverse the ECC coordinates, keep MLDSA native,
+concatenate, and hash:
+
+```
+ECC dword-reversed:      01 EF CD AB  89 67 45 23  ...  (96 bytes)
+MLDSA native:            72 C0 F1 3B  7D 93 7E 22  ...  (2592 bytes)
+
+hash_input = ECC_dword_reversed || MLDSA_native_bytes  (2688 bytes)
+
+$ openssl dgst -sha384 -binary combined.bin | xxd -p -c 48
+→ 3f7a2b91c4e8d0f5...
+```
+
+**Provisioning: OpenSSL example**
+
+To prepare `combined_keys.bin`, dword-reverse the ECC raw coordinates
+and concatenate with the native MLDSA key bytes. Then compute the hash:
+
+```
+$ openssl dgst -sha384 -binary combined_keys.bin | xxd -p -c 48
+3f7a2b91c4e8d0f5a1b2c3d4e5f60718293a4b5c6d7e8f90a0b1c2d3e4f5061728394a5b6c
+```
+
+Map the digest output to fuse register words — each 4-byte group becomes
+one `u32` fuse word (same convention as all other SHA digest fuses):
+
+```
+openssl output:     3f 7a 2b 91  c4 e8 d0 f5  a1 b2 c3 d4  ...
+                    ~~~~~~~~~~~  ~~~~~~~~~~~  ~~~~~~~~~~~
+Fuse word[0]:       0x3F7A2B91   [1]: 0xC4E8D0F5   [2]: 0xA1B2C3D4   ...
+```
+
+Write these 12 words to the MCI register bank at offset:
+
+```
+SS_PROD_DEBUG_UNLOCK_AUTH_PK_HASH_REG_BANK_OFFSET + ((level - 1) * 48)
+```
+
+**Mailbox payload: preparing fields from OpenSSL output**
+
+The `AUTH_DEBUG_UNLOCK_TOKEN` mailbox command fields use the byte order
+conventions described in
+[Byte order of cryptographic fields](../../runtime/README.md#byte-order-of-cryptographic-fields).
+The table below summarizes how to convert OpenSSL tool output into the
+mailbox payload bytes for each field:
+
+- **ECC P-384 public key (big-endian words)**: Extract the raw X and Y
+  coordinates (48 bytes each) from the PEM key, then **dword-reverse**
+  each 4-byte group before writing to the mailbox.
+
+  ```
+  # Extract raw X||Y from PEM (96 bytes, big-endian):
+  $ openssl ec -pubin -in key.pem -outform DER 2>/dev/null \
+      | tail -c 96 | xxd -p -c 48
+
+  OpenSSL raw bytes:  AB CD EF 01  23 45 67 89  ...  (X, 48 bytes)
+                      11 22 33 44  55 66 77 88  ...  (Y, 48 bytes)
+
+  Mailbox bytes:      01 EF CD AB  89 67 45 23  ...  (X, dword-reversed)
+                      44 33 22 11  88 77 66 55  ...  (Y, dword-reversed)
+  ```
+
+- **MLDSA-87 public key (little-endian words)**: Copy the raw key bytes
+  produced by an MLDSA implementation (e.g. OpenSSL 3.5+, `fips204` crate)
+  **directly** into the mailbox — no conversion needed.
+
+  ```
+  MLDSA key bytes:    72 C0 F1 3B  7D 93 7E 22  ...  (2592 bytes)
+  Mailbox bytes:      72 C0 F1 3B  7D 93 7E 22  ...  (identical)
+  ```
+
+- **ECC P-384 signature (big-endian words)**: Same treatment as the public
+  key — dword-reverse each 4-byte group of the R and S coordinates.
+
+- **MLDSA-87 signature (little-endian words)**: Copy raw signature bytes
+  directly — no conversion needed. The trailing byte (byte 4628) is
+  reserved and should be zero.
+
+**Note:** The hash used for fuse provisioning is computed over the exact
+same bytes that appear on the mailbox wire. There is no additional
+transformation — the SHA accelerator's internal endianness handling is
+transparent and produces `SHA384(wire_bytes)`. Therefore the provisioning
+hash and the runtime verification hash are both computed over
+`ECC_dword_reversed || MLDSA_native`.
 
 #### SVN fuses (little-endian 128-bit bitmap)
 
