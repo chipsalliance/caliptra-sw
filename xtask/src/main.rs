@@ -15,6 +15,7 @@ mod format;
 mod license;
 mod precheckin;
 mod release;
+mod release_info;
 mod update_dpe;
 mod update_frozen_images;
 mod util;
@@ -68,6 +69,18 @@ pub enum ReleaseCommands {
         /// The release tag to deploy, formatted as component-major.minor.patch (e.g. fmc-2.0.0)
         tag: String,
     },
+    /// Extract version/hash/commit/SVN info for published ROM/FW releases.
+    Info {
+        /// Release name (e.g. 'rom-2.1.1', 'fw-2.0.1'). When omitted, all
+        /// releases in the built-in list are processed.
+        release_name: Option<String>,
+        /// Output as markdown tables.
+        #[arg(long)]
+        markdown: bool,
+        /// Build from source for releases that lack pre-built assets.
+        #[arg(long)]
+        build: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -111,6 +124,11 @@ fn main() {
         Commands::Release { command } => match command {
             ReleaseCommands::Check { tag } => release::check(tag),
             ReleaseCommands::Deploy { tag } => release::deploy(tag),
+            ReleaseCommands::Info {
+                release_name,
+                markdown,
+                build,
+            } => release_info::run(release_name.as_deref(), *markdown, *build),
         },
         Commands::UpdateDpe { rev } => update_dpe::update_dpe(rev),
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
