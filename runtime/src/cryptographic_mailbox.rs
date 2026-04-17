@@ -2583,6 +2583,13 @@ impl Commands {
 
         let key_type: CmStableKeyType = request.key_type.into();
 
+        // The Stable Owner Key feature is mutually exclusive with OCP LOCK:
+        // when OCP LOCK is enabled the HEK seed is reserved for OCP LOCK use
+        // and KEY_ID_STABLE_OWNER is not populated by ROM.
+        if key_type == CmStableKeyType::OwnerKey && drivers.soc_ifc.ocp_lock_enabled() {
+            Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+        }
+
         let aes_key = match key_type {
             CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
             CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),

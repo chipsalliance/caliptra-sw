@@ -2921,8 +2921,15 @@ fn test_derive_stable_key_from_rom() {
         CmStableKeyType::OwnerKey,
     ];
 
+    // OwnerKey is not available when OCP LOCK is enabled (mutually exclusive
+    // with Stable Owner Key feature).
+    let ocp_lock = cfg!(feature = "ocp-lock");
+
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for &key_type in &STABLE_KEY_TYPES {
+            if ocp_lock && key_type == CmStableKeyType::OwnerKey {
+                continue;
+            }
             const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 
             // derive a stable key from ROM
@@ -3084,6 +3091,8 @@ fn test_derive_stable_key_from_rom() {
     }
 }
 
+// OwnerKey is not available when OCP LOCK is enabled.
+#[cfg_attr(feature = "ocp-lock", ignore)]
 #[test]
 fn test_derive_stable_owner_key_different_info() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
@@ -3193,6 +3202,67 @@ fn test_derive_stable_owner_key_different_info() {
 
         assert_ne!(hmac_a, hmac_b, "Different info must produce different keys");
     }
+}
+
+#[test]
+fn test_derive_stable_owner_key_rejected_when_ocp_lock_enabled() {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: subsystem_mode,
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        ocp_lock_en: true,
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Attempt CM_DERIVE_STABLE_KEY with OwnerKey — should fail.
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::OwnerKey.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE,
+        err,
+    );
+
+    // IDevId should still work.
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::IDevId.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+    assert_eq!(
+        resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
 }
 
 fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Option<u32>) -> Cmk {

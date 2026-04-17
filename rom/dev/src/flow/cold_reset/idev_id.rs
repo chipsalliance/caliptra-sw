@@ -79,8 +79,14 @@ impl InitDevIdLayer {
         // Decrypt the Field Entropy
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
-        // Decrypt the HEK Seed
-        Self::decrypt_hek_seed(env, KEY_ID_HEK_SEED)?;
+        // Stable Owner Key and OCP LOCK are mutually exclusive consumers of
+        // `fuse_hek_seed`. OCP LOCK reads it directly from soc_ifc, so when
+        // it is enabled we skip the HEK seed DOE decrypt and the Stable
+        // Owner Root Key derivation.
+        let derive_stable_owner = !env.soc_ifc.ocp_lock_enabled();
+        if derive_stable_owner {
+            Self::decrypt_hek_seed(env, KEY_ID_HEK_SEED)?;
+        }
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
@@ -88,8 +94,10 @@ impl InitDevIdLayer {
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
 
-        // Derive stable owner root key from HEK seed (HKDF-Extract + Expand)
-        Self::derive_stable_owner_root_key(env, KEY_ID_HEK_SEED, KEY_ID_STABLE_OWNER)?;
+        if derive_stable_owner {
+            // Derive stable owner root key from HEK seed (HKDF-Extract + Expand)
+            Self::derive_stable_owner_root_key(env, KEY_ID_HEK_SEED, KEY_ID_STABLE_OWNER)?;
+        }
 
         // Run the OCP LOCK Flow while the DICE CDI is available.
         ocp_lock::ocp_lock_cold_reset_flow(env)?;
@@ -228,33 +236,43 @@ impl InitDevIdLayer {
         // HEK seed is read via HMAC_BLOCK (allowed by hardware).
         // Output overwrites the temp slot with HMAC_KEY usage so Step 2 can
         // read it as an HMAC key.
-        env.hmac.hmac(
-            HmacKey::Array4x16(&salt),
-            HmacData::Key(KeyReadArgs::new(hek_seed_temp)),
-            &mut env.trng,
-            HmacTag::Key(KeyWriteArgs::new(
-                hek_seed_temp,
-                KeyUsage::default().set_hmac_key_en(),
-            )),
-            HmacMode::Hmac512,
-        )?;
+        //
+        // From this point on, the temp slot must be erased on every exit
+        // path (success or error) so the HEK seed never lingers in the KV.
+        let result = (|| -> CaliptraResult<()> {
+            env.hmac.hmac(
+                HmacKey::Array4x16(&salt),
+                HmacData::Key(KeyReadArgs::new(hek_seed_temp)),
+                &mut env.trng,
+                HmacTag::Key(KeyWriteArgs::new(
+                    hek_seed_temp,
+                    KeyUsage::default().set_hmac_key_en(),
+                )),
+                HmacMode::Hmac512,
+            )?;
 
-        // Step 2: HKDF-Expand — HMAC-KDF(key=PRK, label) → stable owner root key
-        hmac_kdf(
-            &mut env.hmac,
-            HmacKey::Key(KeyReadArgs::new(hek_seed_temp)),
-            STABLE_OWNER_ROOT_KEY_LABEL,
-            None,
-            &mut env.trng,
-            HmacTag::Key(KeyWriteArgs::new(
-                stable_owner,
-                KeyUsage::default().set_aes_key_en(),
-            )),
-            HmacMode::Hmac512,
-        )?;
+            // Step 2: HKDF-Expand — HMAC-KDF(key=PRK, label) → stable owner root key
+            hmac_kdf(
+                &mut env.hmac,
+                HmacKey::Key(KeyReadArgs::new(hek_seed_temp)),
+                STABLE_OWNER_ROOT_KEY_LABEL,
+                None,
+                &mut env.trng,
+                HmacTag::Key(KeyWriteArgs::new(
+                    stable_owner,
+                    KeyUsage::default().set_aes_key_en(),
+                )),
+                HmacMode::Hmac512,
+            )?;
+            Ok(())
+        })();
 
-        // Erase the temporary HEK seed slot
-        env.key_vault.erase_key(hek_seed_temp)?;
+        // Always erase the temporary HEK seed slot, even if a step above failed.
+        let erase_result = env.key_vault.erase_key(hek_seed_temp);
+
+        // Surface the derivation error first; otherwise propagate any erase error.
+        result?;
+        erase_result?;
 
         report_boot_status(IDevIdStableOwnerRootKeyDerivationComplete.into());
         Ok(())
