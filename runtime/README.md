@@ -1003,30 +1003,34 @@ Command Code: `0x494E_464F` ("INFO")
 
 *Table: `FW_INFO` input arguments*
 
-| **Name**     | **Type**      | **Description**
-| --------     | --------      | ---------------
-| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| **Name** | **Type** | **Description**                                                             |
+| -------- | -------- | --------------------------------------------------------------------------- |
+| chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
 
 *Table: `FW_INFO` output arguments*
 
-| **Name**               | **Type**       | **Description**
-| --------               | --------       | ---------------
-| chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| fips\_status           | u32            | Indicates if the command is FIPS approved or an error.
-| pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header).
-| firmware_svn           | u32            | Firmware SVN.
-| min_firmware_svn       | u32            | Min Firmware SVN.
-| cold_boot_fw_svn       | u32            | Cold-boot Firmware SVN.
-| attestation_disabled   | u32            | State of attestation disable.
-| rom_revision           | u8[20]         | Revision (Git commit ID) of ROM build.
-| fmc_revision           | u8[20]         | Revision (Git commit ID) of FMC build.
-| runtime_revision       | u8[20]         | Revision (Git commit ID) of runtime build.
-| rom_sha256_digest      | u32[8]         | Digest of ROM binary.
-| fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
-| runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
-| owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
-| authman_sha384_digest  | u32[12]        | Hash of the authorization manifest provided by SET_AUTH_MANIFEST.
-| most_recent_fw_error   | u32            | Most recent FW non-fatal error (shows current non-fatal error if non-zero)
+| **Name**                    | **Type** | **Description**                                                                                                                                     |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chksum                      | u32      | Checksum over other input arguments, computed by the caller. Little endian.                                                                         |
+| fips\_status                | u32      | Indicates if the command is FIPS approved or an error.                                                                                              |
+| pl0_pauser                  | u32      | PAUSER with PL0 privileges (from image header).                                                                                                     |
+| firmware_svn                | u32      | Firmware SVN.                                                                                                                                       |
+| min_firmware_svn            | u32      | Min Firmware SVN.                                                                                                                                   |
+| cold_boot_fw_svn            | u32      | Cold-boot Firmware SVN.                                                                                                                             |
+| attestation_disabled        | u32      | State of attestation disable.                                                                                                                       |
+| rom_revision                | u8[20]   | Revision (Git commit ID) of ROM build.                                                                                                              |
+| fmc_revision                | u8[20]   | Revision (Git commit ID) of FMC build.                                                                                                              |
+| runtime_revision            | u8[20]   | Revision (Git commit ID) of runtime build.                                                                                                          |
+| rom_sha256_digest           | u32[8]   | Digest of ROM binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                                |
+| fmc_sha384_digest           | u32[12]  | Digest of FMC binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                                |
+| runtime_sha384_digest       | u32[12]  | Digest of runtime binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                            |
+| owner_pub_key_hash          | u32[12]  | Hash of the owner public keys provided in the image bundle manifest. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| authman_sha384_digest       | u32[12]  | Hash of the authorization manifest provided by SET_AUTH_MANIFEST. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).    |
+| most_recent_fw_error        | u32      | Most recent FW non-fatal error (shows current non-fatal error if non-zero)                                                                          |
+| vendor_pub_key_hash         | u32[12]  | Hash of the vendor public key used to verify firmware. **Only present in FW 2.0.2+ and 2.1.1+.**                                                    |
+| image_manifest_pqc_type     | u32      | PQC key type from image manifest. **Only present in FW 2.0.2+ and 2.1.1+.**                                                                         |
+| vendor_ecc384_pub_key_index | u32      | Index of the vendor ECC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
+| vendor_pqc_pub_key_index    | u32      | Index of the vendor PQC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
 
 ### VERSION
 
