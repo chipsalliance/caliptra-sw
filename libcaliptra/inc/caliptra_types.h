@@ -214,6 +214,10 @@ struct caliptra_fw_info_resp
     uint32_t owner_pub_key_hash[12];
     uint32_t authman_sha384_digest[12];
     uint32_t most_recent_fw_error;
+    uint32_t vendor_pub_key_hash[12];
+    uint32_t image_manifest_pqc_type;
+    uint32_t vendor_ecc384_pub_key_index;
+    uint32_t vendor_pqc_pub_key_index;
 };
 
 struct caliptra_dpe_tag_tci_req
