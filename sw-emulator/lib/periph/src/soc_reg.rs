@@ -761,10 +761,10 @@ struct SocRegistersImpl {
     ss_uds_seed_base_addr_h: ReadWriteRegister<u32>,
 
     #[register(offset = 0x528)]
-    ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
+    ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadWriteRegister<u32>,
 
     #[register(offset = 0x52c)]
-    ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister<u32>,
+    ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadWriteRegister<u32>,
 
     #[register(offset = 0x530)]
     ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
@@ -1057,10 +1057,10 @@ impl SocRegistersImpl {
             ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
             ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
             ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
-            ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
+            ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadWriteRegister::new(
                 ss_prod_dbg_unlock_number_of_fuses as u32,
             ),
-            ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister::new(
+            ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadWriteRegister::new(
                 ss_prod_dbg_unlock_fuse_offset as u32,
             ),
             ss_soc_dbg_unlock_level: [0; 2],
