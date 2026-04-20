@@ -2880,8 +2880,8 @@ Command Code: `0x5357_4545` ("SWEE")
 | **Name**             | **Type** | **Description** |
 | --------             | -------- | --------------- |
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
-| exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
-| tbs                  | u8[48]   | The bytes to be signed. Little endian.                                              |
+| exported_cdi_handle  | u8[32]   | The exported CDI handle returned by the DPE `DeriveContext` command. Opaque byte array; copy the bytes exactly as returned. |
+| tbs                  | u8[48]   | The 48-byte SHA-384 digest to be signed. Raw byte array; no byte swapping is required. |
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` output arguments*
 | **Name**           | **Type** | **Description** |
@@ -2904,7 +2904,7 @@ Command Code: `5256_4348` ("RVCH")
 | **Name**             | **Type** | **Description** |
 | --------             | -------- | --------------- |
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
-| exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
+| exported_cdi_handle  | u8[32]   | The exported CDI handle returned by the DPE `DeriveContext` command. Opaque byte array; copy the bytes exactly as returned. |
 
 The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
