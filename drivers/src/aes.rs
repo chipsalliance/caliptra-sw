@@ -382,13 +382,10 @@ impl Aes {
         let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
         buffer[..input.len()].copy_from_slice(input);
 
-        let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
-            // Edge case where we have not actually done any AES operations,
-            // so the GHASH state should not be saved.
-            AesBlock::default()
-        } else {
-            self.save()
-        };
+        // We've processed at least one block. The GHASH accumulator in
+        // the hardware reflects that work and must be saved so a subsequent
+        // update/final restores it.
+        let ghash_state = self.save();
         self.zeroize_internal();
         Ok((
             written,

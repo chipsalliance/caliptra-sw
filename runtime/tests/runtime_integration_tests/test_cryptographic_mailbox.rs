@@ -4475,3 +4475,168 @@ fn test_mlkem_corrupt_ciphertext() {
         "Shared keys must differ when ciphertext is corrupted (implicit rejection)"
     );
 }
+
+/// Check that GHASH state is preserved when AAD is empty and first
+/// block is 32 bytes long.
+#[test]
+fn test_gcm_streaming_ghash_tamper_undetected_mailbox() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let key = [0x42u8; 32];
+    let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
+
+    // 48 bytes = 3 AES blocks
+    let plaintext = [0xABu8; 48];
+
+    // Streaming encrypt with empty AAD.
+    // split=32 means: first update gets 32 bytes (aad_len==0 && buffer_len==0),
+    // then final gets the remaining 16 bytes.
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        &cmk,
+        &[],
+        &plaintext,
+        32,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+
+    assert_eq!(ciphertext.len(), plaintext.len());
+
+    // Compute the correct GCM ciphertext + tag.
+    let (expected_tag, expected_ct) = rustcrypto_gcm_encrypt(&key, &iv, &[], &plaintext);
+    assert_eq!(
+        ciphertext, expected_ct,
+        "Device ciphertext must match a known-good GCM implementation",
+    );
+    assert_eq!(tag, expected_tag);
+
+    // Tamper: flip every bit in the first block of ciphertext
+    let mut tampered_ct = ciphertext.clone();
+    for byte in tampered_ct[..AES_BLOCK_SIZE_BYTES].iter_mut() {
+        *byte ^= 0xFF;
+    }
+    assert_ne!(
+        &tampered_ct[..AES_BLOCK_SIZE_BYTES],
+        &ciphertext[..AES_BLOCK_SIZE_BYTES],
+    );
+
+    // Streaming decrypt the tampered ciphertext with the original tag.
+    let (tag_verified, decrypted) = mailbox_gcm_decrypt(
+        &mut model,
+        &cmk,
+        &iv,
+        &[],
+        &tampered_ct,
+        &tag,
+        32,
+        MailboxRespHeader::FIPS_STATUS_APPROVED,
+    );
+    assert_ne!(plaintext[..48], decrypted[..48]);
+    assert!(!tag_verified);
+}
+
+/// Exercise streaming AES-GCM with **empty AAD** across a sweep of
+/// plaintext sizes and chunk split sizes, including 1-byte-at-a-time.
+#[test]
+fn test_aes_gcm_empty_aad_small_chunks() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let key = [0x5au8; 32];
+    let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
+
+    // Cover: zero-length, sub-block, exactly one block, one-plus-partial,
+    // multi-block-with-partial, and a mid-sized payload.
+    let plaintext_lens: &[usize] = &[0, 1, 7, 15, 16, 17, 31, 32, 33, 48, 100];
+    // Cover: byte-at-a-time, odd sub-block, block-aligned, block-plus-one,
+    // and a generous split.
+    let splits: &[usize] = &[1, 7, 15, 16, 17, 32];
+
+    for &pt_len in plaintext_lens {
+        // Deterministic but non-trivial plaintext so different lengths
+        // produce different tags.
+        let plaintext: Vec<u8> = (0..pt_len)
+            .map(|i| (i as u8).wrapping_mul(31) ^ 0xA5)
+            .collect();
+        // Reference ciphertext / tag for *any* IV will be computed after
+        // encrypt so we can use the IV the device picked.
+
+        for &split in splits {
+            // Skip configurations where the helper's internal asserts
+            // would reject the shape.
+            if split == 0 {
+                continue;
+            }
+
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                &cmk,
+                &[],
+                &plaintext,
+                split,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
+            let (ref_tag, ref_ct) = rustcrypto_gcm_encrypt(&key, &iv, &[], &plaintext);
+            assert_eq!(
+                ciphertext, ref_ct,
+                "ciphertext mismatch (pt_len={pt_len}, split={split})",
+            );
+            assert_eq!(
+                tag, ref_tag,
+                "tag mismatch (pt_len={pt_len}, split={split}) -- \
+                 likely a GHASH save/restore bug at an update boundary",
+            );
+
+            // Roundtrip: correct ciphertext/tag must verify.
+            let (ok, decrypted) = mailbox_gcm_decrypt(
+                &mut model,
+                &cmk,
+                &iv,
+                &[],
+                &ciphertext,
+                &tag,
+                split,
+                MailboxRespHeader::FIPS_STATUS_APPROVED,
+            );
+            assert!(
+                ok,
+                "tag should verify on roundtrip (pt_len={pt_len}, split={split})",
+            );
+            assert_eq!(
+                decrypted, plaintext,
+                "roundtrip plaintext mismatch (pt_len={pt_len}, split={split})",
+            );
+
+            // Tampering in the first block of ciphertext (or in the only
+            // partial block when pt_len < 16) must be rejected.
+            if pt_len > 0 {
+                let mut tampered = ciphertext.clone();
+                let flip = core::cmp::min(AES_BLOCK_SIZE_BYTES, tampered.len());
+                for b in &mut tampered[..flip] {
+                    *b ^= 0xFF;
+                }
+                let (ok, _) = mailbox_gcm_decrypt(
+                    &mut model,
+                    &cmk,
+                    &iv,
+                    &[],
+                    &tampered,
+                    &tag,
+                    split,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED,
+                );
+                assert!(
+                    !ok,
+                    "tag must reject tampered first block (pt_len={pt_len}, split={split})",
+                );
+            }
+        }
+    }
+}
