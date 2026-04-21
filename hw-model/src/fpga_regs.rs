@@ -69,6 +69,27 @@ register_bitfields! {
     pub FlashCtrlRegwen [
         EN OFFSET(0) NUMBITS(1) [],
     ],
+    pub EncryptionEngineControl [
+        EXE OFFSET(0) NUMBITS(1) [
+            IDLE = 0,
+            RUN = 1,
+        ],
+        DONE OFFSET(1) NUMBITS(1) [
+            DONE = 1,
+        ],
+        CMD OFFSET(2) NUMBITS(4) [
+            LOAD_MEK = 1,
+            UNLOAD_MEK = 2,
+            ZEROIZE = 3,
+        ],
+        ERR OFFSET(16) NUMBITS(4) [
+            NO_ERROR = 0,
+            INVALID_COMMAND = 1,
+        ],
+        RDY OFFSET(31) NUMBITS(1) [
+            READY = 1,
+        ]
+    ],
 }
 
 register_structs! {
@@ -131,6 +152,10 @@ register_structs! {
         (0x14c => pub cptr_ss_raw_unlock_token_hash: [ReadWrite<u32>; 4]),
         (0x15c => _reserved1),
         (0x200 => pub ocp_lock_key_release_reg: [ReadWrite<u32>; 16]),
-        (0x240 => @END),
+        (0x240 => pub ocp_lock_metadata_reg: [ReadWrite<u32>; 5]),
+        (0x254 => _reserved2),
+        (0x260 => pub ocp_lock_auxiliary_data_reg: [ReadWrite<u32>; 8]),
+        (0x280 => pub ocp_lock_control_reg: ReadWrite<u32, EncryptionEngineControl::Register>),
+        (0x284 => @END),
     }
 }
