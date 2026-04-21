@@ -196,6 +196,11 @@ pub struct SubsystemInitParams<'a> {
     // Override the lifecycle state provisioned into OTP. When set, this
     // takes priority over the security_state-derived lifecycle mapping.
     pub lc_state: Option<LifecycleControllerState>,
+
+    // When true, set secrets_valid so DOE reads UDS and field entropy
+    // from strap registers instead of OTP. This gives deterministic
+    // IDevID on FPGA, required for attestation tests.
+    pub use_strap_secrets: bool,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -209,6 +214,7 @@ impl Default for SubsystemInitParams<'_> {
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
             primary_flash_initial_contents: None,
             lc_state: None,
+            use_strap_secrets: false,
         }
     }
 }
