@@ -794,11 +794,141 @@ unsafe fn ref_mut_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a mut T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::mem::offset_of;
 
     #[test]
     fn test_layout() {
         // NOTE: It's not good enough to test this from the host; we also need
         // to call assert_matches_layout() in a risc-v test.
         PersistentData::assert_matches_layout();
+    }
+
+    #[test]
+    fn test_rom_persistent_data_size() {
+        let expected_size = 60580;
+        if size_of::<RomPersistentData>() != expected_size {
+            panic!(
+                "RomPersistentData size has changed from {} to {}. If this is intentional, update \
+                the expected_size in this test and CONSIDER BUMPING THE VERSION NUMBER",
+                expected_size,
+                size_of::<RomPersistentData>()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_size() {
+        let expected_size = 40488;
+        if size_of::<FwPersistentData>() != expected_size {
+            panic!(
+                "FwPersistentData size has changed from {} to {}. If this is intentional, update \
+                the expected_size in this test and CONSIDER BUMPING THE VERSION NUMBER",
+                expected_size,
+                size_of::<FwPersistentData>()
+            );
+        }
+    }
+
+    #[test]
+    fn test_rom_persistent_data_address() {
+        let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
+        let rom_persistent_data_addr = unsafe { addr_of!((*p).rom) as u32 };
+        let expected_addr = 1342377820;
+        if rom_persistent_data_addr != expected_addr {
+            panic!(
+                "RomPersistentData address has changed from {} to {}. If this is \
+                intentional, update the expected_addr in this test and CONSIDER BUMPING THE \
+                VERSION NUMBER",
+                expected_addr, rom_persistent_data_addr
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_address() {
+        let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
+        let fw_persistent_data_addr = unsafe { addr_of!((*p).fw) as u32 };
+        let expected_addr = 1342337332;
+        if fw_persistent_data_addr != expected_addr {
+            panic!(
+                "FwPersistentData address has changed from {} to {}. If this is \
+                intentional, update the expected_addr in this test and CONSIDER BUMPING THE \
+                VERSION NUMBER",
+                expected_addr, fw_persistent_data_addr
+            );
+        }
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_rom_persistent_data_offsets() {
+        let actual_expected = [
+            (offset_of!(RomPersistentData, manifest1), 0, "manifest1"),
+            (offset_of!(RomPersistentData, data_vault), 17408, "data_vault"),
+            (offset_of!(RomPersistentData, fht), 32768, "fht"),
+            (offset_of!(RomPersistentData, idevid_mldsa_pub_key), 34816, "idevid_mldsa_pub_key"),
+            (offset_of!(RomPersistentData, ecc_ldevid_tbs), 37888, "ecc_ldevid_tbs"),
+            (offset_of!(RomPersistentData, ecc_fmcalias_tbs), 38912, "ecc_fmcalias_tbs"),
+            (offset_of!(RomPersistentData, mldsa_ldevid_tbs), 39936, "mldsa_ldevid_tbs"),
+            (offset_of!(RomPersistentData, mldsa_fmcalias_tbs), 44032, "mldsa_fmcalias_tbs"),
+            (offset_of!(RomPersistentData, pcr_log), 48128, "pcr_log"),
+            (offset_of!(RomPersistentData, measurement_log), 49152, "measurement_log"),
+            (offset_of!(RomPersistentData, fuse_log), 50176, "fuse_log"),
+            (offset_of!(RomPersistentData, idevid_csr_envelop), 51200, "idevid_csr_envelop"),
+            (offset_of!(RomPersistentData, cmb_aes_key_share0), 60416, "cmb_aes_key_share0"),
+            (offset_of!(RomPersistentData, cmb_aes_key_share1), 60448, "cmb_aes_key_share1"),
+            (offset_of!(RomPersistentData, dot_owner_pk_hash), 60480, "dot_owner_pk_hash"),
+            (offset_of!(RomPersistentData, cleared_non_fatal_fw_error), 60532, "cleared_non_fatal_fw_error"),
+            (offset_of!(RomPersistentData, ocp_lock_metadata), 60536, "ocp_lock_metadata"),
+            (offset_of!(RomPersistentData, entropy_cfg), 60544, "entropy_cfg"),
+            (offset_of!(RomPersistentData, boot_mode), 60568, "boot_mode"),
+            (offset_of!(RomPersistentData, major_version), 60572, "major_version"),
+            (offset_of!(RomPersistentData, minor_version), 60574, "minor_version"),
+            (offset_of!(RomPersistentData, marker), 60576, "marker"),
+        ];
+
+        for (actual, expected, name) in actual_expected {
+            if actual != expected {
+                panic!(
+                    "RomPersistentData offset for {} has changed from {} to {}.  If this is \
+                    intentional, update the expected values in this test and CONSIDER BUMPING THE \
+                    VERSION NUMBER",
+                    name, expected, actual
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_offsets() {
+        let actual_expected = [
+            (offset_of!(FwPersistentData, dpe), 0, "dpe"),
+            (offset_of!(FwPersistentData, ecc_rtalias_tbs), 10240, "ecc_rtalias_tbs"),
+            (offset_of!(FwPersistentData, mldsa_rtalias_tbs), 11264, "mldsa_rtalias_tbs"),
+            (offset_of!(FwPersistentData, rtalias_mldsa_tbs_size), 15360, "rtalias_mldsa_tbs_size"),
+            (offset_of!(FwPersistentData, rt_dice_mldsa_sign), 15364, "rt_dice_mldsa_sign"),
+            (offset_of!(FwPersistentData, pcr_reset), 19992, "pcr_reset"),
+            (offset_of!(FwPersistentData, auth_manifest_image_metadata_col), 21016, "auth_manifest_image_metadata_col"),
+            (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
+            (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
+            (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
+            (offset_of!(FwPersistentData, version), 40480, "version"),
+            (offset_of!(FwPersistentData, marker), 40484, "marker"),
+        ];
+
+        for (actual, expected, name) in actual_expected {
+            if actual != expected {
+                panic!(
+                    "FwPersistentData offset for {} has changed from {} to {}. If this is \
+                    intentional, update the expected values in this test and CONSIDER BUMPING THE \
+                    VERSION NUMBER",
+                    name, expected, actual
+                );
+            }
+        }
     }
 }
