@@ -304,6 +304,9 @@ pub struct Cpu<TBus: Bus> {
     /// Machine External interrupt enabled
     ext_int_en: bool,
 
+    /// Tracks ExtInt events that were deferred while interrupts were masked.
+    deferred_ext_int: [bool; 256],
+
     /// Halted state
     halted: bool,
 
@@ -387,6 +390,7 @@ impl<TBus: Bus> Cpu<TBus> {
             ext_int_vec: 0,
             global_int_en: false,
             ext_int_en: false,
+            deferred_ext_int: [false; 256],
             halted: false,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
@@ -824,13 +828,22 @@ impl<TBus: Bus> Cpu<TBus> {
                 TimerAction::SetNmiVec { addr } => self.nmivec = addr,
                 TimerAction::ExtInt { irq, can_wake } => {
                     if self.global_int_en && self.ext_int_en && (!self.halted || can_wake) {
-                        if let Some(_active_irq) = self.pic.highest_priority_irq_total() {
+                        if self.deferred_ext_int[irq as usize] {
+                            self.deferred_ext_int[irq as usize] = false;
+
+                            if let Some(_active_irq) = self.pic.highest_priority_irq_total() {
+                                self.halted = false;
+                                step_action = Some(self.handle_external_int(_active_irq));
+                                break;
+                            }
+                        } else {
                             self.halted = false;
                             step_action = Some(self.handle_external_int(irq));
                             break;
                         }
                     } else {
                         save = true;
+                        self.deferred_ext_int[irq as usize] = true;
                     }
                 }
                 TimerAction::SetExtIntVec { addr } => self.ext_int_vec = addr,
