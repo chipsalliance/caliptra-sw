@@ -824,9 +824,11 @@ impl<TBus: Bus> Cpu<TBus> {
                 TimerAction::SetNmiVec { addr } => self.nmivec = addr,
                 TimerAction::ExtInt { irq, can_wake } => {
                     if self.global_int_en && self.ext_int_en && (!self.halted || can_wake) {
-                        self.halted = false;
-                        step_action = Some(self.handle_external_int(irq));
-                        break;
+                        if let Some(_active_irq) = self.pic.highest_priority_irq_total() {
+                            self.halted = false;
+                            step_action = Some(self.handle_external_int(irq));
+                            break;
+                        }
                     } else {
                         save = true;
                     }
