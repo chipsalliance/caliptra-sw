@@ -753,6 +753,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-shake",
  "hex",
+ "serde_json",
  "zerocopy",
 ]
 
@@ -902,6 +903,8 @@ dependencies = [
 name = "caliptra-shake"
 version = "0.1.0"
 dependencies = [
+ "hex",
+ "serde_json",
  "zerocopy",
 ]
 

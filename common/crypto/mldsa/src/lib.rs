@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 use crate::mldsa87::{
     mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic, mldsa87_verify,
@@ -48,3 +48,6 @@ impl Mldsa87 {
         mldsa87_verify(pub_key, sig, msg)
     }
 }
+
+#[cfg(test)]
+mod acvp;
