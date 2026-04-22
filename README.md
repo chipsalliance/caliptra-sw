@@ -217,15 +217,16 @@ You can open the vcd file with a tool like
 
 FPGA provides a fast environment for development with Caliptra RTL.
 FPGA build directions and further details are available in
-[this README](/hw/fpga/README.md)
+[this README](/hw/fpga/README.md).
 
-Download caliptra-fpga-bitstream from the
-[latest fpga builds of main](https://github.com/chipsalliance/caliptra-sw/actions/workflows/fpga.yml?query=branch%3Amain)
-
-Load the FPGA image and run a test:
+For a streamlined development experience, use the [xtask FPGA flow](/xtask/README.md), which automates building, programming, and testing:
 
 ```shell
-sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
+# Setup once per power cycle
+cargo xtask fpga bootstrap
 
-CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
+# Build and run tests
+cargo xtask fpga build
+cargo xtask fpga build-test
+cargo xtask fpga test
 ```

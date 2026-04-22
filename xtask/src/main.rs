@@ -12,6 +12,7 @@ mod cargo_lock;
 mod ci;
 mod clippy;
 mod format;
+mod fpga;
 mod license;
 mod precheckin;
 mod release;
@@ -48,6 +49,12 @@ enum Commands {
     },
     /// Build ROM images and update the FROZEN_IMAGES.sha384sum file
     UpdateFrozenImages,
+
+    /// FPGA commands
+    Fpga {
+        #[command(subcommand)]
+        command: fpga::Fpga,
+    },
 
     /// Run CI tools
     CI {
@@ -114,6 +121,7 @@ fn main() {
         },
         Commands::UpdateDpe { rev } => update_dpe::update_dpe(rev),
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
+        Commands::Fpga { command } => fpga::fpga_entry(command),
         Commands::CI { command } => match command {
             CICommands::SizeHistory => ci::size_history(),
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
