@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 use crate::shake_impl::{KeccakSt, ShakeConfig};
 
@@ -45,3 +45,6 @@ impl Default for Shake256 {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod acvp;
