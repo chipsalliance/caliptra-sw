@@ -21,7 +21,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
         ..Default::default()
     };
 
-    // 64 contexts = 1 root node (PL0)+
+    // MAX_HANDLES contexts = 1 root node (PL0)+
     //               1 rt_journey (PL0)
     //               (pl0_limit - 2) PL0 contexts in loop +
     //               1 PL1 context as transition +
@@ -108,9 +108,12 @@ fn test_pl0_pl1_reallocation_range() {
             ReallocateDpeContextLimitsResp::read_from_bytes(resp.as_slice()).unwrap();
 
         assert_eq!(reallocate_resp.new_pl0_context_limit, pl0_limit);
-        assert_eq!(reallocate_resp.new_pl1_context_limit, 64 - pl0_limit);
+        assert_eq!(
+            reallocate_resp.new_pl1_context_limit,
+            dpe::MAX_HANDLES as u32 - pl0_limit
+        );
 
-        fill_max_dpe_contexts(&mut model, pl0_limit, 64 - pl0_limit);
+        fill_max_dpe_contexts(&mut model, pl0_limit, dpe::MAX_HANDLES as u32 - pl0_limit);
     }
 }
 

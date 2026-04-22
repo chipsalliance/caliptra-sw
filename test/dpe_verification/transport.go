@@ -262,7 +262,7 @@ func (s *CptraModel) GetLocality() uint32 {
 
 // GetMaxTciNodes returns the maximum number of TCI nodes supported by the model.
 func (s *CptraModel) GetMaxTciNodes() uint32 {
-	return 64
+	return 32
 }
 
 // GetProfileMajorVersion returns the major version of the DPE profile.
