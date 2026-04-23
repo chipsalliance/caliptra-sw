@@ -288,7 +288,7 @@ int caliptra_init_fuses(const struct caliptra_fuses *fuses)
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_LMS_REVOCATION, fuses->lms_revocation);
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_MLDSA_REVOCATION, fuses->mldsa_revocation);
 
-    // Default to MLDSA (1).
+    // Default to MLDSA (1) if pqc_key_type is not a valid value (must be 1 for MLDSA or 3 for LMS).
     uint32_t pqc_key_type = fuses->fuse_pqc_key_type;
     if (pqc_key_type != 1 && pqc_key_type != 3)
         pqc_key_type = 1;
