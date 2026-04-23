@@ -262,7 +262,8 @@ where
 
     /// Write data of specified size to given address
     fn write(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
-        Err(BusError::StoreAccessFault)
+        // Silently ignore writes to read-only registers
+        Ok(())
     }
 }
 
@@ -584,18 +585,11 @@ mod tests {
             reg.read(RvSize::Word).err(),
             Some(BusError::LoadAccessFault)
         );
-        assert_eq!(
-            reg.write(RvSize::Byte, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::HalfWord, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::Word, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
+        // Writes to read-only registers should succeed but be ignored
+        assert_eq!(reg.write(RvSize::Byte, 0x00).ok(), Some(()));
+        assert_eq!(reg.read(RvSize::Byte).ok(), Some(u8::MAX as RvData)); // Value unchanged
+        assert_eq!(reg.write(RvSize::HalfWord, 0x00).ok(), Some(()));
+        assert_eq!(reg.write(RvSize::Word, 0x00).ok(), Some(()));
     }
 
     #[test]
@@ -612,18 +606,11 @@ mod tests {
             reg.read(RvSize::Word).err(),
             Some(BusError::LoadAccessFault)
         );
-        assert_eq!(
-            reg.write(RvSize::Byte, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::HalfWord, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::Word, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
+        // Writes to read-only registers should succeed but be ignored
+        assert_eq!(reg.write(RvSize::Byte, 0x00).ok(), Some(()));
+        assert_eq!(reg.write(RvSize::HalfWord, 0x00).ok(), Some(()));
+        assert_eq!(reg.read(RvSize::HalfWord).ok(), Some(u16::MAX as RvData)); // Value unchanged
+        assert_eq!(reg.write(RvSize::Word, 0x00).ok(), Some(()));
     }
 
     #[test]
@@ -640,18 +627,11 @@ mod tests {
             reg.read(RvSize::HalfWord).err(),
             Some(BusError::LoadAccessFault)
         );
-        assert_eq!(
-            reg.write(RvSize::Byte, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::HalfWord, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
-        assert_eq!(
-            reg.write(RvSize::Word, 0xFF).err(),
-            Some(BusError::StoreAccessFault)
-        );
+        // Writes to read-only registers should succeed but be ignored
+        assert_eq!(reg.write(RvSize::Byte, 0x00).ok(), Some(()));
+        assert_eq!(reg.write(RvSize::HalfWord, 0x00).ok(), Some(()));
+        assert_eq!(reg.write(RvSize::Word, 0x00).ok(), Some(()));
+        assert_eq!(reg.read(RvSize::Word).ok(), Some(u32::MAX)); // Value unchanged
     }
 
     #[test]
