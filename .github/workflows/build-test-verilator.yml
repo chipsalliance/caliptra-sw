@@ -101,6 +101,9 @@ jobs:
           cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
 
       - name: Run driver tests in Verilator
+        env:
+          # Limit Verilator C++ parallelism.
+          CALIPTRA_VERILATOR_JOBS: "4"
         run: |
           export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
