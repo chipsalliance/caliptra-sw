@@ -600,6 +600,42 @@ fn print_info(info: &ReleaseInfo) {
     }
 }
 
+/// Returns the compatible RTL version(s) for a given ROM/FW release name.
+///
+/// The mapping reflects which Caliptra RTL releases a given firmware or ROM
+/// binary is known to be compatible with. For 2.0.x ROM/FW we use `2.0.2+`
+/// because the 2.0.0 and 2.0.1 RTL releases have known incompatibilities that
+/// are only fixed from 2.0.2 onward; all other entries pin to a specific RTL
+/// major.minor line.
+fn rtl_compat(name: &str, ty: ReleaseType) -> &'static str {
+    // Strip the leading "rom-", "fw-", "fmc-", or "rt-" prefix and anything
+    // after a space (handles combined names like "fmc-1.0.0 / rt-1.0.0").
+    let version = name
+        .split_whitespace()
+        .next()
+        .unwrap_or(name)
+        .trim_start_matches("rom-")
+        .trim_start_matches("fw-")
+        .trim_start_matches("fmc-")
+        .trim_start_matches("rt-");
+    let mut parts = version.split('.');
+    let major = parts.next().unwrap_or("");
+    let minor = parts.next().unwrap_or("");
+    match (ty, major, minor) {
+        (ReleaseType::Rom, "1", "0") => "1.0",
+        (ReleaseType::Rom, "1", "1") => "1.1",
+        (ReleaseType::Rom, "1", "2") => "1.1",
+        (ReleaseType::Rom, "2", "0") => "2.0.2+",
+        (ReleaseType::Rom, "2", "1") => "2.1",
+        (ReleaseType::Fw, "1", "0") => "1.0",
+        (ReleaseType::Fw, "1", "1") => "1.0, 1.1",
+        (ReleaseType::Fw, "1", "2") => "1.0, 1.1",
+        (ReleaseType::Fw, "2", "0") => "2.0.2+",
+        (ReleaseType::Fw, "2", "1") => "2.1",
+        _ => "",
+    }
+}
+
 fn print_markdown_tables(all: &[ReleaseInfo]) {
     let roms: Vec<&ReleaseInfo> = all
         .iter()
@@ -612,13 +648,14 @@ fn print_markdown_tables(all: &[ReleaseInfo]) {
 
     if !roms.is_empty() {
         println!("### ROM Releases\n");
-        println!("| Version | SHA256 (no log) | SHA256 (with log) | SHA384 (no log) | SHA384 (with log) | Git Commit | SVN |");
-        println!("|---------|-----------------|--------------------|-----------------|--------------------|------------|-----|");
+        println!("| Version | RTL | SHA256 (no log) | SHA256 (with log) | SHA384 (no log) | SHA384 (with log) | Git Commit | SVN |");
+        println!("|---------|-----|-----------------|--------------------|-----------------|--------------------|------------|-----|");
         for r in &roms {
             let version = format_release_link(&r.name, &r.url);
             println!(
-                "| {} | `{}` | `{}` | `{}` | `{}` | {} | {} |",
+                "| {} | {} | `{}` | `{}` | `{}` | `{}` | {} | {} |",
                 version,
+                rtl_compat(&r.name, ReleaseType::Rom),
                 r.rom_sha256.as_deref().unwrap_or(""),
                 r.rom_log_sha256.as_deref().unwrap_or(""),
                 r.rom_sha384.as_deref().unwrap_or(""),
@@ -632,13 +669,14 @@ fn print_markdown_tables(all: &[ReleaseInfo]) {
 
     if !fws.is_empty() {
         println!("### FMC+Runtime FW Releases\n");
-        println!("| Version | FMC SHA384 | Runtime SHA384 | Git Commit | SVN |");
-        println!("|---------|------------|----------------|------------|-----|");
+        println!("| Version | RTL | FMC SHA384 | Runtime SHA384 | Git Commit | SVN |");
+        println!("|---------|-----|------------|----------------|------------|-----|");
         for r in &fws {
             let version = format_release_link(&r.name, &r.url);
             println!(
-                "| {} | `{}` | `{}` | {} | {} |",
+                "| {} | {} | `{}` | `{}` | {} | {} |",
                 version,
+                rtl_compat(&r.name, ReleaseType::Fw),
                 r.fmc_digest.as_deref().unwrap_or(""),
                 r.rt_digest.as_deref().unwrap_or(""),
                 format_commit_link(&r.commit),
@@ -718,4 +756,36 @@ pub fn run(release_name: Option<&str>, markdown: bool, build: bool) -> Result<()
     })?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rtl_compat_rom() {
+        assert_eq!(rtl_compat("rom-1.0.0", ReleaseType::Rom), "1.0");
+        assert_eq!(rtl_compat("rom-1.0.3", ReleaseType::Rom), "1.0");
+        assert_eq!(rtl_compat("rom-1.1.0", ReleaseType::Rom), "1.1");
+        assert_eq!(rtl_compat("rom-1.1.1", ReleaseType::Rom), "1.1");
+        assert_eq!(rtl_compat("rom-1.2.0", ReleaseType::Rom), "1.1");
+        assert_eq!(rtl_compat("rom-2.0.0", ReleaseType::Rom), "2.0.2+");
+        assert_eq!(rtl_compat("rom-2.0.2", ReleaseType::Rom), "2.0.2+");
+        assert_eq!(rtl_compat("rom-2.1.0", ReleaseType::Rom), "2.1");
+        assert_eq!(rtl_compat("rom-2.1.1", ReleaseType::Rom), "2.1");
+    }
+
+    #[test]
+    fn rtl_compat_fw() {
+        assert_eq!(rtl_compat("fmc-1.0.0 / rt-1.0.0", ReleaseType::Fw), "1.0");
+        assert_eq!(
+            rtl_compat("fmc-1.1.0 / rt-1.1.0", ReleaseType::Fw),
+            "1.0, 1.1"
+        );
+        assert_eq!(rtl_compat("rt-1.2.0", ReleaseType::Fw), "1.0, 1.1");
+        assert_eq!(rtl_compat("rt-1.2.4", ReleaseType::Fw), "1.0, 1.1");
+        assert_eq!(rtl_compat("fw-2.0.0", ReleaseType::Fw), "2.0.2+");
+        assert_eq!(rtl_compat("fw-2.0.1", ReleaseType::Fw), "2.0.2+");
+        assert_eq!(rtl_compat("fw-2.1.0", ReleaseType::Fw), "2.1");
+    }
 }
