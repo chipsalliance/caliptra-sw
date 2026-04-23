@@ -219,8 +219,10 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
 
     // Call from PL0
     model.set_axi_user(1);
-    // Try to reallocate contexts to limit PL0 to 56
-    let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, 56).unwrap_err();
+    // Try to reallocate contexts to limit PL0 high enough that PL1's share
+    // (MAX_HANDLES - pl0_limit) is less than the 12 PL1 contexts we created.
+    let resp =
+        reallocate_pl0_pl1_dpe_contexts(&mut model, dpe::MAX_HANDLES as u32 - 4).unwrap_err();
     assert_eq!(
         resp,
         ModelError::MailboxCmdFailed(
