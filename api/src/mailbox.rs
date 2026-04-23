@@ -14,8 +14,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
-/// Mailbox size in bytes (256 KB).
-pub const MAILBOX_SIZE: usize = 256 * 1024;
+/// Mailbox size in bytes (16 KB).
+pub const MAILBOX_SIZE: usize = 16 * 1024;
 /// Maximum input size for CM_SHA command (mailbox size minus header overhead).
 /// The overhead consists of: MailboxReqHeader (4 bytes) + hash_algorithm (4 bytes) + input_size (4 bytes) = 12 bytes.
 pub const MAX_CM_SHA_INPUT_SIZE: usize = MAILBOX_SIZE - 12;
@@ -5745,12 +5745,12 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    const MAILBOX_SIZE: u32 = 256 * 1024;
+    const PASSIVE_MAILBOX_SIZE: u32 = 256 * 1024;
 
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     };
-    if input_len > MAILBOX_SIZE {
+    if input_len > PASSIVE_MAILBOX_SIZE {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     }
     mbox.dlen().write(|_| input_len);
