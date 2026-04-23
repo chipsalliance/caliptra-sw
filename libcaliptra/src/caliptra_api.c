@@ -290,7 +290,7 @@ int caliptra_init_fuses(const struct caliptra_fuses *fuses)
 
     // Default to MLDSA (1).
     uint32_t pqc_key_type = fuses->fuse_pqc_key_type;
-    if (pqc_key_type != 1 || pqc_key_type != 3)
+    if (pqc_key_type != 1 && pqc_key_type != 3)
         pqc_key_type = 1;
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_PQC_KEY_TYPE, pqc_key_type);
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_SOC_STEPPING_ID, fuses->soc_stepping_id);
