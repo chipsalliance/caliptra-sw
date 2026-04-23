@@ -723,7 +723,7 @@ impl Drivers {
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
-                svn: 0,
+                svn: measurement_log_entry.svn,
             }
             .execute_serialized(
                 &mut dpe,
