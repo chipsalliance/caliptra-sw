@@ -104,8 +104,15 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+          # Verilator simulations are very slow (~20+ min each) and each sim uses
+          # ~1-2 GB of RAM, so only run a few tests.
           cargo nextest run \
             -p caliptra-drivers \
             --release \
             --features=verilator,itrng \
-            --profile=default
+            --profile=verilator \
+            --test-threads=1 \
+            -E 'test(=test_error_reporter)
+              | test(=test_status_reporter)
+              | test(=test_pcrbank)
+              | test(=test_ecc384_sign_validation_failure)'
