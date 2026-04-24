@@ -20,8 +20,8 @@ use crate::debug_unlock::ProductionDebugUnlock;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
-    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeProfile, CptraDpeEcTypes, DisableAttestationCmd, DpeEcCrypto, DpePlatform,
+    Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
@@ -53,7 +53,7 @@ use caliptra_registers::{
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::Digest;
+use crypto::{Digest, PubKey};
 use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
@@ -528,12 +528,24 @@ impl Drivers {
         Ok(())
     }
 
-    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ECC RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+    pub fn compute_ecc_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self.persistent_data.get().fht.rt_dice_ecc_pub_key.to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
+        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+
+        Ok(token)
+    }
+
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ML-DSA RT Alias public key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn compute_mldsa_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+        let key_id = Self::get_key_id_rt_mldsa_keypair_seed(self)?;
+        let pub_key = Self::get_key_id_rt_mldsa_pub_key(self)?;
+        let rt_digest = self.sha256.digest(pub_key.0.as_bytes())?;
+        let _ = key_id; // used for key derivation
         let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
 
         Ok(token)
@@ -544,7 +556,7 @@ impl Drivers {
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let manifest = drivers.persistent_data.get().manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
-        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+        let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
@@ -561,13 +573,18 @@ impl Drivers {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let crypto = DpeCrypto::new(
+        let crypto = DpeEcCrypto::new(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.fht.rt_dice_ecc_pub_key,
+            PubKey::Ecdsa(crypto::ecdsa::EcdsaPubKey::Ecdsa384(
+                crypto::ecdsa::curve_384::EcdsaPub384::from_slice(
+                    &pdata.fht.rt_dice_ecc_pub_key.x.into(),
+                    &pdata.fht.rt_dice_ecc_pub_key.y.into(),
+                ),
+            )),
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.exported_cdi_slots,
@@ -575,9 +592,10 @@ impl Drivers {
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
         let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
-        let mut env = DpeEnv::<CptraDpeTypes> {
+        let mut env = DpeEnv::<CptraDpeEcTypes> {
             crypto,
             platform: DpePlatform::new(
+                CaliptraDpeProfile::Ecc384,
                 CALIPTRA_LOCALITY,
                 hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
