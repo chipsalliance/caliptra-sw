@@ -105,6 +105,16 @@ impl ModelEmulated {
     }
 }
 
+impl ModelEmulated {
+    /// Read a slice of the DCCM (Data Closely Coupled Memory) by absolute address.
+    /// The `addr` and `len` are in the CPU address space (starting at 0x5000_0000).
+    pub fn dccm_read(&self, addr: u32, len: usize) -> &[u8] {
+        const DCCM_BASE: u32 = 0x5000_0000;
+        let offset = (addr - DCCM_BASE) as usize;
+        &self.cpu.bus.bus.dccm.data()[offset..offset + len]
+    }
+}
+
 fn hash_slice(slice: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     std::hash::Hash::hash_slice(slice, &mut hasher);

@@ -108,3 +108,37 @@ fn test_fips_shutdown() {
         resp,
     );
 }
+
+#[test]
+fn test_fips_shutdown_zeroizes_persistent_data() {
+    const PERSISTENT_DATA_ADDR: u32 = caliptra_drivers::memory_layout::PERSISTENT_DATA_ORG;
+    const PERSISTENT_DATA_SIZE: usize =
+        caliptra_drivers::memory_layout::PERSISTENT_DATA_SIZE as usize;
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let nonzero = model
+        .dccm_read(PERSISTENT_DATA_ADDR, PERSISTENT_DATA_SIZE)
+        .iter()
+        .any(|b| *b != 0);
+    assert!(nonzero, "The persistent data was not initialized");
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
+    };
+
+    model
+        .mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let dccm = model.dccm_read(PERSISTENT_DATA_ADDR, PERSISTENT_DATA_SIZE);
+    for (offset, &byte) in dccm.iter().enumerate() {
+        assert_eq!(
+            byte, 0,
+            "PersistentData not zeroed at offset 0x{offset:x}: got 0x{byte:02x}"
+        );
+    }
+}
