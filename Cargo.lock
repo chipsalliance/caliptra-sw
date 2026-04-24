@@ -466,9 +466,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
+dependencies = [
+ "pastey",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
+
+[[package]]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
 
 [[package]]
 name = "caliptra-common"
@@ -477,8 +493,8 @@ dependencies = [
  "bitfield",
  "bitflags 2.11.0",
  "caliptra-api",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -525,8 +541,8 @@ version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a883222aae7b9306aab089d6efab85d93dbaab26#a883222aae7b9306aab089d6efab85d93dbaab26"
 dependencies = [
  "bitflags 2.11.0",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b)",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
  "cfg-if",
@@ -542,8 +558,8 @@ version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a883222aae7b9306aab089d6efab85d93dbaab26#a883222aae7b9306aab089d6efab85d93dbaab26"
 dependencies = [
  "arrayvec",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b)",
  "constant_time_eq",
  "zerocopy",
  "zeroize",
@@ -569,8 +585,8 @@ dependencies = [
  "caliptra-api",
  "caliptra-auth-man-types",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-dpe",
  "caliptra-drivers-test-bin",
  "caliptra-error",
@@ -593,7 +609,7 @@ dependencies = [
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
- "caliptra-cfi-lib",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-kat",
@@ -722,8 +738,8 @@ dependencies = [
  "caliptra-api",
  "caliptra-auth-man-gen",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-common",
  "caliptra-cpu",
  "caliptra-drivers",
@@ -795,7 +811,7 @@ name = "caliptra-hw-model-c-binding"
 version = "0.1.0"
 dependencies = [
  "caliptra-api",
- "caliptra-cfi-lib",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-emu-bus",
  "caliptra-emu-periph",
  "caliptra-emu-types",
@@ -809,7 +825,7 @@ name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
  "caliptra-api",
- "caliptra-cfi-lib",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
@@ -916,8 +932,8 @@ name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
@@ -932,8 +948,8 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-common",
  "caliptra-drivers",
  "caliptra-image-types",
@@ -958,8 +974,8 @@ name = "caliptra-lms-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "serde",
  "serde_derive",
  "zerocopy",
@@ -1005,8 +1021,8 @@ dependencies = [
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-common",
  "caliptra-drivers",
  "caliptra-emu-cpu",
@@ -1082,8 +1098,8 @@ dependencies = [
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e)",
  "caliptra-common",
  "caliptra-cpu",
  "caliptra-dpe",
@@ -3043,6 +3059,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "pem"
