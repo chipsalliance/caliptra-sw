@@ -76,6 +76,8 @@ impl CommandId {
     pub const MLDSA87_SIGNATURE_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+    pub const INVOKE_DPE_ECC384: Self = Self(0x44504543); // "DPEC"
+    pub const INVOKE_DPE_MLDSA87: Self = Self(0x4450454D); // "DPEM"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
@@ -86,6 +88,8 @@ impl CommandId {
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    pub const CERTIFY_KEY_EXTENDED_ECC384: Self = Self(0x434B4558); // "CKEX"
+    pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B584D); // "CKXM"
 
     /// FIPS module commands.
     /// The status command.
@@ -1275,16 +1279,31 @@ impl Response for StashMeasurementResp {}
 // CERTIFY_KEY_EXTENDED
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct CertifyKeyExtendedReq {
+pub struct CertifyKeyExtendedEcc384Req {
     pub hdr: MailboxReqHeader,
     pub flags: CertifyKeyExtendedFlags,
-    pub certify_key_req: [u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
+    pub certify_key_req: [u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
 }
-impl CertifyKeyExtendedReq {
+impl CertifyKeyExtendedEcc384Req {
     pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
 }
-impl Request for CertifyKeyExtendedReq {
-    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED;
+impl Request for CertifyKeyExtendedEcc384Req {
+    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED_ECC384;
+    type Resp = CertifyKeyExtendedResp;
+}
+
+pub type CertifyKeyExtendedReq = CertifyKeyExtendedEcc384Req;
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyExtendedMldsa87Req {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyExtendedFlags,
+    pub axi_response: AxiResponseInfo,
+    pub certify_key_req: [u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
+}
+impl Request for CertifyKeyExtendedMldsa87Req {
+    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED_MLDSA87;
     type Resp = CertifyKeyExtendedResp;
 }
 
@@ -1295,6 +1314,17 @@ pub struct CertifyKeyExtendedFlags(pub u32);
 bitflags! {
     impl CertifyKeyExtendedFlags: u32 {
         const DMTF_OTHER_NAME = 1u32 << 31;
+        const EXTERNAL_AXI_RESPONSE = 1u32 << 30;
+    }
+}
+
+impl CertifyKeyExtendedFlags {
+    pub fn dmtf_other_name(&self) -> bool {
+        self.contains(CertifyKeyExtendedFlags::DMTF_OTHER_NAME)
+    }
+
+    pub fn external_axi_response(&self) -> bool {
+        self.contains(CertifyKeyExtendedFlags::EXTERNAL_AXI_RESPONSE)
     }
 }
 
@@ -1302,12 +1332,33 @@ bitflags! {
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedResp {
     pub hdr: MailboxRespHeader,
+    pub size: u32,
     pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
 }
 impl CertifyKeyExtendedResp {
-    pub const CERTIFY_KEY_RESP_SIZE: usize = 8000;
+    pub const CERTIFY_KEY_RESP_SIZE: usize = 25152;
 }
 impl Response for CertifyKeyExtendedResp {}
+
+impl Default for CertifyKeyExtendedResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            size: 0,
+            certify_key_resp: [0u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+        }
+    }
+}
+
+impl CertifyKeyExtendedResp {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.size as usize > Self::CERTIFY_KEY_RESP_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::CERTIFY_KEY_RESP_SIZE - self.size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
 
 // INVOKE_DPE_COMMAND
 #[repr(C)]
@@ -1388,6 +1439,78 @@ impl Default for InvokeDpeResp {
         }
     }
 }
+
+// INVOKE_DPE_MLDSA87
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeMldsa87Flags(u32);
+
+bitflags! {
+    impl InvokeDpeMldsa87Flags: u32 {
+        const EXTERNAL_AXI_RESPONSE = 1u32 << 31;
+    }
+}
+
+impl InvokeDpeMldsa87Flags {
+    pub fn external_axi_response(&self) -> bool {
+        self.contains(InvokeDpeMldsa87Flags::EXTERNAL_AXI_RESPONSE)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct AxiResponseInfo {
+    pub addr_lo: u32,
+    pub addr_hi: u32,
+    pub max_size: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeMldsa87Req {
+    pub hdr: MailboxReqHeader,
+    pub flags: InvokeDpeMldsa87Flags,
+    pub axi_response: AxiResponseInfo,
+    pub data_size: u32,
+    pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE],
+}
+
+impl InvokeDpeMldsa87Req {
+    pub const DATA_MAX_SIZE: usize = InvokeDpeReq::DATA_MAX_SIZE;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for InvokeDpeMldsa87Req {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            flags: InvokeDpeMldsa87Flags::default(),
+            axi_response: AxiResponseInfo::default(),
+            data_size: 0,
+            data: [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE],
+        }
+    }
+}
+impl Request for InvokeDpeMldsa87Req {
+    const ID: CommandId = CommandId::INVOKE_DPE_MLDSA87;
+    type Resp = InvokeDpeResp;
+}
+
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 512;
 
 // GET_FMC_ALIAS_ECC384_CERT
 #[repr(C)]

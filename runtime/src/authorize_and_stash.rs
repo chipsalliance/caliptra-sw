@@ -132,6 +132,8 @@ impl AuthorizeAndStashCmd {
                     &cmd.fw_id,
                     &cmd.measurement,
                     cmd.svn,
+                    drivers.caller_privilege_level(),
+                    drivers.mbox.id(),
                 )?;
                 if dpe_result != DpeErrorCode::NoError {
                     drivers
