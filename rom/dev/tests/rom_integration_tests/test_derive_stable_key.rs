@@ -87,6 +87,10 @@ fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
 fn test_derive_stable_key() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for key_type in DOT_KEY_TYPES.iter() {
+            // OwnerKey requires subsystem mode
+            if *key_type == CmStableKeyType::OwnerKey && !subsystem_mode {
+                continue;
+            }
             let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
@@ -100,6 +104,7 @@ fn test_derive_stable_key() {
                 InitParams {
                     rom: &rom,
                     subsystem_mode,
+                    stable_owner_key_en: true,
                     ..Default::default()
                 },
                 BootParams::default(),
@@ -218,11 +223,16 @@ fn test_derive_stable_key_invalid_key_type() {
 #[test]
 fn test_derive_stable_owner_key_different_info() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        // OwnerKey requires subsystem mode
+        if !subsystem_mode {
+            continue;
+        }
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
                 subsystem_mode,
+                stable_owner_key_en: true,
                 ..Default::default()
             },
             BootParams::default(),
@@ -306,6 +316,37 @@ fn test_derive_stable_owner_key_different_info() {
             "Different info must produce different keys"
         );
     }
+}
+
+#[test]
+fn test_derive_stable_owner_key_rejected_in_passive_mode() {
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: false,
+            stable_owner_key_en: true,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    let mut request = CmDeriveStableKeyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_type: CmStableKeyType::OwnerKey.into(),
+        info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+    };
+    request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+        &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+    );
+    assert_eq!(
+        hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE.into()
+        ))
+    );
 }
 
 #[test]

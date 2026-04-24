@@ -424,14 +424,25 @@ impl FirmwareProcessor {
                     CommandId::GET_IDEV_MLDSA87_CSR => {
                         GetIdevMldsa87CsrCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::CM_DERIVE_STABLE_KEY => CmDeriveStableKeyCmd::execute(
-                        cmd_bytes,
-                        env.aes_gcm,
-                        env.hmac,
-                        env.trng,
-                        persistent_data,
-                        resp,
-                    )?,
+                    CommandId::CM_DERIVE_STABLE_KEY => {
+                        // Reject OwnerKey if the Stable Owner Key feature is not available.
+                        let req = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
+                            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                        let key_type: CmStableKeyType = req.key_type.into();
+                        if key_type == CmStableKeyType::OwnerKey
+                            && !soc_ifc.stable_owner_key_available()
+                        {
+                            Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+                        }
+                        CmDeriveStableKeyCmd::execute(
+                            cmd_bytes,
+                            env.aes_gcm,
+                            env.hmac,
+                            env.trng,
+                            persistent_data,
+                            resp,
+                        )?
+                    }
                     CommandId::CM_RANDOM_GENERATE => {
                         CmRandomGenerateCmd::execute(cmd_bytes, env.trng, resp)?
                     }

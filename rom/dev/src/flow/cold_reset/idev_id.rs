@@ -79,25 +79,14 @@ impl InitDevIdLayer {
         // Decrypt the Field Entropy
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
-        // Stable Owner Key and OCP LOCK are mutually exclusive consumers of
-        // `fuse_hek_seed`. OCP LOCK reads it directly from soc_ifc, so when
-        // it is enabled we skip the HEK seed DOE decrypt and the Stable
-        // Owner Root Key derivation.
-        let derive_stable_owner = !env.soc_ifc.ocp_lock_enabled();
-        if derive_stable_owner {
-            Self::decrypt_hek_seed(env, KEY_ID_HEK_SEED)?;
-        }
+        // Derive Stable Owner Root Key from HEK seed (if enabled).
+        Self::derive_stable_owner_root_key(env)?;
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
-
-        if derive_stable_owner {
-            // Derive stable owner root key from HEK seed (HKDF-Extract + Expand)
-            Self::derive_stable_owner_root_key(env, KEY_ID_HEK_SEED, KEY_ID_STABLE_OWNER)?;
-        }
 
         // Run the OCP LOCK Flow while the DICE CDI is available.
         ocp_lock::ocp_lock_cold_reset_flow(env)?;
@@ -187,6 +176,20 @@ impl InitDevIdLayer {
         Ok(())
     }
 
+    /// Derive the Stable Owner Root Key.
+    ///
+    /// Decrypts the HEK seed via DOE and derives the Stable Owner Root Key
+    /// via HKDF. No-op if the feature is not available (checks subsystem
+    /// mode, strap enable bit, and OCP LOCK exclusivity).
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    fn derive_stable_owner_root_key(env: &mut RomEnvFips) -> CaliptraResult<()> {
+        if !env.soc_ifc.stable_owner_key_available() {
+            return Ok(());
+        }
+        Self::decrypt_hek_seed(env, KEY_ID_HEK_SEED)?;
+        Self::hkdf_stable_owner_root_key(env, KEY_ID_HEK_SEED, KEY_ID_STABLE_OWNER)
+    }
+
     /// Decrypt HEK Seed
     ///
     /// # Arguments
@@ -215,7 +218,7 @@ impl InitDevIdLayer {
     /// * `hek_seed_temp` - Temporary KV slot holding the DOE-decrypted HEK seed
     /// * `stable_owner` - Persistent KV slot for the derived stable owner root key
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_stable_owner_root_key(
+    fn hkdf_stable_owner_root_key(
         env: &mut RomEnv,
         hek_seed_temp: KeyId,
         stable_owner: KeyId,
