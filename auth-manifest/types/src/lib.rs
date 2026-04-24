@@ -160,12 +160,19 @@ impl Default for AuthManifestImageMetadata {
 
 /// Caliptra Authorization Manifest Image Metadata Collection
 #[repr(C)]
-#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadataCollection {
     pub entry_count: u32,
 
     pub image_metadata_list: [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+}
+
+impl ZeroizeWithByteScrub for AuthManifestImageMetadataCollection {}
+impl zeroize::Zeroize for AuthManifestImageMetadataCollection {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 impl Default for AuthManifestImageMetadataCollection {
