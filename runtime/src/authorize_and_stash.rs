@@ -49,7 +49,7 @@ impl AuthorizeAndStashCmd {
         }
         let locality = drivers.mbox.id();
 
-        if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
+        if let Ok((cmd, _suffix)) = AuthorizeAndStashReq::ref_from_prefix(cmd_args) {
             let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
             resp.auth_req_result = Self::authorize_and_stash(drivers, cmd, locality)?;
@@ -138,7 +138,23 @@ impl AuthorizeAndStashCmd {
         // Stash the measurement if the image is authorized.
         if auth_result == IMAGE_AUTHORIZED {
             let flags: AuthAndStashFlags = cmd.flags.into();
-            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
+            if flags.contains(AuthAndStashFlags::UPDATE_EXISTING) {
+                // Update an existing DPE context's measurement using RECURSIVE DeriveContext.
+                let dpe_result = StashMeasurementCmd::update_measurement(
+                    drivers,
+                    &cmd.measurement,
+                    &cmd.tci_type,
+                    cmd.svn,
+                    locality,
+                )?;
+                if dpe_result != DpeErrorCode::NoError {
+                    drivers
+                        .soc_ifc
+                        .set_fw_extended_error(dpe_result.get_error_code());
+
+                    Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+                }
+            } else if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
                 let dpe_result = StashMeasurementCmd::stash_measurement(
                     drivers,
                     &cmd.fw_id,

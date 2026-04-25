@@ -1435,11 +1435,13 @@ Command Code: `0x4154_5348` ("ATSH")
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
 | source      | u32      | This field identifies the source of the digest to be used to compare with the SoC's<br />SHA digest in the SoC Manifest<br /><br />Values<br />1 - InRequest - Use the hash in the 'measurement' field of this command<br /><br />3 - LoadAddress - The image located in the `ImageLoadAddress` will be streamed to the SHA Accelerator to <br />               retrieve the digest that will be used for authorization.<br />4 - ImageStagingAddress - The image located in the `StagingAddress` will be streamed to the SHA Accelerator to<br />               retrieve the digest that will be used for authorization |
 | image_size   | u32      | The size of the image to hash. Only valid if source is `ImageLoadAddress` or `StagingAddress` |
+| tci_type    | u8[4]    | Big-endian TCI type of the DPE context to update (e.g., `b"MCFW"` for MCU RT FW). Only used when `UPDATE_EXISTING` flag is set. Old callers that omit this field are supported via prefix parsing. |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
-| **Name**    | **Value** |
-| ----------- | --------- |
-| SKIP\_STASH | 1 << 0    |
+| **Name**         | **Value** | **Description** |
+| ---------------- | --------- | --------------- |
+| SKIP\_STASH      | 1 << 0    | Skip DPE context creation (authorize only, no stash). |
+| UPDATE\_EXISTING | 1 << 1    | Update an existing DPE context's cumulative measurement using recursive DeriveContext instead of creating a new context. The `tci_type` field must contain the big-endian TCI type of the context to update. This avoids DPE context exhaustion on repeated updates (e.g., MCU RT hitless firmware update). |
 
 *Table: `AUTHORIZE_AND_STASH` output arguments*
 | **Name**        | **Type** | **Description**                                                            |
