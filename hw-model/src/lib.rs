@@ -245,6 +245,8 @@ pub struct InitParams<'a> {
 
     pub ocp_lock_en: bool,
 
+    pub stable_owner_key_en: bool,
+
     pub uds_fuse_row_granularity_64: bool,
 
     pub otp_dai_idle_bit_offset: u32,
@@ -337,6 +339,7 @@ impl Default for InitParams<'_> {
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
+            stable_owner_key_en: false,
             uds_fuse_row_granularity_64: true,
             otp_dai_idle_bit_offset: 30,
             otp_direct_access_cmd_reg_offset: 0x80,

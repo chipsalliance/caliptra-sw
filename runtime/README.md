@@ -2646,9 +2646,9 @@ Command Code: `0x434D_5247` ("CMRG")
 ### CM\_DERIVE\_STABLE\_KEY
 
 Derives an HMAC key that has a stable value across resets from either
-IDevId or LDevId.
+IDevId, LDevId, or the Owner Root Key (derived from HEK seed).
 
-The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs.
+The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs, or from the HEK-seed-derived Owner Root Key.
 The actual encrypted bytes of the CMK will *not* be the same, and
 the encrypted CMK itself cannot be used across resets. So, the key
 will always need to be re-derived after every *cold* reset.
@@ -2663,7 +2663,7 @@ Command Code: `0x434D_4453` ("CMDS")
 | **Name**      | **Type** | **Description** |
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId <br> **0x0000_0003:** OwnerKey (derived from HEK seed) |
 | info          | u8[32]   | Data to use in the key derivation. |
 
 *Table: `CM_DERIVE_STABLE_KEY` output arguments*

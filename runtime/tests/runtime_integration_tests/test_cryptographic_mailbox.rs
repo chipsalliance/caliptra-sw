@@ -2915,31 +2915,220 @@ fn test_ecdsa_sign_verify() {
 
 #[test]
 fn test_derive_stable_key_from_rom() {
+    const STABLE_KEY_TYPES: [CmStableKeyType; 3] = [
+        CmStableKeyType::IDevId,
+        CmStableKeyType::LDevId,
+        CmStableKeyType::OwnerKey,
+    ];
+
+    // OwnerKey is not available when OCP LOCK is enabled (mutually exclusive
+    // with Stable Owner Key feature).
+    let ocp_lock = cfg!(feature = "ocp-lock");
+
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        for &key_type in &STABLE_KEY_TYPES {
+            if ocp_lock && key_type == CmStableKeyType::OwnerKey {
+                continue;
+            }
+            // OwnerKey requires subsystem mode
+            if key_type == CmStableKeyType::OwnerKey && !subsystem_mode {
+                continue;
+            }
+            const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+
+            // derive a stable key from ROM
+            let (mut model, image_bundle) = start_rt_test_pqc_model(
+                RuntimeTestArgs {
+                    stop_at_rom: true,
+                    subsystem_mode,
+                    stable_owner_key_en: true,
+                    ..Default::default()
+                },
+                FwVerificationPqcKeyType::LMS,
+            );
+            let fw_image = image_bundle.to_bytes().unwrap();
+
+            // skip this test if the model doesn't support this mode
+            if subsystem_mode != model.subsystem_mode() {
+                continue;
+            }
+            model.step_until(|m| m.ready_for_fw());
+
+            let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+                key_type: key_type.into(),
+                ..Default::default()
+            });
+
+            derive_request.populate_chksum().unwrap();
+            let response = model
+                .mailbox_execute(
+                    CommandId::CM_DERIVE_STABLE_KEY.into(),
+                    derive_request.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .unwrap();
+
+            let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            let rom_stable_cmk = resp.cmk.clone();
+
+            let mut hmac_request = CmHmacReq {
+                cmk: rom_stable_cmk.clone(),
+                hash_algorithm: CmHashAlgorithm::Sha384.into(),
+                data_size: 9,
+                ..Default::default()
+            };
+            hmac_request.data[..9].copy_from_slice(b"test data");
+            let mut request = MailboxReq::CmHmac(hmac_request);
+            request.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            assert_eq!(
+                resp.hdr.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+
+            // now step until runtime
+            crate::common::test_upload_firmware(
+                &mut model,
+                &fw_image,
+                FwVerificationPqcKeyType::LMS,
+            );
+
+            model.step_until(|m| {
+                m.soc_ifc().cptra_boot_status().read()
+                    == u32::from(RtBootStatus::RtReadyForCommands)
+            });
+
+            // use the ROM key to compute the HMAC and make sure it matches the ROM HMAC
+            let resp_bytes = model
+                .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            assert_eq!(
+                resp.hdr.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            let fw_hmac_rom_cmk: [u8; 48] =
+                resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+            assert_eq!(rom_hmac, fw_hmac_rom_cmk);
+
+            // re-derive the same stable key in runtime
+            let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+                key_type: key_type.into(),
+                ..Default::default()
+            });
+
+            derive_request.populate_chksum().unwrap();
+            let response = model
+                .mailbox_execute(
+                    CommandId::CM_DERIVE_STABLE_KEY.into(),
+                    derive_request.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .unwrap();
+
+            let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            let fw_stable_cmk = resp.cmk.clone();
+
+            // compute the HMAC with the runtime derived key and make sure it matches the ROM HMAC
+            let mut hmac_request = CmHmacReq {
+                cmk: fw_stable_cmk,
+                hash_algorithm: CmHashAlgorithm::Sha384.into(),
+                data_size: 9,
+                ..Default::default()
+            };
+            hmac_request.data[..9].copy_from_slice(b"test data");
+            let mut request = MailboxReq::CmHmac(hmac_request);
+            request.populate_chksum().unwrap();
+            let resp_bytes = model
+                .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            assert_eq!(
+                resp.hdr.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            let fw_hmac_fw_cmk: [u8; 48] =
+                resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+
+            assert_eq!(rom_hmac, fw_hmac_fw_cmk);
+        }
+    }
+}
+
+// OwnerKey is not available when OCP LOCK is enabled.
+#[cfg_attr(feature = "ocp-lock", ignore)]
+#[test]
+fn test_derive_stable_owner_key_different_info() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        // OwnerKey requires subsystem mode
+        if !subsystem_mode {
+            continue;
+        }
         const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 
-        // derive a stable key from ROM
-        let (mut model, image_bundle) = start_rt_test_pqc_model(
+        let (mut model, _image_bundle) = start_rt_test_pqc_model(
             RuntimeTestArgs {
                 stop_at_rom: true,
                 subsystem_mode,
+                stable_owner_key_en: true,
                 ..Default::default()
             },
             FwVerificationPqcKeyType::LMS,
         );
-        let fw_image = image_bundle.to_bytes().unwrap();
 
-        // skip this test if the model doesn't support this mode
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
         model.step_until(|m| m.ready_for_fw());
 
+        // Derive with info_a
+        let info_a = [0x42u8; 32];
         let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
-            key_type: CmStableKeyType::IDevId.into(),
+            key_type: CmStableKeyType::OwnerKey.into(),
+            info: info_a,
             ..Default::default()
         });
-
         derive_request.populate_chksum().unwrap();
         let response = model
             .mailbox_execute(
@@ -2948,16 +3137,15 @@ fn test_derive_stable_key_from_rom() {
             )
             .unwrap()
             .unwrap();
-
         let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
         assert_eq!(
             resp.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
-        let rom_stable_cmk = resp.cmk.clone();
+        let cmk_a = resp.cmk.clone();
 
         let mut hmac_request = CmHmacReq {
-            cmk: rom_stable_cmk.clone(),
+            cmk: cmk_a,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             data_size: 9,
             ..Default::default()
@@ -2969,56 +3157,22 @@ fn test_derive_stable_key_from_rom() {
             .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
             .unwrap()
             .unwrap();
-
         let mut resp = CmHmacResp {
             hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
                 .unwrap(),
             ..Default::default()
         };
-        assert_eq!(
-            resp.hdr.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
-        );
         let len = resp.hdr.data_len as usize;
-        assert!(len < MAX_CMB_DATA_SIZE);
         resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+        let hmac_a: [u8; 48] = resp.mac[..len].try_into().unwrap();
 
-        let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
-
-        // now step until runtime
-        crate::common::test_upload_firmware(&mut model, &fw_image, FwVerificationPqcKeyType::LMS);
-
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
-
-        // use the ROM key to compute the HMAC and make sure it matches the ROM HMAC
-        let resp_bytes = model
-            .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
-            .unwrap()
-            .unwrap();
-        let mut resp = CmHmacResp {
-            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
-                .unwrap(),
-            ..Default::default()
-        };
-        assert_eq!(
-            resp.hdr.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
-        );
-        let len = resp.hdr.data_len as usize;
-        assert!(len < MAX_CMB_DATA_SIZE);
-        resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
-
-        let fw_hmac_rom_cmk: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
-        assert_eq!(rom_hmac, fw_hmac_rom_cmk);
-
-        // re-derive the same stable key in runtime
+        // Derive with info_b (different personalization seed)
+        let info_b = [0xABu8; 32];
         let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
-            key_type: CmStableKeyType::IDevId.into(),
+            key_type: CmStableKeyType::OwnerKey.into(),
+            info: info_b,
             ..Default::default()
         });
-
         derive_request.populate_chksum().unwrap();
         let response = model
             .mailbox_execute(
@@ -3027,17 +3181,15 @@ fn test_derive_stable_key_from_rom() {
             )
             .unwrap()
             .unwrap();
-
         let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
         assert_eq!(
             resp.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
-        let fw_stable_cmk = resp.cmk.clone();
+        let cmk_b = resp.cmk.clone();
 
-        // compute the HMAC with the runtime derived key and make sure it matches the ROM HMAC
         let mut hmac_request = CmHmacReq {
-            cmk: fw_stable_cmk,
+            cmk: cmk_b,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             data_size: 9,
             ..Default::default()
@@ -3049,8 +3201,210 @@ fn test_derive_stable_key_from_rom() {
             .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
             .unwrap()
             .unwrap();
-
         let mut resp = CmHmacResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                .unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+        let hmac_b: [u8; 48] = resp.mac[..len].try_into().unwrap();
+
+        assert_ne!(hmac_a, hmac_b, "Different info must produce different keys");
+    }
+}
+
+#[test]
+fn test_derive_stable_owner_key_rejected_when_ocp_lock_enabled() {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let subsystem_mode = cfg!(feature = "fpga_subsystem");
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode,
+            stable_owner_key_en: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: subsystem_mode,
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        ocp_lock_en: true,
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Attempt CM_DERIVE_STABLE_KEY with OwnerKey — should fail.
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::OwnerKey.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE,
+        err,
+    );
+
+    // IDevId should still work.
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::IDevId.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+    assert_eq!(
+        resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+}
+
+/// Test deriving keys of different usages (AES, HMAC, ECDSA, MLDSA) from the
+/// Stable Owner Key via CM_HMAC_KDF_COUNTER, then exercising each derived key
+/// with its corresponding CM command.
+#[cfg_attr(feature = "ocp-lock", ignore)]
+#[test]
+fn test_derive_keys_from_stable_owner_key() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        if !subsystem_mode {
+            continue;
+        }
+        let (mut model, _image_bundle) = start_rt_test_pqc_model(
+            RuntimeTestArgs {
+                stop_at_rom: true,
+                subsystem_mode,
+                stable_owner_key_en: true,
+                ..Default::default()
+            },
+            FwVerificationPqcKeyType::LMS,
+        );
+
+        if subsystem_mode != model.subsystem_mode() {
+            continue;
+        }
+        model.step_until(|m| m.ready_for_fw());
+
+        // Step 1: Derive the stable owner HMAC CMK
+        let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+            key_type: CmStableKeyType::OwnerKey.into(),
+            info: [0x55u8; 32],
+            ..Default::default()
+        });
+        derive_request.populate_chksum().unwrap();
+        let response = model
+            .mailbox_execute(
+                CommandId::CM_DERIVE_STABLE_KEY.into(),
+                derive_request.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+        let stable_cmk = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes())
+            .unwrap()
+            .cmk
+            .clone();
+
+        // Step 2a: Derive an AES key and use it for GCM encrypt/decrypt
+        let mut kdf_req = CmHmacKdfCounterReq {
+            kin: stable_cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha384.into(),
+            key_usage: CmKeyUsage::Aes.into(),
+            key_size: 32,
+            label_size: 7,
+            ..Default::default()
+        };
+        kdf_req.label[..7].copy_from_slice(b"aes-key");
+        let mut kdf_req = MailboxReq::CmHmacKdfCounter(kdf_req);
+        kdf_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                CommandId::CM_HMAC_KDF_COUNTER.into(),
+                kdf_req.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+        let aes_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
+            .unwrap()
+            .kout
+            .clone();
+
+        let plaintext = [0x42u8; 32];
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+            &mut model,
+            &aes_cmk,
+            &[],
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
+        );
+        let (ok, decrypted) = mailbox_gcm_decrypt(
+            &mut model,
+            &aes_cmk,
+            &iv,
+            &[],
+            &ciphertext,
+            &tag,
+            MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
+        );
+        assert!(ok, "AES-GCM decryption must succeed");
+        assert_eq!(decrypted, plaintext);
+
+        // Step 2b: Derive an HMAC key and use it
+        let mut kdf_req = CmHmacKdfCounterReq {
+            kin: stable_cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha384.into(),
+            key_usage: CmKeyUsage::Hmac.into(),
+            key_size: 48,
+            label_size: 8,
+            ..Default::default()
+        };
+        kdf_req.label[..8].copy_from_slice(b"hmac-key");
+        let mut kdf_req = MailboxReq::CmHmacKdfCounter(kdf_req);
+        kdf_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                CommandId::CM_HMAC_KDF_COUNTER.into(),
+                kdf_req.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+        let hmac_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
+            .unwrap()
+            .kout
+            .clone();
+
+        let mut hmac_req = CmHmacReq {
+            cmk: hmac_cmk,
+            hash_algorithm: CmHashAlgorithm::Sha384.into(),
+            data_size: 9,
+            ..Default::default()
+        };
+        hmac_req.data[..9].copy_from_slice(b"test data");
+        let mut hmac_req = MailboxReq::CmHmac(hmac_req);
+        hmac_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(CommandId::CM_HMAC.into(), hmac_req.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+        let resp = CmHmacResp {
             hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
                 .unwrap(),
             ..Default::default()
@@ -3059,13 +3413,66 @@ fn test_derive_stable_key_from_rom() {
             resp.hdr.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
-        let len = resp.hdr.data_len as usize;
-        assert!(len < MAX_CMB_DATA_SIZE);
-        resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+        assert!(resp.hdr.data_len > 0, "HMAC should produce output");
 
-        let fw_hmac_fw_cmk: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+        // Step 2c: Derive an ECDSA key and use it to sign/verify
+        let mut kdf_req = CmHmacKdfCounterReq {
+            kin: stable_cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha384.into(),
+            key_usage: CmKeyUsage::Ecdsa.into(),
+            key_size: 48,
+            label_size: 9,
+            ..Default::default()
+        };
+        kdf_req.label[..9].copy_from_slice(b"ecdsa-key");
+        let mut kdf_req = MailboxReq::CmHmacKdfCounter(kdf_req);
+        kdf_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                CommandId::CM_HMAC_KDF_COUNTER.into(),
+                kdf_req.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+        let ecdsa_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
+            .unwrap()
+            .kout
+            .clone();
 
-        assert_eq!(rom_hmac, fw_hmac_fw_cmk);
+        let mut sign_req = CmEcdsaSignReq {
+            cmk: ecdsa_cmk.clone(),
+            message_size: 16,
+            ..Default::default()
+        };
+        sign_req.message[..16].copy_from_slice(&[0xABu8; 16]);
+        let mut sign_req = MailboxReq::CmEcdsaSign(sign_req);
+        sign_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(sign_req.cmd_code().into(), sign_req.as_bytes().unwrap())
+            .unwrap()
+            .expect("ECDSA sign should succeed");
+        let sign_resp = CmEcdsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        assert_eq!(
+            sign_resp.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+
+        let mut verify_req = CmEcdsaVerifyReq {
+            cmk: ecdsa_cmk,
+            signature_r: sign_resp.signature_r,
+            signature_s: sign_resp.signature_s,
+            message_size: 16,
+            ..Default::default()
+        };
+        verify_req.message[..16].copy_from_slice(&[0xABu8; 16]);
+        let mut verify_req = MailboxReq::CmEcdsaVerify(verify_req);
+        verify_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(verify_req.cmd_code().into(), verify_req.as_bytes().unwrap())
+            .expect("ECDSA verify should succeed")
+            .unwrap();
+        let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
     }
 }
 

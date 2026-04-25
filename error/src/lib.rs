@@ -2725,6 +2725,11 @@ impl CaliptraError {
             "DOT Error: Invalid key type"
         ),
         (
+            CMB_STABLE_OWNER_KEY_NOT_AVAILABLE,
+            0xa005_5001,
+            "Crypto Mailbox Error: Stable Owner Key is not available when OCP LOCK is enabled"
+        ),
+        (
             CMB_HMAC_INVALID_ENC_CMK,
             0xa005_5020,
             "Crypto Mailbox Error: Invalid encrypted CMK"
