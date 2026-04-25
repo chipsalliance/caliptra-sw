@@ -1523,7 +1523,9 @@ impl ModelFpgaSubsystem {
                     otp_data.len(),
                 ))?;
             }
-            otp_data[..self.otp_init.len()].copy_from_slice(&self.otp_init);
+            for i in 0..self.otp_init.len() {
+                otp_data[i] |= self.otp_init[i];
+            }
         }
 
         // Determine the LC state: explicit override takes priority.
@@ -1544,7 +1546,9 @@ impl ModelFpgaSubsystem {
             println!("Provisioning lifecycle partition (State: {}).", lc_state);
             let mem = lc_generate_memory(lc_state, 1)?;
             let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
-            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+            for i in 0..mem.len() {
+                otp_data[offset + i] |= mem[i];
+            }
         }
 
         // Provision default LC tokens.
@@ -1552,13 +1556,17 @@ impl ModelFpgaSubsystem {
         let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
         let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
         let offset = OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        for i in 0..mem.len() {
+            otp_data[offset + i] |= mem[i];
+        }
 
         // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
         println!("Provisioning SW_TEST_UNLOCK partition.");
         let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
         let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        for i in 0..mem.len() {
+            otp_data[offset + i] |= mem[i];
+        }
 
         // Provision default SW_MANUF partition.
         // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
@@ -1587,7 +1595,9 @@ impl ModelFpgaSubsystem {
             ..Default::default()
         })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        for i in 0..mem.len() {
+            otp_data[offset + i] |= mem[i];
+        }
 
         // Provision UDS seed in SECRET_MANUF partition
         println!("Provisioning UDS seed in SECRET_MANUF partition.");
@@ -1598,8 +1608,9 @@ impl ModelFpgaSubsystem {
             .flat_map(|&word| word.to_le_bytes())
             .collect();
         println!("Setting UDS seed to {:x?}", HexSlice(&uds_seed_bytes));
-        otp_data[UDS_SEED_OFFSET..UDS_SEED_OFFSET + uds_seed_bytes.len()]
-            .copy_from_slice(&uds_seed_bytes);
+        for i in 0..uds_seed_bytes.len() {
+            otp_data[UDS_SEED_OFFSET + i] |= uds_seed_bytes[i];
+        }
 
         // Provision field entropy in SECRET_MANUF partition
         println!("Provisioning field entropy in SECRET_MANUF partition.");
@@ -1613,16 +1624,18 @@ impl ModelFpgaSubsystem {
             "Setting field entropy to {:x?}",
             HexSlice(&field_entropy_bytes)
         );
-        otp_data[FIELD_ENTROPY_OFFSET..FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
-            .copy_from_slice(&field_entropy_bytes);
+        for i in 0..field_entropy_bytes.len() {
+            otp_data[FIELD_ENTROPY_OFFSET + i] |= field_entropy_bytes[i];
+        }
 
         let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
         println!(
             "Setting vendor public key hash to {:x?}",
             HexSlice(vendor_pk_hash)
         );
-        otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
-            .copy_from_slice(vendor_pk_hash);
+        for i in 0..vendor_pk_hash.len() {
+            otp_data[FUSE_VENDOR_PKHASH_OFFSET + i] |= vendor_pk_hash[i];
+        }
 
         let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(self.fuses.fuse_pqc_key_type as u8)
             .unwrap_or(FwVerificationPqcKeyType::LMS);
@@ -1634,7 +1647,7 @@ impl ModelFpgaSubsystem {
             FwVerificationPqcKeyType::MLDSA => 0,
             FwVerificationPqcKeyType::LMS => 1,
         };
-        otp_data[FUSE_PQC_OFFSET] = val;
+        otp_data[FUSE_PQC_OFFSET] |= val;
 
         // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
         let owner_pk_hash = self.fuses.owner_pk_hash.as_bytes();
@@ -1642,8 +1655,9 @@ impl ModelFpgaSubsystem {
             "Setting owner public key hash to {:x?}",
             HexSlice(owner_pk_hash)
         );
-        otp_data[FUSE_OWNER_PKHASH_OFFSET..FUSE_OWNER_PKHASH_OFFSET + owner_pk_hash.len()]
-            .copy_from_slice(owner_pk_hash);
+        for i in 0..owner_pk_hash.len() {
+            otp_data[FUSE_OWNER_PKHASH_OFFSET + i] |= owner_pk_hash[i];
+        }
 
         // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
         // Note: ECC revocation in API is a 4-bit value; store in low bits of u32 here.
@@ -1654,19 +1668,20 @@ impl ModelFpgaSubsystem {
             "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
             vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
         );
-        otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_ecc_revocation.to_le_bytes());
-        otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_lms_revocation.to_le_bytes());
-        otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_mldsa_revocation.to_le_bytes());
+        for i in 0..4 {
+            otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET + i] |=
+                vendor_ecc_revocation.to_le_bytes()[i];
+            otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET + i] |=
+                vendor_lms_revocation.to_le_bytes()[i];
+            otp_data[FUSE_VENDOR_REVOCATION_OFFSET + i] |= vendor_mldsa_revocation.to_le_bytes()[i];
+        }
 
         // Firmware/runtime SVN (16 bytes -> 4 words)
         let fw_svn = self.fuses.fw_svn.as_bytes();
         println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
-        otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
-            ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
-            .copy_from_slice(fw_svn);
+        for i in 0..fw_svn.len() {
+            otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + i] |= fw_svn[i];
+        }
 
         // SoC manifest SVN (16 bytes -> 4 words)
         let soc_manifest_svn = self.fuses.soc_manifest_svn.as_bytes();
@@ -1674,21 +1689,23 @@ impl ModelFpgaSubsystem {
             "Setting SoC manifest SVN to {:x?}",
             HexSlice(soc_manifest_svn)
         );
-        otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
-            ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
-            .copy_from_slice(soc_manifest_svn);
+        for i in 0..soc_manifest_svn.len() {
+            otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + i] |= soc_manifest_svn[i];
+        }
 
         println!("Provisioning CPTRA_SS_LOCK_HEK_PROD_0 partition.");
         let hek_seed_bytes = self.fuses.hek_seed.as_bytes();
         let offset = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET;
-        otp_data[offset..offset + hek_seed_bytes.len()].copy_from_slice(hek_seed_bytes);
+        for i in 0..hek_seed_bytes.len() {
+            otp_data[offset + i] |= hek_seed_bytes[i];
+        }
 
         // Max SOC Manifest SVN (1 byte used)
         println!(
             "Burning fuse for SOC MAX SVN {}",
             self.fuses.soc_manifest_max_svn
         );
-        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = self.fuses.soc_manifest_max_svn;
+        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] |= self.fuses.soc_manifest_max_svn;
 
         self.otp_slice().copy_from_slice(&otp_data);
 
@@ -2500,9 +2517,15 @@ impl HwModel for ModelFpgaSubsystem {
         self.realtime_thread_paused.store(true, Ordering::Relaxed);
         std::thread::sleep(Duration::from_millis(2));
 
+        // Save OTP contents prior to AXI reset as it is zeroized by reset.
+        let saved_otp = self.otp_slice().to_vec();
+
         // Full AXI reset to clear all subsystem state including MCU
         println!("AXI reset");
         self.axi_reset();
+
+        // Restore OTP contents after AXI reset
+        self.otp_slice().copy_from_slice(&saved_otp);
 
         // Re-program all hardware registers cleared by AXI reset
         self.setup_hardware_registers();
