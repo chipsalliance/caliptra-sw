@@ -35,7 +35,11 @@ fn update_cargo_toml(hash: &str) -> Result<()> {
         .and_then(|w| w.get_mut("dependencies"))
         .and_then(|d| d.as_table_like_mut())
     {
-        for dep in ["dpe", "crypto", "platform"] {
+        for dep in [
+            "caliptra-dpe",
+            "caliptra-dpe-crypto",
+            "caliptra-dpe-platform",
+        ] {
             if let Some(item) = dependencies.get_mut(dep) {
                 if let Some(table) = item.as_inline_table_mut() {
                     if table.get("git").and_then(|v| v.as_str()) == Some(DPE_REPO_URL)
@@ -62,7 +66,15 @@ fn update_cargo_toml(hash: &str) -> Result<()> {
     info!("Updating Cargo.lock...");
     let status = Command::new("cargo")
         .current_dir(&*crate::PROJECT_ROOT)
-        .args(["update", "-p", "dpe", "-p", "crypto", "-p", "platform"])
+        .args([
+            "update",
+            "-p",
+            "caliptra-dpe",
+            "-p",
+            "caliptra-dpe-crypto",
+            "-p",
+            "caliptra-dpe-platform",
+        ])
         .status()?;
 
     if !status.success() {

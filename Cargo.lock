@@ -457,9 +457,9 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-derive"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
 dependencies = [
- "paste",
+ "pastey",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -468,7 +468,7 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=767d4ef59a106aea683b883c07bd65456fb3ba6b#767d4ef59a106aea683b883c07bd65456fb3ba6b"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
 
 [[package]]
 name = "caliptra-common"
@@ -522,7 +522,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a883222aae7b9306aab089d6efab85d93dbaab26#a883222aae7b9306aab089d6efab85d93dbaab26"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=8c5a435b2ee1e21a29244d1c2c00e99790b21a79#8c5a435b2ee1e21a29244d1c2c00e99790b21a79"
 dependencies = [
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
@@ -539,7 +539,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a883222aae7b9306aab089d6efab85d93dbaab26#a883222aae7b9306aab089d6efab85d93dbaab26"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=8c5a435b2ee1e21a29244d1c2c00e99790b21a79#8c5a435b2ee1e21a29244d1c2c00e99790b21a79"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -552,9 +552,10 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a883222aae7b9306aab089d6efab85d93dbaab26#a883222aae7b9306aab089d6efab85d93dbaab26"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=8c5a435b2ee1e21a29244d1c2c00e99790b21a79#8c5a435b2ee1e21a29244d1c2c00e99790b21a79"
 dependencies = [
  "arrayvec",
+ "caliptra-dpe-crypto",
  "cfg-if",
  "ufmt",
 ]
@@ -572,6 +573,7 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe",
+ "caliptra-dpe-crypto",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -3043,6 +3045,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "pem"

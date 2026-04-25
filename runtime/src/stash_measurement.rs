@@ -60,7 +60,8 @@ impl StashMeasurementCmd {
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::INPUT_ALLOW_X509
+                    | DeriveContextFlags::ALLOW_RECURSIVE,
                 tci_type,
                 target_locality: locality,
                 svn,

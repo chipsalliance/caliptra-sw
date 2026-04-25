@@ -487,6 +487,7 @@ pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
 pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
     let derive_context_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
+        tci_type: 1,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(hw, &mut Command::from(&derive_context_cmd));

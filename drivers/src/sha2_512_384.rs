@@ -628,6 +628,68 @@ pub struct Sha384;
 /// SHA-512 variant implementation
 pub struct Sha512;
 
+#[cfg(feature = "runtime")]
+pub struct DpeHasher<'a> {
+    op: Sha2DigestOp<'a, Sha384>,
+    active: Option<()>,
+}
+
+#[cfg(feature = "runtime")]
+impl<'a> DpeHasher<'a> {
+    pub fn new(sha: &'a mut Sha2_512_384) -> Result<Self, CaliptraError> {
+        Ok(Self {
+            op: sha.sha384_digest_init()?,
+            active: None,
+        })
+    }
+
+    pub fn driver(&mut self) -> &mut Sha2_512_384 {
+        self.op.sha
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl caliptra_dpe_crypto::Hasher for DpeHasher<'_> {
+    fn initialize(&mut self) -> Result<(), caliptra_dpe_crypto::CryptoError> {
+        self.op.state = Sha2DigestState::Init;
+        self.op.buf = [0u8; SHA512_BLOCK_BYTE_SIZE];
+        self.op.buf_idx = 0;
+        self.op.data_size = 0;
+        self.active = Some(());
+        Ok(())
+    }
+    fn update(&mut self, bytes: &[u8]) -> Result<(), caliptra_dpe_crypto::CryptoError> {
+        if self.active.is_none() {
+            return Err(caliptra_dpe_crypto::CryptoError::HashError(u32::from(
+                CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR,
+            )));
+        }
+        self.op
+            .update(bytes)
+            .map_err(|e| caliptra_dpe_crypto::CryptoError::HashError(u32::from(e)))?;
+        Ok(())
+    }
+    fn finish(&mut self) -> Result<caliptra_dpe_crypto::Digest, caliptra_dpe_crypto::CryptoError> {
+        self.active
+            .take()
+            .ok_or(caliptra_dpe_crypto::CryptoError::HashError(0))?;
+        let mut digest = Array4x12::default();
+        Sha2DigestOp {
+            sha: self.op.sha,
+            state: self.op.state,
+            buf: self.op.buf,
+            buf_idx: self.op.buf_idx,
+            data_size: self.op.data_size,
+            _phantom: core::marker::PhantomData::<Sha384>,
+        }
+        .finalize(&mut digest)
+        .map_err(|e| caliptra_dpe_crypto::CryptoError::HashError(u32::from(e)))?;
+        Ok(caliptra_dpe_crypto::Digest::Sha384(
+            caliptra_dpe_crypto::Sha384(digest.into()),
+        ))
+    }
+}
+
 /// SHA-384 key access error trait
 trait Sha384KeyAccessErr {
     /// Convert to read data operation error
