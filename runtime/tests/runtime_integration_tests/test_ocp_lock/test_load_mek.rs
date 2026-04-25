@@ -97,7 +97,7 @@ fn update_reset(model: &mut DefaultHwModel) {
     update_fw(model, &APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions::default());
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_timeout() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -129,7 +129,7 @@ fn test_load_mek_timeout() {
     validate_failure_response(&mut model, response, CaliptraError::OCP_LOCK_ENGINE_TIMEOUT);
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_success_with_fresh_wrapped_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -179,7 +179,7 @@ fn test_load_mek_command_success_with_fresh_wrapped_mek() {
     validate_success_response(&mut model, response, None);
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_success_with_stored_wrapped_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -285,7 +285,7 @@ fn test_load_mek_request_with_trailing_zero() {
     );
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_invalid_tag() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -322,7 +322,7 @@ fn test_load_mek_invalid_tag() {
     );
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_without_init_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -354,7 +354,7 @@ fn test_load_mek_without_init_mek() {
     );
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_success_after_warm_reset() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -403,7 +403,7 @@ fn test_load_mek_command_success_after_warm_reset() {
     validate_success_response(&mut model, response, Some(&expected_mek));
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_impersistent_mek_secret_across_warm_reset() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -456,7 +456,7 @@ fn test_load_mek_command_impersistent_mek_secret_across_warm_reset() {
     );
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_success_after_update_reset() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -505,7 +505,7 @@ fn test_load_mek_command_success_after_update_reset() {
     validate_success_response(&mut model, response, Some(&expected_mek));
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_mek_command_impersistent_mek_secret_across_update_reset() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

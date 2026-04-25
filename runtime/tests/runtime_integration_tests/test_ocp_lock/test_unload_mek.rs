@@ -21,7 +21,7 @@ const TEST_METADATA: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE] =
 const TEST_AUX: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE] =
     [0xFE; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE];
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_success() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -134,7 +134,7 @@ fn test_unload_mek_success() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_without_loading() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -200,7 +200,7 @@ fn test_unload_mek_without_loading() {
     }
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_command_timeout() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

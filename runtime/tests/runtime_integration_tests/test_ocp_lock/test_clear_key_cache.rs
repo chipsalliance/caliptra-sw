@@ -12,7 +12,7 @@ use super::{
     boot_ocp_lock_runtime, validate_ocp_lock_response, InitializeMekSecretParams, OcpLockBootParams,
 };
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_clear_key_cache_success() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -60,7 +60,7 @@ fn test_clear_key_cache_success() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_clear_key_cache_command_timeout() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

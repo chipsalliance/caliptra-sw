@@ -1176,11 +1176,19 @@ bitfield! {
     command_code, set_command_code: 5, 2;
     error_code, _: 19, 16;
     ready_bit, _: 31;
+
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    _, set_ready_bit: 31;
 }
 impl EncryptionEngineCtrl {
     fn clear() -> Self {
         let mut ctrl = Self(0);
         ctrl.set_done_bit(true);
+
+        // To maintain the RDY bit to be set
+        #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+        ctrl.set_ready_bit(true);
+
         ctrl
     }
 
@@ -1188,6 +1196,11 @@ impl EncryptionEngineCtrl {
         let mut ctrl = Self(0);
         ctrl.set_command_code(cmd.into());
         ctrl.set_execute_bit(true);
+
+        // To maintain the RDY bit to be set
+        #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+        ctrl.set_ready_bit(true);
+
         ctrl
     }
 }

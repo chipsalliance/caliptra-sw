@@ -44,7 +44,7 @@ static EXPECTED_MEK: LazyLock<Mek> = LazyLock::new(|| {
 });
 
 // TODO(clundin): Make tests work on emulator.
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_hitless_update() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -63,7 +63,7 @@ fn test_derive_mek_hitless_update() {
     verify_derive_mek(&mut model, &EXPECTED_MEK);
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_mix_mpk_hitless_update() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -261,7 +261,7 @@ fn mix_mpk_flow(
     result_mpks
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -297,7 +297,7 @@ fn test_derive_mek() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_mix_mpk() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -383,7 +383,7 @@ fn test_derive_mek_mix_mpk() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 /// Verifies MEK does not change after a warm reset.
 fn test_derive_mek_warm_reset() {
@@ -454,7 +454,7 @@ fn test_derive_mek_warm_reset() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -492,7 +492,7 @@ fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_debug_unlocked() {
     let debug_unlocked_doe_out = DoeOutput::generate(&DoeInput::debug_unlocked());
@@ -544,7 +544,7 @@ fn test_derive_mek_debug_unlocked() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_corrupted_sek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -579,7 +579,7 @@ fn test_derive_corrupted_sek() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_corrupted_sek_no_checksum() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -613,7 +613,7 @@ fn test_derive_corrupted_sek_no_checksum() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_missing_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -646,7 +646,7 @@ fn test_derive_missing_secret_seed() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_consumed_secret_seed() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -696,7 +696,7 @@ fn test_derive_consumed_secret_seed() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_derive_mek_missing_hek() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
