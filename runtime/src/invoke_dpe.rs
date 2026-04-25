@@ -12,17 +12,34 @@ Abstract:
 
 --*/
 
-use crate::{dpe_env, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{dpe_env, mldsa_dpe_env, mutrefbytes, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
+    dpe_instance::{DpeEnv, DpeTypes},
     response::ResponseHdr,
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
 use zerocopy::IntoBytes;
+
+/// Caliptra DPE profile selector for ECC vs MLDSA.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaliptraDpeProfile {
+    P384,
+    Mldsa87,
+}
+
+impl From<CaliptraDpeProfile> for DpeProfile {
+    fn from(profile: CaliptraDpeProfile) -> DpeProfile {
+        match profile {
+            CaliptraDpeProfile::P384 => DpeProfile::P384Sha384,
+            CaliptraDpeProfile::Mldsa87 => DpeProfile::Mldsa87,
+        }
+    }
+}
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -33,6 +50,27 @@ impl InvokeDpeCmd {
         cmd_args: &[u8],
         mbox_resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        Self::invoke_dpe_cmd(drivers, cmd_args, mbox_resp, CaliptraDpeProfile::P384)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute_mldsa87(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        mbox_resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        Self::invoke_dpe_cmd(drivers, cmd_args, mbox_resp, CaliptraDpeProfile::Mldsa87)
+    }
+
+    fn invoke_dpe_cmd(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        mbox_resp: &mut [u8],
+        profile: CaliptraDpeProfile,
+    ) -> CaliptraResult<usize> {
+        let dpe_profile: DpeProfile = profile.into();
+
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
@@ -44,7 +82,7 @@ impl InvokeDpeCmd {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let command =
-                &Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
+                &Command::deserialize(dpe_profile, &cmd.data[..cmd.data_size as usize])
                     .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
 
             // Determine the target privilege level of a new context then check if we exceed thresholds
@@ -61,9 +99,13 @@ impl InvokeDpeCmd {
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let ueid = drivers.soc_ifc.fuse_bank().ueid();
             let locality = drivers.mbox.id();
-            let mut env = dpe_env(drivers, None, Some(ueid))?;
 
-            let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+            let mut env = match profile {
+                CaliptraDpeProfile::P384 => dpe_env(drivers, None, Some(ueid))?,
+                CaliptraDpeProfile::Mldsa87 => mldsa_dpe_env(drivers, None, Some(ueid))?,
+            };
+
+            let dpe = &mut DpeInstance::initialized(dpe_profile);
             let resp = match command {
                 Command::GetProfile(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::InitCtx(cmd) => {

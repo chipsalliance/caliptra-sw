@@ -86,6 +86,8 @@ impl CommandId {
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    pub const INVOKE_DPE_MLDSA87: Self = Self(0x4450454D); // "DPEM"
+    pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B584D); // "CKXM"
 
     /// FIPS module commands.
     /// The status command.

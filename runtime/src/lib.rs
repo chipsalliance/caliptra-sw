@@ -86,7 +86,7 @@ pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
 pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
-pub use invoke_dpe::InvokeDpeCmd;
+pub use invoke_dpe::{CaliptraDpeProfile, InvokeDpeCmd};
 pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
@@ -273,6 +273,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp),
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
@@ -308,6 +309,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
         CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
+            CertifyKeyExtendedCmd::execute_mldsa87(drivers, cmd_bytes, resp)
+        }
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
@@ -631,11 +635,51 @@ fn dpe_env(
         platform: DpePlatform::new(
             pl0_pauser,
             hashed_rt_pub_key,
-            &drivers.ecc_cert_chain,
+            drivers.ecc_cert_chain.as_slice(),
             nb,
             nf,
             dmtf_device_info,
             ueid,
+            CaliptraDpeProfile::P384,
+        ),
+        state: &mut pdata.state,
+    })
+}
+
+fn mldsa_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<DpeEnv<CptraDpeTypes>> {
+    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    let rt_mldsa_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
+    let key_id_rt_mldsa_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeCrypto::new_mldsa(
+        &mut drivers.sha2_512_384,
+        &mut drivers.trng,
+        &mut drivers.mldsa87,
+        &mut drivers.hmac,
+        &mut drivers.key_vault,
+        rt_mldsa_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_mldsa_seed,
+        &mut pdata.exported_cdi_slots,
+    );
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    Ok(DpeEnv::<CptraDpeTypes> {
+        crypto,
+        platform: DpePlatform::new(
+            pl0_pauser,
+            hashed_rt_pub_key,
+            drivers.mldsa_cert_chain.as_slice(),
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+            CaliptraDpeProfile::Mldsa87,
         ),
         state: &mut pdata.state,
     })
