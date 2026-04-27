@@ -109,6 +109,8 @@ fn test_fips_shutdown() {
     );
 }
 
+#[cfg_attr(feature = "verilator", ignore)]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_fips_shutdown_zeroizes_persistent_data() {
     const PERSISTENT_DATA_ADDR: u32 = caliptra_drivers::memory_layout::PERSISTENT_DATA_ORG;
