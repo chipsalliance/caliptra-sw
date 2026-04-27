@@ -531,12 +531,6 @@ impl HwModel for ModelFpgaRealtime {
 }
 
 impl ModelFpgaRealtime {
-    /// Read a region of DCCM (Data Closely Coupled Memory) by absolute address.
-    /// The `addr` and `len` are in the CPU address space (starting at 0x5000_0000).
-    pub fn dccm_read(&self, _addr: u32, _len: usize) -> Vec<u8> {
-        unimplemented!("direct DCCM reads are not supported against the hardware model")
-    }
-
     pub fn launch_openocd(&mut self) -> Result<(), OpenOcdError> {
         let _ = Command::new("sudo")
             .arg("pkill")

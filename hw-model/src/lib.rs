@@ -872,6 +872,12 @@ pub trait HwModel: SocManager {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
+    /// Read a region of DCCM (Data Closely Coupled Memory).
+    /// `offset` is relative to the DCCM base address and `len` is the number of bytes to read.
+    fn dccm_read(&self, _offset: u32, _len: usize) -> Vec<u8> {
+        unimplemented!("direct DCCM reads are not supported on this model")
+    }
+
     fn set_apb_pauser(&mut self, pauser: u32);
 
     /// Executes a typed request and (if success), returns the typed response.

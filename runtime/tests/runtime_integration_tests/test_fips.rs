@@ -113,7 +113,8 @@ fn test_fips_shutdown() {
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_fips_shutdown_zeroizes_persistent_data() {
-    const PERSISTENT_DATA_ADDR: u32 = caliptra_drivers::memory_layout::PERSISTENT_DATA_ORG;
+    const PERSISTENT_DATA_OFFSET: u32 = caliptra_drivers::memory_layout::PERSISTENT_DATA_ORG
+        - caliptra_drivers::memory_layout::DCCM_ORG;
     const PERSISTENT_DATA_SIZE: usize =
         caliptra_drivers::memory_layout::PERSISTENT_DATA_SIZE as usize;
 
@@ -122,7 +123,7 @@ fn test_fips_shutdown_zeroizes_persistent_data() {
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
     let nonzero = model
-        .dccm_read(PERSISTENT_DATA_ADDR, PERSISTENT_DATA_SIZE)
+        .dccm_read(PERSISTENT_DATA_OFFSET, PERSISTENT_DATA_SIZE)
         .iter()
         .any(|b| *b != 0);
     assert!(nonzero, "The persistent data was not initialized");
@@ -136,7 +137,7 @@ fn test_fips_shutdown_zeroizes_persistent_data() {
         .unwrap()
         .unwrap();
 
-    let dccm = model.dccm_read(PERSISTENT_DATA_ADDR, PERSISTENT_DATA_SIZE);
+    let dccm = model.dccm_read(PERSISTENT_DATA_OFFSET, PERSISTENT_DATA_SIZE);
     for (offset, &byte) in dccm.iter().enumerate() {
         assert_eq!(
             byte, 0,

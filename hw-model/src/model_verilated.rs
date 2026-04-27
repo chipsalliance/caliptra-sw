@@ -102,12 +102,6 @@ impl ModelVerilated {
     pub fn corrupt_mailbox_ecc_double_bit(&mut self) {
         self.v.corrupt_mailbox_ecc_double_bit();
     }
-
-    /// Read a region of DCCM (Data Closely Coupled Memory) by absolute address.
-    /// The `addr` and `len` are in the CPU address space (starting at 0x5000_0000).
-    pub fn dccm_read(&self, _addr: u32, _len: usize) -> Vec<u8> {
-        unimplemented!("direct DCCM reads are not supported against the hardware model")
-    }
 }
 
 fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
