@@ -30,13 +30,13 @@ pub struct FmcAliasCsrTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl FmcAliasCsrTbsEcc384 {
-    const PUBLIC_KEY_OFFSET: usize = 147usize;
-    const SUBJECT_SN_OFFSET: usize = 60usize;
-    const TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET: usize = 408usize;
-    const TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET: usize = 505usize;
-    const TCB_INFO_FMC_TCI_OFFSET: usize = 607usize;
-    const UEID_OFFSET: usize = 323usize;
-    const TCB_INFO_FW_SVN_OFFSET: usize = 589usize;
+    const PUBLIC_KEY_OFFSET: usize = 152usize;
+    const SUBJECT_SN_OFFSET: usize = 65usize;
+    const TCB_INFO_OWNER_DEVICE_INFO_HASH_OFFSET: usize = 413usize;
+    const TCB_INFO_VENDOR_DEVICE_INFO_HASH_OFFSET: usize = 510usize;
+    const TCB_INFO_FMC_TCI_OFFSET: usize = 612usize;
+    const UEID_OFFSET: usize = 328usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 594usize;
     const PUBLIC_KEY_LEN: usize = 97usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const TCB_INFO_OWNER_DEVICE_INFO_HASH_LEN: usize = 48usize;
@@ -44,18 +44,19 @@ impl FmcAliasCsrTbsEcc384 {
     const TCB_INFO_FMC_TCI_LEN: usize = 48usize;
     const UEID_LEN: usize = 17usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 687usize;
+    pub const TBS_TEMPLATE_LEN: usize = 692usize;
     const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
-        48u8, 130u8, 2u8, 171u8, 2u8, 1u8, 0u8, 48u8, 115u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8,
-        85u8, 4u8, 3u8, 12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
-        50u8, 46u8, 49u8, 32u8, 69u8, 99u8, 99u8, 51u8, 56u8, 52u8, 32u8, 70u8, 77u8, 67u8, 32u8,
-        65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8,
-        64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 2u8, 176u8, 2u8, 1u8, 0u8, 48u8, 120u8, 49u8, 43u8, 48u8, 41u8, 6u8, 3u8,
+        85u8, 4u8, 3u8, 12u8, 34u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
+        70u8, 87u8, 32u8, 50u8, 46u8, 49u8, 46u8, 48u8, 32u8, 69u8, 99u8, 99u8, 51u8, 56u8, 52u8,
+        32u8, 70u8, 77u8, 67u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8,
+        3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 118u8, 48u8, 16u8, 6u8, 7u8, 42u8, 134u8, 72u8, 206u8,
-        61u8, 2u8, 1u8, 6u8, 5u8, 43u8, 129u8, 4u8, 0u8, 34u8, 3u8, 98u8, 0u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 118u8, 48u8, 16u8, 6u8,
+        7u8, 42u8, 134u8, 72u8, 206u8, 61u8, 2u8, 1u8, 6u8, 5u8, 43u8, 129u8, 4u8, 0u8, 34u8, 3u8,
+        98u8, 0u8,
     ];
     const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
         Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
@@ -128,7 +129,7 @@ impl FmcAliasCsrTbsEcc384 {
     fn apply(&mut self, params: &FmcAliasCsrTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 687usize],
+            buf: &mut [u8; 692usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
