@@ -291,6 +291,11 @@ impl HwModel for ModelEmulated {
         }
     }
 
+    fn dccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
+        let offset = offset as usize;
+        self.cpu.bus.bus.dccm.data()[offset..offset + len].to_vec()
+    }
+
     fn set_apb_pauser(&mut self, pauser: u32) {
         self.soc_to_caliptra_bus.mailbox = MailboxExternal {
             soc_user: MailboxRequester::from(pauser),

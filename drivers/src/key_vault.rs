@@ -17,10 +17,10 @@ use bitfield::bitfield;
 use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::kv::KvReg;
 
-use zerocopy::{IntoBytes, KnownLayout, TryFromBytes};
+use zerocopy::{FromZeros, IntoBytes, KnownLayout};
 
 /// Key Identifier
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromBytes, IntoBytes, KnownLayout)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromZeros, IntoBytes, KnownLayout)]
 #[repr(u8)]
 pub enum KeyId {
     KeyId0 = 0,

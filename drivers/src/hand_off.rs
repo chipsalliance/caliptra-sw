@@ -10,7 +10,7 @@ use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 pub const FHT_MARKER: u32 = 0x54484643;
@@ -178,7 +178,7 @@ impl From<DataStore> for HandOffDataHandle {
 /// to pass parameters and configuration information from one firmware layer to the next.
 const _: () = assert!(size_of::<FirmwareHandoffTable>() == 2048);
 #[repr(C)]
-#[derive(Clone, Debug, IntoBytes, TryFromBytes, Immutable, KnownLayout, Zeroize)]
+#[derive(Clone, Debug, IntoBytes, FromZeros, Immutable, KnownLayout, Zeroize)]
 pub struct FirmwareHandoffTable {
     /// Magic Number marking start of table. Value must be 0x54484643
     /// (‘CFHT’ when viewed as little-endian ASCII).

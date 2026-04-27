@@ -9,9 +9,10 @@ use caliptra_auth_man_types::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
+use caliptra_image_types::ZeroizeWithByteScrub;
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
-use zerocopy::{IntoBytes, KnownLayout, TryFromBytes};
+use zerocopy::{FromZeros, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
 #[cfg(feature = "runtime")]
@@ -56,7 +57,7 @@ pub const MEASUREMENT_MAX_COUNT: usize = 8;
 // CDI handles at the cost of using more KeyVault slots.
 pub const EXPORTED_HANDLES_NUM: usize = 1;
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiEntry {
     pub key: KeyId,
     pub handle: ExportedCdiHandle,
@@ -64,9 +65,27 @@ pub struct ExportedCdiEntry {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+impl ZeroizeWithByteScrub for ExportedCdiEntry {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiHandles {
     pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
+}
+
+#[cfg(feature = "runtime")]
+impl ZeroizeWithByteScrub for ExportedCdiHandles {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiHandles {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 #[cfg(feature = "runtime")]
@@ -90,7 +109,7 @@ pub type AuthManifestImageMetadataList =
 const _: () = assert!(MAX_IDEVID_CSR_SIZE < IDEVID_CSR_SIZE as usize);
 const _: () = assert!(MAX_FMC_ALIAS_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
 
-#[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, Zeroize)]
 #[repr(C)]
 pub struct IdevIdCsr {
     csr_len: u32,
@@ -102,7 +121,7 @@ pub mod fmc_alias_csr {
 
     const _: () = assert!(size_of::<FmcAliasCsr>() < FMC_ALIAS_CSR_SIZE as usize);
 
-    #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+    #[derive(Clone, FromZeros, IntoBytes, Zeroize)]
     #[repr(C)]
     pub struct FmcAliasCsr {
         csr_len: u32,
@@ -225,7 +244,7 @@ const _: () = assert!(
 );
 const _: () = assert!(size_of::<IdevIdCsr>() <= IDEVID_CSR_SIZE as usize);
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout)]
 #[repr(C)]
 pub struct PersistentData {
     pub manifest1: ImageManifest,
@@ -301,6 +320,13 @@ pub struct PersistentData {
     // New objects should always source memory from this range.
     // Taking memory from this reserve does NOT break hitless updates.
     pub reserved_memory: [u8; RESERVED_MEMORY_SIZE as usize],
+}
+
+impl ZeroizeWithByteScrub for PersistentData {}
+impl Zeroize for PersistentData {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 impl PersistentData {

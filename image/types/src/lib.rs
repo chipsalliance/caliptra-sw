@@ -23,8 +23,33 @@ use core::ops::Range;
 use memoffset::{offset_of, span_of};
 #[cfg(feature = "std")]
 use serde_derive::Deserialize;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
+
+/// Types implementing this trait can be securely zeroized via a single
+/// byte-slice volatile write, without per-field recursion.
+///
+/// # Invariants (enforced by trait bounds)
+///
+/// - `IntoBytes`: the value has a contiguous byte representation with no
+///   uninitialized padding, so casting `&mut Self` to `&mut [u8]` is valid.
+/// - `FromZeros`: all-zeros is a valid bit pattern for `Self`, so zeroing
+///   every byte produces a valid value.
+///
+/// The default `zeroize` method passes the byte slice to `[u8]::zeroize()`
+/// from the `zeroize` crate, which uses volatile writes to prevent the
+/// compiler from eliding the zeroing as a dead store.
+pub trait ZeroizeWithByteScrub: FromZeros + IntoBytes + Sized {
+    fn zeroize_scrub(&mut self) {
+        // SAFETY: `Self: IntoBytes` guarantees a contiguous byte representation
+        // with no uninitialized padding. `Self: FromZeros` guarantees all-zeros
+        // is a valid bit pattern. `self` is a valid mutable reference.
+        let bytes = unsafe {
+            core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>())
+        };
+        bytes.zeroize();
+    }
+}
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
@@ -159,7 +184,7 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Clone, Copy, Debug, Zeroize)]
+#[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Clone, Copy, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
@@ -179,6 +204,13 @@ pub struct ImageManifest {
 
     /// Runtime TOC Entry
     pub runtime: ImageTocEntry,
+}
+
+impl ZeroizeWithByteScrub for ImageManifest {}
+impl zeroize::Zeroize for ImageManifest {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 impl Default for ImageManifest {
@@ -389,7 +421,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(IntoBytes, Clone, Copy, FromBytes, Immutable, KnownLayout, Default, Debug, Zeroize)]
+#[derive(IntoBytes, Clone, Copy, FromBytes, Immutable, KnownLayout, Default, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID
@@ -424,6 +456,13 @@ pub struct ImageTocEntry {
 
     /// Digest
     pub digest: ImageDigest,
+}
+
+impl ZeroizeWithByteScrub for ImageTocEntry {}
+impl zeroize::Zeroize for ImageTocEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 impl ImageTocEntry {
