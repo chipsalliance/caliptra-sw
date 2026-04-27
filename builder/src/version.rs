@@ -12,6 +12,30 @@ pub const RUNTIME_VERSION_MAJOR: u32 = 2;
 pub const RUNTIME_VERSION_MINOR: u32 = 1;
 pub const RUNTIME_VERSION_PATCH: u32 = 0;
 
+/// Get the ROM version as a human-readable string (e.g., "2.1.1")
+pub fn rom_version_string() -> String {
+    format!(
+        "{}.{}.{}",
+        ROM_VERSION_MAJOR, ROM_VERSION_MINOR, ROM_VERSION_PATCH
+    )
+}
+
+/// Get the FMC version as a human-readable string (e.g., "2.1.0")
+pub fn fmc_version_string() -> String {
+    format!(
+        "{}.{}.{}",
+        FMC_VERSION_MAJOR, FMC_VERSION_MINOR, FMC_VERSION_PATCH
+    )
+}
+
+/// Get the Runtime version as a human-readable string (e.g., "2.1.0")
+pub fn runtime_version_string() -> String {
+    format!(
+        "{}.{}.{}",
+        RUNTIME_VERSION_MAJOR, RUNTIME_VERSION_MINOR, RUNTIME_VERSION_PATCH
+    )
+}
+
 // ROM Version - 16 bits
 // Major - 5 bits [15:11]
 // Minor - 5 bits [10:6]
