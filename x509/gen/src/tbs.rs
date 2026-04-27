@@ -136,8 +136,7 @@ pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
         0..=0x7F => der[tbs_len_offset] as usize + 2,
         0x81 => (der[tbs_len_offset + 1]) as usize + 3,
         0x82 => {
-            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
-                | (((der[tbs_len_offset + 2]) as usize) + 4)
+            (((der[tbs_len_offset + 1] as usize) << 8) | (der[tbs_len_offset + 2] as usize)) + 4
         }
         _ => panic!("Invalid DER Length"),
     };
