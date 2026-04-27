@@ -26,28 +26,29 @@ pub struct RtAliasCsrTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl RtAliasCsrTbsMlDsa87 {
-    const PUBLIC_KEY_OFFSET: usize = 146usize;
-    const SUBJECT_SN_OFFSET: usize = 60usize;
-    const TCB_INFO_RT_TCI_OFFSET: usize = 2885usize;
-    const UEID_OFFSET: usize = 2813usize;
-    const TCB_INFO_FW_SVN_OFFSET: usize = 2867usize;
+    const PUBLIC_KEY_OFFSET: usize = 151usize;
+    const SUBJECT_SN_OFFSET: usize = 65usize;
+    const TCB_INFO_RT_TCI_OFFSET: usize = 2890usize;
+    const UEID_OFFSET: usize = 2818usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 2872usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const TCB_INFO_RT_TCI_LEN: usize = 48usize;
     const UEID_LEN: usize = 17usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 2964usize;
+    pub const TBS_TEMPLATE_LEN: usize = 2969usize;
     const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
-        48u8, 130u8, 11u8, 144u8, 2u8, 1u8, 0u8, 48u8, 115u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8,
-        85u8, 4u8, 3u8, 12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
-        50u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 116u8,
-        32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8,
-        19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 11u8, 149u8, 2u8, 1u8, 0u8, 48u8, 120u8, 49u8, 43u8, 48u8, 41u8, 6u8, 3u8,
+        85u8, 4u8, 3u8, 12u8, 34u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
+        70u8, 87u8, 32u8, 50u8, 46u8, 49u8, 46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8,
+        55u8, 32u8, 82u8, 116u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8,
+        6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8,
-        134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8,
+        11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8,
+        0u8,
     ];
     const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
         Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
@@ -106,7 +107,7 @@ impl RtAliasCsrTbsMlDsa87 {
     fn apply(&mut self, params: &RtAliasCsrTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 2964usize],
+            buf: &mut [u8; 2969usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
