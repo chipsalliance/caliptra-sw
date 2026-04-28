@@ -36,6 +36,7 @@ mod test_recovery_flow;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
+mod test_sign_with_export_mldsa;
 mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;

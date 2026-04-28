@@ -1554,6 +1554,21 @@ impl CaliptraError {
             "Runtime Error: Sign with exported ECDSA invalid signature"
         ),
         (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVIATION_FAILED,
+            0x000E0097,
+            "Runtime Error: Sign with exported MLDSA key derivation failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED,
+            0x000E0098,
+            "Runtime Error: Sign with exported MLDSA signature failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE,
+            0x000E0099,
+            "Runtime Error: Sign with exported MLDSA invalid signature"
+        ),
+        (
             RUNTIME_GET_FMC_CSR_UNPROVISIONED,
             0x000E005B,
             "Runtime Error: Get FMC CSR unprovisioned"
