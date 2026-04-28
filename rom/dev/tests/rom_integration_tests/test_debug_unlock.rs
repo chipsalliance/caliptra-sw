@@ -406,11 +406,11 @@ fn test_dbg_unlock_prod_success() {
     sha512.update(challenge.challenge);
     let sha512_digest = sha512.finalize();
 
-    // Sign the digest in the little endian format, as required by the hardware.
+    // Sign the raw SHA-512 digest bytes; MLDSA mailbox encoding happens when packing the signature.
     let mldsa_signature = signing_mldsa_key
         .try_sign_with_seed(&[0; 32], &sha512_digest, &[])
         .unwrap();
-    // Convert the signature slice to little endian dwords, as required by the hardware.
+    // Pack the signature bytes into little-endian u32 words for the mailbox field.
     let mldsa_signature = {
         let mut sig = [0; 4628];
         sig[..4627].copy_from_slice(&mldsa_signature);
@@ -580,13 +580,14 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -710,15 +711,15 @@ fn test_dbg_unlock_prod_invalid_signature() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
 
-    // Convert to hardware format i.e. little endian.
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -878,7 +879,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
     let (different_verifying_mldsa_key, _) = fips204::ml_dsa_87::try_keygen().unwrap();
     let different_mldsa_pub_key_bytes = different_verifying_mldsa_key.into_bytes();
-    let different_mldsa_pub_key = u8_to_u32_be(&different_mldsa_pub_key_bytes);
+    let different_mldsa_pub_key = u8_to_u32_le(&different_mldsa_pub_key_bytes);
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -995,14 +996,14 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    // Convert to hardware format i.e. little endian.
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -1170,9 +1171,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         sha512.update(challenge.challenge);
         let sha512_digest = sha512.finalize();
 
-        // Convert to hardware format i.e. big endian before signing for MLDSA.
-        // let binding = u8_to_u32_be(&sha512_digest);
-        // let msg = binding.as_bytes();
+        // No byte swapping is needed before MLDSA signing; sign the raw SHA-512 digest bytes.
 
         let mldsa_signature = signing_mldsa_key
             .try_sign_with_seed(&[0; 32], &sha512_digest, &[])

@@ -197,7 +197,8 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 
@@ -296,7 +297,8 @@ fn test_sign_with_exported_cdi_measurement_update() {
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 
@@ -643,6 +645,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     let derive_ctx_cmd = DeriveContextCmd {
         handle,
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+        tci_type: 1,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
@@ -660,6 +663,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     let derive_ctx_cmd = DeriveContextCmd {
         handle: parent_handle,
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 2,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(

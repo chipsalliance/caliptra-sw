@@ -1864,6 +1864,10 @@ pub struct FwInfoResp {
     pub owner_pub_key_hash: [u32; 12],
     pub authman_sha384_digest: [u32; 12],
     pub most_recent_fw_error: u32,
+    pub vendor_pub_key_hash: [u32; 12],
+    pub image_manifest_pqc_type: u32,
+    pub vendor_ecc384_pub_key_index: u32,
+    pub vendor_pqc_pub_key_index: u32,
 }
 
 // CAPABILITIES

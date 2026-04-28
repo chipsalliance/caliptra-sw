@@ -85,7 +85,7 @@ fn test_uds_programming_granularity_64bit() {
 
     let config_val = hw.soc_ifc().cptra_hw_config().read();
     // 0: 64-bits, 1: 32-bits
-    assert_eq!(config_val.fuse_granularity(), 0);
+    assert!(!config_val.fuse_granularity());
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -120,7 +120,7 @@ fn test_uds_programming_granularity_32bit() {
     let config_val = hw.soc_ifc().cptra_hw_config().read();
 
     // 0: 64-bits, 1: 32-bits
-    assert_eq!(config_val.fuse_granularity(), 1);
+    assert!(config_val.fuse_granularity());
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI

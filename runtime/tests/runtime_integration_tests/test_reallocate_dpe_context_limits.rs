@@ -30,11 +30,15 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
 
     // Fill PL0 contexts
     println!("Filling PL0 contexts up to limit {}", pl0_limit);
-    for _ in 0..(pl0_limit - 2) {
+    for i in 0..(pl0_limit - 2) {
+        let cmd = DeriveContextCmd {
+            tci_type: i,
+            ..base_derive_context_cmd
+        };
         let _ = execute_dpe_cmd(
             model,
             CaliptraDpeProfile::Ecc384,
-            &mut Command::DeriveContext(&base_derive_context_cmd),
+            &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
         );
     }
@@ -56,6 +60,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
             let derive_ctx_cmd = DeriveContextCmd {
                 flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::CHANGE_LOCALITY,
                 target_locality: 2,
+                tci_type: i + pl0_limit,
                 ..base_derive_context_cmd
             };
             let _ = execute_dpe_cmd(
@@ -67,10 +72,14 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
 
             model.set_axi_user(2);
         } else {
+            let cmd = DeriveContextCmd {
+                tci_type: i + pl0_limit,
+                ..base_derive_context_cmd
+            };
             let _ = execute_dpe_cmd(
                 model,
                 CaliptraDpeProfile::Ecc384,
-                &mut Command::DeriveContext(&base_derive_context_cmd),
+                &mut Command::DeriveContext(&cmd),
                 DpeResult::Success,
             );
         }
@@ -162,13 +171,13 @@ fn test_pl0_pl1_reallocation_pl0_greater_than_max() {
 fn test_pl0_pl1_reallocation_pl0_less_than_used() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let derive_context_cmd = DeriveContextCmd {
-        flags: DeriveContextFlags::MAKE_DEFAULT,
-        ..Default::default()
-    };
-
     // Use some PL0 contexts
-    for _ in 0..12 {
+    for i in 0..12 {
+        let derive_context_cmd = DeriveContextCmd {
+            flags: DeriveContextFlags::MAKE_DEFAULT,
+            tci_type: i,
+            ..Default::default()
+        };
         let _ = execute_dpe_cmd(
             &mut model,
             CaliptraDpeProfile::Ecc384,
@@ -203,6 +212,7 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
             let derive_ctx_cmd = DeriveContextCmd {
                 flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::CHANGE_LOCALITY,
                 target_locality: 2,
+                tci_type: i,
                 ..base_derive_context_cmd
             };
             let _ = execute_dpe_cmd(
@@ -214,10 +224,14 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
 
             model.set_axi_user(2);
         } else {
+            let derive_ctx_cmd = DeriveContextCmd {
+                tci_type: i,
+                ..base_derive_context_cmd
+            };
             let _ = execute_dpe_cmd(
                 &mut model,
                 CaliptraDpeProfile::Ecc384,
-                &mut Command::DeriveContext(&base_derive_context_cmd),
+                &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
             );
         }
@@ -253,11 +267,15 @@ fn test_pl0_pl1_reallocation_warm_reset() {
     };
 
     // Use some PL0 contexts
-    for _ in 0..12 {
+    for i in 0..12 {
+        let cmd = DeriveContextCmd {
+            tci_type: i,
+            ..derive_context_cmd
+        };
         let _ = execute_dpe_cmd(
             &mut model,
             CaliptraDpeProfile::Ecc384,
-            &mut Command::DeriveContext(&derive_context_cmd),
+            &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
         );
     }
@@ -279,20 +297,28 @@ fn test_pl0_pl1_reallocation_warm_reset() {
 
     // Use the rest of the PL0 contexts
     // (2 contexts are used by Caliptra)
-    for _ in 0..10 {
+    for i in 0..10 {
+        let cmd = DeriveContextCmd {
+            tci_type: i + 12,
+            ..derive_context_cmd
+        };
         let _ = execute_dpe_cmd(
             &mut model,
             CaliptraDpeProfile::Ecc384,
-            &mut Command::DeriveContext(&derive_context_cmd),
+            &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
         );
     }
 
+    let cmd = DeriveContextCmd {
+        tci_type: 12 + 10,
+        ..derive_context_cmd
+    };
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
         &mut model,
         CaliptraDpeProfile::Ecc384,
-        &mut Command::DeriveContext(&derive_context_cmd),
+        &mut Command::DeriveContext(&cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
 }

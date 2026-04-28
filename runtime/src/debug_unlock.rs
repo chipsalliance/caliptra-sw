@@ -52,7 +52,7 @@ impl ProductionDebugUnlock {
     pub fn handle_request(
         &mut self,
         trng: &mut caliptra_drivers::Trng,
-        soc_ifc: &caliptra_drivers::SocIfc,
+        soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut caliptra_drivers::Dma,
         cmd_bytes: &[u8],
         resp: &mut [u8],
@@ -73,20 +73,32 @@ impl ProductionDebugUnlock {
             return Err(CaliptraError::RUNTIME_DEBUG_UNLOCK_INVALID_LIFECYCLE);
         }
 
-        // Use common function to create challenge
-        let challenge =
-            caliptra_common::debug_unlock::create_debug_unlock_challenge(trng, soc_ifc, dma, &req)?;
+        // Set debug unlock in progress
+        soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
-        // Store the challenge for future token validation
-        let stored_challenge = challenge.clone();
-        self.last_challenge = Some(stored_challenge);
-        self.last_request = Some(req);
+        let result = (|| -> CaliptraResult<usize> {
+            // Use common function to create challenge
+            let challenge = caliptra_common::debug_unlock::create_debug_unlock_challenge(
+                trng, soc_ifc, dma, &req,
+            )?;
 
-        cprintln!("[rt] Production debug unlock challenge generated");
+            // Store the challenge for future token validation
+            let stored_challenge = challenge.clone();
+            self.last_challenge = Some(stored_challenge);
+            self.last_request = Some(req);
 
-        let resp = mutrefbytes::<ProductionAuthDebugUnlockChallenge>(resp)?;
-        *resp = challenge;
-        Ok(core::mem::size_of::<ProductionAuthDebugUnlockChallenge>())
+            cprintln!("[rt] Production debug unlock challenge generated");
+
+            let resp = mutrefbytes::<ProductionAuthDebugUnlockChallenge>(resp)?;
+            *resp = challenge;
+            Ok(core::mem::size_of::<ProductionAuthDebugUnlockChallenge>())
+        })();
+
+        if result.is_err() {
+            soc_ifc.set_ss_dbg_unlock_in_progress(false);
+        }
+
+        result
     }
 
     /// Handle the production debug unlock token verification
@@ -126,9 +138,6 @@ impl ProductionDebugUnlock {
             .last_request
             .take()
             .ok_or(CaliptraError::RUNTIME_DEBUG_UNLOCK_NO_REQUEST)?;
-
-        // Set debug unlock in progress
-        soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
         // Use the common validation logic
         let result = caliptra_common::debug_unlock::validate_debug_unlock_token(

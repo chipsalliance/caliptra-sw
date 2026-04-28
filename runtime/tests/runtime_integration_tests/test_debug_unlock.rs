@@ -166,6 +166,13 @@ fn test_dbg_unlock_prod_success() {
         .unwrap()
         .unwrap();
 
+    // Verify in_progress bit is set after REQUEST completes
+    assert!(model
+        .soc_ifc()
+        .ss_dbg_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_in_progress());
+
     let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
     let reserved = [0u8; 3];
 
@@ -573,7 +580,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
 
     let (different_verifying_mldsa_key, _) = fips204::ml_dsa_87::try_keygen().unwrap();
     let different_mldsa_pub_key_bytes = different_verifying_mldsa_key.into_bytes();
-    let different_mldsa_pub_key = u8_to_u32_be(&different_mldsa_pub_key_bytes);
+    let different_mldsa_pub_key = u8_to_u32_le(&different_mldsa_pub_key_bytes);
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)

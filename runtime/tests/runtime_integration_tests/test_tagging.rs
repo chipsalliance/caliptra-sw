@@ -257,6 +257,7 @@ fn test_tagging_retired_context() {
     // retire tagged context via derive child
     let derive_context_cmd = DeriveContextCmd {
         handle: new_handle,
+        tci_type: 1,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(

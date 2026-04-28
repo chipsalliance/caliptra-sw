@@ -98,8 +98,8 @@ caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 
 # The caliptra-cfi commit rev MUST match the one in caliptra-dpe or the Caliptra runtime will be bloated with duplicate symbols.
-caliptra-cfi-lib = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib", rev = "767d4ef59a106aea683b883c07bd65456fb3ba6b", default-features = false, features = ["cfi", "cfi-counter" ] }
-caliptra-cfi-derive = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive", rev = "767d4ef59a106aea683b883c07bd65456fb3ba6b"}
+caliptra-cfi-lib = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib", rev = "aa96c53073ce7f298f7482c1ac57f5f65ffc115e", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive", rev = "aa96c53073ce7f298f7482c1ac57f5f65ffc115e"}
 
 caliptra-common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
@@ -109,9 +109,9 @@ caliptra-drivers = { path = "drivers" }
 caliptra-drivers-test-bin = { path = "drivers/test-fw" }
 
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod
-caliptra-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a883222aae7b9306aab089d6efab85d93dbaab26", default-features = false, features = ["hybrid"] }
-caliptra-dpe-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a883222aae7b9306aab089d6efab85d93dbaab26", default-features = false }
-caliptra-dpe-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "a883222aae7b9306aab089d6efab85d93dbaab26", default-features = false }
+caliptra-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "8c5a435b2ee1e21a29244d1c2c00e99790b21a79", default-features = false, features = ["hybrid"] }
+caliptra-dpe-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "8c5a435b2ee1e21a29244d1c2c00e99790b21a79", default-features = false }
+caliptra-dpe-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "8c5a435b2ee1e21a29244d1c2c00e99790b21a79", default-features = false }
 
 caliptra-emu-bus = { path = "sw-emulator/lib/bus" }
 caliptra-emu-cpu = { path = "sw-emulator/lib/cpu" }

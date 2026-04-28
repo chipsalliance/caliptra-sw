@@ -359,7 +359,7 @@ impl MciRegs {
                     // Copy hash into fuses array (64 bytes / 16 u32s)
                     let base_idx = i * (SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>());
                     hash.chunks(4).enumerate().for_each(|(j, chunk)| {
-                        // Program the hash in hardware format i.e. little endian.
+                        // Program the hash as big-endian u32 words; the bus presents each word's bytes little-endian at byte addresses.
                         let value = u32::from_be_bytes(chunk.try_into().unwrap());
                         fuses[base_idx + j] = value;
                     });
