@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_cfi_lib::CfiState;
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, BusAccessType};
 use caliptra_emu_periph::MailboxRequester;
 use caliptra_emu_types::RvSize;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SecurityState};
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn caliptra_model_apb_read_u32(
     assert!(!model.is_null() || !data.is_null());
     *data = (*{ model as *mut DefaultHwModel })
         .apb_bus()
-        .read(RvSize::Word, addr)
+        .read(RvSize::Word, addr, BusAccessType::DataLoad)
         .unwrap();
 
     CALIPTRA_MODEL_STATUS_OK

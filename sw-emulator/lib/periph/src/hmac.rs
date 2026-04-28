@@ -714,7 +714,7 @@ impl HmacSha {
 mod tests {
     use super::*;
     use crate::key_vault;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
@@ -743,11 +743,15 @@ mod tests {
     fn test_name() {
         let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
 
-        let name0 = hmac.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = hmac
+            .read(RvSize::Word, OFFSET_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
         assert_eq!(name0, "hmac");
 
-        let name1 = hmac.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = hmac
+            .read(RvSize::Word, OFFSET_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
         assert_eq!(name1, "sha2");
     }
@@ -756,11 +760,15 @@ mod tests {
     fn test_version() {
         let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
 
-        let version0 = hmac.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = hmac
+            .read(RvSize::Word, OFFSET_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = hmac.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = hmac
+            .read(RvSize::Word, OFFSET_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -768,13 +776,21 @@ mod tests {
     #[test]
     fn test_control() {
         let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
-        assert_eq!(hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
+        assert_eq!(
+            hmac.read(RvSize::Word, OFFSET_CONTROL, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
     fn test_status() {
         let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
-        assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+        assert_eq!(
+            hmac.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -783,7 +799,7 @@ mod tests {
         for addr in (OFFSET_KEY..(OFFSET_KEY + HMAC_KEY_SIZE_384 as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, 0xFF).ok(), Some(()));
             assert_eq!(
-                hmac.read(RvSize::Word, addr).err(),
+                hmac.read(RvSize::Word, addr, BusAccessType::DataLoad).err(),
                 Some(BusError::LoadAccessFault)
             );
         }
@@ -795,7 +811,7 @@ mod tests {
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + HMAC_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
             assert_eq!(
-                hmac.read(RvSize::Word, addr),
+                hmac.read(RvSize::Word, addr, BusAccessType::DataLoad),
                 Err(BusError::LoadAccessFault)
             );
         }
@@ -805,7 +821,10 @@ mod tests {
     fn test_tag() {
         let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_TAG..(OFFSET_TAG + HMAC_TAG_SIZE_384 as u32)).step_by(4) {
-            assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(0));
+            assert_eq!(
+                hmac.read(RvSize::Word, addr, BusAccessType::DataLoad).ok(),
+                Some(0)
+            );
             assert_eq!(
                 hmac.write(RvSize::Word, addr, 0xFF).err(),
                 Some(BusError::StoreAccessFault)
@@ -1037,7 +1056,8 @@ mod tests {
             // Wait for hmac periph to retrieve the key from key-vault.
             loop {
                 let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                    hmac.read(RvSize::Word, OFFSET_KEY_STATUS).unwrap(),
+                    hmac.read(RvSize::Word, OFFSET_KEY_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
 
                 if key_read_status.is_set(KeyReadStatus::VALID) {
@@ -1085,7 +1105,8 @@ mod tests {
                 // Wait for hmac periph to retrieve the block from the key-vault.
                 loop {
                     let block_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                        hmac.read(RvSize::Word, OFFSET_BLOCK_STATUS).unwrap(),
+                        hmac.read(RvSize::Word, OFFSET_BLOCK_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if block_read_status.is_set(KeyReadStatus::VALID) {
@@ -1141,7 +1162,8 @@ mod tests {
             loop {
                 if !tag_to_kv {
                     let status = InMemoryRegister::<u32, Status::Register>::new(
-                        hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                        hmac.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -1149,7 +1171,8 @@ mod tests {
                     }
                 } else {
                     let tag_write_status = InMemoryRegister::<u32, TagWriteStatus::Register>::new(
-                        hmac.read(RvSize::Word, OFFSET_TAG_STATUS).unwrap(),
+                        hmac.read(RvSize::Word, OFFSET_TAG_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if tag_write_status.is_set(TagWriteStatus::VALID) {
@@ -1694,7 +1717,8 @@ mod tests {
         // Wait for hmac periph to retrieve the key from key-vault.
         loop {
             let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                hmac.read(RvSize::Word, OFFSET_KEY_STATUS).unwrap(),
+                hmac.read(RvSize::Word, OFFSET_KEY_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if key_read_status.is_set(KeyReadStatus::VALID) {
@@ -1727,7 +1751,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                hmac.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::READY) {

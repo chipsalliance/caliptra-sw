@@ -780,7 +780,7 @@ impl AsymEcc384 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
@@ -865,11 +865,15 @@ mod tests {
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
-        let name0 = ecc.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = ecc
+            .read(RvSize::Word, OFFSET_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
         assert_eq!(name0, "secp");
 
-        let name1 = ecc.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = ecc
+            .read(RvSize::Word, OFFSET_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_be_bytes()).to_string();
         assert_eq!(name1, "-384");
     }
@@ -882,11 +886,15 @@ mod tests {
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
-        let version0 = ecc.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = ecc
+            .read(RvSize::Word, OFFSET_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = ecc.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = ecc
+            .read(RvSize::Word, OFFSET_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -898,7 +906,11 @@ mod tests {
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
-        assert_eq!(ecc.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
+        assert_eq!(
+            ecc.read(RvSize::Word, OFFSET_CONTROL, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -908,7 +920,11 @@ mod tests {
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
-        assert_eq!(ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+        assert_eq!(
+            ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -945,7 +961,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -999,7 +1016,8 @@ mod tests {
             // Wait for ecc periph to retrieve the seed from key-vault.
             loop {
                 let seed_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_SEED_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_SEED_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
 
                 if seed_read_status.is_set(KeyReadStatus::VALID) {
@@ -1017,7 +1035,8 @@ mod tests {
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
@@ -1076,7 +1095,12 @@ mod tests {
 
             loop {
                 let key_write_status = InMemoryRegister::<u32, KeyWriteStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_KEY_WRITE_STATUS).unwrap(),
+                    ecc.read(
+                        RvSize::Word,
+                        OFFSET_KEY_WRITE_STATUS,
+                        BusAccessType::DataLoad,
+                    )
+                    .unwrap(),
                 );
                 if key_write_status.is_set(KeyWriteStatus::VALID) {
                     assert_eq!(
@@ -1090,7 +1114,8 @@ mod tests {
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
@@ -1150,7 +1175,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -1207,7 +1233,12 @@ mod tests {
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
                 let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_KEY_READ_STATUS).unwrap(),
+                    ecc.read(
+                        RvSize::Word,
+                        OFFSET_KEY_READ_STATUS,
+                        BusAccessType::DataLoad,
+                    )
+                    .unwrap(),
                 );
                 if key_read_status.is_set(KeyReadStatus::VALID) {
                     assert_eq!(
@@ -1224,7 +1255,8 @@ mod tests {
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
@@ -1280,7 +1312,12 @@ mod tests {
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
                 let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_KEY_READ_STATUS).unwrap(),
+                    ecc.read(
+                        RvSize::Word,
+                        OFFSET_KEY_READ_STATUS,
+                        BusAccessType::DataLoad,
+                    )
+                    .unwrap(),
                 );
                 if key_read_status.is_set(KeyReadStatus::VALID) {
                     assert_eq!(
@@ -1361,7 +1398,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -1434,7 +1472,8 @@ mod tests {
         // Wait for operation to complete
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -1521,7 +1560,12 @@ mod tests {
             // Wait for key write to complete
             loop {
                 let key_write_status = InMemoryRegister::<u32, KeyWriteStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_KEY_WRITE_STATUS).unwrap(),
+                    ecc.read(
+                        RvSize::Word,
+                        OFFSET_KEY_WRITE_STATUS,
+                        BusAccessType::DataLoad,
+                    )
+                    .unwrap(),
                 );
                 if key_write_status.is_set(KeyWriteStatus::VALID) {
                     assert_eq!(
@@ -1536,7 +1580,8 @@ mod tests {
             // Wait for ECDH operation to complete
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
@@ -1608,7 +1653,12 @@ mod tests {
             // Wait for ecc periph to retrieve the private key from the key-vault
             loop {
                 let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_KEY_READ_STATUS).unwrap(),
+                    ecc.read(
+                        RvSize::Word,
+                        OFFSET_KEY_READ_STATUS,
+                        BusAccessType::DataLoad,
+                    )
+                    .unwrap(),
                 );
                 if key_read_status.is_set(KeyReadStatus::VALID) {
                     assert_eq!(
@@ -1631,7 +1681,8 @@ mod tests {
             // Wait for ECDH operation to complete
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    ecc.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;

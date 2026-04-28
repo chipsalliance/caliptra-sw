@@ -97,7 +97,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
 
     quote! {
         impl caliptra_emu_bus::Bus for #struct_name {
-            fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+            fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, _access_type: caliptra_emu_bus::BusAccessType) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                 #read_reg_match_tokens
                 #read_bus_match_tokens
                 Err(caliptra_emu_bus::BusError::LoadAccessFault)
@@ -321,11 +321,11 @@ fn gen_bus_match_tokens(offset_matches: &LengthMatchBlock, access_type: AccessTy
                 let field_name = Ident::new(&m.body, Span::call_site());
                 if m.refcell {
                     quote! {
-                        #offset..=#offset_len => return self.#field_name.borrow_mut().read(size, addr - #offset),
+                        #offset..=#offset_len => return self.#field_name.borrow_mut().read(size, addr - #offset, _access_type),
                     }
                 } else {
                     quote! {
-                        #offset..=#offset_len => return caliptra_emu_bus::Bus::read(&mut self.#field_name, size, addr - #offset),
+                        #offset..=#offset_len => return caliptra_emu_bus::Bus::read(&mut self.#field_name, size, addr - #offset, _access_type),
                     }
                 }
             },
@@ -632,7 +632,7 @@ mod tests {
         assert_eq!(tokens.to_string(),
             quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
-                    fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                    fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, _access_type: caliptra_emu_bus::BusAccessType) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         Err(caliptra_emu_bus::BusError::LoadAccessFault)
                     }
                     fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {

@@ -75,7 +75,12 @@ impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Registe
 impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: RegisterLongName> Bus
     for ReadWriteRegisterArray<T, SIZE, R>
 {
-    fn read(&mut self, _size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        _size: RvSize,
+        addr: RvAddr,
+        _access_type: crate::bus::BusAccessType,
+    ) -> Result<RvData, BusError> {
         if addr as usize % std::mem::size_of::<T>() != 0 {
             return Err(BusError::LoadAddrMisaligned);
         }
@@ -106,6 +111,7 @@ mod tests {
     use tock_registers::register_bitfields;
 
     use super::*;
+    use crate::bus::BusAccessType;
 
     register_bitfields! [
         u32,
@@ -128,19 +134,31 @@ mod tests {
             ReadWriteRegisterArray::new(0x40);
         assert_eq!(0, array[0].read(Meipl::PRIORITY));
         assert_eq!(0x40, array[0].get());
-        assert_eq!(0x40, Bus::read(&mut array, RvSize::Word, 0).unwrap());
+        assert_eq!(
+            0x40,
+            Bus::read(&mut array, RvSize::Word, 0, BusAccessType::DataLoad).unwrap()
+        );
 
         array[0].write(Meipl::PRIORITY.val(0xa));
         assert_eq!(0x0a, array[0].read(Meipl::PRIORITY));
         assert_eq!(0x0a, array[0].get());
-        assert_eq!(0x0a, Bus::read(&mut array, RvSize::Word, 0).unwrap());
+        assert_eq!(
+            0x0a,
+            Bus::read(&mut array, RvSize::Word, 0, BusAccessType::DataLoad).unwrap()
+        );
 
         array[1].modify(Meipl::PRIORITY.val(5));
         assert_eq!(0x05, array[1].read(Meipl::PRIORITY));
-        assert_eq!(0x45, Bus::read(&mut array, RvSize::Word, 4).unwrap());
+        assert_eq!(
+            0x45,
+            Bus::read(&mut array, RvSize::Word, 4, BusAccessType::DataLoad).unwrap()
+        );
 
         Bus::write(&mut array, RvSize::Word, 31 * 4, 0x2e).unwrap();
-        assert_eq!(0x2e, Bus::read(&mut array, RvSize::Word, 31 * 4).unwrap());
+        assert_eq!(
+            0x2e,
+            Bus::read(&mut array, RvSize::Word, 31 * 4, BusAccessType::DataLoad).unwrap()
+        );
         assert_eq!(0x0e, array[31].read(Meipl::PRIORITY));
 
         assert_eq!(
@@ -159,7 +177,7 @@ mod tests {
             ReadWriteRegisterArray::new(0x00);
 
         assert_eq!(
-            Bus::read(&mut array, RvSize::Word, 32 * 4),
+            Bus::read(&mut array, RvSize::Word, 32 * 4, BusAccessType::DataLoad),
             Err(BusError::LoadAccessFault)
         );
         assert_eq!(
@@ -167,7 +185,7 @@ mod tests {
             Err(BusError::StoreAccessFault)
         );
         assert_eq!(
-            Bus::read(&mut array, RvSize::Word, 1),
+            Bus::read(&mut array, RvSize::Word, 1, BusAccessType::DataLoad),
             Err(BusError::LoadAddrMisaligned)
         );
         assert_eq!(
@@ -186,21 +204,36 @@ mod tests {
             ReadWriteRegisterArray::new(0x40);
         assert_eq!(0, array[0].read(Meipl16::PRIORITY));
         assert_eq!(0x40, array[0].get());
-        assert_eq!(0x40, Bus::read(&mut array, RvSize::HalfWord, 0).unwrap());
+        assert_eq!(
+            0x40,
+            Bus::read(&mut array, RvSize::HalfWord, 0, BusAccessType::DataLoad).unwrap()
+        );
 
         array[0].write(Meipl16::PRIORITY.val(0xa));
         assert_eq!(0x0a, array[0].read(Meipl16::PRIORITY));
         assert_eq!(0x0a, array[0].get());
-        assert_eq!(0x0a, Bus::read(&mut array, RvSize::HalfWord, 0).unwrap());
+        assert_eq!(
+            0x0a,
+            Bus::read(&mut array, RvSize::HalfWord, 0, BusAccessType::DataLoad).unwrap()
+        );
 
         array[1].modify(Meipl16::PRIORITY.val(5));
         assert_eq!(0x05, array[1].read(Meipl16::PRIORITY));
-        assert_eq!(0x45, Bus::read(&mut array, RvSize::HalfWord, 2).unwrap());
+        assert_eq!(
+            0x45,
+            Bus::read(&mut array, RvSize::HalfWord, 2, BusAccessType::DataLoad).unwrap()
+        );
 
         Bus::write(&mut array, RvSize::HalfWord, 31 * 2, 0x2e).unwrap();
         assert_eq!(
             0x2e,
-            Bus::read(&mut array, RvSize::HalfWord, 31 * 2).unwrap()
+            Bus::read(
+                &mut array,
+                RvSize::HalfWord,
+                31 * 2,
+                BusAccessType::DataLoad
+            )
+            .unwrap()
         );
         assert_eq!(0x0e, array[31].read(Meipl16::PRIORITY));
 
@@ -220,7 +253,12 @@ mod tests {
             ReadWriteRegisterArray::new(0x00);
 
         assert_eq!(
-            Bus::read(&mut array, RvSize::HalfWord, 32 * 2),
+            Bus::read(
+                &mut array,
+                RvSize::HalfWord,
+                32 * 2,
+                BusAccessType::DataLoad
+            ),
             Err(BusError::LoadAccessFault)
         );
         assert_eq!(
@@ -228,7 +266,7 @@ mod tests {
             Err(BusError::StoreAccessFault)
         );
         assert_eq!(
-            Bus::read(&mut array, RvSize::HalfWord, 1),
+            Bus::read(&mut array, RvSize::HalfWord, 1, BusAccessType::DataLoad),
             Err(BusError::LoadAddrMisaligned)
         );
         assert_eq!(

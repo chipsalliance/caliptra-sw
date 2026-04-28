@@ -1623,7 +1623,7 @@ mod tests {
     use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_api::soc_mgr::SocManager;
     use caliptra_builder::firmware;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
     use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -1678,12 +1678,18 @@ mod tests {
             .write(|w| w.lock(true));
 
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model
+                .apb_bus()
+                .read(RvSize::Word, MBOX_ADDR_LOCK, BusAccessType::DataLoad)
+                .unwrap(),
             0
         );
 
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model
+                .apb_bus()
+                .read(RvSize::Word, MBOX_ADDR_LOCK, BusAccessType::DataLoad)
+                .unwrap(),
             1
         );
 
@@ -1692,7 +1698,10 @@ mod tests {
             .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
             .unwrap();
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
+            model
+                .apb_bus()
+                .read(RvSize::Word, MBOX_ADDR_CMD, BusAccessType::DataLoad)
+                .unwrap(),
             4242
         );
     }

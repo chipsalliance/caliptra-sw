@@ -11,6 +11,9 @@ Abstract:
     File contains SHA accelerator implementation.
 
 --*/
+
+use caliptra_emu_bus::BusAccessType;
+
 use crate::MailboxRam;
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
@@ -436,7 +439,11 @@ impl Sha512AcceleratorRegs {
             let byte_offset = idx << 2;
             let word = self
                 .mailbox_ram
-                .read(RvSize::Word, start_address + byte_offset as u32)
+                .read(
+                    RvSize::Word,
+                    start_address + byte_offset as u32,
+                    BusAccessType::DataLoad,
+                )
                 .unwrap();
             block_arr[byte_offset..byte_offset + 4].copy_from_slice(&word.to_le_bytes());
         }
@@ -577,8 +584,15 @@ impl Sha512Accelerator {
 
 impl Bus for Sha512Accelerator {
     /// Read data of specified size from given address
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().read(size, addr)
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(size, addr, BusAccessType::DataLoad)
     }
 
     /// Write data of specified size to given address
@@ -701,14 +715,18 @@ mod tests {
 
         // Acquire the accelerator lock.
         loop {
-            let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+            let lock = sha_accl
+                .read(RvSize::Word, OFFSET_LOCK, BusAccessType::DataLoad)
+                .unwrap();
             if lock == 0 {
                 break;
             }
         }
 
         // Confirm it is locked
-        let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        let lock = sha_accl
+            .read(RvSize::Word, OFFSET_LOCK, BusAccessType::DataLoad)
+            .unwrap();
         assert_eq!(lock, 1);
 
         // Set the mode.
@@ -752,7 +770,9 @@ mod tests {
         // Wait for operation to complete.
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                sha_accl
+                    .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {
@@ -1117,20 +1137,44 @@ mod tests {
 
         // Check init state.
         assert_eq!(
-            sha_accl.read(RvSize::Word, OFFSET_START_ADDRESS).unwrap(),
+            sha_accl
+                .read(RvSize::Word, OFFSET_START_ADDRESS, BusAccessType::DataLoad)
+                .unwrap(),
             0
         );
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_DLEN).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_MODE).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_EXECUTE).unwrap(), 0);
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_DLEN, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_MODE, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_EXECUTE, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
 
         // Unlock the initial state
         sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
 
         // Acquire the accelerator lock.
         loop {
-            let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+            let lock = sha_accl
+                .read(RvSize::Word, OFFSET_LOCK, BusAccessType::DataLoad)
+                .unwrap();
             if lock == 0 {
                 break;
             }
@@ -1149,7 +1193,9 @@ mod tests {
 
         // Read the mode back.
         mode = InMemoryRegister::<u32, ShaMode::Register>::new(
-            sha_accl.read(RvSize::Word, OFFSET_MODE).unwrap(),
+            sha_accl
+                .read(RvSize::Word, OFFSET_MODE, BusAccessType::DataLoad)
+                .unwrap(),
         );
         assert_eq!(
             mode.read(ShaMode::MODE),
@@ -1164,7 +1210,9 @@ mod tests {
         );
         // Read the start address back.
         assert_eq!(
-            sha_accl.read(RvSize::Word, OFFSET_START_ADDRESS).unwrap(),
+            sha_accl
+                .read(RvSize::Word, OFFSET_START_ADDRESS, BusAccessType::DataLoad)
+                .unwrap(),
             4
         );
 
@@ -1172,7 +1220,12 @@ mod tests {
         assert_eq!(sha_accl.write(RvSize::Word, OFFSET_DLEN, 20).ok(), Some(()));
 
         // Read the data length back.
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_DLEN).unwrap(), 20);
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_DLEN, BusAccessType::DataLoad)
+                .unwrap(),
+            20
+        );
 
         // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
@@ -1189,13 +1242,35 @@ mod tests {
 
         // Check state after lock release.
         assert_eq!(
-            sha_accl.read(RvSize::Word, OFFSET_START_ADDRESS).unwrap(),
+            sha_accl
+                .read(RvSize::Word, OFFSET_START_ADDRESS, BusAccessType::DataLoad)
+                .unwrap(),
             0
         );
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_DLEN).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_MODE).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
-        assert_eq!(sha_accl.read(RvSize::Word, OFFSET_EXECUTE).unwrap(), 0);
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_DLEN, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_MODE, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sha_accl
+                .read(RvSize::Word, OFFSET_EXECUTE, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -1234,14 +1309,18 @@ mod tests {
 
         // Acquire the accelerator lock.
         loop {
-            let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+            let lock = sha_accl
+                .read(RvSize::Word, OFFSET_LOCK, BusAccessType::DataLoad)
+                .unwrap();
             if lock == 0 {
                 break;
             }
         }
 
         // Confirm it is locked
-        let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        let lock = sha_accl
+            .read(RvSize::Word, OFFSET_LOCK, BusAccessType::DataLoad)
+            .unwrap();
         assert_eq!(lock, 1);
 
         // Set the mode.
@@ -1289,7 +1368,9 @@ mod tests {
         // Wait for operation to complete.
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                sha_accl
+                    .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {

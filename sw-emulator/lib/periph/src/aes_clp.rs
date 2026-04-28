@@ -321,7 +321,7 @@ impl AesClp {
 mod tests {
     use super::*;
     use crate::Aes;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_types::RvAddr;
     use tock_registers::interfaces::Writeable;
     use tock_registers::registers::InMemoryRegister;
@@ -443,7 +443,11 @@ mod tests {
         assert_eq!(kv_key, PLAIN_TEXT);
 
         let status = aes_clp
-            .read(RvSize::Word, AES_CLP_KV_WR_STATUS_OFFSET)
+            .read(
+                RvSize::Word,
+                AES_CLP_KV_WR_STATUS_OFFSET,
+                BusAccessType::DataLoad,
+            )
             .unwrap();
         let status_reg = InMemoryRegister::<u32, TagWriteStatus::Register>::new(status);
         assert!(status_reg.is_set(TagWriteStatus::VALID));

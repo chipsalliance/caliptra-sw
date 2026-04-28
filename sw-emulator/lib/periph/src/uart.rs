@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusAccessType, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 pub struct Uart {
@@ -68,7 +68,12 @@ impl Bus for Uart {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => Ok(self.bit_rate as RvData),
             (RvSize::Byte, Uart::ADDR_DATA_BITS) => Ok(self.data_bits as RvData),

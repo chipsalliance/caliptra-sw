@@ -17,6 +17,21 @@ use crate::Event;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{rc::Rc, sync::mpsc};
 
+/// Describes the type of bus access, matching VeeR EL2 IFU/LSU distinction.
+///
+/// The IFU (instruction fetch unit) and LSU (load-store unit) use MRAC
+/// differently:
+/// - IFU: only reads the cacheable bit; ignores side-effect; never rejects
+/// - LSU: reads the side-effect bit; rejects misaligned access in
+///   side-effect regions
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum BusAccessType {
+    /// Instruction fetch (IFU path). MRAC side-effect is ignored.
+    InstrFetch,
+    /// Data load (LSU path). MRAC side-effect is enforced.
+    DataLoad,
+}
+
 #[allow(unused)]
 pub trait EventListener {
     fn incoming_event(&mut self, _event: Rc<Event>) {
@@ -62,7 +77,12 @@ pub trait Bus {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::LoadAccessFault` or `BusError::LoadAddrMisaligned`
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError>;
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        access_type: BusAccessType,
+    ) -> Result<RvData, BusError>;
 
     /// Write data of specified size to given address
     ///

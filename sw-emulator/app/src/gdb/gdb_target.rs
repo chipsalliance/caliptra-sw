@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_emu_bus::MracBus;
 use caliptra_emu_cpu::xreg_file::XReg;
 use caliptra_emu_cpu::StepAction;
 use caliptra_emu_cpu::{Cpu, WatchPtrKind};
@@ -34,14 +35,14 @@ pub enum ExecMode {
 }
 
 pub struct GdbTarget {
-    cpu: Cpu<CaliptraRootBus>,
+    cpu: Cpu<MracBus<CaliptraRootBus>>,
     exec_mode: ExecMode,
     breakpoints: Vec<u32>,
 }
 
 impl GdbTarget {
     // Create new instance of GdbTarget
-    pub fn new(cpu: Cpu<CaliptraRootBus>) -> Self {
+    pub fn new(cpu: Cpu<MracBus<CaliptraRootBus>>) -> Self {
         Self {
             cpu,
             exec_mode: ExecMode::Continue,

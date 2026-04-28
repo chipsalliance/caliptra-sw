@@ -29,14 +29,14 @@ use std::{
 /// # Example
 ///
 /// ```
-/// use caliptra_emu_bus::{Bus, BusError, Timer, ActionHandle};
+/// use caliptra_emu_bus::{Bus, BusAccessType, BusError, Timer, ActionHandle};
 /// use caliptra_emu_types::{RvAddr, RvData, RvSize};
 /// struct MyPeriph {
 ///     timer: Timer,
 ///     action0: Option<ActionHandle>,
 /// }
 /// impl Bus for MyPeriph {
-///     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+///     fn read(&mut self, size: RvSize, addr: RvAddr, _access_type: BusAccessType) -> Result<RvData, BusError> {
 ///         Ok(0)
 ///     }
 ///     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {

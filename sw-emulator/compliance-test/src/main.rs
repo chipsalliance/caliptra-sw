@@ -13,10 +13,11 @@ Abstract:
 --*/
 
 use crate::test_builder::{TestBuilder, TestBuilderConfig};
-use caliptra_emu_bus::{Bus, Clock, Ram};
+use caliptra_emu_bus::{Bus, BusAccessType, Clock, Ram};
 use caliptra_emu_cpu::{Cpu, CpuArgs, Pic, StepAction};
 use caliptra_emu_types::RvSize;
 use clap::{arg, value_parser};
+use std::cell::Cell;
 use std::error::Error;
 use std::io::ErrorKind;
 use std::path::PathBuf;
@@ -115,7 +116,7 @@ fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Resu
     let mut addr = 0x1000;
     for line in expected_txt.lines() {
         let expected_word = u32::from_str_radix(line, 16).map_err(into_io_error)?;
-        let actual_word = match bus.read(RvSize::Word, addr) {
+        let actual_word = match bus.read(RvSize::Word, addr, BusAccessType::DataLoad) {
             Ok(val) => val,
             Err(err) => {
                 return Err(into_io_error(format!(
@@ -139,7 +140,9 @@ fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Resu
 }
 
 fn is_test_complete(bus: &mut impl Bus) -> bool {
-    bus.read(RvSize::Word, 0x0).unwrap() != 0
+    bus.read(RvSize::Word, 0x0, BusAccessType::DataLoad)
+        .unwrap()
+        != 0
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -166,7 +169,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let pic = Rc::new(Pic::new());
         let clock = Rc::new(Clock::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(Ram::new(binary), clock, pic, args);
+        let mut cpu = Cpu::new(Ram::new(binary), clock, pic, args, Rc::new(Cell::new(0)));
         cpu.write_pc(0x3000);
         while !is_test_complete(&mut cpu.bus) {
             match cpu.step(None) {
@@ -197,7 +200,13 @@ mod tests {
         ram_bytes.extend(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(Ram::new(ram_bytes), Rc::new(Clock::new()), pic, args);
+        let mut cpu = Cpu::new(
+            Ram::new(ram_bytes),
+            Rc::new(Clock::new()),
+            pic,
+            args,
+            Rc::new(Cell::new(0)),
+        );
 
         check_reference_data("03020100\n07060504\n", &mut cpu.bus).unwrap();
         assert_eq!(

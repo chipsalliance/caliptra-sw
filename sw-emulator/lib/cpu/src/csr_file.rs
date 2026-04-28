@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::internal_timers::InternalTimers;
@@ -77,6 +78,9 @@ impl Csr {
 
     /// Interrupt Pending CSR
     pub const MIP: RvAddr = 0x344;
+
+    /// Memory region access control CSR
+    pub const MRAC: RvAddr = 0x7C0;
 
     /// Power management const CSR
     pub const MPMC: RvAddr = 0x7C6;
@@ -230,6 +234,8 @@ pub struct CsrFile {
     pub(crate) internal_timers: InternalTimers,
     /// Reference to PIC
     pic: Rc<Pic>,
+    /// Shared MRAC value (synced with MracBus wrapper)
+    mrac: Rc<Cell<u32>>,
 }
 
 /// Initalise a CSR read/write function in the CSR table
@@ -295,6 +301,7 @@ impl CsrFile {
         );
         csr_fn!(table, Csr::MIP, CsrFile::mip_read, CsrFile::mip_write);
         csr_fn!(table, Csr::MIE, CsrFile::system_read, CsrFile::mie_write);
+        csr_fn!(table, Csr::MRAC, CsrFile::system_read, CsrFile::mrac_write);
         csr_fn!(table, Csr::MPMC, CsrFile::system_read, CsrFile::mpmc_write);
         csr_fn!(
             table,
@@ -372,7 +379,7 @@ impl CsrFile {
     };
 
     /// Create a new Configuration and status register file
-    pub fn new(clock: Rc<Clock>, pic: Rc<Pic>) -> Self {
+    pub fn new(clock: Rc<Clock>, pic: Rc<Pic>, mrac: Rc<Cell<u32>>) -> Self {
         let mut csrs = Box::new([Csr::default(); CsrFile::CSR_COUNT]);
 
         csr_val!(csrs, Csr::MISA, 0x4010_1104, 0x0000_0000);
@@ -389,6 +396,7 @@ impl CsrFile {
         csr_val!(csrs, Csr::MCAUSE, 0x0000_0000, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MTVAL, 0x0000_0000, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MIP, 0x0000_0000, 0xFFFF_FFFF);
+        csr_val!(csrs, Csr::MRAC, 0x0000_0000, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MPMC, 0x0000_0002, 0x0000_0002);
         csr_val!(csrs, Csr::MSECCFG, 0x0000_0000, 0x0000_0003);
         csr_val!(csrs, Csr::MCYCLE, 0x0000_0000, 0xFFFF_FFFF);
@@ -425,6 +433,7 @@ impl CsrFile {
             max_pmpcfgi: None,
             internal_timers: crate::internal_timers::InternalTimers::new(clock.clone()),
             pic,
+            mrac,
         }
     }
 
@@ -587,6 +596,28 @@ impl CsrFile {
         );
         // Let's see if the soc wants to interrupt
         self.timer.schedule_poll_in(2);
+        Ok(())
+    }
+
+    /// Perform a write to the MRAC CSR, syncing to the shared MracBus value.
+    fn mrac_write(
+        &mut self,
+        priv_mode: RvPrivMode,
+        addr: RvAddr,
+        val: RvData,
+    ) -> Result<(), RvException> {
+        // HW maps illegal combination 11 (cacheable+sideeffect) to 10 (sideeffect)
+        let mut sanitized = val;
+        for region in 0..16u32 {
+            let shift = region * 2;
+            let bits = (sanitized >> shift) & 0b11;
+            if bits == 0b11 {
+                sanitized = (sanitized & !(0b11 << shift)) | (0b10 << shift);
+            }
+        }
+        self.system_write(priv_mode, addr, sanitized)?;
+        let csr = self.csrs[addr as usize];
+        self.mrac.set(csr.val);
         Ok(())
     }
 
@@ -1061,6 +1092,7 @@ fn decode_napot_pmpaddr(addr: u32) -> (u64, u64) {
 mod tests {
 
     use super::*;
+    use std::cell::Cell;
     use std::rc::Rc;
 
     #[test]
@@ -1091,7 +1123,7 @@ mod tests {
     fn test_u_mode_read_m_mode_csr() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let csrs = CsrFile::new(clock, pic);
+        let csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(
             csrs.read(RvPrivMode::U, Csr::MSTATUS).err(),
@@ -1107,7 +1139,7 @@ mod tests {
     fn test_cycle() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let csrs = CsrFile::new(clock.clone(), pic);
+        let csrs = CsrFile::new(clock.clone(), pic, Rc::new(Cell::new(0)));
         clock.increment(0x1234_5678_9abc);
 
         assert_eq!(csrs.read(RvPrivMode::M, Csr::MCYCLE), Ok(0x5678_9abc));
@@ -1118,7 +1150,7 @@ mod tests {
     fn test_u_mode_write_m_mode_csr() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(
             csrs.write(RvPrivMode::U, Csr::MSTATUS, 0xFFFF_FFFF).err(),
@@ -1134,7 +1166,7 @@ mod tests {
     fn test_u_mode_read_write_pmp() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(
             csrs.write(RvPrivMode::U, Csr::PMPCFG_START, 0xFFFF_FFFF)
@@ -1197,7 +1229,7 @@ mod tests {
     fn test_m_mode_read_write_pmp() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::PMPCFG_START, 0x1717_1717)
@@ -1243,7 +1275,7 @@ mod tests {
     fn test_lock_pmp() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         // Lock PMPADDR1, but not PMPADDR0, 2, or 3.
         assert_eq!(
@@ -1343,7 +1375,7 @@ mod tests {
     fn test_pmp_tor_lock() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         // Set PMP2CFG to TOR and lock
         assert_eq!(
@@ -1398,7 +1430,7 @@ mod tests {
     fn test_read_only_csr() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(csrs.read(RvPrivMode::M, Csr::MISA).ok(), Some(0x4010_1104));
         assert_eq!(
@@ -1412,7 +1444,7 @@ mod tests {
     fn test_read_write_csr() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
         assert_eq!(csrs.read(RvPrivMode::M, Csr::MEPC).ok(), Some(0));
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::MEPC, u32::MAX).ok(),
@@ -1425,7 +1457,7 @@ mod tests {
     fn test_mseccfg_csr_sticky() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::MSECCFG, 0xFFFF_FFFF).ok(),
             Some(())
@@ -1448,7 +1480,7 @@ mod tests {
     fn test_mstatus_invalid_mpp() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::MSTATUS, 0x0000_1800).ok(),
             Some(())
@@ -1479,7 +1511,7 @@ mod tests {
     fn test_read_write_masked_csr() {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
-        let mut csrs = CsrFile::new(clock, pic);
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
 
         assert_eq!(
             csrs.read(RvPrivMode::M, Csr::MSTATUS).ok(),

@@ -30,7 +30,12 @@ pub struct VerilatedAxiBus<'a> {
     model: &'a mut ModelVerilated,
 }
 impl<'a> Bus for VerilatedAxiBus<'a> {
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: caliptra_emu_bus::BusAccessType,
+    ) -> Result<RvData, caliptra_emu_bus::BusError> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
