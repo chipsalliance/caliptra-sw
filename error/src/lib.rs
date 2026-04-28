@@ -1878,6 +1878,21 @@ impl CaliptraError {
             0x000E009B,
             "Runtime Error: Disable attestation failed during PCR validation"
         ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVIATION_FAILED,
+            0x000E009C,
+            "Runtime Error: Sign with exported MLDSA key derivation failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED,
+            0x000E009D,
+            "Runtime Error: Sign with exported MLDSA signature failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE,
+            0x000E009E,
+            "Runtime Error: Sign with exported MLDSA invalid signature"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
