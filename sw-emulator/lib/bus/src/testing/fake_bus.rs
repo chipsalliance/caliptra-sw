@@ -11,9 +11,8 @@ Abstract:
     File contains code for a fake implementation of the Bus trait.
 
 --*/
-use caliptra_emu_types::{RvAddr, RvData, RvSize};
-
 use crate::{testing::Log, Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::fmt::Write;
 
 /// A Bus implementation that logs all calls, and allows the user to override

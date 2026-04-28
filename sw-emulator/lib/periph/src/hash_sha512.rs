@@ -11,7 +11,6 @@ Abstract:
     File contains SHA512 peripheral implementation.
 
 --*/
-
 use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;

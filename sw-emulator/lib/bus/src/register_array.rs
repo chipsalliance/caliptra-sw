@@ -106,7 +106,6 @@ mod tests {
     use tock_registers::register_bitfields;
 
     use super::*;
-
     register_bitfields! [
         u32,
 

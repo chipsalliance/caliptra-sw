@@ -11,7 +11,6 @@ Abstract:
     File contains the axi root bus peripheral.
 
 --*/
-
 use crate::dma::encryption_engine::EncryptionEngine;
 use crate::dma::recovery::RecoveryRegisterInterface;
 use crate::helpers::words_from_bytes_le_vec;

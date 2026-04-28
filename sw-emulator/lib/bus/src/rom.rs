@@ -11,7 +11,6 @@ Abstract:
     File contains implementation of ROM
 
 --*/
-
 use crate::mem::Mem;
 use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -119,7 +118,7 @@ mod tests {
     fn test_read_error() {
         let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            rom.read(RvSize::Byte, rom.len()).err(),
+            rom.read(RvSize::Byte, rom.len() as RvAddr).err(),
             Some(BusError::LoadAccessFault),
         )
     }

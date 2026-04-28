@@ -11,7 +11,6 @@ Abstract:
     File contains implementation of various register types used by peripherals
 
 --*/
-
 use crate::mem::Mem;
 use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
