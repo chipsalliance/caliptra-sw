@@ -2567,7 +2567,12 @@ impl FpgaRealtimeBus<'_> {
 }
 
 impl Bus for FpgaRealtimeBus<'_> {
-    fn read(&mut self, _size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        _size: RvSize,
+        addr: RvAddr,
+        _access_type: caliptra_emu_bus::BusAccessType,
+    ) -> Result<RvData, BusError> {
         if let Some(ptr) = self.ptr_for_addr(addr) {
             Ok(unsafe { ptr.read_volatile() })
         } else {

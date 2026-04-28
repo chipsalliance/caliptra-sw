@@ -330,7 +330,7 @@ impl HashSha256 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
@@ -348,12 +348,16 @@ mod tests {
     fn test_name_read() {
         let mut sha256 = HashSha256::new(&Clock::new());
 
-        let name0 = sha256.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = sha256
+            .read(RvSize::Word, OFFSET_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let mut name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
         name0.pop();
         assert_eq!(name0, "256");
 
-        let name1 = sha256.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = sha256
+            .read(RvSize::Word, OFFSET_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
         assert_eq!(name1, "sha2");
     }
@@ -362,11 +366,15 @@ mod tests {
     fn test_version_read() {
         let mut sha256 = HashSha256::new(&Clock::new());
 
-        let version0 = sha256.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = sha256
+            .read(RvSize::Word, OFFSET_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = sha256.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = sha256
+            .read(RvSize::Word, OFFSET_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -374,13 +382,23 @@ mod tests {
     #[test]
     fn test_control_read() {
         let mut sha256 = HashSha256::new(&Clock::new());
-        assert_eq!(sha256.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
+        assert_eq!(
+            sha256
+                .read(RvSize::Word, OFFSET_CONTROL, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
     fn test_status_read() {
         let mut sha256 = HashSha256::new(&Clock::new());
-        assert_eq!(sha256.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+        assert_eq!(
+            sha256
+                .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -388,7 +406,12 @@ mod tests {
         let mut sha256 = HashSha256::new(&Clock::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + SHA256_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(sha256.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
-            assert_eq!(sha256.read(RvSize::Word, addr).ok(), Some(u32::MAX));
+            assert_eq!(
+                sha256
+                    .read(RvSize::Word, addr, BusAccessType::DataLoad)
+                    .ok(),
+                Some(u32::MAX)
+            );
         }
     }
 
@@ -396,7 +419,12 @@ mod tests {
     fn test_hash_read_write() {
         let mut sha256 = HashSha256::new(&Clock::new());
         for addr in (OFFSET_HASH..(OFFSET_HASH + SHA256_HASH_SIZE as u32)).step_by(4) {
-            assert_eq!(sha256.read(RvSize::Word, addr).ok(), Some(0));
+            assert_eq!(
+                sha256
+                    .read(RvSize::Word, addr, BusAccessType::DataLoad)
+                    .ok(),
+                Some(0)
+            );
             assert_eq!(
                 sha256.write(RvSize::Word, addr, 0xFF).err(),
                 Some(BusError::StoreAccessFault)
@@ -473,7 +501,9 @@ mod tests {
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    sha256.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    sha256
+                        .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
 
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -585,7 +615,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                sha256.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                sha256
+                    .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {

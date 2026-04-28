@@ -252,7 +252,7 @@ mod tests {
     use super::*;
     use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam, Mci};
     use caliptra_api_types::SecurityState;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use std::rc::Rc;
@@ -320,7 +320,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                doe.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {
@@ -392,7 +393,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                doe.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {
@@ -461,7 +463,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                doe.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {
@@ -522,7 +525,8 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
-                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                doe.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(Status::VALID) {

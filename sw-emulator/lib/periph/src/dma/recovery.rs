@@ -523,7 +523,7 @@ impl Default for RecoveryRegisterInterface {
 
 #[cfg(test)]
 mod tests {
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_types::RvAddr;
 
     use super::*;
@@ -545,14 +545,25 @@ mod tests {
         rri.write(RvSize::Word, INDIRECT_FIFO_CTRL0, INDIRECT_FIFO_RESET)
             .unwrap();
 
-        let a = rri.read(RvSize::Word, INDIRECT_FIFO_CTRL0).unwrap();
-        let b = rri.read(RvSize::Word, INDIRECT_FIFO_CTRL1).unwrap();
+        let a = rri
+            .read(RvSize::Word, INDIRECT_FIFO_CTRL0, BusAccessType::DataLoad)
+            .unwrap();
+        let b = rri
+            .read(RvSize::Word, INDIRECT_FIFO_CTRL1, BusAccessType::DataLoad)
+            .unwrap();
         let image_size = (a & 0xffff_0000) | (b & 0xffff);
         assert_eq!(image_len, image_size as usize * 4);
 
         let mut read_image = Vec::new();
-        while rri.read(RvSize::Word, INDIRECT_FIFO_STATUS).unwrap() & 1 == 0 {
-            let dword_read = rri.read(RvSize::Word, INDIRECT_FIFO_DATA).unwrap();
+        while rri
+            .read(RvSize::Word, INDIRECT_FIFO_STATUS, BusAccessType::DataLoad)
+            .unwrap()
+            & 1
+            == 0
+        {
+            let dword_read = rri
+                .read(RvSize::Word, INDIRECT_FIFO_DATA, BusAccessType::DataLoad)
+                .unwrap();
             let bytes = dword_read.to_le_bytes();
             read_image.extend_from_slice(&bytes);
         }

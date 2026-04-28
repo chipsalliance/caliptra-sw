@@ -4,7 +4,7 @@ use crate::aes_clp::AesKeyReleaseOp;
 use crate::helpers::words_from_bytes_be;
 use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes256;
-use caliptra_emu_bus::{Bus, BusError, Event, ReadWriteRegister};
+use caliptra_emu_bus::{Bus, BusAccessType, BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_crypto::{Aes256Cbc, Aes256Ctr, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
@@ -601,8 +601,15 @@ impl Aes {
 
 impl Bus for Aes {
     /// Read data of specified size from given address
-    fn read(&mut self, size: RvSize, addr: caliptra_emu_types::RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().read(size, addr)
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(size, addr, BusAccessType::DataLoad)
     }
 
     /// Write data of specified size to given address

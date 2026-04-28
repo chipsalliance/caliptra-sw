@@ -14,6 +14,7 @@ Abstract:
 
 use std::{io::ErrorKind, ops::RangeInclusive};
 
+use crate::bus::BusAccessType;
 use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
@@ -74,10 +75,17 @@ impl DynamicBus {
 }
 
 impl Bus for DynamicBus {
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
         let dev = self.devs.iter_mut().find(|d| d.mmap_range.contains(&addr));
         match dev {
-            Some(dev) => dev.bus.read(size, addr - dev.mmap_range.start()),
+            Some(dev) => dev
+                .bus
+                .read(size, addr - dev.mmap_range.start(), _access_type),
             None => Err(BusError::LoadAccessFault),
         }
     }
@@ -107,10 +115,16 @@ mod test {
         let mut bus = DynamicBus::new();
         let rom = Rom::new(vec![1, 2]);
         bus.attach_dev("ROM0", 1..=2, Box::new(rom)).unwrap();
-        assert_eq!(bus.read(RvSize::Byte, 1).ok(), Some(1));
-        assert_eq!(bus.read(RvSize::Byte, 2).ok(), Some(2));
         assert_eq!(
-            bus.read(RvSize::Byte, 3).err(),
+            bus.read(RvSize::Byte, 1, BusAccessType::DataLoad).ok(),
+            Some(1)
+        );
+        assert_eq!(
+            bus.read(RvSize::Byte, 2, BusAccessType::DataLoad).ok(),
+            Some(2)
+        );
+        assert_eq!(
+            bus.read(RvSize::Byte, 3, BusAccessType::DataLoad).err(),
             Some(BusError::LoadAccessFault),
         );
     }
@@ -121,9 +135,15 @@ mod test {
         let rom = Ram::new(vec![1, 2]);
         bus.attach_dev("RAM0", 1..=2, Box::new(rom)).unwrap();
         assert_eq!(bus.write(RvSize::Byte, 1, 3).ok(), Some(()));
-        assert_eq!(bus.read(RvSize::Byte, 1).ok(), Some(3));
+        assert_eq!(
+            bus.read(RvSize::Byte, 1, BusAccessType::DataLoad).ok(),
+            Some(3)
+        );
         assert_eq!(bus.write(RvSize::Byte, 2, 4).ok(), Some(()));
-        assert_eq!(bus.read(RvSize::Byte, 2).ok(), Some(4));
+        assert_eq!(
+            bus.read(RvSize::Byte, 2, BusAccessType::DataLoad).ok(),
+            Some(4)
+        );
         assert_eq!(
             bus.write(RvSize::Byte, 3, 0).err(),
             Some(BusError::StoreAccessFault),

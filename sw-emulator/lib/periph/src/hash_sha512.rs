@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_emu_bus::BusAccessType;
+
 use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;
@@ -714,8 +716,15 @@ impl HashSha512 {
 
 impl Bus for HashSha512 {
     /// Read data of specified size from given address
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().read(size, addr)
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(size, addr, BusAccessType::DataLoad)
     }
 
     /// Write data of specified size to given address
@@ -757,12 +766,16 @@ mod tests {
     fn test_name_read() {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
 
-        let name0 = sha512.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = sha512
+            .read(RvSize::Word, OFFSET_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let mut name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
         name0.pop();
         assert_eq!(name0, "512");
 
-        let name1 = sha512.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = sha512
+            .read(RvSize::Word, OFFSET_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
         assert_eq!(name1, "sha2");
     }
@@ -771,11 +784,15 @@ mod tests {
     fn test_version_read() {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
 
-        let version0 = sha512.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = sha512
+            .read(RvSize::Word, OFFSET_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = sha512.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = sha512
+            .read(RvSize::Word, OFFSET_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -783,13 +800,23 @@ mod tests {
     #[test]
     fn test_control_read() {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
-        assert_eq!(sha512.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
+        assert_eq!(
+            sha512
+                .read(RvSize::Word, OFFSET_CONTROL, BusAccessType::DataLoad)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
     fn test_status_read() {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
-        assert_eq!(sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+        assert_eq!(
+            sha512
+                .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -797,7 +824,12 @@ mod tests {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + SHA512_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(sha512.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
-            assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(u32::MAX));
+            assert_eq!(
+                sha512
+                    .read(RvSize::Word, addr, BusAccessType::DataLoad)
+                    .ok(),
+                Some(u32::MAX)
+            );
         }
     }
 
@@ -805,7 +837,12 @@ mod tests {
     fn test_hash_read_write() {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_HASH..(OFFSET_HASH + SHA512_HASH_SIZE as u32)).step_by(4) {
-            assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(0));
+            assert_eq!(
+                sha512
+                    .read(RvSize::Word, addr, BusAccessType::DataLoad)
+                    .ok(),
+                Some(0)
+            );
             assert_eq!(sha512.write(RvSize::Word, addr, 0xFF).err(), None);
         }
     }
@@ -997,7 +1034,9 @@ mod tests {
                 // Wait for sha512 periph to retrieve the block from the key-vault.
                 loop {
                     let block_read_status = InMemoryRegister::<u32, BlockReadStatus::Register>::new(
-                        sha512.read(RvSize::Word, OFFSET_BLOCK_STATUS).unwrap(),
+                        sha512
+                            .read(RvSize::Word, OFFSET_BLOCK_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if block_read_status.is_set(BlockReadStatus::VALID) {
@@ -1045,7 +1084,9 @@ mod tests {
             loop {
                 if !hash_to_kv {
                     let status = InMemoryRegister::<u32, Status::Register>::new(
-                        sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                        sha512
+                            .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if status.is_set(Status::VALID) && status.is_set(Status::READY) {
@@ -1053,7 +1094,9 @@ mod tests {
                     }
                 } else {
                     let hash_write_status = InMemoryRegister::<u32, HashWriteStatus::Register>::new(
-                        sha512.read(RvSize::Word, OFFSET_HASH_STATUS).unwrap(),
+                        sha512
+                            .read(RvSize::Word, OFFSET_HASH_STATUS, BusAccessType::DataLoad)
+                            .unwrap(),
                     );
 
                     if hash_write_status.is_set(HashWriteStatus::VALID) {
@@ -1261,7 +1304,9 @@ mod tests {
         // Wait for sha512 periph to retrieve the pcr from the key-vault.
         loop {
             let block_read_status = InMemoryRegister::<u32, BlockReadStatus::Register>::new(
-                sha512.read(RvSize::Word, OFFSET_BLOCK_STATUS).unwrap(),
+                sha512
+                    .read(RvSize::Word, OFFSET_BLOCK_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
             if block_read_status.is_set(BlockReadStatus::VALID) {
                 break;
@@ -1317,7 +1362,9 @@ mod tests {
             );
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
-                    sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                    sha512
+                        .read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;

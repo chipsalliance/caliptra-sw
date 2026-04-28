@@ -17,9 +17,10 @@ use crate::{
     mci::Mci, Aes, KeyUsage, KeyVault, MailboxRam, Sha512Accelerator, SocRegistersInternal,
 };
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
-    WriteOnlyRegister,
+    ActionHandle, Bus, BusAccessType, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister,
+    Timer, WriteOnlyRegister,
 };
+
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::borrow::BorrowMut;
@@ -493,7 +494,11 @@ impl Dma {
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = mbox_ram
-                .read(Self::AXI_DATA_WIDTH.into(), i as RvAddr)
+                .read(
+                    Self::AXI_DATA_WIDTH.into(),
+                    i as RvAddr,
+                    BusAccessType::DataLoad,
+                )
                 .unwrap();
             self.axi
                 .write(Self::AXI_DATA_WIDTH.into(), addr, data)
@@ -702,14 +707,17 @@ mod tests {
         dma.write(RvSize::Word, CTRL_OFFSET, ctrl.get()).unwrap();
 
         while {
-            let status0 = dma.read(RvSize::Word, STATUS0_OFFSET).unwrap();
+            let status0 = dma
+                .read(RvSize::Word, STATUS0_OFFSET, BusAccessType::DataLoad)
+                .unwrap();
             let status0 = InMemoryRegister::<u32, Status0::Register>::new(status0);
             status0.is_set(Status0::BUSY)
         } {
             clock.increment_and_process_timer_actions(1, dma);
         }
 
-        dma.read(RvSize::Word, READ_DATA_OFFSET).unwrap()
+        dma.read(RvSize::Word, READ_DATA_OFFSET, BusAccessType::DataLoad)
+            .unwrap()
     }
 
     fn dma_write_u32(dma: &mut Dma, clock: &Clock, addr: AxiAddr, data: RvData) {
@@ -736,7 +744,9 @@ mod tests {
         dma.write(RvSize::Word, CTRL_OFFSET, ctrl.get()).unwrap();
 
         while {
-            let status0 = dma.read(RvSize::Word, STATUS0_OFFSET).unwrap();
+            let status0 = dma
+                .read(RvSize::Word, STATUS0_OFFSET, BusAccessType::DataLoad)
+                .unwrap();
             let status0 = InMemoryRegister::<u32, Status0::Register>::new(status0);
             status0.is_set(Status0::BUSY)
         } {

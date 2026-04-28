@@ -1459,7 +1459,7 @@ impl Abr {
 
 #[cfg(test)]
 mod tests {
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_types::RvAddr;
     use rand::Rng;
     use tock_registers::registers::InMemoryRegister;
@@ -1517,11 +1517,15 @@ mod tests {
 
         let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
-        let name0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME0).unwrap();
+        let name0 = ml_dsa87
+            .read(RvSize::Word, OFFSET_MLDSA_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
         assert_eq!(name0, "LMSD");
 
-        let name1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME1).unwrap();
+        let name1 = ml_dsa87
+            .read(RvSize::Word, OFFSET_MLDSA_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
         assert_eq!(name1, "-A78");
     }
@@ -1534,11 +1538,15 @@ mod tests {
 
         let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
-        let version0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION0).unwrap();
+        let version0 = ml_dsa87
+            .read(RvSize::Word, OFFSET_MLDSA_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, ".100");
 
-        let version1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION1).unwrap();
+        let version1 = ml_dsa87
+            .read(RvSize::Word, OFFSET_MLDSA_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -1551,7 +1559,9 @@ mod tests {
 
         let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
         assert_eq!(
-            ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_CONTROL).unwrap(),
+            ml_dsa87
+                .read(RvSize::Word, OFFSET_MLDSA_CONTROL, BusAccessType::DataLoad)
+                .unwrap(),
             0
         );
     }
@@ -1563,7 +1573,12 @@ mod tests {
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
         let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
-        assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(), 1);
+        assert_eq!(
+            ml_dsa87
+                .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -1597,7 +1612,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -1675,7 +1692,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -1769,7 +1788,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -1813,7 +1834,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -1885,7 +1908,11 @@ mod tests {
             loop {
                 let seed_read_status = InMemoryRegister::<u32, KvStatus::Register>::new(
                     ml_dsa87
-                        .read(RvSize::Word, OFFSET_MLDSA_KV_RD_SEED_STATUS)
+                        .read(
+                            RvSize::Word,
+                            OFFSET_MLDSA_KV_RD_SEED_STATUS,
+                            BusAccessType::DataLoad,
+                        )
                         .unwrap(),
                 );
 
@@ -1911,7 +1938,9 @@ mod tests {
 
             loop {
                 let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                    ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                    ml_dsa87
+                        .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                        .unwrap(),
                 );
                 if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                     break;
@@ -1979,7 +2008,9 @@ mod tests {
         // Wait for MSG_STREAM_READY status
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::MSG_STREAM_READY) {
@@ -2025,7 +2056,9 @@ mod tests {
         // Wait for operation to complete
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -2130,7 +2163,9 @@ mod tests {
         // Wait for MSG_STREAM_READY status
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::MSG_STREAM_READY) {
@@ -2176,7 +2211,9 @@ mod tests {
         // Wait for operation to complete
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -2355,7 +2392,9 @@ mod tests {
 
         loop {
             let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
+                ml_dsa87
+                    .read(RvSize::Word, OFFSET_MLDSA_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
@@ -2412,7 +2451,8 @@ mod tests {
         // Wait for completion
         loop {
             let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
@@ -2423,8 +2463,20 @@ mod tests {
         }
 
         // Verify keys were generated (non-zero)
-        let encaps_key_word = abr.read(RvSize::Word, OFFSET_MLKEM_ENCAPS_KEY).unwrap();
-        let decaps_key_word = abr.read(RvSize::Word, OFFSET_MLKEM_DECAPS_KEY).unwrap();
+        let encaps_key_word = abr
+            .read(
+                RvSize::Word,
+                OFFSET_MLKEM_ENCAPS_KEY,
+                BusAccessType::DataLoad,
+            )
+            .unwrap();
+        let decaps_key_word = abr
+            .read(
+                RvSize::Word,
+                OFFSET_MLKEM_DECAPS_KEY,
+                BusAccessType::DataLoad,
+            )
+            .unwrap();
 
         assert_ne!(encaps_key_word, 0);
         assert_ne!(decaps_key_word, 0);
@@ -2481,7 +2533,8 @@ mod tests {
         // Wait for completion
         loop {
             let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
@@ -2498,7 +2551,11 @@ mod tests {
         let mut ciphertext_readback = [0u32; ML_KEM_1024_CIPHERTEXT_SIZE / 4];
         for (i, c) in ciphertext_readback.iter_mut().enumerate() {
             *c = abr
-                .read(RvSize::Word, OFFSET_MLKEM_CIPHERTEXT + (i * 4) as RvAddr)
+                .read(
+                    RvSize::Word,
+                    OFFSET_MLKEM_CIPHERTEXT + (i * 4) as RvAddr,
+                    BusAccessType::DataLoad,
+                )
                 .unwrap();
         }
 
@@ -2544,7 +2601,8 @@ mod tests {
         // Wait for completion
         loop {
             let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
@@ -2625,7 +2683,8 @@ mod tests {
         // Wait for completion
         loop {
             let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS, BusAccessType::DataLoad)
+                    .unwrap(),
             );
 
             if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {

@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::bus::BusAccessType;
 use crate::mem::Mem;
 use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -65,7 +66,12 @@ impl Bus for Rom {
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
     ///                   or `BusExceptionCause::LoadAddrMisaligned`
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -107,10 +113,16 @@ mod tests {
     #[test]
     fn test_read() {
         let mut rom = Rom::new(vec![1, 2, 3, 4]);
-        assert_eq!(rom.read(RvSize::Byte, 0).ok(), Some(1));
-        assert_eq!(rom.read(RvSize::HalfWord, 0).ok(), Some(1 | (2 << 8)));
         assert_eq!(
-            rom.read(RvSize::Word, 0).ok(),
+            rom.read(RvSize::Byte, 0, BusAccessType::DataLoad).ok(),
+            Some(1)
+        );
+        assert_eq!(
+            rom.read(RvSize::HalfWord, 0, BusAccessType::DataLoad).ok(),
+            Some(1 | (2 << 8))
+        );
+        assert_eq!(
+            rom.read(RvSize::Word, 0, BusAccessType::DataLoad).ok(),
             Some(1 | (2 << 8) | (3 << 16) | (4 << 24))
         );
     }
@@ -119,7 +131,8 @@ mod tests {
     fn test_read_error() {
         let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            rom.read(RvSize::Byte, rom.len()).err(),
+            rom.read(RvSize::Byte, rom.len() as RvAddr, BusAccessType::DataLoad)
+                .err(),
             Some(BusError::LoadAccessFault),
         )
     }

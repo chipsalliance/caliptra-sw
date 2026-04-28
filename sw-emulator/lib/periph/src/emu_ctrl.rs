@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusAccessType, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::process::exit;
 
@@ -54,7 +54,12 @@ impl Bus for EmuCtrl {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Word, EmuCtrl::ADDR_EXIT) => Ok(0),
             _ => Err(BusError::LoadAccessFault),

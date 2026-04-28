@@ -15,7 +15,7 @@ Abstract:
 use std::{cell::RefCell, rc::Rc, sync::mpsc};
 
 use bitfield::size_of;
-use caliptra_emu_bus::{Bus, BusError, Device, Event, EventData};
+use caliptra_emu_bus::{Bus, BusAccessType, BusError, Device, Event, EventData};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use sha2::{Digest, Sha384};
@@ -475,8 +475,15 @@ impl Mci {
 
 impl Bus for Mci {
     /// Read data of specified size from given address
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().read(size, addr)
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(size, addr, BusAccessType::DataLoad)
     }
 
     /// Write data of specified size to given address

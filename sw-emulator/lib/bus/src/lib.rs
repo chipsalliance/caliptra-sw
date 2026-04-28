@@ -17,17 +17,19 @@ mod dynamic_bus;
 mod event;
 mod mem;
 mod mmio;
+pub mod mrac_bus;
 mod ram;
 mod register;
 mod register_array;
 mod rom;
 pub mod testing;
 
-pub use crate::bus::{Bus, BusError};
+pub use crate::bus::{Bus, BusAccessType, BusError};
 pub use crate::clock::{ActionHandle, Clock, Timer, TimerAction};
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::event::{Device, Event, EventData, RecoveryCommandCode};
 pub use crate::mmio::BusMmio;
+pub use crate::mrac_bus::MracBus;
 pub use crate::ram::{AlignedRam, Ram};
 pub use crate::register::{
     ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,

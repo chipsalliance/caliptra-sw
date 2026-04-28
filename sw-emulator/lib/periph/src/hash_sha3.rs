@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_emu_bus::BusAccessType;
+
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister};
 use caliptra_emu_crypto::Sha3;
 use caliptra_emu_derive::Bus;
@@ -201,7 +203,12 @@ struct MsgFifo {
 }
 
 impl caliptra_emu_bus::Bus for MsgFifo {
-    fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(
+        &mut self,
+        _size: RvSize,
+        _addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
         Ok(0)
     }
 
@@ -424,11 +431,15 @@ mod tests {
     fn test_name() {
         let mut sha3 = HashSha3::new();
 
-        let name0 = sha3.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = sha3
+            .read(RvSize::Word, OFFSET_NAME0, BusAccessType::DataLoad)
+            .unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
         assert_eq!(name0, "hmac");
 
-        let name1 = sha3.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = sha3
+            .read(RvSize::Word, OFFSET_NAME1, BusAccessType::DataLoad)
+            .unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
         assert_eq!(name1, "sha3");
     }
@@ -438,11 +449,15 @@ mod tests {
     fn test_version() {
         let mut sha3 = HashSha3::new();
 
-        let version0 = sha3.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = sha3
+            .read(RvSize::Word, OFFSET_VERSION0, BusAccessType::DataLoad)
+            .unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = sha3.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = sha3
+            .read(RvSize::Word, OFFSET_VERSION1, BusAccessType::DataLoad)
+            .unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
@@ -451,7 +466,8 @@ mod tests {
     fn test_status() {
         let mut sha3 = HashSha3::new();
         let status = InMemoryRegister::<u32, Status::Register>::new(
-            sha3.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            sha3.read(RvSize::Word, OFFSET_STATUS, BusAccessType::DataLoad)
+                .unwrap(),
         );
 
         assert!(status.is_set(Status::SHA3_IDLE));
@@ -474,7 +490,8 @@ mod tests {
         .unwrap();
 
         let cfg = InMemoryRegister::<u32, CfgShadowed::Register>::new(
-            sha3.read(RvSize::Word, OFFSET_CFG_SHADOWED).unwrap(),
+            sha3.read(RvSize::Word, OFFSET_CFG_SHADOWED, BusAccessType::DataLoad)
+                .unwrap(),
         );
 
         assert_eq!(cfg.read(CfgShadowed::KSTRENGTH), Sha3Strength::L256.into());

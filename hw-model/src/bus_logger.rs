@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
 };
 
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusAccessType, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 #[derive(Clone)]
@@ -32,7 +32,12 @@ impl Write for LogFile {
 
 pub struct NullBus();
 impl Bus for NullBus {
-    fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
+    fn read(
+        &mut self,
+        _size: RvSize,
+        _addr: RvAddr,
+        _access_type: caliptra_emu_bus::BusAccessType,
+    ) -> Result<RvData, caliptra_emu_bus::BusError> {
         Err(BusError::LoadAccessFault)
     }
 
@@ -105,8 +110,13 @@ impl<TBus: Bus> BusLogger<TBus> {
     }
 }
 impl<TBus: Bus> Bus for BusLogger<TBus> {
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.bus.read(size, addr);
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: caliptra_emu_bus::BusAccessType,
+    ) -> Result<RvData, caliptra_emu_bus::BusError> {
+        let result = self.bus.read(size, addr, BusAccessType::DataLoad);
         self.log_read("UC", size, addr, result);
         result
     }

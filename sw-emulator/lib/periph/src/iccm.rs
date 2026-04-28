@@ -11,12 +11,12 @@ Abstract:
     File contains ICCM Implementation
 
 --*/
-use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusError;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Ram;
 use caliptra_emu_bus::Timer;
 use caliptra_emu_bus::TimerAction;
+use caliptra_emu_bus::{Bus, BusAccessType};
 use caliptra_emu_types::RvAddr;
 use caliptra_emu_types::RvData;
 use caliptra_emu_types::RvSize;
@@ -67,8 +67,16 @@ impl IccmImpl {
 
 impl Bus for Iccm {
     /// Read data of specified size from given address
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.iccm.ram.borrow_mut().read(size, addr)
+    fn read(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        _access_type: BusAccessType,
+    ) -> Result<RvData, BusError> {
+        self.iccm
+            .ram
+            .borrow_mut()
+            .read(size, addr, BusAccessType::DataLoad)
     }
 
     /// Write data of specified size to given address
@@ -120,12 +128,20 @@ mod tests {
         let clock = Clock::new();
         let mut iccm = Iccm::new(&clock);
         for word_offset in (0u32..ICCM_SIZE_BYTES as u32).step_by(4) {
-            assert_eq!(iccm.read(RvSize::Word, word_offset).unwrap(), 0);
+            assert_eq!(
+                iccm.read(RvSize::Word, word_offset, BusAccessType::DataLoad)
+                    .unwrap(),
+                0
+            );
             assert_eq!(
                 iccm.write(RvSize::Word, word_offset, u32::MAX).ok(),
                 Some(())
             );
-            assert_eq!(iccm.read(RvSize::Word, word_offset).ok(), Some(u32::MAX));
+            assert_eq!(
+                iccm.read(RvSize::Word, word_offset, BusAccessType::DataLoad)
+                    .ok(),
+                Some(u32::MAX)
+            );
         }
         assert_eq!(next_action(&clock), None);
     }
@@ -136,7 +152,11 @@ mod tests {
         let mut iccm = Iccm::new(&clock);
         iccm.lock();
         for word_offset in (0u32..ICCM_SIZE_BYTES as u32).step_by(4) {
-            assert_eq!(iccm.read(RvSize::Word, word_offset).unwrap(), 0);
+            assert_eq!(
+                iccm.read(RvSize::Word, word_offset, BusAccessType::DataLoad)
+                    .unwrap(),
+                0
+            );
             assert!(iccm.write(RvSize::Word, word_offset, u32::MAX).is_ok());
             assert_eq!(
                 next_action(&clock),

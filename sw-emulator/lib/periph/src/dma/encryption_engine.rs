@@ -24,7 +24,9 @@ use tock_registers::register_bitfields;
 macro_rules! assert_ctrl_eq {
     ($encryption_engine:ident, $target:expr) => {
         assert_eq!(
-            $encryption_engine.read(RvSize::Word, CTRL).unwrap(),
+            $encryption_engine
+                .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+                .unwrap(),
             $target.into()
         );
     };
@@ -360,7 +362,7 @@ impl EncryptionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::{Bus, BusAccessType};
     use caliptra_emu_types::RvAddr;
 
     fn write_test_metadata(encryption_engine: &mut EncryptionEngine) {
@@ -386,7 +388,9 @@ mod tests {
     }
 
     fn execute_command(encryption_engine: &mut EncryptionEngine, command: u32) -> Result<(), ()> {
-        let value = encryption_engine.read(RvSize::Word, CTRL).unwrap();
+        let value = encryption_engine
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap();
 
         // Check if the encryption engine is ready
         if value & Control::RDY::READY.value != Control::RDY::READY.value {
@@ -407,9 +411,13 @@ mod tests {
 
     fn wait_done(encryption_engine: &mut EncryptionEngine) -> Result<(), ()> {
         let mask = (Control::DONE::DONE + Control::RDY::READY).value;
-        let mut value = encryption_engine.read(RvSize::Word, CTRL).unwrap();
+        let mut value = encryption_engine
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap();
         while value & mask == Control::RDY::READY.value {
-            value = encryption_engine.read(RvSize::Word, CTRL).unwrap();
+            value = encryption_engine
+                .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+                .unwrap();
         }
 
         if value & Control::RDY::READY.value != Control::RDY::READY.value {
@@ -420,7 +428,9 @@ mod tests {
     }
 
     fn clear(encryption_engine: &mut EncryptionEngine) {
-        let mut v = encryption_engine.read(RvSize::Word, CTRL).unwrap();
+        let mut v = encryption_engine
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap();
         v |= Control::DONE::DONE.value;
         encryption_engine.write(RvSize::Word, CTRL, v).unwrap();
     }
@@ -481,7 +491,7 @@ mod tests {
         write_test_mek_entry(&mut ee);
 
         // Check if MEK SFRs are not readable
-        let mek = ee.read(RvSize::Word, MEK).unwrap();
+        let mek = ee.read(RvSize::Word, MEK, BusAccessType::DataLoad).unwrap();
         assert_eq!(mek, 0);
     }
 
@@ -882,7 +892,10 @@ mod tests {
         let mut ee = EncryptionEngine::new_init_fail_instance();
 
         // Check if the RDY bit is unset
-        let ready_value = ee.read(RvSize::Word, CTRL).unwrap() & Control::RDY::READY.value;
+        let ready_value = ee
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap()
+            & Control::RDY::READY.value;
         assert_eq!(ready_value, Control::RDY::NOT_READY.into());
     }
 
@@ -903,7 +916,10 @@ mod tests {
         wait_done(&mut ee).unwrap_err();
 
         // Check if the RDY bit is unset
-        let ready_value = ee.read(RvSize::Word, CTRL).unwrap() & Control::RDY::READY.value;
+        let ready_value = ee
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap()
+            & Control::RDY::READY.value;
         assert_eq!(ready_value, Control::RDY::NOT_READY.into());
     }
 
@@ -931,7 +947,10 @@ mod tests {
         clear(&mut ee);
 
         // Check if the RDY bit is unset
-        let ready_value = ee.read(RvSize::Word, CTRL).unwrap() & Control::RDY::READY.value;
+        let ready_value = ee
+            .read(RvSize::Word, CTRL, BusAccessType::DataLoad)
+            .unwrap()
+            & Control::RDY::READY.value;
         assert_eq!(ready_value, Control::RDY::NOT_READY.into());
     }
 }
