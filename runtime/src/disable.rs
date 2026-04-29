@@ -77,7 +77,7 @@ impl DisableAttestationCmd {
                     .set_mldsa_key_gen_seed_en(),
             )
             .into(),
-            HmacMode::Hmac384,
+            HmacMode::Hmac512,
         )?;
 
         Ok(())
@@ -113,19 +113,18 @@ impl DisableAttestationCmd {
             .fht
             .rt_dice_ecc_pub_key = pub_key;
 
-        // TODO(#3140): Derive the MLDSA Key Pair. This is causing a stack overflow and
-        // needs to be investigated.
-        // let key_id_rt_mldsa_keypair_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
-        // Crypto::hmac_kdf(
-        //     &mut drivers.hmac,
-        //     &mut drivers.trng,
-        //     key_id_rt_cdi,
-        //     b"",
-        //     None,
-        //     key_id_rt_mldsa_keypair_seed,
-        //     HmacMode::Hmac512,
-        //     KeyUsage::default().set_mldsa_key_gen_seed_en(),
-        // )?;
+        // Derive the MLDSA Key Pair seed.
+        let key_id_rt_mldsa_keypair_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
+        let _mldsa_key_pair = drivers.abr.with_mldsa87(|mut mldsa87| {
+            caliptra_common::crypto::Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut drivers.hmac,
+                &mut drivers.trng,
+                key_id_rt_cdi,
+                b"",
+                key_id_rt_mldsa_keypair_seed,
+            )
+        })?;
 
         // The MLDSA public key is not stored in the persistent data so it is
         // not updated as part of this function.
