@@ -10,9 +10,9 @@ use caliptra_auth_man_types::{
 #[cfg(feature = "runtime")]
 use caliptra_dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
 use caliptra_image_types::ZeroizeWithByteScrub;
+use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 

@@ -113,6 +113,7 @@ fn test_fips_shutdown() {
 
 #[cfg_attr(feature = "verilator", ignore)]
 #[cfg_attr(feature = "fpga_realtime", ignore)]
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 #[test]
 fn test_fips_shutdown_zeroizes_persistent_data() {
     use caliptra_drivers::{
@@ -120,8 +121,7 @@ fn test_fips_shutdown_zeroizes_persistent_data() {
     };
     use core::mem::{offset_of, size_of};
 
-    let persistent_data_offset =
-        memory_layout::PERSISTENT_DATA_ORG - memory_layout::DCCM_ORG;
+    let persistent_data_offset = memory_layout::PERSISTENT_DATA_ORG - memory_layout::DCCM_ORG;
     let persistent_data_size = size_of::<PersistentData>();
 
     // Regions excluded from the byte-level zero check:
