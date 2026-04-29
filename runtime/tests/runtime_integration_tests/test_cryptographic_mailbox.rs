@@ -3288,7 +3288,6 @@ fn test_derive_keys_from_stable_owner_key() {
         }
         let (mut model, _image_bundle) = start_rt_test_pqc_model(
             RuntimeTestArgs {
-                stop_at_rom: true,
                 subsystem_mode,
                 stable_owner_key_en: true,
                 ..Default::default()
@@ -3299,7 +3298,9 @@ fn test_derive_keys_from_stable_owner_key() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| m.ready_for_fw());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
         // Step 1: Derive the stable owner HMAC CMK
         let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
@@ -3470,6 +3471,64 @@ fn test_derive_keys_from_stable_owner_key() {
         let resp_bytes = model
             .mailbox_execute(verify_req.cmd_code().into(), verify_req.as_bytes().unwrap())
             .expect("ECDSA verify should succeed")
+            .unwrap();
+        let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+
+        // Step 2d: Derive an MLDSA key and use it to sign/verify
+        let mut kdf_req = CmHmacKdfCounterReq {
+            kin: stable_cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha384.into(),
+            key_usage: CmKeyUsage::Mldsa.into(),
+            key_size: 32,
+            label_size: 9,
+            ..Default::default()
+        };
+        kdf_req.label[..9].copy_from_slice(b"mldsa-key");
+        let mut kdf_req = MailboxReq::CmHmacKdfCounter(kdf_req);
+        kdf_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(
+                CommandId::CM_HMAC_KDF_COUNTER.into(),
+                kdf_req.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+        let mldsa_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
+            .unwrap()
+            .kout
+            .clone();
+
+        let mut sign_req = CmMldsaSignReq {
+            cmk: mldsa_cmk.clone(),
+            message_size: 16,
+            ..Default::default()
+        };
+        sign_req.message[..16].copy_from_slice(&[0xCDu8; 16]);
+        let mut sign_req = MailboxReq::CmMldsaSign(sign_req);
+        sign_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(sign_req.cmd_code().into(), sign_req.as_bytes().unwrap())
+            .unwrap()
+            .expect("MLDSA sign should succeed");
+        let sign_resp = CmMldsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+        assert_eq!(
+            sign_resp.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+
+        let mut verify_req = CmMldsaVerifyReq {
+            cmk: mldsa_cmk,
+            signature: sign_resp.signature,
+            message_size: 16,
+            ..Default::default()
+        };
+        verify_req.message[..16].copy_from_slice(&[0xCDu8; 16]);
+        let mut verify_req = MailboxReq::CmMldsaVerify(verify_req);
+        verify_req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(verify_req.cmd_code().into(), verify_req.as_bytes().unwrap())
+            .expect("MLDSA verify should succeed")
             .unwrap();
         let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);

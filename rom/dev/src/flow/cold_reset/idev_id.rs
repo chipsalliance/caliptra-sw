@@ -232,8 +232,12 @@ impl InitDevIdLayer {
         // Step 1: HKDF-Extract — HMAC(key=fixed_salt, data=HEK_seed_in_KV)
         // The salt is a fixed domain-separation string zero-padded to 64 bytes.
         let mut salt_bytes = [0u8; 64];
-        salt_bytes[..STABLE_OWNER_ROOT_KEY_LABEL.len()]
-            .copy_from_slice(STABLE_OWNER_ROOT_KEY_LABEL);
+        for (dst, src) in salt_bytes
+            .iter_mut()
+            .zip(STABLE_OWNER_ROOT_KEY_LABEL.iter())
+        {
+            *dst = *src;
+        }
         let salt = Array4x16::from(salt_bytes);
 
         // HEK seed is read via HMAC_BLOCK (allowed by hardware).
@@ -267,6 +271,7 @@ impl InitDevIdLayer {
                 )),
                 HmacMode::Hmac512,
             )?;
+            env.key_vault.set_key_write_lock(stable_owner);
             Ok(())
         })();
 

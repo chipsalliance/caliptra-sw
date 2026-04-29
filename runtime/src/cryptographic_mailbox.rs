@@ -2599,25 +2599,37 @@ impl Commands {
         // Prepend a domain-separation prefix to info and use as label for HMAC KDF
         const DOT_PREFIX: &[u8] = b"DOT Final";
         const OWNER_PREFIX: &[u8] = b"Stable Owner Key";
-        let prefix = match key_type {
-            CmStableKeyType::OwnerKey => OWNER_PREFIX,
-            _ => DOT_PREFIX,
-        };
-        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + OWNER_PREFIX.len()];
-        data[..prefix.len()].copy_from_slice(prefix);
-        data[prefix.len()..prefix.len() + CM_STABLE_KEY_INFO_SIZE_BYTES]
-            .copy_from_slice(&request.info);
-
         let mut tag: Array4x16 = Array4x16::default();
-        hmac_kdf(
-            &mut drivers.hmac,
-            (&Array4x16::from(k0)).into(),
-            &data[..prefix.len() + CM_STABLE_KEY_INFO_SIZE_BYTES],
-            None,
-            &mut drivers.trng,
-            (&mut tag).into(),
-            HmacMode::Hmac512,
-        )?;
+        match key_type {
+            CmStableKeyType::OwnerKey => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + OWNER_PREFIX.len()];
+                data[..OWNER_PREFIX.len()].copy_from_slice(OWNER_PREFIX);
+                data[OWNER_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    &mut drivers.hmac,
+                    (&Array4x16::from(k0)).into(),
+                    &data,
+                    None,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+            }
+            _ => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + DOT_PREFIX.len()];
+                data[..DOT_PREFIX.len()].copy_from_slice(DOT_PREFIX);
+                data[DOT_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    &mut drivers.hmac,
+                    (&Array4x16::from(k0)).into(),
+                    &data,
+                    None,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+            }
+        }
         let mut key_material = [0u8; 64];
         for (i, word) in tag.0.iter().enumerate() {
             key_material[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
