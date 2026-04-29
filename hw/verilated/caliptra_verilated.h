@@ -15,23 +15,50 @@ struct caliptra_verilated_sig_in {
   bool cptra_pwrgood;
   bool cptra_rst_b;
 
-  uint32_t paddr;
-  uint8_t pprot;
-  bool psel;
-  bool penable;
-  bool pwrite;
-  uint32_t pwdata;
-  uint32_t pauser;
+  // AXI Write Address Channel
+  uint8_t s_axi_awid;
+  uint32_t s_axi_awaddr;
+  uint8_t s_axi_awburst;
+  uint8_t s_axi_awsize;
+  uint8_t s_axi_awlen;
+  uint32_t s_axi_awuser;
+  bool s_axi_awvalid;
+  bool s_axi_awlock;
 
+  // AXI Write Data Channel
+  uint32_t s_axi_wdata;
+  uint8_t s_axi_wstrb;
+  bool s_axi_wvalid;
+  bool s_axi_wlast;
+
+  // AXI Write Response Channel
+  bool s_axi_bready;
+
+  // AXI Read Address Channel
+  uint8_t s_axi_arid;
+  uint32_t s_axi_araddr;
+  uint8_t s_axi_arburst;
+  uint8_t s_axi_arsize;
+  uint8_t s_axi_arlen;
+  uint32_t s_axi_aruser;
+  bool s_axi_arvalid;
+  bool s_axi_arlock;
+
+  // AXI Read Data Channel
+  bool s_axi_rready;
+
+  // ROM backdoor write
   bool imem_we;
   uint32_t imem_addr;
   uint64_t imem_wdata;
 
+  // TRNG
   uint8_t itrng_data;
   bool itrng_valid;
 
   uint8_t sram_error_injection_mode;
 
+  // SRAM backdoor writes
   bool ext_iccm_we;
   bool ext_dccm_we;
   bool ext_mbox_we;
@@ -42,35 +69,43 @@ struct caliptra_verilated_sig_in {
 
 struct caliptra_verilated_sig_out {
   bool ready_for_fuses;
-  bool ready_for_fw_push;
+  bool ready_for_mb_processing;
 
-  bool pready;
-  bool pslverr;
-  uint32_t prdata;
+  // AXI Write Address Channel
+  bool s_axi_awready;
+
+  // AXI Write Data Channel
+  bool s_axi_wready;
+
+  // AXI Write Response Channel
+  uint8_t s_axi_bid;
+  uint8_t s_axi_bresp;
+  bool s_axi_bvalid;
+
+  // AXI Read Address Channel
+  bool s_axi_arready;
+
+  // AXI Read Data Channel
+  uint8_t s_axi_rid;
+  uint32_t s_axi_rdata;
+  uint8_t s_axi_rresp;
+  bool s_axi_rlast;
+  bool s_axi_rvalid;
 
   uint64_t generic_output_wires;
 
   bool etrng_req;
 
-  uint32_t uc_haddr;
-  uint8_t uc_hburst;
-  bool uc_hmastlock;
-  uint8_t uc_hprot;
-  uint8_t uc_hsize;
-  uint8_t uc_htrans;
-  bool uc_hwrite;
-  uint64_t uc_hwdata;
-
-  uint64_t uc_hrdata;
-  bool uc_hready;
-  bool uc_hresp;
-
   bool cptra_error_fatal;
 };
 
 struct caliptra_verilated_init_args {
+  // security_state is a packed struct:
+  // [2:1] = device_lifecycle (UNPROVISIONED=0, MANUFACTURING=1, PRODUCTION=3)
+  // [0]   = debug_locked
   uint32_t security_state;
   uint32_t cptra_obf_key[8];
+  uint32_t cptra_csr_hmac_key[16];
 };
 
 // Constructs a new model. Model must eventually be destroyed with

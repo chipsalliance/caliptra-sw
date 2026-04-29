@@ -451,6 +451,7 @@ pub enum ModelError {
     FuseDoneNotSet,
     FusesAlreadyInitialized,
     StashMeasurementFailed,
+    SubsystemSramError,
 }
 
 impl From<CaliptraApiError> for ModelError {
@@ -578,6 +579,9 @@ impl Display for ModelError {
             }
             ModelError::StashMeasurementFailed => {
                 write!(f, "Stash measurement request failed")
+            }
+            ModelError::SubsystemSramError => {
+                write!(f, "Subsystem SRAM access is not supported by this model")
             }
             ModelError::UnableToSetPauser => {
                 write!(f, "Valid PAUSER locked")
