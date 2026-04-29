@@ -11,7 +11,9 @@ use caliptra_auth_man_types::{
 use caliptra_dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
+#[cfg(feature = "runtime")]
+use caliptra_image_types::ZeroizeWithByteScrub;
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
 #[cfg(feature = "runtime")]
@@ -65,7 +67,7 @@ pub const BOOT_MODE_SIZE: u32 = 4;
     Clone,
     PartialEq,
     Eq,
-    TryFromBytes,
+    FromZeros,
     IntoBytes,
     KnownLayout,
     Immutable,
@@ -106,7 +108,7 @@ mod fw {
 // CDI handles at the cost of using more KeyVault slots.
 pub const EXPORTED_HANDLES_NUM: usize = 1;
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiEntry {
     pub key: KeyId,
     pub handle: ExportedCdiHandle,
@@ -114,9 +116,27 @@ pub struct ExportedCdiEntry {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+impl ZeroizeWithByteScrub for ExportedCdiEntry {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiHandles {
     pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
+}
+
+#[cfg(feature = "runtime")]
+impl ZeroizeWithByteScrub for ExportedCdiHandles {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiHandles {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
@@ -126,7 +146,7 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
-#[derive(Clone, Immutable, IntoBytes, KnownLayout, TryFromBytes, Zeroize)]
+#[derive(Clone, FromZeros, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
     pub csr_len: u32,
@@ -212,7 +232,7 @@ pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
 
 /// Calipatra IDEVID CSR Envelope
 #[repr(C)]
-#[derive(Clone, IntoBytes, Immutable, KnownLayout, TryFromBytes, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, Immutable, KnownLayout, Zeroize)]
 pub struct InitDevIdCsrEnvelope {
     /// Marker
     pub marker: u32,
@@ -245,7 +265,7 @@ impl Default for InitDevIdCsrEnvelope {
 pub mod fmc_alias_csr {
     use super::*;
 
-    #[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+    #[derive(Clone, FromZeros, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
     pub struct FmcAliasCsrs {
         pub ecc_csr_len: u32,
@@ -307,7 +327,7 @@ pub mod fmc_alias_csr {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct DOT_OWNER_PK_HASH {
     pub owner_pk_hash: [u32; 12],
@@ -315,7 +335,7 @@ pub struct DOT_OWNER_PK_HASH {
     reserved: [u8; 3],
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct OcpLockMetadataRom {
     pub total_hek_seed_slots: u16,
@@ -325,7 +345,7 @@ pub struct OcpLockMetadataRom {
     reserved: [u8; 1],
 }
 
-#[derive(Default, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
 pub struct OcpLockFlags(u32);
 
 bitflags::bitflags! {
@@ -334,13 +354,13 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct OcpLockMetadataFirmware {
     pub flags: OcpLockFlags,
 }
 
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct EntropyConfiguration {
     pub configured: u32, // true if non-zero
@@ -351,7 +371,7 @@ pub struct EntropyConfiguration {
     pub adaptp_lo_threshold: u32,
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
     #[cfg(any(feature = "fmc", feature = "runtime"))]
@@ -367,7 +387,7 @@ impl PersistentData {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct RomPersistentData {
     // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
@@ -576,7 +596,7 @@ impl RomPersistentData {
 }
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct FwPersistentData {
     // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
@@ -752,7 +772,7 @@ impl PersistentDataAccessor {
 
 #[cfg(feature = "runtime")]
 #[repr(C)]
-#[derive(IntoBytes, TryFromBytes, KnownLayout, Zeroize)]
+#[derive(IntoBytes, FromZeros, KnownLayout, Zeroize)]
 pub struct DpePersistentData {
     pub state: caliptra_dpe::State,
     pub context_tags: [u32; MAX_HANDLES],
