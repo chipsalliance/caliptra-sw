@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::soc_mgr::SocManager;
+use caliptra_api::{mailbox::PASSIVE_MAILBOX_SIZE_LIMIT, soc_mgr::SocManager};
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_auth_man_gen::default_test_manifest::DEFAULT_MCU_FW;
 use caliptra_builder::{
@@ -8,7 +8,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    mbox_write_fifo_with_limit, BootParams, HwModel, InitParams, SecurityState,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::{default_soc_manifest_bytes, image_pk_desc_hash};
 
@@ -149,7 +151,9 @@ fn warm_reset_during_fw_load() {
         hw.soc_mbox()
             .cmd()
             .write(|_| CommandId::FIRMWARE_LOAD.into());
-        assert!(mbox_write_fifo(&hw.soc_mbox(), &buf).is_ok());
+        assert!(
+            mbox_write_fifo_with_limit(&hw.soc_mbox(), &buf, PASSIVE_MAILBOX_SIZE_LIMIT).is_ok()
+        );
         hw.soc_mbox().execute().write(|w| w.execute(true));
     }
 
