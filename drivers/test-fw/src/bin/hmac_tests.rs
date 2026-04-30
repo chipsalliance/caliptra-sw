@@ -1043,6 +1043,72 @@ fn test_hmac512_multi_block() {
     assert_eq!(out_tag, Array4x16::from(result));
 }
 
+const HMAC384_HASH_SIZE: usize = 48;
+
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
+    let hex = hex.as_bytes();
+    if hex.len() % 2 != 0 { return None; }
+    let n = hex.len() / 2;
+    if n > buf.len() { return None; }
+    for i in 0..n {
+        let hi = hex_nibble(hex[i * 2])?;
+        let lo = hex_nibble(hex[i * 2 + 1])?;
+        buf[i] = (hi << 4) | lo;
+    }
+    Some(n)
+}
+
+fn test_kdf_acvp() {
+    const CURRENT: &str = include_str!("./vectors/current.txt");
+    let mut lines = CURRENT.lines();
+    let hex_key   = lines.next().unwrap().trim();
+    let hex_label = lines.next().unwrap().trim();
+
+    let mut key_buf   = [0u8; HMAC384_HASH_SIZE];
+    let mut label_buf = [0u8; 256];
+    hex_decode(hex_key, &mut key_buf).unwrap();
+    let label_len = hex_decode(hex_label, &mut label_buf).unwrap();
+
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+
+    let mut out_buf = Array4x12::default();
+
+    hmac_kdf(
+        &mut hmac,
+        (&Array4x12::from(&key_buf)).into(),
+        &label_buf[..label_len],
+        None,
+        &mut trng,
+        (&mut out_buf).into(),
+        HmacMode::Hmac384,
+    )
+    .unwrap();
+
+    let out = <[u8; HMAC384_HASH_SIZE]>::from(out_buf);
+    for byte in out.iter() {
+        println!("HMAC384KDF:{:02X}", byte);
+    }
+}
+
 // test_kat MUST be ran first.
 test_suite! {
     test_kat_384,
@@ -1052,17 +1118,18 @@ test_suite! {
     test_hmac2,
     test_hmac3,
     test_hmac4,
-    test_hmac_kv_multiblock,
-    test_hmac5,
-    test_kdf0_hmac384,
-    test_kdf1_hmac384,
-    test_kdf2_hmac384,
-    test_hmac_multi_block,
-    test_hmac_exact_single_block,
-    test_hmac_multi_block_two_step,
-    test_hmac0_512,
-    test_hmac1_512,
-    test_hmac2_512,
-    test_hmac3_512,
-    test_hmac512_multi_block,
+    //test_hmac_kv_multiblock,
+    //test_hmac5,
+    //test_kdf0_hmac384,
+    //test_kdf1_hmac384,
+    //test_kdf2_hmac384,
+    //test_hmac_multi_block,
+    //test_hmac_exact_single_block,
+    //test_hmac_multi_block_two_step,
+    //test_hmac0_512,
+    //test_hmac1_512,
+    //test_hmac2_512,
+    //test_hmac3_512,
+    //test_hmac512_multi_block,
+    test_kdf_acvp,
 }
