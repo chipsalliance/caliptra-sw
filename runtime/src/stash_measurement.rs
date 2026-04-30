@@ -12,44 +12,47 @@ Abstract:
 
 --*/
 
-use crate::{mutrefbytes, with_dpe_env, Drivers, PauserPrivileges};
+use crate::{
+    invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
+    commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::DpeErrorCode,
+    response::{DeriveContextResp, DpeErrorCode},
     tci::TciMeasurement,
-    DpeInstance, DpeProfile,
 };
 use zerocopy::{FromBytes, IntoBytes};
+
+const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
+    /// This function MUST ONLY be called by Caliptra.
+    /// Mailbox commands MUST use the `execute` function.
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,
         metadata: &[u8; 4],
         measurement: &[u8; 48],
         svn: u32,
+        caller_privilege_level: PauserPrivileges,
+        locality: u32,
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
-            let caller_privilege_level = drivers.caller_privilege_level();
-            match caller_privilege_level {
-                // Only PL0 can call STASH_MEASUREMENT
-                PauserPrivileges::PL0 => (),
-                PauserPrivileges::PL1 => {
-                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                }
-            }
+            // Check for MCU FW ID and swap it's TCI type
+            let tci_type = if metadata == &[2, 0, 0, 0] {
+                MCU_TCI_TYPE
+            } else {
+                u32::from_ne_bytes(*metadata)
+            };
 
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
-
-            let locality = drivers.mbox.id();
 
             let cmd = DeriveContextCmd {
                 handle: ContextHandle::default(),
@@ -58,24 +61,25 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                     | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type: u32::from_ne_bytes(*metadata),
+                tci_type,
                 target_locality: locality,
                 svn,
             };
 
-            let derive_context_resp = with_dpe_env(drivers, None, None, |env| {
-                let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-                Ok(cmd.execute(dpe, env, locality))
-            })?;
-
-            match derive_context_resp {
+            let profile = CaliptraDpeProfile::Ecc384;
+            let cmd = &Command::from(&cmd);
+            let mut resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
+            let resp = resp_buf.as_mut_bytes();
+            let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
+            let result = &invoke_dpe_cmd(profile, drivers, cmd, None, ueid, Some(locality), resp);
+            match result {
                 Ok(_) => DpeErrorCode::NoError,
                 Err(e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    e
+                    *e
                 }
             }
         };
@@ -97,11 +101,27 @@ impl StashMeasurementCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        let caller_privilege_level = drivers.caller_privilege_level();
+        match caller_privilege_level {
+            // Only PL0 can call STASH_MEASUREMENT
+            PauserPrivileges::PL0 => (),
+            PauserPrivileges::PL1 => {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
+        }
+
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let locality = drivers.mbox.id();
 
-        let dpe_result =
-            Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;
+        let dpe_result = Self::stash_measurement(
+            drivers,
+            &cmd.metadata,
+            &cmd.measurement,
+            cmd.svn,
+            caller_privilege_level,
+            locality,
+        )?;
 
         let resp = mutrefbytes::<StashMeasurementResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();

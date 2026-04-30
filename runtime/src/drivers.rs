@@ -20,8 +20,8 @@ use crate::debug_unlock::ProductionDebugUnlock;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
-    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeProfile, CptraDpeEcTypes, DisableAttestationCmd, DpeEcCrypto, DpePlatform,
+    Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
@@ -53,9 +53,10 @@ use caliptra_registers::{
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::Digest;
+use crypto::{Digest, PubKey};
 use dpe::commands::DeriveContextCmd;
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::response::DeriveContextResp;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
@@ -528,12 +529,24 @@ impl Drivers {
         Ok(())
     }
 
-    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ECC RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+    pub fn compute_ecc_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self.persistent_data.get().fht.rt_dice_ecc_pub_key.to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
+        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+
+        Ok(token)
+    }
+
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ML-DSA RT Alias public key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn compute_mldsa_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
+        let key_id = Self::get_key_id_rt_mldsa_keypair_seed(self)?;
+        let pub_key = Self::get_key_id_rt_mldsa_pub_key(self)?;
+        let rt_digest = self.sha256.digest(pub_key.0.as_bytes())?;
+        let _ = key_id; // used for key derivation
         let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
 
         Ok(token)
@@ -544,7 +557,7 @@ impl Drivers {
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let manifest = drivers.persistent_data.get().manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
-        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+        let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
         let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
@@ -561,13 +574,18 @@ impl Drivers {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let crypto = DpeCrypto::new(
+        let crypto = DpeEcCrypto::new(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.fht.rt_dice_ecc_pub_key,
+            PubKey::Ecdsa(crypto::ecdsa::EcdsaPubKey::Ecdsa384(
+                crypto::ecdsa::curve_384::EcdsaPub384::from_slice(
+                    &pdata.fht.rt_dice_ecc_pub_key.x.into(),
+                    &pdata.fht.rt_dice_ecc_pub_key.y.into(),
+                ),
+            )),
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.exported_cdi_slots,
@@ -575,9 +593,10 @@ impl Drivers {
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
         let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
-        let mut env = DpeEnv::<CptraDpeTypes> {
+        let mut env = DpeEnv::<CptraDpeEcTypes> {
             crypto,
             platform: DpePlatform::new(
+                CaliptraDpeProfile::Ecc384,
                 CALIPTRA_LOCALITY,
                 hashed_rt_pub_key,
                 &drivers.ecc_cert_chain,
@@ -608,7 +627,10 @@ impl Drivers {
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
         let initialization_values_hash: [u8; 48] = <[u8; 48]>::from(initialization_values_hash);
-        let derive_context_resp = DeriveContextCmd {
+        // Use execute_serialized with a small buffer instead of execute() to avoid
+        // allocating the full Response enum (~25KB) on the stack.
+        let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+        let derive_context_result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(initialization_values_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
@@ -619,8 +641,8 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
-        if let Err(e) = derive_context_resp {
+        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut resp_buf);
+        if let Err(e) = derive_context_result {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -646,7 +668,10 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
-            let derive_context_resp = DeriveContextCmd {
+            // Use execute_serialized with a small buffer instead of execute() to avoid
+            // allocating the full Response enum (~25KB) on the stack.
+            let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+            let derive_context_result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
                     measurement_data
@@ -661,8 +686,8 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_context_resp {
+            .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
+            if let Err(e) = derive_context_result {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);

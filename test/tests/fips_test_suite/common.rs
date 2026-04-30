@@ -16,7 +16,7 @@ use dpe::{
         Response, ResponseHdr, SignResp,
     },
 };
-use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -288,39 +288,45 @@ pub fn mbx_send_and_check_resp_hdr<T: HwModel, U: FromBytes + IntoBytes>(
     //Ok(U::read_from_bytes(resp_bytes.as_bytes()).unwrap())
 }
 
+/// Copy a variable-length DPE response into a zeroed fixed-size buffer of the
+/// target type and decode. DPE responses with large fixed-size payload buffers
+/// (cert, certificate_chain, etc.) are returned with the actual size rather
+/// than the full buffer, so a direct `try_read_from_bytes` would fail with
+/// SizeError.
+fn read_dpe_resp<T: TryFromBytes + IntoBytes + KnownLayout + Immutable>(resp_bytes: &[u8]) -> T {
+    let full_size = std::mem::size_of::<T>();
+    assert!(resp_bytes.len() <= full_size);
+    let mut buf = vec![0u8; full_size];
+    buf[..resp_bytes.len()].copy_from_slice(resp_bytes);
+    T::try_read_from_bytes(&buf).unwrap()
+}
+
 pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     match dpe_cmd {
         Command::CertifyKey(CertifyKeyCommand::P384(_)) => Response::CertifyKey(
-            CertifyKeyResp::P384(CertifyKeyP384Resp::try_read_from_bytes(resp_bytes).unwrap()),
+            CertifyKeyResp::P384(read_dpe_resp::<CertifyKeyP384Resp>(resp_bytes)),
         ),
         Command::DeriveContext(DeriveContextCmd { flags, .. })
             if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
         {
-            Response::DeriveContextExportedCdi(
-                DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap(),
-            )
+            Response::DeriveContextExportedCdi(read_dpe_resp::<DeriveContextExportedCdiResp>(
+                resp_bytes,
+            ))
         }
         Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::try_read_from_bytes(resp_bytes).unwrap())
+            Response::DeriveContext(read_dpe_resp::<DeriveContextResp>(resp_bytes))
         }
-        Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::try_read_from_bytes(resp_bytes).unwrap(),
-        ),
-        Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap())
+        Command::GetCertificateChain(_) => {
+            Response::GetCertificateChain(read_dpe_resp::<GetCertificateChainResp>(resp_bytes))
         }
-        Command::GetProfile(_) => {
-            Response::GetProfile(GetProfileResp::try_read_from_bytes(resp_bytes).unwrap())
+        Command::DestroyCtx(_) => Response::DestroyCtx(read_dpe_resp::<ResponseHdr>(resp_bytes)),
+        Command::GetProfile(_) => Response::GetProfile(read_dpe_resp::<GetProfileResp>(resp_bytes)),
+        Command::InitCtx(_) => Response::InitCtx(read_dpe_resp::<NewHandleResp>(resp_bytes)),
+        Command::RotateCtx(_) => Response::RotateCtx(read_dpe_resp::<NewHandleResp>(resp_bytes)),
+        Command::Sign(SignCommand::P384(_)) => {
+            Response::Sign(SignResp::P384(read_dpe_resp::<SignP384Resp>(resp_bytes)))
         }
-        Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::Sign(SignCommand::P384(_)) => Response::Sign(SignResp::P384(
-            SignP384Resp::try_read_from_bytes(resp_bytes).unwrap(),
-        )),
+        _ => panic!("Unsupported DPE command variant"),
     }
 }
 

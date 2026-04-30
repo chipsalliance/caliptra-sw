@@ -170,6 +170,17 @@ func (s *CptraModel) PowerOff() error {
 	return nil
 }
 
+// maxDpeRespSize is the maximum size of a DPE response struct the Go client
+// may try to decode. The Caliptra runtime returns DPE responses truncated via
+// as_bytes_partial (only the actual used bytes of variable-size payloads such
+// as X.509/CSR certificates or certificate chains), while the Go verification
+// client decodes into fixed-size structs whose largest variant is ML-DSA
+// CertifyKey: 16 (handle) + 2592 (pubkey) + 4 (cert_size) + 17408 (cert) =
+// 20020 bytes of payload. Padding with zeros up to this size lets
+// binary.Read populate the fixed-size fields while cert_size continues to
+// bound the actual cert data.
+const maxDpeRespSize = 32 * 1024
+
 // SendCmd sends a DPE command.
 func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	var req C.struct_caliptra_invoke_dpe_req
@@ -194,9 +205,17 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 
 	// Calculate the offset to the union member based on data_size
 	offset := unsafe.Sizeof(resp.cpl) + unsafe.Sizeof(resp.data_size)
-	var selectedBytes []byte
 
-	selectedBytes = C.GoBytes(unsafe.Pointer(uintptr(unsafe.Pointer(respPtr))+offset), (C.int)(resp.data_size))
+	selectedBytes := C.GoBytes(unsafe.Pointer(uintptr(unsafe.Pointer(respPtr))+offset), (C.int)(resp.data_size))
+
+	// Pad the truncated DPE response with zeros so that binary.Read into
+	// the fixed-size response structs used by the verification client does
+	// not hit unexpected EOF on variable-sized trailing fields.
+	if len(selectedBytes) < maxDpeRespSize {
+		padded := make([]byte, maxDpeRespSize)
+		copy(padded, selectedBytes)
+		selectedBytes = padded
+	}
 
 	return selectedBytes, nil
 }
