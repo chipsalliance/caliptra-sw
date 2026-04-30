@@ -2,6 +2,7 @@
 
 use caliptra_api::mailbox::{
     CmHashAlgorithm, CmShaReq, MailboxRespHeaderVarSize, MAX_CM_SHA_INPUT_SIZE,
+    MAX_CM_SHA_INPUT_SIZE_PASSIVE,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::{Fuses, HwModel};
@@ -254,5 +255,45 @@ fn test_cm_sha_full_mailbox_all_0xff() {
     assert_eq!(hdr.data_len, 48); // SHA-384 produces 48 bytes
 
     // Verify the hash matches
+    assert_eq!(&hash_bytes[..48], &expected_hash[..]);
+}
+
+#[test]
+#[cfg(not(feature = "fpga_subsystem"))]
+fn test_cm_sha_full_passive_mailbox_all_0xff() {
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), Default::default());
+    assert!(!hw.subsystem_mode());
+
+    let size = MAX_CM_SHA_INPUT_SIZE_PASSIVE;
+    let msg = vec![0xffu8; size];
+    let expected_hash = sha384(&msg);
+
+    let mut cmd = vec![0xffu8; size + 12];
+    let hash_algorithm: u32 = CmHashAlgorithm::Sha384.into();
+    cmd[4..8].copy_from_slice(&hash_algorithm.to_le_bytes());
+    cmd[8..12].copy_from_slice(&(size as u32).to_le_bytes());
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CM_SHA),
+        &cmd[core::mem::size_of::<u32>()..],
+    );
+    cmd[..4].copy_from_slice(&checksum.to_le_bytes());
+
+    let response = hw
+        .mailbox_execute(CommandId::CM_SHA.into(), &cmd)
+        .unwrap()
+        .unwrap();
+
+    let resp_bytes = response.as_bytes();
+    let (hdr, hash_bytes) = MailboxRespHeaderVarSize::ref_from_prefix(resp_bytes).unwrap();
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        hdr.hdr.chksum,
+        0x0,
+        &resp_bytes[core::mem::size_of_val(&hdr.hdr.chksum)..],
+    ));
+    assert_eq!(hdr.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+    assert_eq!(hdr.data_len, 48);
     assert_eq!(&hash_bytes[..48], &expected_hash[..]);
 }

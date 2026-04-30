@@ -3,8 +3,8 @@
 use crate::{
     calc_checksum,
     mailbox::{
-        mbox_read_response, mbox_write_fifo, MailboxReqHeader, MailboxRespHeader, Request,
-        Response, StashMeasurementReq,
+        mbox_read_response, mbox_write_fifo_with_limit, MailboxReqHeader, MailboxRespHeader,
+        Request, Response, StashMeasurementReq, MAILBOX_SIZE,
     },
     CaliptraApiError,
 };
@@ -62,6 +62,8 @@ pub trait SocManager {
     const SOC_IFC_TRNG_ADDR: u32;
 
     const MAX_WAIT_CYCLES: u32;
+
+    const MAILBOX_SIZE_LIMIT: usize = MAILBOX_SIZE;
 
     type TMmio<'a>: MmioMut
     where
@@ -236,7 +238,7 @@ pub trait SocManager {
         }
 
         self.soc_mbox().cmd().write(|_| cmd);
-        mbox_write_fifo(&self.soc_mbox(), buf)?;
+        mbox_write_fifo_with_limit(&self.soc_mbox(), buf, Self::MAILBOX_SIZE_LIMIT)?;
 
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));

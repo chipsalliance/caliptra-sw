@@ -65,7 +65,7 @@ mod model_fpga_subsystem;
 mod output;
 mod rv32_builder;
 
-pub use api::mailbox::mbox_write_fifo;
+pub use api::mailbox::{mbox_write_fifo, mbox_write_fifo_with_limit};
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
@@ -1267,6 +1267,12 @@ pub trait HwModel: SocManager {
         .unwrap();
 
         // Check if we need to use subsystem staging area for large payloads
+        let mailbox_size_limit = if self.subsystem_mode() {
+            api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT
+        } else {
+            api::mailbox::PASSIVE_MAILBOX_SIZE_LIMIT
+        };
+
         if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
             // Write payload to staging area
             let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
@@ -1285,10 +1291,16 @@ pub trait HwModel: SocManager {
             self.soc_mbox()
                 .cmd()
                 .write(|_| api::mailbox::CommandId::EXTERNAL_MAILBOX_CMD.0);
-            mbox_write_fifo(&self.soc_mbox(), cmd.as_bytes().unwrap()).map_err(ModelError::from)?;
+            mbox_write_fifo_with_limit(
+                &self.soc_mbox(),
+                cmd.as_bytes().unwrap(),
+                mailbox_size_limit,
+            )
+            .map_err(ModelError::from)?;
         } else {
             self.soc_mbox().cmd().write(|_| cmd);
-            mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+            mbox_write_fifo_with_limit(&self.soc_mbox(), buf, mailbox_size_limit)
+                .map_err(ModelError::from)?;
         }
 
         // Ask the microcontroller to execute this command

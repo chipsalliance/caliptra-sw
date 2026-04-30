@@ -5749,10 +5749,18 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
+    mbox_write_fifo_with_limit(mbox, buf, MAILBOX_SIZE)
+}
+
+pub fn mbox_write_fifo_with_limit(
+    mbox: &mbox::RegisterBlock<impl MmioMut>,
+    buf: &[u8],
+    mailbox_size_limit: usize,
+) -> core::result::Result<(), CaliptraApiError> {
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     };
-    if input_len > PASSIVE_MAILBOX_SIZE_LIMIT as u32 {
+    if buf.len() > mailbox_size_limit {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     }
     mbox.dlen().write(|_| input_len);
