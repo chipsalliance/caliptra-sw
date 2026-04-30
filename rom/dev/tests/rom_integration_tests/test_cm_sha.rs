@@ -4,14 +4,11 @@ use caliptra_api::mailbox::{
     CmHashAlgorithm, CmShaReq, MailboxRespHeaderVarSize, MAX_CM_SHA_INPUT_SIZE,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
-use caliptra_drivers::MBOX_SIZE_SUBSYSTEM;
 use caliptra_hw_model::{Fuses, HwModel};
 use openssl::sha::{sha384, sha512};
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
-
-const MAX_CM_SHA_INPUT_SIZE_SUBSYSTEM: usize = 16384 - 12;
 
 #[test]
 fn test_cm_sha_sha384() {
@@ -42,7 +39,7 @@ fn test_cm_sha_sha384() {
     let response = hw
         .mailbox_execute(
             CommandId::CM_SHA.into(),
-            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE_SUBSYSTEM],
+            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE + 12],
         )
         .unwrap()
         .unwrap();
@@ -97,7 +94,7 @@ fn test_cm_sha_sha512() {
     let response = hw
         .mailbox_execute(
             CommandId::CM_SHA.into(),
-            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE_SUBSYSTEM],
+            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE + 12],
         )
         .unwrap()
         .unwrap();
@@ -151,7 +148,7 @@ fn test_cm_sha_empty_input() {
     let response = hw
         .mailbox_execute(
             CommandId::CM_SHA.into(),
-            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE_SUBSYSTEM],
+            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE + 12],
         )
         .unwrap()
         .unwrap();
@@ -197,7 +194,7 @@ fn test_cm_sha_invalid_algorithm() {
     let bad_response = hw
         .mailbox_execute(
             CommandId::CM_SHA.into(),
-            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE_SUBSYSTEM],
+            &cmd.as_bytes()[..MAX_CM_SHA_INPUT_SIZE + 12],
         )
         .unwrap_err();
 
@@ -214,11 +211,7 @@ fn test_cm_sha_full_mailbox_all_0xff() {
 
     // Create a full mailbox payload filled with 0xff (12 bytes overhead)
 
-    let size = if cfg!(feature = "fpga_subsystem") {
-        (MBOX_SIZE_SUBSYSTEM - 12) as usize
-    } else {
-        MAX_CM_SHA_INPUT_SIZE
-    };
+    let size = MAX_CM_SHA_INPUT_SIZE;
     let msg = vec![0xffu8; size];
 
     // Calculate expected hash using OpenSSL

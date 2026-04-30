@@ -14,15 +14,19 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
-/// Mailbox size in bytes (256 KB).
-pub const MAILBOX_SIZE: usize = 256 * 1024;
-/// Maximum input size for CM_SHA command (mailbox size minus header overhead).
+/// Mailbox size in bytes when subsystem mode is enabled.
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024;
+/// Mailbox size in bytes when passive mode is enabled.
+pub const PASSIVE_MAILBOX_SIZE_LIMIT: usize = 256 * 1024;
+/// Default mailbox size in bytes for API request structs.
+pub const MAILBOX_SIZE: usize = SUBSYSTEM_MAILBOX_SIZE_LIMIT;
+/// Maximum input size for CM_SHA command in subsystem mode (mailbox size minus header overhead).
 /// The overhead consists of: MailboxReqHeader (4 bytes) + hash_algorithm (4 bytes) + input_size (4 bytes) = 12 bytes.
 pub const MAX_CM_SHA_INPUT_SIZE: usize = MAILBOX_SIZE - 12;
+/// Maximum input size for CM_SHA command in passive mode (mailbox size minus header overhead).
+pub const MAX_CM_SHA_INPUT_SIZE_PASSIVE: usize = PASSIVE_MAILBOX_SIZE_LIMIT - 12;
 /// Maximum output size for AES GCM encrypt or decrypt operations.
 pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
-/// Maximum mailbox size when subsystem staging area is available.
-pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
@@ -5745,12 +5749,10 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    const MAILBOX_SIZE: u32 = 256 * 1024;
-
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     };
-    if input_len > MAILBOX_SIZE {
+    if input_len > PASSIVE_MAILBOX_SIZE_LIMIT as u32 {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     }
     mbox.dlen().write(|_| input_len);
