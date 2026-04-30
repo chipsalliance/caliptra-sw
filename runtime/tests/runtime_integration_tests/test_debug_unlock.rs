@@ -1032,6 +1032,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             .ss_dbg_service_reg_rsp()
             .read()
             .prod_dbg_unlock_success());
+        assert!(!model.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
 
         let mut value = model
             .soc_ifc()
