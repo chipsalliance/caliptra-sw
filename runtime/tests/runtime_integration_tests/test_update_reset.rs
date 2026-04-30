@@ -295,7 +295,7 @@ fn test_dpe_validation_deformed_structure() {
     let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating multiple normal connected components
-    dpe.contexts[0].children = 0.into();
+    dpe.contexts[0].children = 0u64.into();
     dpe.contexts[0].state = ContextState::Active;
     dpe.contexts[1].parent_idx = Context::ROOT_INDEX;
     let _ = model
@@ -350,7 +350,7 @@ fn test_dpe_validation_illegal_state() {
     let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE state by messing up parent-child links
-    dpe.contexts[1].children = 0b1u32.into();
+    dpe.contexts[1].children = 0b1u64.into();
     let _ = model
         .mailbox_execute(0xB000_0000, dpe.as_bytes())
         .unwrap()
