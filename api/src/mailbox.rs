@@ -4930,6 +4930,7 @@ pub enum CmStableKeyType {
     Reserved = 0,
     IDevId,
     LDevId,
+    OwnerKey,
 }
 
 impl From<u32> for CmStableKeyType {
@@ -4937,6 +4938,7 @@ impl From<u32> for CmStableKeyType {
         match val {
             1_u32 => CmStableKeyType::IDevId,
             2_u32 => CmStableKeyType::LDevId,
+            3_u32 => CmStableKeyType::OwnerKey,
             _ => CmStableKeyType::Reserved,
         }
     }
@@ -4947,6 +4949,7 @@ impl From<CmStableKeyType> for u32 {
         match val {
             CmStableKeyType::IDevId => 1,
             CmStableKeyType::LDevId => 2,
+            CmStableKeyType::OwnerKey => 3,
             CmStableKeyType::Reserved => 0,
         }
     }

@@ -19,7 +19,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     hmac_cm::hmac,
-    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
+    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV, KEY_ID_STABLE_OWNER},
     mailbox_api::{
         CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
         CmAesEncryptUpdateReq, CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp,
@@ -2583,29 +2583,53 @@ impl Commands {
 
         let key_type: CmStableKeyType = request.key_type.into();
 
+        // Reject OwnerKey if the Stable Owner Key feature is not available.
+        if key_type == CmStableKeyType::OwnerKey && !drivers.soc_ifc.stable_owner_key_available() {
+            Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+        }
+
         let aes_key = match key_type {
             CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
             CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            CmStableKeyType::OwnerKey => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_OWNER)),
             CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(&mut drivers.aes, aes_key, &request.info, None, 4)?;
 
-        // Prepend "DOT Final" to info and use as label for HMAC KDF
-        const PREFIX: &[u8] = b"DOT Final";
-        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
-        data[..PREFIX.len()].copy_from_slice(PREFIX);
-        data[PREFIX.len()..].copy_from_slice(&request.info);
-
+        // Prepend a domain-separation prefix to info and use as label for HMAC KDF
+        const DOT_PREFIX: &[u8] = b"DOT Final";
+        const OWNER_PREFIX: &[u8] = b"Stable Owner Key";
         let mut tag: Array4x16 = Array4x16::default();
-        hmac_kdf(
-            &mut drivers.hmac,
-            (&Array4x16::from(k0)).into(),
-            &data[..],
-            None,
-            &mut drivers.trng,
-            (&mut tag).into(),
-            HmacMode::Hmac512,
-        )?;
+        match key_type {
+            CmStableKeyType::OwnerKey => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + OWNER_PREFIX.len()];
+                data[..OWNER_PREFIX.len()].copy_from_slice(OWNER_PREFIX);
+                data[OWNER_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    &mut drivers.hmac,
+                    (&Array4x16::from(k0)).into(),
+                    &data,
+                    None,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+            }
+            _ => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + DOT_PREFIX.len()];
+                data[..DOT_PREFIX.len()].copy_from_slice(DOT_PREFIX);
+                data[DOT_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    &mut drivers.hmac,
+                    (&Array4x16::from(k0)).into(),
+                    &data,
+                    None,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+            }
+        }
         let mut key_material = [0u8; 64];
         for (i, word) in tag.0.iter().enumerate() {
             key_material[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());

@@ -24,7 +24,11 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sha2::Sha512;
 use zerocopy::{FromBytes, IntoBytes};
 
-const DOT_KEY_TYPES: [CmStableKeyType; 2] = [CmStableKeyType::IDevId, CmStableKeyType::LDevId];
+const DOT_KEY_TYPES: [CmStableKeyType; 3] = [
+    CmStableKeyType::IDevId,
+    CmStableKeyType::LDevId,
+    CmStableKeyType::OwnerKey,
+];
 
 #[cfg(feature = "fpga_subsystem")]
 pub(crate) const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
@@ -83,6 +87,10 @@ fn parse_encrypted_cmk(bytes: &[u8]) -> EncryptedCmk {
 fn test_derive_stable_key() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for key_type in DOT_KEY_TYPES.iter() {
+            // OwnerKey requires subsystem mode
+            if *key_type == CmStableKeyType::OwnerKey && !subsystem_mode {
+                continue;
+            }
             let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
@@ -96,6 +104,7 @@ fn test_derive_stable_key() {
                 InitParams {
                     rom: &rom,
                     subsystem_mode,
+                    stable_owner_key_en: true,
                     ..Default::default()
                 },
                 BootParams::default(),
@@ -207,6 +216,135 @@ fn test_derive_stable_key_invalid_key_type() {
         hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::DOT_INVALID_KEY_TYPE.into()
+        ))
+    );
+}
+
+#[test]
+fn test_derive_stable_owner_key_different_info() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        // OwnerKey requires subsystem mode
+        if !subsystem_mode {
+            continue;
+        }
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode,
+                stable_owner_key_en: true,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+
+        if subsystem_mode != hw.subsystem_mode() {
+            continue;
+        }
+
+        // Derive with info_a
+        let mut request_a = CmDeriveStableKeyReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            key_type: CmStableKeyType::OwnerKey.into(),
+            info: [0x42u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+        };
+        request_a.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+            &request_a.as_bytes()[core::mem::size_of_val(&request_a.hdr.chksum)..],
+        );
+        let response_a = hw
+            .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request_a.as_bytes())
+            .unwrap()
+            .unwrap();
+        let resp_a = CmDeriveStableKeyResp::ref_from_bytes(response_a.as_bytes()).unwrap();
+
+        // HMAC with key_a
+        let mut cm_hmac_a = CmHmacReq {
+            cmk: resp_a.cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha512.into(),
+            data_size: 9,
+            ..Default::default()
+        };
+        cm_hmac_a.data[..9].copy_from_slice(b"test data");
+        cm_hmac_a.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::CM_HMAC),
+            &cm_hmac_a.as_bytes()[core::mem::size_of_val(&cm_hmac_a.hdr.chksum)..],
+        );
+        let hmac_resp_a = hw
+            .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac_a.as_bytes())
+            .unwrap()
+            .unwrap();
+        let hmac_a = CmHmacResp::ref_from_bytes(hmac_resp_a.as_bytes()).unwrap();
+
+        // Derive with info_b (different personalization seed)
+        let mut request_b = CmDeriveStableKeyReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            key_type: CmStableKeyType::OwnerKey.into(),
+            info: [0xABu8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+        };
+        request_b.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+            &request_b.as_bytes()[core::mem::size_of_val(&request_b.hdr.chksum)..],
+        );
+        let response_b = hw
+            .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request_b.as_bytes())
+            .unwrap()
+            .unwrap();
+        let resp_b = CmDeriveStableKeyResp::ref_from_bytes(response_b.as_bytes()).unwrap();
+
+        // HMAC with key_b
+        let mut cm_hmac_b = CmHmacReq {
+            cmk: resp_b.cmk.clone(),
+            hash_algorithm: CmHashAlgorithm::Sha512.into(),
+            data_size: 9,
+            ..Default::default()
+        };
+        cm_hmac_b.data[..9].copy_from_slice(b"test data");
+        cm_hmac_b.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::CM_HMAC),
+            &cm_hmac_b.as_bytes()[core::mem::size_of_val(&cm_hmac_b.hdr.chksum)..],
+        );
+        let hmac_resp_b = hw
+            .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac_b.as_bytes())
+            .unwrap()
+            .unwrap();
+        let hmac_b = CmHmacResp::ref_from_bytes(hmac_resp_b.as_bytes()).unwrap();
+
+        assert_ne!(
+            hmac_a.mac, hmac_b.mac,
+            "Different info must produce different keys"
+        );
+    }
+}
+
+#[test]
+fn test_derive_stable_owner_key_rejected_in_passive_mode() {
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: false,
+            stable_owner_key_en: true,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    let mut request = CmDeriveStableKeyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_type: CmStableKeyType::OwnerKey.into(),
+        info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+    };
+    request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+        &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+    );
+    assert_eq!(
+        hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE.into()
         ))
     );
 }
