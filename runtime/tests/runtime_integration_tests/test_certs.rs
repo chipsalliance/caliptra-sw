@@ -779,7 +779,8 @@ fn parse_multi_tcb_info_for_svn(cert_der: &[u8]) -> Vec<(Vec<u8>, Option<u64>)> 
                 let (tag, _len, tcb_data) = parse_der_tlv(&inner[pos..]);
                 assert_eq!(tag, 0x30, "Expected TcbInfo SEQUENCE");
                 let tcb_total = &inner[pos..];
-                let tcb_encoded_len = tcb_data.as_ptr() as usize - tcb_total.as_ptr() as usize + tcb_data.len();
+                let tcb_encoded_len =
+                    tcb_data.as_ptr() as usize - tcb_total.as_ptr() as usize + tcb_data.len();
                 pos += tcb_encoded_len;
 
                 // Walk fields inside TcbInfo looking for [3] (SVN) and [9] (tci_type)
@@ -934,8 +935,8 @@ fn test_svn_preserved_in_rom_stash_measurement() {
     //
     // 3. Parse MultiTcbInfo from both certs and extract SVN for our "TEST" measurement
     //
-    let rom_tcb_entries = parse_multi_tcb_info_for_svn(&rom_stash_cert);
-    let rt_tcb_entries = parse_multi_tcb_info_for_svn(&rt_stash_cert);
+    let rom_tcb_entries = parse_multi_tcb_info_for_svn(rom_stash_cert);
+    let rt_tcb_entries = parse_multi_tcb_info_for_svn(rt_stash_cert);
 
     // Find the "TEST" TcbInfo entry in each cert.
     // tci_type bytes round-trip through u32::from_ne_bytes then as_bytes(),
