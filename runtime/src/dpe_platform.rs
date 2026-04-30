@@ -18,21 +18,19 @@ use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
-use dpe::{
-    x509::{CertWriter, DirectoryString, Name},
-    DpeProfile,
-};
+use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
 
-use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_ECC_CERT_CHAIN_SIZE};
+use crate::{subject_alt_name::AddSubjectAltNameCmd, CaliptraDpeProfile};
 
 pub struct DpePlatform<'a> {
+    profile: CaliptraDpeProfile,
     auto_init_locality: u32,
     hashed_rt_pub_key: Digest,
-    cert_chain: &'a ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
+    cert_chain: &'a [u8],
     not_before: NotBefore,
     not_after: NotAfter,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -43,16 +41,19 @@ pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
 pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
 
 impl<'a> DpePlatform<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        profile: CaliptraDpeProfile,
         auto_init_locality: u32,
         hashed_rt_pub_key: Digest,
-        cert_chain: &'a ArrayVec<u8, 4096>,
+        cert_chain: &'a [u8],
         not_before: NotBefore,
         not_after: NotAfter,
         dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
         ueid: Option<[u8; 17]>,
     ) -> Self {
         Self {
+            profile,
             auto_init_locality,
             hashed_rt_pub_key,
             cert_chain,
@@ -108,8 +109,9 @@ impl Platform for DpePlatform<'_> {
         &mut self,
         out: &mut [u8; MAX_ISSUER_NAME_SIZE],
     ) -> Result<usize, PlatformError> {
-        const CALIPTRA_CN: &[u8] = b"Caliptra 2.0 Ecc384 Rt Alias";
-        let mut issuer_writer = CertWriter::new(out, DpeProfile::P384Sha384, true);
+        const CN_ECC384: &[u8] = b"Caliptra 2.0 Ecc384 Rt Alias";
+        const CN_MLDSA87: &[u8] = b"Caliptra 2.0 MlDsa87 Rt Alias";
+        let mut issuer_writer = CertWriter::new(out, self.profile.into(), true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
@@ -117,8 +119,12 @@ impl Platform for DpePlatform<'_> {
             .write_hex_str(&mut serial)
             .map_err(|_| PlatformError::IssuerNameError(1))?;
 
+        let cn = match self.profile {
+            CaliptraDpeProfile::Ecc384 => CN_ECC384,
+            CaliptraDpeProfile::Mldsa87 => CN_MLDSA87,
+        };
         let name = Name {
-            cn: DirectoryString::Utf8String(CALIPTRA_CN),
+            cn: DirectoryString::Utf8String(cn),
             serial: DirectoryString::PrintableString(&serial),
         };
         let issuer_len = issuer_writer
