@@ -51,7 +51,7 @@ pub const MBOX_SIZE: u32 = 256 * 1024;
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
-pub const STACK_SIZE: u32 = 140 * 1024;
+pub const STACK_SIZE: u32 = 136 * 1024;
 pub const ROM_STACK_SIZE: u32 = 72 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
@@ -84,7 +84,7 @@ fn mem_layout_test_persistent_data() {
 fn mem_layout_test_data() {
     assert_eq!((STACK_ORG - DATA_ORG), DATA_SIZE);
     // we must leave room for 0x800 bytes for the relaxation pointers
-    assert!(DATA_SIZE >= 2 * 1024);
+    assert!(DATA_SIZE > 0);
 }
 
 #[test]

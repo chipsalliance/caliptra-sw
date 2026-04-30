@@ -6,6 +6,8 @@ use caliptra_drivers::{KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_ocp_eat::csr_eat::{oids, CsrEatClaims};
 use caliptra_ocp_eat::{cbor::TaggedOid, cbor_tags, CborEncoder, CoseSign1, ProtectedHeader};
+use caliptra_registers::mbox::enums::MboxStatusE;
+use core::mem::size_of;
 
 mod fmc_alias;
 mod ldevid;
@@ -133,12 +135,10 @@ impl DevIdKeyType {
         drivers: &mut Drivers,
         payload: &[u8],
         rt_key_id: &[u8; 20],
+        rt_pub_key: &caliptra_drivers::Ecc384PubKey,
         sign_ctx_buf: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
         signed_eat_buffer: &mut [u8],
     ) -> CaliptraResult<usize> {
-        // Get RT public key
-        let rt_pub_key = drivers.persistent_data.get().fht.rt_dice_ecc_pub_key;
-
         // Create protected header
         let mut protected_header = ProtectedHeader::new_es384();
         protected_header.kid = Some(rt_key_id);
@@ -166,7 +166,7 @@ impl DevIdKeyType {
         let priv_key = caliptra_drivers::Ecc384PrivKeyIn::Key(priv_key_args);
         let signature = drivers
             .ecc384
-            .sign(priv_key, &rt_pub_key, digest, &mut drivers.trng)?;
+            .sign(priv_key, rt_pub_key, digest, &mut drivers.trng)?;
 
         // Convert signature to [u8; 96] format (r || s)
         let mut ecc384_signature = [0u8; 96];
@@ -189,12 +189,10 @@ impl DevIdKeyType {
         drivers: &mut Drivers,
         payload: &[u8],
         rt_key_id: &[u8; 20],
+        rt_pub_key: &caliptra_drivers::Mldsa87PubKey,
         sign_ctx_buf: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
         signed_eat_buffer: &mut [u8],
     ) -> CaliptraResult<usize> {
-        // Get RT public key
-        let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
-
         // Create protected header
         let mut protected_header = ProtectedHeader::new_mldsa87();
         protected_header.kid = Some(rt_key_id);
@@ -219,7 +217,7 @@ impl DevIdKeyType {
 
         let signature = drivers.mldsa87.sign_var(
             Mldsa87Seed::Key(key_args),
-            &rt_pub_key,
+            rt_pub_key,
             digest.as_bytes(),
             &Mldsa87SignRnd::default(),
             &mut drivers.trng,
@@ -246,109 +244,184 @@ use zerocopy::{FromBytes, IntoBytes};
 pub struct AttestedEccCsrCmd;
 
 impl AttestedEccCsrCmd {
+    /// Heavy phase: generates the CSR EAT claims and the RT alias ECC
+    /// public key + subject key identifier. Runs in a frame that does
+    /// NOT have the mailbox response buffer alive, keeping peak stack
+    /// usage low.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(
+    fn prepare(
         drivers: &mut Drivers,
-        cmd_args: &[u8],
-        mbox_resp: &mut [u8],
-    ) -> CaliptraResult<usize> {
-        // Convert cmd_args to GetAttestedEccCsrReq
+        nonce: &[u8; 32],
+        key_type: &DevIdKeyType,
+        scratch: &mut [u8; MAX_CSR_SIZE],
+        env_csr_eat: &mut [u8; MAX_CSR_EAT_CLAIMS_SIZE],
+    ) -> CaliptraResult<(usize, caliptra_drivers::Ecc384PubKey, [u8; 20])> {
+        let csr_eat_len = key_type.generate_csr_eat_claims(
+            drivers,
+            nonce,
+            scratch,
+            env_csr_eat,
+            CryptoType::ECC384,
+        )?;
+
+        let rt_pub_key = drivers.persistent_data.get().fht.rt_dice_ecc_pub_key;
+        let rt_subj_sn = x509::subj_key_id(
+            &mut drivers.sha256,
+            &caliptra_common::crypto::PubKey::Ecc(&rt_pub_key),
+        )?;
+        Ok((csr_eat_len, rt_pub_key, rt_subj_sn))
+    }
+
+    /// Signing phase: allocates the mailbox response buffer and writes
+    /// the COSE-Sign1-encoded attested CSR EAT into it. This runs after
+    /// [`prepare`] so the heavy CSR/key generation does not overlap with
+    /// the response buffer.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    fn sign_and_finalize(
+        drivers: &mut Drivers,
+        key_type: &DevIdKeyType,
+        csr_eat: &[u8],
+        rt_subj_sn: &[u8; 20],
+        rt_pub_key: &caliptra_drivers::Ecc384PubKey,
+        scratch: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
+    ) -> CaliptraResult<MboxStatusE> {
+        let mut resp_buf = [0u8; size_of::<AttestedCsrResp>()];
+        let resp = mutrefbytes::<AttestedCsrResp>(&mut resp_buf)?;
+        let signed_eat_len = key_type.generate_attested_ecc_csr(
+            drivers,
+            csr_eat,
+            rt_subj_sn,
+            rt_pub_key,
+            scratch,
+            resp.data.as_mut(),
+        )?;
+        resp.data_size = signed_eat_len as u32;
+        let len = resp.partial_len()?;
+        crate::finalize_response(drivers, &mut resp_buf, len)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MboxStatusE> {
         let cmd = GetAttestedEccCsrReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        // Extract key_id and nonce
         let key_type = DevIdKeyType::try_from(cmd.key_id)?;
         let nonce = cmd.nonce;
 
         // Single scratch buffer reused: first as CSR temp, then as signature context
         let mut scratch = [0u8; MAX_CSR_SIZE];
         let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
-        let csr_eat_len = key_type.generate_csr_eat_claims(
-            drivers,
-            &nonce,
-            &mut scratch,
-            &mut env_csr_eat,
-            CryptoType::ECC384,
-        )?;
 
-        // Compute RT Alias subject key identifier for COSE header kid
-        let rt_pub_key = drivers.persistent_data.get().fht.rt_dice_ecc_pub_key;
-        let rt_subj_sn = x509::subj_key_id(
-            &mut drivers.sha256,
-            &caliptra_common::crypto::PubKey::Ecc(&rt_pub_key),
-        )?;
+        let (csr_eat_len, rt_pub_key, rt_subj_sn) =
+            Self::prepare(drivers, &nonce, &key_type, &mut scratch, &mut env_csr_eat)?;
 
-        // Sign EAT using COSE Sign1 with RT Alias private key
-        // Reuse scratch buffer for signature context
-        let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
-        let csr_slice = &env_csr_eat
+        let csr_slice = env_csr_eat
             .get(..csr_eat_len)
             .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;
-        let signed_eat_len = key_type.generate_attested_ecc_csr(
+        Self::sign_and_finalize(
             drivers,
+            &key_type,
             csr_slice,
             &rt_subj_sn,
+            &rt_pub_key,
             &mut scratch,
-            resp.data.as_mut(),
-        )?;
-
-        resp.data_size = signed_eat_len as u32;
-        resp.partial_len()
+        )
     }
 }
 
 pub struct AttestedMldsaCsrCmd;
 
 impl AttestedMldsaCsrCmd {
+    /// Heavy phase: generates the CSR EAT claims and the RT alias MLDSA
+    /// public key + subject key identifier. This runs the expensive MLDSA
+    /// key-pair generation (with its PCT) in a frame that does NOT have
+    /// the mailbox response buffer alive, so the peak stack usage is
+    /// minimized.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(
+    fn prepare(
         drivers: &mut Drivers,
-        cmd_args: &[u8],
-        mbox_resp: &mut [u8],
-    ) -> CaliptraResult<usize> {
-        // Convert cmd_args to GetAttestedMldsaCsrReq
+        nonce: &[u8; 32],
+        key_type: &DevIdKeyType,
+        scratch: &mut [u8; MAX_CSR_SIZE],
+        env_csr_eat: &mut [u8; MAX_CSR_EAT_CLAIMS_SIZE],
+    ) -> CaliptraResult<(usize, caliptra_drivers::Mldsa87PubKey, [u8; 20])> {
+        let csr_eat_len = key_type.generate_csr_eat_claims(
+            drivers,
+            nonce,
+            scratch,
+            env_csr_eat,
+            CryptoType::MLDSA87,
+        )?;
+
+        // Compute RT Alias MLDSA public key (expensive: triggers
+        // key-pair generation + PCT) and subject key identifier.
+        let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
+        let rt_subj_sn = x509::subj_key_id(
+            &mut drivers.sha256,
+            &caliptra_common::crypto::PubKey::Mldsa(&rt_pub_key),
+        )?;
+        Ok((csr_eat_len, rt_pub_key, rt_subj_sn))
+    }
+
+    /// Signing phase: allocates the mailbox response buffer and writes
+    /// the COSE-Sign1-encoded attested CSR EAT into it. This runs after
+    /// [`prepare`] so the heavy CSR/key generation does not overlap with
+    /// the response buffer.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    fn sign_and_finalize(
+        drivers: &mut Drivers,
+        key_type: &DevIdKeyType,
+        csr_eat: &[u8],
+        rt_subj_sn: &[u8; 20],
+        rt_pub_key: &caliptra_drivers::Mldsa87PubKey,
+        scratch: &mut [u8; MAX_SIGN_CONTEXT_SIZE],
+    ) -> CaliptraResult<MboxStatusE> {
+        let mut resp_buf = [0u8; size_of::<AttestedCsrResp>()];
+        let resp = mutrefbytes::<AttestedCsrResp>(&mut resp_buf)?;
+        let signed_eat_len = key_type.generate_attested_mldsa_csr(
+            drivers,
+            csr_eat,
+            rt_subj_sn,
+            rt_pub_key,
+            scratch,
+            resp.data.as_mut(),
+        )?;
+        resp.data_size = signed_eat_len as u32;
+        let len = resp.partial_len()?;
+        crate::finalize_response(drivers, &mut resp_buf, len)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MboxStatusE> {
         let cmd = GetAttestedMldsaCsrReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        // Extract key_id and nonce
         let key_type = DevIdKeyType::try_from(cmd.key_id)?;
         let nonce = cmd.nonce;
 
         // Single scratch buffer reused: first as CSR temp, then as signature context
         let mut scratch = [0u8; MAX_CSR_SIZE];
         let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
-        let csr_eat_len = key_type.generate_csr_eat_claims(
-            drivers,
-            &nonce,
-            &mut scratch,
-            &mut env_csr_eat,
-            CryptoType::MLDSA87,
-        )?;
 
-        // Compute RT Alias subject key identifier for COSE header kid
-        let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
-        let rt_subj_sn = x509::subj_key_id(
-            &mut drivers.sha256,
-            &caliptra_common::crypto::PubKey::Mldsa(&rt_pub_key),
-        )?;
+        let (csr_eat_len, rt_pub_key, rt_subj_sn) =
+            Self::prepare(drivers, &nonce, &key_type, &mut scratch, &mut env_csr_eat)?;
 
-        // Sign EAT using COSE Sign1 with RT Alias private key
-        // Reuse scratch buffer for signature context
-        let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
-        let csr_slice = &env_csr_eat
+        let csr_slice = env_csr_eat
             .get(..csr_eat_len)
             .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;
-        let signed_eat_len = key_type.generate_attested_mldsa_csr(
+        Self::sign_and_finalize(
             drivers,
+            &key_type,
             csr_slice,
             &rt_subj_sn,
+            &rt_pub_key,
             &mut scratch,
-            resp.data.as_mut(),
-        )?;
-
-        resp.data_size = signed_eat_len as u32;
-        resp.partial_len()
+        )
     }
 }

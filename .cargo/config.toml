@@ -1,6 +1,7 @@
 # Licensed under the Apache-2.0 license
 [env]
-RUST_MIN_STACK="16777216" # 16MB
+RUST_MIN_STACK = "16777216"  # 16MB
+ARBITRARY_MAX_HANDLES = "32"
 
 [target.riscv32imc-unknown-none-elf]
 rustflags = [
