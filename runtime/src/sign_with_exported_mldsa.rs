@@ -16,6 +16,8 @@ use caliptra_dpe_crypto::ml_dsa::{MldsaPublicKey, MldsaSignature};
 use caliptra_dpe_crypto::{Crypto, Mu, PubKey, SignData, Signature};
 use zerocopy::FromBytes;
 
+const PROFILE_DESC: &[u8] = b"Exported ML-DSA";
+
 pub struct SignWithExportedMldsaCmd;
 
 impl SignWithExportedMldsaCmd {
@@ -34,7 +36,7 @@ impl SignWithExportedMldsaCmd {
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> CaliptraResult<(Signature, PubKey)> {
         let key_pair =
-            env.derive_key_pair_exported(exported_cdi_handle, b"Exported ECC", b"Exported ECC");
+            env.derive_key_pair_exported(exported_cdi_handle, PROFILE_DESC, PROFILE_DESC);
 
         cfi_check!(key_pair);
         let signer = key_pair
