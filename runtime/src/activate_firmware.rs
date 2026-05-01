@@ -211,7 +211,8 @@ impl ActivateFirmwareCmd {
                 fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
-                flags: AuthAndStashFlags::SKIP_STASH.bits(),
+                flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+                tci_type: *b"MCFW",
                 ..Default::default()
             };
 

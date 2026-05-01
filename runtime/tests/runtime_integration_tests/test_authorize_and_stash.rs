@@ -13,8 +13,8 @@ use caliptra_auth_man_types::{
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{firmware::FMC_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader, SetAuthManifestReq,
+    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource,
+    MailboxReq, MailboxReqHeader, SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -1573,4 +1573,81 @@ fn test_verify_invalid_manifest() {
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_success() {
+    // Set up auth manifest and stash initial measurement
+    let mut model = set_auth_manifest(None);
+
+    // First: stash a measurement to create the initial DPE context
+    let mut stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Normal stash (create new context)
+        ..Default::default()
+    });
+    stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Second: update the existing context using UPDATE_EXISTING with tci_type field
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        tci_type: u32::from_ne_bytes(FW_ID_1).to_be_bytes(),
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            update_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let update_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(update_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_no_context_fails() {
+    // Set up auth manifest but do NOT stash any measurement first
+    let mut model = set_auth_manifest(None);
+
+    // Try to update a non-existent context — should fail
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        tci_type: u32::from_ne_bytes(FW_ID_1).to_be_bytes(),
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        update_cmd.as_bytes().unwrap(),
+    );
+
+    // Should fail because no existing context with this TCI type
+    assert!(resp.is_err() || resp.unwrap().is_none());
 }

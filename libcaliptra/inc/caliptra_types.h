@@ -344,6 +344,7 @@ struct caliptra_authorize_and_stash_req
     uint32_t flags;
     uint32_t source;
     uint32_t image_size;
+    uint8_t tci_type[4];
 };
 
 struct caliptra_authorize_and_stash_resp

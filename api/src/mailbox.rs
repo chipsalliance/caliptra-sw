@@ -2459,6 +2459,7 @@ impl From<ImageHashSource> for u32 {
 bitflags::bitflags! {
     pub struct AuthAndStashFlags : u32 {
         const SKIP_STASH = 0x1;
+        const UPDATE_EXISTING = 0x2;
     }
 }
 
@@ -2487,6 +2488,8 @@ pub struct AuthorizeAndStashReq {
     pub flags: u32,
     pub source: u32,
     pub image_size: u32, // Image size in bytes if source is LoadAddress or StagingAddress
+    /// Big-endian TCI type of the DPE context to update. Only used when `UPDATE_EXISTING` flag is set.
+    pub tci_type: [u8; 4],
 }
 impl Default for AuthorizeAndStashReq {
     fn default() -> Self {
@@ -2499,6 +2502,7 @@ impl Default for AuthorizeAndStashReq {
             flags: 0,
             source: ImageHashSource::InRequest as u32,
             image_size: 0,
+            tci_type: [0u8; 4],
         }
     }
 }
