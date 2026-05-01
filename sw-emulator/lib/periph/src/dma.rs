@@ -20,6 +20,7 @@ use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
 };
+
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::borrow::BorrowMut;

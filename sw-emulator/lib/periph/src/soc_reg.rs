@@ -21,6 +21,7 @@ use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, ReadOnlyRegister, ReadWriteRegister, Register, Timer, TimerAction,
 };
+
 use caliptra_emu_cpu::{IntSource, Irq};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};

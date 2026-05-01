@@ -11,7 +11,6 @@ Abstract:
     File contains SHA3 peripheral implementation.
 
 --*/
-
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister};
 use caliptra_emu_crypto::Sha3;
 use caliptra_emu_derive::Bus;

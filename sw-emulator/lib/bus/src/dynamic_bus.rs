@@ -12,10 +12,9 @@ Abstract:
 
 --*/
 
-use std::{io::ErrorKind, ops::RangeInclusive};
-
 use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::{io::ErrorKind, ops::RangeInclusive};
 
 struct MappedDevice {
     name: String,
