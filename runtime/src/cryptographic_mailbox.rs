@@ -2615,7 +2615,7 @@ impl Commands {
                     HmacMode::Hmac512,
                 )?;
             }
-            _ => {
+            CmStableKeyType::IDevId | CmStableKeyType::LDevId => {
                 let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + DOT_PREFIX.len()];
                 data[..DOT_PREFIX.len()].copy_from_slice(DOT_PREFIX);
                 data[DOT_PREFIX.len()..].copy_from_slice(&request.info);
@@ -2629,6 +2629,7 @@ impl Commands {
                     HmacMode::Hmac512,
                 )?;
             }
+            CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         }
         let mut key_material = [0u8; 64];
         for (i, word) in tag.0.iter().enumerate() {
