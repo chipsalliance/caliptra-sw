@@ -745,3 +745,227 @@ pub fn test_all_measurement_apis() {
         }
     }
 }
+
+/// Parse the MultiTcbInfo extension from a DER-encoded X.509 certificate.
+/// Returns a list of (tci_type_bytes, svn) for each TcbInfo entry.
+///
+/// Uses x509-parser to find the extension, then manually walks the DER
+/// SEQUENCE OF TcbInfo to extract SVN ([3] IMPLICIT INTEGER) and
+/// tci_type ([9] IMPLICIT OCTET STRING) from each entry.
+fn parse_multi_tcb_info_for_svn(cert_der: &[u8]) -> Vec<(Vec<u8>, Option<u64>)> {
+    use x509_parser::prelude::*;
+
+    // MultiTcbInfo OID: 2.23.133.5.4.5 (TCG DICE)
+    let multi_tcb_oid = x509_parser::oid_registry::asn1_rs::oid!(2.23.133 .5 .4 .5);
+
+    let (_, cert) = X509Certificate::from_der(cert_der).expect("Failed to parse X.509 cert");
+
+    for ext in cert.iter_extensions() {
+        if ext.oid == multi_tcb_oid {
+            let ext_data = ext.value;
+
+            // ext_data is the OCTET STRING value containing SEQUENCE OF TcbInfo.
+            // Walk it manually to extract SVN and tci_type from each TcbInfo.
+            let mut results = Vec::new();
+
+            // Parse outer SEQUENCE OF
+            let (tag, len, inner) = parse_der_tlv(ext_data);
+            assert_eq!(tag, 0x30, "Expected SEQUENCE OF");
+            let _ = len;
+
+            let mut pos = 0;
+            while pos < inner.len() {
+                // Each TcbInfo is a SEQUENCE
+                let (tag, _len, tcb_data) = parse_der_tlv(&inner[pos..]);
+                assert_eq!(tag, 0x30, "Expected TcbInfo SEQUENCE");
+                let tcb_total = &inner[pos..];
+                let tcb_encoded_len =
+                    tcb_data.as_ptr() as usize - tcb_total.as_ptr() as usize + tcb_data.len();
+                pos += tcb_encoded_len;
+
+                // Walk fields inside TcbInfo looking for [3] (SVN) and [9] (tci_type)
+                let mut svn: Option<u64> = None;
+                let mut tci_type_val: Vec<u8> = Vec::new();
+                let mut fpos = 0;
+                while fpos < tcb_data.len() {
+                    let (ftag, _flen, fdata) = parse_der_tlv(&tcb_data[fpos..]);
+                    let field_total = &tcb_data[fpos..];
+                    let field_encoded_len =
+                        fdata.as_ptr() as usize - field_total.as_ptr() as usize + fdata.len();
+                    fpos += field_encoded_len;
+
+                    // [3] IMPLICIT INTEGER = SVN (context-specific, primitive, tag 3)
+                    if ftag == 0x83 {
+                        // Parse as unsigned integer
+                        let mut val: u64 = 0;
+                        for &b in fdata {
+                            val = (val << 8) | b as u64;
+                        }
+                        svn = Some(val);
+                    }
+                    // [9] IMPLICIT OCTET STRING = tci_type (context-specific, primitive, tag 9)
+                    if ftag == 0x89 {
+                        tci_type_val = fdata.to_vec();
+                    }
+                }
+                results.push((tci_type_val, svn));
+            }
+            return results;
+        }
+    }
+    panic!("MultiTcbInfo extension not found in certificate");
+}
+
+/// Parse a DER TLV (Tag-Length-Value). Returns (tag, length, value_bytes).
+fn parse_der_tlv(data: &[u8]) -> (u8, usize, &[u8]) {
+    let tag = data[0];
+    let mut offset = 1;
+    let length = if data[offset] & 0x80 == 0 {
+        let l = data[offset] as usize;
+        offset += 1;
+        l
+    } else {
+        let num_bytes = (data[offset] & 0x7F) as usize;
+        offset += 1;
+        let mut l: usize = 0;
+        for i in 0..num_bytes {
+            l = (l << 8) | data[offset + i] as usize;
+        }
+        offset += num_bytes;
+        l
+    };
+    (tag, length, &data[offset..offset + length])
+}
+
+/// Regression test: ROM-stash and RT-stash measurement paths must produce
+/// identical DPE certs when given the same inputs, including non-zero SVN.
+///
+/// Verifies that initialize_dpe() correctly propagates SVN from
+/// MeasurementLogEntry to DeriveContextCmd when replaying ROM measurements.
+#[test]
+fn test_svn_preserved_in_rom_stash_measurement() {
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let image_options = ImageOptions {
+        pqc_key_type,
+        ..Default::default()
+    };
+
+    // Shared inputs
+    let measurement = TciMeasurement([0xAB; 48]);
+    let tci_type: [u8; 4] = *b"TEST";
+    let svn: u32 = 42;
+
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &if cfg!(feature = "fpga_subsystem") {
+            APP_WITH_UART_FPGA
+        } else {
+            APP_WITH_UART
+        },
+        image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    //
+    // 1. ROM STASH MEASUREMENT path
+    //    Send STASH_MEASUREMENT with svn=42 before FW upload, then boot to runtime.
+    //
+    let fuses = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        ..Default::default()
+    };
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            fuses,
+            rom: &rom,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    // Send stash measurement with svn=42 during ROM phase
+    let mut stash_cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: tci_type,
+        measurement: measurement.0,
+        context: [0u8; 48],
+        svn,
+    });
+    stash_cmd.populate_chksum().unwrap();
+    let _resp = hw
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    // Boot to runtime (triggers initialize_dpe which replays ROM measurement into DPE)
+    crate::common::test_upload_firmware(&mut hw, &fw_image, pqc_key_type);
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    // Get DPE leaf cert for ROM-stash path
+    let rom_cert_resp = get_dpe_leaf_cert(&mut hw);
+    let rom_stash_cert = rom_cert_resp.cert().unwrap();
+
+    //
+    // 2. RT STASH MEASUREMENT path (SVN is correctly propagated)
+    //    Cold boot to runtime first, then send STASH_MEASUREMENT with svn=42.
+    //
+    hw = cold_reset(hw, &rom, &fw_image, pqc_key_type);
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    // Send stash measurement with svn=42 during runtime phase
+    let _resp = hw
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    // Get DPE leaf cert for RT-stash path
+    let rt_cert_resp = get_dpe_leaf_cert(&mut hw);
+    let rt_stash_cert = rt_cert_resp.cert().unwrap();
+
+    //
+    // 3. Parse MultiTcbInfo from both certs and extract SVN for our "TEST" measurement
+    //
+    let rom_tcb_entries = parse_multi_tcb_info_for_svn(rom_stash_cert);
+    let rt_tcb_entries = parse_multi_tcb_info_for_svn(rt_stash_cert);
+
+    // Find the "TEST" TcbInfo entry in each cert.
+    // tci_type bytes round-trip through u32::from_ne_bytes then as_bytes(),
+    // so the cert contains the original metadata bytes.
+    let rom_test_entry = rom_tcb_entries
+        .iter()
+        .find(|(t, _)| t.as_slice() == tci_type)
+        .expect("ROM-stash cert should have a TEST TcbInfo entry");
+    let rt_test_entry = rt_tcb_entries
+        .iter()
+        .find(|(t, _)| t.as_slice() == tci_type)
+        .expect("RT-stash cert should have a TEST TcbInfo entry");
+
+    let rom_svn = rom_test_entry.1.unwrap_or(0);
+    let rt_svn = rt_test_entry.1.unwrap_or(0);
+
+    // Both paths should propagate SVN=42 to the DPE cert
+    assert_eq!(
+        rt_svn, 42,
+        "RT-stash path should propagate SVN=42 to DPE cert"
+    );
+    assert_eq!(
+        rom_svn, 42,
+        "ROM-stash path should propagate SVN=42 to DPE cert"
+    );
+
+    // Certs should be identical since both paths use the same inputs
+    assert_eq!(
+        &rom_stash_cert, &rt_stash_cert,
+        "ROM-stash and RT-stash certs should match when using same measurement + SVN"
+    );
+}
