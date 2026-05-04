@@ -1217,7 +1217,7 @@ impl SocRegistersImpl {
         // READY_FOR_FUSES (bit 30) is HW-driven and read-only per spec.
         // Preserve this bit across SW writes to match RTL behavior.
         const READY_FOR_FUSES_MASK: u32 = 1 << 30;
-        
+
         let current = self.cptra_flow_status.reg.get();
         let preserved = current & READY_FOR_FUSES_MASK;
 
