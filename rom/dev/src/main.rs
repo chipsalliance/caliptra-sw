@@ -19,6 +19,7 @@ Abstract:
 use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_common::keyids::{KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
@@ -298,6 +299,19 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     // Function is defined in start.S
     extern "C" {
         fn exit_rom(entry: u32) -> !;
+    }
+
+    // Erase LDevID private keys before launching FMC.
+    // These root keys must not be accessible to FMC or later firmware stages,
+    // protecting against ROM glitch attacks.
+    cprintln!("[exit] Erasing LDevID ECC priv key (KV slot {})", KEY_ID_LDEVID_ECDSA_PRIV_KEY as u8);
+    if let Err(e) = env.key_vault.erase_key(KEY_ID_LDEVID_ECDSA_PRIV_KEY) {
+        handle_fatal_error(e.into());
+    }
+
+    cprintln!("[exit] Erasing LDevID MLDSA keypair seed (KV slot {})", KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED as u8);
+    if let Err(e) = env.key_vault.erase_key(KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED) {
+        handle_fatal_error(e.into());
     }
 
     // Get the fmc entry point from data vault
