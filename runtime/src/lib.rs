@@ -81,6 +81,7 @@ pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
+use crate::sign_with_exported_mldsa::SignWithExportedMldsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use activate_firmware::ActivateFirmwareCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -408,6 +409,9 @@ fn execute_command(
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes, resp)
+        }
+        CommandId::SIGN_WITH_EXPORTED_MLDSA => {
+            SignWithExportedMldsaCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
             RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)

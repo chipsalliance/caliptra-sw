@@ -707,6 +707,7 @@ pub enum MailboxReq {
     VerifyAuthManifest(VerifyAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
+    SignWithExportedMldsa(SignWithExportedMldsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
     GetImageInfo(GetImageInfoReq),
     CmStatus(MailboxReqHeader),
@@ -814,6 +815,7 @@ impl MailboxReq {
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
+            MailboxReq::SignWithExportedMldsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
             MailboxReq::GetImageInfo(req) => Ok(req.as_bytes()),
             MailboxReq::CmStatus(req) => Ok(req.as_bytes()),
@@ -919,6 +921,7 @@ impl MailboxReq {
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::SignWithExportedMldsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetImageInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmStatus(req) => Ok(req.as_mut_bytes()),
@@ -1024,6 +1027,7 @@ impl MailboxReq {
             MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
+            MailboxReq::SignWithExportedMldsa(_) => CommandId::SIGN_WITH_EXPORTED_MLDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
             MailboxReq::GetImageInfo(_) => CommandId::GET_IMAGE_INFO,
             MailboxReq::CmStatus(_) => CommandId::CM_STATUS,
@@ -2371,13 +2375,40 @@ pub struct RevokeExportedCdiHandleResp {
     pub hdr: MailboxRespHeader,
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MldsaSignType {
+    Mu = 0,
+    Raw = 1,
+}
+
+impl From<MldsaSignType> for u32 {
+    fn from(val: MldsaSignType) -> Self {
+        val as u32
+    }
+}
+
+impl TryFrom<u32> for MldsaSignType {
+    type Error = ();
+
+    fn try_from(val: u32) -> Result<Self, Self::Error> {
+        match val {
+            0 => Ok(MldsaSignType::Mu),
+            1 => Ok(MldsaSignType::Raw),
+            _ => Err(()),
+        }
+    }
+}
+
 // SIGN_WITH_EXPORTED_MLDSA
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct SignWithExportedMldsaReq {
     pub hdr: MailboxReqHeader,
     pub exported_cdi_handle: [u8; Self::EXPORTED_CDI_MAX_SIZE],
-    pub tbs: [u8; Self::MAX_DIGEST_SIZE],
+    pub sign_type: u32,
+    pub tbs_size: u32,
+    pub tbs: [u8; Self::MAX_TBS_SIZE],
 }
 
 impl Default for SignWithExportedMldsaReq {
@@ -2385,14 +2416,16 @@ impl Default for SignWithExportedMldsaReq {
         Self {
             hdr: MailboxReqHeader::default(),
             exported_cdi_handle: [0u8; Self::EXPORTED_CDI_MAX_SIZE],
-            tbs: [0u8; Self::MAX_DIGEST_SIZE],
+            sign_type: MldsaSignType::Mu as u32,
+            tbs_size: 0,
+            tbs: [0u8; Self::MAX_TBS_SIZE],
         }
     }
 }
 
 impl SignWithExportedMldsaReq {
     pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
-    pub const MAX_DIGEST_SIZE: usize = 64;
+    pub const MAX_TBS_SIZE: usize = 1024;
 }
 
 impl Request for SignWithExportedMldsaReq {
@@ -2406,10 +2439,11 @@ pub struct SignWithExportedMldsaResp {
     pub hdr: MailboxRespHeader,
     pub derived_pubkey: [u8; Self::PUBKEY_SIZE],
     pub signature: [u8; Self::SIG_SIZE],
+    pub _padding: [u8; 1],
 }
 
 impl SignWithExportedMldsaResp {
-    pub const SIG_SIZE: usize = 4628;
+    pub const SIG_SIZE: usize = 4627;
     pub const PUBKEY_SIZE: usize = 2592;
 }
 
@@ -2421,6 +2455,7 @@ impl Default for SignWithExportedMldsaResp {
             hdr: MailboxRespHeader::default(),
             signature: [0u8; Self::SIG_SIZE],
             derived_pubkey: [0u8; Self::PUBKEY_SIZE],
+            _padding: [0u8; 1],
         }
     }
 }
