@@ -16,7 +16,7 @@ caliptra-builder.workspace = true
 clap.workspace = true
 hex = "0.4"
 log.workspace = true
-octocrab = "0.38.0"
+octocrab = "0.37.0"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
