@@ -22,24 +22,24 @@ pub struct LocalDevIdCsrTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl LocalDevIdCsrTbsMlDsa87 {
-    const PUBLIC_KEY_OFFSET: usize = 144usize;
-    const SUBJECT_SN_OFFSET: usize = 58usize;
-    const UEID_OFFSET: usize = 2807usize;
+    const PUBLIC_KEY_OFFSET: usize = 150usize;
+    const SUBJECT_SN_OFFSET: usize = 64usize;
+    const UEID_OFFSET: usize = 2813usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const UEID_LEN: usize = 17usize;
-    pub const TBS_TEMPLATE_LEN: usize = 2853usize;
+    pub const TBS_TEMPLATE_LEN: usize = 2859usize;
     const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
-        48u8, 130u8, 11u8, 33u8, 2u8, 1u8, 0u8, 48u8, 113u8, 49u8, 36u8, 48u8, 34u8, 6u8, 3u8,
-        85u8, 4u8, 3u8, 12u8, 27u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
-        50u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 76u8, 68u8,
-        101u8, 118u8, 73u8, 68u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8,
+        48u8, 130u8, 11u8, 39u8, 2u8, 1u8, 0u8, 48u8, 119u8, 49u8, 42u8, 48u8, 40u8, 6u8, 3u8,
+        85u8, 4u8, 3u8, 12u8, 33u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8,
+        82u8, 79u8, 77u8, 32u8, 50u8, 46u8, 49u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8,
+        56u8, 55u8, 32u8, 76u8, 68u8, 101u8, 118u8, 73u8, 68u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8,
+        85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8,
-        1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8,
+        6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
     ];
     const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
         Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
@@ -91,7 +91,7 @@ impl LocalDevIdCsrTbsMlDsa87 {
     fn apply(&mut self, params: &LocalDevIdCsrTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 2853usize],
+            buf: &mut [u8; 2859usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
