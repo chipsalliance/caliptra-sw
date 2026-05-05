@@ -4,7 +4,7 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 
 use caliptra_error::CaliptraError;
-use zerocopy::{FromBytes, Immutable, IntoBytes, TryFromBytes, Unalign};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, Unalign};
 use zeroize::Zeroize;
 
 use crate::memory_layout;
@@ -24,7 +24,7 @@ impl MemBounds for RomBounds {
 pub type RomAddr<T> = BoundedAddr<T, RomBounds>;
 
 #[repr(C)]
-#[derive(TryFromBytes, IntoBytes, Immutable)]
+#[derive(FromZeros, IntoBytes, Immutable)]
 pub struct BoundedAddr<T: IntoBytes + FromBytes, B: MemBounds> {
     addr: Unalign<u32>,
     _phantom: PhantomData<(T, B)>,

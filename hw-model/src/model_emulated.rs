@@ -415,6 +415,11 @@ impl HwModel for ModelEmulated {
         }))
     }
 
+    fn dccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
+        let offset = offset as usize;
+        self.cpu.bus.bus.dccm.data()[offset..offset + len].to_vec()
+    }
+
     fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
         match mode {
             ErrorInjectionMode::None => {

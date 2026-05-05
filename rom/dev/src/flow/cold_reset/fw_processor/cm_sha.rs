@@ -23,7 +23,7 @@ impl CmShaCmd {
     /// Execute the CM_SHA command.
     ///
     /// This parses only the header from cmd_bytes and accesses the input data
-    /// directly to avoid a large stack allocation (the input can be up to 256KB minus header).
+    /// directly to avoid a large stack allocation.
     ///
     /// # Arguments
     /// * `cmd_bytes` - The raw command bytes from the mailbox

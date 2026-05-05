@@ -65,7 +65,7 @@ mod model_fpga_subsystem;
 mod output;
 mod rv32_builder;
 
-pub use api::mailbox::mbox_write_fifo;
+pub use api::mailbox::{mbox_write_fifo, mbox_write_fifo_with_limit};
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
@@ -205,6 +205,11 @@ pub struct SubsystemInitParams<'a> {
     // Override the lifecycle state provisioned into OTP. When set, this
     // takes priority over the security_state-derived lifecycle mapping.
     pub lc_state: Option<LifecycleControllerState>,
+
+    // When true, set secrets_valid so DOE reads UDS and field entropy
+    // from strap registers instead of OTP. This gives deterministic
+    // IDevID on FPGA, required for attestation tests.
+    pub use_strap_secrets: bool,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -218,6 +223,7 @@ impl Default for SubsystemInitParams<'_> {
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
             primary_flash_initial_contents: None,
             lc_state: None,
+            use_strap_secrets: false,
         }
     }
 }
@@ -1210,6 +1216,12 @@ pub trait HwModel: SocManager {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
+    /// Read a region of DCCM (Data Closely Coupled Memory).
+    /// `offset` is relative to the DCCM base address and `len` is the number of bytes to read.
+    fn dccm_read(&self, _offset: u32, _len: usize) -> Vec<u8> {
+        unimplemented!("direct DCCM reads are not supported on this model")
+    }
+
     fn set_axi_user(&mut self, axi_user: u32);
 
     /// Executes a typed request and (if success), returns the typed response.
@@ -1264,6 +1276,12 @@ pub trait HwModel: SocManager {
         .unwrap();
 
         // Check if we need to use subsystem staging area for large payloads
+        let mailbox_size_limit = if self.subsystem_mode() {
+            api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT
+        } else {
+            api::mailbox::PASSIVE_MAILBOX_SIZE_LIMIT
+        };
+
         if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
             // Write payload to staging area
             let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
@@ -1282,10 +1300,16 @@ pub trait HwModel: SocManager {
             self.soc_mbox()
                 .cmd()
                 .write(|_| api::mailbox::CommandId::EXTERNAL_MAILBOX_CMD.0);
-            mbox_write_fifo(&self.soc_mbox(), cmd.as_bytes().unwrap()).map_err(ModelError::from)?;
+            mbox_write_fifo_with_limit(
+                &self.soc_mbox(),
+                cmd.as_bytes().unwrap(),
+                mailbox_size_limit,
+            )
+            .map_err(ModelError::from)?;
         } else {
             self.soc_mbox().cmd().write(|_| cmd);
-            mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
+            mbox_write_fifo_with_limit(&self.soc_mbox(), buf, mailbox_size_limit)
+                .map_err(ModelError::from)?;
         }
 
         // Ask the microcontroller to execute this command
