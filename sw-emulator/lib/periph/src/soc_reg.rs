@@ -1214,8 +1214,17 @@ impl SocRegistersImpl {
             Err(BusError::StoreAccessFault)?
         }
 
+        // READY_FOR_FUSES (bit 30) is HW-driven and read-only per spec.
+        // Preserve this bit across SW writes to match RTL behavior.
+        const READY_FOR_FUSES_MASK: u32 = 1 << 30;
+
+        let current = self.cptra_flow_status.reg.get();
+        let preserved = current & READY_FOR_FUSES_MASK;
+
+        let new_val = (val & !READY_FOR_FUSES_MASK) | preserved;
+
         // Set the flow status register.
-        self.cptra_flow_status.reg.set(val);
+        self.cptra_flow_status.reg.set(new_val);
 
         // If ready_for_fw bit is set, run the op_fn_write_complete_cb.
         if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
