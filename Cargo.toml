@@ -238,7 +238,7 @@ riscv = "0.13.0"
 
 # infra dependecies for CI
 size-history = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-size-history", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
-bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "64e75e17e1a2eb07ff8dd6698932af82182da85e" }
+bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "82bbb1342d94940e5e49677e20d1f9164b9be004" }
 
 [profile.firmware]
 inherits = "release"
