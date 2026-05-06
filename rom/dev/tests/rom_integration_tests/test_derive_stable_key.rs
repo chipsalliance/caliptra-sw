@@ -91,6 +91,11 @@ fn test_derive_stable_key() {
             if *key_type == CmStableKeyType::OwnerKey && !subsystem_mode {
                 continue;
             }
+            // The FPGA wrapper does not expose SS_STRAP_GENERIC[3], so positive
+            // OwnerKey tests cannot enable the Stable Owner Key feature there.
+            if cfg!(feature = "fpga_subsystem") && *key_type == CmStableKeyType::OwnerKey {
+                continue;
+            }
             let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
@@ -104,6 +109,7 @@ fn test_derive_stable_key() {
                 InitParams {
                     rom: &rom,
                     subsystem_mode,
+                    ocp_lock_en: false,
                     stable_owner_key_en: true,
                     ..Default::default()
                 },
@@ -221,6 +227,7 @@ fn test_derive_stable_key_invalid_key_type() {
 }
 
 #[test]
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_derive_stable_owner_key_different_info() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         // OwnerKey requires subsystem mode
@@ -232,6 +239,7 @@ fn test_derive_stable_owner_key_different_info() {
             InitParams {
                 rom: &rom,
                 subsystem_mode,
+                ocp_lock_en: false,
                 stable_owner_key_en: true,
                 ..Default::default()
             },
@@ -325,6 +333,7 @@ fn test_derive_stable_owner_key_rejected_in_passive_mode() {
         InitParams {
             rom: &rom,
             subsystem_mode: false,
+            ocp_lock_en: false,
             stable_owner_key_en: true,
             ..Default::default()
         },

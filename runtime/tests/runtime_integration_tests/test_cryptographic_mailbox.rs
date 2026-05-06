@@ -2922,12 +2922,16 @@ fn test_derive_stable_key_from_rom() {
     ];
 
     // OwnerKey is not available when OCP LOCK is enabled (mutually exclusive
-    // with Stable Owner Key feature).
+    // with Stable Owner Key feature). The FPGA wrapper does not expose
+    // SS_STRAP_GENERIC[3], so positive OwnerKey tests cannot enable the Stable
+    // Owner Key feature there.
     let ocp_lock = cfg!(feature = "ocp-lock");
 
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for &key_type in &STABLE_KEY_TYPES {
-            if ocp_lock && key_type == CmStableKeyType::OwnerKey {
+            if (ocp_lock || cfg!(feature = "fpga_subsystem"))
+                && key_type == CmStableKeyType::OwnerKey
+            {
                 continue;
             }
             // OwnerKey requires subsystem mode
@@ -3096,8 +3100,9 @@ fn test_derive_stable_key_from_rom() {
     }
 }
 
-// OwnerKey is not available when OCP LOCK is enabled.
-#[cfg_attr(feature = "ocp-lock", ignore)]
+// OwnerKey is not available when OCP LOCK is enabled or when the FPGA wrapper
+// cannot expose SS_STRAP_GENERIC[3].
+#[cfg_attr(any(feature = "ocp-lock", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_derive_stable_owner_key_different_info() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
@@ -3279,7 +3284,7 @@ fn test_derive_stable_owner_key_rejected_when_ocp_lock_enabled() {
 /// Test deriving keys of different usages (AES, HMAC, ECDSA, MLDSA) from the
 /// Stable Owner Key via CM_HMAC_KDF_COUNTER, then exercising each derived key
 /// with its corresponding CM command.
-#[cfg_attr(feature = "ocp-lock", ignore)]
+#[cfg_attr(any(feature = "ocp-lock", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_derive_keys_from_stable_owner_key() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
