@@ -144,6 +144,21 @@ pub struct KeyVault {
     regs: Rc<RefCell<KeyVaultRegs>>,
 }
 
+/// Snapshot of the entire KeyVault contents — keys, PCRs, and their
+/// associated control registers. Returned by `KeyVault::snapshot` for
+/// inspection / debugging by external code (e.g. the WASM demo UI).
+#[derive(Debug, Clone)]
+pub struct KeyVaultSnapshot {
+    /// Raw key data: 24 keys × 64 bytes = 1536 bytes.
+    pub keys: Vec<u8>,
+    /// Per-key control register values (24 entries).
+    pub key_control: Vec<u32>,
+    /// PCR values: 32 PCRs × 48 bytes each.
+    pub pcrs: Vec<Vec<u8>>,
+    /// Per-PCR control register values (32 entries).
+    pub pcr_control: Vec<u32>,
+}
+
 impl KeyVault {
     pub const PCR_SIZE: usize = 48;
     pub const KEY_COUNT: u32 = 24;
@@ -192,6 +207,14 @@ impl KeyVault {
     /// Internal emulator interface to read pcr from key vault
     pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
         self.regs.borrow().read_pcr(pcr_id)
+    }
+
+    /// Snapshot of all key vault state for inspection / debugging.
+    /// Returns the raw key bytes (24 keys × 64 bytes = 1536 bytes), the 24
+    /// key-control register values, the 32 PCRs (each 48 bytes), and the
+    /// 32 PCR-control register values.
+    pub fn snapshot(&self) -> KeyVaultSnapshot {
+        self.regs.borrow().snapshot()
     }
 
     /// Internal emulator interface to write pcr to key vault
@@ -413,6 +436,30 @@ impl KeyVaultRegs {
                 STICKY_LOCKABLE_SCRATCH_CTRL_REG_RESET_VAL,
             ),
             sticky_lockable_scratch: ReadWriteRegisterArray::new(0),
+        }
+    }
+
+    /// Snapshot of all key vault state. See `KeyVault::snapshot` for details.
+    pub fn snapshot(&self) -> KeyVaultSnapshot {
+        let mut keys = vec![0u8; (KeyVault::KEY_COUNT as usize) * KeyVault::KEY_SIZE];
+        keys.copy_from_slice(self.keys.data());
+        let mut key_control = Vec::with_capacity(KeyVault::KEY_COUNT as usize);
+        for i in 0..(KeyVault::KEY_COUNT as usize) {
+            key_control.push(self.key_control[i].get());
+        }
+        let mut pcrs = Vec::with_capacity(constants::PCR_COUNT as usize);
+        for i in 0..(constants::PCR_COUNT as usize) {
+            pcrs.push(self.read_pcr(i as u32).to_vec());
+        }
+        let mut pcr_control = Vec::with_capacity(constants::PCR_COUNT as usize);
+        for i in 0..(constants::PCR_COUNT as usize) {
+            pcr_control.push(self.pcr_control[i].get());
+        }
+        KeyVaultSnapshot {
+            keys,
+            key_control,
+            pcrs,
+            pcr_control,
         }
     }
 

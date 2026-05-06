@@ -139,6 +139,14 @@ impl ModelEmulated {
     }
 }
 
+impl ModelEmulated {
+    /// Snapshot of the Caliptra Key Vault (keys, PCRs, and control registers).
+    /// Intended for inspection / debugging by external code such as the WASM demo UI.
+    pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
+        self.cpu.bus.bus.key_vault.snapshot()
+    }
+}
+
 fn hash_slice(slice: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     std::hash::Hash::hash_slice(slice, &mut hasher);

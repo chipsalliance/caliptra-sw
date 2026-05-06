@@ -50,6 +50,7 @@ pub use hmac::HmacSha;
 pub use iccm::Iccm;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
+pub use key_vault::KeyVaultSnapshot;
 pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam, MailboxRequester};
 pub use mci::Mci;
 pub use root_bus::{
