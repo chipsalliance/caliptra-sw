@@ -2646,15 +2646,27 @@ Command Code: `0x434D_5247` ("CMRG")
 ### CM\_DERIVE\_STABLE\_KEY
 
 Derives an HMAC key that has a stable value across resets from either
-IDevId or LDevId.
+IDevId, LDevId, or the Owner Root Key (derived from HEK seed).
 
-The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs.
+The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs, or from the HEK-seed-derived Owner Root Key.
 The actual encrypted bytes of the CMK will *not* be the same, and
 the encrypted CMK itself cannot be used across resets. So, the key
 will always need to be re-derived after every *cold* reset.
 
 If a key usage other than HMAC is desired, then the KDF or HKDF
 mailbox functions can be used to derive a key from the returned CMK.
+
+`key_type = OwnerKey` is only available in subsystem mode when the Stable Owner
+Key strap is enabled (`SS_STRAP_GENERIC[3]` bit 0 set to 1) and OCP LOCK is not
+enabled. If these requirements are not met, the command fails with
+`CMB_STABLE_OWNER_KEY_NOT_AVAILABLE`.
+
+For `OwnerKey`, this command derives from the ROM-populated Stable Owner Root
+Key. It first runs AES-256-CMAC KDF with `info` as the input data to produce an
+intermediate key, then runs HMAC-SHA512 KDF with `b"Stable Owner Key" || info`
+as the domain-separation input to produce the returned 64-byte HMAC key
+material. Caliptra wraps that key material as an encrypted CMK before returning
+it to the caller.
 
 Command Code: `0x434D_4453` ("CMDS")
 
@@ -2663,7 +2675,7 @@ Command Code: `0x434D_4453` ("CMDS")
 | **Name**      | **Type** | **Description** |
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId <br> **0x0000_0003:** OwnerKey (derived from HEK seed) |
 | info          | u8[32]   | Data to use in the key derivation. |
 
 *Table: `CM_DERIVE_STABLE_KEY` output arguments*

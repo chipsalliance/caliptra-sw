@@ -242,9 +242,17 @@ impl HwModel for ModelEmulated {
 
         let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
         let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
-        root_bus
-            .soc_reg
-            .set_strap_generic(&[ss_strap_generic_reg_0, ss_strap_generic_reg_1, 0, 0]);
+        let ss_strap_generic_reg_3 = if params.stable_owner_key_en {
+            1u32
+        } else {
+            0u32
+        };
+        root_bus.soc_reg.set_strap_generic(&[
+            ss_strap_generic_reg_0,
+            ss_strap_generic_reg_1,
+            0,
+            ss_strap_generic_reg_3,
+        ]);
 
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
