@@ -2656,6 +2656,18 @@ will always need to be re-derived after every *cold* reset.
 If a key usage other than HMAC is desired, then the KDF or HKDF
 mailbox functions can be used to derive a key from the returned CMK.
 
+`key_type = OwnerKey` is only available in subsystem mode when the Stable Owner
+Key strap is enabled (`SS_STRAP_GENERIC[3]` bit 0 set to 1) and OCP LOCK is not
+enabled. If these requirements are not met, the command fails with
+`CMB_STABLE_OWNER_KEY_NOT_AVAILABLE`.
+
+For `OwnerKey`, this command derives from the ROM-populated Stable Owner Root
+Key. It first runs AES-256-CMAC KDF with `info` as the input data to produce an
+intermediate key, then runs HMAC-SHA512 KDF with `b"Stable Owner Key" || info`
+as the domain-separation input to produce the returned 64-byte HMAC key
+material. Caliptra wraps that key material as an encrypted CMK before returning
+it to the caller.
+
 Command Code: `0x434D_4453` ("CMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*

@@ -95,6 +95,23 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 - In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
 - In production mode, ROM locks the entropy source configuration after programming to prevent modification.
 
+### Stable Owner Key Root Derivation
+
+The Stable Owner Key feature is only available in subsystem mode when OCP LOCK is disabled and the following subsystem strap is set:
+
+| Register                         | Field/Bits | Description                                             |
+| :------------------------------- | :--------- | :------------------------------------------------------ |
+| SS_STRAP_GENERIC[3]              | [0]        | Stable Owner Key enable. When set to 1, ROM derives the Stable Owner Root Key from the HEK seed and allows `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` when the other availability requirements are met. When clear, Stable Owner Key derivation is disabled. |
+
+When the feature is available, ROM derives the Stable Owner Root Key during the IDevID stage before clearing DOE secrets:
+
+1. DOE decrypts the obfuscated HEK seed into `KEY_ID_HEK_SEED` (`KeyId14`) with HMAC block usage.
+2. HKDF-Extract uses HMAC-SHA512 with salt `stable_owner_root_key`, zero-padded to 64 bytes, and reads `KEY_ID_HEK_SEED` as HMAC block data. The resulting PRK overwrites `KEY_ID_HEK_SEED` with HMAC key usage.
+3. HKDF-Expand uses HMAC-SHA512 with the PRK and label `stable_owner_root_key` to populate `KEY_ID_STABLE_OWNER` (`KeyId15`) with AES key usage.
+4. ROM write-locks `KEY_ID_STABLE_OWNER` and erases the temporary `KEY_ID_HEK_SEED` slot.
+
+If subsystem mode is not active, the strap is clear, or OCP LOCK is enabled, ROM skips this derivation and `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` is unavailable.
+
 For a comprehensive overview of the SOC interface registers, please refer to the following link::
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
