@@ -399,38 +399,32 @@ impl GitHubReleaseManager {
             self.head_commit
         );
 
-        let mut page = self
-            .crab
-            .repos(&self.owner, &self.repo)
-            .releases()
-            .list()
-            .per_page(100)
-            .send()
-            .await?;
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_secs(300);
+        let poll_interval = std::time::Duration::from_secs(10);
 
-        let mut release = None;
-        loop {
-            if let Some(matching_release) =
-                page.items.iter().find(|r| r.tag_name == self.nightly_tag)
+        let release = loop {
+            match self
+                .crab
+                .repos(&self.owner, &self.repo)
+                .releases()
+                .get_by_tag(&self.nightly_tag)
+                .await
             {
-                release = Some(matching_release.clone());
-                break;
+                Ok(r) => break r,
+                Err(e) => {
+                    if start.elapsed() >= timeout {
+                        bail!(
+                            "Could not find a release for {} after 5 minutes. Last error: {:#}",
+                            self.head_commit,
+                            e
+                        );
+                    }
+                    info!("Release not found yet, retrying in 10s... (Error: {:#})", e);
+                    tokio::time::sleep(poll_interval).await;
+                }
             }
-
-            if let Ok(Some(next_page)) = self.crab.get_page(&page.next).await {
-                info!("Checking next page");
-                page = next_page;
-            } else {
-                break;
-            }
-        }
-
-        let release = release.ok_or_else(|| {
-            anyhow!(
-                "Could not find a release for {}. Did the commit pass a nightly?",
-                self.head_commit
-            )
-        })?;
+        };
 
         let release_name = self.tag.release_name();
         let release_body = extract_changelog(&release_name)?;
