@@ -441,8 +441,11 @@ impl KeyVaultRegs {
 
     /// Snapshot of all key vault state. See `KeyVault::snapshot` for details.
     pub fn snapshot(&self) -> KeyVaultSnapshot {
-        let mut keys = vec![0u8; (KeyVault::KEY_COUNT as usize) * KeyVault::KEY_SIZE];
-        keys.copy_from_slice(self.keys.data());
+        let key_bytes = (KeyVault::KEY_COUNT as usize) * KeyVault::KEY_SIZE;
+        let mut keys = vec![0u8; key_bytes];
+        // self.keys.data() is KEY_REG_SIZE bytes (padded for register layout),
+        // which may exceed KEY_COUNT*KEY_SIZE. Only copy the valid portion.
+        keys.copy_from_slice(&self.keys.data()[..key_bytes]);
         let mut key_control = Vec::with_capacity(KeyVault::KEY_COUNT as usize);
         for i in 0..(KeyVault::KEY_COUNT as usize) {
             key_control.push(self.key_control[i].get());
