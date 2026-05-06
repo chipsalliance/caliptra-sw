@@ -12,8 +12,8 @@ use caliptra_auth_man_types::{
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{firmware::FMC_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader, SetAuthManifestReq,
+    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
+    ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -36,6 +36,7 @@ pub const IMAGE_DIGEST_BAD: [u8; 48] = [
 pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
+const AUTH_AND_STASH_TCI_TAG: u32 = 0x4154_5348;
 
 #[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_SIZE: usize = 0x1000;
@@ -1098,6 +1099,37 @@ fn write_to_test_sram(model: &mut DefaultHwModel, address: Addr64, data: &[u8]) 
     }
 }
 
+fn tag_and_get_default_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
+    let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0u8; 16],
+        tag: AUTH_AND_STASH_TCI_TAG,
+    });
+    tag_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_TAG_TCI),
+            tag_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut get_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: AUTH_AND_STASH_TCI_TAG,
+    });
+    get_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
+}
+
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_load_address() {
@@ -1109,12 +1141,12 @@ fn test_authorize_from_load_address() {
 
     let mut hasher = Sha384::new();
     hasher.update(load_memory_contents);
-    let fw_digest = hasher.finalize();
+    let fw_digest: [u8; 48] = hasher.finalize().into();
 
     let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
-        digest: fw_digest.into(),
+        digest: fw_digest,
         image_load_address: Addr64 {
             lo: TEST_SRAM_BASE.lo,
             hi: TEST_SRAM_BASE.hi,
@@ -1161,6 +1193,9 @@ fn test_authorize_from_load_address() {
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    let tagged_tci = tag_and_get_default_tci(&mut model);
+    assert_eq!(tagged_tci.tci_current, fw_digest);
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
@@ -1231,12 +1266,12 @@ fn test_authorize_from_staging_address() {
 
     let mut hasher = Sha384::new();
     hasher.update(load_memory_contents);
-    let fw_digest = hasher.finalize();
+    let fw_digest: [u8; 48] = hasher.finalize().into();
 
     let image_metadata = AuthManifestImageMetadata {
         fw_id: u32::from_le_bytes(FW_ID_1),
         flags: flags.0,
-        digest: fw_digest.into(),
+        digest: fw_digest,
         image_staging_address: Addr64 {
             lo: TEST_SRAM_BASE.lo,
             hi: TEST_SRAM_BASE.hi,
@@ -1276,6 +1311,9 @@ fn test_authorize_from_staging_address() {
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    let tagged_tci = tag_and_get_default_tci(&mut model);
+    assert_eq!(tagged_tci.tci_current, fw_digest);
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
