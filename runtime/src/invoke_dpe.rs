@@ -96,8 +96,14 @@ impl InvokeDpeCmd {
             .get(..cmd.data_size as usize)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        // External responses can only be done in subsystem mode
-        if cmd.flags.external_axi_response() && !drivers.soc_ifc.subsystem_mode() {
+        // External responses can only be done in subsystem mode by PL0
+        let external_response = cmd.flags.external_axi_response();
+        let pl0 = drivers.caller_privilege_level() == PauserPrivileges::PL0;
+        let subsystem_mode = drivers.soc_ifc.subsystem_mode();
+        if external_response && !pl0 {
+            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+        }
+        if external_response && !subsystem_mode {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 

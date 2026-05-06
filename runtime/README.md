@@ -919,10 +919,14 @@ Invokes a serialized ML-DSA-87 DPE profile command. In subsystem mode a response
 can be DMA'ed to an external address. This is especially useful for large
 commands like `CertifyKey` or `DeriveContext` when exporting a CDI. Both of
 these responses contain a potentially large certificate/CSR. To use this
-feature, set the EXTERNAL_AXI_RESPONSE in `flags` and set the corresponding
+feature, set the `EXTERNAL_AXI_RESPONSE` in `flags` and set the corresponding
 AXI address and size fields. The response over the mailbox will only contain a
 mailbox header (`chksum` and `fips_status`). The full response including the
 mailbox header will be found at the given address.
+
+**Important restrictions for `EXTERNAL_AXI_RESPONSE` flag use:**
+- This command is only available in subsystem mode, as DMA is only available in subsystem.
+- This command is only available for MCU.
 
 Command Code: `0x4450_4543` ("DPEC")
 
@@ -2582,6 +2586,7 @@ Performs in-place AES-256-GCM decryption of data at an AXI address using DMA. Th
 
 **Important restrictions:**
 - This command is only available in subsystem mode, as DMA is only available in subsystem.
+- This command is only available for MCU.
 - This command is only available when the boot mode is `EncryptedFirmware`, which is set by ROM when it receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command.
 - The command performs a two-pass operation:
   1. First pass: Verifies the SHA384 hash of the encrypted data at the AXI address
@@ -3002,7 +3007,9 @@ has been revoked, a new exported CDI can be created by calling `DeriveContext` w
 
 Command Code: `0x4558_544D` ("EXTM")
 
-**Note**: This command is only available in subsystem mode in 2.1+.
+**Important restrictions:**
+- This command is only available in subsystem mode in 2.1+.
+- This command is only available for MCU.
 
 Executes a mailbox command located at an AXI address.
 This allows for executing mailbox commands that are larger than the mailbox allows.
