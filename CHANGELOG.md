@@ -11,3 +11,13 @@ Release notes for changes introduced since rt-1.2.3
 - Corrected Integrity Registers TCB Info index to 11
 - Limited POPULATE_IDEV_ID to PL0 callers
 - Fixed issue with warm resets when debug unlocked
+
+# rt-1.2.5
+## Caliptra Runtime/FMC 1.2.5 Release Notes
+
+Release notes for changes introduced since rt-1.2.4
+
+### Features
+- Updated FIPS CMVP Test Suite
+- Included DPE Cert fixes
+- Various instruction memory optimizations
