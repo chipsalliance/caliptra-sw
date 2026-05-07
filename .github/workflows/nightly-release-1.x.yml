@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          ref: caliptra-1.x
+          ref: ${{ needs.find-latest-release.outputs.release_ref }}
           submodules: 'true'
           fetch-depth: 0
 
