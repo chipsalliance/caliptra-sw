@@ -38,6 +38,7 @@ jobs:
 
           git fetch --depth 1 origin ${{ inputs.commit }}
           git reset --hard ${{ inputs.commit }}
+          git submodule update --init --recursive
           git remote rename origin release-repo
 
           ./target/debug/xtask release deploy ${{ inputs.tag }}
