@@ -12,10 +12,10 @@ Release notes for changes introduced since rt-1.2.3
 - Limited POPULATE_IDEV_ID to PL0 callers
 - Fixed issue with warm resets when debug unlocked
 
-# rt-1.2.5
+# fw-1.2.5
 ## Caliptra Runtime/FMC 1.2.5 Release Notes
 
-Release notes for changes introduced since rt-1.2.4
+Release notes for changes introduced since fw-1.2.4
 
 ### Features
 - Updated FIPS CMVP Test Suite
