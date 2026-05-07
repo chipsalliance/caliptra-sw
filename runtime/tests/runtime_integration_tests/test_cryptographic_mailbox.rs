@@ -6,8 +6,8 @@ use crate::common::{assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeT
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
-    populate_checksum, CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq,
-    CmAesEncryptInitResp, CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq,
+    populate_checksum, CapabilitiesResp, CmAesDecryptInitReq, CmAesDecryptUpdateReq,
+    CmAesEncryptInitReq, CmAesEncryptInitResp, CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq,
     CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader,
     CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
     CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
@@ -30,7 +30,7 @@ use caliptra_api::mailbox::{
     CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
     MLKEM1024_ENCAPS_KEY_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
 };
-use caliptra_api::SocManager;
+use caliptra_api::{Capabilities, SocManager};
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SubsystemInitParams, TrngMode};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -57,6 +57,19 @@ const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
+
+fn rom_stable_owner_key_available(model: &mut DefaultHwModel) -> bool {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
+    };
+    let response = model
+        .mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let capabilities_resp = CapabilitiesResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let capabilities = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
+    capabilities.contains(Capabilities::ROM_STABLE_OWNER_KEY)
+}
 
 #[test]
 fn test_status() {
@@ -2958,6 +2971,11 @@ fn test_derive_stable_key_from_rom() {
             }
             model.step_until(|m| m.ready_for_fw());
 
+            if key_type == CmStableKeyType::OwnerKey && !rom_stable_owner_key_available(&mut model)
+            {
+                continue;
+            }
+
             let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
                 key_type: key_type.into(),
                 ..Default::default()
@@ -3127,6 +3145,10 @@ fn test_derive_stable_owner_key_different_info() {
         }
         model.step_until(|m| m.ready_for_fw());
 
+        if !rom_stable_owner_key_available(&mut model) {
+            continue;
+        }
+
         // Derive with info_a
         let info_a = [0x42u8; 32];
         let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
@@ -3291,8 +3313,9 @@ fn test_derive_keys_from_stable_owner_key() {
         if !subsystem_mode {
             continue;
         }
-        let (mut model, _image_bundle) = start_rt_test_pqc_model(
+        let (mut model, image_bundle) = start_rt_test_pqc_model(
             RuntimeTestArgs {
+                stop_at_rom: true,
                 subsystem_mode,
                 stable_owner_key_en: true,
                 ..Default::default()
@@ -3303,6 +3326,15 @@ fn test_derive_keys_from_stable_owner_key() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
+        model.step_until(|m| m.ready_for_fw());
+
+        if !rom_stable_owner_key_available(&mut model) {
+            continue;
+        }
+
+        let fw_image = image_bundle.to_bytes().unwrap();
+        crate::common::test_upload_firmware(&mut model, &fw_image, FwVerificationPqcKeyType::LMS);
+
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
