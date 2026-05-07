@@ -18,10 +18,10 @@ use caliptra_api::mailbox::{
     MailboxReqHeader, MailboxRespHeader, ProductionAuthDebugUnlockChallenge,
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
-use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
 use caliptra_drivers::{
-    sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Dma, Ecc384, Ecc384PubKey,
-    Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, Array4x8, AxiAddr, Dma, Ecc384,
+    Ecc384PubKey, Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
     Mldsa87Result, Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc,
     StreamEndianness, Trng,
 };
@@ -139,6 +139,17 @@ pub fn validate_debug_unlock_token(
         cfi_assert_eq_12_words(
             &Array4x12::from(token.challenge).0,
             &Array4x12::from(challenge.challenge).0,
+        );
+    }
+
+    // Check if the token is bound to this device.
+    if cfi_launder(token.unique_device_identifier) != challenge.unique_device_identifier {
+        crate::cprintln!("Unique device identifier mismatch");
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
+    } else {
+        cfi_assert_eq_8_words(
+            &Array4x8::from(token.unique_device_identifier).0,
+            &Array4x8::from(challenge.unique_device_identifier).0,
         );
     }
 
