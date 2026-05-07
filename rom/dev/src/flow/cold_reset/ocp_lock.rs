@@ -11,17 +11,15 @@ use caliptra_common::{
     crypto::Crypto,
     keyids::{
         ocp_lock::{KEY_ID_HEK, KEY_ID_MDK},
-        KEY_ID_ROM_FMC_CDI,
+        KEY_ID_HEK_SEED, KEY_ID_ROM_FMC_CDI, KEY_ID_TMP,
     },
 };
 use caliptra_drivers::{
-    Array4x8, CaliptraResult, HekSeedState, HmacMode, KeyUsage, KeyVault, Lifecycle,
-    PersistentData, SocIfc,
+    Array4x8, CaliptraResult, HekSeedState, HmacData, HmacKey, HmacMode, KeyReadArgs, KeyUsage,
+    KeyVault, Lifecycle, PersistentData, SocIfc,
 };
 
 use crate::rom_env::RomEnv;
-
-use zerocopy::IntoBytes;
 
 /// Run the OCP LOCK Cold Reset flow
 ///
@@ -48,17 +46,41 @@ pub fn ocp_lock_cold_reset_flow(env: &mut RomEnv) -> CaliptraResult<()> {
 /// * `env` - ROM Environment
 #[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn derive_hek(env: &mut RomEnv) -> CaliptraResult<()> {
-    let hek_seed = env.soc_ifc.fuse_bank().ocp_hek_seed();
-    Crypto::hmac_kdf(
-        &mut env.hmac,
-        &mut env.trng,
-        KEY_ID_ROM_FMC_CDI,
-        b"ocp_lock_hek",
-        Some(hek_seed.as_bytes()),
-        KEY_ID_HEK,
-        HmacMode::Hmac512,
-        KeyUsage::default().set_hmac_key_en(),
-    )?;
+    // HKDF-Extract — HMAC(key=CDI, data=HEK_seed_in_KV)
+    let result = (|| -> CaliptraResult<()> {
+        env.hmac.hmac(
+            HmacKey::Key(KeyReadArgs::new(KEY_ID_ROM_FMC_CDI)),
+            HmacData::Key(KeyReadArgs::new(KEY_ID_HEK_SEED)),
+            &mut env.trng,
+            caliptra_drivers::HmacTag::Key(caliptra_drivers::KeyWriteArgs::new(
+                KEY_ID_TMP,
+                KeyUsage::default().set_hmac_key_en(),
+            )),
+            HmacMode::Hmac512,
+        )?;
+
+        // HKDF-Expand — HMAC-KDF(key=PRK, label) -> HEK
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            KEY_ID_TMP,
+            b"ocp_lock_hek",
+            None,
+            KEY_ID_HEK,
+            HmacMode::Hmac512,
+            KeyUsage::default().set_hmac_key_en(),
+        )?;
+        Ok(())
+    })();
+
+    // Always erase the temporary keys
+    let erase_result1 = env.key_vault.erase_key(KEY_ID_HEK_SEED);
+    let erase_result2 = env.key_vault.erase_key(KEY_ID_TMP);
+
+    result?;
+    erase_result1?;
+    erase_result2?;
+
     Ok(())
 }
 

@@ -25,7 +25,7 @@ static KEY_LADDER: LazyLock<OcpLockKeyLadderBuilder> = LazyLock::new(|| {
     // * Same HEK
     // * Same DPK / SEK
     let doe_out = DoeOutput::generate(&DoeInput::default());
-    OcpLockKeyLadderBuilder::new(doe_out).add_hek([0xABDEu32; 8])
+    OcpLockKeyLadderBuilder::new(doe_out).add_hek()
 });
 
 #[test]

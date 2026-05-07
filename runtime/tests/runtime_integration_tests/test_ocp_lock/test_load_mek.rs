@@ -27,7 +27,7 @@ fn generate_test_mek() -> (Mek, WrappedKey) {
     let doe_out = DoeOutput::generate(&DoeInput::default());
     OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
         .generate_and_wrap_mek()
 }
