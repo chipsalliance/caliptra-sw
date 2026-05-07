@@ -179,7 +179,7 @@ mod tests {
     fn test_read_error() {
         let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            ram.read(RvSize::Byte, ram.len()).err(),
+            ram.read(RvSize::Byte, ram.len() as RvAddr).err(),
             Some(BusError::LoadAccessFault),
         )
     }
