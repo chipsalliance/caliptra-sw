@@ -4734,7 +4734,7 @@ impl CmEcdsaSignReq {
 
 impl Request for CmEcdsaSignReq {
     const ID: CommandId = CommandId::CM_ECDSA_SIGN;
-    type Resp = CmMldsaSignResp;
+    type Resp = CmEcdsaSignResp;
 }
 
 #[repr(C)]
