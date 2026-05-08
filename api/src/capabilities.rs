@@ -20,6 +20,8 @@ bitflags::bitflags! {
         const ROM_BASE = 0b1;
         // ROM and hardware support for OCP LOCK
         const ROM_OCP_LOCK = 0b1 << 1;
+        // ROM and hardware support for Stable Owner Key
+        const ROM_STABLE_OWNER_KEY = 0b1 << 2;
         // Represents base capabilities present in Caliptra Runtime v1.0
         const RT_BASE = 0b1 << 64;
         // RT firmware and hardware supports OCP LOCK
