@@ -218,8 +218,9 @@ impl FirmwareProcessor {
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
-        // Load the image
+        // Load the image, then verify the loaded ICCM contents against the manifest in DCCM.
         Self::load_image(manifest, txn.as_deref_mut(), &mut env.soc_ifc, &mut env.dma)?;
+        crate::flow::loaded_image::verify_fmc_and_runtime(manifest, &mut env.sha2_512_384)?;
 
         // Complete the mailbox transaction indicating success.
         if let Some(ref mut txn) = txn {

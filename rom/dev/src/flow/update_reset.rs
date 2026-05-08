@@ -172,6 +172,9 @@ impl UpdateResetFlow {
                 &mut env.dma,
                 staging_addr,
             )?;
+            crate::flow::loaded_image::verify_runtime(&manifest, &mut env.sha2_512_384)?;
+            // Complete only after the loaded ICCM contents have been verified.
+            recv_txn.complete(true)?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -267,8 +270,6 @@ impl UpdateResetFlow {
         } else {
             Self::load_image_from_mbox(manifest, txn)?;
         }
-        // Call the complete here to reset the execute bit
-        txn.complete(true)?;
         Ok(())
     }
 
