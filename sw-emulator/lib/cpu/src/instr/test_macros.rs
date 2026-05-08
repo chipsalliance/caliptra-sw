@@ -1180,6 +1180,7 @@ mod test {
             $data_addr:expr => $data:expr
         ) => {{
             use caliptra_emu_bus::{Clock, DynamicBus, Ram, Rom};
+            use std::cell::Cell;
             use std::rc::Rc;
             use $crate::cpu::Cpu;
             use $crate::pic::Pic;
@@ -1191,7 +1192,7 @@ mod test {
             let clock = Rc::new(Clock::new());
             let pic = Rc::new(Pic::new());
             let args = CpuArgs::default();
-            let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
+            let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args, Rc::new(Cell::new(0)));
             let rom = Rom::new($text.clone());
             cpu.bus
                 .attach_dev("ROM", text_range, Box::new(rom))
