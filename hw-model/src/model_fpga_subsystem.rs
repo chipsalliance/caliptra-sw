@@ -578,6 +578,10 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
+        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
+        // to the FPGA block RAM fail with a SIGBUS fault.
+        let zeroed_otp = vec![0u8; OTP_SIZE];
+        self.otp_slice().copy_from_slice(&zeroed_otp);
         self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to initialize OTP");
 
