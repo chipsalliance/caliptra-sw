@@ -14,6 +14,7 @@ Abstract:
 
 #![no_std]
 
+mod csrng_kat;
 mod ecc384_kat;
 mod ecdh_kat;
 mod hkdf_kat;
@@ -28,6 +29,7 @@ mod sha3_kat;
 mod sha512_kat;
 
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
+pub use csrng_kat::CsrngKat;
 pub use ecc384_kat::Ecc384Kat;
 pub use ecdh_kat::EcdhKat;
 pub use hkdf_kat::{Hkdf384Kat, Hkdf512Kat};
@@ -73,6 +75,9 @@ pub fn execute_kat(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrive
 
     cprintln!("[kat] SHAKE-256");
     Shake256Kat::default().execute(env.sha3)?;
+
+    cprintln!("[kat] CSRNG");
+    CsrngKat::default().execute(env.trng)?;
 
     cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;
