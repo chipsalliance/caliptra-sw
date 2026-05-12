@@ -4,13 +4,13 @@ use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, Runti
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
-use caliptra_hw_model::HwModel;
-use caliptra_runtime::CaliptraDpeProfile;
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
 };
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::CaliptraDpeProfile;
 use zerocopy::FromBytes;
 
 const TAG: u32 = 1;
@@ -257,6 +257,7 @@ fn test_tagging_retired_context() {
     // retire tagged context via derive child
     let derive_context_cmd = DeriveContextCmd {
         handle: new_handle,
+        tci_type: 1,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(

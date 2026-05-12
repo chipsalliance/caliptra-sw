@@ -16,6 +16,9 @@ caliptra-common = { workspace = true, default-features = false, features = [
 caliptra-api.workspace = true
 caliptra-cpu.workspace = true
 caliptra-drivers = { workspace = true, features = ["runtime"] }
+caliptra-dpe = { workspace = true }
+caliptra-dpe-crypto.workspace = true
+caliptra-dpe-platform.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-auth-man-types = { workspace = true, default-features = false }
@@ -23,10 +26,7 @@ caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe = { workspace = true }
 constant_time_eq.workspace = true
-crypto.workspace = true
-platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
@@ -96,7 +96,7 @@ cfi = [
     "caliptra-image-verify/cfi",
     "caliptra-drivers/cfi",
     "caliptra-common/cfi",
-    "dpe/cfi"
+    "caliptra-dpe/cfi"
 ]
 fpga_realtime = [
     "caliptra-drivers/fpga_realtime",

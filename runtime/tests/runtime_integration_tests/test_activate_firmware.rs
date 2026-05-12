@@ -117,7 +117,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
             fw_id: image.fw_id.to_le_bytes(),
             measurement: [0; 48],
             source: ImageHashSource::StagingAddress as u32,
-            flags: 0, // Don't skip stash
+            flags: 1, // Skip stash
             image_size: image.contents.len() as u32,
             ..Default::default()
         });

@@ -22,6 +22,7 @@ use crate::Pic;
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, Event, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use std::cell::Cell;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
@@ -304,6 +305,9 @@ pub struct Cpu<TBus: Bus> {
     /// Machine External interrupt enabled
     ext_int_en: bool,
 
+    /// Tracks ExtInt events that were deferred while interrupts were masked.
+    deferred_ext_int: [bool; 256],
+
     /// Halted state
     halted: bool,
 
@@ -371,10 +375,16 @@ pub enum StepAction {
 
 impl<TBus: Bus> Cpu<TBus> {
     /// Create a new RISCV CPU
-    pub fn new(bus: TBus, clock: Rc<Clock>, pic: Rc<Pic>, args: CpuArgs) -> Self {
+    pub fn new(
+        bus: TBus,
+        clock: Rc<Clock>,
+        pic: Rc<Pic>,
+        args: CpuArgs,
+        mrac: Rc<Cell<u32>>,
+    ) -> Self {
         Self {
             xregs: XRegFile::new(),
-            csrs: CsrFile::new(clock.clone(), pic.clone()),
+            csrs: CsrFile::new(clock.clone(), pic.clone(), mrac),
             pc: args.org.reset_vector,
             next_pc: args.org.reset_vector,
             bus,
@@ -387,6 +397,7 @@ impl<TBus: Bus> Cpu<TBus> {
             ext_int_vec: 0,
             global_int_en: false,
             ext_int_en: false,
+            deferred_ext_int: [false; 256],
             halted: false,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
@@ -763,18 +774,48 @@ impl<TBus: Bus> Cpu<TBus> {
     pub fn read_instr(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         self.check_mem_priv(addr, size, RvMemAccessType::Execute)?;
 
-        match size {
-            RvSize::Byte => Err(RvException::instr_access_fault(addr)),
-            _ => match self.bus.read(size, addr) {
-                Ok(val) => Ok(val),
-                Err(exception) => match exception {
-                    BusError::InstrAccessFault => Err(RvException::instr_access_fault(addr)),
-                    BusError::LoadAccessFault => Err(RvException::instr_access_fault(addr)),
-                    BusError::LoadAddrMisaligned => Err(RvException::instr_addr_misaligned(addr)),
-                    BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
-                    BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
-                },
-            },
+        // IFU is handled at the cpu side rather than threading an
+        // access-type flag through the Bus trait. Always issue word-aligned
+        // reads to the bus and slice the requested halfword/word out
+        // locally; this naturally bypasses MracBus's LSU alignment rules
+        // (which IFU does not have) without any special casing.
+        let size_bytes = match size {
+            RvSize::Byte => return Err(RvException::instr_access_fault(addr)),
+            RvSize::HalfWord => 2usize,
+            RvSize::Word => 4,
+            _ => return Err(RvException::instr_access_fault(addr)),
+        };
+        let aligned = addr & !0x3;
+        let byte_off = (addr - aligned) as usize;
+        let lo = self
+            .bus
+            .read(RvSize::Word, aligned)
+            .map_err(|e| Self::map_ifu_error(e, addr))?;
+        let combined: u64 = if byte_off + size_bytes > 4 {
+            // Access straddles the next word.
+            let hi = self
+                .bus
+                .read(RvSize::Word, aligned.wrapping_add(4))
+                .map_err(|e| Self::map_ifu_error(e, addr))?;
+            (lo as u64) | ((hi as u64) << 32)
+        } else {
+            lo as u64
+        };
+        let val = match size {
+            RvSize::HalfWord => ((combined >> (byte_off * 8)) & 0xFFFF) as u32,
+            RvSize::Word => ((combined >> (byte_off * 8)) & 0xFFFF_FFFF) as u32,
+            _ => unreachable!(),
+        };
+        Ok(val)
+    }
+
+    fn map_ifu_error(e: BusError, addr: RvAddr) -> RvException {
+        match e {
+            BusError::InstrAccessFault => RvException::instr_access_fault(addr),
+            BusError::LoadAccessFault => RvException::instr_access_fault(addr),
+            BusError::LoadAddrMisaligned => RvException::instr_addr_misaligned(addr),
+            BusError::StoreAccessFault => RvException::store_access_fault(addr),
+            BusError::StoreAddrMisaligned => RvException::store_addr_misaligned(addr),
         }
     }
 
@@ -824,11 +865,22 @@ impl<TBus: Bus> Cpu<TBus> {
                 TimerAction::SetNmiVec { addr } => self.nmivec = addr,
                 TimerAction::ExtInt { irq, can_wake } => {
                     if self.global_int_en && self.ext_int_en && (!self.halted || can_wake) {
-                        self.halted = false;
-                        step_action = Some(self.handle_external_int(irq));
-                        break;
+                        if self.deferred_ext_int[irq as usize] {
+                            self.deferred_ext_int[irq as usize] = false;
+
+                            if let Some(_active_irq) = self.pic.highest_priority_irq_total() {
+                                self.halted = false;
+                                step_action = Some(self.handle_external_int(_active_irq));
+                                break;
+                            }
+                        } else {
+                            self.halted = false;
+                            step_action = Some(self.handle_external_int(irq));
+                            break;
+                        }
                     } else {
                         save = true;
+                        self.deferred_ext_int[irq as usize] = true;
                     }
                 }
                 TimerAction::SetExtIntVec { addr } => self.ext_int_vec = addr,
@@ -1113,7 +1165,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
+        let cpu = Cpu::new(DynamicBus::new(), clock, pic, args, Rc::new(Cell::new(0)));
         assert_eq!(cpu.read_pc(), 0);
     }
 
@@ -1122,7 +1174,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
+        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args, Rc::new(Cell::new(0)));
         cpu.write_pc(0xFF);
         assert_eq!(cpu.read_pc(), 0xFF);
     }
@@ -1132,7 +1184,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
+        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args, Rc::new(Cell::new(0)));
         for reg in 1..32u32 {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
@@ -1154,7 +1206,7 @@ mod tests {
 
         let args = CpuArgs::default();
 
-        Cpu::new(bus, clock, pic, args)
+        Cpu::new(bus, clock, pic, args, Rc::new(Cell::new(0)))
     }
 
     #[test]
@@ -2007,7 +2059,7 @@ mod tests {
 
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(bus, clock.clone(), pic, args);
+        let mut cpu = Cpu::new(bus, clock.clone(), pic, args, Rc::new(Cell::new(0)));
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
             assert_eq!(cpu.step(None), StepAction::Continue);
@@ -2080,7 +2132,7 @@ mod tests {
 
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
-        let mut cpu = Cpu::new(bus, clock.clone(), pic, args);
+        let mut cpu = Cpu::new(bus, clock.clone(), pic, args, Rc::new(Cell::new(0)));
         cpu.csrs.internal_timers.write_mitcnt(0, 100);
         cpu.global_int_en = true;
         cpu.ext_int_en = true;

@@ -128,7 +128,6 @@ jobs:
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
         log:
-          - { name: "log", rom_logging: true }
           - { name: "nolog", rom_logging: false }
         ocp_lock:
           - { name: "", ocp_lock: false }

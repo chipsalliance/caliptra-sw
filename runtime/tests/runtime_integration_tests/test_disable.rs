@@ -5,10 +5,7 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
-use caliptra_hw_model::HwModel;
-use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::CaliptraDpeProfile;
-use dpe::{
+use caliptra_dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, SignFlags,
         SignP384Cmd as SignCmd,
@@ -16,6 +13,9 @@ use dpe::{
     context::ContextHandle,
     response::{CertifyKeyResp, Response, SignResp},
 };
+use caliptra_hw_model::HwModel;
+use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::CaliptraDpeProfile;
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},

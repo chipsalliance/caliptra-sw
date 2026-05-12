@@ -469,6 +469,7 @@ pub struct ModelFpgaSubsystem {
     saved_ocp_lock_en: bool,
     saved_security_state: SecurityState,
     saved_lc_state: Option<LifecycleControllerState>,
+    saved_use_strap_secrets: bool,
 }
 
 impl ModelFpgaSubsystem {
@@ -571,7 +572,8 @@ impl ModelFpgaSubsystem {
             self.wrapper.regs().cptra_csr_hmac_key[i].set(csr_hmac_key[i]);
         }
 
-        self.set_secrets_valid(false);
+        // Use strap UDS and FE for deterministic IDevID on FPGA when requested
+        self.set_secrets_valid(self.saved_use_strap_secrets);
 
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
@@ -1954,6 +1956,7 @@ impl HwModel for ModelFpgaSubsystem {
             saved_ocp_lock_en: params.ocp_lock_en,
             saved_security_state: params.security_state,
             saved_lc_state: params.ss_init_params.lc_state,
+            saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
         };
 
         println!("AXI reset");
@@ -1971,6 +1974,7 @@ impl HwModel for ModelFpgaSubsystem {
         }));
 
         // Copy the ROM data (only needed on first init; survives AXI reset)
+
         println!("Writing Caliptra ROM");
         let mut caliptra_rom_data = vec![0; caliptra_rom_size];
         caliptra_rom_data[..params.rom.len()].clone_from_slice(params.rom);

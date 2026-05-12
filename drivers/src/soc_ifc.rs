@@ -589,7 +589,7 @@ impl SocIfc {
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
         let config_val = self.soc_ifc.regs().cptra_hw_config().read();
         // 0: 64-bits, 1: 32-bits
-        config_val.fuse_granularity() == 0
+        !config_val.fuse_granularity()
     }
 
     pub fn fuse_controller_base_addr(&self) -> u64 {
@@ -642,6 +642,24 @@ impl SocIfc {
                 .read()
                 .cptra_generation(),
         )
+    }
+
+    /// Check if the Stable Owner Key feature is enabled via SS_STRAP_GENERIC[3] bit 0.
+    pub fn stable_owner_key_enabled(&self) -> bool {
+        self.soc_ifc.regs().ss_strap_generic().at(3).read() & 1 != 0
+    }
+
+    /// Check if the Stable Owner Key feature is available.
+    /// Requires subsystem mode, the strap bit to be set, and OCP LOCK
+    /// to be disabled (both consume fuse_hek_seed via DOE and are
+    /// mutually exclusive).
+    ///
+    /// TODO(2.2): When a dedicated DOE path and fuse register are added for
+    /// the stable owner key seed, the OCP LOCK check here should be relaxed.
+    /// The two features will only conflict when the stable owner key is
+    /// derived from the shared HEK seed (2.1 path), not from a dedicated seed.
+    pub fn stable_owner_key_available(&self) -> bool {
+        self.subsystem_mode() && self.stable_owner_key_enabled() && !self.ocp_lock_enabled()
     }
 
     pub fn otp_dai_idle_bit_num(&self) -> u32 {

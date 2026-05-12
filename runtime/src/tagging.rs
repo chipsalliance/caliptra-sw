@@ -17,8 +17,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxRespHeader, TagTciReq,
 };
+use caliptra_dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use zerocopy::FromBytes;
 
 pub struct TagTciCmd;

@@ -9,11 +9,14 @@ use std::{
 };
 
 mod cargo_lock;
+mod ci;
 mod clippy;
 mod format;
+mod fpga;
 mod license;
 mod precheckin;
 mod release;
+mod release_info;
 mod update_dpe;
 mod update_frozen_images;
 mod util;
@@ -47,6 +50,18 @@ enum Commands {
     },
     /// Build ROM images and update the FROZEN_IMAGES.sha384sum file
     UpdateFrozenImages,
+
+    /// FPGA commands
+    Fpga {
+        #[command(subcommand)]
+        command: fpga::Fpga,
+    },
+
+    /// Run CI tools
+    CI {
+        #[command(subcommand)]
+        command: CICommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -61,6 +76,29 @@ pub enum ReleaseCommands {
         /// The release tag to deploy, formatted as component-major.minor.patch (e.g. fmc-2.0.0)
         tag: String,
     },
+    /// Extract version/hash/commit/SVN info for published ROM/FW releases.
+    Info {
+        /// Release name (e.g. 'rom-2.1.1', 'fw-2.0.1'). When omitted, all
+        /// releases in the built-in list are processed.
+        release_name: Option<String>,
+        /// Output as markdown tables.
+        #[arg(long)]
+        markdown: bool,
+        /// Build from source for releases that lack pre-built assets.
+        #[arg(long)]
+        build: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CICommands {
+    /// Run size-history tool.
+    SizeHistory,
+    /// Run the bitstream downloader tool.
+    BitstreamDownloader {
+        path: String,
+    },
+    TestMatrix,
 }
 
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -93,9 +131,20 @@ fn main() {
         Commands::Release { command } => match command {
             ReleaseCommands::Check { tag } => release::check(tag),
             ReleaseCommands::Deploy { tag } => release::deploy(tag),
+            ReleaseCommands::Info {
+                release_name,
+                markdown,
+                build,
+            } => release_info::run(release_name.as_deref(), *markdown, *build),
         },
         Commands::UpdateDpe { rev } => update_dpe::update_dpe(rev),
         Commands::UpdateFrozenImages => update_frozen_images::update_frozen_images(),
+        Commands::Fpga { command } => fpga::fpga_entry(command),
+        Commands::CI { command } => match command {
+            CICommands::SizeHistory => ci::size_history(),
+            CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
+            CICommands::TestMatrix => Ok(()),
+        },
     };
     result.unwrap_or_else(|e| {
         log::error!("Error: {}", e);

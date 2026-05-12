@@ -9,7 +9,7 @@ The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Im
   Those signatures are also stored in the Preamble.
   The Caliptra firmware's ECC and PQC private keys endorse the manifest's public keys, and these endorsements (signatures) are part of the Preamble as well.
 
-  *Note: All fields are little endian unless specified*
+  *Note: Do not treat the entire manifest as little endian. Scalar `u32` fields use little-endian layout. ECC key and signature fields are stored as big-endian `u32` words. Raw byte-array fields, such as image hashes, use the exact byte sequence produced by standard tools like OpenSSL unless a field description explicitly says otherwise.*
 
 | Field                              | Size (bytes) | Description |
 | ---------------------------------- | ------------ | ----------- |

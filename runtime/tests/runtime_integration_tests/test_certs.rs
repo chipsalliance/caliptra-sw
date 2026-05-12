@@ -18,16 +18,16 @@ use caliptra_common::mailbox_api::{
     StashMeasurementReq,
 };
 use caliptra_common::x509::get_tbs;
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
-use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{CaliptraDpeProfile, TciMeasurement};
-use dpe::commands::{CertifyKeyCommand, DeriveContextCmd};
-use dpe::{
+use caliptra_dpe::commands::{CertifyKeyCommand, DeriveContextCmd};
+use caliptra_dpe::{
     commands::{CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, DeriveContextFlags},
     context::ContextHandle,
     response::{CertifyKeyResp, Response},
 };
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::{CaliptraDpeProfile, TciMeasurement};
 use openssl::{
     asn1::Asn1Time,
     bn::BigNum,

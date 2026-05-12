@@ -97,8 +97,5 @@ pub fn restart_wdt(soc_ifc: &mut SocIfc) {
 /// * `soc_ifc` - SOC Interface
 ///
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
-    if !soc_ifc.debug_locked() {
-        return;
-    }
     soc_ifc.configure_wdt1(false);
 }

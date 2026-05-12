@@ -16,14 +16,15 @@ Abstract:
 
 use crate::cryptographic_mailbox::CmStorage;
 use crate::debug_unlock::ProductionDebugUnlock;
-use crate::dpe_crypto::DpeEcCrypto;
+use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
+use crate::CaliptraDpeEnv;
 use crate::{
-    dice, CaliptraDpeProfile, CptraDpeEcTypes, DisableAttestationCmd, DpePlatform, Mailbox,
-    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeProfile, DisableAttestationCmd, DpePlatform, Mailbox, CALIPTRA_LOCALITY,
+    DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
@@ -37,6 +38,21 @@ use caliptra_common::cfi_check;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+use caliptra_dpe::commands::DeriveContextCmd;
+use caliptra_dpe::context::{Context, ContextState, ContextType};
+use caliptra_dpe::response::DeriveContextResp;
+use caliptra_dpe::tci::TciMeasurement;
+use caliptra_dpe::validation::DpeValidator;
+use caliptra_dpe::MAX_HANDLES;
+use caliptra_dpe::{
+    commands::{CommandExecution, DeriveContextFlags},
+    context::ContextHandle,
+    dpe_instance::DpeInstance,
+};
+use caliptra_dpe::{DpeFlags, DpeProfile};
+use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
+use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
+use caliptra_dpe_crypto::{Digest, PubKey};
 use caliptra_drivers::{
     cprintln,
     hand_off::DataStore,
@@ -58,21 +74,6 @@ use caliptra_registers::{
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::ecdsa::curve_384::EcdsaPub384;
-use crypto::ecdsa::EcdsaPubKey;
-use crypto::{Digest, PubKey};
-use dpe::commands::DeriveContextCmd;
-use dpe::context::{Context, ContextState, ContextType};
-use dpe::response::DeriveContextResp;
-use dpe::tci::TciMeasurement;
-use dpe::validation::DpeValidator;
-use dpe::MAX_HANDLES;
-use dpe::{
-    commands::{CommandExecution, DeriveContextFlags},
-    context::ContextHandle,
-    dpe_instance::{DpeEnv, DpeInstance},
-};
-use dpe::{DpeFlags, DpeProfile};
 
 use core::cmp::Ordering::{Equal, Greater};
 use zerocopy::IntoBytes;
@@ -283,7 +284,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the root DPE context
     #[inline(always)]
-    pub fn get_dpe_root_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_root_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
         let root_idx = dpe
             .contexts
@@ -313,7 +314,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the CCIV DPE context
     #[inline(always)]
-    pub fn get_dpe_cciv_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_cciv_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find the root context index using your existing helper
         let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
 
@@ -575,7 +576,7 @@ impl Drivers {
             .to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(caliptra_dpe_crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }
@@ -587,7 +588,7 @@ impl Drivers {
         let key = okref(&key)?;
 
         let rt_digest = self.sha256.digest(key.as_bytes())?;
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(caliptra_dpe_crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }
@@ -623,7 +624,7 @@ impl Drivers {
             &rt_pub_key.x.into(),
             &rt_pub_key.y.into(),
         )));
-        let crypto = DpeEcCrypto::new(
+        let crypto = DpeCrypto::new_ecc384(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
@@ -633,11 +634,11 @@ impl Drivers {
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.fw.dpe.exported_cdi_slots,
-        );
+        )?;
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.rom.manifest1);
-        let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
-        let mut env = DpeEnv::<CptraDpeEcTypes> {
+        let mut state = caliptra_dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
+        let mut env = CaliptraDpeEnv {
             crypto,
             platform: DpePlatform::new(
                 CaliptraDpeProfile::Ecc384,
@@ -678,7 +679,8 @@ impl Drivers {
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
                 | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                | DeriveContextFlags::INPUT_ALLOW_X509,
+                | DeriveContextFlags::INPUT_ALLOW_X509
+                | DeriveContextFlags::ALLOW_RECURSIVE,
             tci_type: u32::from_be_bytes(*b"CCIV"),
             target_locality: pl0_pauser_locality,
             svn: 0,
@@ -720,7 +722,8 @@ impl Drivers {
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::INPUT_ALLOW_X509
+                    | DeriveContextFlags::ALLOW_RECURSIVE,
                 tci_type,
                 target_locality: pl0_pauser_locality,
                 svn: 0,
@@ -858,7 +861,7 @@ impl Drivers {
 
     fn dpe_get_used_context_counts_helper(
         pl0_pauser: u32,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
     ) -> CaliptraResult<(usize, usize)> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
@@ -897,7 +900,7 @@ impl Drivers {
     fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
         caller_privilege_level: PauserPrivileges,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
         pl0_context_limit: usize,
         pl1_context_limit: usize,
     ) -> CaliptraResult<()> {

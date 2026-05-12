@@ -35,6 +35,8 @@ pub enum RomBootStatus {
     IDevIdMakeCsrEnvelopeComplete = IDEVID_BOOT_STATUS_BASE + 7,
     IDevIdSendCsrEnvelopeComplete = IDEVID_BOOT_STATUS_BASE + 8,
     IDevIdDerivationComplete = IDEVID_BOOT_STATUS_BASE + 9,
+    IDevIdDecryptHekSeedComplete = IDEVID_BOOT_STATUS_BASE + 10,
+    IDevIdStableOwnerRootKeyDerivationComplete = IDEVID_BOOT_STATUS_BASE + 11,
 
     // Ldevid Statuses
     LDevIdCdiDerivationComplete = LDEVID_BOOT_STATUS_BASE,

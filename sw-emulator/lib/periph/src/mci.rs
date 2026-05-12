@@ -359,7 +359,7 @@ impl MciRegs {
                     // Copy hash into fuses array (64 bytes / 16 u32s)
                     let base_idx = i * (SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>());
                     hash.chunks(4).enumerate().for_each(|(j, chunk)| {
-                        // Program the hash in hardware format i.e. little endian.
+                        // Program the hash as big-endian u32 words; the bus presents each word's bytes little-endian at byte addresses.
                         let value = u32::from_be_bytes(chunk.try_into().unwrap());
                         fuses[base_idx + j] = value;
                     });
@@ -463,6 +463,13 @@ impl Mci {
     }
     pub fn cptra_request_mcu_reset(&self) {
         self.regs.borrow_mut().cptra_request_mcu_reset();
+    }
+    /// Overwrite the raw fuse hash for a given debug unlock level (0-indexed).
+    /// This bypasses the SHA-384 computation and directly sets the hash value.
+    pub fn set_raw_fuse_hash(&self, level: usize, hash: &[u32; 12]) {
+        let mut regs = self.regs.borrow_mut();
+        let base_idx = level * (SS_MANUF_DBG_UNLOCK_FUSE_SIZE / core::mem::size_of::<u32>());
+        regs.fuses[base_idx..base_idx + 12].copy_from_slice(hash);
     }
 }
 

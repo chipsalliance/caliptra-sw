@@ -7,13 +7,13 @@ use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, PopulateIdevEcc384CertReq, PopulateIdevMldsa87CertReq,
 };
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
 };
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 use openssl::{
     ec::{EcGroup, EcKey},
     nid::Nid,

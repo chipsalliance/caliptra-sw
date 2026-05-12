@@ -791,10 +791,10 @@ struct SocRegistersImpl {
     ss_uds_seed_base_addr_h: ReadWriteRegister<u32>,
 
     #[register(offset = 0x528)]
-    ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
+    ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadWriteRegister<u32>,
 
     #[register(offset = 0x52c)]
-    ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister<u32>,
+    ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadWriteRegister<u32>,
 
     #[register(offset = 0x530)]
     ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
@@ -1122,10 +1122,10 @@ impl SocRegistersImpl {
             ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
             ss_recovery_mci_base_addr_l: ReadWriteRegister::new(mci_base as u32),
             ss_recovery_mci_base_addr_h: ReadWriteRegister::new((mci_base >> 32) as u32),
-            ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
+            ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadWriteRegister::new(
                 ss_prod_dbg_unlock_number_of_fuses as u32,
             ),
-            ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister::new(
+            ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadWriteRegister::new(
                 ss_prod_dbg_unlock_fuse_offset as u32,
             ),
             ss_soc_dbg_unlock_level: [0; 2],
@@ -1214,8 +1214,17 @@ impl SocRegistersImpl {
             Err(BusError::StoreAccessFault)?
         }
 
+        // READY_FOR_FUSES (bit 30) is HW-driven and read-only per spec.
+        // Preserve this bit across SW writes to match RTL behavior.
+        const READY_FOR_FUSES_MASK: u32 = 1 << 30;
+
+        let current = self.cptra_flow_status.reg.get();
+        let preserved = current & READY_FOR_FUSES_MASK;
+
+        let new_val = (val & !READY_FOR_FUSES_MASK) | preserved;
+
         // Set the flow status register.
-        self.cptra_flow_status.reg.set(val);
+        self.cptra_flow_status.reg.set(new_val);
 
         // If ready_for_fw bit is set, run the op_fn_write_complete_cb.
         if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {

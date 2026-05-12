@@ -24,6 +24,15 @@ use caliptra_common::{
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 
+use caliptra_dpe::{
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
+        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+    },
+    context::ContextHandle,
+    response::{DpeErrorCode, Response, ResponseHdr},
+};
+use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -35,15 +44,6 @@ use caliptra_image_types::ImageBundle;
 use caliptra_runtime::CaliptraDpeProfile;
 pub use caliptra_test::{
     default_soc_manifest_bytes, image_pk_desc_hash, test_upload_firmware, DEFAULT_MCU_FW,
-};
-use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
-use dpe::{
-    commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
-        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
-    },
-    context::ContextHandle,
-    response::{DpeErrorCode, Response, ResponseHdr},
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time, Asn1TimeRef},
@@ -111,6 +111,7 @@ pub struct RuntimeTestArgs<'a> {
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
+    pub stable_owner_key_en: bool,
     pub key_type: Option<FwVerificationPqcKeyType>,
     pub rom_callback: Option<ModelCallback>,
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE)
@@ -158,6 +159,7 @@ impl Default for RuntimeTestArgs<'_> {
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
+            stable_owner_key_en: false,
             key_type: None,
             rom_callback: None,
             encrypted_boot: false,
@@ -281,6 +283,7 @@ pub fn start_rt_test_pqc_model(
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
         ocp_lock_en: ocp_lock,
+        stable_owner_key_en: args.stable_owner_key_en,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()

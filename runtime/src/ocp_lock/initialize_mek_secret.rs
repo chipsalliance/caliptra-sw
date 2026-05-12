@@ -30,8 +30,8 @@ impl InitializeMekSecretCmd {
             &mut drivers.hmac,
             &mut drivers.trng,
             &mut drivers.key_vault,
-            Sek(cmd.sek),
-            Dpk(cmd.dpk),
+            Sek::new(cmd.sek)?,
+            Dpk::new(cmd.dpk)?,
         )?;
 
         let resp = mutrefbytes::<OcpLockInitializeMekSecretResp>(resp)?;

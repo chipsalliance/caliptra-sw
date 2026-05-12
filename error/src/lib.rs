@@ -1764,6 +1764,16 @@ impl CaliptraError {
             "OCP LOCK Error: VEK is not available"
         ),
         (
+            RUNTIME_OCP_LOCK_SEK_INVALID,
+            0x000E0095,
+            "OCP LOCK Error: SEK is not valid"
+        ),
+        (
+            RUNTIME_OCP_LOCK_DPK_INVALID,
+            0x000E0096,
+            "OCP LOCK Error: DPK is not valid"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -2543,6 +2553,11 @@ impl CaliptraError {
             "Debug unlock error: Req bit not set in soc_ifc"
         ),
         (
+            SS_DBG_UNLOCK_PROD_DISABLED,
+            0xa000000c,
+            "Debug unlock error: Production debug unlock disabled"
+        ),
+        (
             RUNTIME_DRIVER_AES_READ_KEY_KV_READ,
             0xa004_0001,
             "Driver Error: AES read key KV read"
@@ -2708,6 +2723,11 @@ impl CaliptraError {
             DOT_INVALID_KEY_TYPE,
             0xa005_5000,
             "DOT Error: Invalid key type"
+        ),
+        (
+            CMB_STABLE_OWNER_KEY_NOT_AVAILABLE,
+            0xa005_5001,
+            "Crypto Mailbox Error: Stable Owner Key is not available when OCP LOCK is enabled"
         ),
         (
             CMB_HMAC_INVALID_ENC_CMK,

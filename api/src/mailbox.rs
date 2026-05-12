@@ -14,15 +14,19 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
-/// Mailbox size in bytes (256 KB).
-pub const MAILBOX_SIZE: usize = 256 * 1024;
-/// Maximum input size for CM_SHA command (mailbox size minus header overhead).
+/// Mailbox size in bytes when subsystem mode is enabled.
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024;
+/// Mailbox size in bytes when passive mode is enabled.
+pub const PASSIVE_MAILBOX_SIZE_LIMIT: usize = 256 * 1024;
+/// Default mailbox size in bytes for API request structs.
+pub const MAILBOX_SIZE: usize = SUBSYSTEM_MAILBOX_SIZE_LIMIT;
+/// Maximum input size for CM_SHA command in subsystem mode (mailbox size minus header overhead).
 /// The overhead consists of: MailboxReqHeader (4 bytes) + hash_algorithm (4 bytes) + input_size (4 bytes) = 12 bytes.
 pub const MAX_CM_SHA_INPUT_SIZE: usize = MAILBOX_SIZE - 12;
+/// Maximum input size for CM_SHA command in passive mode (mailbox size minus header overhead).
+pub const MAX_CM_SHA_INPUT_SIZE_PASSIVE: usize = PASSIVE_MAILBOX_SIZE_LIMIT - 12;
 /// Maximum output size for AES GCM encrypt or decrypt operations.
 pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
-/// Maximum mailbox size when subsystem staging area is available.
-pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
@@ -1864,6 +1868,10 @@ pub struct FwInfoResp {
     pub owner_pub_key_hash: [u32; 12],
     pub authman_sha384_digest: [u32; 12],
     pub most_recent_fw_error: u32,
+    pub vendor_pub_key_hash: [u32; 12],
+    pub image_manifest_pqc_type: u32,
+    pub vendor_ecc384_pub_key_index: u32,
+    pub vendor_pqc_pub_key_index: u32,
 }
 
 // CAPABILITIES
@@ -2569,12 +2577,14 @@ pub struct ProductionAuthDebugUnlockToken {
     pub unlock_level: u8,                   // Debug unlock Level (1-8)
     pub reserved: [u8; 3],                  // Reserved
     pub challenge: [u8; 48],                // Random number
-    pub ecc_public_key: [u32; 24], // ECC public key (in hardware format i.e. little endian)
-    pub mldsa_public_key: [u32; 648], // MLDSA public key (in hardware format i.e. little endian)
-    // ECC P-384 signature of the Message hashed using SHA2-384 (in hardware format i.e. little endian)
+    pub ecc_public_key: [u32; 24], // ECC public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    pub mldsa_public_key: [u32; 648], // MLDSA public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    // ECC P-384 signature of the Message hashed using SHA2-384
     // R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
+    // See runtime/README.md#byte-order-of-cryptographic-fields
     pub ecc_signature: [u32; 24],
-    // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte) (in hardware format i.e. little endian)
+    // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte)
+    // See runtime/README.md#byte-order-of-cryptographic-fields
     pub mldsa_signature: [u32; 1157],
 }
 impl Default for ProductionAuthDebugUnlockToken {
@@ -4728,7 +4738,7 @@ impl CmEcdsaSignReq {
 
 impl Request for CmEcdsaSignReq {
     const ID: CommandId = CommandId::CM_ECDSA_SIGN;
-    type Resp = CmMldsaSignResp;
+    type Resp = CmEcdsaSignResp;
 }
 
 #[repr(C)]
@@ -4928,6 +4938,7 @@ pub enum CmStableKeyType {
     Reserved = 0,
     IDevId,
     LDevId,
+    OwnerKey,
 }
 
 impl From<u32> for CmStableKeyType {
@@ -4935,6 +4946,7 @@ impl From<u32> for CmStableKeyType {
         match val {
             1_u32 => CmStableKeyType::IDevId,
             2_u32 => CmStableKeyType::LDevId,
+            3_u32 => CmStableKeyType::OwnerKey,
             _ => CmStableKeyType::Reserved,
         }
     }
@@ -4945,6 +4957,7 @@ impl From<CmStableKeyType> for u32 {
         match val {
             CmStableKeyType::IDevId => 1,
             CmStableKeyType::LDevId => 2,
+            CmStableKeyType::OwnerKey => 3,
             CmStableKeyType::Reserved => 0,
         }
     }
@@ -5743,12 +5756,18 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    const MAILBOX_SIZE: u32 = 256 * 1024;
+    mbox_write_fifo_with_limit(mbox, buf, MAILBOX_SIZE)
+}
 
+pub fn mbox_write_fifo_with_limit(
+    mbox: &mbox::RegisterBlock<impl MmioMut>,
+    buf: &[u8],
+    mailbox_size_limit: usize,
+) -> core::result::Result<(), CaliptraApiError> {
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     };
-    if input_len > MAILBOX_SIZE {
+    if buf.len() > mailbox_size_limit {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
     }
     mbox.dlen().write(|_| input_len);

@@ -20,14 +20,14 @@ use caliptra_api::mailbox::{
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
-use dpe::{
+use caliptra_dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
     response::{DpeErrorCode, ResponseHdr},
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
-use platform::MAX_OTHER_NAME_SIZE;
+use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use ufmt::derive::uDebug;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -274,7 +274,7 @@ impl InvokeDpeCmd {
     /// * `context_tags` - Tags for each DPE context
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
-        dpe: &mut dpe::State,
+        dpe: &mut caliptra_dpe::State,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
         context_tags: &mut [u32; MAX_HANDLES],
     ) {

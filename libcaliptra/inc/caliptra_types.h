@@ -208,12 +208,18 @@ struct caliptra_fw_info_resp
     uint8_t rom_revision[20];
     uint8_t fmc_revision[20];
     uint8_t runtime_revision[20];
+    // Digest and hash fields below use big-endian word order.
+    // See runtime/README.md "Byte order of cryptographic fields" for conversion details.
     uint32_t rom_sha256_digest[8];
     uint32_t fmc_sha384_digest[12];
     uint32_t runtime_sha384_digest[12];
     uint32_t owner_pub_key_hash[12];
     uint32_t authman_sha384_digest[12];
     uint32_t most_recent_fw_error;
+    uint32_t vendor_pub_key_hash[12];
+    uint32_t image_manifest_pqc_type;
+    uint32_t vendor_ecc384_pub_key_index;
+    uint32_t vendor_pqc_pub_key_index;
 };
 
 struct caliptra_dpe_tag_tci_req

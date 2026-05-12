@@ -12,12 +12,12 @@ use caliptra_common::{
     },
     x509::get_tbs,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::CaliptraDpeProfile;
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, GetCertificateChainCmd},
     response::Response,
 };
+use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_runtime::CaliptraDpeProfile;
 
 use openssl::{
     bn::{BigNum, BigNumContext},

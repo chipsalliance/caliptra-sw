@@ -2,13 +2,13 @@
 
 use caliptra_api::{mailbox::RevokeExportedCdiHandleReq, SocManager};
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader};
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::HwModel;
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     response::Response,
 };
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 
 use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
 

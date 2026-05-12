@@ -112,11 +112,29 @@ impl Vek {
 
 /// Represents the SEK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
-pub struct Sek(pub [u8; 32]);
+pub struct Sek([u8; 32]);
+
+impl Sek {
+    pub fn new(sek: [u8; 32]) -> CaliptraResult<Self> {
+        if sek == [0; 32] {
+            Err(CaliptraError::RUNTIME_OCP_LOCK_SEK_INVALID)?;
+        }
+        Ok(Self(sek))
+    }
+}
 
 /// Represents the DPK type from OCP LOCK.
 #[derive(IntoBytes, KnownLayout, Immutable, ZeroizeOnDrop)]
-pub struct Dpk(pub [u8; 32]);
+pub struct Dpk([u8; 32]);
+
+impl Dpk {
+    pub fn new(dpk: [u8; 32]) -> CaliptraResult<Self> {
+        if dpk == [0; 32] {
+            Err(CaliptraError::RUNTIME_OCP_LOCK_DPK_INVALID)?;
+        }
+        Ok(Self(dpk))
+    }
+}
 
 /// This trait is used to statically prevent mixing access keys.
 pub trait AccessKeyState {}

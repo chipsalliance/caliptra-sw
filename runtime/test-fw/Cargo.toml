@@ -55,10 +55,10 @@ cfg-if.workspace = true
 caliptra-common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
+caliptra-dpe.workspace = true
 caliptra-registers.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 caliptra-test-harness.workspace = true
 cfg-if.workspace = true
-dpe.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true

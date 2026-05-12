@@ -17,13 +17,13 @@ use crate::{
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
-use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::{ContextHandle, ContextState},
     response::{DeriveContextResp, DpeErrorCode},
     tci::TciMeasurement,
 };
+use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use zerocopy::{FromBytes, IntoBytes};
 
 const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
@@ -60,7 +60,8 @@ impl StashMeasurementCmd {
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::INPUT_ALLOW_X509
+                    | DeriveContextFlags::ALLOW_RECURSIVE,
                 tci_type,
                 target_locality: locality,
                 svn,

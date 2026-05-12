@@ -5,12 +5,12 @@ use caliptra_auth_man_gen::default_test_manifest::{default_test_soc_manifest, DE
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
+use caliptra_dpe::DpeProfile;
+use caliptra_dpe::{commands::*, response::Response};
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::DpeProfile;
-use dpe::{commands::*, response::Response};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [

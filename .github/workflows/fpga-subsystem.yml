@@ -6,6 +6,12 @@ on:
   merge_group:
   workflow_call:
     inputs:
+      mcu-commit:
+        type: string
+        required: false
+      repository:
+        default: 'chipsalliance/caliptra-sw'
+        type: string
       artifact-suffix:
         type: string
         required: false
@@ -40,6 +46,9 @@ on:
 
   workflow_dispatch:
     inputs:
+      mcu-commit:
+        type: string
+        required: false
       fpga-itrng:
         default: true
         type: boolean
@@ -69,6 +78,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
           submodules: recursive
       - name: Compute cache-keys
@@ -103,11 +113,13 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
+      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '02ea798304ccccff8e6b5a065781b3d5ed38b118' }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: Restore sysroot from cache
@@ -228,8 +240,7 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra caliptra-bitstream-downloader --root /tmp/bitstream-downloader
-          /tmp/bitstream-downloader/bin/caliptra-bitstream-downloader --bitstream-manifest hw/fpga/bitstream_manifests/subsystem.toml
+          cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/subsystem.toml
           mv subsystem.pdi /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
@@ -289,6 +300,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: 'Download Test Binaries Artifact'
@@ -379,6 +391,9 @@ jobs:
               --test-threads=1 \
               --no-fail-fast
 
+      - name: Copy junit.xml
+        if: success() || failure()
+        run: |
           sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
 
       - name: 'Upload test results'
@@ -398,6 +413,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
+          repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
       - name: 'Download test results'
@@ -409,7 +425,7 @@ jobs:
 
       - name: Print results
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer
+          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           for xml in /tmp/junit/junit-*.xml; do
             /tmp/test-printer/bin/test-printer --xml-path "$xml" >> $GITHUB_STEP_SUMMARY

@@ -7,11 +7,13 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
-use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
+use caliptra_dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
+use caliptra_error::{CaliptraError, CaliptraResult};
+#[cfg(feature = "runtime")]
+use caliptra_image_types::ZeroizeWithByteScrub;
+use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
 #[cfg(feature = "runtime")]
@@ -65,7 +67,7 @@ pub const BOOT_MODE_SIZE: u32 = 4;
     Clone,
     PartialEq,
     Eq,
-    TryFromBytes,
+    FromZeros,
     IntoBytes,
     KnownLayout,
     Immutable,
@@ -106,7 +108,7 @@ mod fw {
 // CDI handles at the cost of using more KeyVault slots.
 pub const EXPORTED_HANDLES_NUM: usize = 1;
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiEntry {
     pub key: KeyId,
     pub handle: ExportedCdiHandle,
@@ -114,9 +116,27 @@ pub struct ExportedCdiEntry {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+impl ZeroizeWithByteScrub for ExportedCdiEntry {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct ExportedCdiHandles {
     pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
+}
+
+#[cfg(feature = "runtime")]
+impl ZeroizeWithByteScrub for ExportedCdiHandles {}
+#[cfg(feature = "runtime")]
+impl Zeroize for ExportedCdiHandles {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
 }
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
@@ -126,7 +146,7 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
-#[derive(Clone, Immutable, IntoBytes, KnownLayout, TryFromBytes, Zeroize)]
+#[derive(Clone, FromZeros, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
     pub csr_len: u32,
@@ -212,7 +232,7 @@ pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
 
 /// Calipatra IDEVID CSR Envelope
 #[repr(C)]
-#[derive(Clone, IntoBytes, Immutable, KnownLayout, TryFromBytes, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, Immutable, KnownLayout, Zeroize)]
 pub struct InitDevIdCsrEnvelope {
     /// Marker
     pub marker: u32,
@@ -245,7 +265,7 @@ impl Default for InitDevIdCsrEnvelope {
 pub mod fmc_alias_csr {
     use super::*;
 
-    #[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+    #[derive(Clone, FromZeros, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
     pub struct FmcAliasCsrs {
         pub ecc_csr_len: u32,
@@ -307,7 +327,7 @@ pub mod fmc_alias_csr {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct DOT_OWNER_PK_HASH {
     pub owner_pk_hash: [u32; 12],
@@ -315,7 +335,7 @@ pub struct DOT_OWNER_PK_HASH {
     reserved: [u8; 3],
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct OcpLockMetadataRom {
     pub total_hek_seed_slots: u16,
@@ -325,7 +345,7 @@ pub struct OcpLockMetadataRom {
     reserved: [u8; 1],
 }
 
-#[derive(Default, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
 pub struct OcpLockFlags(u32);
 
 bitflags::bitflags! {
@@ -334,13 +354,13 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct OcpLockMetadataFirmware {
     pub flags: OcpLockFlags,
 }
 
-#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct EntropyConfiguration {
     pub configured: u32, // true if non-zero
@@ -351,7 +371,7 @@ pub struct EntropyConfiguration {
     pub adaptp_lo_threshold: u32,
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
     #[cfg(any(feature = "fmc", feature = "runtime"))]
@@ -367,7 +387,7 @@ impl PersistentData {
     }
 }
 
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct RomPersistentData {
     // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
@@ -576,7 +596,7 @@ impl RomPersistentData {
 }
 
 #[cfg(any(feature = "fmc", feature = "runtime"))]
-#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct FwPersistentData {
     // NOTE: Add all new fields to the top of the struct because it is at the bottom of DCCM and
@@ -752,9 +772,9 @@ impl PersistentDataAccessor {
 
 #[cfg(feature = "runtime")]
 #[repr(C)]
-#[derive(IntoBytes, TryFromBytes, KnownLayout, Zeroize)]
+#[derive(IntoBytes, FromZeros, KnownLayout, Zeroize)]
 pub struct DpePersistentData {
-    pub state: dpe::State,
+    pub state: caliptra_dpe::State,
     pub context_tags: [u32; MAX_HANDLES],
     pub context_has_tag: [U8Bool; MAX_HANDLES],
     pub attestation_disabled: U8Bool,
@@ -794,11 +814,141 @@ unsafe fn ref_mut_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a mut T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::mem::offset_of;
 
     #[test]
     fn test_layout() {
         // NOTE: It's not good enough to test this from the host; we also need
         // to call assert_matches_layout() in a risc-v test.
         PersistentData::assert_matches_layout();
+    }
+
+    #[test]
+    fn test_rom_persistent_data_size() {
+        let expected_size = 60580;
+        if size_of::<RomPersistentData>() != expected_size {
+            panic!(
+                "RomPersistentData size has changed from {} to {}. If this is intentional, update \
+                the expected_size in this test and CONSIDER BUMPING THE VERSION NUMBER",
+                expected_size,
+                size_of::<RomPersistentData>()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_size() {
+        let expected_size = 40488;
+        if size_of::<FwPersistentData>() != expected_size {
+            panic!(
+                "FwPersistentData size has changed from {} to {}. If this is intentional, update \
+                the expected_size in this test and CONSIDER BUMPING THE VERSION NUMBER",
+                expected_size,
+                size_of::<FwPersistentData>()
+            );
+        }
+    }
+
+    #[test]
+    fn test_rom_persistent_data_address() {
+        let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
+        let rom_persistent_data_addr = unsafe { addr_of!((*p).rom) as u32 };
+        let expected_addr = 1342377820;
+        if rom_persistent_data_addr != expected_addr {
+            panic!(
+                "RomPersistentData address has changed from {} to {}. If this is \
+                intentional, update the expected_addr in this test and CONSIDER BUMPING THE \
+                VERSION NUMBER",
+                expected_addr, rom_persistent_data_addr
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_address() {
+        let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
+        let fw_persistent_data_addr = unsafe { addr_of!((*p).fw) as u32 };
+        let expected_addr = 1342337332;
+        if fw_persistent_data_addr != expected_addr {
+            panic!(
+                "FwPersistentData address has changed from {} to {}. If this is \
+                intentional, update the expected_addr in this test and CONSIDER BUMPING THE \
+                VERSION NUMBER",
+                expected_addr, fw_persistent_data_addr
+            );
+        }
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_rom_persistent_data_offsets() {
+        let actual_expected = [
+            (offset_of!(RomPersistentData, manifest1), 0, "manifest1"),
+            (offset_of!(RomPersistentData, data_vault), 17408, "data_vault"),
+            (offset_of!(RomPersistentData, fht), 32768, "fht"),
+            (offset_of!(RomPersistentData, idevid_mldsa_pub_key), 34816, "idevid_mldsa_pub_key"),
+            (offset_of!(RomPersistentData, ecc_ldevid_tbs), 37888, "ecc_ldevid_tbs"),
+            (offset_of!(RomPersistentData, ecc_fmcalias_tbs), 38912, "ecc_fmcalias_tbs"),
+            (offset_of!(RomPersistentData, mldsa_ldevid_tbs), 39936, "mldsa_ldevid_tbs"),
+            (offset_of!(RomPersistentData, mldsa_fmcalias_tbs), 44032, "mldsa_fmcalias_tbs"),
+            (offset_of!(RomPersistentData, pcr_log), 48128, "pcr_log"),
+            (offset_of!(RomPersistentData, measurement_log), 49152, "measurement_log"),
+            (offset_of!(RomPersistentData, fuse_log), 50176, "fuse_log"),
+            (offset_of!(RomPersistentData, idevid_csr_envelop), 51200, "idevid_csr_envelop"),
+            (offset_of!(RomPersistentData, cmb_aes_key_share0), 60416, "cmb_aes_key_share0"),
+            (offset_of!(RomPersistentData, cmb_aes_key_share1), 60448, "cmb_aes_key_share1"),
+            (offset_of!(RomPersistentData, dot_owner_pk_hash), 60480, "dot_owner_pk_hash"),
+            (offset_of!(RomPersistentData, cleared_non_fatal_fw_error), 60532, "cleared_non_fatal_fw_error"),
+            (offset_of!(RomPersistentData, ocp_lock_metadata), 60536, "ocp_lock_metadata"),
+            (offset_of!(RomPersistentData, entropy_cfg), 60544, "entropy_cfg"),
+            (offset_of!(RomPersistentData, boot_mode), 60568, "boot_mode"),
+            (offset_of!(RomPersistentData, major_version), 60572, "major_version"),
+            (offset_of!(RomPersistentData, minor_version), 60574, "minor_version"),
+            (offset_of!(RomPersistentData, marker), 60576, "marker"),
+        ];
+
+        for (actual, expected, name) in actual_expected {
+            if actual != expected {
+                panic!(
+                    "RomPersistentData offset for {} has changed from {} to {}.  If this is \
+                    intentional, update the expected values in this test and CONSIDER BUMPING THE \
+                    VERSION NUMBER",
+                    name, expected, actual
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    fn test_fw_persistent_data_offsets() {
+        let actual_expected = [
+            (offset_of!(FwPersistentData, dpe), 0, "dpe"),
+            (offset_of!(FwPersistentData, ecc_rtalias_tbs), 10240, "ecc_rtalias_tbs"),
+            (offset_of!(FwPersistentData, mldsa_rtalias_tbs), 11264, "mldsa_rtalias_tbs"),
+            (offset_of!(FwPersistentData, rtalias_mldsa_tbs_size), 15360, "rtalias_mldsa_tbs_size"),
+            (offset_of!(FwPersistentData, rt_dice_mldsa_sign), 15364, "rt_dice_mldsa_sign"),
+            (offset_of!(FwPersistentData, pcr_reset), 19992, "pcr_reset"),
+            (offset_of!(FwPersistentData, auth_manifest_image_metadata_col), 21016, "auth_manifest_image_metadata_col"),
+            (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
+            (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
+            (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
+            (offset_of!(FwPersistentData, version), 40480, "version"),
+            (offset_of!(FwPersistentData, marker), 40484, "marker"),
+        ];
+
+        for (actual, expected, name) in actual_expected {
+            if actual != expected {
+                panic!(
+                    "FwPersistentData offset for {} has changed from {} to {}. If this is \
+                    intentional, update the expected values in this test and CONSIDER BUMPING THE \
+                    VERSION NUMBER",
+                    name, expected, actual
+                );
+            }
+        }
     }
 }
