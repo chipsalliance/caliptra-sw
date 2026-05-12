@@ -61,7 +61,7 @@ permissions:
   contents: read
 
 env:
-  CALIPTRA_MCU_COMMIT: 02ea798304ccccff8e6b5a065781b3d5ed38b118 
+  CALIPTRA_MCU_COMMIT: 8d5d93ef7e8c01536656eddd3206c4e626ca21bb 
 
 jobs:
   check_cache:
@@ -113,7 +113,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '02ea798304ccccff8e6b5a065781b3d5ed38b118' }}
+      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '8d5d93ef7e8c01536656eddd3206c4e626ca21bb' }}
 
     steps:
       - name: Checkout repo
