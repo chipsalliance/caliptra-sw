@@ -227,12 +227,12 @@ if {$BUILD} {
       # Lock the NoC path segments and save the solution for later builds.
       set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -filter {initial_boot == 1}]]
       write_noc_solution -file $fpgaDir/saved_noc_solution.ncr
-      file copy -force $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp $fpgaDir/segmented_golden_routed.dcp
-      puts stderr "Replace file in GCS bucket: [exec realpath $fpgaDir/segmented_golden_routed.dcp]"
+      file copy -force $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp $fpgaDir/core_golden_segmented_routed.dcp
+      puts stderr "Replace file in GCS bucket: [exec realpath $fpgaDir/core_golden_segmented_routed.dcp]"
     } else {
       # Verify that the NoC Solutions are identical and the PLD images are compatible.
-      exec curl -s -O "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/fpga_2px_golden_routed.dcp"
-      pr_verify -initial $fpgaDir/fpga_2px_golden_routed.dcp -additional $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp
+      exec curl -s -O "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/core_golden_segmented_routed.dcp"
+      pr_verify -initial $fpgaDir/core_golden_segmented_routed.dcp -additional $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_routed.dcp
     }
     # Copy the PDI containing runtime info to a more convenient location.
     file copy $outputDir/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper_pld.pdi $outputDir/runtime_$VERSION.pdi
