@@ -1705,6 +1705,22 @@ impl ModelFpgaSubsystem {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
 
+    /// Override the lifecycle controller state that will be provisioned into
+    /// OTP on the next `cold_reset()`. Useful for tests that perform JTAG
+    /// lifecycle transitions and need the new state to survive a cold reset.
+    pub fn set_saved_lc_state(&mut self, lc_state: Option<LifecycleControllerState>) {
+        self.saved_lc_state = lc_state;
+    }
+
+    /// Replace the OTP initialization bytes used on the next `cold_reset()`.
+    /// `setup_hardware_registers()` zeros the OTP slice and then re-provisions
+    /// it from `otp_init` (when non-empty) plus the saved init params, so
+    /// callers can use this to seed OTP contents that should survive a cold
+    /// reset (e.g., to simulate persistent OTP state across boots in tests).
+    pub fn set_otp_init(&mut self, otp_init: Vec<u8>) {
+        self.otp_init = otp_init;
+    }
+
     pub fn flash_slice(&self) -> &mut [u8] {
         unsafe {
             core::slice::from_raw_parts_mut(
