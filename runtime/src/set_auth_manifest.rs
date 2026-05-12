@@ -40,7 +40,7 @@ use zeroize::Zeroize;
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
-    fn sha384_digest(
+    pub(crate) fn sha384_digest(
         sha2: &mut Sha2_512_384,
         buf: &[u8],
         offset: u32,
@@ -55,7 +55,7 @@ impl SetAuthManifestCmd {
         Ok(sha2.sha384_digest(data)?.0)
     }
 
-    fn offset_data(buf: &[u8], offset: u32, len: u32) -> CaliptraResult<&[u8]> {
+    pub(crate) fn offset_data(buf: &[u8], offset: u32, len: u32) -> CaliptraResult<&[u8]> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         buf.get(offset as usize..)
             .ok_or(err)?
@@ -63,7 +63,7 @@ impl SetAuthManifestCmd {
             .ok_or(err)
     }
 
-    fn ecc384_verify(
+    pub(crate) fn ecc384_verify(
         ecc384: &mut Ecc384,
         digest: &ImageDigest384,
         pub_key: &ImageEccPubKey,
@@ -84,7 +84,7 @@ impl SetAuthManifestCmd {
         ecc384.verify_r(&pub_key, &digest, &sig)
     }
 
-    fn lms_verify(
+    pub(crate) fn lms_verify(
         sha256: &mut Sha256,
         digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
@@ -637,7 +637,7 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
-    fn sort_and_check_duplicate_fwid(
+    pub(crate) fn sort_and_check_duplicate_fwid(
         slice: &mut [AuthManifestImageMetadata],
     ) -> CaliptraResult<()> {
         for i in 1..slice.len() {

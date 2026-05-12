@@ -46,6 +46,7 @@ mod reallocate_dpe_context_limits;
 mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
+mod set_owner_auth_manifest;
 mod sign_with_exported_ecdsa;
 mod sign_with_exported_mldsa;
 mod stash_measurement;
@@ -84,7 +85,10 @@ use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use activate_firmware::ActivateFirmwareCmd;
-pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
+pub use authorize_and_stash::{
+    IMAGE_AUTHORIZED, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
+    IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED,
+};
 pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
@@ -104,6 +108,7 @@ pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
+pub use set_owner_auth_manifest::SetOwnerAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::LmsVerifyCmd;
 pub mod packet;
@@ -389,6 +394,7 @@ fn execute_command(
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
         CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
+        CommandId::SET_OWNER_AUTH_MANIFEST => SetOwnerAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
