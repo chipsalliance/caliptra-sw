@@ -74,10 +74,7 @@ fn rom_stable_owner_key_available(model: &mut DefaultHwModel) -> bool {
 #[test]
 fn test_status() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
@@ -96,10 +93,7 @@ fn test_status() {
 #[test]
 fn test_import() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // check too large of an input
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
@@ -175,10 +169,7 @@ fn test_import() {
 #[test]
 fn test_import_full() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // AES key import
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
@@ -221,10 +212,7 @@ fn test_import_full() {
 #[test]
 fn test_import_wraparound() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let raw_key = [0xaa; 32];
     let mut keys = VecDeque::new();
@@ -264,10 +252,7 @@ fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
 #[test]
 fn test_delete() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
     let status_resp = status(&mut model);
@@ -284,10 +269,7 @@ fn test_delete() {
 #[test]
 fn test_clear() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let mut req = MailboxReq::CmClear(MailboxReqHeader::default());
     req.populate_chksum().unwrap();
@@ -317,10 +299,7 @@ fn test_clear() {
 #[test]
 fn test_sha384_simple() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let input_data = "a".repeat(129);
     let input_data = input_data.as_bytes();
@@ -368,10 +347,7 @@ fn test_sha384_simple() {
 #[test]
 fn test_sha_partial_update() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // check sha384 and sha512
     for sha in [1, 2] {
@@ -460,10 +436,7 @@ fn test_sha_partial_update() {
 #[test]
 fn test_sha_many() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // check sha384 and sha512
     for sha in [1, 2] {
@@ -554,10 +527,7 @@ fn test_sha_many() {
 #[test]
 fn test_random_generate() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // check too large of an input
     let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
@@ -674,9 +644,7 @@ fn test_random_stir_itrng() {
         ..Default::default()
     });
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // check too large of an input
     let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
@@ -762,10 +730,7 @@ fn test_random_stir_itrng() {
 #[test]
 fn test_random_stir_etrng_not_supported() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
         hdr: MailboxReqHeader::default(),
@@ -790,10 +755,7 @@ fn test_random_stir_etrng_not_supported() {
 #[test]
 fn test_aes_gcm_edge_cases() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
 
@@ -851,10 +813,7 @@ fn test_aes_gcm_edge_cases() {
 #[test]
 fn test_aes_gcm_simple() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let key = [0xaa; 32];
 
@@ -934,10 +893,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     const KEYS: usize = 16;
     let mut keys = vec![];
@@ -993,10 +949,7 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     const KEYS: usize = 16;
     let mut keys = vec![];
@@ -1062,10 +1015,7 @@ fn test_aes_gcm_spdm_mode() {
     // generate_iv (0xc) - 01 00 00 00 00 00 00 00 00 00 00 00
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let major_secret = [
         0xed, 0xc0, 0x61, 0x97, 0x77, 0x0f, 0x53, 0x8c, 0xb2, 0x50, 0x85, 0xb0, 0xbc, 0x98, 0xc0,
@@ -1167,10 +1117,7 @@ fn test_aes_cbc_random_encrypt_decrypt() {
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     const KEYS: usize = 16;
     let mut keys = vec![];
@@ -1251,10 +1198,7 @@ fn test_aes_ctr_crypt_1() {
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     const KEYS: usize = 16;
     let mut keys = vec![];
@@ -1303,10 +1247,7 @@ fn test_aes_ctr_random_encrypt_decrypt() {
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     const KEYS: usize = 16;
     let mut keys = vec![];
@@ -2018,10 +1959,7 @@ fn import_key(model: &mut DefaultHwModel, key: &[u8], key_usage: CmKeyUsage) -> 
 #[test]
 fn test_ecdh() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let mut req = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
     req.populate_chksum().unwrap();
@@ -2105,10 +2043,7 @@ fn test_ecdh() {
 #[test]
 fn test_hmac_cant_use_sha512_on_384_key() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let cmk = import_key(&mut model, &[0u8; 48], CmKeyUsage::Hmac);
 
@@ -2145,9 +2080,7 @@ fn test_hmac_random() {
             CmHashAlgorithm::Sha512
         };
         let mut model = run_rt_test(RuntimeTestArgs::default());
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         const KEYS: usize = 16;
         let mut keys = vec![];
         let mut cmks = vec![];
@@ -2211,9 +2144,7 @@ fn test_hmac_kdf_counter_random() {
             CmHashAlgorithm::Sha512
         };
         let mut model = run_rt_test(RuntimeTestArgs::default());
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         const KEYS: usize = 16;
         let mut keys = vec![];
         let mut cmks = vec![];
@@ -2345,9 +2276,7 @@ fn test_hkdf_random() {
             CmHashAlgorithm::Sha512
         };
         let mut model = run_rt_test(RuntimeTestArgs::default());
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         const KEYS: usize = 16;
         let mut keys = vec![];
         let mut cmks = vec![];
@@ -2444,10 +2373,7 @@ fn test_hkdf_random() {
 #[test]
 fn test_mldsa_public_key() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let seed_bytes: [u8; 32] = [
         0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
@@ -2695,10 +2621,7 @@ impl CryptoRng for SeedOnlyRng {}
 #[test]
 fn test_mldsa_sign_verify() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let seed_bytes: [u8; 32] = [
         0x63, 0x1a, 0xfc, 0x2a, 0x36, 0xa5, 0x7e, 0x1d, 0x09, 0x0d, 0xad, 0xc2, 0x79, 0x1d, 0x48,
@@ -2782,10 +2705,7 @@ fn test_mldsa_sign_verify() {
 #[test]
 fn test_ecdsa_public_key() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let seed_bytes = [0u8; 48];
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Ecdsa);
@@ -2835,10 +2755,7 @@ fn rustcrypto_ecdsa_sign(priv_key: &[u8; 48], hash: &[u8; 48]) -> ([u8; 48], [u8
 #[test]
 fn test_ecdsa_sign_verify() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let seed_bytes = [0u8; 48];
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Ecdsa);
@@ -3335,9 +3252,7 @@ fn test_derive_keys_from_stable_owner_key() {
         let fw_image = image_bundle.to_bytes().unwrap();
         crate::common::test_upload_firmware(&mut model, &fw_image, FwVerificationPqcKeyType::LMS);
 
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
 
         // Step 1: Derive the stable owner HMAC CMK
         let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
@@ -3641,9 +3556,7 @@ fn test_stable_key_aes_gcm_fips_invalid() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
 
         let key = derive_stable_key(&mut model, CmKeyUsage::Aes, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
@@ -3678,9 +3591,7 @@ fn test_stable_key_ecdsa_sign_verify_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
         let req = CmEcdsaSignReq {
@@ -3724,9 +3635,7 @@ fn test_stable_key_ecdsa_public_key_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
         let mut req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
@@ -3753,9 +3662,7 @@ fn test_stable_key_mldsa_sign_verify_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Mldsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -3800,9 +3707,7 @@ fn test_stable_key_mldsa_public_key_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Mldsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -3837,10 +3742,7 @@ fn test_stable_key_hkdf_fips_status() {
             if subsystem_mode != model.subsystem_mode() {
                 continue;
             }
-            model.step_until(|m| {
-                m.soc_ifc().cptra_boot_status().read()
-                    == u32::from(RtBootStatus::RtReadyForCommands)
-            });
+            model.step_until_ready_for_runtime();
             let cmk = derive_stable_key(&mut model, CmKeyUsage::Hmac, Some(size));
             let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -3906,10 +3808,7 @@ fn test_stable_key_hmac_fips_status() {
             if subsystem_mode != model.subsystem_mode() {
                 continue;
             }
-            model.step_until(|m| {
-                m.soc_ifc().cptra_boot_status().read()
-                    == u32::from(RtBootStatus::RtReadyForCommands)
-            });
+            model.step_until_ready_for_runtime();
             let cmk = derive_stable_key(&mut model, CmKeyUsage::Hmac, Some(size));
             let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -3948,9 +3847,7 @@ fn test_stable_key_aes_gcm_spdm_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Hmac, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -3989,9 +3886,7 @@ fn test_stable_key_aes_ctr_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Aes, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -4026,9 +3921,7 @@ fn test_stable_key_aes_cbc_fips_status() {
         if subsystem_mode != model.subsystem_mode() {
             continue;
         }
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Aes, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
@@ -4059,10 +3952,7 @@ fn test_stable_key_aes_cbc_fips_status() {
 #[test]
 fn test_kek_iv_initialized() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Import a key and check that the IV in the encrypted CMK is not zero
     let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);

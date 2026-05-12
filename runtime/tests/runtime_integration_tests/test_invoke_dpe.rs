@@ -91,9 +91,7 @@ struct TcbInfo<'a> {
 fn test_invoke_dpe_get_profile_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     for p in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         let mut cmd = Command::GetProfile(&GetProfileCmd);
@@ -139,9 +137,7 @@ fn test_invoke_dpe_size_too_big() {
 fn test_invoke_dpe_get_certificate_chain_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let mut chains = vec![];
     for p in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
@@ -327,9 +323,7 @@ fn test_certify_key_with_max_contexts() {
 fn test_invoke_dpe_asymmetric_sign() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         let data = match profile {
@@ -364,9 +358,7 @@ fn test_invoke_dpe_asymmetric_sign() {
 fn test_dpe_header_error_code() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         // cannot initialize non-simulation contexts so expect DPE cmd to fail
@@ -391,9 +383,7 @@ fn test_dpe_header_error_code() {
 fn test_invoke_dpe_certify_key_csr() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
@@ -477,9 +467,7 @@ fn test_invoke_dpe_certify_key_csr() {
 fn test_invoke_dpe_rotate_context() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let rotate_ctx_cmd = RotateCtxCmd {
         handle: ContextHandle::default(),
@@ -743,9 +731,7 @@ fn test_subsystem_leaf_cert_contains_mcfw_tci_type() {
         ..Default::default()
     });
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
         let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
