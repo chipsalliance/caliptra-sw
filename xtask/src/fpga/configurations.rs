@@ -260,7 +260,7 @@ impl<'a> ActionHandler<'a> for CoreOnSubsystem {
     }
     fn build(&self, args: &'a BuildArgs<'a>) -> Result<()> {
         build_caliptra_firmware(&PROJECT_ROOT, args.fw_id.as_deref())?;
-        build_mcu_rom(args.mcu_rev)?;
+        build_mcu_rom(args.mcu_rev, args.mcu_path.as_deref())?;
         rsync_file(
             &self.target_host,
             "/tmp/caliptra-test-firmware",
