@@ -1185,6 +1185,8 @@ pub struct ActivateFirmwareReq {
     pub fw_id_count: u32,
     pub fw_ids: [u32; ActivateFirmwareReq::MAX_FW_ID_COUNT],
     pub mcu_fw_image_size: u32,
+    /// Optional flags. See [`ActivateFirmwareFlags`].
+    pub flags: u32,
 }
 impl Request for ActivateFirmwareReq {
     const ID: CommandId = CommandId::ACTIVATE_FIRMWARE;
@@ -1204,7 +1206,36 @@ impl Default for ActivateFirmwareReq {
             fw_id_count: 0,
             mcu_fw_image_size: 0,
             fw_ids: [0; ActivateFirmwareReq::MAX_FW_ID_COUNT],
+            flags: 0,
         }
+    }
+}
+
+bitflags::bitflags! {
+    /// Flags for [`ActivateFirmwareReq`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ActivateFirmwareFlags: u32 {
+        /// First-time MCU activation after the encrypted-boot flow:
+        /// MCU ROM has already loaded firmware into MCU SRAM via
+        /// `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` (and possibly decrypted
+        /// it in place via `CM_AES_GCM_DECRYPT_DMA`. Caliptra runtime
+        /// should publish `FW_EXEC_CTRL[MCU]` so MCI releases MCU
+        /// from reset after MCU ROM triggers its own warm reset, and
+        /// skip the hitless-update reset/reload/verify sequence.
+        ///
+        /// Caliptra runtime only honors this flag when:
+        ///   * `BootMode::EncryptedFirmware` was set by ROM
+        ///     (i.e., `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` was the recovery
+        ///     cmd), and
+        ///   * `FW_EXEC_CTRL[MCU]` is currently `0` (MCU has not been
+        ///     activated yet)
+        const INITIAL_ACTIVATE = 1 << 0;
+    }
+}
+
+impl From<u32> for ActivateFirmwareFlags {
+    fn from(value: u32) -> Self {
+        ActivateFirmwareFlags::from_bits_truncate(value)
     }
 }
 
