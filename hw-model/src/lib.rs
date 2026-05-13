@@ -1045,6 +1045,11 @@ pub trait HwModel: SocManager {
         true
     }
 
+    /// Step until the system is ready to receive runtime mailbox commands.
+    fn step_until_ready_for_runtime(&mut self) {
+        self.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    }
+
     /// Initializes the fuse values and locks them in until the next reset. This
     /// function can only be called during early boot, shortly after the model
     /// is created with `new_unbooted()`.

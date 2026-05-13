@@ -6,7 +6,6 @@ use crate::test_set_auth_manifest::{
 };
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
-use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
@@ -18,7 +17,6 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
@@ -68,10 +66,7 @@ pub fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> Defaul
     };
 
     let mut model = run_rt_test(runtime_args);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
@@ -128,9 +123,7 @@ pub fn set_auth_manifest_with_test_sram(
 
     let mut model = run_rt_test(runtime_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
@@ -168,9 +161,7 @@ pub fn set_auth_manifest_with_test_sram(
 fn test_authorize_and_stash_cmd_deny_authorization() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -1394,9 +1385,7 @@ fn test_verify_valid_manifest() {
 
     let mut model = run_rt_test(runtime_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Create a valid auth manifest
     let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
@@ -1517,9 +1506,7 @@ fn test_verify_invalid_manifest() {
 
     let mut model = run_rt_test(runtime_args);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     // Create an invalid auth manifest
     let valid_auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
