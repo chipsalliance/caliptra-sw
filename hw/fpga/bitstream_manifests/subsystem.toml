@@ -2,7 +2,7 @@
 
 [bitstream]
 name = "subsystem-2.1"
-url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_6a9856ff.pdi"
-hash = "a1f10d69f152bdb703b47ba119890b111792a3035a7f8020df14373378457780"
+url = "https://storage.googleapis.com/carl-caliptra-github-ci-bitstreams/scratch/runtime_2d3a0232.pdi"
+hash = "b40e76a3b54328976bfe4c79cde422a94c044e2d9d90b267dc20872638c486db"
 caliptra_variant = "subsystem"
 caliptra_rtl_commit = "8885bd850d66a9f1ff45734da38f144a1c37b8df"
