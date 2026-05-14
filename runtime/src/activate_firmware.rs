@@ -18,7 +18,7 @@ use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
 use crate::drivers::{CaliptraManagedDpeContext, McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_api::mailbox::{AuthorizeAndStashReq, ImageHashSource};
+use caliptra_api::mailbox::{ActivateFirmwareFlags, AuthorizeAndStashReq, ImageHashSource};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
@@ -74,6 +74,20 @@ impl ActivateFirmwareCmd {
             .try_into()
             .unwrap()
         };
+
+        let flags_raw = if cmd_args.len() >= core::mem::size_of::<ActivateFirmwareReq>() {
+            let offset = offset_of!(ActivateFirmwareReq, flags);
+            u32::from_le_bytes(
+                cmd_args[offset..offset + 4]
+                    .try_into()
+                    .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+            )
+        } else {
+            0
+        };
+        if flags_raw & !ActivateFirmwareFlags::all().bits() != 0 {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
 
         let mut images_to_activate_bitmap: [u32; 4] = [0; 4];
         for i in 0..fw_id_count {
