@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::test_authorize_and_stash::set_auth_manifest;
 use crate::test_authorize_and_stash::set_auth_manifest_with_test_sram;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_api::{mailbox::ActivateFirmwareReq, SocManager};
@@ -345,6 +346,7 @@ fn test_activate_mcu_fw_success() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = MCU_FW_ID_1;
@@ -393,6 +395,7 @@ fn test_activate_mcu_soc_fw_success() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 2,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = MCU_FW_ID_1;
@@ -433,6 +436,7 @@ fn test_activate_soc_fw_success() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = SOC_FW_ID_1;
@@ -444,6 +448,34 @@ fn test_activate_soc_fw_success() {
     send_activate_firmware_cmd(&mut model, activate_cmd, false)
         .unwrap()
         .expect("We should have received a response");
+}
+
+#[test]
+fn test_activate_firmware_legacy_request() {
+    const SOC_FW_ID: u32 = 11;
+    let mut metadata_flags = ImageMetadataFlags(0);
+    metadata_flags.set_exec_bit(4);
+    let manifest = create_auth_manifest_with_metadata(vec![AuthManifestImageMetadata {
+        fw_id: SOC_FW_ID,
+        flags: metadata_flags.0,
+        ..Default::default()
+    }]);
+    let mut model = set_auth_manifest(Some(manifest));
+    let mut request = ActivateFirmwareReq {
+        fw_id_count: 1,
+        ..Default::default()
+    };
+    request.fw_ids[0] = SOC_FW_ID;
+    let mut cmd = MailboxReq::ActivateFirmware(request);
+    cmd.populate_chksum().unwrap();
+    let legacy_size = core::mem::offset_of!(ActivateFirmwareReq, flags);
+    model
+        .mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            &cmd.as_bytes().unwrap()[..legacy_size],
+        )
+        .unwrap()
+        .expect("legacy activation should select the vendor + owner manifest");
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
@@ -472,6 +504,7 @@ fn test_activate_invalid_fw_id() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = INVALID_FW_ID;
@@ -509,6 +542,7 @@ fn test_activate_fw_id_not_in_manifest() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = INVALID_FW_ID;
@@ -546,6 +580,7 @@ fn test_invalid_exec_bit_in_manifest() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = SOC_FW_ID_1;
@@ -588,6 +623,7 @@ fn test_activate_firmware_cannot_be_called_from_pl1() {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id_count: 1,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
+        flags: 0,
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = MCU_FW_ID_1;

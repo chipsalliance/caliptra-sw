@@ -1407,6 +1407,10 @@ Command Code: `0x4143_5446` ("ACTF")
 | count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
 | mcu_image_size | u32            | Size of MCU image, if included in the activation |
 | image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
+| flags          | u32            | Optional. All bits are reserved and must be zero on Caliptra 2.0. |
+
+Legacy 524-byte requests omit `flags` and retain the existing activation behavior.
+Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
 
 *Table: `ACTIVATE_FIRMWARE` output arguments*
 
