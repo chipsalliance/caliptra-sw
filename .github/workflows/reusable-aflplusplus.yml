@@ -152,14 +152,24 @@ jobs:
           path: ${{ inputs.fuzz_target_path }}/corpus/
           key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
 
+      - name: 'Prepare test cases artifact'
+        run: |
+          cargo xtask ci prepare-artifact ${{ inputs.fuzz_target_path }}/test_cases /tmp/artifact-test-cases
+
       - name: Archive test cases dir
         uses: actions/upload-artifact@v4
         with:
           name: test_cases
-          path: ${{ inputs.fuzz_target_path }}/test_cases/
+          path: /tmp/artifact-test-cases/*
+          retention-days: 1
+
+      - name: 'Prepare plot artifact'
+        run: |
+          cargo xtask ci prepare-artifact ${{ inputs.fuzz_target_path }}/plot /tmp/artifact-plot
 
       - name: Archive fuzzing coverage
         uses: actions/upload-artifact@v4
         with:
           name: plot
-          path: ${{ inputs.fuzz_target_path }}/plot/
+          path: /tmp/artifact-plot/*
+          retention-days: 1

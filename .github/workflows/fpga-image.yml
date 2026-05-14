@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build_kernel:
@@ -113,18 +114,35 @@ jobs:
           mv $IO_MODULE_PATH /tmp/io-module-${IMAGE_VARIANT}.ko
           popd
 
+      - name: 'Compute kernel hash'
+        run: |
+          cd /tmp && sha384sum vck190-kernel-${{ matrix.image_variant }}.tar.gz > vck190-kernel-${{ matrix.image_variant }}.tar.gz.sha384
+
+      - name: 'Prepare kernel artifact'
+        run: |
+          cargo xtask ci prepare-artifact /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz /tmp/artifact-kernel
+
       - name: 'Upload kernel artifact'
         uses: actions/upload-artifact@v4
         with:
           name: vck190-kernel-${{ matrix.image_variant}}
-          path: /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
+          path: /tmp/artifact-kernel/*
           retention-days: 1
+
+      - name: 'Tar and hash kernel module'
+        run: |
+          cd /tmp && tar cvf io-module-${{ matrix.image_variant }}.ko.tar io-module-${{ matrix.image_variant }}.ko
+          cd /tmp && sha384sum io-module-${{ matrix.image_variant }}.ko.tar > io-module-${{ matrix.image_variant }}.ko.tar.sha384
+
+      - name: 'Prepare kernel module artifact'
+        run: |
+          cargo xtask ci prepare-artifact /tmp/io-module-${{ matrix.image_variant }}.ko.tar /tmp/artifact-kmod
 
       - name: 'Upload kernel module artifact'
         uses: actions/upload-artifact@v4
         with:
           name: vck190-kernel-module-${{ matrix.image_variant}}
-          path: /tmp/io-module-${{ matrix.image_variant }}.ko
+          path: /tmp/artifact-kmod/*
           retention-days: 1
 
   build_sd_image:
@@ -136,23 +154,25 @@ jobs:
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       PR_BASE_COMMIT: ${{github.event.pull_request.base.sha}}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
           ref: ${{ inputs.branch }}
 
-      - name: 'Download kernel artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: vck190-kernel-${{ matrix.image_variant }}
-          path: /tmp/vck190-kernel/
+      - name: 'Download and Verify Kernel'
+        run: |
+          cargo xtask ci download-artifact ${{ github.run_id }} vck190-kernel-${{ matrix.image_variant }} /tmp/download vck190-kernel-${{ matrix.image_variant }}.tar.gz.tar.sha384
+          mkdir -p /tmp/vck190-kernel
+          tar xvf /tmp/download/vck190-kernel-${{ matrix.image_variant }}.tar.gz.tar -C /tmp
+          mv /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz /tmp/vck190-kernel/
 
-      - name: 'Download kernel module artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: vck190-kernel-module-${{ matrix.image_variant }}
-          path: /tmp/vck190-kmod/
+      - name: 'Download and Verify Kernel Module'
+        run: |
+          cargo xtask ci download-artifact ${{ github.run_id }} vck190-kernel-module-${{ matrix.image_variant }} /tmp/download io-module-${{ matrix.image_variant }}.ko.tar.sha384
+          mkdir -p /tmp/vck190-kmod
+          tar xvf /tmp/download/io-module-${{ matrix.image_variant }}.ko.tar -C /tmp/vck190-kmod/
 
       - name: Install pre-requisites
         run: |
@@ -171,16 +191,24 @@ jobs:
           # Now build CI image
           sudo PATH="$PATH:/tmp/cross/bin" BUILD_DEV_IMAGE=false IMAGE_VARIANT=${IMAGE_VARIANT} KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
+      - name: 'Prepare dev-image artifact'
+        run: |
+          cargo xtask ci prepare-artifact ci-tools/fpga-image/dev-image.img /tmp/artifact-dev-image
+
       - name: 'Upload dev-image as artifact'
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image-${{ matrix.image_variant }}-dev
-          path: ci-tools/fpga-image/dev-image.img
+          path: /tmp/artifact-dev-image/*
           retention-days: 90
+
+      - name: 'Prepare image artifact'
+        run: |
+          cargo xtask ci prepare-artifact ci-tools/fpga-image/out/image.img /tmp/artifact-image
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image-${{ matrix.image_variant }}
-          path: ci-tools/fpga-image/out/image.img
+          path: /tmp/artifact-image/*
           retention-days: 90

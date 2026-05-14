@@ -16,7 +16,7 @@ cp ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
+  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger,unzip"
   if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
     PACKAGES="$PACKAGES,ssh,tmux,cloud-guest-utils"
   fi
@@ -134,7 +134,11 @@ pushd out
 podman run --rm -v$PWD:/work-dir -w/work-dir ghcr.io/chipsalliance/caliptra-builder:latest /bin/bash -c "rustup +1.91.1 target add aarch64-unknown-linux-gnu && CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo +1.91.1 install cargo-nextest --version 0.9.118 --target aarch64-unknown-linux-gnu --target-dir /work-dir"
 popd
 
+# Build xtask for ARM
+podman run --rm -v$PWD/../..:/work-dir -w/work-dir ghcr.io/chipsalliance/caliptra-builder:latest /bin/bash -c "rustup +1.91.1 target add aarch64-unknown-linux-gnu && CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo +1.91.1 build -p xtask --target aarch64-unknown-linux-gnu --release"
+
 mv out/aarch64-unknown-linux-gnu/release/cargo-nextest out/rootfs/usr/bin/
+cp ../../target/aarch64-unknown-linux-gnu/release/xtask out/rootfs/usr/bin/
 
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
 cp overlay-mount.sh out/rootfs/usr/sbin/

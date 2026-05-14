@@ -99,6 +99,27 @@ pub enum CICommands {
         path: String,
     },
     TestMatrix,
+    /// Prepare an artifact (tar and hash)
+    PrepareArtifact {
+        /// Path to file or directory to artifact
+        path: String,
+        /// Output directory for tarball and hash
+        out_dir: String,
+    },
+    /// Download and verify an artifact
+    DownloadArtifact {
+        /// Run ID
+        run_id: String,
+        /// Artifact name
+        name: String,
+        /// Destination directory
+        dest_dir: String,
+        /// Hash file name to verify against
+        hash_file: String,
+        /// Number of retries
+        #[arg(short, long, default_value = "3")]
+        retries: u32,
+    },
 }
 
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -144,6 +165,14 @@ fn main() {
             CICommands::SizeHistory => ci::size_history(),
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
             CICommands::TestMatrix => Ok(()),
+            CICommands::PrepareArtifact { path, out_dir } => ci::prepare_artifact(path, out_dir),
+            CICommands::DownloadArtifact {
+                run_id,
+                name,
+                dest_dir,
+                hash_file,
+                retries,
+            } => ci::download_artifact(run_id, name, dest_dir, hash_file, *retries),
         },
     };
     result.unwrap_or_else(|e| {

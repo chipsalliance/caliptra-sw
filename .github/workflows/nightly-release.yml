@@ -173,9 +173,8 @@ jobs:
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip
 
       - name: 'Download all artifacts'
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/artifacts
+        run: |
+          cargo xtask ci download-artifact ${{ github.run_id }} "" /tmp/artifacts ""
 
       - name: Package test artifacts per artifact directory
         run: |
@@ -213,11 +212,16 @@ jobs:
           echo "${{ needs.find-latest-release-2-x.outputs.new_release_tag }}" > /tmp/release-info-2-x/tag-name
           echo "caliptra_${{ needs.find-latest-release-2-x.outputs.new_release_tag }}.zip" > /tmp/release-info-2-x/zip-file-name
 
-      - name: Write artifact with release info
+      - name: 'Prepare release info artifact'
+        run: |
+          cargo xtask ci prepare-artifact /tmp/release-info-2-x /tmp/artifact-release-info
+
+      - name: 'Upload release info artifact'
         uses: actions/upload-artifact@v4
         with:
           name: release-info-2-x
-          path: /tmp/release-info-2-x
+          path: /tmp/artifact-release-info/*
+          retention-days: 1
 
   publish-website:
     name: Publish https://caliptra-sw.github.io/

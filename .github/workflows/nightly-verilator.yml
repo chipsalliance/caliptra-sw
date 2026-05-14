@@ -67,11 +67,18 @@ jobs:
               "${COMMON_ARGS[@]}" \
               --profile=verilator
 
+      - name: 'Prepare test results artifact'
+        if: success() || failure()
+        run: |
+          mkdir -p /tmp/test-results
+          [ -f /tmp/junit.xml ] && cp /tmp/junit.xml /tmp/test-results/
+          [ -f /tmp/nextest-list.json ] && cp /tmp/nextest-list.json /tmp/test-results/
+          cargo xtask ci prepare-artifact /tmp/test-results /tmp/artifact-results
+
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
           name: caliptra-test-results
-          path: |
-            /tmp/junit.xml
-            /tmp/nextest-list.json
+          path: /tmp/artifact-results/*
+          retention-days: 1
