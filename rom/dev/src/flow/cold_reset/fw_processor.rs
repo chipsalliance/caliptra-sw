@@ -168,8 +168,9 @@ impl FirmwareProcessor {
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
-        // Load the image
+        // Verify the loaded ICCM contents before completing the download.
         Self::load_image(manifest, &mut txn)?;
+        crate::flow::loaded_image::verify_fmc_and_runtime(manifest, &mut env.sha2_512_384)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
