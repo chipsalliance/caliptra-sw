@@ -105,6 +105,9 @@ impl UpdateResetFlow {
 
             let manifest = &env.persistent_data.get().manifest2;
             Self::load_image(manifest, &mut recv_txn)?;
+            crate::flow::loaded_image::verify_runtime(manifest, &mut env.sha2_512_384)?;
+            // Complete only after the loaded ICCM contents have been verified.
+            recv_txn.complete(true)?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -206,9 +209,6 @@ impl UpdateResetFlow {
         };
 
         txn.copy_request(runtime_dest.as_mut_bytes())?;
-
-        //Call the complete here to reset the execute bit
-        txn.complete(true)?;
 
         Ok(())
     }
