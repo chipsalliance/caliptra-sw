@@ -666,6 +666,10 @@ impl SocIfc {
         (self.soc_ifc.regs().ss_strap_generic().at(0).read() >> 16) & 0xFFFF
     }
 
+    pub fn otp_status_reg_offset(&self) -> u32 {
+        self.soc_ifc.regs().ss_strap_generic().at(0).read() & 0xFFFF
+    }
+
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
         self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
     }

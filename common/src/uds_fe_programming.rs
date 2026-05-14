@@ -52,6 +52,7 @@ struct OtpCtrlConfig {
     fuse_controller_base_addr: u64,
     seed_config: SeedConfig,
     dai_idle_bit_num: u32,
+    status_reg_addr: Option<u64>,
     direct_access_cmd_reg_addr: u64,
     direct_access_address_reg_addr: u64,
     direct_access_wdata_0_reg_addr: u64,
@@ -67,6 +68,13 @@ impl UdsFeProgrammingFlow {
         let fuse_controller_base_addr = soc_ifc.fuse_controller_base_addr();
         let seed_config = self.get_seed_config(soc_ifc);
         let dai_idle_bit_num = soc_ifc.otp_dai_idle_bit_num();
+        let status_reg_offset = soc_ifc.otp_status_reg_offset();
+        let status_reg_addr = if status_reg_offset != 0 {
+            Some(fuse_controller_base_addr + status_reg_offset as u64)
+        } else {
+            // TODO: Remove this fallback once MCU programs the OTP status register offset.
+            None
+        };
         let direct_access_cmd_reg_addr =
             fuse_controller_base_addr + soc_ifc.otp_direct_access_cmd_reg_offset() as u64;
         let direct_access_address_reg_addr =
@@ -85,6 +93,7 @@ impl UdsFeProgrammingFlow {
             fuse_controller_base_addr,
             seed_config,
             dai_idle_bit_num,
+            status_reg_addr,
             direct_access_cmd_reg_addr,
             direct_access_address_reg_addr,
             direct_access_wdata_0_reg_addr,
@@ -215,7 +224,11 @@ impl UdsFeProgrammingFlow {
             let _ = otp_ctrl.with_regs_mut(|regs| {
                 // Helper function to check if DAI is idle using the configurable bit number
                 let is_dai_idle = || -> bool {
-                    let status: u32 = regs.status().read().into();
+                    let status = if let Some(status_reg_addr) = config.status_reg_addr {
+                        dma.read_dword(AxiAddr::from(status_reg_addr))
+                    } else {
+                        regs.status().read().into()
+                    };
                     (status & (1 << config.dai_idle_bit_num)) != 0
                 };
 
@@ -328,7 +341,11 @@ impl UdsFeProgrammingFlow {
         let _ = otp_ctrl.with_regs_mut(|regs| {
             // Helper to wait for DAI idle state
             let wait_dai_idle = || loop {
-                let status: u32 = regs.status().read().into();
+                let status = if let Some(status_reg_addr) = config.status_reg_addr {
+                    dma.read_dword(AxiAddr::from(status_reg_addr))
+                } else {
+                    regs.status().read().into()
+                };
                 if (status & (1 << config.dai_idle_bit_num)) != 0 {
                     break;
                 }
