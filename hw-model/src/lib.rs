@@ -1468,8 +1468,9 @@ pub trait HwModel: SocManager {
         encrypted_mcu_fw: &[u8],
     ) -> Result<(), ModelError> {
         use api::mailbox::{
-            CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage,
-            CommandId, GetMcuFwSizeResp, MailboxReqHeader, MailboxRespHeader,
+            ActivateFirmwareFlags, ActivateFirmwareReq, CmAesGcmDecryptDmaReq,
+            CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage, CommandId,
+            GetMcuFwSizeResp, MailboxReqHeader, MailboxRespHeader,
             CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE,
         };
         use zerocopy::transmute;
@@ -1569,6 +1570,28 @@ pub trait HwModel: SocManager {
         if decrypt_resp.tag_verified != 1 {
             return Err(ModelError::MailboxCmdFailed(0));
         }
+
+        // Step 5: Publish FW_EXEC_CTRL[MCU] via ACTIVATE_FIRMWARE +
+        // INITIAL_ACTIVATE so MCI will release MCU from BOOT_RST_MCU on the
+        // next warm reset. This mirrors what the real MCU ROM does at the
+        // tail of the encrypted-boot flow before it triggers warm reset.
+        let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id_count: 1,
+            mcu_fw_image_size: ciphertext.len() as u32,
+            fw_ids: {
+                let mut arr = [0u32; ActivateFirmwareReq::MAX_FW_ID_COUNT];
+                arr[0] = ActivateFirmwareReq::MCU_IMAGE_ID;
+                arr
+            },
+            flags: ActivateFirmwareFlags::INITIAL_ACTIVATE.bits(),
+        });
+        activate_cmd.populate_chksum().unwrap();
+        self.mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        )?
+        .ok_or(ModelError::MailboxNoResponseData)?;
 
         Ok(())
     }
