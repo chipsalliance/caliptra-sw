@@ -171,7 +171,7 @@ impl UpdateResetFlow {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[update-reset] Loading Runtime at addr 0x{:08x} len {}",
+            "[update-reset] RT 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );

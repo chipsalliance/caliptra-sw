@@ -73,13 +73,13 @@ pub extern "C" fn rom_entry() -> ! {
     };
 
     if !cfg!(feature = "no-cfi") {
-        cprintln!("[state] CFI Enabled");
+        cprintln!("[state] CFI On");
         let mut entropy_gen = || env.trng.generate().map(|a| a.0);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
     } else {
-        cprintln!("[state] CFI Disabled");
+        cprintln!("[state] No CFI");
     }
 
     // Check if TRNG is correctly sourced as per hw config.
@@ -88,23 +88,23 @@ pub extern "C" fn rom_entry() -> ! {
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
-        caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
-        caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
-        caliptra_drivers::Lifecycle::Production => "Production",
+        caliptra_drivers::Lifecycle::Unprovisioned => "Unprov",
+        caliptra_drivers::Lifecycle::Manufacturing => "Manu",
+        caliptra_drivers::Lifecycle::Production => "Prod",
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
-    cprintln!("[state] LifecycleState = {}", _lifecyle);
+    cprintln!("[state] LcState = {}", _lifecyle);
 
     if cfg!(feature = "fake-rom")
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Prod lifecycle disabled");
+        cprintln!("FakeROM blocked in Prod");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
     cprintln!(
-        "[state] DebugLocked = {}",
+        "[state] DbgLock = {}",
         if env.soc_ifc.debug_locked() {
             "Yes"
         } else {
@@ -236,7 +236,7 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
         digest.zeroize();
-        cprintln!("ROM integrity test failed");
+        cprintln!("ROM integrity fail");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
     digest.zeroize();
@@ -252,7 +252,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     // Get the fmc entry point from data vault
     let entry = env.data_vault.fmc_entry_point();
 
-    cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
+    cprintln!("[exit] FMC @ 0x{:08X}", entry);
 
     // Exit ROM and jump to specified entry point
     unsafe { exit_rom(entry) }
@@ -262,7 +262,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
-        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
+        "EXC mc=0x{:08X} ms=0x{:08X} pc=0x{:08X} ra=0x{:08X}",
         exception.mcause,
         exception.mscause,
         exception.mepc,
@@ -298,7 +298,7 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     );
 
     cprintln!(
-        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
+        "NMI mc=0x{:08X} ms=0x{:08X} pc=0x{:08X} ra=0x{:08X} ei={:08X}",
         exception.mcause,
         exception.mscause,
         exception.mepc,
@@ -339,7 +339,7 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 fn handle_non_fatal_error(code: u32) {
-    cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
+    cprintln!("ROM NFErr: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
 }
 
@@ -351,7 +351,7 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 
 #[allow(clippy::empty_loop)]
 fn handle_fatal_error(code: u32) -> ! {
-    cprintln!("ROM Fatal Error: 0x{:08X}", code);
+    cprintln!("ROM FErr: 0x{:08X}", code);
     report_fw_error_fatal(code);
     // Populate the non-fatal error code too; if there was a
     // non-fatal error stored here before we don't want somebody

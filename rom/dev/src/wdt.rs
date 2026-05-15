@@ -35,15 +35,12 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
         if wdt_timeout_cycles == 0 {
             wdt_timeout_cycles = 1;
         }
-        cprintln!(
-            "[state] Starting the WD Timer {} cycles",
-            wdt_timeout_cycles
-        );
+        cprintln!("[state] WDT start {} cyc", wdt_timeout_cycles);
         caliptra_common::wdt::start_wdt(
             soc_ifc,
             WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
         );
     } else {
-        cprintln!("[state] WD Timer not started. Device not locked for debugging");
+        cprintln!("[state] WDT skip, dbg unlocked");
     }
 }

@@ -127,7 +127,7 @@ fn test_fake_rom_fw_load() {
         .unwrap();
 
     // Keep going until we launch FMC
-    hw.step_until_output_contains("[exit] Launching FMC")
+    hw.step_until_output_contains("[exit] FMC @")
         .unwrap();
 
     // Make sure we actually get into FMC
