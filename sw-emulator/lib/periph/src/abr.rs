@@ -19,7 +19,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
-use ml_dsa_01::{MlDsa87, SigningKey, VerifyingKey};
+use ml_dsa_01::{ExpandedSigningKey, MlDsa87, VerifyingKey};
 use ml_kem::MlKem1024Params;
 use ml_kem::{
     kem::{Decapsulate, DecapsulationKey, Encapsulate, EncapsulationKey},
@@ -765,14 +765,15 @@ impl Abr {
     }
 
     fn mldsa_sign_mu(&mut self, sk_bytes: [u8; SK_LEN]) -> Vec<u8> {
-        //note: we use the deprecated ::from_expanded function here because the ::decode function it replaces
-        //was not given a direct replacement, and the ::from_seed function reccomended as a replacement does
-        //not take the raw key bytes as an input.  If this function is removed in a future release, thought
-        //may need to be put into how to best replace it as it seems like creating a signing key from raw bytes
+        //note: we use the deprecated ExpandedSigningKey<T>::from_expanded function here because
+        //the ::from_seed function reccomended as a replacement does not take the raw key bytes
+        //as an input, so moving to it would require a logic change.
+        //If this function is removed in a future release, thought may need to be put into how
+        //to best replace it as it seems like creating a signing key from raw bytes as we do here
         //is not something the maintainers are particularly interested in supporting.
         #[allow(deprecated)]
         let secret_key =
-            SigningKey::<MlDsa87>::from_expanded(sk_bytes.as_slice().try_into().unwrap());
+            ExpandedSigningKey::<MlDsa87>::from_expanded(sk_bytes.as_slice().try_into().unwrap());
         secret_key
             .sign_mu_deterministic(self.mldsa_external_mu.as_bytes().try_into().unwrap())
             .encode()
