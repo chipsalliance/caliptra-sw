@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license
 use crate::test_authorize_and_stash::set_auth_manifest_with_test_sram;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
-use caliptra_api::mailbox::ActivateFirmwareReq;
+use caliptra_api::mailbox::{ActivateFirmwareFlags, ActivateFirmwareReq};
 use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::{Addr64, ImageMetadataFlags};
+use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader,
@@ -11,7 +12,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const TEST_SRAM_SIZE: usize = 64 * 1024; // 64 KB
 
@@ -228,6 +229,7 @@ fn test_activate_mcu_fw_success() {
             arr[0] = MCU_FW_ID_1;
             arr
         },
+        flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
     send_activate_firmware_cmd(&mut model, activate_cmd, true)
@@ -267,6 +269,7 @@ fn test_activate_mcu_soc_fw_success() {
             arr[1] = SOC_FW_ID_1;
             arr
         },
+        flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
 
@@ -306,6 +309,7 @@ fn test_activate_soc_fw_success() {
             arr[0] = SOC_FW_ID_1;
             arr
         },
+        flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
 
@@ -345,6 +349,7 @@ fn test_activate_invalid_fw_id() {
             arr[0] = INVALID_FW_ID;
             arr
         },
+        flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
 
@@ -382,6 +387,7 @@ fn test_activate_fw_id_not_in_manifest() {
             arr[0] = INVALID_FW_ID;
             arr
         },
+        flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
 
@@ -419,6 +425,208 @@ fn test_invalid_exec_bit_in_manifest() {
             arr[0] = SOC_FW_ID_1;
             arr
         },
+        flags: 0,
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd, false).is_err());
+}
+
+/// Backward-compat: clients that pre-date the `flags` field send a request
+/// truncated to `size_of::<ActivateFirmwareReq>() - 4` bytes (no `flags`
+/// trailer). The runtime must treat the missing field as zero and proceed
+/// with the hitless-update path that those clients expect.
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_old_format_no_flags() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
+    let mut model = load_and_authorize_fw(&[mcu_image]);
+
+    // Build the request via the current `ActivateFirmwareReq` struct (which
+    // includes `flags`), then truncate the trailing `flags` u32 off the wire
+    // bytes so the runtime parser sees exactly what an old client would have
+    // sent. Compute the checksum over the truncated bytes (excluding the
+    // 4-byte `chksum` field).
+    let req = ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+        flags: 0,
+    };
+    let full_bytes = req.as_bytes();
+    let old_len = full_bytes.len() - core::mem::size_of::<u32>();
+    let mut truncated = full_bytes[..old_len].to_vec();
+
+    // Patch the checksum so it covers exactly the truncated payload.
+    let chksum = calc_checksum(
+        u32::from(CommandId::ACTIVATE_FIRMWARE),
+        &truncated[core::mem::size_of::<u32>()..],
+    );
+    truncated[..core::mem::size_of::<u32>()].copy_from_slice(&chksum.to_le_bytes());
+
+    // Send the truncated buffer directly. Mirrors the
+    // `send_activate_firmware_cmd` helper but bypasses MailboxReq so we
+    // control the exact wire length.
+    model
+        .start_mailbox_execute(u32::from(CommandId::ACTIVATE_FIRMWARE), &truncated)
+        .unwrap();
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        // The MCU image is included, so simulate the MCU-reset ack handshake
+        // (same as send_activate_firmware_cmd with reset_expected=true).
+        let mut retry_count = 10;
+        loop {
+            let intr_status = model
+                .mmio
+                .mci()
+                .unwrap()
+                .regs()
+                .intr_block_rf()
+                .notif0_internal_intr_r()
+                .read();
+            if intr_status.notif_cptra_mcu_reset_req_sts() {
+                break;
+            }
+            retry_count -= 1;
+            if retry_count == 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        model
+            .mmio
+            .mci()
+            .unwrap()
+            .regs()
+            .intr_block_rf()
+            .notif0_internal_intr_r()
+            .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
+        model
+            .mmio
+            .mci()
+            .unwrap()
+            .regs()
+            .reset_request()
+            .modify(|r| r.mcu_req(true));
+    }
+    model
+        .finish_mailbox_execute()
+        .unwrap()
+        .expect("ACTIVATE_FIRMWARE without flags trailer should succeed");
+}
+
+/// Reject unknown flag bits with `RUNTIME_MAILBOX_INVALID_PARAMS`. The
+/// reserved high bit acts as a stand-in for any future undefined flag.
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_unknown_flag_bit_rejected() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
+    let mut model = load_and_authorize_fw(&[mcu_image]);
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+        // A bit that is not part of `ActivateFirmwareFlags`.
+        flags: 1 << 31,
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd, false).is_err());
+}
+
+/// `INITIAL_ACTIVATE` is only honored when ROM set
+/// `BootMode::EncryptedFirmware`. In the normal boot flow used by this test
+/// the boot mode is `Normal`, so Caliptra must reject the request rather
+/// than skip the hitless-update steps.
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_initial_activate_wrong_boot_mode() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
+    let mut model = load_and_authorize_fw(&[mcu_image]);
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+        flags: ActivateFirmwareFlags::INITIAL_ACTIVATE.bits(),
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    // `load_and_authorize_fw` does a normal boot, so boot_mode is Normal.
+    // The flag must be rejected.
+    assert!(send_activate_firmware_cmd(&mut model, activate_cmd, false).is_err());
+}
+
+/// `INITIAL_ACTIVATE` requires the MCU image bit to be in the activation
+/// bitmap. Sending it with only SoC ids must be rejected.
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_initial_activate_without_mcu_bit_rejected() {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_address: MCU_STAGING_ADDRESS,
+        load_address: MCU_LOAD_ADDRESS,
+        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
+    };
+
+    let soc_image = Image {
+        fw_id: SOC_FW_ID_1,
+        staging_address: SOC_STAGING_ADDRESS,
+        load_address: SOC_LOAD_ADDRESS,
+        contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 3,
+    };
+
+    let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = SOC_FW_ID_1;
+            arr
+        },
+        flags: ActivateFirmwareFlags::INITIAL_ACTIVATE.bits(),
     });
     activate_cmd.populate_chksum().unwrap();
 

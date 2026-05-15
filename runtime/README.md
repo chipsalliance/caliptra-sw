@@ -51,7 +51,8 @@ When ROM receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command instead of `RI_DO
 3. The MCU ROM can then:
    - Import an AES key using `CM_IMPORT`
    - Decrypt the firmware in-place using `CM_AES_GCM_DECRYPT_DMA`
-   - Send `CM_ACTIVATE_FIRMWARE` to activate the decrypted MCU firmware
+   - Send `ACTIVATE_FIRMWARE` with the `INITIAL_ACTIVATE` flag set, so Runtime publishes `FW_EXEC_CTRL[MCU]` without performing the hitless-update reload/verify dance (the firmware was already integrity-checked end-to-end by `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and `CM_AES_GCM_DECRYPT_DMA`). See [`ACTIVATE_FIRMWARE`](#activate_firmware) for the gating rules.
+   - Trigger a warm reset; MCI releases MCU once `FW_EXEC_CTRL[MCU]` is asserted, and MCU FwBoot jumps into the decrypted firmware.
 
 The `CM_AES_GCM_DECRYPT_DMA` command is intended to be used for the `EncryptedFirmware` boot mode and performs a SHA384 integrity check of the ciphertext before decryption, but can be used to decrypt other images as well in any boot mode.
 
@@ -1511,6 +1512,41 @@ Command Code: `0x4143_5446` ("ACTF")
 | count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
 | mcu_image_size | u32            | Size of MCU image, if included in the activation |
 | image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
+| flags          | u32            | Optional flags (see below). Caliptra runtime 2.1.1+ only.                  |
+
+*Flags*
+
+| **Bit** | **Name**          | **Description**                                                                                                          |
+| ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 0       | `INITIAL_ACTIVATE`| First-time MCU activation after the encrypted-boot flow. Caliptra runtime 2.1.1+ only. See below. |
+
+Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
+
+`INITIAL_ACTIVATE` is used exclusively by MCU ROM at the tail of the
+`EncryptedFirmware` boot flow. MCU ROM has already loaded firmware into MCU
+SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
+`CM_AES_GCM_DECRYPT_DMA`. When this flag is set, Caliptra Runtime:
+
+- Skips the hitless-update steps (set `RESET_REASON.FwHitlessUpd`, clear
+  `FW_EXEC_CTRL`, wait for MCU reset request and reset assertion, DMA-reload
+  from staging, re-`AuthorizeAndStash`).
+- Just publishes `FW_EXEC_CTRL[MCU]` (and any other requested bits) so that
+  MCI's `BOOT_RST_MCU` state releases MCU from reset on the next warm reset
+  that MCU ROM triggers.
+
+Caliptra Runtime only honors `INITIAL_ACTIVATE` when **all** of the following
+are true; otherwise the command fails with `IMAGE_VERIFIER_ACTIVATION_FAILED`:
+
+1. The MCU image bit is included in the activation request.
+2. The boot mode set by ROM is `EncryptedFirmware` (i.e., ROM received
+   `RI_DOWNLOAD_ENCRYPTED_FIRMWARE`).
+3. `FW_EXEC_CTRL[MCU]` is currently `0` — this is an initial activation,
+   not a hitless update masquerading as one.
+
+Together, these checks ensure that the MCU SRAM contents are
+integrity-protected end-to-end (ciphertext digest verified during recovery;
+GCM tag verified during `CM_AES_GCM_DECRYPT_DMA`) before Caliptra releases
+MCU to execute them.
 
 *Table: `ACTIVATE_FIRMWARE` output arguments*
 
