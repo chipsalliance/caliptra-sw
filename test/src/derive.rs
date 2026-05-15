@@ -45,6 +45,9 @@ pub struct DoeInput {
     // The field entropy, as stored in the fuses
     pub field_entropy_seed: [u32; 8],
 
+    // The HEK seed, as stored in the fuses
+    pub hek_seed: [u32; 8],
+
     // The initial value of key-vault entry words at startup
     pub keyvault_initial_word_value: u32,
 }
@@ -57,6 +60,8 @@ impl Default for DoeInput {
 
             uds_seed: caliptra_hw_model_types::DEFAULT_UDS_SEED,
             field_entropy_seed: caliptra_hw_model_types::DEFAULT_FIELD_ENTROPY,
+
+            hek_seed: caliptra_hw_model_types::DEFAULT_HEK_SEED,
 
             // in debug-locked mode, this defaults to 0
             keyvault_initial_word_value: 0x0000_0000,
@@ -74,6 +79,8 @@ impl DoeInput {
             uds_seed: [0xffff_ffff_u32; 16],
             field_entropy_seed: [0xffff_ffff_u32; 8],
 
+            hek_seed: [0xffff_ffff_u32; 8],
+
             // In debug mode, this defaults to 0xaaaa_aaaa
             keyvault_initial_word_value: 0xaaaa_aaaa,
         }
@@ -87,6 +94,9 @@ pub struct DoeOutput {
 
     // The decrypted field entropy as stored in the key vault (with padding)
     pub field_entropy: [u32; 12],
+
+    // The decrypted HEK seed as stored in the key vault
+    pub hek_seed: [u32; 8],
 }
 impl DoeOutput {
     /// A standalone implementation of the cryptographic operations necessary to
@@ -115,6 +125,8 @@ impl DoeOutput {
             // used as a HMAC key, but not when used as HMAC
             // data).
             field_entropy: [input.keyvault_initial_word_value; 12],
+
+            hek_seed: [0_u32; 8],
         };
 
         result
@@ -135,6 +147,16 @@ impl DoeOutput {
                 swap_word_bytes(&input.field_entropy_seed).as_bytes(),
             ));
         swap_word_bytes_inplace(&mut result.field_entropy);
+
+        result
+            .hek_seed
+            .as_mut_bytes()
+            .copy_from_slice(&aes256_decrypt_blocks(
+                swap_word_bytes(&input.doe_obf_key).as_bytes(),
+                swap_word_bytes(&input.doe_iv).as_bytes(),
+                swap_word_bytes(&input.hek_seed).as_bytes(),
+            ));
+        swap_word_bytes_inplace(&mut result.hek_seed);
 
         result
     }
@@ -158,6 +180,7 @@ fn test_doe_output() {
             0x690aaee2,
         ],
         keyvault_initial_word_value: 0x5555_5555,
+        ..Default::default()
     });
     assert_eq!(
         output,
@@ -170,7 +193,8 @@ fn test_doe_output() {
             field_entropy: [
                 437386532, 405572964, 972652519, 2702758929, 92052297, 1822317414, 295423989,
                 3895283936, 1431655765, 1431655765, 1431655765, 1431655765
-            ]
+            ],
+            hek_seed: output.hek_seed,
         }
     );
 }
@@ -282,17 +306,7 @@ pub struct OcpLockKeyLadderBuilder {
     hek: Option<[u32; 16]>,
     mdk: Option<[u32; 16]>,
     intermediate_mek_secret: Option<[u32; 16]>,
-}
-
-impl From<IDevId> for OcpLockKeyLadderBuilder {
-    fn from(value: IDevId) -> Self {
-        Self {
-            cdi: value.cdi,
-            hek: None,
-            mdk: None,
-            intermediate_mek_secret: None,
-        }
-    }
+    hek_seed: [u32; 8],
 }
 
 impl OcpLockKeyLadderBuilder {
@@ -303,15 +317,19 @@ impl OcpLockKeyLadderBuilder {
             hek: None,
             mdk: None,
             intermediate_mek_secret: None,
+            hek_seed: output.hek_seed,
         }
     }
 
-    pub fn add_hek(self, hek_seed: [u32; 8]) -> Self {
-        let mut hek: [u32; 16] = transmute!(hmac512_kdf(
+    pub fn add_hek(self) -> Self {
+        // PRK = HMAC(key=CDI, data=HEK_seed)
+        let prk: [u8; 64] = hmac512(
             swap_word_bytes(&self.cdi).as_bytes(),
-            b"ocp_lock_hek",
-            Some(hek_seed.as_bytes()),
-        ));
+            swap_word_bytes(&self.hek_seed).as_bytes(),
+        );
+
+        // HEK = KDF(key=PRK, label="ocp_lock_hek")
+        let mut hek: [u32; 16] = transmute!(hmac512_kdf(&prk, b"ocp_lock_hek", None,));
         swap_word_bytes_inplace(&mut hek);
         Self {
             hek: Some(hek),
@@ -504,28 +522,28 @@ fn test_golden_ocp_lock_keyladder() {
         ]
     );
 
-    let mek = OcpLockKeyLadderBuilder::from(generated_idevid)
+    let mek = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
         .derive_mek();
     assert_eq!(
         mek.checksum,
-        [208, 2, 161, 131, 8, 80, 187, 246, 107, 90, 21, 150, 58, 194, 61, 52]
+        [70, 6, 214, 126, 147, 72, 126, 46, 90, 212, 113, 85, 217, 193, 150, 182]
     );
     assert_eq!(
         mek.mek,
         [
-            94, 152, 39, 23, 80, 241, 238, 103, 219, 79, 3, 73, 159, 38, 155, 127, 106, 161, 12,
-            18, 56, 249, 187, 171, 151, 33, 80, 177, 43, 88, 170, 232, 206, 234, 175, 214, 95, 181,
-            46, 96, 36, 178, 8, 146, 11, 219, 238, 52, 72, 59, 214, 205, 102, 183, 43, 144, 0, 226,
-            80, 160, 212, 180, 219, 171
+            235, 114, 154, 59, 138, 17, 5, 205, 58, 53, 45, 24, 253, 200, 171, 74, 184, 17, 186,
+            43, 158, 48, 110, 1, 106, 105, 191, 44, 46, 195, 83, 105, 195, 151, 38, 91, 1, 134, 10,
+            187, 197, 219, 237, 98, 58, 38, 97, 163, 221, 220, 4, 83, 33, 23, 201, 172, 223, 16,
+            12, 7, 240, 156, 227, 208
         ]
     );
 
-    let mpk = OcpLockKeyLadderBuilder::from(generated_idevid)
+    let mpk = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .decrypt_locked_mpk(
             [0xAB; 32],
             &[0xAE; 32],
@@ -542,11 +560,11 @@ fn test_golden_ocp_lock_keyladder() {
                     254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254,
                 ],
                 ct: vec![
-                    218, 219, 239, 125, 175, 23, 17, 207, 15, 19, 221, 63, 30, 192, 234, 45, 254,
-                    19, 63, 27, 63, 108, 28, 203, 11, 102, 222, 203, 23, 224, 168, 152,
+                    220, 72, 67, 131, 218, 104, 31, 1, 0, 121, 122, 88, 196, 75, 47, 119, 64, 143,
+                    219, 79, 14, 166, 252, 194, 5, 93, 16, 186, 49, 62, 36, 62,
                 ],
                 tag: vec![
-                    226, 113, 183, 232, 106, 130, 197, 42, 62, 30, 165, 176, 39, 85, 213, 122,
+                    204, 1, 194, 66, 137, 31, 1, 218, 227, 93, 26, 217, 118, 178, 120, 93,
                 ],
             },
         );
@@ -573,6 +591,7 @@ fn test_idevid() {
             0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
             0xe82d50e0, 0x55555555, 0x55555555, 0x55555555, 0x55555555,
         ],
+        hek_seed: [0u32; 8],
     });
     assert_eq!(
         idevid,
@@ -653,6 +672,7 @@ fn test_ldevid() {
             0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
             0xe82d50e0, 0x55555555, 0x55555555, 0x55555555, 0x55555555,
         ],
+        hek_seed: [0u32; 8],
     });
     assert_eq!(
         ldevid,

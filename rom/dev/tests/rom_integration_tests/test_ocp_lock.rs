@@ -26,27 +26,27 @@ fn test_hek_seed_states() {
         DeviceLifecycle::Production,
         &[HekSeedState::Programmed, HekSeedState::ProgrammedEmpty],
         true,
-        [0xABDEu32; 8],
+        caliptra_hw_model_types::DEFAULT_HEK_SEED,
     );
     // Test PROD HEK seed states that disallow HEK usage
     hek_seed_state_helper(
         DeviceLifecycle::Production,
         &[HekSeedState::Unavailable],
         false,
-        [0xABDEu32; 8],
+        caliptra_hw_model_types::DEFAULT_HEK_SEED,
     );
     // Manufacturing and Unprovisioned LC should allow HEK usage in all HEK seed states.
     hek_seed_state_helper(
         DeviceLifecycle::Manufacturing,
         ALL_HEK_SEED_STATES,
         true,
-        [0xABDEu32; 8],
+        caliptra_hw_model_types::DEFAULT_HEK_SEED,
     );
     hek_seed_state_helper(
         DeviceLifecycle::Unprovisioned,
         ALL_HEK_SEED_STATES,
         true,
-        [0xABDEu32; 8],
+        caliptra_hw_model_types::DEFAULT_HEK_SEED,
     );
     // A programmed HEK seed cannot be all zeros
     hek_seed_state_helper(

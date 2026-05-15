@@ -38,7 +38,7 @@ use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
-const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+pub const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Label used for HKDF-Extract (salt) and HKDF-Expand (info) when deriving the Stable Owner Root Key.
 const STABLE_OWNER_ROOT_KEY_LABEL: &[u8] = b"stable_owner_root_key";
@@ -81,6 +81,12 @@ impl InitDevIdLayer {
 
         // Derive Stable Owner Root Key from HEK seed (if enabled).
         Self::derive_stable_owner_root_key(env)?;
+
+        // The OCP LOCK flow requires the HEK seed to be extracted using the DOE.
+        // This must be done BEFORE we clear the DOE secrets below.
+        if env.soc_ifc.ocp_lock_enabled() {
+            env.doe.decrypt_hek_seed(&DOE_IV, KEY_ID_HEK_SEED)?;
+        }
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
