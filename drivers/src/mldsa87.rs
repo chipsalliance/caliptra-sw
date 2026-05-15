@@ -157,6 +157,29 @@ impl Mldsa87 {
         Ok(pubkey)
     }
 
+    /// Generate MLDSA-87 Key Pair without the Pairwise Consistency Test (PCT).
+    ///
+    /// **For ACVP / test use only.** Production code must use `key_pair()` which
+    /// includes the FIPS-required PCT.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - Either an array of 4x8 bytes or a key vault key to use as seed.
+    /// * `trng` - TRNG driver instance.
+    /// * `priv_key_out` - Optional output parameter to store the private key.
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
+    pub fn key_pair_no_pct(
+        &mut self,
+        seed: Mldsa87Seed,
+        trng: &mut Trng,
+        priv_key_out: Option<&mut Mldsa87PrivKey>,
+    ) -> CaliptraResult<Mldsa87PubKey> {
+        self.key_pair_internal(seed, trng, priv_key_out)
+    }
+
     /// Raw key pair generation without PCT.
     #[inline(never)]
     fn key_pair_internal(
@@ -415,6 +438,65 @@ impl Mldsa87 {
         } else {
             Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
         }
+    }
+
+    /// Sign a variable-length message using a caller-provided private key, skipping
+    /// the post-sign verification step.  Intended for ACVP sigGen testing where no
+    /// public key is available for the anti-glitch check.
+    pub fn sign_var_no_verify(
+        &mut self,
+        seed: Mldsa87Seed,
+        msg: &[u8],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Sign RND.
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
+
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.privkey_in())
+            }
+        }
+
+        // Program the command register for signing with message streaming.
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+            .stream_msg(true)
+        });
+
+        // Stream the message to the hardware.
+        Mldsa87::program_var_msg(mldsa, msg)?;
+
+        // Copy signature.
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+
+        // Clear the hardware.
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        Ok(signature)
     }
 
     /// Common setup for verification functions

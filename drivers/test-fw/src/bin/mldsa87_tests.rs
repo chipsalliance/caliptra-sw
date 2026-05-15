@@ -27,8 +27,8 @@ use caliptra_registers::hmac::HmacReg;
 use caliptra_registers::mldsa::MldsaReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
-use caliptra_test_harness::test_suite;
-use zerocopy::IntoBytes;
+use caliptra_test_harness::{print, test_suite};
+use zerocopy::{FromBytes, IntoBytes};
 const PUBKEY: [u32; 648] = [
     0x91204ff5, 0xe7902480, 0xa0e5c933, 0x72a637ac, 0xfabb499d, 0x6ffb2abb, 0x8511668e, 0xdb8a3253,
     0x553de529, 0x413f8be9, 0x5ea473d7, 0x8081ee24, 0x246090d8, 0xdd247908, 0x2e8b653c, 0x31837dac,
@@ -936,6 +936,258 @@ fn test_verify_failure() {
     );
 }
 
+// Diagnostic test: exercises key_pair_no_pct() with a direct Array4x8 seed against
+// known constants, verifying that keygen produces the correct public and private keys.
+static mut DIAG_KEYGEN_PRIVKEY: Mldsa87PrivKey = Mldsa87PrivKey::new([0u32; 1224]);
+
+fn test_keygen_array_seed() {
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let seed = LEArray4x8::from(MLDSA_SEED);
+    let priv_key_out = unsafe { &mut DIAG_KEYGEN_PRIVKEY };
+
+    let pub_key = ml_dsa87
+        .key_pair_no_pct(Mldsa87Seed::Array4x8(&seed), &mut trng, Some(priv_key_out))
+        .unwrap();
+
+    assert_eq!(pub_key, Mldsa87PubKey::from(MLDSA_PUBKEY));
+    assert_eq!(*priv_key_out, Mldsa87PrivKey::from(MLDSA_PRIVKEY));
+}
+
+// ---------------------------------------------------------------------------
+// Static buffers for ACVP tests (avoids stack overflow for large ML-DSA types)
+// ---------------------------------------------------------------------------
+static mut ACVP_PUBKEY_BUF:  [u8; 2592] = [0u8; 2592];
+static mut ACVP_PRIVKEY_BUF: [u8; 4896] = [0u8; 4896];
+static mut ACVP_KEYGEN_PRIVKEY: Mldsa87PrivKey = Mldsa87PrivKey::new([0u32; 1224]);
+static mut ACVP_SIG_BUF:     [u8; 4628] = [0u8; 4628];
+static mut ACVP_MSG_BUF:     [u8; 512]  = [0u8; 512];  // up to 512-byte messages
+static mut ACVP_SEED_BUF:    [u8; 32]   = [0u8; 32];
+
+// ---------------------------------------------------------------------------
+// Hex decoding helpers
+// ---------------------------------------------------------------------------
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
+    let hex = hex.as_bytes();
+    if hex.len() % 2 != 0 {
+        return None;
+    }
+    let n = hex.len() / 2;
+    if n > buf.len() {
+        return None;
+    }
+    for i in 0..n {
+        let hi = hex_nibble(hex[i * 2])?;
+        let lo = hex_nibble(hex[i * 2 + 1])?;
+        buf[i] = (hi << 4) | lo;
+    }
+    Some(n)
+}
+
+// ---------------------------------------------------------------------------
+// ACVP dispatcher: reads vectors/current.txt and runs KEYGEN / SIGGEN / SIGVER
+// ---------------------------------------------------------------------------
+fn test_acvp() {
+    const CURRENT: &str = include_str!("./vectors/current.txt");
+    let mut lines = CURRENT.lines();
+    let test_type = lines.next().unwrap().trim();
+
+    match test_type {
+        "MLDSA_KEYGEN" => {
+            let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+            let hex_seed = lines.next().unwrap().trim();
+
+            let seed_buf = unsafe { &mut ACVP_SEED_BUF };
+            hex_decode(hex_seed, seed_buf).unwrap();
+
+            let mut trng = unsafe {
+                Trng::new(
+                    CsrngReg::new(),
+                    EntropySrcReg::new(),
+                    SocIfcTrngReg::new(),
+                    &SocIfcReg::new(),
+                )
+                .unwrap()
+            };
+
+            let seed = LEArray4x8::from(*seed_buf);
+            let priv_key = unsafe { &mut ACVP_KEYGEN_PRIVKEY };
+            let pub_key = ml_dsa87
+                .key_pair_no_pct(Mldsa87Seed::Array4x8(&seed), &mut trng, Some(priv_key))
+                .unwrap();
+
+            print!("MLDSA_PUBKEY:");
+            for byte in pub_key.as_bytes().iter() {
+                print!("{:02X}", byte);
+            }
+            println!();
+            print!("MLDSA_PRIVKEY:");
+            for byte in unsafe { ACVP_KEYGEN_PRIVKEY.as_bytes() }.iter() {
+                print!("{:02X}", byte);
+            }
+            println!();
+        }
+
+        "MLDSA_SIGGEN" => {
+            let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+            let hex_key = lines.next().unwrap().trim();
+
+            let mut trng = unsafe {
+                Trng::new(
+                    CsrngReg::new(),
+                    EntropySrcReg::new(),
+                    SocIfcTrngReg::new(),
+                    &SocIfcReg::new(),
+                )
+                .unwrap()
+            };
+
+            // SK input (4,896 bytes = 9,792 hex chars): message on next line.
+            // No pk provided; post-sign verification is skipped.
+            let privkey_buf = unsafe { &mut ACVP_PRIVKEY_BUF };
+            hex_decode(hex_key, privkey_buf).unwrap();
+            let hex_msg = lines.next().unwrap().trim();
+            let msg_buf = unsafe { &mut ACVP_MSG_BUF };
+            let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
+
+            // deterministic=true per ACVP requirements; sign_rnd is always all zeros.
+            let sign_rnd = Mldsa87SignRnd::default();
+
+            let priv_key = Mldsa87PrivKey::read_from_bytes(privkey_buf.as_slice()).unwrap();
+            let signature = ml_dsa87
+                .sign_var_no_verify(
+                    Mldsa87Seed::PrivKey(&priv_key),
+                    &msg_buf[..msg_len],
+                    &sign_rnd,
+                    &mut trng,
+                )
+                .unwrap();
+
+            // ML-DSA-87 signature is 4627 bytes (FIPS 204). The driver stores it in
+            // [u32; 1157] = 4628 bytes; the last byte is zero-padding.
+            const MLDSA87_SIG_SIZE: usize = 4627;
+            print!("MLDSA_SIGGEN:");
+            for byte in signature.as_bytes()[..MLDSA87_SIG_SIZE].iter() {
+                print!("{:02X}", byte);
+            }
+            println!();
+        }
+
+        "MLDSA_SIGVER" => {
+            let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+            let hex_pubkey = lines.next().unwrap().trim();
+            let hex_msg    = lines.next().unwrap().trim();
+            let hex_sig    = lines.next().unwrap().trim();
+
+            let pubkey_buf = unsafe { &mut ACVP_PUBKEY_BUF };
+            let msg_buf    = unsafe { &mut ACVP_MSG_BUF };
+            let sig_buf    = unsafe { &mut ACVP_SIG_BUF };
+
+            hex_decode(hex_pubkey, pubkey_buf).unwrap();
+            let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
+            hex_decode(hex_sig, sig_buf).unwrap();
+
+            let pub_key   = Mldsa87PubKey::read_from_bytes(pubkey_buf.as_slice()).unwrap();
+            let signature = Mldsa87Signature::read_from_bytes(sig_buf.as_slice()).unwrap();
+
+            let result = ml_dsa87
+                .verify_var(&pub_key, &msg_buf[..msg_len], &signature)
+                .unwrap();
+
+            match result {
+                Mldsa87Result::Success         => println!("MLDSA_SIGVER:01"),
+                Mldsa87Result::SigVerifyFailed => println!("MLDSA_SIGVER:00"),
+            }
+        }
+
+        _ => panic!("Unknown test type"),
+    }
+}
+
+/// ACVP sigGen test with variable-length message and no context (SK input only).
+///
+/// Reads from `vectors/current.txt` (written by run_acvp.py before each test):
+/// ```
+/// MLDSA_SIGGEN
+/// <hex_key>          # 9792 hex chars (4896-byte SK)
+/// <hex_msg>          # variable-length hex message (up to 512 bytes)
+/// [<hex_rnd>]        # optional 64 hex chars (32-byte deterministic sign randomness)
+/// ```
+///
+/// contextLength is always 0 per ACVP requirements; uses `sign_var_no_verify` directly.
+///
+/// Output: single `MLDSA_SIGGEN:<hex>` line containing the full 4627-byte signature.
+fn test_acvp_siggen() {
+    const CURRENT: &str = include_str!("./vectors/current.txt");
+    let mut lines = CURRENT.lines();
+    let test_type = lines.next().unwrap().trim();
+    assert_eq!(test_type, "MLDSA_SIGGEN");
+
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+    let hex_key = lines.next().unwrap().trim();
+    let hex_msg = lines.next().unwrap().trim();
+    // contextLength is always 0 per ACVP requirements; no context line in vectors.
+
+    let msg_buf = unsafe { &mut ACVP_MSG_BUF };
+    let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
+
+    // deterministic=true per ACVP requirements; sign_rnd is always all zeros.
+    let sign_rnd = Mldsa87SignRnd::default();
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    // SK input (4896 bytes = 9792 hex chars).
+    let privkey_buf = unsafe { &mut ACVP_PRIVKEY_BUF };
+    hex_decode(hex_key, privkey_buf).unwrap();
+    let priv_key = Mldsa87PrivKey::read_from_bytes(privkey_buf.as_slice()).unwrap();
+    let signature = ml_dsa87
+        .sign_var_no_verify(
+            Mldsa87Seed::PrivKey(&priv_key),
+            &msg_buf[..msg_len],
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    // ML-DSA-87 signature is 4627 bytes (FIPS 204). The driver stores it in
+    // [u32; 1157] = 4628 bytes; the last byte is zero-padding for word alignment.
+    const MLDSA87_SIG_SIZE: usize = 4627;
+    print!("MLDSA_SIGGEN:");
+    for byte in signature.as_bytes()[..MLDSA87_SIG_SIZE].iter() {
+        print!("{:02X}", byte);
+    }
+    println!();
+}
+
 test_suite! {
     test_gen_key_pair,
     test_sign,
@@ -946,4 +1198,7 @@ test_suite! {
     test_keygen_caller_provided_seed,
     test_verify,
     test_verify_failure,
+    test_keygen_array_seed, // Diagnostic: key_pair(Array4x8) + PCT on Verilator model.
+    test_acvp_siggen,  // Reads from vectors/current.txt. Runs sigGen (variable msg, no context).
+    test_acvp,         // Reads from vectors/current.txt. Runs KEYGEN / SIGGEN / SIGVER.
 }
