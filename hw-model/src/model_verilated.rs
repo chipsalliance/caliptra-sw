@@ -348,10 +348,6 @@ impl HwModel for ModelVerilated {
         tx
     }
 
-    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
-        Err(ModelError::SubsystemSramError)
-    }
-
     fn fuses(&self) -> &Fuses {
         &self.fuses
     }
@@ -448,14 +444,6 @@ impl ModelVerilated {
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         let (tx, _rx) = mpsc::channel();
         tx
-    }
-
-    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
-        Err(ModelError::SubsystemSramError)
-    }
-
-    fn read_payload_from_ss_staging_area(&mut self, _len: usize) -> Result<Vec<u8>, ModelError> {
-        Err(ModelError::SubsystemSramError)
     }
 
     fn fuses(&self) -> &Fuses {

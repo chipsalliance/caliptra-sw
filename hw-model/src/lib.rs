@@ -1289,7 +1289,7 @@ pub trait HwModel: SocManager {
 
         if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
             // Write payload to staging area
-            let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
+            let staging_addr = self.write_payload_to_ss_staging_area(buf, 0)?;
 
             // Create external mailbox command
             let external_cmd = api::mailbox::ExternalMailboxCmdReq {
@@ -1388,12 +1388,20 @@ pub trait HwModel: SocManager {
     }
 
     /// Upload payload to external MCU SRAM
-    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
+    fn write_payload_to_ss_staging_area(
+        &mut self,
+        _payload: &[u8],
+        _offset: usize,
+    ) -> Result<u64, ModelError> {
         Err(ModelError::SubsystemSramError)
     }
 
     /// Read payload from external MCU SRAM staging area
-    fn read_payload_from_ss_staging_area(&mut self, _length: usize) -> Result<Vec<u8>, ModelError> {
+    fn read_payload_from_ss_staging_area(
+        &mut self,
+        _length: usize,
+        _offset: usize,
+    ) -> Result<Vec<u8>, ModelError> {
         Err(ModelError::SubsystemSramError)
     }
 
@@ -1539,7 +1547,7 @@ pub trait HwModel: SocManager {
         let cmk = cm_import_resp.cmk.clone();
 
         // Step 3: Write ciphertext to staging area and get the AXI address
-        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext)?;
+        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext, 0)?;
 
         // Step 4: Build and send CM_AES_GCM_DECRYPT_DMA request
         let decrypt_req = CmAesGcmDecryptDmaReq {
@@ -1669,6 +1677,11 @@ pub trait HwModel: SocManager {
     /// Get OCP LOCK Info
     fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
         None
+    }
+
+    /// Get MCI BusMmio
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        panic!("mci unimplemented");
     }
 }
 

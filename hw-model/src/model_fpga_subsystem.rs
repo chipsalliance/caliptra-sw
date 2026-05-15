@@ -225,7 +225,7 @@ pub struct Mci {
 }
 
 impl Mci {
-    pub fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+    pub fn regs<'a>(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'a>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
                 EMULATOR_MCI_ADDR as *mut u32,
@@ -1804,6 +1804,10 @@ impl HwModel for ModelFpgaSubsystem {
         }
     }
 
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        self.mmio.mci().unwrap().regs()
+    }
+
     fn step(&mut self) {
         self.handle_log();
         self.handle_flash();
@@ -2414,8 +2418,20 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(mci_base_addr + 0xc00000)
     }
 
-    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
-        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+    fn write_payload_to_ss_staging_area(
+        &mut self,
+        payload: &[u8],
+        offset: usize,
+    ) -> Result<u64, ModelError> {
+        assert!(
+            offset % 4 == 0,
+            "Staging area offset must be 4-byte aligned"
+        );
+        assert!(
+            payload.len() % 4 == 0,
+            "Payload length must be a multiple of 4"
+        );
+        let staging_offset = (0xc00000_usize + offset) / 4; // Convert to u32 offset since mci.ptr is *mut u32
         let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
 
         // Write complete u32 chunks
@@ -2432,12 +2448,20 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
-        // Return the physical address of the staging area
-        self.staging_physical_address()
+        // Return the physical address of the staging area + offset
+        Ok(self.staging_physical_address()? + offset as u64)
     }
 
-    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError> {
-        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+    fn read_payload_from_ss_staging_area(
+        &mut self,
+        len: usize,
+        offset: usize,
+    ) -> Result<Vec<u8>, ModelError> {
+        assert!(
+            offset % 4 == 0,
+            "Staging area offset must be 4-byte aligned"
+        );
+        let staging_offset = (0xc00000_usize + offset) / 4; // Convert to u32 offset since mci.ptr is *mut u32
         let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
 
         let mut result = Vec::with_capacity(len);
