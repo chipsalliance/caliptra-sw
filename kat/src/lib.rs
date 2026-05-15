@@ -102,10 +102,7 @@ pub fn execute_kat(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrive
     #[cfg(not(feature = "rom"))]
     {
         caliptra_drivers::kats::execute_cmackdf_kat(env.aes)?;
-        caliptra_drivers::kats::execute_ecb_kat(env.aes)?;
-        caliptra_drivers::kats::execute_cbc_kat(env.aes)?;
-        caliptra_drivers::kats::execute_ctr_kat(env.aes)?;
-        caliptra_drivers::kats::execute_cmac_kat(env.aes)?;
+        env.aes.run_kats()?;
         caliptra_drivers::kats::execute_gcm_kat(env.aes, env.trng)?;
         if let Some(mlkem1024) = env.mlkem1024.as_mut() {
             caliptra_drivers::kats::execute_mlkem1024_kat(mlkem1024)?;
