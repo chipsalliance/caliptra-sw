@@ -408,6 +408,36 @@ pub enum DpeResult {
     MboxCmdFailure(CaliptraError),
 }
 
+/// Issue a mailbox command, retrying while the mailbox lock is held by another
+/// agent (e.g. the MCU ROM finishing post-runtime fuse work on the FPGA
+/// subsystem profile). On `UnableToLockMailbox`, step the model to let the MCU
+/// make progress and try again. All other errors and successful responses are
+/// returned immediately.
+pub fn mailbox_execute_with_lock_retry(
+    model: &mut DefaultHwModel,
+    cmd: u32,
+    buf: &[u8],
+) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+    // Generous bounds: the MCU ROM's post-RT fuse work observed on FPGA
+    // subsystem completes well within a few hundred thousand cycles, so up to
+    // ~100 attempts of ~1000 steps each (~100k steps total) gives substantial
+    // headroom without making a wedged test hang for long.
+    const MAX_ATTEMPTS: u32 = 100;
+    const STEPS_PER_ATTEMPT: u32 = 1000;
+
+    for _ in 0..MAX_ATTEMPTS {
+        match model.mailbox_execute(cmd, buf) {
+            Err(ModelError::UnableToLockMailbox) => {
+                for _ in 0..STEPS_PER_ATTEMPT {
+                    model.step();
+                }
+            }
+            other => return other,
+        }
+    }
+    Err(ModelError::UnableToLockMailbox)
+}
+
 pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {
     let resp_hdr =
         MailboxReqHeader::try_read_from_bytes(&resp[..core::mem::size_of::<MailboxReqHeader>()])
