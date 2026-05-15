@@ -12,15 +12,6 @@
 # and our CI build pulls it in.
 # See https://github.com/chipsalliance/caliptra-mcu-sw/pull/1135 (a04a9c28)
 # which introduced the cfg(feature = "ocp-lock") gate.
-#
-# TEMPORARILY skipped: test_encrypted_firmware::test_encrypted_firmware_decrypt_dma
-# Hits the 180s nextest slow-timeout on FPGA subsystem under MCU 6f3bea29. The
-# MCU runs through the encrypted boot flow successfully (CM_IMPORT,
-# CM_AES_GCM_DECRYPT_DMA, MCU ROM digest verification), then triggers a warm
-# reset to enter FwBoot. Test framework appears to be waiting on something
-# afterwards that never settles. Investigating separately — likely related to
-# the FwBoot path after warm reset in the new MCU ROM. Re-enable once the
-# underlying issue is understood.
 [profile.fpga-subsystem]
 default-filter = """
 (package(caliptra-hw-model) and test(tests::test_execution)) |
@@ -38,7 +29,6 @@ default-filter = """
     - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
     - test(test_fe_programming::test_fe_programming_cmd)
     - test(/^test_ocp_lock::/)
-    - test(test_encrypted_firmware::test_encrypted_firmware_decrypt_dma)
     - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)) |
 (package(caliptra-rom)
     - test(test_debug_unlock::)
