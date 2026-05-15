@@ -277,11 +277,12 @@ The following flows are conducted when the ROM is operating in the manufacturing
 3. ROM then retrieves the UDS granularity from the `CPTRA_GENERIC_INPUT_WIRES` register0 Bit31 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.  If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
 
 4. ROM computes the following values:
-    - DAI_IDLE bit offset: (`SS_STRAP_GENERIC` register0 >> 16) & 0xFFFF
-    - `DIRECT_ACCESS_CMD` offset: (`SS_STRAP_GENERIC` register1) & 0xFFFF + Fuse Controller's base address.
+    - `STATUS` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register0) & 0xFFFF).
+    - DAI_IDLE bit index within the `STATUS` register: (`SS_STRAP_GENERIC` register0 >> 16) & 0xFFFF.
+    - `DIRECT_ACCESS_CMD` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register1) & 0xFFFF).
 
 4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
-    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit (offset retrieved above) of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
+    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit using the offset retrieved above.
     2. If the granularity is 32-bit, the ROM writes the next word from the UDS seed to the `DIRECT_ACCESS_WDATA_0` register. If the granularity is 64-bit, the ROM writes the next two words to `the DIRECT_ACCESS_WDATA_0` and `DIRECT_ACCESS_WDATA_1` registers, located at offsets 0x8 and 0xC respectively from the `DIRECT_ACCESS_CMD` register.
     3. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register, located at offset 0x4 from the `DIRECT_ACCESS_CMD` register.
     4. The ROM triggers the UDS seed write command by writing 0x2 to the `DIRECT_ACCESS_CMD` register..

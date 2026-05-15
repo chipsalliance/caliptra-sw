@@ -14,7 +14,11 @@ Abstract:
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::{self};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{
+    BootParams, DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState,
+};
+
+const OTP_STATUS_REG_OFFSET: u32 = 0x10;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
@@ -79,6 +83,39 @@ fn test_uds_programming_granularity_64bit() {
 
     let config_val = hw.soc_ifc().cptra_generic_input_wires().read()[0];
     assert_eq!((config_val >> 31) & 1, 0);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
+#[test]
+fn test_uds_programming_configurable_status_reg_offset() {
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
+    let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let mut hw = caliptra_hw_model::new_unbooted(caliptra_hw_model::InitParams {
+        rom: &rom,
+        security_state,
+        dbg_manuf_service,
+        subsystem_mode: true,
+        uds_granularity_64: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let otp_dai_idle_bit_num = hw.soc_ifc().ss_strap_generic().at(0).read() & 0xFFFF_0000;
+    hw.soc_ifc()
+        .ss_strap_generic()
+        .at(0)
+        .write(|_| otp_dai_idle_bit_num | OTP_STATUS_REG_OFFSET);
+    hw.boot(BootParams::default()).unwrap();
+
+    hw.step_until(|m| {
+        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        resp.uds_program_success()
+    });
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI

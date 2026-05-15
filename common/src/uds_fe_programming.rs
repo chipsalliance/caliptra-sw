@@ -149,6 +149,13 @@ impl UdsFeProgrammingFlow {
             let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(fuse_controller_base_addr), dma);
             let seed_dest_address = self.get_dest_address(soc_ifc);
             let dai_idle_bit_num = soc_ifc.otp_dai_idle_bit_num();
+            let status_reg_offset = soc_ifc.otp_status_reg_offset();
+            let status_reg_addr = if status_reg_offset != 0 {
+                Some(fuse_controller_base_addr + status_reg_offset as u64)
+            } else {
+                // TODO: Remove this fallback once MCU programs the OTP status register offset.
+                None
+            };
             let direct_access_cmd_reg_addr =
                 fuse_controller_base_addr + soc_ifc.otp_direct_access_cmd_reg_offset() as u64;
             let direct_access_address_reg_addr =
@@ -159,11 +166,15 @@ impl UdsFeProgrammingFlow {
                 direct_access_cmd_reg_addr + DIRECT_ACCESS_WDATA_1_OFFSET;
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-            // Helper function to check if DAI is idle using the configurable bit number
-            let is_dai_idle = || -> bool {
-                let status: u32 = regs.status().read().into();
-                (status & (1 << dai_idle_bit_num)) != 0
-            };
+                // Helper function to check if DAI is idle using the configurable bit number
+                let is_dai_idle = || -> bool {
+                    let status = if let Some(status_reg_addr) = status_reg_addr {
+                        dma.read_dword(AxiAddr::from(status_reg_addr))
+                    } else {
+                        regs.status().read().into()
+                    };
+                    (status & (1 << dai_idle_bit_num)) != 0
+                };
 
                 let seed = &seed[..self.seed_length_words()]; // Get random bytes of desired size
                 let chunk_size = if uds_fuse_row_granularity_64 { 2 } else { 1 };
