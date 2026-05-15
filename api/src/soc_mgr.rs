@@ -318,8 +318,9 @@ pub trait SocManager {
             .map_err(|_| CaliptraApiError::MailboxReqTypeTooSmall)?;
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
 
-        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)? else {
-                return Err(CaliptraApiError::MailboxNoResponseData);
+        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)?
+        else {
+            return Err(CaliptraApiError::MailboxNoResponseData);
         };
 
         if data.len() < R::Resp::MIN_SIZE || data.len() > mem::size_of::<R::Resp>() {

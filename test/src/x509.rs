@@ -103,7 +103,7 @@ impl DiceTcbInfo {
     }
     pub fn find_single_in_cert(cert_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
         let Some(ext_der) = get_cert_extension(cert_der, &DICE_TCB_INFO_OID)? else {
-            return Ok(None)
+            return Ok(None);
         };
         asn1::parse(ext_der, Self::parse_single).map(Some)
     }
@@ -116,7 +116,7 @@ impl DiceTcbInfo {
     }
     pub fn find_single_in_csr(csr_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
         let Some(ext_der) = get_csr_extension(csr_der, &DICE_TCB_INFO_OID)? else {
-            return Ok(None)
+            return Ok(None);
         };
         asn1::parse(ext_der, Self::parse_single).map(Some)
     }

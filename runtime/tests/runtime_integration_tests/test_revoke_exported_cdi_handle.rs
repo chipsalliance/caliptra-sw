@@ -33,7 +33,9 @@ fn test_revoke_exported_cdi_handle() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -68,7 +70,9 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -155,7 +159,9 @@ fn test_export_cdi_after_revoke() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -174,5 +180,7 @@ fn test_export_cdi_after_revoke() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 }

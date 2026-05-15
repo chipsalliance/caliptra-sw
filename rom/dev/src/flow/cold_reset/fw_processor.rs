@@ -387,10 +387,7 @@ impl FirmwareProcessor {
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
-        cprintln!(
-            "[fwproc] ECC Key {}",
-            info.vendor_ecc_pub_key_idx,
-        );
+        cprintln!("[fwproc] ECC Key {}", info.vendor_ecc_pub_key_idx,);
         report_boot_status(FwProcessorImageVerificationComplete.into());
         Ok(info)
     }
@@ -717,7 +714,10 @@ impl FirmwareProcessor {
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+        let Some(dst) = persistent_data
+            .measurement_log
+            .get_mut(fht.meas_log_index as usize)
+        else {
             return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 

@@ -29,7 +29,7 @@ impl CommitInfo {
             let mut title = expect_line_with_prefix("    ", lines.next())?.to_string();
             'inner: loop {
                 let Some(line) = lines.next() else {
-                    result.push(CommitInfo{
+                    result.push(CommitInfo {
                         id: commit_id.into(),
                         author: author.into(),
                         title,
