@@ -149,11 +149,13 @@ pub struct MlKem1024<'a> {
 }
 
 impl<'a> MlKem1024<'a> {
-    pub fn new(mlkem: &'a mut AbrReg) -> Self {
-        Self { mlkem }
+    pub fn new(mlkem: &'a mut AbrReg) -> CaliptraResult<Self> {
+        let mut driver = Self { mlkem };
+        driver.run_kats()?;
+        Ok(driver)
     }
 
-    /// Re-run KATs (for FIPS self-test).
+    /// Run KATs.
     pub fn run_kats(&mut self) -> CaliptraResult<()> {
         crate::kats::execute_mlkem1024_kat(self)
     }

@@ -215,7 +215,7 @@ impl
 
         let (pq_enc, pq_shared_secret) = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg)?;
             let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.encap(&mut ctx, pq_ek)?
@@ -251,7 +251,7 @@ impl
 
         let pq_shared_secret = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg)?;
             let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.decap(&mut ctx, pq_enc)?
@@ -279,7 +279,7 @@ impl
     ) -> CaliptraResult<HybridEncapsulationKey> {
         let pq_ek = {
             let (pq_seed, _) = Self::expand_seed(ctx.sha, &self.seed)?;
-            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg);
+            let mut ml_kem_driver = MlKem1024::new(ctx.abr_reg)?;
             let mut ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem_driver);
             let mut mlkem = MlKem::derive_key_pair_raw(pq_seed);
             mlkem.serialize_public_key(&mut ctx)?

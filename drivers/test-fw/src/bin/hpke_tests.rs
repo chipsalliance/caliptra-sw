@@ -71,7 +71,7 @@ fn test_ml_kem_1024_test_vector() {
     let hpke = unsafe { HpkeMlKemContext::from_seed(MLKEM_TEST_VECTOR.ikm_r.try_into().unwrap()) };
 
     let mut kem = {
-        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg()).unwrap();
         let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
         MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
     };
@@ -113,7 +113,7 @@ fn test_ml_kem_1024_self_talk() {
 
     let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
     let mut kem = {
-        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg()).unwrap();
         let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
         MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
     };

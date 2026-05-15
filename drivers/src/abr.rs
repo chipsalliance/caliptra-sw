@@ -104,11 +104,11 @@ impl Abr {
     ///     ml_kem.key_pair(seeds)
     /// })?;
     /// ```
-    pub fn with_ml_kem<'s, F, R>(&'s mut self, f: F) -> R
+    pub fn with_ml_kem<'s, F, R>(&'s mut self, f: F) -> CaliptraResult<R>
     where
-        F: FnOnce(MlKem1024<'s>) -> R,
+        F: FnOnce(MlKem1024<'s>) -> CaliptraResult<R>,
     {
-        let ml_kem = MlKem1024::new(&mut self.abr);
+        let ml_kem = MlKem1024::new(&mut self.abr)?;
         f(ml_kem)
     }
 }

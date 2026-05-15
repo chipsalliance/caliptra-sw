@@ -2472,7 +2472,7 @@ impl Commands {
 
         let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
-        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg())?;
         let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds, None)?;
 
         let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
@@ -2511,7 +2511,7 @@ impl Commands {
         };
 
         let mut shared_key = MlKem1024SharedKey::default();
-        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg())?;
         let ciphertext = ml_kem.encapsulate(
             &encaps_key,
             MlKem1024MessageSource::Array(&message),
@@ -2552,7 +2552,7 @@ impl Commands {
         let ciphertext: LEArray4x392 = (&cmd.ciphertext).into();
 
         let mut shared_key = MlKem1024SharedKey::default();
-        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
+        let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg())?;
         ml_kem.keygen_decapsulate(
             seeds,
             &ciphertext,

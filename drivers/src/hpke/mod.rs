@@ -221,7 +221,7 @@ impl HpkeContext {
             match key {
                 HpkePrivateKey::MlKem { handle, context } if handle == hpke_handle => {
                     let mut kem = {
-                        let mut ml_kem_driver = MlKem1024::new(abr.abr_reg());
+                        let mut ml_kem_driver = MlKem1024::new(abr.abr_reg())?;
                         let mut ctx = MlKemContext::new(trng, sha, &mut ml_kem_driver);
                         MlKem::derive_key_pair(&mut ctx, context.as_ref())?
                     };
@@ -306,7 +306,7 @@ impl HpkeContext {
                         .ok_or(CaliptraError::RUNTIME_OCP_LOCK_DESERIALIZE_ENC_FAILURE)?;
 
                     let mut kem = {
-                        let mut ml_kem_driver = MlKem1024::new(abr.abr_reg());
+                        let mut ml_kem_driver = MlKem1024::new(abr.abr_reg())?;
                         let mut ctx = MlKemContext::new(trng, sha, &mut ml_kem_driver);
                         MlKem::derive_key_pair(&mut ctx, context.as_ref())?
                     };
@@ -442,7 +442,7 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
             .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_ML_KEM_PKR_DESERIALIZATION_FAIL)?;
 
         let (enc, shared_secret) = {
-            let mut ml_kem = MlKem1024::new(ctx.abr_reg);
+            let mut ml_kem = MlKem1024::new(ctx.abr_reg)?;
             let mut kem_ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem);
             kem.encap(&mut kem_ctx, pkr)?
         };
@@ -466,7 +466,7 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         info: &[u8],
     ) -> CaliptraResult<EncryptionContext<Receiver>> {
         let shared_secret = {
-            let mut ml_kem = MlKem1024::new(ctx.abr_reg);
+            let mut ml_kem = MlKem1024::new(ctx.abr_reg)?;
             let mut kem_ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem);
             kem.decap(&mut kem_ctx, enc)?
         };
@@ -488,7 +488,7 @@ impl Hpke<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }>
         ctx: &mut Self::DriverContext<'_>,
         out_key: &mut [u8; MlKem::NPK],
     ) -> CaliptraResult<usize> {
-        let mut ml_kem = MlKem1024::new(ctx.abr_reg);
+        let mut ml_kem = MlKem1024::new(ctx.abr_reg)?;
         let mut kem_ctx = MlKemContext::new(ctx.trng, ctx.sha, &mut ml_kem);
         let ek = kem.serialize_public_key(&mut kem_ctx)?;
         out_key.clone_from_slice(ek.as_ref());

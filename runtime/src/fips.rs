@@ -186,9 +186,7 @@ pub mod fips_self_test_cmd {
         })?;
 
         // Run MLKEM1024 KAT separately since ABR can't be borrowed for both mldsa87 and mlkem1024
-        env.abr.with_ml_kem(|mut mlkem1024| {
-            caliptra_drivers::kats::execute_mlkem1024_kat(&mut mlkem1024)
-        })?;
+        let _mlkem1024 = caliptra_drivers::MlKem1024::new(env.abr.abr_reg())?;
 
         Ok(())
     }

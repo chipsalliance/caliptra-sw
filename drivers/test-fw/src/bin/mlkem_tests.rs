@@ -97,7 +97,7 @@ fn test_mlkem_name() {
 fn test_key_pair_generation() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
 
     // Test key pair generation with arrays
     let seed_d = LEArray4x8::from(SEED_D);
@@ -305,7 +305,7 @@ fn test_key_pair_generation_from_kv() {
     };
 
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let mut aes = Aes::new(unsafe { AesReg::new() }, unsafe { AesClpReg::new() }).unwrap();
 
@@ -407,7 +407,7 @@ fn test_key_pair_generation_from_kv() {
 fn test_encapsulate_and_decapsulate() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
 
     // Generate key pair
     let seed_d = LEArray4x8::from(SEED_D);
@@ -459,7 +459,7 @@ fn test_encapsulate_with_kv_message() {
     };
 
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
 
     // Generate key pair
@@ -639,7 +639,7 @@ fn test_encapsulate_with_kv_message() {
 fn test_encapsulate_with_kv_output() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
 
     // Generate key pair
     let seed_d = LEArray4x8::from(SEED_D);
@@ -672,7 +672,7 @@ fn test_encapsulate_with_kv_output() {
 fn test_keygen_decapsulate() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
 
     // Generate key pair for encapsulation
     let seed_d = LEArray4x8::from(SEED_D);
@@ -711,7 +711,7 @@ fn test_keygen_decapsulate() {
 fn test_keygen_decapsulate_with_kv() {
     seed_abr_entropy();
     let mut abr_reg = unsafe { AbrReg::new() };
-    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut mlkem = MlKem1024::new(&mut abr_reg).unwrap();
     let mut aes = Aes::new(unsafe { AesReg::new() }, unsafe { AesClpReg::new() }).unwrap();
 
     // Generate key pair for encapsulation using KV
