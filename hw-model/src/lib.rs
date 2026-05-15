@@ -1308,6 +1308,11 @@ pub trait HwModel: SocManager {
     fn fuses(&self) -> &Fuses;
     /// Set the fuse settings. A cold boot will need to be done to take affect.
     fn set_fuses(&mut self, fuses: Fuses);
+
+    /// Get MCI BusMmio
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        panic!("mci unimplemented");
+    }
 }
 
 #[cfg(test)]

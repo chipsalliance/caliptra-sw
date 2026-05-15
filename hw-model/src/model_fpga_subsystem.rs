@@ -205,7 +205,7 @@ pub struct Mci {
 }
 
 impl Mci {
-    pub fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+    pub fn regs<'a>(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'a>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
                 EMULATOR_MCI_ADDR as *mut u32,
@@ -1608,6 +1608,10 @@ impl HwModel for ModelFpgaSubsystem {
             mmio: self.mmio.caliptra_mmio().unwrap(),
             phantom: Default::default(),
         }
+    }
+
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        self.mmio.mci().unwrap().regs()
     }
 
     fn step(&mut self) {

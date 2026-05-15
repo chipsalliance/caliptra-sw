@@ -14,7 +14,7 @@ Abstract:
 
 use core::mem::offset_of;
 
-use crate::authorize_and_stash::AuthorizeAndStashCmd;
+use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
 use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
@@ -208,17 +208,22 @@ impl ActivateFirmwareCmd {
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
                 flags: AuthAndStashFlags::SKIP_STASH.bits(),
+                image_size: mcu_image_size,
                 ..Default::default()
             };
 
             let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
-            AuthorizeAndStashCmd::authorize_and_stash(
+            let authorization_result = AuthorizeAndStashCmd::authorize_and_stash(
                 drivers,
                 &auth_and_stash_req,
                 pl0_pauser_locality,
             )
-            .map(|_| ())
             .map_err(|_| ())?;
+
+            // Make sure the image was properly authorized.
+            if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED {
+                return Err(());
+            }
 
             drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }
