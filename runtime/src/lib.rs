@@ -178,7 +178,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     }
 
     // Get the command bytes
-    let req_packet = Packet::copy_from_mbox(drivers)?;
+    let mut req_packet = Packet::default();
+    Packet::copy_from_mbox(drivers, &mut req_packet)?;
     let cmd_bytes = req_packet.as_bytes()?;
 
     cprintln!("[rt]cmd =0x{:x}, len={}", req_packet.cmd, req_packet.len);

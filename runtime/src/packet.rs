@@ -39,7 +39,11 @@ impl Default for Packet {
 
 impl Packet {
     /// Retrieves the data in the mailbox and converts it into a Packet
-    pub fn copy_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<Self> {
+    //
+    // Note: The packet is the largest stack value (~14Kb) created during the processing of a
+    // command.  Explicitely create the packet in place to ensure that the return value isn't copied
+    // resulting in 2 stack copies.
+    pub fn copy_from_mbox(drivers: &mut crate::Drivers, packet: &mut Self) -> CaliptraResult<()> {
         let mbox = &mut drivers.mbox;
         let cmd = mbox.cmd();
         let dlen_words = mbox.dlen_words() as usize;
@@ -48,12 +52,8 @@ impl Packet {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
 
-        let mut packet = Packet {
-            cmd: cmd.into(),
-            len: mbox.dlen() as usize,
-            ..Default::default()
-        };
-
+        packet.cmd = cmd.into();
+        packet.len = mbox.dlen() as usize;
         mbox.copy_from_mbox(
             packet
                 .payload
@@ -82,7 +82,7 @@ impl Packet {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
 
-        Ok(packet)
+        Ok(())
     }
 
     /// Writes `resp` to the mailbox
