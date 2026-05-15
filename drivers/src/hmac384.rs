@@ -551,14 +551,18 @@ impl<'a> Hmac384Op<'a> {
             return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
         }
 
+        // This forces the variable to emit the unused mutable lint for every configuration but
+        // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
+        // for most configurations while allowing mutablilty only for fips validation.
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))]
         // Calculate the hmac of the final block
-        let buf = &self.buf[..self.buf_idx];
+        let mut buf = &self.buf[..self.buf_idx];
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::HMAC384_CORRUPT_TAG,
-                &buf,
+                &mut buf,
             )
         };
 

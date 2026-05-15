@@ -358,7 +358,11 @@ impl Ecc384 {
             }
         }
 
-        let pub_key = Ecc384PubKey {
+        // This forces the variable to emit the unused mutable lint for every configuration but
+        // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
+        // for most configurations while allowing mutablilty only for fips validation.
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))]
+        let mut pub_key = Ecc384PubKey {
             x: Array4x12::read_from_reg(ecc.pubkey_x()),
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
@@ -370,7 +374,7 @@ impl Ecc384 {
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_PAIRWISE_CONSISTENCY_ERROR,
-                &pub_key,
+                &mut pub_key,
             )
         };
 
@@ -394,7 +398,7 @@ impl Ecc384 {
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
-                &pub_key,
+                &mut pub_key,
             )
         };
 
