@@ -70,6 +70,11 @@ impl AuthorizeAndStashCmd {
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
+        // The measurement used for both authorization and stashing/updating DPE.
+        // For InRequest source, this is cmd.measurement.
+        // For LoadAddress/StagingAddress, this is computed from the image in memory.
+        let mut stash_measurement = cmd.measurement;
+
         let auth_result = if let Some(metadata_entry) =
             find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
         {
@@ -108,6 +113,7 @@ impl AuthorizeAndStashCmd {
                     )
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                     .into();
+                stash_measurement = measurement;
                 if cfi_launder(metadata_entry.digest) == measurement {
                     caliptra_cfi_lib_git::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
@@ -126,11 +132,27 @@ impl AuthorizeAndStashCmd {
         // Stash the measurement if the image is authorized.
         if auth_result == IMAGE_AUTHORIZED {
             let flags: AuthAndStashFlags = cmd.flags.into();
-            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
+            if flags.contains(AuthAndStashFlags::UPDATE_EXISTING) {
+                // Update an existing DPE context's measurement using RECURSIVE DeriveContext.
+                let dpe_result = StashMeasurementCmd::update_measurement(
+                    drivers,
+                    &cmd.fw_id,
+                    &stash_measurement,
+                    cmd.svn,
+                    drivers.mbox.id(),
+                )?;
+                if dpe_result != DpeErrorCode::NoError {
+                    drivers
+                        .soc_ifc
+                        .set_fw_extended_error(dpe_result.get_error_code());
+
+                    Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+                }
+            } else if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
                 let dpe_result = StashMeasurementCmd::stash_measurement(
                     drivers,
                     &cmd.fw_id,
-                    &cmd.measurement,
+                    &stash_measurement,
                     cmd.svn,
                     drivers.caller_privilege_level(),
                     drivers.mbox.id(),

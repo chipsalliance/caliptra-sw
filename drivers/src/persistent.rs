@@ -57,6 +57,7 @@ pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+pub const SOC_MANIFEST_SVN_SIZE: u32 = 4;
 pub const _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE: u32 = 4; // u8 + u8 + 2 bytes padding
 
 #[cfg(feature = "runtime")]
@@ -373,6 +374,10 @@ pub struct PersistentData {
 
     pub mcu_firmware_loaded: u32,
 
+    /// SoC manifest SVN, stored after auth manifest validation.
+    /// Used as the MCU RT current_svn when creating the MCU RT DPE context.
+    pub soc_manifest_svn: u32,
+
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
     pub reserved12: [u8; 2], // Pad to 4 byte boundary
@@ -544,6 +549,11 @@ impl PersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
             persistent_data_offset += MCU_FIRMWARE_LOADED_SIZE;
+            assert_eq!(
+                addr_of!((*P).soc_manifest_svn) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += SOC_MANIFEST_SVN_SIZE;
             assert_eq!(
                 addr_of!((*P).dpe_pl0_context_limit) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
