@@ -15,7 +15,7 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::Drivers;
+use crate::{Drivers, PauserPrivileges};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
@@ -671,6 +671,11 @@ impl SetAuthManifestCmd {
         cmd_args: &[u8],
         verify_only: bool,
     ) -> CaliptraResult<usize> {
+        // Restrict to PL0
+        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
+            Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?
+        }
+
         // Validate cmd length
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;

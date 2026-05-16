@@ -15,7 +15,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevEcc384CertReq, StashMeasurementReq,
+    PopulateIdevEcc384CertReq, SetAuthManifestReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -393,6 +393,42 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
         let resp = model
             .mailbox_execute(
                 u32::from(CommandId::STASH_MEASUREMENT),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
+}
+
+#[test]
+fn test_set_auth_manifest_cannot_be_called_from_pl1() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
+
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let mut cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq::default());
+        cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::SET_AUTH_MANIFEST),
                 cmd.as_bytes().unwrap(),
             )
             .unwrap_err();
