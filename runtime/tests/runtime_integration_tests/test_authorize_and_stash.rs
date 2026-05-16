@@ -36,6 +36,7 @@ pub const IMAGE_DIGEST_BAD: [u8; 48] = [
 pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
+pub const FW_ID_DEFAULT_PADDING: [u8; 4] = u32::MAX.to_le_bytes();
 const AUTH_AND_STASH_TCI_TAG: u32 = 0x4154_5348;
 
 #[cfg(feature = "fpga_subsystem")]
@@ -329,6 +330,46 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_BAD,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Don't skip stash
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        authorize_and_stash_resp.auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
+}
+
+#[test]
+fn test_authorize_and_stash_ignores_padding_metadata_entries() {
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::InRequest as u32);
+
+    let image_metadata = vec![AuthManifestImageMetadata {
+        fw_id: 1,
+        flags: flags.0,
+        digest: IMAGE_DIGEST1,
+        ..Default::default()
+    }];
+    let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
+    let mut model = set_auth_manifest(Some(auth_manifest));
+
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_DEFAULT_PADDING,
+        measurement: [0u8; 48],
         source: ImageHashSource::InRequest as u32,
         flags: 0, // Don't skip stash
         ..Default::default()
