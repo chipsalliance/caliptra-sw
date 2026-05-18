@@ -18,7 +18,7 @@ use caliptra_common::mailbox_api::{
     ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader,
     QuotePcrsReq, QuotePcrsResp,
 };
-use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
+use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
@@ -103,7 +103,7 @@ pub struct GetPcrLogCmd;
 impl GetPcrLogCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, _cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
         let next_available = drivers.persistent_data.get().fht.pcr_log_index as usize;
         let Some(pcr_logs) = drivers.persistent_data.get().pcr_log.get(..next_available) else {
             return Err(CaliptraError::RUNTIME_PCR_INVALID_INDEX);

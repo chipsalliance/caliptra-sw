@@ -16,8 +16,8 @@ use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384PrivKeyOut, Ecc384PubKey, Hmac384Data, Hmac384Key, Hmac384Tag,
-    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    hmac384_kdf, Array4x12, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
+    KeyWriteArgs,
 };
 use caliptra_error::CaliptraResult;
 use zerocopy::IntoBytes;

@@ -18,7 +18,7 @@ use caliptra_common::mailbox_api::{MailboxResp, PopulateIdevCertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::IntoBytes;
 
-use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
+use crate::{Drivers, MAX_CERT_CHAIN_SIZE};
 
 pub struct PopulateIDevIdCertCmd;
 impl PopulateIDevIdCertCmd {
@@ -33,7 +33,6 @@ impl PopulateIDevIdCertCmd {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
 
-            let flags = drivers.persistent_data.get().manifest1.header.flags;
             // PL1 cannot call this mailbox command
             if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
                 Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?

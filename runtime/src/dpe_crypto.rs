@@ -12,25 +12,18 @@ Abstract:
 
 --*/
 
-use core::cmp::min;
-
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
 use caliptra_drivers::{
     hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    ExportedCdiEntry, ExportedCdiHandles, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
-    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
+    ExportedCdiEntry, ExportedCdiHandles, Hmac384, KeyId, KeyReadArgs, KeyUsage, KeyVault,
+    KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
 use constant_time_eq::constant_time_eq;
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
-use dpe::{
-    response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE,
-};
-use zerocopy::IntoBytes;
-use zeroize::Zeroize;
+use dpe::{ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 
 pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
@@ -252,14 +245,14 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 // Matching existing slot
                 ExportedCdiEntry {
                     key,
-                    handle,
+                    handle: _,
                     active,
                 } if active.get() && *key == cdi_slot => {
                     Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
                 }
                 ExportedCdiEntry {
-                    key,
-                    handle,
+                    key: _,
+                    handle: _,
                     active,
                 } if !active.get() => {
                     // Empty slot
