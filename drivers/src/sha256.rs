@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::{array::Array4x16, wait, Array4x8, CaliptraError, CaliptraResult};
 use caliptra_registers::sha256::Sha256Reg;
 use zeroize::Zeroize;

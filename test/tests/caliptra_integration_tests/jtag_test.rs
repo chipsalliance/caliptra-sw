@@ -128,6 +128,7 @@ fn gdb_test() {
     hw.launch_openocd().unwrap();
 
     let elf_path = get_elf_path(&firmware::APP_WITH_UART).unwrap();
+    #[allow(clippy::zombie_processes)]
     let mut gdb = Command::new("gdb-multiarch")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

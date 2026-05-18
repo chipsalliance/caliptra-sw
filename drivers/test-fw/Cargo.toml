@@ -20,6 +20,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
+runtime = []
 "hw-1.0" = ["caliptra-drivers/hw-1.0"]
 
 

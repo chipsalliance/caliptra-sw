@@ -784,14 +784,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
         }
-        if verify_info.load_addr % 4 != 0 {
+        if !verify_info.load_addr.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED)?;
         }
 
         if !self.env.iccm_range().contains(&verify_info.entry_point) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID)?;
         }
-        if verify_info.entry_point % 4 != 0 {
+        if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
 
@@ -877,13 +877,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
         }
-        if verify_info.load_addr % 4 != 0 {
+        if !verify_info.load_addr.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED)?;
         }
         if !self.env.iccm_range().contains(&verify_info.entry_point) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID)?;
         }
-        if verify_info.entry_point % 4 != 0 {
+        if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED)?;
         }
 

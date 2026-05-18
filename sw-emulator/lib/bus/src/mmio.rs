@@ -94,11 +94,14 @@ mod tests {
     fn test_bus_mmio() {
         let mmio = BusMmio::new(Ram::new(vec![0u8; 12]));
         unsafe {
-            mmio.write_volatile(4 as *mut u32, 0x3abc_9321);
+            mmio.write_volatile(std::ptr::null_mut::<u32>().wrapping_add(1), 0x3abc_9321);
             mmio.write_volatile(8 as *mut u16, 0x39af);
             mmio.write_volatile(10 as *mut u8, 0xf3);
 
-            assert_eq!(mmio.read_volatile(4 as *const u32), 0x3abc_9321);
+            assert_eq!(
+                mmio.read_volatile(std::ptr::null_mut::<u32>().wrapping_add(1)),
+                0x3abc_9321
+            );
             assert_eq!(mmio.read_volatile(8 as *const u16), 0x39af);
             assert_eq!(mmio.read_volatile(10 as *const u8), 0xf3);
         }

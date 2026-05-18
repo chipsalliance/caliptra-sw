@@ -100,7 +100,7 @@ impl Drop for ModelEmulated {
 
 #[cfg(feature = "coverage")]
 impl ModelEmulated {
-    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps<'_> {
         self.cpu.code_coverage.code_coverage_bitmap()
     }
 }

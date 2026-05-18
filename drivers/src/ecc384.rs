@@ -218,7 +218,7 @@ impl Ecc384 {
         };
 
         // Wait for either the given condition or the error condition
-        wait::until(|| (condition() || err_condition()));
+        wait::until(|| condition() || err_condition());
 
         if err_condition() {
             // Clear the errors
@@ -660,9 +660,6 @@ trait Ecc384KeyAccessErr {
     /// Convert to read seed operation error
     fn into_read_seed_err(self) -> CaliptraError;
 
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError;
-
     /// Convert to read private key operation error
     fn into_read_priv_key_err(self) -> CaliptraError;
 
@@ -677,15 +674,6 @@ impl Ecc384KeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
-        }
-    }
-
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError {
-        match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_DATA_KV_UNKNOWN,
         }
     }
 

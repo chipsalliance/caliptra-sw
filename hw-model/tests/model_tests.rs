@@ -29,7 +29,8 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> Option<i32> {
 
 fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
     let rom = caliptra_builder::elf2rom(elf).unwrap();
-    let model = caliptra_hw_model::new(
+
+    caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             random_sram_puf: false,
@@ -37,21 +38,20 @@ fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
         },
         BootParams::default(),
     )
-    .unwrap();
-    model
+    .unwrap()
 }
 
 fn run_fw_elf_with_rand_puf(elf: &[u8]) -> DefaultHwModel {
     let rom = caliptra_builder::elf2rom(elf).unwrap();
-    let model = caliptra_hw_model::new(
+
+    caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             ..Default::default()
         },
         BootParams::default(),
     )
-    .unwrap();
-    model
+    .unwrap()
 }
 
 #[test]

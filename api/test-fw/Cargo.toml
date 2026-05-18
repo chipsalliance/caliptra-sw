@@ -17,6 +17,7 @@ zerocopy.workspace = true
 [features]
 emu = ["caliptra-test-harness/emu"]
 riscv = ["caliptra-test-harness/riscv"]
+runtime = []
 "hw-1.0" = []
 
 [[bin]]

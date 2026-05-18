@@ -314,7 +314,7 @@ pub trait SocManager {
             .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8])
+        let header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8])
             .map_err(|_| CaliptraApiError::MailboxReqTypeTooSmall)?;
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
 

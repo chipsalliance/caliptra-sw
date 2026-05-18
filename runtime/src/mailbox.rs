@@ -72,7 +72,7 @@ impl Mailbox {
 
     /// Get the length of the current mailbox data in words
     pub fn dlen_words(&self) -> u32 {
-        (self.dlen() + 3) / 4
+        self.dlen().div_ceil(4)
     }
 
     /// Get the CommandId from the mailbox

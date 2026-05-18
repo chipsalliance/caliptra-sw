@@ -436,7 +436,7 @@ impl Lms {
         // This forces the variable to emit the unused mutable lint for every configuration but
         // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
         // for most configurations while allowing mutablilty only for fips validation.
-        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))] input_string: &[u8],
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))] mut input_string: &[u8],
         lms_public_key: &LmsPublicKey<6>,
         lms_sig: &LmsSignature<6, 51, 15>,
     ) -> CaliptraResult<LmsResult> {
@@ -587,7 +587,7 @@ impl Lms {
             for val in temp.0.iter() {
                 hasher.update(&val.to_be_bytes())?;
             }
-            if node_num % 2 == 0 {
+            if node_num.is_multiple_of(2) {
                 hasher.update(
                     lms_sig
                         .tree_path

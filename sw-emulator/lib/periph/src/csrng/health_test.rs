@@ -110,7 +110,7 @@ impl RepetitionCountTester {
                 _ => unreachable!("bit {i} of nibble={nibble} should only be 0 or 1"),
             };
 
-            let is_repeat = self.prev_nibble[i].map_or(false, |prev_bit| prev_bit == bit);
+            let is_repeat = self.prev_nibble[i] == Some(bit);
 
             if is_repeat {
                 self.repetition_count[i] += 1;

@@ -521,7 +521,7 @@ impl KeyVaultRegs {
     }
 
     pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
-        if key.len() > KeyVault::KEY_SIZE || key.len() % 4 != 0 {
+        if key.len() > KeyVault::KEY_SIZE || !key.len().is_multiple_of(4) {
             Err(BusError::StoreAccessFault)?
         }
         let key_wordlen = key.len() / 4;

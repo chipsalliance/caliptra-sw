@@ -21,7 +21,6 @@ use crate::{
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
-use core::usize;
 
 use zeroize::Zeroize;
 
@@ -134,7 +133,7 @@ impl Hmac384 {
         key: &Hmac384Key,
         trng: &mut Trng,
         mut tag: Hmac384Tag<'a>,
-    ) -> CaliptraResult<Hmac384Op> {
+    ) -> CaliptraResult<Hmac384Op<'a>> {
         let hmac = self.hmac.regs_mut();
 
         // Configure the hardware so that the output tag is stored at a location specified by the

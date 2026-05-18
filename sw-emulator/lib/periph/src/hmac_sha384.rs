@@ -779,7 +779,7 @@ mod tests {
         let mut tag_write_fail_test = false;
         let mut block_disallowed_for_hmac = false;
 
-        for (_idx, action) in keyvault_actions.iter().enumerate() {
+        for action in keyvault_actions.iter() {
             match action {
                 KeyVaultAction::KeyFromVault(id) => {
                     key_via_kv = true;

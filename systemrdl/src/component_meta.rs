@@ -9,6 +9,7 @@ use crate::{RdlError, Result};
 pub struct PropertyMeta {
     pub name: &'static str,
     pub ty: PropertyType,
+    #[allow(unused)]
     pub is_dynamic: bool,
 }
 

@@ -60,7 +60,7 @@ impl Pic {
             .meipl()
             .at(source.into())
             .write(|v| v.priority(15));
-        #[cfg(feature = "riscv")]
+        #[cfg(target_arch = "riscv32")]
         unsafe {
             core::arch::asm!("fence");
         }
@@ -72,7 +72,7 @@ impl Pic {
             .meie()
             .at(source.into())
             .write(|v| v.inten(true));
-        #[cfg(feature = "riscv")]
+        #[cfg(target_arch = "riscv32")]
         unsafe {
             core::arch::asm!("fence");
         }

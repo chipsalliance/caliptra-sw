@@ -10,15 +10,12 @@ pub fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "Process {:?} {:?} exited with status code {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-                status.code()
-            ),
-        ))
+        Err(io::Error::other(format!(
+            "Process {:?} {:?} exited with status code {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+            status.code()
+        )))
     }
 }
 
@@ -34,16 +31,13 @@ pub fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Vec
     if out.status.success() {
         Ok(out.stdout)
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "Process {:?} {:?} exited with status code {:?} stdout {} stderr {}",
-                cmd.get_program(),
-                cmd.get_args(),
-                out.status.code(),
-                String::from_utf8_lossy(&out.stdout),
-                String::from_utf8_lossy(&out.stderr)
-            ),
-        ))
+        Err(io::Error::other(format!(
+            "Process {:?} {:?} exited with status code {:?} stdout {} stderr {}",
+            cmd.get_program(),
+            cmd.get_args(),
+            out.status.code(),
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        )))
     }
 }

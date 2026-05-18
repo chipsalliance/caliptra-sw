@@ -170,7 +170,7 @@ impl SocIfc {
         soc_ifc.cptra_flow_status().read().mailbox_flow_done()
     }
 
-    pub fn fuse_bank(&self) -> FuseBank {
+    pub fn fuse_bank(&self) -> FuseBank<'_> {
         FuseBank {
             soc_ifc: &self.soc_ifc,
         }
@@ -253,13 +253,12 @@ impl SocIfc {
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
         const GIGA_UNIT: u32 = 1_000_000_000;
         let clock_period_picosecs = self.soc_ifc.regs().cptra_timer_config().read();
-        if clock_period_picosecs == 0 {
-            Err(CaliptraError::DRIVER_SOC_IFC_INVALID_TIMER_CONFIG)
-        } else {
-            // Dividing GIGA_UNIT by clock_period_picosecs gives frequency in KHz.
-            // This is being done to avoid 64-bit division (at the loss of precision)
-            Ok((seconds as u64) * ((GIGA_UNIT / clock_period_picosecs) as u64) * 1000)
-        }
+        // Dividing GIGA_UNIT by clock_period_picosecs gives frequency in KHz.
+        // This is being done to avoid 64-bit division (at the loss of precision)
+        let freq_khz = GIGA_UNIT
+            .checked_div(clock_period_picosecs)
+            .ok_or(CaliptraError::DRIVER_SOC_IFC_INVALID_TIMER_CONFIG)?;
+        Ok((seconds as u64) * (freq_khz as u64) * 1000)
     }
 
     /// Sets WDT1 timeout

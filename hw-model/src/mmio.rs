@@ -62,7 +62,7 @@ mod tests {
     fn test_rv32gen_mmio() {
         let mmio = Rv32GenMmio::new();
         unsafe {
-            mmio.write_volatile(4 as *mut u32, 0x3abc_9321);
+            mmio.write_volatile(std::ptr::dangling_mut::<u32>(), 0x3abc_9321);
             mmio.write_volatile(8 as *mut u32, 0xd00f_b00d);
         }
         assert_eq!(

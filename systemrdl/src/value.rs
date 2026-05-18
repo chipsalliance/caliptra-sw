@@ -306,7 +306,7 @@ pub enum ScopeType {
     Component(ComponentType),
 }
 
-pub fn parse_str_literal(s: &str) -> Result<String> {
+pub fn parse_str_literal(s: &str) -> Result<'_, String> {
     if s.len() < 2 || !s.starts_with('"') || !s.ends_with('"') {
         return Err(RdlError::BadStringLiteral);
     }

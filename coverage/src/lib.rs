@@ -65,7 +65,7 @@ pub fn dump_emu_coverage_to_file(
     bitmap: &BitVec,
 ) -> std::io::Result<()> {
     let mut filename = format!("CovData{}", hex::encode(rand::random::<[u8; 16]>()));
-    filename.push_str(&'-'.to_string());
+    filename.push('-');
     filename.push_str(&tag.to_string());
     filename.push_str(".bitvec");
 
@@ -110,7 +110,7 @@ pub fn get_bitvec_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::E
         .map(|dir_entry| dir_entry.path())
         // Filter out all paths with extensions other than `bitvec`
         .filter_map(|path| {
-            if path.extension().map_or(false, |ext| ext == "bitvec") {
+            if path.extension().is_some_and(|ext| ext == "bitvec") {
                 Some(path)
             } else {
                 None
@@ -164,7 +164,7 @@ pub fn collect_instr_pcs(id: &FwId<'static>) -> anyhow::Result<Vec<u32>> {
         let instruction = u16::from_le_bytes([instruction[0], instruction[1]]);
 
         match instruction & 0b11 {
-            0 | 1 | 2 => {
+            0..=2 => {
                 index += 2;
             }
             _ => {
@@ -312,5 +312,5 @@ fn test_coverage_map_creation_data_files() {
     let paths = get_bitvec_paths("/tmp").unwrap();
 
     let cv = CoverageMap::new(paths);
-    assert!(cv.map.get(&tag).is_some());
+    assert!(cv.map.contains_key(&tag));
 }

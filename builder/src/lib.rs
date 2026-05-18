@@ -6,7 +6,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, ErrorKind};
+use std::io::{self};
 use std::mem::size_of;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -44,7 +44,7 @@ pub enum CiRomVersion {
 }
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::new(ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 fn run_cmd(cmd: &mut Command) -> io::Result<()> {
@@ -52,15 +52,12 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::new(
-            ErrorKind::Other,
-            format!(
-                "Process {:?} {:?} exited with status code {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-                status.code()
-            ),
-        ))
+        Err(io::Error::other(format!(
+            "Process {:?} {:?} exited with status code {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+            status.code()
+        )))
     }
 }
 
@@ -500,11 +497,7 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
         min_addr = min_addr.min(segment.p_paddr);
         max_addr = max_addr.max(segment.p_paddr + segment.p_filesz);
     }
-    Ok(if max_addr >= min_addr {
-        max_addr - min_addr
-    } else {
-        0
-    })
+    Ok(max_addr.saturating_sub(min_addr))
 }
 
 #[derive(Clone, Deserialize)]
