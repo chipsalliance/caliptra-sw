@@ -930,8 +930,12 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     quote! {
         #no_std_header
 
+        #![allow(clippy::doc_overindented_list_items)]
         #![allow(clippy::erasing_op)]
+        #![allow(clippy::empty_docs)]
         #![allow(clippy::identity_op)]
+        #![allow(clippy::missing_transmute_annotations)]
+        #![allow(mismatched_lifetime_syntaxes)]
 
         #instance_type_tokens
 
