@@ -17,13 +17,10 @@ use crate::{
     PauserPrivileges, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
     PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN, PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
-use caliptra_common::cprint;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, ReallocateDpeContextLimitsReq, ReallocateDpeContextLimitsResp,
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use caliptra_image_types::RomInfo;
-use dpe::context::{Context, ContextState, ContextType};
 
 use zerocopy::FromBytes;
 

@@ -3,25 +3,17 @@
 use crate::Drivers;
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::cfi_launder;
 
-use caliptra_common::{
-    cprintln,
-    mailbox_api::{GetIdevCsrReq, GetIdevCsrResp, MailboxResp, MailboxRespHeader},
-};
+use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::IdevIdCsr;
-
-use zerocopy::{FromBytes, IntoBytes};
 
 pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = GetIdevCsrReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+    pub(crate) fn execute(drivers: &mut Drivers, _cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr;
 
         match csr_persistent_mem.get_csr_len() {

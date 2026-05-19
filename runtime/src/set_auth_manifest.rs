@@ -15,32 +15,21 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::verify;
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
+use crate::Drivers;
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, SetAuthManifestReq, StashMeasurementReq, StashMeasurementResp,
-};
+use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
 use caliptra_drivers::{
-    pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
-    CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
-    PersistentData, RomVerifyConfig, Sha256, Sha384, SocIfc,
+    Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
+    HashValue, Lms, RomVerifyConfig, Sha256, Sha384, SocIfc,
 };
 use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
     ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
-};
-use crypto::{AlgLen, Crypto};
-use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
-    context::ContextHandle,
-    dpe_instance::DpeEnv,
-    response::DpeErrorCode,
 };
 use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
@@ -233,7 +222,6 @@ impl SetAuthManifestCmd {
     fn verify_vendor_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
-        sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
@@ -296,7 +284,6 @@ impl SetAuthManifestCmd {
     fn verify_owner_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
-        sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
@@ -400,7 +387,6 @@ impl SetAuthManifestCmd {
         Self::verify_vendor_image_metadata_col(
             auth_manifest_preamble,
             &digest_metadata_col,
-            sha384,
             ecc384,
             sha256,
             soc_ifc,
@@ -409,7 +395,6 @@ impl SetAuthManifestCmd {
         Self::verify_owner_image_metadata_col(
             auth_manifest_preamble,
             &digest_metadata_col,
-            sha384,
             ecc384,
             sha256,
             soc_ifc,
