@@ -877,13 +877,21 @@ fn sign_internal(
     };
     let mut w1 = Vector8::default();
 
-    // We use a union in C, in Rust we can just use separate variables or reuse if needed.
-    // Given stack space is usually not as tight in Rust unless specified, but let's be careful.
-    let mut cs1 = Vector7::default();
-    let mut cs2 = Vector8::default();
+    enum CsVector {
+        V7(Vector7),
+        V8(Vector8),
+    }
+
+    let mut cs;
 
     let mut kappa = 0;
     loop {
+        cs = CsVector::V7(Vector7::default());
+        let cs1 = match &mut cs {
+            CsVector::V7(v) => v,
+            _ => unreachable!(),
+        };
+
         vector7_expand_mask(&mut sign.z, &rho_prime, kappa);
         vector7_ntt(&mut sign.z);
 
@@ -904,18 +912,24 @@ fn sign_internal(
         scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
         scalar_ntt(&mut c_ntt);
 
-        vector7_mul_scalar(&mut cs1, &priv_key.s1_ntt, &c_ntt);
-        vector7_inverse_ntt(&mut cs1);
+        vector7_mul_scalar(cs1, &priv_key.s1_ntt, &c_ntt);
+        vector7_inverse_ntt(cs1);
 
         let mut y = Vector7::default();
         vector7_expand_mask(&mut y, &rho_prime, kappa);
-        vector7_add(&mut sign.z, &y, &cs1);
+        vector7_add(&mut sign.z, &y, cs1);
 
-        vector8_mul_scalar(&mut cs2, &priv_key.s2_ntt, &c_ntt);
-        vector8_inverse_ntt(&mut cs2);
+        cs = CsVector::V8(Vector8::default());
+        let cs2 = match &mut cs {
+            CsVector::V8(v) => v,
+            _ => unreachable!(),
+        };
+
+        vector8_mul_scalar(cs2, &priv_key.s2_ntt, &c_ntt);
+        vector8_inverse_ntt(cs2);
 
         let mut r0 = Vector8::default();
-        vector8_sub(&mut r0, &w, &cs2);
+        vector8_sub(&mut r0, &w, cs2);
         let r0_copy = r0;
         vector8_low_bits(&mut r0, &r0_copy);
 
@@ -932,7 +946,7 @@ fn sign_internal(
         let mut ct0 = Vector8::default();
         vector8_mul_scalar(&mut ct0, &priv_key.t0_ntt, &c_ntt);
         vector8_inverse_ntt(&mut ct0);
-        vector8_make_hint(&mut sign.h, &ct0, &cs2, &w);
+        vector8_make_hint(&mut sign.h, &ct0, cs2, &w);
 
         let ct0_max = vector8_max(&ct0);
         let h_ones = vector8_count_ones(&sign.h);
