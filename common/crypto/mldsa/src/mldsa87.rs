@@ -229,12 +229,6 @@ fn vector8_add(out: &mut Vector8, lhs: &Vector8, rhs: &Vector8) {
     }
 }
 
-fn vector7_add(out: &mut Vector7, lhs: &Vector7, rhs: &Vector7) {
-    for i in 0..7 {
-        scalar_add(&mut out.v[i], &lhs.v[i], &rhs.v[i]);
-    }
-}
-
 fn vector8_sub(out: &mut Vector8, lhs: &Vector8, rhs: &Vector8) {
     for i in 0..8 {
         scalar_sub(&mut out.v[i], &lhs.v[i], &rhs.v[i]);
@@ -356,12 +350,6 @@ fn scalar_high_bits(out: &mut Scalar, in_val: &Scalar) {
     }
 }
 
-fn scalar_low_bits(out: &mut Scalar, in_val: &Scalar) {
-    for i in 0..K_DEGREE {
-        out.c[i] = low_bits(in_val.c[i]) as u32;
-    }
-}
-
 fn scalar_max(max: &mut u32, s: &Scalar) {
     for i in 0..K_DEGREE {
         let abs = abs_mod_prime(s.c[i]);
@@ -373,12 +361,6 @@ fn scalar_max_signed(max: &mut u32, s: &Scalar) {
     for i in 0..K_DEGREE {
         let abs = abs_signed(s.c[i]);
         *max = maximum(*max, abs);
-    }
-}
-
-fn scalar_make_hint(out: &mut Scalar, ct0: &Scalar, cs2: &Scalar, w: &Scalar) {
-    for i in 0..K_DEGREE {
-        out.c[i] = make_hint(ct0.c[i], cs2.c[i], w.c[i]) as u32;
     }
 }
 
@@ -403,12 +385,6 @@ fn vector8_scale_power2_round(out: &mut Vector8, in_val: &Vector8) {
 fn vector8_high_bits(out: &mut Vector8, in_val: &Vector8) {
     for i in 0..8 {
         scalar_high_bits(&mut out.v[i], &in_val.v[i]);
-    }
-}
-
-fn vector8_low_bits(out: &mut Vector8, in_val: &Vector8) {
-    for i in 0..8 {
-        scalar_low_bits(&mut out.v[i], &in_val.v[i]);
     }
 }
 
@@ -444,12 +420,6 @@ fn vector8_count_ones(a: &Vector8) -> usize {
         }
     }
     count
-}
-
-fn vector8_make_hint(out: &mut Vector8, ct0: &Vector8, cs2: &Vector8, w: &Vector8) {
-    for i in 0..8 {
-        scalar_make_hint(&mut out.v[i], &ct0.v[i], &cs2.v[i], &w.v[i]);
-    }
 }
 
 fn vector8_use_hint(out: &mut Vector8, h: &Vector8, r: &Vector8) {
@@ -877,6 +847,7 @@ fn sign_internal(
     };
     let mut w1 = Vector8::default();
 
+    #[allow(clippy::large_enum_variant)]
     enum CsVector {
         V7(Vector7),
         V8(Vector8),
@@ -895,11 +866,10 @@ fn sign_internal(
         vector7_expand_mask(&mut sign.z, &rho_prime, kappa);
         vector7_ntt(&mut sign.z);
 
-        let mut w = Vector8::default();
-        matrix87_expand_mul(&mut w, &priv_key.rho, &sign.z);
-        vector8_inverse_ntt(&mut w);
+        matrix87_expand_mul(&mut sign.h, &priv_key.rho, &sign.z);
+        vector8_inverse_ntt(&mut sign.h);
 
-        vector8_high_bits(&mut w1, &w);
+        vector8_high_bits(&mut w1, &sign.h);
         let mut w1_encoded = [0u8; 128 * 8];
         w1_encode(&mut w1_encoded, &w1);
 
@@ -915,9 +885,15 @@ fn sign_internal(
         vector7_mul_scalar(cs1, &priv_key.s1_ntt, &c_ntt);
         vector7_inverse_ntt(cs1);
 
-        let mut y = Vector7::default();
-        vector7_expand_mask(&mut y, &rho_prime, kappa);
-        vector7_add(&mut sign.z, &y, cs1);
+        vector7_expand_mask(&mut sign.z, &rho_prime, kappa);
+
+        // Inline implementation of vector7_add to prevent creating a copy to save stack space
+        for (lhs, rhs) in sign.z.v.iter_mut().zip(cs1.v.iter()) {
+            // Inline implementaiton of scalar_add
+            for (lhs, rhs) in lhs.c.iter_mut().zip(rhs.c.iter()) {
+                *lhs = reduce_once(lhs.wrapping_add(*rhs));
+            }
+        }
 
         cs = CsVector::V8(Vector8::default());
         let cs2 = match &mut cs {
@@ -928,13 +904,19 @@ fn sign_internal(
         vector8_mul_scalar(cs2, &priv_key.s2_ntt, &c_ntt);
         vector8_inverse_ntt(cs2);
 
-        let mut r0 = Vector8::default();
-        vector8_sub(&mut r0, &w, cs2);
-        let r0_copy = r0;
-        vector8_low_bits(&mut r0, &r0_copy);
+        let r0 = &mut w1;
+        vector8_sub(r0, &sign.h, cs2);
+
+        // Inline implementation of vector8_low_bits to prevent creating a copy to save stack space
+        for s in r0.v.iter_mut() {
+            // Inline implementation of scalar_low_bits
+            for c in s.c.iter_mut() {
+                *c = low_bits(*c) as u32;
+            }
+        }
 
         let z_max = vector7_max(&sign.z);
-        let r0_max = vector8_max_signed(&r0);
+        let r0_max = vector8_max_signed(r0);
 
         if (ct_ge(z_max, GAMMA1.wrapping_sub(BETA)) | ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA)))
             != 0
@@ -943,12 +925,21 @@ fn sign_internal(
             continue;
         }
 
-        let mut ct0 = Vector8::default();
-        vector8_mul_scalar(&mut ct0, &priv_key.t0_ntt, &c_ntt);
-        vector8_inverse_ntt(&mut ct0);
-        vector8_make_hint(&mut sign.h, &ct0, cs2, &w);
+        let ct0 = &mut w1;
+        vector8_mul_scalar(ct0, &priv_key.t0_ntt, &c_ntt);
+        vector8_inverse_ntt(ct0);
 
-        let ct0_max = vector8_max(&ct0);
+        // Inline implementation of vector8_make_hint to prevent creating a copy to save stack space
+        for (sign_s, (ct0_s, cs2_s)) in sign.h.v.iter_mut().zip(ct0.v.iter().zip(cs2.v.iter())) {
+            // Inline implementation of scalar_make_hint
+            for (sign_c, (ct0_c, cs2_c)) in
+                sign_s.c.iter_mut().zip(ct0_s.c.iter().zip(cs2_s.c.iter()))
+            {
+                *sign_c = make_hint(*ct0_c, *cs2_c, *sign_c) as u32;
+            }
+        }
+
+        let ct0_max = vector8_max(ct0);
         let h_ones = vector8_count_ones(&sign.h);
 
         if (ct_ge(ct0_max, K_GAMMA_2) | ct_lt(OMEGA as u32, h_ones as u32)) != 0 {

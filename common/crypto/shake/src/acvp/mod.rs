@@ -24,7 +24,7 @@ fn test_acvp_shake128() {
             let mut shake = Shake128::new();
             shake.absorb(&msg);
 
-            let out_bytes = (out_len_bits + 7) / 8;
+            let out_bytes = out_len_bits.div_ceil(8);
             let mut out = vec![0; out_bytes];
             shake.squeeze(&mut out);
 
@@ -57,7 +57,7 @@ fn test_acvp_shake256() {
             let mut shake = Shake256::new();
             shake.absorb(&msg);
 
-            let out_bytes = (out_len_bits + 7) / 8;
+            let out_bytes = out_len_bits.div_ceil(8);
             let mut out = vec![0; out_bytes];
             shake.squeeze(&mut out);
 
