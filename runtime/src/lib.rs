@@ -42,7 +42,9 @@ mod verify;
 // Used by runtime tests
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib::{
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
+};
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -167,14 +169,20 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
-        cfi_assert_eq(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
+        cfi_assert_eq(
+            u32::from(drivers.mbox.cmd()),
+            u32::from(CommandId::FIRMWARE_LOAD),
+        );
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
         // unexpected. Denote that the update failed.
         return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
     } else {
-        cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
+        cfi_assert_ne(
+            u32::from(drivers.mbox.cmd()),
+            u32::from(CommandId::FIRMWARE_LOAD),
+        );
     }
 
     // Get the command bytes

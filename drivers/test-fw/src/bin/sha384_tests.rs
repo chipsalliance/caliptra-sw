@@ -384,7 +384,7 @@ fn test_pcr_hash_extend_limit() {
 
 fn test_kat() {
     // Init CFI
-    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+    CfiCounter::reset(&mut || Ok((0xDEADBEEFu32, 0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF)));
 
     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
 

@@ -17,7 +17,7 @@ Abstract:
 #[cfg(target_arch = "riscv32")]
 core::arch::global_asm!(include_str!("ext_intr.S"));
 
-use caliptra_cfi_lib_git::CfiCounter;
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
@@ -61,8 +61,10 @@ pub extern "C" fn entry_point() -> ! {
             drivers
                 .trng
                 .generate()
-                .map(|a| a.0)
-                .map_err(|_| caliptra_cfi_lib_git::CfiPanicInfo::TrngError)
+                .map(|a| (a.0[0], a.0[1], a.0[2], a.0[3]))
+                .map_err(|_| {
+                    caliptra_cfi_lib::CfiError(u32::from(caliptra_cfi_lib::CfiPanicInfo::TrngError))
+                })
         };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
