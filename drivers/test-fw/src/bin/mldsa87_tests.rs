@@ -967,12 +967,12 @@ fn test_keygen_array_seed() {
 // ---------------------------------------------------------------------------
 // Static buffers for ACVP tests (avoids stack overflow for large ML-DSA types)
 // ---------------------------------------------------------------------------
-static mut ACVP_PUBKEY_BUF:  [u8; 2592] = [0u8; 2592];
+static mut ACVP_PUBKEY_BUF: [u8; 2592] = [0u8; 2592];
 static mut ACVP_PRIVKEY_BUF: [u8; 4896] = [0u8; 4896];
 static mut ACVP_KEYGEN_PRIVKEY: Mldsa87PrivKey = Mldsa87PrivKey::new([0u32; 1224]);
-static mut ACVP_SIG_BUF:     [u8; 4628] = [0u8; 4628];
-static mut ACVP_MSG_BUF:     [u8; 512]  = [0u8; 512];  // up to 512-byte messages
-static mut ACVP_SEED_BUF:    [u8; 32]   = [0u8; 32];
+static mut ACVP_SIG_BUF: [u8; 4628] = [0u8; 4628];
+static mut ACVP_MSG_BUF: [u8; 512] = [0u8; 512]; // up to 512-byte messages
+static mut ACVP_SEED_BUF: [u8; 32] = [0u8; 32];
 
 // ---------------------------------------------------------------------------
 // Hex decoding helpers
@@ -1096,18 +1096,18 @@ fn test_acvp() {
             let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
             let hex_pubkey = lines.next().unwrap().trim();
-            let hex_msg    = lines.next().unwrap().trim();
-            let hex_sig    = lines.next().unwrap().trim();
+            let hex_msg = lines.next().unwrap().trim();
+            let hex_sig = lines.next().unwrap().trim();
 
             let pubkey_buf = unsafe { &mut ACVP_PUBKEY_BUF };
-            let msg_buf    = unsafe { &mut ACVP_MSG_BUF };
-            let sig_buf    = unsafe { &mut ACVP_SIG_BUF };
+            let msg_buf = unsafe { &mut ACVP_MSG_BUF };
+            let sig_buf = unsafe { &mut ACVP_SIG_BUF };
 
             hex_decode(hex_pubkey, pubkey_buf).unwrap();
             let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
             hex_decode(hex_sig, sig_buf).unwrap();
 
-            let pub_key   = Mldsa87PubKey::read_from_bytes(pubkey_buf.as_slice()).unwrap();
+            let pub_key = Mldsa87PubKey::read_from_bytes(pubkey_buf.as_slice()).unwrap();
             let signature = Mldsa87Signature::read_from_bytes(sig_buf.as_slice()).unwrap();
 
             let result = ml_dsa87
@@ -1115,7 +1115,7 @@ fn test_acvp() {
                 .unwrap();
 
             match result {
-                Mldsa87Result::Success         => println!("MLDSA_SIGVER:01"),
+                Mldsa87Result::Success => println!("MLDSA_SIGVER:01"),
                 Mldsa87Result::SigVerifyFailed => println!("MLDSA_SIGVER:00"),
             }
         }
