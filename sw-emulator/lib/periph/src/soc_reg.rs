@@ -932,8 +932,8 @@ impl SocRegistersImpl {
         let cptra_offset = 0x3000_0000u64;
         let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
         let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
-        // To make things easy the fuse bank is part of the fuse bank controller emulation
-        let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
+        // The fuse bank starts at offset 0x800 within the OTP fuse controller address space
+        let uds_seed_offset = otc_fc_offset + 0x800;
         let mci_base = crate::dma::axi_root_bus::AxiRootBus::ss_mci_offset();
         let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
