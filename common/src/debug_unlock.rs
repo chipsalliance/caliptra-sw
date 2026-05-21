@@ -22,11 +22,9 @@ use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launde
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, Array4x8, AxiAddr, Dma, Ecc384,
     Ecc384PubKey, Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc,
-    StreamEndianness, Trng,
+    Mldsa87Result, Mldsa87Signature, Sha2_512_384, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
-use memoffset::{offset_of, span_of};
 use zerocopy::IntoBytes;
 
 /// Create a challenge for production debug unlock
@@ -106,7 +104,6 @@ pub fn create_debug_unlock_challenge(
 pub fn validate_debug_unlock_token(
     soc_ifc: &SocIfc,
     sha2_512_384: &mut Sha2_512_384,
-    sha2_512_384_acc: &mut Sha2_512_384Acc,
     ecc384: &mut Ecc384,
     mldsa87: &mut Mldsa87,
     dma: &mut Dma,
@@ -153,27 +150,13 @@ pub fn validate_debug_unlock_token(
         );
     }
 
-    // Hash the ECC and MLDSA public keys in the payload.
+    // Hash the ECC and MLDSA public keys from the local stack copy.
     let pub_keys_digest = {
-        let ecc_public_key_offset = offset_of!(ProductionAuthDebugUnlockToken, ecc_public_key);
-        let combined_len = span_of!(
-            ProductionAuthDebugUnlockToken,
-            ecc_public_key..=mldsa_public_key
-        )
-        .len();
-
         let mut request_digest = Array4x12::default();
-
-        let mut acc_op = sha2_512_384_acc
-            .try_start_operation(ShaAccLockState::NotAcquired)?
-            .ok_or(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
-
-        acc_op.digest_384(
-            combined_len as u32,
-            ecc_public_key_offset as u32,
-            StreamEndianness::Reorder,
-            &mut request_digest,
-        )?;
+        let mut digest_op = sha2_512_384.sha384_digest_init()?;
+        digest_op.update(token.ecc_public_key.as_bytes())?;
+        digest_op.update(token.mldsa_public_key.as_bytes())?;
+        digest_op.finalize(&mut request_digest)?;
         request_digest
     };
 

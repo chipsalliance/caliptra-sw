@@ -214,7 +214,6 @@ fn handle_auth_debug_unlock_token(
         debug_unlock::validate_debug_unlock_token(
             &env.soc_ifc,
             &mut env.sha2_512_384,
-            &mut env.sha2_512_384_acc,
             &mut env.ecc384,
             &mut mldsa87,
             &mut env.dma,
