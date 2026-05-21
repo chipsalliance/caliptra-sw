@@ -9,7 +9,3 @@
 	path = hw/1.0/rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
 	branch = patch_v1.0
-[submodule "dpe"]
-	path = dpe
-	url = https://github.com/chipsalliance/caliptra-dpe.git
-	branch = main
