@@ -594,7 +594,6 @@ fn execute_command_with_common_resp(
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN => drivers.debug_unlock.handle_token(
             &mut drivers.soc_ifc,
             &mut drivers.sha2_512_384,
-            &mut drivers.sha2_512_384_acc,
             &mut drivers.ecc384,
             &mut drivers.mldsa87,
             &mut drivers.dma,
