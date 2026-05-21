@@ -18,73 +18,73 @@ pub fn rom_from_env() -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &[],
+    features: &["cfi"],
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu"],
+    features: &["emu", "cfi"],
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
+    features: &["emu", "fake-rom", "cfi"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
+    features: &["fips-test-hooks", "cfi"],
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu"],
+    features: &["emu", "cfi"],
 };
 
 pub const FMC_WITH_UART_HW_1_0: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "hw-1.0"],
+    features: &["emu", "hw-1.0", "cfi"],
 };
 
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc"],
+    features: &["emu", "fake-fmc", "cfi"],
 };
 
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["fips_self_test"],
+    features: &["fips_self_test", "cfi"],
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test"],
+    features: &["emu", "fips_self_test", "cfi"],
 };
 
 pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks"],
+    features: &["emu", "fips_self_test", "fips-test-hooks", "cfi"],
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime"],
+    features: &["emu", "fips_self_test", "fpga_realtime", "cfi"],
 };
 
 pub const APP_WITH_UART_HW_1_0: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "hw-1.0"],
+    features: &["emu", "fips_self_test", "hw-1.0", "cfi"],
 };
 
 pub const APP_ZEROS: FwId = FwId {
@@ -331,7 +331,7 @@ pub mod rom_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-rom",
         bin_name: "",
-        features: &["emu"],
+        features: &["emu", "cfi"],
     };
 
     pub const ASM_TESTS: FwId = FwId {
@@ -342,31 +342,31 @@ pub mod rom_tests {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
+        features: &["emu", "cfi"],
     };
 
     pub const TEST_RT_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-rt",
         bin_name: "caliptra-rom-test-rt",
-        features: &["emu"],
+        features: &["emu", "cfi"],
     };
 
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "fake-fmc"],
+        features: &["emu", "fake-fmc", "cfi"],
     };
 
     pub const TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
+        features: &["emu", "interactive_test_fmc", "cfi"],
     };
 
     pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc", "fake-fmc"],
+        features: &["emu", "interactive_test_fmc", "fake-fmc", "cfi"],
     };
 }
 
@@ -376,7 +376,7 @@ pub mod runtime_tests {
     const RUNTIME_TEST_FWID_BASE: FwId = FwId {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: "",
-        features: &["emu", "riscv", "runtime"],
+        features: &["emu", "riscv", "runtime", "cfi"],
     };
 
     pub const BOOT: FwId = FwId {

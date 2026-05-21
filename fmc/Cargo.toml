@@ -33,13 +33,13 @@ caliptra-image-types.workspace = true
 openssl.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
-no-cfi = ["caliptra-drivers/no-cfi"]
+cfi = ["caliptra-drivers/cfi", "caliptra_common/cfi"]
 verilator = ["caliptra-hw-model/verilator"]
 fake-fmc = []
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-cpu/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-hw-model/hw-1.0"]

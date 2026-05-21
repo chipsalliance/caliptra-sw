@@ -23,7 +23,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = IncrementPcrResetCounterReq::ref_from_bytes(cmd_args)
@@ -45,7 +45,7 @@ impl IncrementPcrResetCounterCmd {
 
 pub struct GetPcrQuoteCmd;
 impl GetPcrQuoteCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
         let args: &QuotePcrsReq = QuotePcrsReq::ref_from_bytes(cmd_bytes)
@@ -74,7 +74,7 @@ impl GetPcrQuoteCmd {
 
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = ExtendPcrReq::ref_from_bytes(cmd_args)
@@ -101,7 +101,7 @@ impl ExtendPcrCmd {
 
 pub struct GetPcrLogCmd;
 impl GetPcrLogCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, _cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
         let next_available = drivers.persistent_data.get().fht.pcr_log_index as usize;

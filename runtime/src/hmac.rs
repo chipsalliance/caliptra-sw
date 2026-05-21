@@ -37,7 +37,7 @@ use crate::Drivers;
 /// # Returns
 ///
 /// * `Ecc384KeyPair` - Generated key pair
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn ecc384_key_gen(
     drivers: &mut Drivers,
     input: KeyId,
@@ -90,7 +90,7 @@ impl Hmac {
     /// * `drivers` - Drivers
     /// * `input` - KeyId containing the input data
     /// * `output` - KeyId which the output hash should be written to
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn hmac384_hash(drivers: &mut Drivers, input: KeyId, output: KeyId) -> CaliptraResult<()> {
         drivers.hmac384.hmac(
             &KeyReadArgs::new(input).into(),
@@ -122,7 +122,7 @@ impl Hmac {
     /// # Returns
     ///
     /// * `Array4x12` - Computed HMAC result
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn ecc384_hmac(
         drivers: &mut Drivers,
         input: KeyId,

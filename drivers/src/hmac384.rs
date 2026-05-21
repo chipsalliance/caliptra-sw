@@ -18,7 +18,7 @@ use crate::{
     Trng,
 };
 
-#[cfg(not(feature = "no-cfi"))]
+#[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 
@@ -200,7 +200,7 @@ impl Hmac384 {
     /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn hmac(
         &mut self,
         key: &Hmac384Key,

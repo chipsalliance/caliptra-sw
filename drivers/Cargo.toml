@@ -26,6 +26,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 caliptra-cfi-derive.workspace = true
 
 [features]
+default = ["cfi"]
 emu = []
 rom = []
 runtime = ["dep:dpe"]
@@ -33,7 +34,7 @@ fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
-no-cfi = []
+cfi = []
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = []
 

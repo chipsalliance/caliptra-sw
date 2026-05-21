@@ -55,7 +55,7 @@ pub extern "C" fn entry_point() -> ! {
         })
     };
 
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || {
             drivers

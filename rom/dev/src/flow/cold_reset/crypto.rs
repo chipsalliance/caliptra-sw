@@ -75,7 +75,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
         env.sha256.digest(data)
     }

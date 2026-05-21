@@ -19,8 +19,9 @@ ufmt.workspace = true
 zerocopy.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra-drivers/emu"]
+cfi = ["caliptra-drivers/cfi"]
 std = []
 rom = []
 fmc = []

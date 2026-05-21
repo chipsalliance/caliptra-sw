@@ -30,7 +30,7 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
     let reset_reason = env.soc_ifc.reset_reason();
 

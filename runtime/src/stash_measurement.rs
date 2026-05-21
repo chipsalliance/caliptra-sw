@@ -28,7 +28,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,

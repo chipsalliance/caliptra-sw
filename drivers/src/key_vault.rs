@@ -21,7 +21,7 @@ use zerocopy::{FromZeros, IntoBytes, KnownLayout};
 
 /// Key Identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromZeros, IntoBytes, KnownLayout)]
-#[cfg_attr(not(feature = "no-cfi"), derive(caliptra_cfi_derive::Launder))]
+#[cfg_attr(feature = "cfi", derive(caliptra_cfi_derive::Launder))]
 #[repr(u8)]
 pub enum KeyId {
     KeyId0 = 0,

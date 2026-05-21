@@ -72,7 +72,7 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         cprintln!("[state] CFI On");
         let mut entropy_gen = || {
             env.trng
@@ -189,7 +189,7 @@ pub extern "C" fn rom_entry() -> ! {
     lock_registers(&mut env, reset_reason);
 
     // Reset the CFI counter.
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         CfiCounter::corrupt();
     }
 

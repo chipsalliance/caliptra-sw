@@ -54,7 +54,7 @@ wycheproof.workspace = true
 x509-parser.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
@@ -62,7 +62,7 @@ std = ["ufmt/std", "caliptra_common/std"]
 slow_tests = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test=[]
-no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
+cfi = ["caliptra-image-verify/cfi", "caliptra-image-types/cfi", "caliptra-drivers/cfi", "caliptra_common/cfi", "dpe/cfi"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-kat/hw-1.0","caliptra-cpu/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]

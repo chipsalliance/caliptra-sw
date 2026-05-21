@@ -11,7 +11,7 @@ use caliptra_drivers::FmcAliasCsr;
 
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, _cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;

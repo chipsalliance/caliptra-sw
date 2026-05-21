@@ -31,7 +31,7 @@ pub struct FipsModule;
 /// Fips command handler.
 impl FipsModule {
     /// Clear data structures in DCCM.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn zeroize(env: &mut Drivers) {
         unsafe {
@@ -83,7 +83,7 @@ pub mod fips_self_test_cmd {
         Done,
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+    #[cfg_attr(feature = "cfi", cfi_mod_fn)]
     fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
         env.mbox.write_cmd(0)?;
         env.mbox.set_dlen(
@@ -132,7 +132,7 @@ pub mod fips_self_test_cmd {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+    #[cfg_attr(feature = "cfi", cfi_mod_fn)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
@@ -178,7 +178,7 @@ pub mod fips_self_test_cmd {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+    #[cfg_attr(feature = "cfi", cfi_mod_fn)]
     fn rom_integrity_test(env: &mut Drivers) -> CaliptraResult<()> {
         // Extract the expected has from the fht.
         let rom_info = env.persistent_data.get().fht.rom_info_addr.get()?;
@@ -209,7 +209,7 @@ pub mod fips_self_test_cmd {
 }
 pub struct FipsShutdownCmd;
 impl FipsShutdownCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         FipsModule::zeroize(env);

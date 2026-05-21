@@ -27,7 +27,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 

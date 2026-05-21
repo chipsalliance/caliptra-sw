@@ -147,7 +147,7 @@ impl FhtDataStore {
     }
 }
 
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
 

@@ -32,7 +32,7 @@ pub const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image dig
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
