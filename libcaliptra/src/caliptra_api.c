@@ -1530,7 +1530,7 @@ int caliptra_update_sha_stream(uint8_t* in_data, uint32_t data_len) {
             }
         }
     } else {
-        for (uint32_t i = 0; i < words * 4; i+=4) {
+        for (uint32_t i = 0; i < words; i++) {
             error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
             if (error) {
                 return REG_ACCESS_ERROR;
