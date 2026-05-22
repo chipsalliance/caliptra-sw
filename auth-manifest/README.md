@@ -34,25 +34,30 @@ The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Im
 ### **Image Metadata Collection**
 
 The Image Metadata Collection (IMC) is a collection of Image Metadata Entries (IMEs).
-Each IME has a hash that matches a SOC image.
+Each IME has a digest that matches a SOC image.
 The manifest vendor and owner private keys sign the IMC.
 The Preamble holds the IMC signatures.
 The manifest IMC vendor signatures are optional and are validated only if the **Flags Bit 0 = 1**.
-Up to 127 image hashes are supported.
+Up to 127 image metadata entries are supported.
 
 | Field                            | Size (bytes) | Description                             |
 | -------------------------------- | ------------ | --------------------------------------- |
 | **Image Metadata Entry (IME) Count** | 4        | Number of IME(s) in the IMC.            |
-| **Image Metadata Entry (N)**     | Variable     | List of Image Metadata Entry structures |
+| **Image Metadata Entry (N)**     | Variable     | List of 80-byte Image Metadata Entry structures |
 #### **Image Metadata Entry**
+
+The serialized IME layout follows `AuthManifestImageMetadata` in
+`auth-manifest/types/src/lib.rs`. Multi-word addresses are encoded as the low
+32-bit word followed by the high 32-bit word.
 
 | Field                   | Size (bytes) | Description |
 | ----------------------- | ------------ | ----------- |
-| **Image Hash**          | 48           | SHA2-384 hash of a SOC image. |
-| **Image Identifier**    | 4            | Unique value selected by the vendor to distinguish between images. |
-| **Component Id**        | 4            | Identifies the image component to be loaded. This corresponds to the `ComponentIdentifier` field defined in the DMTF PLDM Firmware Update Specification (DSP0267). |
-| **Flags**               | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image hash will **not** be verified; otherwise, the metadata image hash will be compared against the calculated hash of the image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
-| **Image Load Address High** | 4       | High 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
-| **Image Load Address Low**  | 4       | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
-| **Staging Address High**   | 4       | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
-| **Staging Address Low**    | 4       | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
+| **Firmware ID (`fw_id`)** | 4           | Unique value selected by the vendor to distinguish between firmware images. |
+| **Component ID (`component_id`)** | 4   | Identifies the image component to be loaded. This corresponds to the `ComponentIdentifier` field defined in the DMTF PLDM Firmware Update Specification (DSP0267). |
+| **Classification (`classification`)** | 4 | Component classification value associated with the image. |
+| **Flags (`flags`)**     | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image digest will **not** be verified; otherwise, the metadata image digest will be compared against the calculated digest of the image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
+| **Image Load Address Low (`image_load_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
+| **Image Load Address High (`image_load_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
+| **Image Staging Address Low (`image_staging_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
+| **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
+| **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
