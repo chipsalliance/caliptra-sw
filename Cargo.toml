@@ -100,11 +100,11 @@ caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 caliptra-cfi-lib = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib", rev = "aa96c53073ce7f298f7482c1ac57f5f65ffc115e", default-features = false, features = ["cfi", "cfi-counter"] }
 caliptra-cfi-derive = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive", rev = "aa96c53073ce7f298f7482c1ac57f5f65ffc115e" }
-caliptra_common = { path = "common", default-features = false }
+caliptra_common = { path = "common", default-features = false, features = ["cfi"] }
 caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
 caliptra-cpu = { path = "cpu" }
-caliptra-drivers = { path = "drivers" }
+caliptra-drivers = { path = "drivers", features = ["cfi"] }
 caliptra-drivers-test-bin = { path = "drivers/test-fw" }
 caliptra-emu-bus = { path = "sw-emulator/lib/bus" }
 caliptra-emu-cpu = { path = "sw-emulator/lib/cpu" }
@@ -122,14 +122,14 @@ caliptra-image-fake-keys = { path = "image/fake-keys" }
 caliptra-image-gen = { path = "image/gen" }
 caliptra-image-crypto = { path = "image/crypto" }
 caliptra-image-serde = { path = "image/serde" }
-caliptra-image-types = { path = "image/types", default-features = false }
-caliptra-image-verify = { path = "image/verify", default-features = false }
+caliptra-image-types = { path = "image/types", default-features = false, features = ["cfi"] }
+caliptra-image-verify = { path = "image/verify", default-features = false, features = ["cfi"] }
 caliptra-kat = { path = "kat" }
-caliptra-lms-types = { path = "lms-types" }
+caliptra-lms-types = { path = "lms-types", features = ["cfi"] }
 caliptra-registers = { path = "registers" }
 caliptra-registers-1_0 = { path = "hw/1.0/registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
-caliptra-runtime = { path = "runtime", default-features = false }
+caliptra-runtime = { path = "runtime", default-features = false, features = ["cfi"] }
 caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
@@ -144,8 +144,8 @@ clap = { version = "3.2.14", default-features = false, features = ["std"] }
 cms = "0.2.2"
 constant_time_eq = "0.3.0"
 convert_case = "0.6.0"
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
-crypto = { path = "dpe/crypto", default-features = false }
+dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384", "cfi"] }
+crypto = { path = "dpe/crypto", default-features = false, features = ["cfi"] }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
 fips204 = "0.2.1"
