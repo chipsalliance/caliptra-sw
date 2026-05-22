@@ -19,6 +19,7 @@ caliptra-auth-man-types.workspace = true
 caliptra-registers.workspace = true
 cfg-if.workspace = true
 dpe = { workspace = true, optional = true }
+crypto = { workspace = true, optional = true }
 ufmt.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
@@ -30,7 +31,7 @@ caliptra-cfi-derive.workspace = true
 default = ["cfi"]
 emu = []
 rom = []
-runtime = ["dep:dpe"]
+runtime = ["dep:dpe", "dep:crypto"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]

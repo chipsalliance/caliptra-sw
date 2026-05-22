@@ -9,13 +9,7 @@ use caliptra_hw_model::{
     BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError, ShaAccMode,
 };
 use caliptra_test::swap_word_bytes_inplace;
-use dpe::{
-    commands::*,
-    response::{
-        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
-        Response, ResponseHdr, SignResp,
-    },
-};
+use dpe::{commands::*, response::Response, DpeProfile};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
@@ -416,65 +410,13 @@ pub fn mbx_send_and_check_resp_hdr<T: HwModel, U: FromBytes + IntoBytes>(
     //Ok(U::read_from_bytes(resp_bytes.as_bytes()).unwrap())
 }
 
-fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
-    match dpe_cmd {
-        Command::GetProfile => Command::GET_PROFILE,
-        Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
-        Command::CertifyKey(_) => Command::CERTIFY_KEY,
-        Command::Sign(_) => Command::SIGN,
-        Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
-        Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
-    }
-}
-pub fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
-    match dpe_cmd {
-        Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveContext(cmd) => cmd.as_bytes(),
-        Command::GetCertificateChain(cmd) => cmd.as_bytes(),
-        Command::DestroyCtx(cmd) => cmd.as_bytes(),
-        Command::GetProfile => &[],
-        Command::InitCtx(cmd) => cmd.as_bytes(),
-        Command::RotateCtx(cmd) => cmd.as_bytes(),
-        Command::Sign(cmd) => cmd.as_bytes(),
-    }
-}
-
-pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
-    match dpe_cmd {
-        Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::read_from_bytes(resp_bytes).unwrap(),
-        ),
-        Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetProfile => {
-            Response::GetProfile(GetProfileResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::Sign(_) => Response::Sign(SignResp::read_from_bytes(resp_bytes).unwrap()),
-    }
-}
-
 pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Response {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
-    let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
+    let dpe_cmd_id = dpe_cmd.id();
+    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = as_bytes(dpe_cmd);
+    let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
 
     let mut payload = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
@@ -492,7 +434,7 @@ pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Respons
     .unwrap();
 
     let resp_bytes = &resp.data[..resp.data_size as usize];
-    parse_dpe_response(dpe_cmd, resp_bytes)
+    Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
 }
 
 pub fn fips_fw_image() -> Vec<u8> {

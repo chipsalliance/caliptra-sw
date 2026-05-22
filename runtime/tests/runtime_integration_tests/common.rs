@@ -22,11 +22,9 @@ use caliptra_hw_model::{
 };
 use caliptra_image_types::ImageBundle;
 use dpe::{
-    commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
-    response::{
-        CertifyKeyResp, DeriveContextExportedCdiResp, DeriveContextResp, DpeErrorCode,
-        GetCertificateChainResp, GetProfileResp, NewHandleResp, Response, ResponseHdr, SignResp,
-    },
+    commands::{Command, CommandHdr},
+    response::{DpeErrorCode, Response, ResponseHdr},
+    DpeProfile,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
@@ -36,7 +34,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
-use zerocopy::{FromBytes, FromZeros, IntoBytes};
+use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
@@ -166,35 +164,9 @@ pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
     cert_builder.build()
 }
 
-fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
-    match dpe_cmd {
-        Command::GetProfile => Command::GET_PROFILE,
-        Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
-        Command::CertifyKey(_) => Command::CERTIFY_KEY,
-        Command::Sign(_) => Command::SIGN,
-        Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
-        Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
-    }
-}
-
-fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
-    match dpe_cmd {
-        Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveContext(cmd) => cmd.as_bytes(),
-        Command::GetCertificateChain(cmd) => cmd.as_bytes(),
-        Command::DestroyCtx(cmd) => cmd.as_bytes(),
-        Command::GetProfile => &[],
-        Command::InitCtx(cmd) => cmd.as_bytes(),
-        Command::RotateCtx(cmd) => cmd.as_bytes(),
-        Command::Sign(cmd) => cmd.as_bytes(),
-    }
-}
-
 fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
-    if let Ok(&ResponseHdr { status, .. }) =
-        ResponseHdr::ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
+    if let Ok(ResponseHdr { status, .. }) =
+        ResponseHdr::try_read_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
     {
         if status != expected_status.get_error_code() {
             panic!("Unexpected DPE Status: 0x{:X}", status);
@@ -206,37 +178,7 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     // Peek response header so we can panic with an error code in case the command failed.
     check_dpe_status(resp_bytes, DpeErrorCode::NoError);
 
-    match dpe_cmd {
-        Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::DeriveContext(DeriveContextCmd { flags, .. })
-            if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
-        {
-            Response::DeriveContextExportedCdi(
-                DeriveContextExportedCdiResp::read_from_bytes(resp_bytes).unwrap(),
-            )
-        }
-        Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::read_from_bytes(resp_bytes).unwrap(),
-        ),
-        Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::GetProfile => {
-            Response::GetProfile(GetProfileResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
-        }
-        Command::Sign(_) => Response::Sign(SignResp::read_from_bytes(resp_bytes).unwrap()),
-    }
+    Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
 }
 
 pub enum DpeResult {
@@ -251,11 +193,11 @@ pub fn execute_dpe_cmd(
     expected_result: DpeResult,
 ) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
-    let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
+    let dpe_cmd_id = dpe_cmd.id();
+    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = as_bytes(dpe_cmd);
+    let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
     let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -287,7 +229,7 @@ pub fn execute_dpe_cmd(
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
         DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from_bytes(resp_bytes).unwrap()),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
 }

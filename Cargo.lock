@@ -410,6 +410,7 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe",
+ "caliptra-dpe-crypto",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",

@@ -7,9 +7,11 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::HwModel;
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, SignCmd, SignFlags},
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, SignFlags, SignP384Cmd,
+    },
     context::ContextHandle,
-    response::Response,
+    response::{CertifyKeyResp, Response, SignResp},
 };
 use openssl::{
     bn::BigNum,
@@ -30,7 +32,7 @@ fn test_disable_attestation_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // sign the digest
-    let sign_cmd = SignCmd {
+    let sign_cmd = SignP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: SignFlags::empty(),
@@ -38,10 +40,10 @@ fn test_disable_attestation_cmd() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::Sign(&sign_cmd),
+        &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
-    let Some(Response::Sign(sign_resp)) = resp else {
+    let Some(Response::Sign(SignResp::P384(sign_resp))) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -65,18 +67,19 @@ fn test_disable_attestation_cmd() {
     );
 
     // get pub key
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+
+    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -148,22 +151,21 @@ fn test_attestation_disabled_flag_after_update_reset() {
     let rt_resp = get_rt_alias_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let dpe_leaf_cert: X509 =
-        X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
+    let dpe_leaf_cert: X509 = X509::from_der(&certify_key_resp.cert().unwrap()).unwrap();
 
     assert!(!dpe_leaf_cert
         .verify(&rt_cert.public_key().unwrap())

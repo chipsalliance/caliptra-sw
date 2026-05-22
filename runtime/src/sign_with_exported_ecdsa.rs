@@ -10,8 +10,14 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use crypto::{Crypto, Digest, EcdsaPub, EcdsaSig};
-use dpe::{DPE_PROFILE, MAX_EXPORTED_CDI_SIZE};
+use crypto::{
+    ecdsa::{
+        curve_384::{EcdsaPub384, EcdsaSignature384},
+        EcdsaPubKey, EcdsaSignature,
+    },
+    Crypto, Digest, PubKey, SignData, Signature,
+};
+use dpe::MAX_EXPORTED_CDI_SIZE;
 use zerocopy::FromBytes;
 
 pub struct SignWithExportedEcdsaCmd;
@@ -27,16 +33,11 @@ impl SignWithExportedEcdsaCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn ecdsa_sign(
         env: &mut DpeCrypto,
-        digest: &Digest,
+        data: &SignData,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
-    ) -> CaliptraResult<(EcdsaSig, EcdsaPub)> {
-        let algs = DPE_PROFILE.alg_len();
-        let key_pair = env.derive_key_pair_exported(
-            algs,
-            exported_cdi_handle,
-            b"Exported ECC",
-            b"Exported ECC",
-        );
+    ) -> CaliptraResult<(Signature, PubKey)> {
+        let key_pair =
+            env.derive_key_pair_exported(exported_cdi_handle, b"Exported ECC", b"Exported ECC");
 
         if cfi_launder(key_pair.is_ok()) {
             #[cfg(feature = "cfi")]
@@ -45,11 +46,14 @@ impl SignWithExportedEcdsaCmd {
             #[cfg(feature = "cfi")]
             cfi_assert!(key_pair.is_err());
         }
-        let (priv_key, pub_key) = key_pair
+        let signer = key_pair
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
 
-        let sig = env
-            .ecdsa_sign_with_derived(algs, digest, &priv_key, &pub_key)
+        let pub_key: PubKey = signer
+            .public_key()
+            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
+        let sig: Signature = signer
+            .sign(data)
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED)?;
 
         Ok((sig, pub_key))
@@ -72,6 +76,11 @@ impl SignWithExportedEcdsaCmd {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
+        let rt_pub_key = &mut pdata.fht.rt_dice_pub_key;
+        let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+            &rt_pub_key.x.into(),
+            &rt_pub_key.y.into(),
+        )));
 
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
@@ -79,39 +88,43 @@ impl SignWithExportedEcdsaCmd {
             &mut drivers.ecc384,
             &mut drivers.hmac384,
             &mut drivers.key_vault,
-            &mut pdata.fht.rt_dice_pub_key,
+            rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.exported_cdi_slots,
-        );
+        )?;
 
-        let digest = Digest::new(&cmd.tbs)
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_DIGEST)?;
-        let (EcdsaSig { ref r, ref s }, EcdsaPub { ref x, ref y }) =
-            Self::ecdsa_sign(&mut crypto, &digest, &cmd.exported_cdi_handle)?;
+        let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
+        let (
+            Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
+            PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),
+        ) = Self::ecdsa_sign(&mut crypto, &data, &cmd.exported_cdi_handle)?
+        else {
+            return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
+        };
 
         let mut resp = SignWithExportedEcdsaResp::default();
 
         if r.len() <= resp.signature_r.len() {
-            resp.signature_r[..r.len()].copy_from_slice(r.bytes());
+            resp.signature_r[..r.len()].copy_from_slice(r.as_slice());
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if s.len() <= resp.signature_s.len() {
-            resp.signature_s[..s.len()].copy_from_slice(s.bytes());
+            resp.signature_s[..s.len()].copy_from_slice(s.as_slice());
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if x.len() <= resp.derived_pubkey_x.len() {
-            resp.derived_pubkey_x[..x.len()].copy_from_slice(x.bytes());
+            resp.derived_pubkey_x[..x.len()].copy_from_slice(x.as_slice());
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if y.len() <= resp.derived_pubkey_y.len() {
-            resp.derived_pubkey_y[..y.len()].copy_from_slice(y.bytes());
+            resp.derived_pubkey_y[..y.len()].copy_from_slice(y.as_slice());
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }

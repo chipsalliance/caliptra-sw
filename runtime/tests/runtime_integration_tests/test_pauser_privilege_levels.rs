@@ -25,12 +25,13 @@ use caliptra_runtime::{
 
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
-        RotateCtxCmd, RotateCtxFlags,
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
+        DeriveContextFlags, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
     },
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
+    tci::TciMeasurement,
+    TCI_SIZE,
 };
 use zerocopy::IntoBytes;
 
@@ -38,7 +39,7 @@ use crate::common::{
     assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 
-const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
+const DATA: TciMeasurement = TciMeasurement([0u8; TCI_SIZE]);
 
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
@@ -76,6 +77,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
+            ..Default::default()
         };
 
         // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
@@ -145,6 +147,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
+            ..Default::default()
         };
 
         // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
@@ -274,6 +277,7 @@ fn test_change_locality() {
             | DeriveContextFlags::INPUT_ALLOW_X509,
         tci_type: 0,
         target_locality: 2,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(
@@ -291,6 +295,7 @@ fn test_change_locality() {
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 2,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(
@@ -442,10 +447,11 @@ fn test_export_cdi_cannot_be_called_from_pl1() {
 
     let get_cert_chain_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: DATA,
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
     let _ = execute_dpe_cmd(
         &mut model,
@@ -470,15 +476,15 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
     assert!(resp.is_none());
@@ -553,6 +559,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -726,15 +733,15 @@ fn test_pl0_unset_in_header() {
     });
 
     // If PL0 PAUSER is unset, make sure PL0-only operation fails
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
     assert!(resp.is_none());
@@ -771,15 +778,15 @@ fn test_user_not_pl0() {
     });
 
     // If PAUSER is not PL0, make sure PL0-only operation fails
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
     assert!(resp.is_none());

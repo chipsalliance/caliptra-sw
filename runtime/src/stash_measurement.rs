@@ -12,17 +12,17 @@ Abstract:
 
 --*/
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd_serialized, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
+    commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    dpe_instance::DpeEnv,
     response::DpeErrorCode,
+    tci::TciMeasurement,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -34,6 +34,7 @@ impl StashMeasurementCmd {
         drivers: &mut Drivers,
         metadata: &[u8; 4],
         measurement: &[u8; 48],
+        svn: u32,
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
             let caller_privilege_level = drivers.caller_privilege_level();
@@ -49,48 +50,21 @@ impl StashMeasurementCmd {
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
 
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
-            let pdata = drivers.persistent_data.get_mut();
-            let crypto = DpeCrypto::new(
-                &mut drivers.sha384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac384,
-                &mut drivers.key_vault,
-                &mut pdata.fht.rt_dice_pub_key,
-                key_id_rt_cdi,
-                key_id_rt_priv_key,
-                &mut pdata.exported_cdi_slots,
-            );
-            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pdata.manifest1.header.pl0_pauser,
-                    &hashed_rt_pub_key,
-                    &drivers.cert_chain,
-                    &nb,
-                    &nf,
-                    None,
-                    None,
-                ),
-            };
-
             let locality = drivers.mbox.user();
-
-            let derive_context_resp = DeriveContextCmd {
+            let cmd = DeriveContextCmd {
                 handle: ContextHandle::default(),
-                data: *measurement,
+                data: TciMeasurement(*measurement),
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
-            }
-            .execute(&mut pdata.dpe, &mut env, locality);
+                svn,
+            };
+            let command = Command::from(&cmd);
+            let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
+            let derive_context_resp = invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality));
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
@@ -120,7 +94,8 @@ impl StashMeasurementCmd {
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
+        let dpe_result =
+            Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;
 
         Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
             hdr: MailboxRespHeader::default(),

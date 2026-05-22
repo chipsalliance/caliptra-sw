@@ -49,7 +49,7 @@ pub mod printer;
 mod sha1;
 mod sha256;
 mod sha2_512_384acc;
-mod sha384;
+pub mod sha384;
 mod soc_ifc;
 mod trng;
 mod trng_ext;

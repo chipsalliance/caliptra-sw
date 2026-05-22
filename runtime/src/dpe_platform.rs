@@ -21,35 +21,39 @@ use crypto::Digest;
 use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
-    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
+    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
 
-use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_CERT_CHAIN_SIZE};
+use crate::{subject_alt_name::AddSubjectAltNameCmd, CaliptraDpeProfile};
 
 pub struct DpePlatform<'a> {
+    profile: CaliptraDpeProfile,
     auto_init_locality: u32,
-    hashed_rt_pub_key: &'a Digest,
-    cert_chain: &'a ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
-    not_before: &'a NotBefore,
-    not_after: &'a NotAfter,
-    dmtf_device_info: Option<&'a [u8]>,
-    ueid: Option<&'a [u8; 17]>,
+    hashed_rt_pub_key: Digest,
+    cert_chain: &'a [u8],
+    not_before: NotBefore,
+    not_after: NotAfter,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
 pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
 
 impl<'a> DpePlatform<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        profile: CaliptraDpeProfile,
         auto_init_locality: u32,
-        hashed_rt_pub_key: &'a Digest,
-        cert_chain: &'a ArrayVec<u8, 4096>,
-        not_before: &'a NotBefore,
-        not_after: &'a NotAfter,
-        dmtf_device_info: Option<&'a [u8]>,
-        ueid: Option<&'a [u8; 17]>,
+        hashed_rt_pub_key: Digest,
+        cert_chain: &'a [u8],
+        not_before: NotBefore,
+        not_after: NotAfter,
+        dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+        ueid: Option<[u8; 17]>,
     ) -> Self {
         Self {
+            profile,
             auto_init_locality,
             hashed_rt_pub_key,
             cert_chain,
@@ -106,11 +110,12 @@ impl Platform for DpePlatform<'_> {
         out: &mut [u8; MAX_ISSUER_NAME_SIZE],
     ) -> Result<usize, PlatformError> {
         const CALIPTRA_CN: &[u8] = b"Caliptra 1.0 Rt Alias";
-        let mut issuer_writer = CertWriter::new(out, true);
+        let mut issuer_writer = CertWriter::new(out, self.profile.into(), true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
-        Digest::write_hex_str(self.hashed_rt_pub_key, &mut serial)
+        self.hashed_rt_pub_key
+            .write_hex_str(&mut serial)
             .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         let name = Name {
@@ -128,7 +133,7 @@ impl Platform for DpePlatform<'_> {
     /// SubjectKeyIdentifier extension in the RT alias certificate.
     fn get_signer_identifier(&mut self) -> Result<SignerIdentifier, PlatformError> {
         let mut ski = [0u8; MAX_KEY_IDENTIFIER_SIZE];
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::SubjectKeyIdentifierError(0));
         }
@@ -144,7 +149,7 @@ impl Platform for DpePlatform<'_> {
         &mut self,
         out: &mut [u8; MAX_KEY_IDENTIFIER_SIZE],
     ) -> Result<(), PlatformError> {
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::IssuerKeyIdentifierError(0));
         }
@@ -190,7 +195,7 @@ impl Platform for DpePlatform<'_> {
     }
 
     fn get_ueid(&mut self) -> Result<Ueid, PlatformError> {
-        let buf = *self.ueid.ok_or(PlatformError::MissingUeidError)?;
+        let buf = self.ueid.ok_or(PlatformError::MissingUeidError)?;
         let buf_size = buf.len() as u32;
 
         let mut ueid = Ueid::default();
