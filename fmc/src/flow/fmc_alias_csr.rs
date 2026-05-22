@@ -127,7 +127,8 @@ pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
 
     // Build the CSR with `To Be Signed` & `Signature`
     let mut csr_buf = [0; caliptra_drivers::MAX_FMC_ALIAS_CSR_SIZE];
-    let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+    let mut ecdsa_sig = sig.to_ecdsa();
+    let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa_sig)
         .ok_or(CaliptraError::FMC_ALIAS_CSR_BUILDER_INIT_FAILURE);
     sig.zeroize();
 
@@ -145,6 +146,7 @@ pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     write_csr_to_peristent_storage(env, &fmc_alias_csr);
 
     csr_buf.zeroize();
+    ecdsa_sig.zeroize();
 
     Ok(())
 }

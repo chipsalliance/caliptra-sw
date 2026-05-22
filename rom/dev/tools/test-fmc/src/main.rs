@@ -45,13 +45,20 @@ pub fn main() {}
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
 #[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
-const PAD_LEN: usize = 9488; // TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9624; // TEST_FMC_INTERACTIVE
 #[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
-const PAD_LEN: usize = 9724; // FAKE_TEST_FMC_WITH_UART
+const PAD_LEN: usize = 9904; // FAKE_TEST_FMC_WITH_UART
 #[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
-const PAD_LEN: usize = 9832; // FAKE_TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9976; // FAKE_TEST_FMC_INTERACTIVE
 #[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
 const PAD_LEN: usize = 0;
+
+// 4-byte cfg-gated filler that nudges FAKE_TEST_FMC_INTERACTIVE's binary layout
+// past an ELF alignment plateau so PAD_LEN can land bundle.fmc.len() at exactly 16K.
+// The other three variants (incl. the empty-PAD case) hit 16K without it.
+#[cfg(all(feature = "fake-fmc", feature = "interactive_test_fmc"))]
+#[used]
+static FAKE_INT_FILLER: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
 
 static PAD: [u32; PAD_LEN / 4] = {
     let mut result = [0xdeadbeef_u32; PAD_LEN / 4];
@@ -64,7 +71,7 @@ static PAD: [u32; PAD_LEN / 4] = {
 };
 
 const BANNER: &str = r#"
-Running Caliptra FMC .......
+Running Caliptra FMC ...
 "#;
 
 #[no_mangle]
