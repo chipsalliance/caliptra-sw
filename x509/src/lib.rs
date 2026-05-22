@@ -19,6 +19,8 @@ mod der_helper;
 mod fmc_alias_cert_ecc_384;
 mod fmc_alias_csr_ecc_384;
 mod idevid_csr_ecc_384;
+#[cfg(feature = "mldsa_attestation")]
+mod idevid_csr_mldsa_87;
 mod ldevid_cert_ecc_384;
 mod rt_alias_cert_ecc_384;
 mod test_util;
@@ -30,6 +32,8 @@ pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
 pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
 pub use fmc_alias_csr_ecc_384::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};
 pub use idevid_csr_ecc_384::{InitDevIdCsrTbsEcc384, InitDevIdCsrTbsEcc384Params};
+#[cfg(feature = "mldsa_attestation")]
+pub use idevid_csr_mldsa_87::{InitDevIdCsrTbsMlDsa87, InitDevIdCsrTbsMlDsa87Params};
 pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
 pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 use zeroize::Zeroize;

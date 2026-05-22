@@ -28,7 +28,7 @@ mod x509;
 use {
     code_gen::CodeGen,
     std::env,
-    x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage},
+    x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage, MlDsa87Algo},
 };
 
 // Main Entry point
@@ -51,12 +51,20 @@ fn main() {
 fn gen_init_devid_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
+
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 1.0 IDevID");
     CodeGen::gen_code("InitDevIdCsrTbsEcc384", template, out_dir);
+
+    let bldr = csr::CsrTemplateBuilder::<MlDsa87Algo>::new()
+        .add_basic_constraints_ext(true, 5)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17]);
+    let template = bldr.tbs_template("Caliptra 1.0 MlDsa87 IDevID");
+    CodeGen::gen_code("InitDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
 #[cfg(feature = "generate_templates")]

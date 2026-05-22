@@ -948,6 +948,7 @@ dependencies = [
  "hex",
  "openssl",
  "quote",
+ "rand",
  "syn 1.0.109",
  "x509-parser",
  "zeroize",
