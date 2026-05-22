@@ -24,6 +24,8 @@ mod rt_alias_cert_ecc_384;
 mod test_util;
 
 pub use cert_bldr::{Ecdsa384CertBuilder, Ecdsa384CsrBuilder, Ecdsa384Signature};
+#[cfg(feature = "mldsa_attestation")]
+pub use cert_bldr::{MlDsa87CertBuilder, MlDsa87CsrBuilder, MlDsa87Signature};
 pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
 pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
 pub use fmc_alias_csr_ecc_384::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};

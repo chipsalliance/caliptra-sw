@@ -26,6 +26,10 @@ const DER_SEQ_TAG: u8 = 0x30;
 /// MAX Signature length
 const MAX_ECDSA384_SIG_LEN: usize = 108;
 
+/// MAX ML-DSA-87 signature DER length
+#[cfg(feature = "mldsa_attestation")]
+const MAX_MLDSA87_SIG_DER_LEN: usize = 4641;
+
 /// Trait for signature types
 pub trait Signature<const MAX_DER_SIZE: usize> {
     /// Convert the signature to DER format
@@ -210,3 +214,61 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
 // Type alias for ECDSA-384 Certificate Builder
 pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, MAX_ECDSA384_SIG_LEN>;
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
+
+/// Ml-Dsa87 Signature
+#[cfg(feature = "mldsa_attestation")]
+pub struct MlDsa87Signature {
+    pub sig: [u8; Self::MLDSA87_SIG_LEN],
+}
+
+#[cfg(feature = "mldsa_attestation")]
+impl Default for MlDsa87Signature {
+    fn default() -> Self {
+        Self {
+            sig: [0; Self::MLDSA87_SIG_LEN],
+        }
+    }
+}
+
+#[cfg(feature = "mldsa_attestation")]
+impl MlDsa87Signature {
+    /// ML-DSA-87 raw signature length (FIPS 204)
+    pub const MLDSA87_SIG_LEN: usize = 4627;
+}
+
+#[cfg(feature = "mldsa_attestation")]
+impl Signature<MAX_MLDSA87_SIG_DER_LEN> for MlDsa87Signature {
+    fn to_der(&self, buf: &mut [u8; MAX_MLDSA87_SIG_DER_LEN]) -> Option<usize> {
+        //
+        // Signature DER Sequence encoding
+        //
+        let sig_seq_len = self.sig.len();
+        let mut pos = 0;
+
+        // Encode Signature DER Bit String
+        *buf.get_mut(pos)? = DER_BIT_STR_TAG;
+        pos += 1;
+        pos += der_encode_len(1 + sig_seq_len, buf.get_mut(pos..)?)?;
+        *buf.get_mut(pos)? = 0x0;
+        pos += 1;
+
+        buf.get_mut(pos..pos + self.sig.len())?
+            .copy_from_slice(&self.sig);
+        pos += sig_seq_len;
+
+        Some(pos)
+    }
+
+    fn oid_der() -> &'static [u8] {
+        // id-ml-dsa-87: 2.16.840.1.101.3.4.3.19
+        &[
+            0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x13,
+        ]
+    }
+}
+
+// Type alias for Ml-Dsa87 Certificate Builder
+#[cfg(feature = "mldsa_attestation")]
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, MlDsa87Signature, MAX_MLDSA87_SIG_DER_LEN>;
+#[cfg(feature = "mldsa_attestation")]
+pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;
