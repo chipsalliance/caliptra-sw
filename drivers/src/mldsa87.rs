@@ -443,6 +443,7 @@ impl Mldsa87 {
     /// Sign a variable-length message using a caller-provided private key, skipping
     /// the post-sign verification step.  Intended for ACVP sigGen testing where no
     /// public key is available for the anti-glitch check.
+    #[cfg(feature = "cavp-test-harness")]
     pub fn sign_var_no_verify(
         &mut self,
         seed: Mldsa87Seed,
