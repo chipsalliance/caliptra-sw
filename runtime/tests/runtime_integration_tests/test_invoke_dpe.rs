@@ -310,10 +310,9 @@ fn test_invoke_dpe_rotate_context() {
 
 fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
     let mut parser = X509CertificateParser::new().with_deep_parse_extensions(true);
-    let Ok((_, cert)) = parser
-            .parse(cert) else {
-                panic!("Could not parse x509 certificate from CertifyKey!");
-            };
+    let Ok((_, cert)) = parser.parse(cert) else {
+        panic!("Could not parse x509 certificate from CertifyKey!");
+    };
     for extension in cert.iter_extensions() {
         // Unknown extensions are DICE extensions, and they should match the
         // criticality set by the DPE instance.
@@ -339,8 +338,8 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(resp)) = resp else {
-            panic!("Wrong response type!");
-        };
+        panic!("Wrong response type!");
+    };
     check_dice_extension_criticality(&resp.cert[..resp.cert_size.try_into().unwrap()], false);
 }
 

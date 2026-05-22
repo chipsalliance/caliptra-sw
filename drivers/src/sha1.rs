@@ -100,7 +100,7 @@ impl Sha1 {
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::SHA1_CORRUPT_DIGEST,
-                &self.compressor.hash,
+                &mut self.compressor.hash,
             )
         };
 

@@ -23,7 +23,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 /// Describes a Caliptra stack memory region
-pub struct StackRange(u32, u32);
+pub struct StackRange(pub u32, u32);
 impl StackRange {
     /// **Note:** `stack_start` MUST be greater than `stack_end`. Caliptra's stack grows
     /// to a lower address.
@@ -198,7 +198,7 @@ impl CodeCoverage {
         }
     }
 
-    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps<'_> {
         CoverageBitmaps {
             rom: &self.rom_bit_vec,
             iccm: &self.iccm_bit_vec,
@@ -463,7 +463,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    ///   or `RvExceptionCause::LoadAddrMisaligned`
     pub fn read_bus(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         // Check if we are in step mode
         if self.is_execute_instr {
@@ -499,7 +499,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
+    ///   or `RvExceptionCause::StoreAddrMisaligned`
     pub fn write_bus(
         &mut self,
         size: RvSize,
@@ -538,7 +538,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    ///   or `RvExceptionCause::LoadAddrMisaligned`
     pub fn read_instr(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         match size {
             RvSize::Byte => Err(RvException::instr_access_fault(addr)),
@@ -583,11 +583,11 @@ impl<TBus: Bus> Cpu<TBus> {
                     return self.handle_nmi(*mcause, 0);
                 }
                 TimerAction::SetNmiVec { addr } => self.nmivec = *addr,
-                TimerAction::ExtInt { irq, can_wake } => {
-                    if self.global_int_en && self.ext_int_en && (!self.halted || *can_wake) {
-                        self.halted = false;
-                        return self.handle_external_int(*irq);
-                    }
+                TimerAction::ExtInt { irq, can_wake }
+                    if self.global_int_en && self.ext_int_en && (!self.halted || *can_wake) =>
+                {
+                    self.halted = false;
+                    return self.handle_external_int(*irq);
                 }
                 TimerAction::SetExtIntVec { addr } => self.ext_int_vec = *addr,
                 TimerAction::SetGlobalIntEn { en } => self.global_int_en = *en,
@@ -685,7 +685,9 @@ impl<TBus: Bus> Cpu<TBus> {
             Ok(_) => (),
             Err(_) => return StepAction::Fatal,
         };
-        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else { return StepAction::Fatal; };
+        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else {
+            return StepAction::Fatal;
+        };
         const MACHINE_EXTERNAL_INT: u32 = 0x8000_000B;
         let ret = self.handle_trap(self.read_pc(), MACHINE_EXTERNAL_INT, 0, next_pc);
         match ret {
@@ -755,8 +757,7 @@ mod tests {
         let mut bus = DynamicBus::new();
 
         let rom = Rom::new(
-            std::iter::repeat(RV32_NO_OP)
-                .take(256)
+            std::iter::repeat_n(RV32_NO_OP, 256)
                 .flat_map(u32::to_le_bytes)
                 .collect(),
         );
@@ -795,7 +796,7 @@ mod tests {
     #[test]
     fn test_coverage() {
         // represent program as an array of 16-bit and 32-bit instructions
-        let instructions = vec![
+        let instructions = [
             Instr::Compressed(0x1234),
             Instr::Compressed(0xABCD),
             Instr::General(0xDEADBEEF),

@@ -44,7 +44,8 @@ impl IDevIdCertCmd {
                 s: cmd.signature_s,
             };
 
-            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig) else {
+            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
+            else {
                 return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
             };
 

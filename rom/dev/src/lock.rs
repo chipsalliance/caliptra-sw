@@ -28,7 +28,7 @@ use crate::{cprintln, rom_env::RomEnv};
 /// * `reset_reason` - Reset reason
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
-    cprintln!("[state] Locking Datavault");
+    cprintln!("[state] Lock Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
         lock_common_reg_set(env);
@@ -38,12 +38,12 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
         lock_common_reg_set(env);
     }
 
-    cprintln!("[state] Locking PCR0, PCR1 and PCR31");
+    cprintln!("[state] Lock PCRs");
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_CURRENT);
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_JOURNEY);
     env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
 
-    cprintln!("[state] Locking ICCM");
+    cprintln!("[state] Lock ICCM");
     env.soc_ifc.set_iccm_lock(true);
 }
 

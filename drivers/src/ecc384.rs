@@ -218,7 +218,7 @@ impl Ecc384 {
         };
 
         // Wait for either the given condition or the error condition
-        wait::until(|| (condition() || err_condition()));
+        wait::until(|| condition() || err_condition());
 
         if err_condition() {
             // Clear the errors
@@ -358,7 +358,11 @@ impl Ecc384 {
             }
         }
 
-        let pub_key = Ecc384PubKey {
+        // This forces the variable to emit the unused mutable lint for every configuration but
+        // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
+        // for most configurations while allowing mutablilty only for fips validation.
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))]
+        let mut pub_key = Ecc384PubKey {
             x: Array4x12::read_from_reg(ecc.pubkey_x()),
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
@@ -370,7 +374,7 @@ impl Ecc384 {
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_PAIRWISE_CONSISTENCY_ERROR,
-                &pub_key,
+                &mut pub_key,
             )
         };
 
@@ -394,7 +398,7 @@ impl Ecc384 {
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
-                &pub_key,
+                &mut pub_key,
             )
         };
 
@@ -656,9 +660,6 @@ trait Ecc384KeyAccessErr {
     /// Convert to read seed operation error
     fn into_read_seed_err(self) -> CaliptraError;
 
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError;
-
     /// Convert to read private key operation error
     fn into_read_priv_key_err(self) -> CaliptraError;
 
@@ -673,15 +674,6 @@ impl Ecc384KeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
-        }
-    }
-
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError {
-        match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_DATA_KV_UNKNOWN,
         }
     }
 

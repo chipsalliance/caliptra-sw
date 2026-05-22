@@ -216,7 +216,9 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -252,7 +254,9 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::DpeCmdFailure,
-    ) else { panic!("Expected the second export cdi command to fail.")};
+    ) else {
+        panic!("Expected the second export cdi command to fail.")
+    };
     assert_eq!(
         e.status,
         DpeErrorCode::Crypto(CryptoError::ExportedCdiHandleDuplicateCdi).get_error_code()
@@ -308,7 +312,9 @@ fn test_sign_with_exported_cdi_measurement_update() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let measurement_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
@@ -342,7 +348,9 @@ fn test_sign_with_exported_cdi_measurement_update() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -398,7 +406,9 @@ fn test_sign_with_revoked_exported_cdi() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut sign_cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -469,7 +479,9 @@ fn test_sign_with_disabled_attestation() {
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
-    ) else { panic!("expected derive context resp!") };
+    ) else {
+        panic!("expected derive context resp!")
+    };
 
     let mut sign_cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -623,7 +635,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         flags: RotateCtxFlags::empty(),
     };
 
-    let Some(Response::RotateCtx(NewHandleResp{ handle, .. })) = execute_dpe_cmd(
+    let Some(Response::RotateCtx(NewHandleResp { handle, .. })) = execute_dpe_cmd(
         &mut model,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
@@ -646,7 +658,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         DpeResult::Success,
     );
 
-    let Some(Response::DeriveContext(DeriveContextResp {parent_handle, .. })) = resp else {
+    let Some(Response::DeriveContext(DeriveContextResp { parent_handle, .. })) = resp else {
         panic!("expected derive context resp!");
     };
 

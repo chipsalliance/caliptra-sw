@@ -170,7 +170,7 @@ impl Scope {
         }
     }
 
-    pub fn as_parent(&self) -> ParentScope {
+    pub fn as_parent(&self) -> ParentScope<'_> {
         ParentScope {
             scope: self,
             parent: None,
@@ -503,7 +503,7 @@ impl<'a> ParentScope<'a> {
             },
         })
     }
-    pub fn type_iter(&'a self) -> impl Iterator<Item = (&str, ParentScope<'a>)> {
+    pub fn type_iter(&'a self) -> impl Iterator<Item = (&'a str, ParentScope<'a>)> {
         self.scope.types.iter().map(|(name, scope)| {
             (
                 name.as_str(),
@@ -566,7 +566,7 @@ pub fn lookup_parameter<'a, 'b>(
         }
         return lookup_parameter(p.parent, name);
     }
-    return Err(RdlError::UnknownIdentifier(name));
+    Err(RdlError::UnknownIdentifier(name))
 }
 
 pub fn lookup_parameter_of_type<'a, 'b>(
@@ -618,13 +618,12 @@ pub struct Instance {
 }
 impl Instance {
     pub fn element_size(&self) -> u64 {
-        let width = if let Ok(Some(w)) = self.scope.property_val_opt::<u64>("regwidth") {
+        if let Ok(Some(w)) = self.scope.property_val_opt::<u64>("regwidth") {
             w / 8
         } else {
             // According to section 10.1 of the SystemRDL 2.0 spec, the default regwidth is 32-bits
             4
-        };
-        width
+        }
     }
     pub fn total_size(&self) -> Result<'static, u64> {
         let stride = if let Some(stride) = self.stride {
@@ -704,6 +703,73 @@ impl Instance {
             }
         }
         Ok(result)
+    }
+}
+
+fn is_intr_modifier(token: &Token) -> bool {
+    matches!(
+        *token,
+        Token::Identifier("posedge" | "negedge" | "bothedge" | "level" | "nonsticky")
+    )
+}
+
+struct PropertyAssignment<'a> {
+    prop_name: &'a str,
+    value: Value,
+}
+
+static INTR_BOOL_PROPERTY: PropertyMeta = PropertyMeta {
+    name: "intr",
+    ty: PropertyType::Boolean,
+    is_dynamic: true,
+};
+fn intr_bool_property<'a>(_name: &str) -> Result<'a, &'static PropertyMeta> {
+    Ok(&INTR_BOOL_PROPERTY)
+}
+
+impl<'a> PropertyAssignment<'a> {
+    fn parse(
+        tokens: &mut TokenIter<'a>,
+        parameters: Option<&ParameterScope<'_>>,
+        meta_lookup_fn: impl Fn(&'a str) -> Result<'a, &'static PropertyMeta>,
+    ) -> Result<'a, Self> {
+        if is_intr_modifier(tokens.peek(0)) && *tokens.peek(1) == Token::Identifier("intr") {
+            let intr_modifier = tokens.expect_identifier()?;
+            // skip the bool tokens...
+            PropertyAssignment::parse(tokens, parameters, intr_bool_property)?;
+            return Ok(Self {
+                prop_name: "intr",
+                value: match intr_modifier {
+                    "posedge" => InterruptType::PosEdge.into(),
+                    "negedge" => InterruptType::NegEdge.into(),
+                    "bothedge" => InterruptType::BothEdge.into(),
+                    "level" => InterruptType::Level.into(),
+                    "nonsticky" => InterruptType::NonSticky.into(),
+                    _ => InterruptType::Level.into(),
+                },
+            });
+        }
+
+        let prop_name = tokens.expect_identifier()?;
+        let prop_meta = meta_lookup_fn(prop_name)?;
+
+        let value = if *tokens.peek(0) == Token::Semicolon {
+            // This must be a boolean property set to true
+            if prop_meta.ty != PropertyType::Boolean
+                && prop_meta.ty != PropertyType::BooleanOrReference
+            {
+                return Err(RdlError::UnexpectedPropertyType {
+                    expected_type: prop_meta.ty,
+                    value: true.into(),
+                });
+            }
+            true.into()
+        } else {
+            tokens.expect(Token::Equals)?;
+            prop_meta.ty.parse_or_lookup(tokens, parameters)?
+        };
+        tokens.expect(Token::Semicolon)?;
+        Ok(Self { prop_name, value })
     }
 }
 
@@ -964,72 +1030,5 @@ mod tests {
             },
             root_scope
         );
-    }
-}
-
-fn is_intr_modifier(token: &Token) -> bool {
-    matches!(
-        *token,
-        Token::Identifier("posedge" | "negedge" | "bothedge" | "level" | "nonsticky")
-    )
-}
-
-struct PropertyAssignment<'a> {
-    prop_name: &'a str,
-    value: Value,
-}
-
-static INTR_BOOL_PROPERTY: PropertyMeta = PropertyMeta {
-    name: "intr",
-    ty: PropertyType::Boolean,
-    is_dynamic: true,
-};
-fn intr_bool_property<'a>(_name: &str) -> Result<'a, &'static PropertyMeta> {
-    Ok(&INTR_BOOL_PROPERTY)
-}
-
-impl<'a> PropertyAssignment<'a> {
-    fn parse(
-        tokens: &mut TokenIter<'a>,
-        parameters: Option<&ParameterScope<'_>>,
-        meta_lookup_fn: impl Fn(&'a str) -> Result<'a, &'static PropertyMeta>,
-    ) -> Result<'a, Self> {
-        if is_intr_modifier(tokens.peek(0)) && *tokens.peek(1) == Token::Identifier("intr") {
-            let intr_modifier = tokens.expect_identifier()?;
-            // skip the bool tokens...
-            PropertyAssignment::parse(tokens, parameters, intr_bool_property)?;
-            return Ok(Self {
-                prop_name: "intr",
-                value: match intr_modifier {
-                    "posedge" => InterruptType::PosEdge.into(),
-                    "negedge" => InterruptType::NegEdge.into(),
-                    "bothedge" => InterruptType::BothEdge.into(),
-                    "level" => InterruptType::Level.into(),
-                    "nonsticky" => InterruptType::NonSticky.into(),
-                    _ => InterruptType::Level.into(),
-                },
-            });
-        }
-
-        let prop_name = tokens.expect_identifier()?;
-        let prop_meta = meta_lookup_fn(prop_name)?;
-
-        let value = if *tokens.peek(0) == Token::Semicolon {
-            // This must be a boolean property set to true
-            if prop_meta.ty != PropertyType::Boolean
-                && prop_meta.ty != PropertyType::BooleanOrReference
-            {
-                return Err(RdlError::UnexpectedPropertyType {
-                    expected_type: prop_meta.ty,
-                    value: true.into(),
-                });
-            }
-            true.into()
-        } else {
-            tokens.expect(Token::Equals)?;
-            prop_meta.ty.parse_or_lookup(tokens, parameters)?
-        };
-        tokens.expect(Token::Semicolon)?;
-        Ok(Self { prop_name, value })
     }
 }

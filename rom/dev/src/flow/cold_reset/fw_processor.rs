@@ -73,16 +73,16 @@ impl FirmwareProcessor {
             // Hmac384 Engine
             hmac384: &mut env.hmac384,
 
-            /// Cryptographically Secure Random Number Generator
+            // Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
 
             // LMS Engine
             lms: &mut env.lms,
 
-            /// Ecc384 Engine
+            // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            /// SHA Acc lock state
+            // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
@@ -180,7 +180,7 @@ impl FirmwareProcessor {
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         let mut self_test_in_progress = false;
 
-        cprintln!("[fwproc] Wait for Commands...");
+        cprintln!("[fwproc] Waiting...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
@@ -193,7 +193,7 @@ impl FirmwareProcessor {
                     return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
                 }
 
-                cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
+                cprintln!("[fwproc] Cmd 0x{:08x}", txn.cmd());
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
@@ -211,7 +211,7 @@ impl FirmwareProcessor {
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
 
-                    cprintln!("[fwproc] Recv'd Img size: {} bytes" txn.dlen());
+                    cprintln!("[fwproc] Img size: {}" txn.dlen());
                     report_boot_status(FwProcessorDownloadImageComplete.into());
                     return Ok(txn);
                 }
@@ -285,7 +285,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
-                            cprintln!("[fwproc] Max # of measurements received.");
+                            cprintln!("[fwproc] Max measurements");
                             txn.complete(false)?;
 
                             // Raise a fatal error on hitting the max. limit.
@@ -330,7 +330,7 @@ impl FirmwareProcessor {
                         txn.send_response(resp.as_bytes())?;
                     }
                     _ => {
-                        cprintln!("[fwproc] Invalid command received");
+                        cprintln!("[fwproc] Invalid cmd");
                         // Don't complete the transaction here; let the fatal
                         // error handler do it to prevent a race condition
                         // setting the error code.
@@ -387,10 +387,7 @@ impl FirmwareProcessor {
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
-        cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
-            info.vendor_ecc_pub_key_idx,
-        );
+        cprintln!("[fwproc] ECC Key {}", info.vendor_ecc_pub_key_idx,);
         report_boot_status(FwProcessorImageVerificationComplete.into());
         Ok(info)
     }
@@ -501,7 +498,7 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[fwproc] Load FMC at address 0x{:08x} len {}",
+            "[fwproc] FMC 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
@@ -514,7 +511,7 @@ impl FirmwareProcessor {
         txn.copy_request(fmc_dest.as_mut_bytes())?;
 
         cprintln!(
-            "[fwproc] Load Runtime at address 0x{:08x} len {}",
+            "[fwproc] RT 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
@@ -620,7 +617,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    /// * Error code on failure.
     fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
         // NOTE: Currently ROM only supports commands with a fixed request size
         //       This check will need to be updated if any commands are added with a variable request size
@@ -658,7 +655,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///     Err - StashMeasurementReadFailure
+    /// * Err - StashMeasurementReadFailure
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
@@ -684,7 +681,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    /// * Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
@@ -717,7 +714,10 @@ impl FirmwareProcessor {
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+        let Some(dst) = persistent_data
+            .measurement_log
+            .get_mut(fht.meas_log_index as usize)
+        else {
             return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 

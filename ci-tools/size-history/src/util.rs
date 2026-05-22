@@ -8,10 +8,9 @@ pub fn expect_line(expected_val: &str, line: Option<&str>) -> io::Result<()> {
             return Ok(());
         }
     }
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        format!("Expected line with contents {expected_val:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with contents {expected_val:?}; was {line:?}"
+    )))
 }
 
 pub fn expect_line_with_prefix<'a>(prefix: &str, line: Option<&'a str>) -> io::Result<&'a str> {
@@ -20,10 +19,9 @@ pub fn expect_line_with_prefix<'a>(prefix: &str, line: Option<&'a str>) -> io::R
             return Ok(stripped);
         }
     };
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        format!("Expected line with prefix {prefix:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with prefix {prefix:?}; was {line:?}"
+    )))
 }
 
 pub fn expect_line_with_prefix_ignore_case<'a>(
@@ -37,10 +35,9 @@ pub fn expect_line_with_prefix_ignore_case<'a>(
             }
         }
     };
-    Err(io::Error::new(
-        io::ErrorKind::Other,
-        format!("Expected line with prefix {prefix:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with prefix {prefix:?}; was {line:?}"
+    )))
 }
 
 pub fn hex(bytes: &[u8]) -> String {
@@ -58,5 +55,5 @@ pub fn bytes_to_string(vec: Vec<u8>) -> io::Result<String> {
 }
 
 pub fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
+    io::Error::other(e)
 }

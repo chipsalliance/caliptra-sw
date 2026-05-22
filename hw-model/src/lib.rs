@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::{
     error::Error,
     fmt::Display,
-    io::{stdout, ErrorKind, Write},
+    io::{stdout, Write},
 };
 
 use caliptra_hw_model_types::{
@@ -92,14 +92,13 @@ pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 /// should use [`new`] instead.
 pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     let summary = params.summary();
-    DefaultHwModel::new_unbooted(params).map(|hw| {
+    DefaultHwModel::new_unbooted(params).inspect(|hw| {
         println!(
             "Using hardware-model {} trng={:?}",
             hw.type_name(),
             hw.trng_mode()
         );
         println!("{summary:#?}");
-        hw
     })
 }
 
@@ -743,10 +742,7 @@ pub trait HwModel: SocManager {
             match self.output().exit_status() {
                 Some(ExitStatus::Passed) => return Ok(()),
                 Some(ExitStatus::Failed) => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
-                        "firmware exited with failure",
-                    ))
+                    return Err(std::io::Error::other("firmware exited with failure"))
                 }
                 None => {}
             }
@@ -759,8 +755,7 @@ pub trait HwModel: SocManager {
             match self.output().exit_status() {
                 Some(ExitStatus::Failed) => return Ok(()),
                 Some(ExitStatus::Passed) => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
+                    return Err(std::io::Error::other(
                         "firmware exited with success when failure was expected",
                     ))
                 }
@@ -1060,7 +1055,7 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
-    fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<Self>, ModelError>
+    fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<'_, Self>, ModelError>
     where
         Self: Sized,
     {
@@ -1072,7 +1067,7 @@ pub trait HwModel: SocManager {
         }
     }
 
-    fn try_mailbox_receive(&mut self) -> Result<Option<MailboxRecvTxn<Self>>, ModelError>
+    fn try_mailbox_receive(&mut self) -> Result<Option<MailboxRecvTxn<'_, Self>>, ModelError>
     where
         Self: Sized,
     {

@@ -527,7 +527,7 @@ impl SetAuthManifestCmd {
     }
 }
 
-#[cfg(all(test))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

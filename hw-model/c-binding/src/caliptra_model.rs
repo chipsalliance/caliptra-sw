@@ -72,9 +72,21 @@ pub unsafe extern "C" fn caliptra_model_init_default(
     // Generate Model and cast to caliptra_model
     *model = Box::into_raw(Box::new(
         caliptra_hw_model::new_unbooted(InitParams {
-            rom: slice::from_raw_parts(params.rom.data, params.rom.len),
-            dccm: slice::from_raw_parts(params.dccm.data, params.dccm.len),
-            iccm: slice::from_raw_parts(params.iccm.data, params.iccm.len),
+            rom: if params.rom.data.is_null() {
+                &[]
+            } else {
+                slice::from_raw_parts(params.rom.data, params.rom.len)
+            },
+            dccm: if params.dccm.data.is_null() {
+                &[]
+            } else {
+                slice::from_raw_parts(params.dccm.data, params.dccm.len)
+            },
+            iccm: if params.iccm.data.is_null() {
+                &[]
+            } else {
+                slice::from_raw_parts(params.iccm.data, params.iccm.len)
+            },
             security_state: SecurityState::from(params.security_state as u32),
             soc_user: MailboxRequester::SocUser(params.soc_user),
             cptra_obf_key,
@@ -177,7 +189,7 @@ pub unsafe extern "C" fn caliptra_model_output_peek(model: *mut caliptra_model) 
     assert!(!model.is_null());
     let peek_str = (*{ model as *mut DefaultHwModel }).output().peek();
     caliptra_buffer {
-        data: peek_str.as_ptr() as *const u8,
+        data: peek_str.as_ptr(),
         len: peek_str.len(),
     }
 }

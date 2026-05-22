@@ -118,10 +118,8 @@ pub fn skip_to_struct_with_attributes(iter: &mut impl Iterator<Item = TokenTree>
     let mut attributes = Vec::new();
     loop {
         match iter.next() {
-            Some(TokenTree::Ident(ident)) => {
-                if ident == "struct" {
-                    return attributes;
-                }
+            Some(TokenTree::Ident(ident)) if ident == "struct" => {
+                return attributes;
             }
             Some(TokenTree::Punct(punct)) if punct.as_char() == '#' => {
                 prev_token_was_hash = true;
@@ -146,14 +144,10 @@ pub fn collect_while(
     let mut result = TokenStream::new();
     loop {
         match iter.next() {
-            Some(t) => {
-                if pred(&t) {
-                    result.extend(Some(t));
-                } else {
-                    return result;
-                }
+            Some(t) if pred(&t) => {
+                result.extend(Some(t));
             }
-            None => return result,
+            _ => return result,
         }
     }
 }
@@ -161,10 +155,8 @@ pub fn collect_while(
 pub fn skip_to_group(iter: &mut impl Iterator<Item = TokenTree>, delimiter: Delimiter) -> Group {
     loop {
         match iter.next() {
-            Some(TokenTree::Group(group)) => {
-                if group.delimiter() == delimiter {
-                    return group;
-                }
+            Some(TokenTree::Group(group)) if group.delimiter() == delimiter => {
+                return group;
             }
             None => panic!("Unexpected end of tokens while searching for group"),
             _ => {}
@@ -175,12 +167,12 @@ pub fn skip_to_group(iter: &mut impl Iterator<Item = TokenTree>, delimiter: Deli
 pub fn skip_to_attribute_or_ident(iter: &mut impl Iterator<Item = TokenTree>) -> Option<TokenTree> {
     loop {
         match iter.next() {
-            Some(TokenTree::Punct(punct)) => {
-                if punct.as_char() == '#' && punct.spacing() == Spacing::Alone {
-                    if let Some(TokenTree::Group(group)) = iter.next() {
-                        if group.delimiter() == Delimiter::Bracket {
-                            return Some(TokenTree::Group(group));
-                        }
+            Some(TokenTree::Punct(punct))
+                if punct.as_char() == '#' && punct.spacing() == Spacing::Alone =>
+            {
+                if let Some(TokenTree::Group(group)) = iter.next() {
+                    if group.delimiter() == Delimiter::Bracket {
+                        return Some(TokenTree::Group(group));
                     }
                 }
             }
@@ -222,10 +214,8 @@ pub fn skip_to_field_with_attributes(
                     args.insert(key.to_string(), value);
                     let token = iter.next();
                     match token {
-                        Some(TokenTree::Punct(ref punct)) => {
-                            if punct.as_char() == ',' {
-                                continue;
-                            }
+                        Some(TokenTree::Punct(ref punct)) if punct.as_char() == ',' => {
+                            continue;
                         }
                         None => break,
                         _ => {}

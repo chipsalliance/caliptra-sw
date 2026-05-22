@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, wait, Array4x12, Array4x8};
@@ -107,13 +105,18 @@ impl Sha384 {
                 }
             }
         }
-        let digest = self.read_digest();
+
+        // This forces the variable to emit the unused mutable lint for every configuration but
+        // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
+        // for most configurations while allowing mutablilty only for fips validation.
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))]
+        let mut digest = self.read_digest();
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::SHA384_CORRUPT_DIGEST,
-                &digest,
+                &mut digest,
             )
         };
 

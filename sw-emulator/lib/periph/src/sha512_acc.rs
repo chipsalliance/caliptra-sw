@@ -277,7 +277,7 @@ impl Sha512AcceleratorRegs {
     ) -> Result<(), BusError> {
         // Writes have to be Word aligned
         if size != RvSize::Word
-            || start_address % (RvSize::Word as RvData) != 0
+            || !start_address.is_multiple_of(RvSize::Word as RvData)
             || start_address >= (MAX_MAILBOX_CAPACITY_WORDS as RvData)
         {
             Err(BusError::StoreAccessFault)?
@@ -410,7 +410,7 @@ impl Sha512AcceleratorRegs {
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     fn compute_mbox_hash(&mut self) {
         let data_len = self.dlen.reg.get() as usize;
-        let totaldwords = (data_len + (RvSize::Word as usize - 1)) / (RvSize::Word as usize);
+        let totaldwords = data_len.div_ceil(RvSize::Word as usize);
         let totalblocks = ((data_len + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
         let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
         let mut block_arr: Vec<u8> = vec![0; totalbytes];
@@ -654,8 +654,8 @@ mod tests {
         // Write to the mailbox.
         let mut mb_ram = MailboxRam::new();
         if !data.is_empty() {
-            assert!((start_address % 4) == 0);
-            let mut data_word_multiples = vec![0u8; ((start_address + data.len() + 3) / 4) * 4];
+            assert!(start_address.is_multiple_of(4));
+            let mut data_word_multiples = vec![0u8; (start_address + data.len()).div_ceil(4) * 4];
             data_word_multiples[start_address..start_address + data.len()].copy_from_slice(data);
 
             for idx in (0..data_word_multiples.len()).step_by(4) {

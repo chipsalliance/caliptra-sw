@@ -847,8 +847,7 @@ fn test_csrng_repetition_count() {
             const NUM_TEST_WINDOW_NIBBLES: usize = 2048 / 4;
             let num_good_entropy_nibbles = NUM_TEST_WINDOW_NIBBLES.saturating_sub(repeat + 2);
 
-            iter::repeat(0b1111)
-                .take(repeat)
+            std::iter::repeat_n(0b1111, repeat)
                 .chain(iter::once(0b0000)) // Break repetition
                 .chain(trng_nibbles().take(num_good_entropy_nibbles))
                 .chain(iter::once(0b0000)) // Break repetition

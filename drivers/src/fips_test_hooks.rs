@@ -71,9 +71,9 @@ impl FipsTestHook {
     /// This function intentionally corrupts the data provided
     /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
     #[inline(always)]
-    pub unsafe fn corrupt_data_if_hook_set<T>(hook: u8, data: &T) {
+    pub unsafe fn corrupt_data_if_hook_set<T>(hook: u8, data: &mut T) {
         if get_fips_test_hook_code() == hook {
-            let p = data as *const _ as *mut u8;
+            let p = data as *mut _ as *mut u8;
             core::ptr::write_volatile(p, !core::ptr::read_volatile(p));
         }
     }

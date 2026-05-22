@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
 };
 
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 #[derive(Clone)]
@@ -30,10 +30,13 @@ impl Write for LogFile {
     }
 }
 
+#[cfg(feature = "verilator")]
 pub struct NullBus();
+
+#[cfg(feature = "verilator")]
 impl Bus for NullBus {
     fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        Err(BusError::LoadAccessFault)
+        Err(caliptra_emu_bus::BusError::LoadAccessFault)
     }
 
     fn write(
@@ -42,7 +45,7 @@ impl Bus for NullBus {
         _addr: RvAddr,
         _val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        Err(BusError::StoreAccessFault)
+        Err(caliptra_emu_bus::BusError::StoreAccessFault)
     }
 }
 

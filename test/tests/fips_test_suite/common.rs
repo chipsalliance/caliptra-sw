@@ -283,7 +283,7 @@ pub fn fips_default_boot_params() -> BootParams<'static> {
 
 pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // Create params if not provided
-    let mut init_params = init_params.unwrap_or(InitParams::default());
+    let mut init_params = init_params.unwrap_or_default();
 
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]

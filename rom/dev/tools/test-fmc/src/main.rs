@@ -43,11 +43,11 @@ pub fn main() {}
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
 #[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
-const PAD_LEN: usize = 4988; // TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9488; // TEST_FMC_INTERACTIVE
 #[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
-const PAD_LEN: usize = 5224; // FAKE_TEST_FMC_WITH_UART
+const PAD_LEN: usize = 9724; // FAKE_TEST_FMC_WITH_UART
 #[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
-const PAD_LEN: usize = 5452; // FAKE_TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9832; // FAKE_TEST_FMC_INTERACTIVE
 #[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
 const PAD_LEN: usize = 0;
 
@@ -62,7 +62,7 @@ static PAD: [u32; PAD_LEN / 4] = {
 };
 
 const BANNER: &str = r#"
-Running Caliptra FMC ...
+Running Caliptra FMC .......
 "#;
 
 #[no_mangle]
@@ -426,7 +426,7 @@ fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     const PCR_COUNT: usize = 32;
     for i in 0..PCR_COUNT {
         let pcr = pcr_bank.read_pcr(PcrId::try_from(i as u8).unwrap());
-        let mut pcr_bytes: [u32; 12] = pcr.try_into().unwrap();
+        let mut pcr_bytes: [u32; 12] = pcr.into();
 
         swap_word_bytes_inplace(&mut pcr_bytes);
         send_to_mailbox(mbox, pcr.as_bytes(), false);

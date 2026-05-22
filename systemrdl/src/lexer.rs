@@ -182,7 +182,7 @@ fn next_while(iter: &mut Chars, mut f: impl FnMut(char) -> bool) {
     }
 }
 
-fn parse_num(s: &str, radix: u32) -> Token {
+fn parse_num(s: &str, radix: u32) -> Token<'_> {
     let replaced;
     let s = if s.contains('_') {
         replaced = s.replace('_', "");

@@ -69,6 +69,7 @@ pub struct RomEnv {
     pub pcr_bank: PcrBank,
 
     /// FHT Data Store
+    #[allow(unused)]
     pub fht_data_store: FhtDataStore,
 
     /// Cryptographically Secure Random Number Generator

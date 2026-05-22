@@ -48,7 +48,7 @@ impl Mailbox {
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
-    pub fn try_start_send_txn(&mut self) -> Option<MailboxSendTxn> {
+    pub fn try_start_send_txn(&mut self) -> Option<MailboxSendTxn<'_>> {
         let mbox = self.mbox.regs();
         if mbox.lock().read().lock() {
             None
@@ -63,7 +63,7 @@ impl Mailbox {
     /// Waits until the uC can acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
-    pub fn wait_until_start_send_txn(&mut self) -> MailboxSendTxn {
+    pub fn wait_until_start_send_txn(&mut self) -> MailboxSendTxn<'_> {
         let mbox = self.mbox.regs();
         while mbox.lock().read().lock() {}
         MailboxSendTxn {
@@ -75,7 +75,7 @@ impl Mailbox {
     /// Attempts to start receiving data by checking the status.
     /// # Returns
     /// * 'MailboxRecvTxn' - Object representing a receive operation
-    pub fn try_start_recv_txn(&mut self) -> Option<MailboxRecvTxn> {
+    pub fn try_start_recv_txn(&mut self) -> Option<MailboxRecvTxn<'_>> {
         let mbox = self.mbox.regs();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn {
@@ -87,7 +87,7 @@ impl Mailbox {
     }
 
     /// Lets the caller peek into the mailbox without touching the transaction.
-    pub fn peek_recv(&mut self) -> Option<MailboxRecvPeek> {
+    pub fn peek_recv(&mut self) -> Option<MailboxRecvPeek<'_>> {
         let mbox = self.mbox.regs();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvPeek {
@@ -378,7 +378,7 @@ impl MailboxRecvTxn<'_> {
     pub fn drop_words(&mut self, count: usize) -> CaliptraResult<()> {
         let mbox = self.mbox.regs_mut();
         let dlen_bytes = mbox.dlen().read() as usize;
-        let dlen_words = (dlen_bytes + 3) / 4;
+        let dlen_words = dlen_bytes.div_ceil(4);
         let words_to_read = min(count, dlen_words);
         for _ in 0..words_to_read {
             _ = mbox.dataout().read();

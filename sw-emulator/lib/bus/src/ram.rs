@@ -64,7 +64,7 @@ impl Bus for Ram {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
-    ///                   or `BusExceptionCause::LoadAddrMisaligned`
+    ///   or `BusExceptionCause::LoadAddrMisaligned`
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         if 2 == self.error_injection {
             return Err(BusError::InstrAccessFault);
@@ -89,7 +89,7 @@ impl Bus for Ram {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
-    ///                   or `BusExceptionCause::StoreAddrMisaligned`
+    ///   or `BusExceptionCause::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match self.data.write(size, addr, val) {
             Ok(data) => Ok(data),

@@ -1321,7 +1321,7 @@ mod tests {
         while regs.lock().read().lock() {}
 
         regs.cmd().write(|_| cmd);
-        regs.dlen().write(|_| (data.len() as u32));
+        regs.dlen().write(|_| data.len() as u32);
 
         let word_size = RvSize::Word as usize;
         let remainder = data.len() % word_size;

@@ -21,18 +21,10 @@ impl uWrite for Printer {
     type Error = Infallible;
 
     /// Writes a string slice into this writer, returning whether the write succeeded.
-    #[cfg(not(feature = "std"))]
     #[inline(never)]
     fn write_str(&mut self, _str: &str) -> Result<(), Self::Error> {
         #[cfg(feature = "emu")]
         crate::Uart::default().write(_str);
-        Ok(())
-    }
-
-    /// Writes a string slice into this writer, returning whether the write succeeded.
-    #[cfg(feature = "std")]
-    fn write_str(&mut self, str: &str) -> Result<(), Self::Error> {
-        print!("{str}");
         Ok(())
     }
 }

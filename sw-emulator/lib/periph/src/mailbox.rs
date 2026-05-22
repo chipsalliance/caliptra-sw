@@ -130,7 +130,6 @@ pub struct MailboxInternal {
 }
 
 /// Mailbox Peripheral
-
 impl MailboxInternal {
     pub fn new(clock: &Clock, ram: MailboxRam) -> Self {
         Self {
@@ -253,7 +252,6 @@ pub struct MailboxRegs {
     /// Trigger interrupt
     irq: bool,
 
-    ///
     timer: Timer,
 }
 
@@ -434,10 +432,6 @@ pub struct DataIn(pub u32);
 
 #[derive(PartialEq)]
 /// Data length
-pub struct Owner(pub u32);
-
-#[derive(PartialEq)]
-/// Data length
 pub struct Cmd(pub u32);
 
 statemachine! {
@@ -492,8 +486,6 @@ pub struct Context {
     pub locked: u32,
     /// Who acquired the lock.
     pub user: MailboxRequester,
-    /// Execute flag
-    pub exec: bool,
     /// number of data elements
     pub dlen: u32,
     /// Fifo storage
@@ -513,7 +505,6 @@ impl Context {
         Self {
             locked: 0,
             user: MailboxRequester::Caliptra,
-            exec: false,
             dlen: 0,
             status: LocalRegisterCopy::new(0),
             fifo: Fifo::new(ram),

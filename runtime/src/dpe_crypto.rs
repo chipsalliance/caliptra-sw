@@ -197,7 +197,10 @@ impl<'a> Hasher for DpeHasher<'a> {
 
 impl<'a> Crypto for DpeCrypto<'a> {
     type Cdi = KeyId;
-    type Hasher<'b> = DpeHasher<'b> where Self: 'b;
+    type Hasher<'b>
+        = DpeHasher<'b>
+    where
+        Self: 'b;
     type PrivKey = KeyId;
 
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {

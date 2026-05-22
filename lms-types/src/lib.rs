@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg_attr(all(not(feature = "std"), not(test), not(fuzzing)), no_std)]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;

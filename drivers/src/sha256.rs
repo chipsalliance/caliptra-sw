@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::{array::Array4x16, wait, Array4x8, CaliptraError, CaliptraResult};
 use caliptra_registers::sha256::Sha256Reg;
 use zeroize::Zeroize;
@@ -125,13 +123,17 @@ impl Sha256Alg for Sha256 {
             }
         }
 
-        let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
+        // This forces the variable to emit the unused mutable lint for every configuration but
+        // fips-test-hooks (where its actually used).  This allows us to keep the non-mutable check
+        // for most configurations while allowing mutablilty only for fips validation.
+        #[cfg_attr(not(feature = "fips-test-hooks"), expect(unused_mut))]
+        let mut digest = Array4x8::read_from_reg(self.sha256.regs().digest());
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::SHA256_CORRUPT_DIGEST,
-                &digest,
+                &mut digest,
             )
         };
 

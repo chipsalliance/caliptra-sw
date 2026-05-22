@@ -231,7 +231,7 @@ impl<'a> Ecdsa384CertBuilder<'a> {
             256..=4096 => {
                 *buf.get_mut(pos)? = 0x82;
                 *buf.get_mut(pos + 1)? = (len >> u8::BITS) as u8;
-                *buf.get_mut(pos + 2)? = (len as u8) & u8::MAX;
+                *buf.get_mut(pos + 2)? = len as u8;
                 pos += 3;
             }
             _ => None?,

@@ -18,7 +18,6 @@ use caliptra_emu_cpu::{Cpu, StepAction};
 use caliptra_emu_types::RvSize;
 use clap::{arg, value_parser};
 use std::error::Error;
-use std::io::ErrorKind;
 use std::path::PathBuf;
 
 mod exec;
@@ -107,7 +106,7 @@ static TESTS_TO_RUN: &[TestInfo] = &[
 ];
 
 fn into_io_error(err: impl Into<Box<dyn Error + Send + Sync>>) -> std::io::Error {
-    std::io::Error::new(ErrorKind::Other, err)
+    std::io::Error::other(err)
 }
 
 fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Result<()> {
@@ -124,13 +123,10 @@ fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Resu
             }
         };
         if expected_word != actual_word {
-            return Err(std::io::Error::new(
-                ErrorKind::Other,
-                format!(
-                    "At addr {:#x}, expected {:#010x} but was {:#010x}",
-                    addr, expected_word, actual_word
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "At addr {:#x}, expected {:#010x} but was {:#010x}",
+                addr, expected_word, actual_word
+            )));
         }
         addr += 4;
     }
@@ -171,10 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         if !is_test_complete(&mut cpu.bus) {
-            return Err(std::io::Error::new(
-                ErrorKind::Other,
-                "test did not complete",
-            ))?;
+            Err(std::io::Error::other("test did not complete"))?;
         }
         check_reference_data(&reference_txt, &mut cpu.bus)?;
         println!("PASSED");
