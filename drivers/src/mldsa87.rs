@@ -171,6 +171,7 @@ impl Mldsa87 {
     /// # Returns
     ///
     /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
+    #[cfg(feature = "cavp-test-harness")]
     pub fn key_pair_no_pct(
         &mut self,
         seed: Mldsa87Seed,
