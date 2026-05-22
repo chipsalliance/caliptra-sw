@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use bitfield::size_of;
-use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
+use caliptra_emu_bus::{Bus, BusError, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::RvSize;
 use smlang::statemachine;
@@ -73,9 +73,13 @@ pub enum Granularity {
     Bits64,
 }
 
-// [TODO][CAP2] Used for both UDS (flow correct) and field entropy (needs implementation).
-// 80 bytes (UDS) + 96 bytes (FE partitions) = 176 bytes (0xB0)
-const FUSE_BANK_SIZE_BYTES: usize = 176;
+// Fuse bank layout (from UDS seed base address):
+//   UDS:           64 bytes (16 x u32)
+//   UDS digest:     8 bytes ( 2 x u32)
+//   FE partitions:  4 x (8 bytes data + 8 bytes digest) = 64 bytes
+//   Total:         136 bytes (34 x u32)
+const FUSE_BANK_SIZE_BYTES: usize = 136;
+const UDS_SIZE_BYTES: usize = 64;
 
 pub struct Context {
     pub address: Option<u32>,
@@ -180,9 +184,10 @@ impl StateMachineContext for Context {
     fn start_digest(&mut self) -> Result<(), ()> {
         use sha2::{Digest, Sha512};
 
-        // Compute SHA-512 hash of fuse bank contents
+        // Compute SHA-512 hash of UDS portion of fuse bank (first 64 bytes)
         let mut hasher = Sha512::new();
-        for word in self.fuse_bank.iter() {
+        let uds_words = UDS_SIZE_BYTES / size_of::<u32>();
+        for word in self.fuse_bank[..uds_words].iter() {
             hasher.update(word.to_be_bytes());
         }
         let hash = hasher.finalize();
@@ -280,8 +285,8 @@ pub struct FuseController {
 }
 
 impl FuseController {
-    // The fuse banks is emulated as part of this peripheral
-    pub const FUSE_BANK_OFFSET: u64 = 0x800;
+    /// Register offset for ss_uds_seed_base_addr_l in the SoC register block
+    const SS_UDS_SEED_BASE_ADDR_L_OFFSET: u32 = 0x520;
 
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
@@ -329,12 +334,21 @@ impl FuseController {
     }
 
     pub fn write_address(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
-        // Only use lowest 12 bits and make relative to FUSE_BANK_OFFSET
-        let masked_addr = (val & 0xFFF) as u64;
-        if masked_addr < Self::FUSE_BANK_OFFSET {
+        // Read the UDS seed base address from SoC registers to determine the
+        // fuse bank base. The firmware writes (dest & 0xFFF) where dest is
+        // computed relative to this base.
+        let uds_base = self
+            .state_machine
+            .context
+            .soc_reg
+            .read(RvSize::Word, Self::SS_UDS_SEED_BASE_ADDR_L_OFFSET)
+            .map_err(|_| BusError::StoreAccessFault)?;
+        let base_offset = uds_base & 0xFFF;
+        let masked_addr = val & 0xFFF;
+        if masked_addr < base_offset {
             return Err(BusError::StoreAccessFault);
         }
-        let relative_addr = (masked_addr - Self::FUSE_BANK_OFFSET) as u32;
+        let relative_addr = masked_addr - base_offset;
         self.state_machine.context.address = Some(relative_addr);
         Ok(())
     }
