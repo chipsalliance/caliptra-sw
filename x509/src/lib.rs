@@ -15,19 +15,19 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod cert_bldr;
-mod fmc_alias_cert;
-mod fmc_alias_csr;
-mod idevid_csr;
-mod ldevid_cert;
-mod rt_alias_cert;
+mod fmc_alias_cert_ecc_384;
+mod fmc_alias_csr_ecc_384;
+mod idevid_csr_ecc_384;
+mod ldevid_cert_ecc_384;
+mod rt_alias_cert_ecc_384;
 mod test_util;
 
 pub use cert_bldr::{Ecdsa384CertBuilder, Ecdsa384CsrBuilder, Ecdsa384Signature};
-pub use fmc_alias_cert::{FmcAliasCertTbs, FmcAliasCertTbsParams};
-pub use fmc_alias_csr::{FmcAliasCsrTbs, FmcAliasCsrTbsParams};
-pub use idevid_csr::{InitDevIdCsrTbs, InitDevIdCsrTbsParams};
-pub use ldevid_cert::{LocalDevIdCertTbs, LocalDevIdCertTbsParams};
-pub use rt_alias_cert::{RtAliasCertTbs, RtAliasCertTbsParams};
+pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
+pub use fmc_alias_csr_ecc_384::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};
+pub use idevid_csr_ecc_384::{InitDevIdCsrTbsEcc384, InitDevIdCsrTbsEcc384Params};
+pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
+pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 use zeroize::Zeroize;
 
 pub const NOT_BEFORE: &str = "20230101000000Z";

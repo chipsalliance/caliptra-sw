@@ -225,7 +225,7 @@ impl InitDevIdLayer {
         let key_pair = &output.subj_key_pair;
 
         // CSR `To Be Signed` Parameters
-        let params = InitDevIdCsrTbsParams {
+        let params = InitDevIdCsrTbsEcc384Params {
             // Unique Endpoint Identifier
             ueid: &X509::ueid(env)?,
 
@@ -237,7 +237,7 @@ impl InitDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = InitDevIdCsrTbs::new(&params);
+        let tbs = InitDevIdCsrTbsEcc384::new(&params);
 
         cprintln!(
             "[idev] Sign CSR w/ SUBJECT.KEYID = {}",

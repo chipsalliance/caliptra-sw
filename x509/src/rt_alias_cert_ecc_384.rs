@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    rt_alias_cert.rs
+    rt_alias_cert_ecc_384.rs
 
 Abstract:
 
@@ -14,9 +14,9 @@ Abstract:
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/rt_alias_cert_tbs.rs"));
+include!(concat!(env!("OUT_DIR"), "/rt_alias_cert_tbs_ecc_384.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/rt_alias_cert_tbs.rs"}
+include! {"../build/rt_alias_cert_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -34,36 +34,38 @@ mod tests {
         let issuer_key = Ecc384AsymKey::default();
         let ec_key = issuer_key.priv_key().ec_key().unwrap();
 
-        let params = RtAliasCertTbsParams {
-            serial_number: &[0xABu8; RtAliasCertTbsParams::SERIAL_NUMBER_LEN],
-            public_key: TryInto::<&[u8; RtAliasCertTbsParams::PUBLIC_KEY_LEN]>::try_into(
+        let params = RtAliasCertTbsEcc384Params {
+            serial_number: &[0xABu8; RtAliasCertTbsEcc384Params::SERIAL_NUMBER_LEN],
+            public_key: TryInto::<&[u8; RtAliasCertTbsEcc384Params::PUBLIC_KEY_LEN]>::try_into(
                 subject_key.pub_key(),
             )
             .unwrap(),
-            subject_sn: &TryInto::<[u8; RtAliasCertTbsParams::SUBJECT_SN_LEN]>::try_into(
+            subject_sn: &TryInto::<[u8; RtAliasCertTbsEcc384Params::SUBJECT_SN_LEN]>::try_into(
                 subject_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            issuer_sn: &TryInto::<[u8; RtAliasCertTbsParams::ISSUER_SN_LEN]>::try_into(
+            issuer_sn: &TryInto::<[u8; RtAliasCertTbsEcc384Params::ISSUER_SN_LEN]>::try_into(
                 issuer_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            ueid: &[0xAB; RtAliasCertTbsParams::UEID_LEN],
-            subject_key_id: &TryInto::<[u8; RtAliasCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
-                subject_key.sha1(),
-            )
-            .unwrap(),
-            authority_key_id: &TryInto::<[u8; RtAliasCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
-                issuer_key.sha1(),
-            )
-            .unwrap(),
+            ueid: &[0xAB; RtAliasCertTbsEcc384Params::UEID_LEN],
+            subject_key_id:
+                &TryInto::<[u8; RtAliasCertTbsEcc384Params::SUBJECT_KEY_ID_LEN]>::try_into(
+                    subject_key.sha1(),
+                )
+                .unwrap(),
+            authority_key_id:
+                &TryInto::<[u8; RtAliasCertTbsEcc384Params::SUBJECT_KEY_ID_LEN]>::try_into(
+                    issuer_key.sha1(),
+                )
+                .unwrap(),
             tcb_info_rt_svn: &[0xE3],
-            tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsParams::TCB_INFO_RT_TCI_LEN],
+            tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsEcc384Params::TCB_INFO_RT_TCI_LEN],
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
         };
 
-        let cert = RtAliasCertTbs::new(&params);
+        let cert = RtAliasCertTbsEcc384::new(&params);
 
         let sig = cert
             .sign(|b| {
@@ -73,45 +75,49 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(cert.tbs(), RtAliasCertTbs::TBS_TEMPLATE);
+        assert_ne!(cert.tbs(), RtAliasCertTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::PUBLIC_KEY_OFFSET
-                ..RtAliasCertTbs::PUBLIC_KEY_OFFSET + RtAliasCertTbs::PUBLIC_KEY_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::PUBLIC_KEY_OFFSET
+                ..RtAliasCertTbsEcc384::PUBLIC_KEY_OFFSET + RtAliasCertTbsEcc384::PUBLIC_KEY_LEN],
             params.public_key,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::SUBJECT_SN_OFFSET
-                ..RtAliasCertTbs::SUBJECT_SN_OFFSET + RtAliasCertTbs::SUBJECT_SN_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::SUBJECT_SN_OFFSET
+                ..RtAliasCertTbsEcc384::SUBJECT_SN_OFFSET + RtAliasCertTbsEcc384::SUBJECT_SN_LEN],
             params.subject_sn,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::ISSUER_SN_OFFSET
-                ..RtAliasCertTbs::ISSUER_SN_OFFSET + RtAliasCertTbs::ISSUER_SN_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::ISSUER_SN_OFFSET
+                ..RtAliasCertTbsEcc384::ISSUER_SN_OFFSET + RtAliasCertTbsEcc384::ISSUER_SN_LEN],
             params.issuer_sn,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::UEID_OFFSET
-                ..RtAliasCertTbs::UEID_OFFSET + RtAliasCertTbs::UEID_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::UEID_OFFSET
+                ..RtAliasCertTbsEcc384::UEID_OFFSET + RtAliasCertTbsEcc384::UEID_LEN],
             params.ueid,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::SUBJECT_KEY_ID_OFFSET
-                ..RtAliasCertTbs::SUBJECT_KEY_ID_OFFSET + RtAliasCertTbs::SUBJECT_KEY_ID_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                ..RtAliasCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                    + RtAliasCertTbsEcc384::SUBJECT_KEY_ID_LEN],
             params.subject_key_id,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::AUTHORITY_KEY_ID_OFFSET
-                ..RtAliasCertTbs::AUTHORITY_KEY_ID_OFFSET + RtAliasCertTbs::AUTHORITY_KEY_ID_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                ..RtAliasCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                    + RtAliasCertTbsEcc384::AUTHORITY_KEY_ID_LEN],
             params.authority_key_id,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::TCB_INFO_RT_SVN_OFFSET
-                ..RtAliasCertTbs::TCB_INFO_RT_SVN_OFFSET + RtAliasCertTbs::TCB_INFO_RT_SVN_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_OFFSET
+                ..RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_OFFSET
+                    + RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_LEN],
             params.tcb_info_rt_svn,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::TCB_INFO_RT_TCI_OFFSET
-                ..RtAliasCertTbs::TCB_INFO_RT_TCI_OFFSET + RtAliasCertTbs::TCB_INFO_RT_TCI_LEN],
+            &cert.tbs()[RtAliasCertTbsEcc384::TCB_INFO_RT_TCI_OFFSET
+                ..RtAliasCertTbsEcc384::TCB_INFO_RT_TCI_OFFSET
+                    + RtAliasCertTbsEcc384::TCB_INFO_RT_TCI_LEN],
             params.tcb_info_rt_tci,
         );
 
@@ -132,10 +138,10 @@ mod tests {
     #[cfg(feature = "generate_templates")]
     fn test_rt_alias_template() {
         let manual_template =
-            std::fs::read(std::path::Path::new("./build/rt_alias_cert_tbs.rs")).unwrap();
+            std::fs::read(std::path::Path::new("./build/rt_alias_cert_tbs_ecc_384.rs")).unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/rt_alias_cert_tbs.rs"
+            "/rt_alias_cert_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {

@@ -15,7 +15,7 @@ use caliptra_drivers::okmutref;
 
 use caliptra_drivers::FmcAliasCsr;
 
-use caliptra_x509::{FmcAliasCsrTbs, FmcAliasCsrTbsParams};
+use caliptra_x509::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};
 
 use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult};
 
@@ -100,7 +100,7 @@ pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     hasher.finalize(&mut fuse_info_digest)?;
 
     // CSR `To Be Signed` Parameters
-    let params = FmcAliasCsrTbsParams {
+    let params = FmcAliasCsrTbsEcc384Params {
         ueid: &X509::ueid(env)?,
         subject_sn: &output.subj_sn,
         public_key: &key_pair.pub_key.to_der(),
@@ -112,7 +112,7 @@ pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     };
 
     // Generate the `To Be Signed` portion of the CSR
-    let tbs = FmcAliasCsrTbs::new(&params);
+    let tbs = FmcAliasCsrTbsEcc384::new(&params);
 
     // Sign the `To Be Signed` portion
     let mut sig =
