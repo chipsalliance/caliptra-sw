@@ -473,6 +473,7 @@ impl<'a> Mldsa87<'a> {
     /// Sign a variable-length message with the specified private key, skipping the
     /// post-sign verification step. Intended for ACVP testing only, where the public
     /// key is not available and the anti-glitch check cannot be performed.
+    #[cfg(feature = "cavp-test-harness")]
     pub fn sign_var_no_verify(
         &mut self,
         seed: Mldsa87Seed,
