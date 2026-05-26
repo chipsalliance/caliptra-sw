@@ -40,7 +40,7 @@ struct PcrExtender<'a> {
     sha384: &'a mut Sha384,
 }
 impl PcrExtender<'_> {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
@@ -58,7 +58,7 @@ impl PcrExtender<'_> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub(crate) fn extend_pcrs(
     env: &mut FirmwareImageVerificationEnv,
@@ -120,7 +120,7 @@ pub(crate) fn extend_pcrs(
 /// * `Err(GlobalErr::PcrLogInvalidEntryId)` - Invalid PCR log entry ID
 /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
 ///
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn log_pcr(
     persistent_data: &mut PersistentData,
     pcr_entry_id: PcrLogEntryId,

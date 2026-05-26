@@ -346,7 +346,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
@@ -362,7 +362,7 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn verify_image(
         venv: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
@@ -399,7 +399,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * CaliptraResult
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_fuse_log(
         log: &mut FuseLogArray,
         log_info: &ImageVerificationLogInfo,
@@ -495,7 +495,7 @@ impl FirmwareProcessor {
     /// * `txn`      - Mailbox Receive Transaction
     // Inlined to reduce ROM size
     #[inline(always)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[fwproc] FMC 0x{:08x} len {}",
@@ -533,7 +533,7 @@ impl FirmwareProcessor {
     ///
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn populate_data_vault(
         data_vault: &mut DataVault,
         info: &ImageVerificationInfo,

@@ -20,8 +20,8 @@ use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::cfi_launder;
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::cfi_launder;
 use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
@@ -127,7 +127,7 @@ impl SetAuthManifestCmd {
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
                 &verify_r.0,
                 &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
             );
@@ -152,7 +152,7 @@ impl SetAuthManifestCmd {
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
             } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
 
@@ -191,7 +191,7 @@ impl SetAuthManifestCmd {
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
                 &verify_r.0,
                 &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
             );
@@ -212,7 +212,7 @@ impl SetAuthManifestCmd {
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
             } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
 
@@ -250,7 +250,7 @@ impl SetAuthManifestCmd {
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
                 &verify_r.0,
                 &auth_manifest_preamble
                     .vendor_image_metdata_signatures
@@ -275,7 +275,7 @@ impl SetAuthManifestCmd {
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
             } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
         Ok(())
@@ -308,7 +308,7 @@ impl SetAuthManifestCmd {
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
                 &verify_r.0,
                 &auth_manifest_preamble
                     .owner_image_metdata_signatures
@@ -333,7 +333,7 @@ impl SetAuthManifestCmd {
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
             } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
 
@@ -442,7 +442,7 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         // Validate cmd length

@@ -43,7 +43,7 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
@@ -96,7 +96,7 @@ impl LocalDevIdLayer {
     /// * `env` - ROM Environment
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
         Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
@@ -118,7 +118,7 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,

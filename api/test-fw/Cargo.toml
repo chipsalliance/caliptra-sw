@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 caliptra-api = { workspace = true }
-caliptra-drivers = { workspace = true, features = ["emu"] }
+caliptra-drivers = { workspace = true, features = ["emu", "cfi"] }
 caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true

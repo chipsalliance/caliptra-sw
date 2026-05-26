@@ -24,14 +24,14 @@ build:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features riscv
+		--features riscv,cfi
 
 build-emu:
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv \
+		--features emu,riscv,cfi \
 
 build-rom:
 	$(RUSTFLAGS) cargo build \
@@ -39,7 +39,7 @@ build-rom:
 		--manifest-path ../rom/dev/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features emu,cfi \
 
 objcopy-rom:
 	riscv64-unknown-elf-objcopy \
@@ -57,7 +57,7 @@ build-test-rt:
 		--manifest-path ../runtime/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv \
+		--features emu,riscv,cfi \
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
@@ -86,6 +86,7 @@ bloat: build
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		-n 1000 \
 
 objdump:
@@ -93,6 +94,7 @@ objdump:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
  		-- \
 		-d \
 		--no-print-imm-hex \
@@ -124,12 +126,14 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 
 nm:
 	$(RUSTFLAGS) cargo nm \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		-- \
 		-v \
 

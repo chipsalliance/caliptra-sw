@@ -44,7 +44,7 @@ impl InitDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
@@ -112,7 +112,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_uds(&DOE_IV, uds)?;
@@ -126,7 +126,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
@@ -139,7 +139,7 @@ impl InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
         let result = env.doe.clear_secrets();
         if result.is_ok() {
@@ -155,7 +155,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
 
@@ -176,7 +176,7 @@ impl InitDevIdLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,

@@ -45,7 +45,11 @@ fn test_sign_validation_failure() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || {
+        trng.generate()
+            .map(|a| (a.0[0], a.0[1], a.0[2], a.0[3]))
+            .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+    };
     CfiCounter::reset(&mut entropy_gen);
 
     let digest = Array4x12::new([0u32; 12]);

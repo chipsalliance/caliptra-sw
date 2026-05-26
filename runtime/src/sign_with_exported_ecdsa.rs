@@ -2,8 +2,8 @@
 
 use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 
 use caliptra_common::mailbox_api::{
     MailboxResp, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
@@ -24,7 +24,7 @@ impl SignWithExportedEcdsaCmd {
     /// * `env` - DPE environment containing Crypto and Platform implementations
     /// * `digest` - The data to be signed
     /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn ecdsa_sign(
         env: &mut DpeCrypto,
         digest: &Digest,
@@ -39,10 +39,10 @@ impl SignWithExportedEcdsaCmd {
         );
 
         if cfi_launder(key_pair.is_ok()) {
-            #[cfg(not(feature = "no-cfi"))]
+            #[cfg(feature = "cfi")]
             cfi_assert!(key_pair.is_ok());
         } else {
-            #[cfg(not(feature = "no-cfi"))]
+            #[cfg(feature = "cfi")]
             cfi_assert!(key_pair.is_err());
         }
         let (priv_key, pub_key) = key_pair
@@ -55,7 +55,7 @@ impl SignWithExportedEcdsaCmd {
         Ok((sig, pub_key))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = SignWithExportedEcdsaReq::ref_from_bytes(cmd_args)

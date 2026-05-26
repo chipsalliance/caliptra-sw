@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
@@ -228,7 +228,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_exported_cdi(
         &mut self,
         algs: AlgLen,
@@ -277,7 +277,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         Err(CryptoError::ExportedCdiHandleLimitExceeded)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(
         &mut self,
         algs: AlgLen,
@@ -287,7 +287,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         self.derive_cdi_inner(algs, measurement, info, KEY_ID_DPE_CDI)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair(
         &mut self,
         algs: AlgLen,
@@ -298,7 +298,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         self.derive_key_pair_inner(algs, cdi, label, info, KEY_ID_DPE_PRIV_KEY)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair_exported(
         &mut self,
         algs: AlgLen,

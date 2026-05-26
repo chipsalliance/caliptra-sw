@@ -46,7 +46,7 @@ openssl.workspace = true
 
 [features]
 riscv = []
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra_common/std",
@@ -61,7 +61,7 @@ verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = []
 skip-clear-sram = []
-no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
+cfi = ["caliptra-image-verify/cfi", "caliptra-image-types/cfi", "caliptra-drivers/cfi", "caliptra_common/cfi"]
 slow_tests = []
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-image-verify/fips-test-hooks"]

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
@@ -26,7 +26,7 @@ use zerocopy::{IntoBytes, TryFromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
@@ -186,7 +186,7 @@ impl InvokeDpeCmd {
     /// * `dpe` - DpeInstance
     /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
     /// * `context_tags` - Tags for each DPE context
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
         dpe: &mut DpeInstance,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],

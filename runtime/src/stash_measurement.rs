@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
@@ -28,7 +28,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,

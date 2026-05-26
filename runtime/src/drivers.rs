@@ -24,8 +24,10 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder,
+};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
@@ -148,7 +150,7 @@ impl Drivers {
         })
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
         if self.persistent_data.get().attestation_disabled.get() {
@@ -318,7 +320,7 @@ impl Drivers {
     }
 
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_dpe_rt_tci(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -331,7 +333,7 @@ impl Drivers {
     }
 
     /// Update DPE CCIV measurement with new values
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_dpe_cciv(drivers: &mut Drivers) -> CaliptraResult<()> {
         if drivers.persistent_data.get().attestation_disabled.get() {
             // If attestation is disabled, do not attempt to update CCIV values
@@ -444,7 +446,7 @@ impl Drivers {
     }
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
         let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
 
@@ -456,7 +458,7 @@ impl Drivers {
     }
 
     /// Initialize DPE with measurements and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let manifest = drivers.persistent_data.get().manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
@@ -587,7 +589,7 @@ impl Drivers {
     }
 
     /// Create certificate chain and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let data_vault = &drivers.data_vault;
         let persistent_data = &drivers.persistent_data;

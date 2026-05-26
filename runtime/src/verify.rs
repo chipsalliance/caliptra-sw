@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
@@ -26,7 +26,7 @@ use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
@@ -59,7 +59,7 @@ impl EcdsaVerifyCmd {
 
 pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         // Re-run LMS KAT once (since LMS is more SW-based than other crypto)

@@ -26,6 +26,7 @@ build:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi
 
 build-emu:
 	cargo \
@@ -34,7 +35,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu
+		--features emu,cfi
 
 build-test-fmc:
 	cargo \
@@ -44,7 +45,7 @@ build-test-fmc:
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu
+		--features emu,cfi
 
 build-test-rt:
 	cargo \
@@ -54,7 +55,7 @@ build-test-rt:
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu
+		--features emu,cfi
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
@@ -88,6 +89,7 @@ bloat: build
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		-n 1000 \
 
 objdump:
@@ -98,6 +100,7 @@ objdump:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		-- \
 		-d \
 		--no-print-imm-hex \
@@ -143,6 +146,7 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		--bin caliptra-rom \
 
 nm:
@@ -152,6 +156,7 @@ nm:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features cfi \
 		-- \
 		-v \
 

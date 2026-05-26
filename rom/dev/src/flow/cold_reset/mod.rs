@@ -46,7 +46,7 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
@@ -103,7 +103,7 @@ impl ColdResetFlow {
 ///
 /// # Returns
 ///     CaliptraResult
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
     let persistent_data = env.persistent_data.get_mut();

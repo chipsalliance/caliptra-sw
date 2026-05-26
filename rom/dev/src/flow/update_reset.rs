@@ -38,7 +38,7 @@ impl UpdateResetFlow {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
@@ -138,7 +138,7 @@ impl UpdateResetFlow {
     /// * `env` - ROM Environment
     /// * 'manifest'- Manifest
     ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn verify_image(
         env: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
@@ -168,7 +168,7 @@ impl UpdateResetFlow {
     /// * `env`      - ROM Environment
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] RT 0x{:08x} len {}",
@@ -197,7 +197,7 @@ impl UpdateResetFlow {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest(
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
