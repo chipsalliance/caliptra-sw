@@ -539,7 +539,6 @@ fn execute_command(
             drivers.debug_unlock.handle_token(
                 &mut drivers.soc_ifc,
                 &mut drivers.sha2_512_384,
-                &mut drivers.sha2_512_384_acc,
                 &mut drivers.ecc384,
                 &mut mldsa,
                 &mut drivers.dma,

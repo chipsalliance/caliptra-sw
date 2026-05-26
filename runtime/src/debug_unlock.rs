@@ -107,7 +107,6 @@ impl ProductionDebugUnlock {
         &mut self,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         sha2_512_384: &mut caliptra_drivers::Sha2_512_384,
-        sha2_512_384_acc: &mut caliptra_drivers::Sha2_512_384Acc,
         ecc384: &mut caliptra_drivers::Ecc384,
         mldsa87: &mut caliptra_drivers::Mldsa87,
         dma: &mut caliptra_drivers::Dma,
@@ -143,7 +142,6 @@ impl ProductionDebugUnlock {
         let result = caliptra_common::debug_unlock::validate_debug_unlock_token(
             soc_ifc,
             sha2_512_384,
-            sha2_512_384_acc,
             ecc384,
             mldsa87,
             dma,
