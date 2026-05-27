@@ -107,7 +107,9 @@ impl Csrng {
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
-                    .threshold_scope(TRUE)
+                    // THRESHOLD_SCOPE=FALSE so adaptive-proportion and Markov health
+                    // tests score each of the 4 RNG bus lanes individually.
+                    .threshold_scope(FALSE)
                     .rng_bit_enable(FALSE)
             });
 
@@ -419,10 +421,14 @@ fn read_entropy_configuration(
     };
 
     // Configure health test windows from SS_STRAP_GENERIC[2][15:0]
-    // This is the window size for all health tests.
-    // This value is used when entropy is being tested in FIPS mode.
-    // The default value is (2048 bits * 1 clock/4 bits);
-    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
+    // This is the window size for all health tests, in clock cycles.
+    // Each clock samples one bit on each of the 4 RNG lanes, so the
+    // per-lane window in bits is exactly this value and the aggregate
+    // window is `4 * health_test_window` bits. This value is used when
+    // entropy is being tested in FIPS mode.
+    //
+    // Default: 1024 clock cycles = 1024 bits per lane = 4096 bits aggregate.
+    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 1024;
 
     let health_test_window = soc_ifc.ss_strap_generic().at(2).read() & 0xffff;
 
@@ -453,39 +459,43 @@ fn read_entropy_configuration(
     };
 
     // The Adaptive Proportion test fails if:
-    //  * Any window has more than the HI threshold of 1's; or,
-    //  * Any window has less than the LO threshold of 1's.
-    // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
+    //  * In any window any single RNG lane has more than the HI threshold of 1's; or,
+    //  * Any RNG lane has less than the LO threshold of 1's.
+    // (Each of the 4 RNG bus lanes is scored individually because the ROM configures
+    // entropy_src with CONF.THRESHOLD_SCOPE = FALSE.)
+    // See section 4.4.2 of NIST.SP.800-90B for more information about this test.
 
-    // If soc doesn't set the window size, then use these defaults.
-    // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
-    // respectively.
+    // If the SoC doesn't override the ADAPTP thresholds, use 75% and 25% of the
+    // per-lane FIPS window size for the default HI and LO thresholds respectively.
     //
-    // This window value of 2048 comes from the OpenTitan documentation, since two noise
-    // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
-    const ADAPTP_WINDOW_SIZE_BITS: u32 = 2048;
-    const ADAPTP_DEFAULT_HI: u32 = 3 * (ADAPTP_WINDOW_SIZE_BITS / 4);
-    const ADAPTP_DEFAULT_LO: u32 = ADAPTP_WINDOW_SIZE_BITS / 4;
+    // Each clock samples one bit on each of the 4 RNG lanes, so the per-lane
+    // window in bits is exactly `health_test_window` (the FIPS_WINDOW value
+    // written to the HEALTH_TEST_WINDOWS register). The defaults therefore
+    // scale automatically when the SoC overrides the window size.
+    // https://opentitan.org/book/hw/ip/entropy_src/index.html#description
+    let adaptp_per_lane_window_bits = health_test_window;
+    let adaptp_default_hi = 3 * (adaptp_per_lane_window_bits / 4);
+    let adaptp_default_lo = adaptp_per_lane_window_bits / 4;
 
     let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
     let adaptp_hi_threshold = config0.high_threshold();
     let adaptp_lo_threshold = config0.low_threshold();
 
     let adaptp_hi_threshold = if adaptp_hi_threshold == 0 {
-        ADAPTP_DEFAULT_HI
+        adaptp_default_hi
     } else {
         adaptp_hi_threshold
     };
 
     let adaptp_lo_threshold = if adaptp_lo_threshold == 0 {
-        ADAPTP_DEFAULT_LO
+        adaptp_default_lo
     } else {
         adaptp_lo_threshold
     };
 
     // ensure lo < hi by using defaults if hi >= lo
     let (adaptp_hi_threshold, adaptp_lo_threshold) = if adaptp_hi_threshold <= adaptp_lo_threshold {
-        (ADAPTP_DEFAULT_HI, ADAPTP_DEFAULT_LO)
+        (adaptp_default_hi, adaptp_default_lo)
     } else {
         (adaptp_hi_threshold, adaptp_lo_threshold)
     };

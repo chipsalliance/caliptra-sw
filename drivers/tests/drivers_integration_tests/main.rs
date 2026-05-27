@@ -931,10 +931,10 @@ fn test_csrng_repetition_count() {
         let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
 
         let itrng_nibbles = Box::new({
-            // The boot-time health testing requires two consecutive windows of 2048-bits to
-            // pass or fail health tests. So let's set up our windows to begin with the
-            // repeated bits followed by known good entropy bits.
-            const NUM_TEST_WINDOW_NIBBLES: usize = 2048 / 4;
+            // The boot-time health testing requires two consecutive 4096-bit
+            // windows to pass or fail health tests. So let's set up our windows
+            // to begin with the repeated bits followed by known good entropy.
+            const NUM_TEST_WINDOW_NIBBLES: usize = 4096 / 4;
             let num_good_entropy_nibbles = NUM_TEST_WINDOW_NIBBLES.saturating_sub(repeat + 2);
 
             iter::repeat(0b1111)
@@ -1017,61 +1017,64 @@ fn test_csrng_repetition_count() {
 )]
 fn test_csrng_adaptive_proportion() {
     // Tests for Adaptive Proportion health check.
-    // Assumes the CSRNG configures the adaptive proportion's LO and HI
-    // thresholds to 25% and 75% of the FIPS health window size, i.e.,
-    // 512 and 1536 respectively for a 2048 bit window size.
+    // The CSRNG ROM configures the entropy_src with CONF.THRESHOLD_SCOPE = FALSE,
+    // so the adaptive-proportion test scores each of the 4 RNG bus lanes
+    // independently over a per-lane 1024-bit window. The default LO and HI
+    // thresholds are 25% and 75% of that per-lane window, i.e. 256 and 768.
+    // The test_data/csrng/N_ones_M_zeros files are constructed so that each
+    // lane individually carries N/4 ones in each 1024-nibble window.
 
-    // The adaptive proportion test will pass if the number of 1's in a 2048 bit window is in the
-    // range [512, 1536]. Note, inclusive bounds
+    // The adaptive proportion test will pass if every lane has a 1's count
+    // in the inclusive range [256, 768].
     const PASS: &FwId = &firmware::driver_tests::CSRNG_PASS_HEALTH_TESTS;
 
-    // 512 ones; 1536 zeros - should pass inclusive LO threshold.
+    // 256 ones per lane (1024 ones aggregate) - should pass inclusive LO threshold.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/512_ones_1536_zeros");
-            // Boot-time health checks require testing two 2048 bit windows.
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1024_ones_3072_zeros");
+            // Boot-time health checks require testing two 4096 bit windows.
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // 1536 ones; 512 zeros - should pass inclusive HI threshold.
+    // 768 ones per lane (3072 ones aggregate) - should pass inclusive HI threshold.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/1536_ones_512_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3072_ones_1024_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // Otherwise, the test will fail if the number of 1's falls below the LO threshold or exceeds
-    // the HI threshold.
+    // Otherwise, the test will fail if any lane has a 1's count below the LO
+    // threshold or above the HI threshold.
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_ADAPTP_TESTS;
 
-    // 511 ones; 1537 zeros - should fail LO threshold.
+    // One lane with 255 ones (1023 ones aggregate) - should fail LO threshold.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/511_ones_1537_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1023_ones_3073_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // 1537 ones; 511 zeros - should fail HI threshold.
+    // One lane with 769 ones (3073 ones aggregate) - should fail HI threshold.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/1537_ones_511_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3073_ones_1023_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
     // Test the logic of reading thresholds from SoC registers.
-    // The SoC will set the HI and LO thresholds to 1224 and 824 respectively (+- 200 of 1024,
-    // which is half the test window size).
-    fn test_with_soc_threshold(test_fwid: &'static FwId, window: &'static [u8; 512]) {
-        const HI_THRESHOLD: u32 = 1224;
-        const LO_THRESHOLD: u32 = 824;
+    // The SoC will set the per-lane HI and LO thresholds to 612 and 412
+    // respectively (+- 100 of 512, which is half the per-lane window size).
+    fn test_with_soc_threshold(test_fwid: &'static FwId, window: &'static [u8; 1024]) {
+        const HI_THRESHOLD: u32 = 612;
+        const LO_THRESHOLD: u32 = 412;
 
         let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
         let itrng_nibbles = Box::new(window.iter().chain(window).copied());
@@ -1096,17 +1099,17 @@ fn test_csrng_adaptive_proportion() {
         model.step_until_exit_success().unwrap();
     }
 
-    // 824 ones; 1224 zeros - should pass inclusive LO threshold.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/824_ones_1224_zeros"));
+    // 412 ones per lane (1648 ones aggregate) - should pass inclusive LO threshold.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1648_ones_2448_zeros"));
 
-    // 1224 ones; 824 zeros - should pass inclusive HI threshold.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1224_ones_824_zeros"));
+    // 612 ones per lane (2448 ones aggregate) - should pass inclusive HI threshold.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/2448_ones_1648_zeros"));
 
-    // 823 ones; 1225 zeros - should fail LO threshold.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/823_ones_1225_zeros"));
+    // One lane with 411 ones (1647 ones aggregate) - should fail LO threshold.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1647_ones_2449_zeros"));
 
-    // 1225 ones; 823 zeros - should fail HI threshold.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1225_ones_823_zeros"));
+    // One lane with 613 ones (2449 ones aggregate) - should fail HI threshold.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/2449_ones_1647_zeros"));
 }
 
 /// Test the Repetition Count Symbol (repcnts) health check.
@@ -1197,14 +1200,14 @@ fn test_csrng_runtime_health_failure() {
     )
     .unwrap();
 
-    // Provide just enough good entropy for boot health testing (two 2048-bit windows),
+    // Provide just enough good entropy for boot health testing (two 4096-bit windows),
     // then switch to bad entropy. The bad entropy (stuck at all 1s) will cause
     // the repetition count test to fail during subsequent generate operations.
     //
-    // Boot health testing: 2 windows × 512 nibbles = 1024 nibbles
+    // Boot health testing: 2 windows × 1024 nibbles = 2048 nibbles
     // These nibbles are stored and re-used during instantiate.
     // During generate, once stored nibbles are exhausted, bad entropy kicks in.
-    const BOOT_WINDOW_NIBBLES: usize = 2048 / 4; // 512 nibbles per window
+    const BOOT_WINDOW_NIBBLES: usize = 4096 / 4; // 1024 nibbles per window
     const BOOT_NIBBLES: usize = BOOT_WINDOW_NIBBLES * 2; // Two windows for boot
 
     let itrng_nibbles = Box::new(
@@ -1341,10 +1344,10 @@ fn test_trng_in_itrng_mode() {
     assert_eq!(
         trng_block,
         Some(vec![
-            0x2f, 0x3c, 0x3d, 0xca, 0x53, 0xdb, 0x2a, 0x55, 0x5d, 0x9c, 0x74, 0xa9, 0xc3, 0xe4,
-            0xbb, 0xda, 0x53, 0x3b, 0x75, 0xcc, 0x22, 0xf0, 0x86, 0xe0, 0xda, 0xd9, 0x55, 0x13,
-            0x37, 0xe5, 0xc3, 0x69, 0x77, 0x65, 0xe6, 0x7e, 0x4d, 0x7b, 0x5a, 0xca, 0x16, 0xe6,
-            0x7e, 0x1f, 0xaa, 0xd8, 0x5c, 0x9a,
+            0x35, 0xe2, 0x22, 0x2e, 0xaa, 0xd7, 0x41, 0x41, 0x15, 0x5c, 0xb5, 0x78, 0xa1, 0x5d,
+            0x25, 0x5f, 0xfb, 0xc1, 0x2c, 0xcf, 0xb9, 0xd8, 0x13, 0xaa, 0x92, 0xa6, 0x52, 0x05,
+            0xc3, 0x38, 0x43, 0xb2, 0x27, 0xc3, 0x86, 0x5b, 0x42, 0xe8, 0x6c, 0x16, 0xb9, 0xba,
+            0xdb, 0x30, 0xa5, 0x98, 0xd0, 0xa6,
         ])
     );
 
@@ -1352,10 +1355,10 @@ fn test_trng_in_itrng_mode() {
     assert_eq!(
         trng_block,
         Some(vec![
-            0x96, 0xf0, 0x63, 0x7d, 0x79, 0xb9, 0xc, 0xfd, 0x84, 0x7e, 0x5e, 0x7b, 0x68, 0x6, 0xc9,
-            0x7c, 0x90, 0xdc, 0xde, 0x26, 0x63, 0x7d, 0x4, 0xcd, 0x98, 0x47, 0x79, 0x87, 0x97,
-            0x88, 0xfe, 0x2, 0xcd, 0xe8, 0xed, 0x1e, 0xe8, 0x10, 0x4b, 0xce, 0x93, 0xca, 0x24,
-            0xba, 0x80, 0xc2, 0x41, 0xae,
+            0x82, 0xf8, 0x24, 0x9a, 0x31, 0x60, 0x41, 0xd2, 0x43, 0x01, 0x7a, 0x47, 0x96, 0xdc,
+            0x25, 0xc8, 0x7f, 0x27, 0xc4, 0xff, 0x22, 0xe9, 0xa2, 0xf0, 0x05, 0x3d, 0xb5, 0x03,
+            0xb8, 0x5d, 0x4c, 0x20, 0xb5, 0x7d, 0xa9, 0x40, 0xb7, 0x05, 0xf2, 0xf3, 0x3c, 0x57,
+            0x1e, 0xd5, 0x88, 0x90, 0xce, 0x56,
         ])
     );
 }
