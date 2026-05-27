@@ -2,33 +2,49 @@
 
 use caliptra_hw_model::DefaultHwModel;
 use dpe::{
-    commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command},
+    commands::{CertifyKeyCommand, CertifyKeyFlags},
     context::ContextHandle,
-    response::{CertifyKeyResp, Response},
+    response::CertifyKeyResp,
 };
 use openssl::x509::X509;
 
 use super::*;
-use crate::common::{execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL};
+use crate::common::{
+    certify_key, run_rt_test, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, RuntimeTestArgs,
+    TEST_LABEL,
+};
+use caliptra_runtime::CaliptraDpeProfile;
 
-/// Generate a DPE leaf cert using CertifyKey and return it as X509.
-fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        flags: CertifyKeyFlags::empty(),
-        label: TEST_LABEL,
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
+/// Generate an ECC384 DPE leaf cert using CertifyKey and return it as X509.
+fn get_ecc_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile: CaliptraDpeProfile::Ecc384,
+        ..Default::default()
+    });
+    let resp = certify_key(model, certify_key_cmd).unwrap();
+    let CertifyKeyResp::P384(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
     X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-        .expect("Failed to parse DPE leaf cert")
+        .expect("Failed to parse ECC DPE leaf cert")
+}
+
+/// Generate an MLDSA87 DPE leaf cert using CertifyKey and return it as X509.
+#[allow(dead_code)]
+fn get_mldsa_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile: CaliptraDpeProfile::Mldsa87,
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+    });
+    let resp = certify_key(model, certify_key_cmd).unwrap();
+    let CertifyKeyResp::Mldsa87(certify_key_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+    X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
+        .expect("Failed to parse MLDSA DPE leaf cert")
 }
 
 #[test]
@@ -48,7 +64,7 @@ fn test_get_attested_rt_alias_ecc_csr() {
     );
 
     // Generate a DPE leaf cert and verify it is signed by the RT Alias key
-    let dpe_leaf_cert = get_dpe_leaf_cert(&mut model);
+    let dpe_leaf_cert = get_ecc_dpe_leaf_cert(&mut model);
     assert!(
         dpe_leaf_cert.verify(&pubkey).unwrap(),
         "DPE leaf cert should be signed by RT Alias ECC key"

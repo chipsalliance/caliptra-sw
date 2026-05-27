@@ -935,6 +935,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "aes-gcm",
+ "anyhow",
  "arrayvec",
  "asn1",
  "bitfield",
