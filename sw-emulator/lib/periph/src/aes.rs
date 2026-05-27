@@ -393,6 +393,13 @@ impl AesRegs {
                 state[4..8].copy_from_slice(&self.data_in[1].to_le_bytes());
                 state[8..12].copy_from_slice(&self.data_in[2].to_le_bytes());
                 state[12..16].copy_from_slice(&self.data_in[3].to_le_bytes());
+                // Model the hardware behaviour where issuing GcmPhase::Restore
+                // with a zero GHASH state (i.e., before any AAD or full text
+                // block has been processed) corrupts subsequent tag
+                // computation. Drivers must avoid Restore in this case.
+                if state == [0u8; AES_256_BLOCK_SIZE] {
+                    state = 0xfeed_face_dead_beef_0bad_c0de_cafe_babe_u128.to_be_bytes();
+                }
                 self.ghash.restore(state);
             }
             GcmCtrl::PHASE::Value::TEXT => {
