@@ -279,6 +279,7 @@ impl CommandId {
     pub const OCP_LOCK_LOAD_MEK: Self = Self(0x4C4D_454B); // "LMEK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
+    pub const CERTIFY_KEY_CHUNKS: Self = Self(0x434B4348); // "CKCH"
 }
 
 impl From<u32> for CommandId {
@@ -443,6 +444,7 @@ pub enum MailboxResp {
     OcpLockClearKeyCache(OcpLockClearKeyCacheResp),
     OcpLockUnloadMek(OcpLockUnloadMekResp),
     OcpLockLoadMek(OcpLockLoadMekResp),
+    CertifyKeyChunks(CertifyKeyChunksResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -531,6 +533,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -617,6 +620,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -774,6 +778,7 @@ pub enum MailboxReq {
     OcpLockClearKeyCache(OcpLockClearKeyCacheReq),
     OcpLockUnloadMek(OcpLockUnloadMekReq),
     OcpLockLoadMek(OcpLockLoadMekReq),
+    CertifyKeyChunks(CertifyKeyChunksReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -881,6 +886,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -986,6 +992,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -1097,6 +1104,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(_) => CommandId::OCP_LOCK_CLEAR_KEY_CACHE,
             MailboxReq::OcpLockUnloadMek(_) => CommandId::OCP_LOCK_UNLOAD_MEK,
             MailboxReq::OcpLockLoadMek(_) => CommandId::OCP_LOCK_LOAD_MEK,
+            MailboxReq::CertifyKeyChunks(_) => CommandId::CERTIFY_KEY_CHUNKS,
         }
     }
 
@@ -1675,6 +1683,76 @@ impl CertifyKeyExtendedResp {
     }
 }
 
+// CERTIFY_KEY_CHUNKS
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksReq {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyChunksFlags,
+    pub reserved: u32,
+    pub max_size: u32,
+    pub offset: u32,
+    pub certify_key_req: [u8; Self::CERTIFY_KEY_REQ_SIZE],
+}
+
+impl CertifyKeyChunksReq {
+    pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
+}
+
+impl Request for CertifyKeyChunksReq {
+    const ID: CommandId = CommandId::CERTIFY_KEY_CHUNKS;
+    type Resp = CertifyKeyChunksResp;
+}
+
+#[repr(C)]
+#[derive(
+    Debug, PartialEq, Eq, FromBytes, Immutable, KnownLayout, IntoBytes, Default, Copy, Clone,
+)]
+pub struct CertifyKeyChunksFlags(pub u32);
+
+bitflags! {
+    impl CertifyKeyChunksFlags: u32 {
+        const USE_MLDSA = 1u32 << 31;
+    }
+}
+
+impl CertifyKeyChunksFlags {
+    pub fn use_mldsa(&self) -> bool {
+        self.contains(CertifyKeyChunksFlags::USE_MLDSA)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksRespInfo {
+    pub hdr: MailboxRespHeader,
+    pub context_handle: [u8; 16],
+    pub chunk_len: u32,
+    pub remaining: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksResp {
+    pub info: CertifyKeyChunksRespInfo,
+    pub certify_key_resp: [u8; Self::MAX_CHUNK_SIZE],
+}
+
+impl CertifyKeyChunksResp {
+    pub const MAX_CHUNK_SIZE: usize = 15 * 1024;
+}
+
+impl Response for CertifyKeyChunksResp {}
+
+impl Default for CertifyKeyChunksResp {
+    fn default() -> Self {
+        Self {
+            info: Default::default(),
+            certify_key_resp: [0u8; Self::MAX_CHUNK_SIZE],
+        }
+    }
+}
+
 // INVOKE_DPE_ECC384
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -1811,7 +1889,7 @@ pub struct InvokeDpeResp {
     pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 25152;
+    pub const DATA_MAX_SIZE: usize = 25168;
 }
 impl ResponseVarSize for InvokeDpeResp {}
 
