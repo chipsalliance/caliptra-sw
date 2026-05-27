@@ -984,7 +984,7 @@ fn test_keygen_array_seed() {
     };
 
     let seed = LEArray4x8::from(MLDSA_SEED);
-    let priv_key_out = unsafe { &mut DIAG_KEYGEN_PRIVKEY };
+    let priv_key_out: &mut Mldsa87PrivKey = unsafe { &mut *core::ptr::addr_of_mut!(DIAG_KEYGEN_PRIVKEY) };
 
     let pub_key = ml_dsa87
         .key_pair_no_pct(Mldsa87Seed::Array4x8(&seed), &mut trng, Some(priv_key_out))
