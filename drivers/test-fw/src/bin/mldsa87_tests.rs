@@ -975,6 +975,37 @@ fn test_verify_failure() {
     );
 }
 
+fn test_sign_var_no_verify() {
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+
+    let sign_rnd = Mldsa87SignRnd::default(); // deterministic
+
+    let msg = Array4x16::from(MLDSA_MSG);
+
+    let signature = ml_dsa87
+        .sign_var_no_verify(
+            Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+            msg.as_bytes(),
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
+}
+
 test_suite! {
     test_mldsa_name,
     test_gen_key_pair,
@@ -986,4 +1017,5 @@ test_suite! {
     test_keygen_caller_provided_seed,
     test_verify,
     test_verify_failure,
+    test_sign_var_no_verify,
 }

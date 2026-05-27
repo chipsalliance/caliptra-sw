@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { workspace = true, features = ["emu"] }
+caliptra-drivers = { workspace = true, features = ["emu", "cavp-test-harness"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-kat = { workspace = true }
 caliptra-lms-types = { workspace = true }

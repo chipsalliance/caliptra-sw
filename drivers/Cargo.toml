@@ -47,6 +47,7 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 cfi = []
 fips-test-hooks = []
+cavp-test-harness = []
 
 [dev-dependencies]
 caliptra-api.workspace = true

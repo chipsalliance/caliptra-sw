@@ -470,6 +470,62 @@ impl<'a> Mldsa87<'a> {
         }
     }
 
+    /// Sign a variable-length message with the specified private key, skipping the
+    /// post-sign verification step. Intended for ACVP testing only, where the public
+    /// key is not available and the anti-glitch check cannot be performed.
+    #[cfg(feature = "cavp-test-harness")]
+    pub fn sign_var_no_verify(
+        &mut self,
+        seed: Mldsa87Seed,
+        msg: &[u8],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
+
+        // Sign RND.
+        sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
+
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
+            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
+                key,
+                mldsa.kv_mldsa_seed_rd_status(),
+                mldsa.kv_mldsa_seed_rd_ctrl(),
+            )
+            .map_err(|err| err.into_read_seed_err())?,
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.mldsa_privkey_in())
+            }
+        }
+
+        // Program the command register
+        mldsa.mldsa_ctrl().write(|w| {
+            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
+                .stream_msg(true)
+        });
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
+
+        // Clear the hardware.
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+
+        Ok(signature)
+    }
+
     /// Common setup for verification functions
     /// Returns the truncated signature for later comparison
     fn verify_common_setup(
