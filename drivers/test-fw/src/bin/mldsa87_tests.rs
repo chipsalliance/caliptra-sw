@@ -936,6 +936,36 @@ fn test_verify_failure() {
     );
 }
 
+// Diagnostic test: exercises sign_var_no_verify() with a known private key and message,
+// verifying the signature matches the expected constant without post-sign verification.
+fn test_sign_var_no_verify() {
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let msg: [u8; 64] = LEArray4x16::from(MLDSA_MSG).into();
+    let sign_rnd = Mldsa87SignRnd::default(); // deterministic
+
+    let signature = ml_dsa87
+        .sign_var_no_verify(
+            Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+            &msg,
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
+}
+
 test_suite! {
     test_gen_key_pair,
     test_sign,
@@ -946,4 +976,5 @@ test_suite! {
     test_keygen_caller_provided_seed,
     test_verify,
     test_verify_failure,
+    test_sign_var_no_verify,
 }
