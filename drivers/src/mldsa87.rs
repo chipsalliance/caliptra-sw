@@ -157,30 +157,6 @@ impl Mldsa87 {
         Ok(pubkey)
     }
 
-    /// Generate MLDSA-87 Key Pair without the Pairwise Consistency Test (PCT).
-    ///
-    /// **For ACVP / test use only.** Production code must use `key_pair()` which
-    /// includes the FIPS-required PCT.
-    ///
-    /// # Arguments
-    ///
-    /// * `seed` - Either an array of 4x8 bytes or a key vault key to use as seed.
-    /// * `trng` - TRNG driver instance.
-    /// * `priv_key_out` - Optional output parameter to store the private key.
-    ///
-    /// # Returns
-    ///
-    /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
-    #[cfg(feature = "cavp-test-harness")]
-    pub fn key_pair_no_pct(
-        &mut self,
-        seed: Mldsa87Seed,
-        trng: &mut Trng,
-        priv_key_out: Option<&mut Mldsa87PrivKey>,
-    ) -> CaliptraResult<Mldsa87PubKey> {
-        self.key_pair_internal(seed, trng, priv_key_out)
-    }
-
     /// Raw key pair generation without PCT.
     #[inline(never)]
     fn key_pair_internal(

@@ -966,35 +966,6 @@ fn test_sign_var_no_verify() {
     assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
 }
 
-// Diagnostic test: exercises key_pair_no_pct() with a direct Array4x8 seed against
-// known constants, verifying that keygen produces the correct public and private keys.
-static mut DIAG_KEYGEN_PRIVKEY: Mldsa87PrivKey = Mldsa87PrivKey::new([0u32; 1224]);
-
-fn test_keygen_array_seed() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
-
-    let mut trng = unsafe {
-        Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )
-        .unwrap()
-    };
-
-    let seed = LEArray4x8::from(MLDSA_SEED);
-    let priv_key_out: &mut Mldsa87PrivKey =
-        unsafe { &mut *core::ptr::addr_of_mut!(DIAG_KEYGEN_PRIVKEY) };
-
-    let pub_key = ml_dsa87
-        .key_pair_no_pct(Mldsa87Seed::Array4x8(&seed), &mut trng, Some(priv_key_out))
-        .unwrap();
-
-    assert_eq!(pub_key, Mldsa87PubKey::from(MLDSA_PUBKEY));
-    assert_eq!(*priv_key_out, Mldsa87PrivKey::from(MLDSA_PRIVKEY));
-}
-
 test_suite! {
     test_gen_key_pair,
     test_sign,
@@ -1006,5 +977,4 @@ test_suite! {
     test_verify,
     test_verify_failure,
     test_sign_var_no_verify,
-    test_keygen_array_seed,
 }
