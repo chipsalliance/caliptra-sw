@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
+use anyhow::Context;
 use caliptra_api::{
     mailbox::{GetFmcAliasMlDsa87CertResp, Request},
     SocManager,
@@ -14,8 +15,10 @@ use caliptra_builder::{
 };
 use caliptra_common::{
     mailbox_api::{
-        CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp, InvokeDpeReq,
-        InvokeDpeResp, MailboxReq, MailboxReqHeader,
+        AxiResponseInfo, CertifyKeyChunksFlags, CertifyKeyChunksReq, CertifyKeyChunksResp,
+        CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp,
+        InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req, InvokeDpeReq, InvokeDpeResp, MailboxReq,
+        MailboxReqHeader, MailboxRespHeader,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -29,16 +32,25 @@ use caliptra_hw_model::{
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
+use caliptra_runtime::CaliptraDpeProfile;
 use caliptra_test::image_pk_desc_hash;
+use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use dpe::{
-    commands::{Command, CommandHdr},
-    response::{DpeErrorCode, Response, ResponseHdr},
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
+        CommandHdr, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+    },
+    context::ContextHandle,
+    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
     DpeProfile,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     bn::BigNum,
+    ec::{EcGroup, EcKey},
+    ecdsa::EcdsaSig,
     hash::MessageDigest,
+    nid::Nid,
     pkey::{PKey, Private},
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
@@ -55,6 +67,14 @@ pub const TEST_DIGEST: [u8; 48] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
 ];
+pub const TEST_MU: [u8; 64] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
+];
+pub const TEST_SD_SHA384: PrecomputedSignData =
+    PrecomputedSignData::Digest(Digest::Sha384(Sha384(TEST_DIGEST)));
+pub const TEST_SD_MU: PrecomputedSignData = PrecomputedSignData::Mu(Mu(TEST_MU));
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
@@ -342,7 +362,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     cert_builder.build()
 }
 
-fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
+pub fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
     if let Ok(&ResponseHdr { status, .. }) =
         ResponseHdr::try_ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
     {
@@ -406,6 +426,328 @@ pub fn execute_dpe_cmd(
         DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
+}
+
+pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {
+    let resp_hdr =
+        MailboxReqHeader::try_read_from_bytes(&resp[..core::mem::size_of::<MailboxReqHeader>()])
+            .map_err(|e| anyhow::anyhow!("Failed to get the header from the response: {e}"))?;
+    if !caliptra_common::checksum::verify_checksum(
+        resp_hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.chksum)..],
+    ) {
+        anyhow::bail!("Invalid checksum in response header");
+    }
+    Ok(())
+}
+
+/// Response from `execute_dpe_cmd_raw` that can hold responses larger than
+/// `InvokeDpeResp::DATA_MAX_SIZE` (needed for MLDSA87 certify-key responses).
+pub struct DpeRawResp {
+    pub data_size: u32,
+    pub data: Vec<u8>,
+}
+
+pub fn execute_dpe_cmd_raw(
+    model: &mut DefaultHwModel,
+    profile: CaliptraDpeProfile,
+    dpe_cmd: &mut Command,
+) -> Result<DpeRawResp, ModelError> {
+    // Fill the request buffer with the correct info
+    let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let cmd_hdr = CommandHdr::new(profile.into(), dpe_cmd.id());
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = dpe_cmd.as_bytes();
+    cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+
+    let data_size = (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32;
+
+    // Get the profile specific mailbox command
+    let resp = match profile {
+        CaliptraDpeProfile::Ecc384 => {
+            let mut mbox_cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                data: cmd_data,
+                data_size,
+            });
+            mbox_cmd.populate_chksum().unwrap();
+            model.mailbox_execute(
+                u32::from(CommandId::INVOKE_DPE_ECC384),
+                mbox_cmd.as_bytes().unwrap(),
+            )?
+        }
+        CaliptraDpeProfile::Mldsa87 => {
+            let mut mbox_cmd = MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+                hdr: MailboxReqHeader { chksum: 0 },
+                flags: InvokeDpeMldsa87Flags::empty(),
+                axi_response: AxiResponseInfo::default(),
+                data: cmd_data,
+                data_size,
+            });
+            mbox_cmd.populate_chksum().unwrap();
+            model.mailbox_execute(
+                u32::from(CommandId::INVOKE_DPE_MLDSA87),
+                mbox_cmd.as_bytes().unwrap(),
+            )?
+        }
+    };
+
+    let resp = resp.expect("We should have received a response");
+    check_header_checksum(&resp).unwrap();
+
+    // Parse data_size and data from raw response bytes
+    // Layout: MailboxRespHeader (8 bytes) | data_size (4 bytes) | data (variable)
+    let hdr_size = core::mem::size_of::<MailboxRespHeader>();
+    let data_size_offset = hdr_size;
+    let data_offset = data_size_offset + core::mem::size_of::<u32>();
+    let data_size = u32::from_le_bytes(
+        resp[data_size_offset..data_offset]
+            .try_into()
+            .expect("data_size field"),
+    );
+    let data = resp[data_offset..].to_vec();
+
+    Ok(DpeRawResp { data_size, data })
+}
+
+pub fn certify_key(
+    model: &mut DefaultHwModel,
+    cmd: &mut CertifyKeyCommandNoRef,
+) -> anyhow::Result<CertifyKeyResp> {
+    if model.subsystem_mode() {
+        certify_key_chunks(model, cmd, None)
+    } else {
+        let resp = match cmd {
+            CertifyKeyCommandNoRef::P384(ref cmd) => {
+                let resp = execute_dpe_cmd_raw(
+                    model,
+                    CaliptraDpeProfile::Ecc384,
+                    &mut Command::from(cmd),
+                )?;
+                let resp = resp.data[..resp.data_size as usize].to_vec();
+                check_dpe_status(&resp, DpeErrorCode::NoError);
+                resp
+            }
+            CertifyKeyCommandNoRef::Mldsa(ref cmd) => {
+                let resp = execute_dpe_cmd_raw(
+                    model,
+                    CaliptraDpeProfile::Mldsa87,
+                    &mut Command::from(cmd),
+                )?;
+                let resp = resp.data[..resp.data_size as usize].to_vec();
+                check_dpe_status(&resp, DpeErrorCode::NoError);
+                resp
+            }
+        };
+        let resp = Response::try_read_from_bytes(&Command::from(&*cmd), &resp).map_err(|e| {
+            anyhow::anyhow!("Failed to convert response into DPE response. {:?}", e)
+        })?;
+        let Response::CertifyKey(resp) = resp else {
+            anyhow::bail!("Unexpected response type for CertifyKey command");
+        };
+        Ok(resp)
+    }
+}
+
+pub fn certify_key_chunks(
+    model: &mut DefaultHwModel,
+    cmd: &mut CertifyKeyCommandNoRef,
+    max_chunk_size: Option<usize>,
+) -> anyhow::Result<CertifyKeyResp> {
+    let mut full_resp = Vec::<u8>::new();
+    let mut offset = 0;
+
+    let use_mldsa = match cmd {
+        CertifyKeyCommandNoRef::P384(_) => false,
+        CertifyKeyCommandNoRef::Mldsa(_) => true,
+    };
+
+    let cmd_bytes = match cmd {
+        CertifyKeyCommandNoRef::P384(ref c) => c.as_bytes().to_vec(),
+        CertifyKeyCommandNoRef::Mldsa(ref c) => c.as_bytes().to_vec(),
+    };
+
+    let flags = if use_mldsa {
+        CertifyKeyChunksFlags::USE_MLDSA
+    } else {
+        CertifyKeyChunksFlags(0)
+    };
+
+    loop {
+        let mut certify_key_req = [0u8; 72];
+        certify_key_req[..cmd_bytes.len()].copy_from_slice(&cmd_bytes);
+        let req = CertifyKeyChunksReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            flags,
+            reserved: 0,
+            max_size: max_chunk_size.unwrap_or(0) as u32,
+            offset: offset as u32,
+            certify_key_req,
+        };
+        let mut mbox_cmd = MailboxReq::CertifyKeyChunks(req);
+        mbox_cmd.populate_chksum().unwrap();
+
+        let resp_data = model
+            .mailbox_execute(
+                u32::from(CommandId::CERTIFY_KEY_CHUNKS),
+                mbox_cmd.as_bytes().unwrap(),
+            )
+            .context("Failed to get chunked certify key response")?;
+        let resp_data = resp_data.expect("We should have received a response");
+        check_header_checksum(&resp_data).unwrap();
+
+        let mut resp = CertifyKeyChunksResp::default();
+        assert!(resp_data.len() <= size_of::<CertifyKeyChunksResp>());
+        resp.as_mut_bytes()[..resp_data.len()].copy_from_slice(&resp_data);
+
+        let chunk_len = resp.info.chunk_len as usize;
+        let remaining = resp.info.remaining as usize;
+
+        full_resp.extend_from_slice(&resp.certify_key_resp[..chunk_len]);
+
+        match cmd {
+            CertifyKeyCommandNoRef::P384(ref mut c) => c.handle.0 = resp.info.context_handle,
+            CertifyKeyCommandNoRef::Mldsa(ref mut c) => c.handle.0 = resp.info.context_handle,
+        }
+
+        if remaining == 0 {
+            break;
+        }
+        offset += chunk_len;
+    }
+
+    let resp = Response::try_read_from_bytes(&Command::from(&*cmd), &full_resp)
+        .map_err(|e| anyhow::anyhow!("Failed to convert response into DPE response. {:?}", e))?;
+    let Response::CertifyKey(resp) = resp else {
+        anyhow::bail!("Unexpected response type for CertifyKey command");
+    };
+    Ok(resp)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CertifyKeyCommandNoRef {
+    P384(CertifyKeyP384Cmd),
+    Mldsa(CertifyKeyMldsa87Cmd),
+}
+
+impl CertifyKeyCommandNoRef {
+    pub fn new(args: CreateCertifyKeyCmdArgs) -> Self {
+        match args.profile {
+            CaliptraDpeProfile::Ecc384 => CertifyKeyCommandNoRef::P384(CertifyKeyP384Cmd {
+                handle: args.handle,
+                label: args.label,
+                flags: args.flags,
+                format: args.format,
+            }),
+            CaliptraDpeProfile::Mldsa87 => CertifyKeyCommandNoRef::Mldsa(CertifyKeyMldsa87Cmd {
+                handle: args.handle,
+                label: args.label,
+                flags: args.flags,
+                format: args.format,
+            }),
+        }
+    }
+}
+
+impl CertifyKeyCommandNoRef {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            CertifyKeyCommandNoRef::P384(cmd) => cmd.as_bytes(),
+            CertifyKeyCommandNoRef::Mldsa(cmd) => cmd.as_bytes(),
+        }
+    }
+}
+
+impl<'a> From<&'a CertifyKeyCommandNoRef> for Command<'a> {
+    fn from(cmd: &'a CertifyKeyCommandNoRef) -> Command<'a> {
+        match cmd {
+            CertifyKeyCommandNoRef::P384(cmd) => cmd.into(),
+            CertifyKeyCommandNoRef::Mldsa(cmd) => cmd.into(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SignCommandNoRef {
+    P384(SignP384Cmd),
+    Mldsa(SignMldsa87Cmd),
+}
+
+impl SignCommandNoRef {
+    pub fn new(args: CreateSignCmdArgs) -> Self {
+        let CreateSignCmdArgs { profile, data, .. } = args;
+        match (profile, data) {
+            (CaliptraDpeProfile::Ecc384, PrecomputedSignData::Digest(Digest::Sha384(digest))) => {
+                Self::P384(SignP384Cmd {
+                    handle: args.handle,
+                    label: args.label,
+                    flags: args.flags,
+                    digest: digest.0,
+                })
+            }
+            (CaliptraDpeProfile::Mldsa87, PrecomputedSignData::Mu(mu)) => {
+                Self::Mldsa(SignMldsa87Cmd {
+                    handle: args.handle,
+                    label: args.label,
+                    flags: args.flags,
+                    digest: mu.0,
+                })
+            }
+            _ => panic!("Invalid combination of profile and precomputed sign data"),
+        }
+    }
+}
+
+impl<'a> From<&'a SignCommandNoRef> for Command<'a> {
+    fn from(cmd: &'a SignCommandNoRef) -> Command<'a> {
+        match cmd {
+            SignCommandNoRef::P384(cmd) => cmd.into(),
+            SignCommandNoRef::Mldsa(cmd) => cmd.into(),
+        }
+    }
+}
+
+pub struct CreateSignCmdArgs {
+    pub profile: CaliptraDpeProfile,
+    pub handle: ContextHandle,
+    pub label: [u8; 48],
+    pub flags: SignFlags,
+    pub data: PrecomputedSignData,
+}
+
+impl Default for CreateSignCmdArgs {
+    fn default() -> Self {
+        Self {
+            profile: CaliptraDpeProfile::Ecc384,
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: SignFlags::empty(),
+            data: PrecomputedSignData::Digest([0u8; 48].into()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateCertifyKeyCmdArgs {
+    pub profile: CaliptraDpeProfile,
+    pub handle: ContextHandle,
+    pub label: [u8; 48],
+    pub flags: CertifyKeyFlags,
+    pub format: u32,
+}
+
+impl Default for CreateCertifyKeyCmdArgs {
+    fn default() -> Self {
+        Self {
+            profile: CaliptraDpeProfile::Ecc384,
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: CertifyKeyFlags::empty(),
+            format: CertifyKeyCommand::FORMAT_X509,
+        }
+    }
 }
 
 pub fn assert_error(
@@ -558,4 +900,61 @@ pub fn calculate_cptra_config_init_vals_hash<T: HwModel>(
     hasher.update(manifest.runtime.entry_point.as_bytes());
 
     hasher.finalize().into()
+}
+
+pub fn verify_sign_and_certify_key(
+    model: &mut DefaultHwModel,
+    profile: CaliptraDpeProfile,
+    sign_resp: &Response,
+    certify_key_resp: &CertifyKeyResp,
+    data: &[u8],
+) {
+    match (profile, sign_resp, certify_key_resp) {
+        (
+            CaliptraDpeProfile::Ecc384,
+            Response::Sign(SignResp::P384(sign_resp)),
+            CertifyKeyResp::P384(certify_key_resp),
+        ) => {
+            let sig = EcdsaSig::from_private_components(
+                BigNum::from_slice(&sign_resp.sig_r).unwrap(),
+                BigNum::from_slice(&sign_resp.sig_s).unwrap(),
+            )
+            .unwrap();
+
+            let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
+                &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+            )
+            .unwrap();
+            assert!(sig.verify(data, &ecc_pub_key).unwrap());
+
+            // Verify the certificate
+            let alias_cert_resp = get_rt_alias_ecc384_cert(model);
+            let alias_cert_bytes = alias_cert_resp.data().unwrap();
+            let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
+            let alias_pubkey = alias_x509.public_key().unwrap();
+
+            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
+            assert!(leaf_x509.verify(&alias_pubkey).unwrap());
+        }
+        (
+            CaliptraDpeProfile::Mldsa87,
+            Response::Sign(SignResp::MlDsa(_sign_resp)),
+            CertifyKeyResp::Mldsa87(certify_key_resp),
+        ) => {
+            // Skip raw MLDSA signature verification (ml-dsa v0.1.0-rc.0 has upstream compile issues)
+            // Verify the certificate instead
+            let alias_cert_resp = get_rt_alias_mldsa87_cert(model);
+            let alias_cert_bytes = alias_cert_resp.data().unwrap();
+            let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
+            let alias_pubkey = alias_x509.public_key().unwrap();
+
+            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
+            assert!(leaf_x509.verify(&alias_pubkey).unwrap());
+        }
+        _ => panic!("Wrong response type!"),
+    }
 }

@@ -17,6 +17,7 @@ mod activate_firmware;
 mod attested_csr;
 mod authorize_and_stash;
 mod capabilities;
+mod certify_key_chunks;
 mod certify_key_extended;
 mod cryptographic_mailbox;
 mod debug_unlock;
@@ -350,6 +351,7 @@ fn execute_command(
         }
         CommandId::INVOKE_DPE_ECC384 => execute_invoke_dpe_ecc384(drivers, cmd_bytes),
         CommandId::INVOKE_DPE_MLDSA87 => execute_invoke_dpe_mldsa87(drivers, cmd_bytes),
+        CommandId::CERTIFY_KEY_CHUNKS => execute_certify_key_chunks(drivers, cmd_bytes),
         CommandId::GET_ATTESTED_ECC384_CSR => {
             attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes)
         }
@@ -441,7 +443,7 @@ fn execute_command_with_common_resp(
             GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        // CERTIFY_KEY_EXTENDED_{ECC384,MLDSA87} are dispatched earlier.
+        // CERTIFY_KEY_EXTENDED_{ECC384,MLDSA87} and CERTIFY_KEY_CHUNKS are dispatched earlier.
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
@@ -664,6 +666,19 @@ fn execute_invoke_dpe_mldsa87(
 ) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
     let len = InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp)?;
+    finalize_response(drivers, resp, len)
+}
+
+#[inline(never)]
+fn execute_certify_key_chunks(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+) -> CaliptraResult<MboxStatusE> {
+    // Buffer must hold CertifyKeyChunksRespInfo header + full DPE CertifyKey response.
+    const BUF_SIZE: usize =
+        DPE_RESP_BUF_SIZE + size_of::<caliptra_api::mailbox::CertifyKeyChunksRespInfo>();
+    let resp = &mut [0u8; BUF_SIZE][..];
+    let len = certify_key_chunks::CertifyKeyChunksCmd::execute(drivers, cmd_bytes, resp)?;
     finalize_response(drivers, resp, len)
 }
 

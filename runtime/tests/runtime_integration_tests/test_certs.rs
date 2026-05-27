@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::PQC_KEY_TYPE;
+use crate::common::{certify_key, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, PQC_KEY_TYPE};
 use crate::common::{
     execute_dpe_cmd, generate_test_x509_cert, get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert,
     get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
-    RuntimeTestArgs, TEST_LABEL,
+    RuntimeTestArgs,
 };
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART};
@@ -19,10 +19,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
-    commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
-        DeriveContextCmd, DeriveContextFlags,
-    },
+    commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::{CertifyKeyP384Resp, CertifyKeyResp, Response},
     tci::TciMeasurement,
@@ -441,18 +438,9 @@ fn test_dpe_leaf_cert() {
     let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
+    let resp = certify_key(&mut model, certify_key_cmd).unwrap();
+    let CertifyKeyResp::P384(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
     let dpe_leaf_cert: X509 =
@@ -540,18 +528,9 @@ fn test_full_cert_chain_mldsa87() {
 }
 
 fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyP384Resp {
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
+    let resp = certify_key(model, certify_key_cmd).unwrap();
+    let CertifyKeyResp::P384(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
     certify_key_resp
@@ -728,8 +707,8 @@ pub fn test_all_measurement_apis() {
         // Certs should be exactly the same regardless of method
         //
         if hw.subsystem_mode() {
-            // Subsystem will measure & store MCU FW _after_ booting into runtime.
-            // This means the certificate won't match the cert produced with the ROM stashed measurement because the ROM measurement is _before_ the MCU FW measurement.
+            // Subsystem measures and stores MCU FW after booting into runtime.
+            // The ROM-stashed measurement is from before the MCU FW measurement.
             assert_eq!(derive_context_dpe_cert, rt_stash_dpe_cert);
         } else {
             assert_eq!(rom_stash_dpe_cert, rt_stash_dpe_cert);

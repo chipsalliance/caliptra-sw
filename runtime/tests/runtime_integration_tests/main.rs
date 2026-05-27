@@ -5,6 +5,7 @@ mod test_activate_firmware;
 mod test_attested_csr;
 mod test_authorize_and_stash;
 mod test_boot;
+mod test_certify_key_chunks;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_cryptographic_mailbox;

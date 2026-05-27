@@ -1164,6 +1164,34 @@ Command Code: `0x434B_4558` ("CKEX")
 | fips\_status       | u32      | Indicates if the command is FIPS approved or an error.                     |
 | certify\_key\_resp | u8[2176] | Certify Key Response.                                                      |
 
+### CERTIFY\_KEY\_CHUNKS
+
+Invokes a DPE `CertifyKey` command (ML-DSA-87) and returns the response in chunks. This is useful when the DPE response (which contains a certificate or CSR) is larger than the mailbox size or larger than the caller can easily consume.
+
+Command Code: `0x434B_4348` ("CKCH")
+
+*Table: `CERTIFY_KEY_CHUNKS` input arguments*
+
+| **Name**          | **Type** | **Description**                                                                       |
+| ----------------- | -------- | ------------------------------------------------------------------------------------- |
+| chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian.           |
+| flags             | u32      | Flags (reserved).                                                                     |
+| reserved          | u32      | Reserved.                                                                             |
+| max\_size         | u32      | The maximum length of the chunk the caller wants to receive. If 0, defaults to 15360. |
+| offset            | u32      | Offset into the full CertifyKey response to read from.                                |
+| certify\_key\_req | u8[72]   | The serialized DPE `CertifyKey` command.                                              |
+
+*Table: `CERTIFY_KEY_CHUNKS` output arguments*
+
+| **Name**           | **Type**  | **Description**                                                            |
+| ------------------ | --------- | -------------------------------------------------------------------------- |
+| chksum             | u32       | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status       | u32       | Indicates if the command is FIPS approved or an error.                     |
+| context\_handle    | u8[16]    | The new DPE context handle returned by the `CertifyKey` command.           |
+| chunk\_len         | u32       | The length of the chunk returned in `certify_key_resp`.                    |
+| remaining          | u32       | The number of bytes remaining in the full response after this chunk.       |
+| certify\_key\_resp | u8[15360] | The chunk of the DPE `CertifyKey` response.                                |
+
 ### SET_AUTH_MANIFEST
 
 The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use.

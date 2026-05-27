@@ -1,17 +1,18 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
-    TEST_DIGEST, TEST_LABEL,
+    certify_key, check_dpe_status, execute_dpe_cmd, execute_dpe_cmd_raw, get_rt_alias_ecc384_cert,
+    run_rt_test, verify_sign_and_certify_key, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs,
+    CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef, TEST_DIGEST, TEST_LABEL,
+    TEST_SD_SHA384,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, SecurityState};
-use caliptra_runtime::RtBootStatus;
-use caliptra_runtime::{DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -19,21 +20,14 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
-        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd,
-        RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
+        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
+        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
+    response::{DpeErrorCode, Response, SignResp},
     DpeProfile,
 };
-use openssl::{
-    bn::BigNum,
-    ec::{EcGroup, EcKey},
-    ecdsa::EcdsaSig,
-    nid::Nid,
-    x509::X509,
-};
+use openssl::{ecdsa::EcdsaSig, x509::X509};
 use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
 use zerocopy::{FromBytes, IntoBytes};
@@ -140,53 +134,61 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
 }
 
+fn sign_and_certify_key_test_helper(model: &mut DefaultHwModel) {
+    // MLDSA87 Sign is not implemented on caliptra-2.0 (CryptoError::NotImplemented),
+    // so only test sign+certify+verify with ECC384.
+    let profile = CaliptraDpeProfile::Ecc384;
+    let data = TEST_SD_SHA384;
+    let sign_cmd = SignCommandNoRef::new(CreateSignCmdArgs {
+        profile,
+        data: data.clone(),
+        ..Default::default()
+    });
+    let mut cmd = Command::from(&sign_cmd);
+    let resp = execute_dpe_cmd_raw(model, profile, &mut cmd).unwrap();
+    let resp_data = resp.data[..resp.data_size as usize].to_vec();
+    check_dpe_status(&resp_data, DpeErrorCode::NoError);
+    let sign_resp = Response::try_read_from_bytes(&cmd, &resp_data).unwrap();
+
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile,
+        format: CertifyKeyCommand::FORMAT_X509,
+        ..Default::default()
+    });
+
+    let certify_key_resp = certify_key(model, certify_key_cmd).unwrap();
+
+    verify_sign_and_certify_key(
+        model,
+        profile,
+        &sign_resp,
+        &certify_key_resp,
+        data.as_slice(),
+    );
+}
+
 #[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let sign_cmd = SignCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: SignFlags::empty(),
-        digest: TEST_DIGEST,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&sign_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::Sign(SignResp::P384(sign_resp))) = resp else {
-        panic!("Wrong response type!");
-    };
+    sign_and_certify_key_test_helper(&mut model);
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
-        panic!("Wrong response type!");
-    };
+    // Make sure both profiles can get certificates and CSRs
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let formats = [
+            CertifyKeyCommand::FORMAT_X509,
+            CertifyKeyCommand::FORMAT_CSR,
+        ];
+        for format in formats {
+            let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+                profile,
+                format,
+                ..Default::default()
+            });
 
-    let sig = EcdsaSig::from_private_components(
-        BigNum::from_slice(&sign_resp.sig_r).unwrap(),
-        BigNum::from_slice(&sign_resp.sig_s).unwrap(),
-    )
-    .unwrap();
-
-    let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
-        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
-    )
-    .unwrap();
-    assert!(sig.verify(&TEST_DIGEST, &ecc_pub_key).unwrap());
+            let _ = certify_key(&mut model, certify_key_cmd).unwrap();
+        }
+    }
 }
 
 #[test]
@@ -242,28 +244,29 @@ fn test_invoke_dpe_certify_key_csr() {
 
     model.step_until_ready_for_runtime();
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile,
+            format: CertifyKeyCommand::FORMAT_CSR,
+            ..Default::default()
+        });
+        let _ = certify_key(&mut model, certify_key_cmd).unwrap();
+    }
+
+    // Detailed CSR parsing for ECC384
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+        profile: CaliptraDpeProfile::Ecc384,
         format: CertifyKeyCommand::FORMAT_CSR,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
-        panic!("Wrong response type!");
-    };
+        ..Default::default()
+    });
+    let certify_key_resp = certify_key(&mut model, certify_key_cmd).unwrap();
+    let cert_bytes = certify_key_resp.cert().unwrap();
 
     let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // parse CMS ContentInfo
-    let content_info =
-        ContentInfo::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let content_info = ContentInfo::from_der(cert_bytes).unwrap();
     // parse SignedData
     let mut signed_data = SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
     assert_eq!(signed_data.version, CmsVersion::V3);
@@ -358,21 +361,16 @@ fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
 fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(resp))) = resp else {
-        panic!("Wrong response type!");
-    };
-    check_dice_extension_criticality(&resp.cert[..resp.cert_size as usize], false);
+    for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+        let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile,
+            format: CertifyKeyCommand::FORMAT_X509,
+            ..Default::default()
+        });
+
+        let resp = certify_key(&mut model, certify_key_cmd).unwrap();
+        check_dice_extension_criticality(resp.cert().unwrap(), false);
+    }
 }
 
 #[test]
@@ -500,25 +498,12 @@ fn test_subsystem_leaf_cert_contains_mcfw_tci_type() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
         format: CertifyKeyCommand::FORMAT_X509,
-    };
-
-    let certify_key_resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    )
-    .unwrap();
-
-    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = certify_key_resp else {
-        panic!("Wrong response type!");
-    };
-
-    let cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+        ..Default::default()
+    });
+    let certify_key_resp = certify_key(&mut model, certify_key_cmd).unwrap();
+    let cert_bytes = certify_key_resp.cert().unwrap();
 
     let (_, cert) = X509CertificateParser::new()
         .with_deep_parse_extensions(true)

@@ -90,6 +90,7 @@ impl CommandId {
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
     pub const CERTIFY_KEY_EXTENDED_ECC384: Self = Self(0x434B4558); // "CKEX"
     pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B584D); // "CKXM"
+    pub const CERTIFY_KEY_CHUNKS: Self = Self(0x434B4348); // "CKCH"
 
     /// FIPS module commands.
     /// The status command.
@@ -337,6 +338,7 @@ pub enum MailboxResp {
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
+    CertifyKeyChunks(CertifyKeyChunksResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -401,6 +403,7 @@ impl MailboxResp {
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -463,6 +466,7 @@ impl MailboxResp {
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -574,6 +578,7 @@ pub enum MailboxReq {
     GetPcrLog(MailboxReqHeader),
     FeProg(FeProgReq),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq),
+    CertifyKeyChunks(CertifyKeyChunksReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -654,6 +659,7 @@ impl MailboxReq {
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -732,6 +738,7 @@ impl MailboxReq {
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -814,6 +821,7 @@ impl MailboxReq {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
+            MailboxReq::CertifyKeyChunks(_) => CommandId::CERTIFY_KEY_CHUNKS,
         }
     }
 
@@ -1362,6 +1370,76 @@ impl CertifyKeyExtendedResp {
         }
         let unused_byte_count = Self::CERTIFY_KEY_RESP_SIZE - self.size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+// CERTIFY_KEY_CHUNKS
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksReq {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyChunksFlags,
+    pub reserved: u32,
+    pub max_size: u32,
+    pub offset: u32,
+    pub certify_key_req: [u8; Self::CERTIFY_KEY_REQ_SIZE],
+}
+
+impl CertifyKeyChunksReq {
+    pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
+}
+
+impl Request for CertifyKeyChunksReq {
+    const ID: CommandId = CommandId::CERTIFY_KEY_CHUNKS;
+    type Resp = CertifyKeyChunksResp;
+}
+
+#[repr(C)]
+#[derive(
+    Debug, PartialEq, Eq, FromBytes, Immutable, KnownLayout, IntoBytes, Default, Copy, Clone,
+)]
+pub struct CertifyKeyChunksFlags(pub u32);
+
+bitflags! {
+    impl CertifyKeyChunksFlags: u32 {
+        const USE_MLDSA = 1u32 << 31;
+    }
+}
+
+impl CertifyKeyChunksFlags {
+    pub fn use_mldsa(&self) -> bool {
+        self.contains(CertifyKeyChunksFlags::USE_MLDSA)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksRespInfo {
+    pub hdr: MailboxRespHeader,
+    pub context_handle: [u8; 16],
+    pub chunk_len: u32,
+    pub remaining: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksResp {
+    pub info: CertifyKeyChunksRespInfo,
+    pub certify_key_resp: [u8; Self::MAX_CHUNK_SIZE],
+}
+
+impl CertifyKeyChunksResp {
+    pub const MAX_CHUNK_SIZE: usize = 15 * 1024;
+}
+
+impl Response for CertifyKeyChunksResp {}
+
+impl Default for CertifyKeyChunksResp {
+    fn default() -> Self {
+        Self {
+            info: Default::default(),
+            certify_key_resp: [0u8; Self::MAX_CHUNK_SIZE],
+        }
     }
 }
 
