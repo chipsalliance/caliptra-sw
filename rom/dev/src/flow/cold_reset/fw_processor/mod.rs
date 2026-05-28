@@ -467,18 +467,14 @@ impl FirmwareProcessor {
                     CommandId::INSTALL_OWNER_PK_HASH => {
                         InstallOwnerPkHashCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(
-                        cmd_bytes,
-                        persistent_data,
-                        AlgorithmType::Ecc384,
-                        resp,
-                    )?,
-                    CommandId::GET_LDEV_MLDSA87_CERT => GetLdevCertCmd::execute(
-                        cmd_bytes,
-                        persistent_data,
-                        AlgorithmType::Mldsa87,
-                        resp,
-                    )?,
+                    CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
+                        let algo = if CommandId::from(cmd) == CommandId::GET_LDEV_ECC384_CERT {
+                            AlgorithmType::Ecc384
+                        } else {
+                            AlgorithmType::Mldsa87
+                        };
+                        GetLdevCertCmd::execute(cmd_bytes, persistent_data, algo, resp)?
+                    }
                     CommandId::ZEROIZE_UDS_FE => {
                         ZeroizeUdsFeCmd::execute(cmd_bytes, soc_ifc, dma, resp)?
                     }
@@ -709,9 +705,15 @@ impl FirmwareProcessor {
         };
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
+            "[fwproc] Img verified ecc={} {}={} svn={} fuse_svn={}",
             info.vendor_ecc_pub_key_idx,
-            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type) == Some(FwVerificationPqcKeyType::MLDSA)  { "MLDSA" } else { "LMS" },
+            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type)
+                == Some(FwVerificationPqcKeyType::MLDSA)
+            {
+                "MLDSA"
+            } else {
+                "LMS"
+            },
             info.vendor_pqc_pub_key_idx,
             info.fw_svn,
             info.effective_fuse_svn,

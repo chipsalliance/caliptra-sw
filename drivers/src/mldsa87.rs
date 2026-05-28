@@ -234,7 +234,7 @@ impl<'a> Mldsa87<'a> {
         let pct_msg = Mldsa87Msg::default();
         let pct_sign_rnd = Mldsa87SignRnd::default();
 
-        match self.sign(seed, pubkey, &pct_msg, &pct_sign_rnd, trng) {
+        match self.sign_var(seed, pubkey, pct_msg.as_bytes(), &pct_sign_rnd, trng) {
             Ok(mut sig) => {
                 sig.zeroize();
             }
