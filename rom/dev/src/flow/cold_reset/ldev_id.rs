@@ -15,11 +15,11 @@ Abstract:
 
 use super::dice::*;
 use crate::cprintln;
+use crate::flow::cold_reset;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::rom_env::RomEnv;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV};
 use caliptra_common::{
     crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
@@ -237,42 +237,15 @@ impl LocalDevIdLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(
-            &mut env.ecc384,
-            &mut env.hmac,
-            &mut env.trng,
-            &mut env.key_vault,
+        cold_reset::derive_dice_key_pair(
+            env,
             cdi,
-            b"ldevid_ecc_key",
             ecc_priv_key,
-        );
-        if cfi_launder(result.is_ok()) {
-            cfi_assert!(result.is_ok());
-        } else {
-            cfi_assert!(result.is_err());
-        }
-        let ecc_keypair = result?;
-
-        // Derive the MLDSA Key Pair.
-        let result = env.abr.with_mldsa87(|mut mldsa87| {
-            Crypto::mldsa87_key_gen(
-                &mut mldsa87,
-                &mut env.hmac,
-                &mut env.trng,
-                cdi,
-                b"ldevid_mldsa_key",
-                mldsa_keypair_seed,
-            )
-        });
-        if cfi_launder(result.is_ok()) {
-            cfi_assert!(result.is_ok());
-        } else {
-            cfi_assert!(result.is_err());
-        }
-        let mldsa_keypair = result?;
-
-        report_boot_status(LDevIdKeyPairDerivationComplete.into());
-        Ok((ecc_keypair, mldsa_keypair))
+            mldsa_keypair_seed,
+            b"ldevid_ecc_key",
+            b"ldevid_mldsa_key",
+            LDevIdKeyPairDerivationComplete.into(),
+        )
     }
 
     /// Generate ECC Local Device ID Certificate Signature
@@ -312,7 +285,8 @@ impl LocalDevIdLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[ldev] Signing Cert with ECC AUTHORITY.KEYID = {}",
+            "[ldev] Signing Cert {} AUTHORITY.KEYID = {}",
+            "ECC",
             ecc_auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(
@@ -383,7 +357,8 @@ impl LocalDevIdLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[ldev] Signing Cert with MLDSA AUTHORITY.KEYID = {}",
+            "[ldev] Signing Cert {} AUTHORITY.KEYID = {}",
+            "MLDSA",
             mldsa_auth_priv_key as u8
         );
         let mut sig = env.abr.with_mldsa87(|mut mldsa87| {

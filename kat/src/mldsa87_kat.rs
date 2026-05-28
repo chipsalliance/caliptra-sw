@@ -107,10 +107,10 @@ impl Mldsa87Kat {
         let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
         let signature = mldsa87
-            .sign(
+            .sign_var(
                 Mldsa87Seed::Array4x8(&SEED),
                 pub_key,
-                &KAT_MESSAGE.into(),
+                KAT_MESSAGE.as_bytes(),
                 &Mldsa87SignRnd::default(),
                 trng,
             )

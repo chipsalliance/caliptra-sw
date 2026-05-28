@@ -215,9 +215,9 @@ pub fn validate_debug_unlock_token(
     // Convert the digest to little endian format for MLDSA.
     let mldsa_msg: LEArray4x16 = mldsa_msg.into();
 
-    let result = mldsa87.verify(
+    let result = mldsa87.verify_var(
         &Mldsa87PubKey::from(&token.mldsa_public_key),
-        &mldsa_msg,
+        mldsa_msg.as_bytes(),
         &Mldsa87Signature::from(&token.mldsa_signature),
     )?;
 

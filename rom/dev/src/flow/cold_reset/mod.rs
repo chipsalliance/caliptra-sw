@@ -30,6 +30,9 @@ use crate::rom_env::RomEnvFips;
 use crate::{cprintln, rom_env::RomEnv};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
+use caliptra_common::cfi_check;
+use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use zerocopy::transmute;
@@ -179,4 +182,48 @@ fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput {
         mldsa_auth_sn: &dice_output.mldsa_subj_sn,
         mldsa_auth_key_id: &dice_output.mldsa_subj_key_id,
     }
+}
+
+/// Derive a DICE layer's ECC and MLDSA key pairs from a CDI.
+///
+/// Shared by the IDevID, LDevID, and FmcAlias layers; the labels and
+/// completion-status code differ per layer.
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
+#[inline(never)]
+pub(crate) fn derive_dice_key_pair(
+    env: &mut RomEnv,
+    cdi: KeyId,
+    ecc_priv_key: KeyId,
+    mldsa_keypair_seed: KeyId,
+    ecc_label: &[u8],
+    mldsa_label: &[u8],
+    done_status: u32,
+) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+    let result = Crypto::ecc384_key_gen(
+        &mut env.ecc384,
+        &mut env.hmac,
+        &mut env.trng,
+        &mut env.key_vault,
+        cdi,
+        ecc_label,
+        ecc_priv_key,
+    );
+    cfi_check!(result);
+    let ecc_keypair = result?;
+
+    let result = env.abr.with_mldsa87(|mut mldsa87| {
+        Crypto::mldsa87_key_gen(
+            &mut mldsa87,
+            &mut env.hmac,
+            &mut env.trng,
+            cdi,
+            mldsa_label,
+            mldsa_keypair_seed,
+        )
+    });
+    cfi_check!(result);
+    let mldsa_keypair = result?;
+
+    report_boot_status(done_status);
+    Ok((ecc_keypair, mldsa_keypair))
 }
