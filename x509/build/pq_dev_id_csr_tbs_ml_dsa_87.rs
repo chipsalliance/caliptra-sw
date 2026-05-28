@@ -7,38 +7,38 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct InitDevIdCsrTbsMlDsa87Params<'a> {
+pub struct PqDevIdCsrTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
     pub ueid: &'a [u8; 17usize],
 }
-impl<'a> InitDevIdCsrTbsMlDsa87Params<'a> {
+impl<'a> PqDevIdCsrTbsMlDsa87Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const UEID_LEN: usize = 17usize;
 }
-pub struct InitDevIdCsrTbsMlDsa87 {
+pub struct PqDevIdCsrTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl InitDevIdCsrTbsMlDsa87 {
-    const PUBLIC_KEY_OFFSET: usize = 144usize;
-    const SUBJECT_SN_OFFSET: usize = 58usize;
-    const UEID_OFFSET: usize = 2807usize;
+impl PqDevIdCsrTbsMlDsa87 {
+    const PUBLIC_KEY_OFFSET: usize = 145usize;
+    const SUBJECT_SN_OFFSET: usize = 59usize;
+    const UEID_OFFSET: usize = 2808usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const UEID_LEN: usize = 17usize;
-    pub const TBS_TEMPLATE_LEN: usize = 2824usize;
-    const TBS_TEMPLATE_BEFORE_PLACEHOLDER: [u8; 144usize] = [
-        48u8, 130u8, 11u8, 4u8, 2u8, 1u8, 0u8, 48u8, 113u8, 49u8, 36u8, 48u8, 34u8, 6u8, 3u8, 85u8,
-        4u8, 3u8, 12u8, 27u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 49u8,
-        46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 73u8, 68u8, 101u8,
-        118u8, 73u8, 68u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8,
+    pub const TBS_TEMPLATE_LEN: usize = 2825usize;
+    const TBS_TEMPLATE_BEFORE_PLACEHOLDER: [u8; 145usize] = [
+        48u8, 130u8, 11u8, 5u8, 2u8, 1u8, 0u8, 48u8, 114u8, 49u8, 37u8, 48u8, 35u8, 6u8, 3u8, 85u8,
+        4u8, 3u8, 12u8, 28u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 49u8,
+        46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 80u8, 81u8, 68u8,
+        101u8, 118u8, 73u8, 68u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8,
-        101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
+        95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8,
+        1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
     ];
     const TBS_TEMPLATE_AFTER_PLACEHOLDER: [u8; 88usize] = [
         160u8, 86u8, 48u8, 84u8, 6u8, 9u8, 42u8, 134u8, 72u8, 134u8, 247u8, 13u8, 1u8, 9u8, 14u8,
@@ -60,15 +60,15 @@ impl InitDevIdCsrTbsMlDsa87 {
         }
         let mut i = 0;
         while i < after.len() {
-            result[2736usize + i] = after[i];
+            result[2737usize + i] = after[i];
             i += 1;
         }
         result
     };
-    pub fn new(params: &InitDevIdCsrTbsMlDsa87Params) -> Self {
+    pub fn new(params: &PqDevIdCsrTbsMlDsa87Params) -> Self {
         let mut tbs = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        tbs[..144usize].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_PLACEHOLDER);
-        tbs[2736usize..].copy_from_slice(&Self::TBS_TEMPLATE_AFTER_PLACEHOLDER);
+        tbs[..145usize].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_PLACEHOLDER);
+        tbs[2737usize..].copy_from_slice(&Self::TBS_TEMPLATE_AFTER_PLACEHOLDER);
         let mut template = Self { tbs };
         template.apply(params);
         template
@@ -82,10 +82,10 @@ impl InitDevIdCsrTbsMlDsa87 {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &InitDevIdCsrTbsMlDsa87Params) {
+    fn apply(&mut self, params: &PqDevIdCsrTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 2824usize],
+            buf: &mut [u8; 2825usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);

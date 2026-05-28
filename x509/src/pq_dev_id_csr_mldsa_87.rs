@@ -4,21 +4,18 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    idevid_csr_mldsa_87.rs
+    pq_dev_id_csr_mldsa_87.rs
 
 Abstract:
 
-    Initial Device ID Certificate Signing Request related code (ML-DSA-87).
+    Post-Quantum Device ID Certificate Signing Request related code (ML-DSA-87).
 
 --*/
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(
-    env!("OUT_DIR"),
-    "/init_dev_id_csr_tbs_ml_dsa_87.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/pq_dev_id_csr_tbs_ml_dsa_87.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/init_dev_id_csr_tbs_ml_dsa_87.rs"}
+include! {"../build/pq_dev_id_csr_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -36,16 +33,16 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{MlDsa87CsrBuilder, MlDsa87Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; InitDevIdCsrTbsMlDsa87::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; PqDevIdCsrTbsMlDsa87::UEID_LEN];
 
-    fn make_test_csr(subject_key: &MlDsa87AsymKey) -> InitDevIdCsrTbsMlDsa87 {
-        let params = InitDevIdCsrTbsMlDsa87Params {
+    fn make_test_csr(subject_key: &MlDsa87AsymKey) -> PqDevIdCsrTbsMlDsa87 {
+        let params = PqDevIdCsrTbsMlDsa87Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
         };
 
-        InitDevIdCsrTbsMlDsa87::new(&params)
+        PqDevIdCsrTbsMlDsa87::new(&params)
     }
 
     #[test]
@@ -65,22 +62,20 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), InitDevIdCsrTbsMlDsa87::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), PqDevIdCsrTbsMlDsa87::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET
-                ..InitDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET
-                    + InitDevIdCsrTbsMlDsa87::PUBLIC_KEY_LEN],
+            &csr.tbs()[PqDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET
+                ..PqDevIdCsrTbsMlDsa87::PUBLIC_KEY_OFFSET + PqDevIdCsrTbsMlDsa87::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET
-                ..InitDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET
-                    + InitDevIdCsrTbsMlDsa87::SUBJECT_SN_LEN],
+            &csr.tbs()[PqDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET
+                ..PqDevIdCsrTbsMlDsa87::SUBJECT_SN_OFFSET + PqDevIdCsrTbsMlDsa87::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbsMlDsa87::UEID_OFFSET
-                ..InitDevIdCsrTbsMlDsa87::UEID_OFFSET + InitDevIdCsrTbsMlDsa87::UEID_LEN],
+            &csr.tbs()[PqDevIdCsrTbsMlDsa87::UEID_OFFSET
+                ..PqDevIdCsrTbsMlDsa87::UEID_OFFSET + PqDevIdCsrTbsMlDsa87::UEID_LEN],
             TEST_UEID,
         );
 
@@ -172,19 +167,19 @@ mod tests {
 
     #[test]
     #[cfg(feature = "generate_templates")]
-    fn test_idevid_mldsa87_template() {
+    fn test_pq_dev_id_mldsa87_template() {
         let manual_template = std::fs::read(std::path::Path::new(
-            "./build/init_dev_id_csr_tbs_ml_dsa_87.rs",
+            "./build/pq_dev_id_csr_tbs_ml_dsa_87.rs",
         ))
         .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/init_dev_id_csr_tbs_ml_dsa_87.rs"
+            "/pq_dev_id_csr_tbs_ml_dsa_87.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
             panic!(
-                "Auto-generated IDevID ML-DSA-87 CSR template is not equal to the manual template."
+                "Auto-generated PQDevID ML-DSA-87 CSR template is not equal to the manual template."
             )
         }
     }
