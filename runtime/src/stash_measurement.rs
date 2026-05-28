@@ -21,7 +21,7 @@ use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, Caliptr
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::DpeErrorCode,
+    response::{DeriveContextExportedCdiResp, DpeErrorCode},
     tci::TciMeasurement,
 };
 use zerocopy::{FromBytes, IntoBytes};
@@ -64,7 +64,9 @@ impl StashMeasurementCmd {
             };
             let command = Command::from(&cmd);
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let derive_context_resp = invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality));
+            let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
+            let derive_context_resp =
+                invoke_dpe_cmd_serialized(drivers, &command, None, ueid, Some(locality), &mut buf);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,

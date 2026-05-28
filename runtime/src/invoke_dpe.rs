@@ -49,10 +49,6 @@ impl InvokeDpeCmd {
             let mut cmd = InvokeDpeReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
-
             let caller_privilege_level = drivers.caller_privilege_level();
 
             // Validate data length
@@ -210,4 +206,22 @@ pub fn invoke_dpe_cmd(
         Command::GetCertificateChain(cmd) => cmd.execute(dpe, env, locality),
         Command::UpdateContextMeasurement(cmd) => cmd.execute(dpe, env, locality),
     }
+}
+
+pub fn invoke_dpe_cmd_serialized(
+    drivers: &mut Drivers,
+    command: &Command<'_>,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+    locality: Option<u32>,
+    out: &mut [u8],
+) -> Result<usize, DpeErrorCode> {
+    let locality = locality.unwrap_or(drivers.mbox.user());
+    let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
+    let env = match env.as_mut() {
+        Ok(r) => r,
+        Err(_) => Err(DpeErrorCode::InternalError)?,
+    };
+    let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+    command.execute_serialized(dpe, env, locality, out)
 }

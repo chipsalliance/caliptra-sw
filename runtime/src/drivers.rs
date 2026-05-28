@@ -535,6 +535,7 @@ impl Drivers {
 
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
+        let mut buf = [0u8; size_of::<DeriveContextResp>()];
         let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(<[u8; 48]>::from(initialization_values_hash)),
@@ -547,7 +548,7 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute(&mut dpe, &mut env, CALIPTRA_LOCALITY);
+        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut buf);
         if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
@@ -589,7 +590,7 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute(&mut dpe, &mut env, pl0_pauser_locality);
+            .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut buf);
             if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
