@@ -25,7 +25,9 @@ use caliptra_drivers::{
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use caliptra_x509::{
+    Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbsEcc384, LocalDevIdCertTbsEcc384,
+};
 use ureg::RealMmioMut;
 use zerocopy::IntoBytes;
 
@@ -43,13 +45,20 @@ pub fn main() {}
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
 #[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
-const PAD_LEN: usize = 9488; // TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9624; // TEST_FMC_INTERACTIVE
 #[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
-const PAD_LEN: usize = 9724; // FAKE_TEST_FMC_WITH_UART
+const PAD_LEN: usize = 9904; // FAKE_TEST_FMC_WITH_UART
 #[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
-const PAD_LEN: usize = 9832; // FAKE_TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9976; // FAKE_TEST_FMC_INTERACTIVE
 #[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
 const PAD_LEN: usize = 0;
+
+// 4-byte cfg-gated filler that nudges FAKE_TEST_FMC_INTERACTIVE's binary layout
+// past an ELF alignment plateau so PAD_LEN can land bundle.fmc.len() at exactly 16K.
+// The other three variants (incl. the empty-PAD case) hit 16K without it.
+#[cfg(all(feature = "fake-fmc", feature = "interactive_test_fmc"))]
+#[used]
+static FAKE_INT_FILLER: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
 
 static PAD: [u32; PAD_LEN / 4] = {
     let mut result = [0xdeadbeef_u32; PAD_LEN / 4];
@@ -62,7 +71,7 @@ static PAD: [u32; PAD_LEN / 4] = {
 };
 
 const BANNER: &str = r#"
-Running Caliptra FMC .......
+Running Caliptra FMC ...
 "#;
 
 #[no_mangle]
@@ -137,13 +146,13 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         r: sig.r.into(),
         s: sig.s.into(),
     };
-    let mut tbs: [u8; core::mem::size_of::<LocalDevIdCertTbs>()] =
-        [0u8; core::mem::size_of::<LocalDevIdCertTbs>()];
+    let mut tbs: [u8; core::mem::size_of::<LocalDevIdCertTbsEcc384>()] =
+        [0u8; core::mem::size_of::<LocalDevIdCertTbsEcc384>()];
     copy_tbs(&mut tbs, true);
 
     let mut cert: [u8; 1024] = [0u8; 1024];
     let builder = Ecdsa384CertBuilder::new(
-        &tbs[..core::mem::size_of::<LocalDevIdCertTbs>()],
+        &tbs[..core::mem::size_of::<LocalDevIdCertTbsEcc384>()],
         &ecdsa_sig,
     )
     .unwrap();
@@ -165,14 +174,16 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         s: sig.s.into(),
     };
 
-    let mut tbs: [u8; core::mem::size_of::<FmcAliasCertTbs>()] =
-        [0u8; core::mem::size_of::<FmcAliasCertTbs>()];
+    let mut tbs: [u8; core::mem::size_of::<FmcAliasCertTbsEcc384>()] =
+        [0u8; core::mem::size_of::<FmcAliasCertTbsEcc384>()];
     copy_tbs(&mut tbs, false);
 
     let mut cert: [u8; 1024] = [0u8; 1024];
-    let builder =
-        Ecdsa384CertBuilder::new(&tbs[..core::mem::size_of::<FmcAliasCertTbs>()], &ecdsa_sig)
-            .unwrap();
+    let builder = Ecdsa384CertBuilder::new(
+        &tbs[..core::mem::size_of::<FmcAliasCertTbsEcc384>()],
+        &ecdsa_sig,
+    )
+    .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
     cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
 

@@ -7,7 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct FmcAliasCsrTbsParams<'a> {
+pub struct FmcAliasCsrTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
     pub tcb_info_device_info_hash: &'a [u8; 48usize],
@@ -17,7 +17,7 @@ pub struct FmcAliasCsrTbsParams<'a> {
     pub tcb_info_fmc_svn: &'a [u8; 1usize],
     pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
 }
-impl<'a> FmcAliasCsrTbsParams<'a> {
+impl<'a> FmcAliasCsrTbsEcc384Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
@@ -27,10 +27,10 @@ impl<'a> FmcAliasCsrTbsParams<'a> {
     pub const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
     pub const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
 }
-pub struct FmcAliasCsrTbs {
+pub struct FmcAliasCsrTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl FmcAliasCsrTbs {
+impl FmcAliasCsrTbsEcc384 {
     const PUBLIC_KEY_OFFSET: usize = 140usize;
     const SUBJECT_SN_OFFSET: usize = 53usize;
     const TCB_INFO_DEVICE_INFO_HASH_OFFSET: usize = 373usize;
@@ -85,7 +85,7 @@ impl FmcAliasCsrTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 137u8, 8u8, 70u8, 77u8, 67u8, 95u8, 73u8, 78u8, 70u8, 79u8,
     ];
-    pub fn new(params: &FmcAliasCsrTbsParams) -> Self {
+    pub fn new(params: &FmcAliasCsrTbsEcc384Params) -> Self {
         let mut template = Self {
             tbs: Self::TBS_TEMPLATE,
         };
@@ -101,7 +101,7 @@ impl FmcAliasCsrTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &FmcAliasCsrTbsParams) {
+    fn apply(&mut self, params: &FmcAliasCsrTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
             buf: &mut [u8; 529usize],

@@ -7,7 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct RtAliasCertTbsParams<'a> {
+pub struct RtAliasCertTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
@@ -20,7 +20,7 @@ pub struct RtAliasCertTbsParams<'a> {
     pub not_after: &'a [u8; 15usize],
     pub tcb_info_rt_svn: &'a [u8; 1usize],
 }
-impl<'a> RtAliasCertTbsParams<'a> {
+impl<'a> RtAliasCertTbsEcc384Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
@@ -33,10 +33,10 @@ impl<'a> RtAliasCertTbsParams<'a> {
     pub const NOT_AFTER_LEN: usize = 15usize;
     pub const TCB_INFO_RT_SVN_LEN: usize = 1usize;
 }
-pub struct RtAliasCertTbs {
+pub struct RtAliasCertTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl RtAliasCertTbs {
+impl RtAliasCertTbsEcc384 {
     const PUBLIC_KEY_OFFSET: usize = 321usize;
     const SUBJECT_SN_OFFSET: usize = 234usize;
     const ISSUER_SN_OFFSET: usize = 89usize;
@@ -106,7 +106,7 @@ impl RtAliasCertTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8,
     ];
-    pub fn new(params: &RtAliasCertTbsParams) -> Self {
+    pub fn new(params: &RtAliasCertTbsEcc384Params) -> Self {
         let mut template = Self {
             tbs: Self::TBS_TEMPLATE,
         };
@@ -122,7 +122,7 @@ impl RtAliasCertTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &RtAliasCertTbsParams) {
+    fn apply(&mut self, params: &RtAliasCertTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
             buf: &mut [u8; 649usize],
