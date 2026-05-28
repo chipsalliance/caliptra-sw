@@ -128,4 +128,75 @@ impl StashMeasurementCmd {
         resp.dpe_result = dpe_result.get_error_code();
         Ok(core::mem::size_of::<StashMeasurementResp>())
     }
+
+    /// Update an existing DPE context's measurement using RECURSIVE DeriveContext.
+    /// This extends the cumulative TCI without allocating a new context slot.
+    /// The context to update is identified by `fw_id` (mapped to TCI type) and `locality`.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn update_measurement(
+        drivers: &mut Drivers,
+        fw_id: &[u8; 4],
+        measurement: &[u8; 48],
+        svn: u32,
+        locality: u32,
+    ) -> CaliptraResult<DpeErrorCode> {
+        // Apply same fw_id → tci_type mapping as stash_measurement
+        let tci_type = if fw_id == &[2, 0, 0, 0] {
+            MCU_TCI_TYPE
+        } else {
+            u32::from_ne_bytes(*fw_id)
+        };
+
+        // Find the existing context by TCI type and locality
+        let handle = {
+            let dpe = &drivers.persistent_data.get().state;
+            let mut found = None;
+            for ctx in dpe.contexts.iter() {
+                if ctx.state == dpe::context::ContextState::Active
+                    && ctx.tci.tci_type == tci_type
+                    && ctx.locality == locality
+                {
+                    found = Some(ctx.handle);
+                    break;
+                }
+            }
+            found.ok_or(CaliptraError::RUNTIME_INTERNAL)?
+        };
+
+        let cmd = DeriveContextCmd {
+            handle,
+            data: TciMeasurement(*measurement),
+            flags: DeriveContextFlags::RECURSIVE,
+            tci_type,
+            target_locality: locality,
+            svn,
+        };
+
+        let profile = CaliptraDpeProfile::Ecc384;
+        let cmd = &Command::from(&cmd);
+        let mut resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
+        let resp = resp_buf.as_mut_bytes();
+        let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
+        let dpe_result =
+            match &invoke_dpe_cmd(profile, drivers, cmd, None, ueid, Some(locality), resp) {
+                Ok(_) => DpeErrorCode::NoError,
+                Err(e) => {
+                    if let Some(ext_err) = e.get_error_detail() {
+                        drivers.soc_ifc.set_fw_extended_error(ext_err);
+                    }
+                    *e
+                }
+            };
+
+        if let DpeErrorCode::NoError = dpe_result {
+            drivers.pcr_bank.extend_pcr(
+                PCR_ID_STASH_MEASUREMENT,
+                &mut drivers.sha2_512_384,
+                measurement.as_bytes(),
+            )?;
+        }
+
+        Ok(dpe_result)
+    }
 }

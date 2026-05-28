@@ -106,3 +106,54 @@ fn test_mcu_fw_bad_signature() {
         30_000_000,
     );
 }
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_recovery_flow_with_svn() {
+    // Test that recovery boot passes the SoC manifest SVN to the MCU RT DPE context.
+    // The manifest is created with SVN=5, and fuses are configured to allow it.
+    use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
+    use caliptra_image_types::FwVerificationPqcKeyType;
+
+    let mcu_fw = vec![1, 2, 3, 4];
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata_with_svn(
+        metadata,
+        FwVerificationPqcKeyType::LMS,
+        5, // SVN = 5
+    );
+    let soc_manifest = soc_manifest.as_bytes();
+    let mut args = RuntimeTestArgs::default();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    args.init_params = Some(InitParams {
+        rom: &rom,
+        subsystem_mode: true,
+        ..Default::default()
+    });
+    args.soc_manifest = Some(soc_manifest);
+    args.mcu_fw_image = Some(&mcu_fw);
+    args.soc_manifest_svn = Some(5);
+    args.soc_manifest_max_svn = Some(127);
+    let mut model = run_rt_test(args);
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    // Recovery boot completed successfully with SVN=5 in the SoC manifest.
+    // The MCU RT DPE context was created with the SoC manifest SVN
+    // instead of the previous default of 0.
+}

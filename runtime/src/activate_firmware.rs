@@ -202,12 +202,13 @@ impl ActivateFirmwareCmd {
                 )
                 .map_err(|_| ())?;
 
-            // Verify MCU after loading
+            // Update MCU RT DPE context with new measurement.
+            // SVN stays the same as the recovery boot value.
             let auth_and_stash_req = AuthorizeAndStashReq {
                 fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
-                flags: AuthAndStashFlags::SKIP_STASH.bits(),
+                flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
                 ..Default::default()
             };
 

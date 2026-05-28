@@ -2165,6 +2165,7 @@ impl From<ImageHashSource> for u32 {
 bitflags::bitflags! {
     pub struct AuthAndStashFlags : u32 {
         const SKIP_STASH = 0x1;
+        const UPDATE_EXISTING = 0x2;
     }
 }
 

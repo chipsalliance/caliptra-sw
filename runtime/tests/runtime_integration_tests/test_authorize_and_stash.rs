@@ -5,15 +5,15 @@ use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
 use crate::test_update_reset::update_fw;
-use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
+use caliptra_api::mailbox::{AuthAndStashFlags, MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{firmware::FMC_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader, SetAuthManifestReq,
+    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
+    ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -36,6 +36,12 @@ pub const IMAGE_DIGEST_BAD: [u8; 48] = [
 pub const FW_ID_1: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
+
+pub const IMAGE_DIGEST2: [u8; 48] = [
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+    0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30,
+];
 
 #[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_SIZE: usize = 0x1000;
@@ -1550,4 +1556,410 @@ fn test_verify_invalid_manifest() {
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_success() {
+    // Set up auth manifest and stash initial measurement to create a DPE context
+    let mut model = set_auth_manifest(None);
+
+    let mut stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Normal stash (create new context)
+        svn: 5,
+        ..Default::default()
+    });
+    stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Update the existing context using UPDATE_EXISTING
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        svn: 10,
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            update_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let update_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(update_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_no_context_fails() {
+    // Set up auth manifest but do NOT stash any measurement first
+    let mut model = set_auth_manifest(None);
+
+    // Try to update a non-existent context — should fail
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        svn: 5,
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        update_cmd.as_bytes().unwrap(),
+    );
+
+    // Should fail because no existing context with this TCI type
+    assert!(resp.is_err() || resp.unwrap().is_none());
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_mcfw_success() {
+    // Test UPDATE_EXISTING with MCU FW TCI type ("MCFW") — the hitless update path
+    let mut model = set_auth_manifest(None);
+
+    // First: stash an MCU FW measurement (fw_id 2 triggers "MCFW" TCI type)
+    let mut stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_2,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0,
+        svn: 3,
+        ..Default::default()
+    });
+    stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Update with MCFW TCI type and new SVN
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_2,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        svn: 7,
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            update_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let update_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(update_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_update_existing_verifies_dpe_state() {
+    // Verify that UPDATE_EXISTING (RECURSIVE DeriveContext) actually updates the
+    // DPE context's TCI measurements, not just returns success.
+    let mut model = set_auth_manifest(None);
+
+    const MCFW_TAG: u32 = 42;
+
+    // Step 1: Stash initial MCU FW measurement (fw_id 2 → "MCFW" TCI type)
+    let mut stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_2,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0,
+        svn: 3,
+        ..Default::default()
+    });
+    stash_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Stash should return a response");
+    let stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Step 2: Tag the stashed context (it's now the default in this locality)
+    let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0u8; 16],
+        tag: MCFW_TAG,
+    });
+    tag_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_TAG_TCI),
+            tag_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Tag should return a response");
+
+    // Step 3: Read initial TCI state
+    let mut get_tci_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: MCFW_TAG,
+    });
+    get_tci_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_tci_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GetTaggedTci should return a response");
+    let tci_resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // After initial stash: tci_current = IMAGE_DIGEST1
+    assert_eq!(tci_resp.tci_current, IMAGE_DIGEST1);
+
+    // tci_cumulative = SHA384([0u8; 48] || IMAGE_DIGEST1)
+    let mut hasher = Sha384::new();
+    hasher.update([0u8; 48]);
+    hasher.update(IMAGE_DIGEST1);
+    let expected_initial_cumulative: [u8; 48] = hasher.finalize().into();
+    assert_eq!(tci_resp.tci_cumulative, expected_initial_cumulative);
+
+    // Step 4: UPDATE_EXISTING with a different measurement
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_2,
+        measurement: IMAGE_DIGEST2,
+        source: ImageHashSource::InRequest as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        svn: 7,
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            update_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Update should return a response");
+    let update_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(update_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Step 5: Read DPE state after RECURSIVE update
+    let mut get_tci_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: MCFW_TAG,
+    });
+    get_tci_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_tci_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GetTaggedTci should return a response");
+    let tci_resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // After RECURSIVE update: tci_current = IMAGE_DIGEST2
+    assert_eq!(tci_resp.tci_current, IMAGE_DIGEST2);
+
+    // tci_cumulative = SHA384(old_cumulative || IMAGE_DIGEST2)
+    let mut hasher = Sha384::new();
+    hasher.update(expected_initial_cumulative);
+    hasher.update(IMAGE_DIGEST2);
+    let expected_updated_cumulative: [u8; 48] = hasher.finalize().into();
+    assert_eq!(tci_resp.tci_cumulative, expected_updated_cumulative);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_update_existing_from_load_address_verifies_dpe_state() {
+    // Verify that UPDATE_EXISTING with LoadAddress source stashes the computed
+    // measurement (not zeros) into the DPE context.
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+
+    let load_memory_contents = [0x55u8; 512];
+
+    let mut hasher = Sha384::new();
+    hasher.update(load_memory_contents);
+    let fw_digest: [u8; 48] = hasher.finalize().into();
+
+    let image_metadata = AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(FW_ID_1),
+        flags: flags.0,
+        digest: fw_digest,
+        image_load_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        ..Default::default()
+    };
+    let mcu_image = {
+        let mut arr = [0u8; 256];
+        for (i, item) in arr.iter_mut().enumerate() {
+            *item = i as u8;
+        }
+        arr
+    };
+
+    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
+    let auth_manifest =
+        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+
+    // Step 1: Initial stash with InRequest to create the DPE context
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
+    let mut stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: fw_digest,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0,
+        svn: 5,
+        ..Default::default()
+    });
+    stash_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Stash should return a response");
+    let stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Step 2: Tag the context
+    const LOAD_TAG: u32 = 99;
+    let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0u8; 16],
+        tag: LOAD_TAG,
+    });
+    tag_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_TAG_TCI),
+            tag_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Tag should return a response");
+
+    // Step 3: Read initial TCI
+    let mut get_tci_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: LOAD_TAG,
+    });
+    get_tci_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_tci_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GetTaggedTci should return a response");
+    let tci_resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(tci_resp.tci_current, fw_digest);
+
+    let mut hasher = Sha384::new();
+    hasher.update([0u8; 48]);
+    hasher.update(fw_digest);
+    let expected_initial_cumulative: [u8; 48] = hasher.finalize().into();
+    assert_eq!(tci_resp.tci_cumulative, expected_initial_cumulative);
+
+    // Step 4: UPDATE_EXISTING with LoadAddress — measurement should be computed
+    // from memory, not from the zeros in cmd.measurement
+    write_to_test_sram(
+        &mut model,
+        image_metadata.image_load_address,
+        &load_memory_contents,
+    );
+    let mut update_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: [0; 48], // zeros — LoadAddress should compute the real digest
+        source: ImageHashSource::LoadAddress as u32,
+        flags: AuthAndStashFlags::UPDATE_EXISTING.bits(),
+        image_size: load_memory_contents.len() as u32,
+        svn: 10,
+        ..Default::default()
+    });
+    update_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            update_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Update should return a response");
+    let update_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(update_resp.auth_req_result, IMAGE_AUTHORIZED);
+
+    // Step 5: Verify DPE was updated with the computed digest, not zeros
+    let mut get_tci_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: LOAD_TAG,
+    });
+    get_tci_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_tci_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GetTaggedTci should return a response");
+    let tci_resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // tci_current should be the computed digest (fw_digest), NOT zeros
+    assert_eq!(tci_resp.tci_current, fw_digest);
+    assert_ne!(
+        tci_resp.tci_current, [0u8; 48],
+        "DPE must not be extended with zeros"
+    );
+
+    // tci_cumulative = SHA384(initial_cumulative || fw_digest)
+    let mut hasher = Sha384::new();
+    hasher.update(expected_initial_cumulative);
+    hasher.update(fw_digest);
+    let expected_updated_cumulative: [u8; 48] = hasher.finalize().into();
+    assert_eq!(tci_resp.tci_cumulative, expected_updated_cumulative);
 }
