@@ -762,6 +762,29 @@ const MSG_2_KEY_2_SIG_2: [u8; 1620] = [
     91, 92, 253, 234, 176, 199, 233, 166, 221, 39, 227,
 ];
 
+/// Build a representative (valid) LMS_VERIFY request along with the message
+/// that must be streamed to the SHA accelerator before dispatch. Used by the
+/// stack-usage measurement test.
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+pub fn representative_lms_verify_req() -> (MailboxReq, &'static [u8]) {
+    let pub_key = <LmsPublicKey<LMS_N>>::read_from_bytes(&MSG_1_PUB_KEY_1[..]).unwrap();
+    let signature =
+        <LmsSignature<LMS_N, LMS_P, LMS_H>>::read_from_bytes(&MSG_1_KEY_1_SIG_1[..]).unwrap();
+    let mut cmd = MailboxReq::LmsVerify(LmsVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pub_key_tree_type: u32::from(pub_key.tree_type.0),
+        pub_key_ots_type: u32::from(pub_key.otstype.0),
+        pub_key_id: pub_key.id,
+        pub_key_digest: (*(pub_key.digest.as_bytes())).try_into().unwrap(),
+        signature_q: u32::from(signature.q),
+        signature_ots: (*(signature.ots.as_bytes())).try_into().unwrap(),
+        signature_tree_type: u32::from(signature.tree_type.0),
+        signature_tree_path: (*(signature.tree_path.as_bytes())).try_into().unwrap(),
+    });
+    cmd.populate_chksum().unwrap();
+    (cmd, &MSG_1)
+}
+
 fn execute_lms_cmd<T: HwModel>(
     model: &mut T,
     message: &[u8],
