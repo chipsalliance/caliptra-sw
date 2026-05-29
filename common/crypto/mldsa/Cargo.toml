@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-mldsa"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-shake.workspace = true
+zerocopy.workspace = true
+
+[dev-dependencies]
+hex = {workspace = true}
+serde_json = { workspace = true }
