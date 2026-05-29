@@ -24,7 +24,8 @@ use openssl::ec::PointConversionForm;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::PKey;
-use openssl::pkey::Private;
+use openssl::pkey::{Private, Public};
+use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant as MlDsaVariant};
 use openssl::sha::Sha1;
 use openssl::sha::Sha256;
 use openssl::x509::extension::BasicConstraints;
@@ -32,6 +33,7 @@ use openssl::x509::extension::KeyUsage as Usage;
 use openssl::x509::extension::SubjectKeyIdentifier;
 use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
+use rand::Rng;
 
 use crate::tbs::TbsParam;
 
@@ -170,6 +172,60 @@ pub struct EcdsaSha384Algo {}
 impl SigningAlgorithm for EcdsaSha384Algo {
     type AsymKey = Ecc384AsymKey;
     type Digest = Sha384;
+
+    fn gen_key(&self) -> Self::AsymKey {
+        Self::AsymKey::default()
+    }
+}
+
+/// ML-DSA-87 Asymmetric Key Pair
+pub struct MlDsa87AsymKey {
+    priv_key: PKey<Private>,
+    pub_key: Vec<u8>,
+}
+
+impl AsymKey for MlDsa87AsymKey {
+    fn priv_key(&self) -> &PKey<Private> {
+        &self.priv_key
+    }
+
+    fn pub_key(&self) -> &[u8] {
+        &self.pub_key
+    }
+}
+
+impl Default for MlDsa87AsymKey {
+    fn default() -> Self {
+        let mut random_bytes: [u8; 32] = [0; 32];
+        let mut rng = rand::thread_rng();
+        rng.fill(&mut random_bytes);
+        let pk_builder =
+            PKeyMlDsaBuilder::<Private>::from_seed(MlDsaVariant::MlDsa87, &random_bytes).unwrap();
+        let priv_key = pk_builder.build().unwrap();
+        let pub_params = PKeyMlDsaParams::<Public>::from_pkey(&priv_key).unwrap();
+        let pub_key = pub_params.public_key().unwrap();
+        Self {
+            priv_key,
+            pub_key: pub_key.to_vec(),
+        }
+    }
+}
+
+/// No-op digest used for sign-the-message algorithms (e.g. ML-DSA).
+pub struct Noop {}
+
+impl Digest for Noop {
+    fn algo() -> MessageDigest {
+        MessageDigest::null()
+    }
+}
+
+#[derive(Default)]
+pub struct MlDsa87Algo {}
+
+impl SigningAlgorithm for MlDsa87Algo {
+    type AsymKey = MlDsa87AsymKey;
+    type Digest = Noop;
 
     fn gen_key(&self) -> Self::AsymKey {
         Self::AsymKey::default()

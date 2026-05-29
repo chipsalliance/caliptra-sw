@@ -225,7 +225,7 @@ impl InitDevIdLayer {
         let key_pair = &output.subj_key_pair;
 
         // CSR `To Be Signed` Parameters
-        let params = InitDevIdCsrTbsParams {
+        let params = InitDevIdCsrTbsEcc384Params {
             // Unique Endpoint Identifier
             ueid: &X509::ueid(env)?,
 
@@ -237,7 +237,7 @@ impl InitDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = InitDevIdCsrTbs::new(&params);
+        let tbs = InitDevIdCsrTbsEcc384::new(&params);
 
         cprintln!(
             "[idev] Sign CSR w/ SUBJECT.KEYID = {}",
@@ -261,7 +261,8 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr_buf = [0; MAX_IDEVID_CSR_SIZE];
-        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+        let mut ecdsa_sig = sig.to_ecdsa();
+        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
         sig.zeroize();
 
@@ -285,6 +286,7 @@ impl InitDevIdLayer {
             result = Self::write_csr_to_peristent_storage(env, &dev_id_csr);
         }
         csr_buf.zeroize();
+        ecdsa_sig.zeroize();
 
         result
     }

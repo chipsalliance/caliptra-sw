@@ -154,7 +154,7 @@ impl LocalDevIdLayer {
         let serial_number = okref(&serial_number)?;
 
         // CSR `To Be Signed` Parameters
-        let params = LocalDevIdCertTbsParams {
+        let params = LocalDevIdCertTbsEcc384Params {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
@@ -167,7 +167,7 @@ impl LocalDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = LocalDevIdCertTbs::new(&params);
+        let tbs = LocalDevIdCertTbsEcc384::new(&params);
 
         // Sign the `To Be Signed` portion
         cprintln!(

@@ -7,7 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct FmcAliasCertTbsParams<'a> {
+pub struct FmcAliasCertTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
@@ -23,7 +23,7 @@ pub struct FmcAliasCertTbsParams<'a> {
     pub tcb_info_fmc_svn: &'a [u8; 1usize],
     pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
 }
-impl<'a> FmcAliasCertTbsParams<'a> {
+impl<'a> FmcAliasCertTbsEcc384Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
@@ -39,10 +39,10 @@ impl<'a> FmcAliasCertTbsParams<'a> {
     pub const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
     pub const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
 }
-pub struct FmcAliasCertTbs {
+pub struct FmcAliasCertTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl FmcAliasCertTbs {
+impl FmcAliasCertTbsEcc384 {
     const PUBLIC_KEY_OFFSET: usize = 319usize;
     const SUBJECT_SN_OFFSET: usize = 232usize;
     const ISSUER_SN_OFFSET: usize = 86usize;
@@ -124,7 +124,7 @@ impl FmcAliasCertTbs {
         4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
-    pub fn new(params: &FmcAliasCertTbsParams) -> Self {
+    pub fn new(params: &FmcAliasCertTbsEcc384Params) -> Self {
         let mut template = Self {
             tbs: Self::TBS_TEMPLATE,
         };
@@ -140,7 +140,7 @@ impl FmcAliasCertTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &FmcAliasCertTbsParams) {
+    fn apply(&mut self, params: &FmcAliasCertTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
             buf: &mut [u8; 753usize],

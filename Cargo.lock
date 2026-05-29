@@ -967,6 +967,7 @@ dependencies = [
  "hex",
  "openssl",
  "quote",
+ "rand",
  "syn 1.0.109",
  "x509-parser",
  "zeroize",
@@ -1839,9 +1840,8 @@ checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "openssl"
-version = "0.10.63"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15c9d69dd87a29568d4d017cfe8ec518706046a05184e5aea92d0af890b803c8"
+version = "0.10.72"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "bitflags 2.4.0",
  "cfg-if 1.0.0",
@@ -1854,29 +1854,27 @@ dependencies = [
 
 [[package]]
 name = "openssl-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b501e44f11665960c7e7fcf062c7d96a14ade4aa98116c004b2e37b5be7d736c"
+version = "0.1.1"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.48",
 ]
 
 [[package]]
 name = "openssl-src"
-version = "300.1.5+3.1.3"
+version = "300.6.0+3.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "559068e4c12950d7dcaa1857a61725c0d38d4fc03ff8e070ab31a75d6e316491"
+checksum = "a8e8cbfd3a4a8c8f089147fd7aaa33cf8c7450c4d09f8f80698a0cf093abeff4"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.99"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e1bf214306098e4832460f797824c05d25aacdf896f64a985fb0fd992454ae"
+version = "0.9.108"
+source = "git+https://github.com/clundin25/rust-openssl.git?rev=4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7#4ada1c1d7c264e052e7bb71ecddbd196a5c2a0c7"
 dependencies = [
  "cc",
  "libc",
