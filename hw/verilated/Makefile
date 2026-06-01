@@ -35,7 +35,7 @@ export CALIPTRA_PRIM_MODULE_PREFIX = caliptra_prim_generic
 # AXI4PC is not needed for simulation, provide empty stub location
 export CALIPTRA_AXI4PC_DIR = $(VERILATED_DIR)
 
-suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED -Wno-UNSIGNED -Wno-REALCVT -Wno-SELRANGE -Wno-PINMISSING -Wno-TIMESCALEMOD
+suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED -Wno-UNSIGNED -Wno-REALCVT -Wno-SELRANGE -Wno-PINMISSING -Wno-TIMESCALEMOD -Wno-BLKANDNBLK
 
 out/libcaliptra_verilated.a: out/Vcaliptra_verilated__ALL.a out/libverilated.a $(LIB_OBJS) $(VERILATOR_OBJS)
 	cp out/Vcaliptra_verilated__ALL.a out/.libcaliptra_verilated.a
