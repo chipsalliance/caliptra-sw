@@ -37,6 +37,8 @@ mod kv_access;
 mod lms;
 mod mailbox;
 pub mod memory_layout;
+#[cfg(feature = "mldsa_attestation")]
+mod mldsa87;
 mod okref;
 mod pcr_bank;
 pub mod pcr_log;
@@ -82,6 +84,12 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+#[cfg(feature = "mldsa_attestation")]
+pub use mldsa87::{
+    Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87Signature,
+    MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
+    MLDSA87_SIGNATURE_BYTES,
+};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};

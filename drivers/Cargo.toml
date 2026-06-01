@@ -13,6 +13,7 @@ bitfield.workspace = true
 bitflags.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types.workspace = true
+caliptra-mldsa = { workspace = true, optional = true }
 caliptra-lms-types.workspace = true
 caliptra-auth-man-types.workspace = true
 caliptra-registers.workspace = true
@@ -35,6 +36,7 @@ fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 cfi = []
+mldsa_attestation = ["dep:caliptra-mldsa"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = []
 
