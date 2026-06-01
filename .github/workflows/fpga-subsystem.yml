@@ -304,19 +304,19 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: 'Download Test Binaries Artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
       - name: 'Download Test Firmware Artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
       - name: 'Download Bitstream'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: caliptra-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-bitstream
@@ -417,7 +417,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: 'Download test results'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: caliptra-test-results${{ inputs.artifact-suffix }}-*
           merge-multiple: true
