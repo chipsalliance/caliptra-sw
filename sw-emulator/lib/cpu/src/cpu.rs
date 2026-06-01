@@ -96,7 +96,7 @@ pub struct StackInfo {
     /// Lowest stack pointer observed while executing within a tracked image.
     /// Stacks grow downward, so this is the high-water mark of stack usage.
     /// `None` means no stack-pointer activity has been observed yet.
-    min_sp: Option<u32>,
+    stack_watermark: Option<u32>,
 }
 
 impl StackInfo {
@@ -107,19 +107,19 @@ impl StackInfo {
             images,
             max_stack_overflow: 0,
             has_overflowed: false,
-            min_sp: None,
+            stack_watermark: None,
         }
     }
 
     /// Reset the high-water mark so a subsequent measurement window starts fresh.
     pub fn reset_min_sp(&mut self) {
-        self.min_sp = None;
+        self.stack_watermark = None;
     }
 
     /// Fetch the lowest stack pointer observed since the last reset, or `None`
     /// if no stack-pointer activity has been observed within a tracked image.
     pub fn min_sp(&self) -> Option<u32> {
-        self.min_sp
+        self.stack_watermark
     }
 }
 
@@ -147,8 +147,8 @@ impl StackInfo {
         for image in self.images.iter() {
             if image.contains_pc(pc) {
                 // Record the high-water mark of stack usage for this window.
-                if self.min_sp.is_none_or(|min| stack_address < min) {
-                    self.min_sp = Some(stack_address);
+                if self.stack_watermark.is_none_or(|min| stack_address < min) {
+                    self.stack_watermark = Some(stack_address);
                 }
                 if let Some(overflow_amount) = image.check_overflow(stack_address) {
                     self.max_stack_overflow = self.max_stack_overflow.max(overflow_amount);
