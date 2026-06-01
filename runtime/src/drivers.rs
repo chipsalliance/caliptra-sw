@@ -196,6 +196,13 @@ impl Drivers {
         let hek_available = persistent_data.get().rom.ocp_lock_metadata.hek_available;
         let ocp_lock_context = OcpLockContext::new(&soc_ifc, &mut trng, hek_available)?;
 
+        // Run the ML-KEM-1024 KAT at startup. ROM does not run it (its KatsEnv
+        // has no ML-KEM engine), and `MlKem1024::new()` is constructed
+        // per-operation, so this is the only place it runs once during runtime
+        // startup, mirroring how `Aes::new()` runs the non-GCM AES KATs above.
+        let mut abr = Abr::new(AbrReg::new());
+        abr.with_ml_kem(|mut ml_kem| ml_kem.run_kats())?;
+
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
@@ -207,7 +214,7 @@ impl Drivers {
             sha3: Sha3::new(KmacReg::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
-            abr: Abr::new(AbrReg::new()),
+            abr,
             lms: Lms::default(),
             trng,
             persistent_data,
