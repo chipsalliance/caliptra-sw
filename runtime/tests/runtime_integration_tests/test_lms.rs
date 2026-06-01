@@ -799,7 +799,7 @@ fn execute_lms_cmd<T: HwModel>(
 
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
     );
     assert!(caliptra_common::checksum::verify_checksum(
         resp_hdr.chksum,

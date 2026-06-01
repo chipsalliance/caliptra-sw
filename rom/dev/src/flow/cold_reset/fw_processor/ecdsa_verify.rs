@@ -31,7 +31,7 @@ impl EcdsaVerifyCmd {
                 let resp = MailboxRespHeader::mut_from_prefix(resp)
                     .map_err(|_| caliptra_drivers::CaliptraError::ROM_GLOBAL_EXCEPTION)?
                     .0;
-                resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
+                resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
                 Ok(core::mem::size_of::<MailboxRespHeader>())
             }
             Err(e) => {

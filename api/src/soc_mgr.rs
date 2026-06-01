@@ -339,7 +339,8 @@ pub trait SocManager {
             });
         }
         if response_header.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED
-            && response_header.fips_status != MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
+            && response_header.fips_status
+                != MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
         {
             return Err(CaliptraApiError::MailboxRespInvalidFipsStatus(
                 response_header.fips_status,

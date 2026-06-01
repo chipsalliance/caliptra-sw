@@ -326,13 +326,13 @@ fn execute_command(
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)?;
             let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
-            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
             Ok(size_of::<MailboxRespHeader>())
         }
         CommandId::LMS_SIGNATURE_VERIFY => {
             LmsVerifyCmd::execute(drivers, cmd_bytes)?;
             let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
-            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
             Ok(size_of::<MailboxRespHeader>())
         }
         CommandId::MLDSA87_SIGNATURE_VERIFY => drivers.abr.with_mldsa87(|mut mldsa| {

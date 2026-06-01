@@ -121,7 +121,7 @@ fn ecdsa_cmd_run_wycheproof() {
                         let resp_hdr = MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
                         assert_eq!(
                             resp_hdr.fips_status,
-                            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
+                            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
                         );
                         assert!(caliptra_common::checksum::verify_checksum(
                             resp_hdr.chksum,
@@ -217,7 +217,7 @@ fn test_ecdsa_verify_cmd() {
 
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
     );
     assert!(caliptra_common::checksum::verify_checksum(
         resp_hdr.chksum,

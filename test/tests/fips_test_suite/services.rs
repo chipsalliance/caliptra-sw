@@ -315,7 +315,7 @@ pub fn exec_cmd_ecdsa_verify<T: HwModel>(hw: &mut T) {
     ));
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
     );
 }
 

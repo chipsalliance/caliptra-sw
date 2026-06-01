@@ -737,7 +737,7 @@ Command Code: `0x4543_5632` ("ECV2")
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status  | u32      | `FIPS_NOT_APPROVED`, because the caller supplies the digest.
+| fips\_status  | u32      | `FIPS_NOT_APPROVED_USER_SUPPLIED_DIGEST`, because the caller supplies the digest.
 
 ### LMS\_SIGNATURE\_VERIFY
 
@@ -778,7 +778,7 @@ Command Code: `0x4C4D_5632` ("LMV2")
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | `FIPS_NOT_APPROVED`, because the caller supplies the digest.
+| fips\_status | u32      | `FIPS_NOT_APPROVED_USER_SUPPLIED_DIGEST`, because the caller supplies the digest.
 
 ### MLDSA87_SIGNATURE_VERIFY
 
@@ -3165,7 +3165,7 @@ For successful commands, the firmware responds with a FIPS status indicating whe
 | **Name**        | **Value**                   | Description                                         |
 | --------------- | --------------------------- | --------------------------------------------------- |
 | `FIPS_APPROVED` | `0x0000_0000`               | Status of command is FIPS approved                  |
-| `FIPS_NOT_APPROVED` | `0x0000_0001`           | Status of command is not FIPS approved              |
+| `FIPS_NOT_APPROVED_USER_SUPPLIED_DIGEST` | `0x0000_0001` | Command is not FIPS approved because the caller supplied the digest instead of the raw message |
 | `RESERVED`      | `0x0000_0002 - 0xFFFF_FFFF` | Other values reserved, will not be sent by Caliptra |
 
 ## Runtime Firmware updates
