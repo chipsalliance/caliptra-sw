@@ -30,6 +30,11 @@ impl UdsProgrammingFlow {
             return Ok(());
         }
 
+        if env.soc_ifc.ss_debug_intent() {
+            cprintln!("[uds] Debug intent is set.");
+            Err(CaliptraError::ROM_UDS_PROG_DEBUG_INTENT_SET)?;
+        }
+
         // Check if ROM is running in Subsystem mode.
         if !env.soc_ifc.subsystem_mode() {
             cprintln!("[uds] ROM is not in Active mode.");
