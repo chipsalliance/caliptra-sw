@@ -799,10 +799,13 @@ fn execute_lms_cmd<T: HwModel>(
 
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
     );
-    // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
-    assert_eq!(resp_hdr.chksum, 0);
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp_hdr.chksum)..],
+    ));
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 
     Ok(())

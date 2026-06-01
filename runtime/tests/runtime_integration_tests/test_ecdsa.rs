@@ -121,10 +121,13 @@ fn ecdsa_cmd_run_wycheproof() {
                         let resp_hdr = MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
                         assert_eq!(
                             resp_hdr.fips_status,
-                            MailboxRespHeader::FIPS_STATUS_APPROVED
+                            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
                         );
-                        // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
-                        assert_eq!(resp_hdr.chksum, 0);
+                        assert!(caliptra_common::checksum::verify_checksum(
+                            resp_hdr.chksum,
+                            0x0,
+                            &resp[core::mem::size_of_val(&resp_hdr.chksum)..],
+                        ));
                     }
                 },
                 wycheproof::TestResult::Invalid => {
@@ -214,10 +217,13 @@ fn test_ecdsa_verify_cmd() {
 
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED
     );
-    // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
-    assert_eq!(resp_hdr.chksum, 0);
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp_hdr.chksum)..],
+    ));
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 }
 

@@ -61,7 +61,7 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
 use caliptra_common::cfi_check;
-use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
+use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader, MailboxRespHeader};
 use caliptra_dpe::State;
 use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
 use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
@@ -120,6 +120,7 @@ pub use caliptra_dpe::{
 use caliptra_dpe::{dpe_instance::DpeEnv, support::Support};
 use caliptra_drivers::{okref, AxiAddr, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
+use core::mem::size_of;
 
 use crate::{
     dice::GetRtAliasCertCmd,
@@ -323,9 +324,17 @@ fn execute_command(
         CommandId::INVOKE_DPE_ECC384 => InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp),
         CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp),
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
-            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
+            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)?;
+            let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
+            Ok(size_of::<MailboxRespHeader>())
         }
-        CommandId::LMS_SIGNATURE_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::LMS_SIGNATURE_VERIFY => {
+            LmsVerifyCmd::execute(drivers, cmd_bytes)?;
+            let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
+            Ok(size_of::<MailboxRespHeader>())
+        }
         CommandId::MLDSA87_SIGNATURE_VERIFY => drivers.abr.with_mldsa87(|mut mldsa| {
             caliptra_common::verify::MldsaVerifyCmd::execute(&mut mldsa, cmd_bytes)
         }),

@@ -14,6 +14,7 @@ Abstract:
 
 use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_drivers::{report_fw_error_non_fatal, CaliptraResult, Ecc384};
+use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
@@ -21,13 +22,16 @@ impl EcdsaVerifyCmd {
     pub(crate) fn execute(
         cmd_bytes: &[u8],
         ecc384: &mut Ecc384,
-        _resp: &mut [u8],
+        resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let result = caliptra_common::verify::EcdsaVerifyCmd::execute(ecc384, cmd_bytes);
 
         match result {
             Ok(_) => {
-                // Zero value of response buffer is good
+                let resp = MailboxRespHeader::mut_from_prefix(resp)
+                    .map_err(|_| caliptra_drivers::CaliptraError::ROM_GLOBAL_EXCEPTION)?
+                    .0;
+                resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED;
                 Ok(core::mem::size_of::<MailboxRespHeader>())
             }
             Err(e) => {

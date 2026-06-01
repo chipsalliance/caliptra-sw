@@ -1145,6 +1145,7 @@ impl Response for MailboxRespHeader {}
 
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
+    pub const FIPS_STATUS_NOT_APPROVED: u32 = 1;
 }
 
 impl Default for MailboxRespHeader {
