@@ -1094,6 +1094,27 @@ pub fn mldsa87_verify(
     verify_internal(&pub_key, encoded_signature, msg, &[])
 }
 
+/// Test-only verification entry point that accepts a signing `context`.
+///
+/// The firmware-facing API ([`mldsa87_verify`]) always uses an empty context,
+/// but the ACVP sigVer known-answer vectors exercise non-empty contexts. This
+/// wrapper is gated to `cfg(test)` so it adds nothing to the firmware build.
+#[cfg(test)]
+pub(crate) fn mldsa87_verify_with_context(
+    encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
+    encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
+    msg: &[u8],
+    context: &[u8],
+) -> Mldsa87Result {
+    let mut pub_key = PublicKey {
+        rho: [0u8; K_RHO_BYTES],
+        t1: Vector8::default(),
+        public_key_hash: [0u8; K_TR_BYTES],
+    };
+    decode_public_key(&mut pub_key, encoded_public_key);
+    verify_internal(&pub_key, encoded_signature, msg, context)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
