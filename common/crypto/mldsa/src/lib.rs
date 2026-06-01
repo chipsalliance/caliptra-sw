@@ -6,7 +6,7 @@ use crate::mldsa87::{
     mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic, mldsa87_verify,
 };
 pub use crate::mldsa87::{
-    MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
+    Mldsa87Result, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
     MLDSA87_SIGNATURE_BYTES,
 };
 
@@ -44,7 +44,7 @@ impl Mldsa87 {
         pub_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
         sig: &[u8; MLDSA87_SIGNATURE_BYTES],
         msg: &[u8],
-    ) -> bool {
+    ) -> Mldsa87Result {
         mldsa87_verify(pub_key, sig, msg)
     }
 }

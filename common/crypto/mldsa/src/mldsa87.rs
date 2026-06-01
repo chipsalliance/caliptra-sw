@@ -10,6 +10,19 @@ pub const MLDSA87_RANDOMIZER_BYTES: usize = 32;
 pub const MLDSA87_PUBLIC_KEY_BYTES: usize = 2592;
 pub const MLDSA87_SIGNATURE_BYTES: usize = 4627;
 
+/// Result of an ML-DSA-87 signature verification.
+///
+/// Instead of relying on a single bit to show success or failure as a boolean,
+/// two opposite `u32` values are used to minimize the chance that a single
+/// fault injection turns a verification failure into a success.
+#[must_use]
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mldsa87Result {
+    Success = 0xAAAAAAAA,
+    SigVerifyFailed = 0x55555555,
+}
+
 /* Arithmetic parameters. */
 const K_PRIME: u32 = 8380417;
 const K_PRIME_NEG_INVERSE: u32 = 4236238847;
@@ -691,20 +704,20 @@ fn hint_bit_pack(out: &mut [u8; OMEGA + 8], h: &Vector8) {
     }
 }
 
-fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> bool {
+fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> Mldsa87Result {
     vector8_zero(h);
     let mut index = 0;
     for i in 0..8 {
         let limit = in_val[OMEGA + i] as usize;
         if limit < index || limit > OMEGA {
-            return false;
+            return Mldsa87Result::SigVerifyFailed;
         }
         let mut last: i32 = -1;
         while index < limit {
             let byte = in_val[index] as usize;
             index += 1;
             if last >= 0 && byte <= last as usize {
-                return false;
+                return Mldsa87Result::SigVerifyFailed;
             }
             last = byte as i32;
             h.v[i].c[byte] = 1;
@@ -712,10 +725,10 @@ fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> bool {
     }
     for val in in_val.iter().take(OMEGA).skip(index) {
         if *val != 0 {
-            return false;
+            return Mldsa87Result::SigVerifyFailed;
         }
     }
-    true
+    Mldsa87Result::Success
 }
 
 fn encode_public_key(out: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES], pub_key: &PublicKey) {
@@ -743,7 +756,7 @@ fn encode_signature(out: &mut [u8; MLDSA87_SIGNATURE_BYTES], sign: &Signature) {
     hint_bit_pack(hint_out, &sign.h);
 }
 
-fn decode_signature(sign: &mut Signature, in_val: &[u8; MLDSA87_SIGNATURE_BYTES]) -> bool {
+fn decode_signature(sign: &mut Signature, in_val: &[u8; MLDSA87_SIGNATURE_BYTES]) -> Mldsa87Result {
     sign.c_tilde.copy_from_slice(&in_val[..2 * LAMBDA_BYTES]);
     vector7_decode_signed_20_19(&mut sign.z, &in_val[2 * LAMBDA_BYTES..]);
 
@@ -957,14 +970,14 @@ fn verify_internal(
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     msg: &[u8],
     context: &[u8],
-) -> bool {
+) -> Mldsa87Result {
     let mut sign = Signature {
         c_tilde: [0u8; 2 * LAMBDA_BYTES],
         z: Vector7::default(),
         h: Vector8::default(),
     };
-    if !decode_signature(&mut sign, encoded_signature) {
-        return false;
+    if decode_signature(&mut sign, encoded_signature) != Mldsa87Result::Success {
+        return Mldsa87Result::SigVerifyFailed;
     }
 
     let z_max = vector7_max(&sign.z);
@@ -1007,7 +1020,11 @@ fn verify_internal(
     shake256.absorb(&w1_encoded);
     shake256.squeeze(&mut c_tilde);
 
-    z_max < (GAMMA1 - BETA) && c_tilde == sign.c_tilde
+    if z_max < (GAMMA1 - BETA) && c_tilde == sign.c_tilde {
+        Mldsa87Result::Success
+    } else {
+        Mldsa87Result::SigVerifyFailed
+    }
 }
 
 /* Public API. */
@@ -1067,7 +1084,7 @@ pub fn mldsa87_verify(
     encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     msg: &[u8],
-) -> bool {
+) -> Mldsa87Result {
     let mut pub_key = PublicKey {
         rho: [0u8; K_RHO_BYTES],
         t1: Vector8::default(),
@@ -1326,6 +1343,6 @@ mod tests {
         let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
         mldsa87_pub_from_seed(&mut pub_key, &priv_seed);
 
-        assert!(mldsa87_verify(&pub_key, &sig, msg));
+        assert_eq!(mldsa87_verify(&pub_key, &sig, msg), Mldsa87Result::Success);
     }
 }
