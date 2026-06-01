@@ -93,6 +93,10 @@ pub struct StackInfo {
     images: Vec<ImageInfo>,
     max_stack_overflow: u32,
     has_overflowed: bool,
+    /// Lowest stack pointer observed while executing within a tracked image.
+    /// Stacks grow downward, so this is the high-water mark of stack usage.
+    /// `None` means no stack-pointer activity has been observed yet.
+    stack_watermark: Option<u32>,
 }
 
 impl StackInfo {
@@ -103,7 +107,19 @@ impl StackInfo {
             images,
             max_stack_overflow: 0,
             has_overflowed: false,
+            stack_watermark: None,
         }
+    }
+
+    /// Reset the high-water mark so a subsequent measurement window starts fresh.
+    pub fn reset_min_sp(&mut self) {
+        self.stack_watermark = None;
+    }
+
+    /// Fetch the lowest stack pointer observed since the last reset, or `None`
+    /// if no stack-pointer activity has been observed within a tracked image.
+    pub fn min_sp(&self) -> Option<u32> {
+        self.stack_watermark
     }
 }
 
@@ -130,6 +146,10 @@ impl StackInfo {
 
         for image in self.images.iter() {
             if image.contains_pc(pc) {
+                // Record the high-water mark of stack usage for this window.
+                if self.stack_watermark.is_none_or(|min| stack_address < min) {
+                    self.stack_watermark = Some(stack_address);
+                }
                 if let Some(overflow_amount) = image.check_overflow(stack_address) {
                     self.max_stack_overflow = self.max_stack_overflow.max(overflow_amount);
                     self.has_overflowed = true;
@@ -337,6 +357,19 @@ impl<TBus: Bus> Cpu<TBus> {
 
     pub fn with_stack_info(&mut self, stack_info: StackInfo) {
         self.stack_info = Some(stack_info);
+    }
+
+    /// Reset the stack high-water mark, if stack tracking is enabled.
+    pub fn reset_stack_min_sp(&mut self) {
+        if let Some(stack_info) = &mut self.stack_info {
+            stack_info.reset_min_sp();
+        }
+    }
+
+    /// Fetch the lowest stack pointer observed since the last reset, or `None`
+    /// if stack tracking is disabled or no activity has been observed.
+    pub fn stack_min_sp(&self) -> Option<u32> {
+        self.stack_info.as_ref().and_then(StackInfo::min_sp)
     }
 
     /// Read the RISCV CPU Program counter

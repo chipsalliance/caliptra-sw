@@ -105,6 +105,20 @@ impl ModelEmulated {
     }
 }
 
+impl ModelEmulated {
+    /// Reset the stack high-water mark so the next measurement window starts
+    /// fresh. Requires the model to have been constructed with `stack_info`.
+    pub fn reset_stack_high_water(&mut self) {
+        self.cpu.reset_stack_min_sp();
+    }
+
+    /// Fetch the lowest stack pointer observed since the last reset, or `None`
+    /// if stack tracking is disabled or no activity has been observed.
+    pub fn stack_min_sp(&self) -> Option<u32> {
+        self.cpu.stack_min_sp()
+    }
+}
+
 fn hash_slice(slice: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     std::hash::Hash::hash_slice(slice, &mut hasher);

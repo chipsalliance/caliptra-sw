@@ -22,6 +22,7 @@ mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;
 mod test_sign_with_export_ecdsa;
+mod test_stack_usage;
 mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;
