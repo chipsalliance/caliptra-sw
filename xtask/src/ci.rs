@@ -99,7 +99,11 @@ impl ArtifactBuilder for CaliptraFirmwareBuilder {
 }
 
 pub fn bitstream_download(manifest_path: String) -> Result<(), anyhow::Error> {
-    let out_path = bitstream_downloader::download_bitstream(Path::new(manifest_path.as_str()))
+    let rt = tokio::runtime::Runtime::new()?;
+    let out_path = rt
+        .block_on(bitstream_downloader::download_bitstream(Path::new(
+            manifest_path.as_str(),
+        )))
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     let out = out_path
         .to_str()
