@@ -253,7 +253,7 @@ impl Ecc384 {
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
-        self.key_pair_base(seed, nonce, trng, priv_key, None)
+        self.key_pair_base(seed, nonce, trng, priv_key, None, None)
     }
 
     /// Generate ECC-384 Key Pair for FIPS KAT testing
@@ -264,6 +264,7 @@ impl Ecc384 {
     /// * `trng` - TRNG driver instance
     /// * `priv_key` - Generate ECC-384 Private key
     /// * `pct_sig` - Ecc 384 signature to return signature generated during the pairwise consistency test
+    /// * `pct_digest` - Digest to use for the pairwise consistency test signature
     ///
     /// # Returns
     ///
@@ -274,6 +275,7 @@ impl Ecc384 {
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
         pct_sig: &mut Ecc384Signature,
+        pct_digest: &Array4x12,
     ) -> CaliptraResult<Ecc384PubKey> {
         let seed = Array4x12::new([0u32; 12]);
         let nonce = Array4x12::new([0u32; 12]);
@@ -283,6 +285,7 @@ impl Ecc384 {
             trng,
             priv_key,
             Some(pct_sig),
+            Some(pct_digest),
         )
     }
 
@@ -312,6 +315,7 @@ impl Ecc384 {
             trng,
             Ecc384PrivKeyOut::Array4x12(priv_key),
             None,
+            None,
         )?;
         self.ecdh_pct(Ecc384PrivKeyIn::Array4x12(priv_key), &pub_key, trng)?;
         Ok(pub_key)
@@ -319,6 +323,7 @@ impl Ecc384 {
 
     /// Private base function to generate ECC-384 Key Pair
     /// pct_sig should only be provided in the KAT use case
+    /// pct_digest is the digest to use for the pairwise consistency test sign operation
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn key_pair_base(
@@ -328,6 +333,7 @@ impl Ecc384 {
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
         pct_sig: Option<&mut Ecc384Signature>,
+        pct_digest: Option<&Array4x12>,
     ) -> CaliptraResult<Ecc384PubKey> {
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -396,8 +402,6 @@ impl Ecc384 {
         };
 
         // Pairwise consistency check.
-        let digest = Array4x12::new([0u32; 12]);
-
         #[cfg(feature = "fips-test-hooks")]
         let pub_key = unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
@@ -406,7 +410,9 @@ impl Ecc384 {
             )
         };
 
-        match self.sign(priv_key.into(), &pub_key, &digest, trng) {
+        let zero_digest = Array4x12::new([0u32; 12]);
+        let digest = pct_digest.unwrap_or(&zero_digest);
+        match self.sign(priv_key.into(), &pub_key, digest, trng) {
             Ok(mut sig) => {
                 // Return the signature from this test if requested (only used for KAT)
                 if let Some(output_sig) = pct_sig {

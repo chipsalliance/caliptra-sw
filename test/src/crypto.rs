@@ -713,3 +713,24 @@ fn test_preconditioned_aes() {
     );
     assert_eq!(decrypted, plaintext.to_vec());
 }
+
+/// Prints ECC-384 KAT key pair constants derived from zeroed inputs
+///
+/// Run with: cargo test -p caliptra-test gen_ecc384_kat_vectors -- --include-ignored --nocapture
+#[test]
+#[ignore = "vector generation helper; not part of normal CI"]
+fn gen_ecc384_kat_vectors() {
+    // Key pair from zeroed seed/nonce
+    let (priv_key, pub_x, pub_y) = derive_ecdsa_keypair(&[0u8; 48]);
+
+    let hex = |b: &[u8]| {
+        b.iter().fold(String::new(), |mut s, x| {
+            use std::fmt::Write;
+            write!(s, "{x:02x}").unwrap();
+            s
+        })
+    };
+    println!("priv_key: {}", hex(&priv_key));
+    println!("pub_x:    {}", hex(&pub_x));
+    println!("pub_y:    {}", hex(&pub_y));
+}
