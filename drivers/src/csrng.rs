@@ -33,6 +33,11 @@ use core::mem::MaybeUninit;
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
+const SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK: u32 = 0xffff;
+const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT: u32 = 16;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK: u32 = 0x3;
+const SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT: u32 = 31;
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -102,18 +107,27 @@ impl Csrng {
         if e.module_enable().read().module_enable() == FALSE {
             // Configure entropy_src
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs(), persistent_data);
-            set_health_check_thresholds(e, entropy_cfg);
+            set_health_check_thresholds(e, entropy_cfg.clone());
+
+            let single_bit_mode = entropy_cfg.rng_bit_enable != 0;
+            let rng_bit_enable = if single_bit_mode { TRUE } else { FALSE };
+            let threshold_scope = if single_bit_mode { FALSE } else { TRUE };
 
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
-                    .threshold_scope(TRUE)
-                    .rng_bit_enable(FALSE)
+                    .threshold_scope(threshold_scope)
+                    .rng_bit_enable(rng_bit_enable)
+                    .rng_bit_sel(entropy_cfg.rng_bit_sel)
             });
 
             // We allow the SoC to set bypass mode so that entropy can be
             // characterized directly, without passing through conditioning.
-            if (soc_ifc.regs().ss_strap_generic().at(2).read() >> 31) & 1 == 1 {
+            if (soc_ifc.regs().ss_strap_generic().at(2).read()
+                >> SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT)
+                & 1
+                == 1
+            {
                 e.entropy_control().modify(|w| w.es_type(TRUE));
             }
             e.module_enable().write(|w| w.module_enable(TRUE));
@@ -420,12 +434,22 @@ fn read_entropy_configuration(
     // The default value is (2048 bits * 1 clock/4 bits);
     const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
 
-    let health_test_window = soc_ifc.ss_strap_generic().at(2).read() & 0xffff;
+    let ss_strap_generic_2 = soc_ifc.ss_strap_generic().at(2).read();
+
+    let health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
 
     let health_test_window = if health_test_window == 0 {
         DEFAULT_HEALTH_TEST_WINDOW
     } else {
         health_test_window
+    };
+
+    let rng_bit_enable = (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT) & 1;
+    let rng_bit_sel = if rng_bit_enable != 0 {
+        (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT)
+            & SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK
+    } else {
+        0
     };
 
     // Configure Repetition Count Test threshold
@@ -490,6 +514,8 @@ fn read_entropy_configuration(
         configured: 1,
         alert_threshold,
         health_test_window,
+        rng_bit_enable,
+        rng_bit_sel,
         repcnt_threshold,
         adaptp_hi_threshold,
         adaptp_lo_threshold,

@@ -416,6 +416,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
+    pub initial_ss_strap_generic_2: Option<u32>,
     pub valid_axi_user: Vec<u32>,
     pub wdt_timeout_cycles: u64,
     // SoC manifest passed via the recovery interface
@@ -434,6 +435,7 @@ impl Default for BootParams<'_> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
+            initial_ss_strap_generic_2: Default::default(),
             valid_axi_user: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
@@ -853,6 +855,10 @@ pub trait HwModel: SocManager {
             self.soc_ifc()
                 .cptra_i_trng_entropy_config_0()
                 .write(|_| reg);
+        }
+
+        if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
+            self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)
