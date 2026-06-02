@@ -23,6 +23,7 @@ mod test_ocp_lock;
 mod test_panic_missing;
 mod test_pmp;
 mod test_rom_integrity;
+mod test_shutdown;
 mod test_symbols;
 mod test_uds_fe;
 mod test_update_reset;
