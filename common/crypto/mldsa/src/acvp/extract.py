@@ -19,6 +19,9 @@
 #     `preHash` (HashML-DSA) groups are intentionally excluded -- they use
 #     message processing the library does not implement.
 #
+# The vectors are derived from NIST's ACVP-Server project and are subject to
+# its license: https://github.com/usnistgov/ACVP-Server#license
+#
 # Usage:
 #     python3 extract.py /path/to/ACVP-Server/gen-val/json-files
 #
@@ -29,6 +32,11 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# Embedded in every generated file so the provenance and license travel with the
+# data (JSON has no comment syntax). The Rust harness ignores these keys.
+ACVP_SOURCE = "https://github.com/usnistgov/ACVP-Server"
+ACVP_LICENSE = "https://github.com/usnistgov/ACVP-Server#license"
 
 
 def load(root, name):
@@ -44,12 +52,17 @@ def mldsa87_groups(doc, **selectors):
             yield g
 
 
-def write(name, obj):
+def write(name, test_groups):
+    obj = {
+        "_source": ACVP_SOURCE,
+        "_license": ACVP_LICENSE,
+        "testGroups": test_groups,
+    }
     path = os.path.join(HERE, name)
     with open(path, "w") as f:
         json.dump(obj, f, indent=2)
         f.write("\n")
-    print(f"wrote {name}: {sum(len(g['tests']) for g in obj['testGroups'])} cases")
+    print(f"wrote {name}: {sum(len(g['tests']) for g in test_groups)} cases")
 
 
 def main():
@@ -61,7 +74,7 @@ def main():
     for g in mldsa87_groups(kg, testType="AFT"):
         tests = [{k: t[k] for k in ("tcId", "seed", "pk")} for t in g["tests"]]
         kg_groups.append({"tgId": g["tgId"], "parameterSet": g["parameterSet"], "tests": tests})
-    write("key_gen.json", {"testGroups": kg_groups})
+    write("key_gen.json", kg_groups)
 
     # sigVer: external / pure / internal-mu -> verify(pk, sig, msg, ctx) == testPassed
     sv = load(root, "ML-DSA-sigVer-FIPS204")
@@ -70,7 +83,7 @@ def main():
     for g in mldsa87_groups(sv, signatureInterface="external", preHash="pure", externalMu=False):
         tests = [{k: t.get(k, "") for k in fields} for t in g["tests"]]
         sv_groups.append({"tgId": g["tgId"], "parameterSet": g["parameterSet"], "tests": tests})
-    write("sig_ver.json", {"testGroups": sv_groups})
+    write("sig_ver.json", sv_groups)
 
 
 if __name__ == "__main__":

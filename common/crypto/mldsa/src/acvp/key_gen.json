@@ -1,4 +1,6 @@
 {
+  "_source": "https://github.com/usnistgov/ACVP-Server",
+  "_license": "https://github.com/usnistgov/ACVP-Server#license",
   "testGroups": [
     {
       "tgId": 3,
