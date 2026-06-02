@@ -2232,6 +2232,11 @@ impl CaliptraError {
             0x01045001,
             "ROM UDS Programming Error: In passive mode"
         ),
+        (
+            ROM_UDS_PROG_DEBUG_INTENT_SET,
+            0x01045002,
+            "ROM UDS Programming Error: Debug intent set"
+        ),
         (ROM_GLOBAL_NMI, 0x01050001, "ROM Global Error: NMI"),
         (
             ROM_GLOBAL_EXCEPTION,
