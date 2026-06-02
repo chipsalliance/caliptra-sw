@@ -3165,7 +3165,7 @@ For successful commands, the firmware responds with a FIPS status indicating whe
 | **Name**        | **Value**                   | Description                                         |
 | --------------- | --------------------------- | --------------------------------------------------- |
 | `FIPS_APPROVED` | `0x0000_0000`               | Status of command is FIPS approved                  |
-| `FIPS_NOT_APPROVED_USER_SUPPLIED_DIGEST` | `0x0000_0001` | Command is not FIPS approved because the caller supplied the digest instead of the raw message |
+| `FIPS_NOT_APPROVED_USER_SUPPLIED_DIGEST` | `0x5553_5244` | Command is not FIPS approved because the caller supplied the digest instead of the raw message |
 | `RESERVED`      | `0x0000_0002 - 0xFFFF_FFFF` | Other values reserved, will not be sent by Caliptra |
 
 ## Runtime Firmware updates

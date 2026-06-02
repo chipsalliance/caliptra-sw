@@ -9,6 +9,7 @@ use caliptra_api::mailbox::{
 use caliptra_builder::{firmware::APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{DoeInput, DoeOutput, Mek, OcpLockKeyLadderBuilder};
 
 use zerocopy::{FromBytes, IntoBytes};
@@ -94,7 +95,14 @@ fn validate_success_response(
 }
 
 fn update_reset(model: &mut DefaultHwModel) {
-    update_fw(model, &APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions::default());
+    update_fw(
+        model,
+        &APP_WITH_UART_OCP_LOCK_FPGA,
+        ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        },
+    );
 }
 
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]

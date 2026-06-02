@@ -734,7 +734,7 @@ fn update_fw(model: &mut DefaultHwModel) {
         &FMC_FPGA_WITH_UART,
         &APP_WITH_UART_OCP_LOCK_FPGA,
         ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )
