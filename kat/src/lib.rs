@@ -75,7 +75,7 @@ pub fn execute_kat(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrive
     Shake256Kat::default().execute(env.sha3)?;
 
     cprintln!("[kat] ECC-384");
-    Ecc384Kat::default().execute(env.ecc384, env.trng)?;
+    Ecc384Kat::default().execute(env.ecc384, env.sha2_512_384, env.trng)?;
 
     cprintln!("[kat] ECDH");
     EcdhKat::default().execute(env.ecc384, env.trng)?;
