@@ -179,6 +179,9 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
 // LMS Verify
 int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async);
 
+// ML-DSA-87 Signature Verify (RFC #3700)
+int caliptra_mldsa87_signature_verify(struct caliptra_mldsa87_signature_verify_req *req, bool async);
+
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
 

@@ -191,13 +191,29 @@ fn scalar_ntt(s: &mut Scalar) {
         offset >>= 1;
         let mut k = 0;
         for i in 0..step {
-            let step_root = NTT_ROOTS_MONTGOMERY[step + i];
-            for j in k..(k + offset) {
-                let even = s.c[j];
-                let odd =
-                    reduce_montgomery((step_root as u64).wrapping_mul(s.c[j + offset] as u64));
-                s.c[j] = reduce_once(odd.wrapping_add(even));
-                s.c[j + offset] = mod_sub(even, odd);
+            // `NTT_ROOTS_MONTGOMERY` has length `K_DEGREE`; `step + i` is
+            // always < `K_DEGREE` because `2 * step <= K_DEGREE`, but the
+            // compiler cannot see that across the doubling loop, so we
+            // use `.get()` (panic-free) instead of `[step + i]`.
+            let Some(&step_root) = NTT_ROOTS_MONTGOMERY.get(step + i) else {
+                return;
+            };
+            // Take a 2*offset slice and split it into the two `offset`-sized
+            // halves we operate on. Both `get_mut` and `split_at_mut_checked`
+            // return `Option`, so no panic landing pad is emitted; in
+            // practice both are always `Some` because `k + 2*offset <= K_DEGREE`.
+            let Some(sub) = s.c.get_mut(k..k + 2 * offset) else {
+                return;
+            };
+            let Some((left, right)) = sub.split_at_mut_checked(offset) else {
+                return;
+            };
+            for (even_ref, odd_ref) in left.iter_mut().zip(right.iter_mut()) {
+                let even = *even_ref;
+                let odd_src = *odd_ref;
+                let odd = reduce_montgomery((step_root as u64).wrapping_mul(odd_src as u64));
+                *even_ref = reduce_once(odd.wrapping_add(even));
+                *odd_ref = mod_sub(even, odd);
             }
             k += 2 * offset;
         }
@@ -212,12 +228,22 @@ fn scalar_inverse_ntt(s: &mut Scalar) {
         step >>= 1;
         let mut k = 0;
         for i in 0..step {
-            let step_root = K_PRIME.wrapping_sub(NTT_ROOTS_MONTGOMERY[step + (step - 1 - i)]);
-            for j in k..(k + offset) {
-                let even = s.c[j];
-                let odd = s.c[j + offset];
-                s.c[j] = reduce_once(odd.wrapping_add(even));
-                s.c[j + offset] = reduce_montgomery(
+            // See `scalar_ntt` for why we use `.get()` / `split_at_mut_checked`.
+            let Some(&root) = NTT_ROOTS_MONTGOMERY.get(step + (step - 1 - i)) else {
+                return;
+            };
+            let step_root = K_PRIME.wrapping_sub(root);
+            let Some(sub) = s.c.get_mut(k..k + 2 * offset) else {
+                return;
+            };
+            let Some((left, right)) = sub.split_at_mut_checked(offset) else {
+                return;
+            };
+            for (even_ref, odd_ref) in left.iter_mut().zip(right.iter_mut()) {
+                let even = *even_ref;
+                let odd = *odd_ref;
+                *even_ref = reduce_once(odd.wrapping_add(even));
+                *odd_ref = reduce_montgomery(
                     (step_root as u64)
                         .wrapping_mul((K_PRIME.wrapping_add(even).wrapping_sub(odd)) as u64),
                 );
@@ -435,16 +461,13 @@ fn vector8_count_ones(a: &Vector8) -> usize {
     count
 }
 
-fn vector8_use_hint(out: &mut Vector8, h: &Vector8, r: &Vector8) {
-    for i in 0..8 {
-        scalar_use_hint(&mut out.v[i], &h.v[i], &r.v[i]);
-    }
-}
-
 /* Bit packing. */
 
-fn scalar_encode_4(out: &mut [u8], s: &Scalar) {
-    for (i, out_byte) in out.iter_mut().enumerate().take(K_DEGREE / 2) {
+fn scalar_encode_4(out: &mut [u8; 4 * K_DEGREE / 8], s: &Scalar) {
+    // `iter_mut().enumerate()` is panic-free; `i` is statically bounded by
+    // `out.len() = 4 * K_DEGREE / 8 = K_DEGREE / 2 = 128`, so the
+    // `s.c[2 * i + 1]` index (max 255) stays inside `K_DEGREE = 256`.
+    for (i, out_byte) in out.iter_mut().enumerate() {
         let a = s.c[2 * i];
         let b = s.c[2 * i + 1];
         *out_byte = (a | (b << 4)) as u8;
@@ -484,9 +507,24 @@ fn scalar_encode_signed_20_19(out: &mut [u8], s: &Scalar) {
     }
 }
 
-fn scalar_decode_10(out: &mut Scalar, in_val: &[u8]) {
+// `scalar_decode_10` and `scalar_decode_signed_20_19` take fixed-size byte
+// array references rather than runtime-sized `&[u8]`. With statically known
+// input length and a compile-time loop bound, every byte and coefficient
+// index below is provably in range, so LLVM (with `panic = "abort"` + LTO)
+// removes the bounds-check panic landing pads. Keeping the verify path
+// panic-free is required by the runtime's `panic_is_possible` invariant
+// (see `runtime/src/main.rs`).
+
+fn scalar_decode_10(out: &mut Scalar, in_val: &[u8; 5 * K_DEGREE / 4]) {
     for i in 0..(K_DEGREE / 4) {
-        let v = u32::from_le_bytes(in_val[5 * i..5 * i + 4].try_into().unwrap());
+        // 5*i + 4 <= 5*63 + 4 = 319 < 320 = in_val.len()
+        let v = u32::from_le_bytes([
+            in_val[5 * i],
+            in_val[5 * i + 1],
+            in_val[5 * i + 2],
+            in_val[5 * i + 3],
+        ]);
+        // 4*i + 3 <= 4*63 + 3 = 255 < 256 = K_DEGREE = out.c.len()
         out.c[4 * i] = v & 0x3FF;
         out.c[4 * i + 1] = (v >> 10) & 0x3FF;
         out.c[4 * i + 2] = (v >> 20) & 0x3FF;
@@ -494,14 +532,25 @@ fn scalar_decode_10(out: &mut Scalar, in_val: &[u8]) {
     }
 }
 
-fn scalar_decode_signed_20_19(out: &mut Scalar, in_val: &[u8]) {
+fn scalar_decode_signed_20_19(out: &mut Scalar, in_val: &[u8; 10 * K_DEGREE / 4]) {
     let k_max = 1u32 << 19;
     let k20_bits = (1u32 << 20) - 1;
 
     for i in 0..(K_DEGREE / 4) {
-        let a = u32::from_le_bytes(in_val[10 * i..10 * i + 4].try_into().unwrap());
-        let b = u32::from_le_bytes(in_val[10 * i + 4..10 * i + 8].try_into().unwrap());
-        let c = u16::from_le_bytes(in_val[10 * i + 8..10 * i + 10].try_into().unwrap());
+        // 10*i + 9 <= 10*63 + 9 = 639 < 640 = in_val.len()
+        let a = u32::from_le_bytes([
+            in_val[10 * i],
+            in_val[10 * i + 1],
+            in_val[10 * i + 2],
+            in_val[10 * i + 3],
+        ]);
+        let b = u32::from_le_bytes([
+            in_val[10 * i + 4],
+            in_val[10 * i + 5],
+            in_val[10 * i + 6],
+            in_val[10 * i + 7],
+        ]);
+        let c = u16::from_le_bytes([in_val[10 * i + 8], in_val[10 * i + 9]]);
 
         out.c[i * 4] = mod_sub(k_max, a & k20_bits);
         out.c[i * 4 + 1] = mod_sub(k_max, (a >> 20) | ((b & 0xFF) << 12));
@@ -580,14 +629,18 @@ fn scalar_sample_mask(out: &mut Scalar, derived_seed: &[u8]) {
     scalar_decode_signed_20_19(out, &buf);
 }
 
-fn scalar_sample_in_ball_vartime(out: &mut Scalar, seed: &[u8], len: usize) {
+fn scalar_sample_in_ball_vartime(out: &mut Scalar, seed: &[u8; 2 * LAMBDA_BYTES]) {
     let mut shake256 = Shake256::new();
-    shake256.absorb(&seed[..len]);
+    shake256.absorb(seed);
 
     let mut block = [0u8; 136];
     shake256.squeeze(&mut block);
 
-    let mut signs = u64::from_le_bytes(block[0..8].try_into().unwrap());
+    // Read the first eight bytes via direct array indexing so the compiler
+    // does not have to keep a `try_into().unwrap()` panic landing pad alive.
+    let mut signs = u64::from_le_bytes([
+        block[0], block[1], block[2], block[3], block[4], block[5], block[6], block[7],
+    ]);
     let mut offset = 8;
 
     *out = Scalar::default();
@@ -599,13 +652,25 @@ fn scalar_sample_in_ball_vartime(out: &mut Scalar, seed: &[u8], len: usize) {
                 offset = 0;
             }
 
-            byte = block[offset] as usize;
+            // `block.get(offset)` removes the bounds-check panic landing
+            // pad that `block[offset]` would emit. `offset` is < 136 here
+            // (the if-branch above resets it to 0 whenever it hits 136),
+            // but LLVM cannot prove that invariant across the loop body,
+            // so we use the panic-free accessor.
+            let Some(&block_byte) = block.get(offset) else {
+                return;
+            };
+            byte = block_byte as usize;
             offset += 1;
             if byte <= i {
                 break;
             }
         }
 
+        // `byte <= i < K_DEGREE` and `i < K_DEGREE` so `out.c[i]` and
+        // `out.c[byte]` are statically in bounds; LLVM proves this on its
+        // own from the `for i in (K_DEGREE - TAU)..K_DEGREE` bound and the
+        // `byte <= i` break condition.
         out.c[i] = out.c[byte];
         out.c[byte] = mod_sub(1, (2u32).wrapping_mul((signs & 1) as u32));
         signs >>= 1;
@@ -656,9 +721,11 @@ fn vector7_expand_mask(out: &mut Vector7, seed: &[u8; K_RHO_PRIME_BYTES], kappa:
 
 /* Encoding. */
 
-fn vector8_encode_4(out: &mut [u8], a: &Vector8) {
-    for i in 0..8 {
-        scalar_encode_4(&mut out[i * 4 * K_DEGREE / 8..], &a.v[i]);
+fn vector8_encode_4(out: &mut [u8; 8 * 4 * K_DEGREE / 8], a: &Vector8) {
+    const SCALAR_BYTES: usize = 4 * K_DEGREE / 8;
+    let (chunks, _rem) = out.as_chunks_mut::<SCALAR_BYTES>();
+    for (out_chunk, scalar) in chunks.iter_mut().zip(a.v.iter()) {
+        scalar_encode_4(out_chunk, scalar);
     }
 }
 
@@ -668,9 +735,13 @@ fn vector8_encode_10(out: &mut [u8], a: &Vector8) {
     }
 }
 
-fn vector8_decode_10(out: &mut Vector8, in_val: &[u8]) {
-    for i in 0..8 {
-        scalar_decode_10(&mut out.v[i], &in_val[i * 10 * K_DEGREE / 8..]);
+fn vector8_decode_10(out: &mut Vector8, in_val: &[u8; 8 * 5 * K_DEGREE / 4]) {
+    // `as_chunks` is panic-free; with `in_val.len() == 8 * SCALAR_BYTES` the
+    // remainder is empty and `chunks` has exactly 8 entries, matching `out.v`.
+    const SCALAR_BYTES: usize = 5 * K_DEGREE / 4;
+    let (chunks, _rem) = in_val.as_chunks::<SCALAR_BYTES>();
+    for (out_scalar, in_chunk) in out.v.iter_mut().zip(chunks.iter()) {
+        scalar_decode_10(out_scalar, in_chunk);
     }
 }
 
@@ -680,9 +751,11 @@ fn vector7_encode_signed_20_19(out: &mut [u8], a: &Vector7) {
     }
 }
 
-fn vector7_decode_signed_20_19(out: &mut Vector7, in_val: &[u8]) {
-    for i in 0..7 {
-        scalar_decode_signed_20_19(&mut out.v[i], &in_val[i * 20 * K_DEGREE / 8..]);
+fn vector7_decode_signed_20_19(out: &mut Vector7, in_val: &[u8; 7 * 10 * K_DEGREE / 4]) {
+    const SCALAR_BYTES: usize = 10 * K_DEGREE / 4;
+    let (chunks, _rem) = in_val.as_chunks::<SCALAR_BYTES>();
+    for (out_scalar, in_chunk) in out.v.iter_mut().zip(chunks.iter()) {
+        scalar_decode_signed_20_19(out_scalar, in_chunk);
     }
 }
 
@@ -708,19 +781,38 @@ fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> Mldsa87Result {
     vector8_zero(h);
     let mut index = 0;
     for i in 0..8 {
-        let limit = in_val[OMEGA + i] as usize;
+        // `in_val[OMEGA + i]` is in bounds (i < 8, len = OMEGA + 8), but
+        // `.get()` is panic-free so we use it unconditionally.
+        let Some(&limit_byte) = in_val.get(OMEGA + i) else {
+            return Mldsa87Result::SigVerifyFailed;
+        };
+        let limit = limit_byte as usize;
         if limit < index || limit > OMEGA {
             return Mldsa87Result::SigVerifyFailed;
         }
         let mut last: i32 = -1;
+        // `h.v.get_mut(i)` is statically Some (i < 8).
+        let Some(scalar) = h.v.get_mut(i) else {
+            return Mldsa87Result::SigVerifyFailed;
+        };
         while index < limit {
-            let byte = in_val[index] as usize;
+            // `in_val.get(index)` removes the bounds-check panic landing pad
+            // that `in_val[index]` would emit (LLVM can't propagate
+            // `index < limit && limit <= OMEGA && OMEGA < OMEGA + 8`).
+            let Some(&byte_val) = in_val.get(index) else {
+                return Mldsa87Result::SigVerifyFailed;
+            };
+            let byte = byte_val as usize;
             index += 1;
             if last >= 0 && byte <= last as usize {
                 return Mldsa87Result::SigVerifyFailed;
             }
             last = byte as i32;
-            h.v[i].c[byte] = 1;
+            // `byte: usize` derived from a `u8` so `byte < 256 = K_DEGREE`,
+            // but `.get_mut()` is panic-free regardless.
+            if let Some(c) = scalar.c.get_mut(byte) {
+                *c = 1;
+            }
         }
     }
     for val in in_val.iter().take(OMEGA).skip(index) {
@@ -737,8 +829,16 @@ fn encode_public_key(out: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES], pub_key: &PublicK
 }
 
 fn decode_public_key(pub_key: &mut PublicKey, in_val: &[u8; MLDSA87_PUBLIC_KEY_BYTES]) {
-    pub_key.rho.copy_from_slice(&in_val[..K_RHO_BYTES]);
-    vector8_decode_10(&mut pub_key.t1, &in_val[K_RHO_BYTES..]);
+    // The two `if let Some(...)` branches are statically always taken because
+    // the fixed-size input is exactly K_RHO_BYTES + 8 * (5 * K_DEGREE / 4)
+    // bytes long. Using `split_first_chunk` / `first_chunk` instead of
+    // `try_into().unwrap()` keeps the verify path panic-free.
+    if let Some((rho_arr, rest)) = in_val.split_first_chunk::<K_RHO_BYTES>() {
+        pub_key.rho = *rho_arr;
+        if let Some(t1_bytes) = rest.first_chunk::<{ 8 * 5 * K_DEGREE / 4 }>() {
+            vector8_decode_10(&mut pub_key.t1, t1_bytes);
+        }
+    }
 
     let mut shake256 = Shake256::new();
     shake256.absorb(in_val);
@@ -757,13 +857,26 @@ fn encode_signature(out: &mut [u8; MLDSA87_SIGNATURE_BYTES], sign: &Signature) {
 }
 
 fn decode_signature(sign: &mut Signature, in_val: &[u8; MLDSA87_SIGNATURE_BYTES]) -> Mldsa87Result {
-    sign.c_tilde.copy_from_slice(&in_val[..2 * LAMBDA_BYTES]);
-    vector7_decode_signed_20_19(&mut sign.z, &in_val[2 * LAMBDA_BYTES..]);
+    // Statically the input is laid out as:
+    //   c_tilde       : 2 * LAMBDA_BYTES
+    //   z (Vector7)   : 7 * 10 * K_DEGREE / 4
+    //   h hint        : OMEGA + 8
+    // Each `split_first_chunk` / `first_chunk` is statically Some; the early
+    // returns are unreachable in practice but keep the function panic-free
+    // (no `try_into().unwrap()` landing pads) so it is acceptable on the
+    // runtime no-panic path.
+    let Some((c_tilde_arr, rest)) = in_val.split_first_chunk::<{ 2 * LAMBDA_BYTES }>() else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let Some((z_bytes, rest)) = rest.split_first_chunk::<{ 7 * 10 * K_DEGREE / 4 }>() else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let Some(hint_in) = rest.first_chunk::<{ OMEGA + 8 }>() else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
 
-    let hint_in: &[u8; OMEGA + 8] = (&in_val
-        [2 * LAMBDA_BYTES + 640 * 7..2 * LAMBDA_BYTES + 640 * 7 + OMEGA + 8])
-        .try_into()
-        .unwrap();
+    sign.c_tilde = *c_tilde_arr;
+    vector7_decode_signed_20_19(&mut sign.z, z_bytes);
     hint_bit_unpack(&mut sign.h, hint_in)
 }
 
@@ -892,7 +1005,7 @@ fn sign_internal(
         shake256.squeeze(&mut sign.c_tilde);
 
         let mut c_ntt = Scalar::default();
-        scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
+        scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde);
         scalar_ntt(&mut c_ntt);
 
         vector7_mul_scalar(cs1, &priv_key.s1_ntt, &c_ntt);
@@ -993,7 +1106,7 @@ fn verify_internal(
     shake256.squeeze(&mut mu);
 
     let mut c_ntt = Scalar::default();
-    scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
+    scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde);
     scalar_ntt(&mut c_ntt);
 
     let mut az_ntt = Vector8::default();
@@ -1002,15 +1115,27 @@ fn verify_internal(
     let mut ct1_ntt = Vector8::default();
     vector8_scale_power2_round(&mut ct1_ntt, &pub_key.t1);
     vector8_ntt(&mut ct1_ntt);
-    let ct1_ntt_copy = ct1_ntt;
-    vector8_mul_scalar(&mut ct1_ntt, &ct1_ntt_copy, &c_ntt);
+    // Multiply each Scalar by c_ntt in place. We deliberately do NOT call
+    // vector8_mul_scalar(&mut ct1_ntt, &ct1_ntt_copy, &c_ntt), because that
+    // requires keeping an extra full Vector8 alive on the stack (8 KiB). On
+    // stack-constrained targets (e.g. the Caliptra runtime's 85 KiB stack)
+    // that 8 KiB pushes verify over budget. Doing it per-Scalar keeps the
+    // live extra copy down to 1 KiB.
+    for i in 0..8 {
+        let lhs = ct1_ntt.v[i];
+        scalar_mul(&mut ct1_ntt.v[i], &lhs, &c_ntt);
+    }
 
     let mut w1 = Vector8::default();
     vector8_sub(&mut w1, &az_ntt, &ct1_ntt);
     vector8_inverse_ntt(&mut w1);
 
-    let w1_copy = w1;
-    vector8_use_hint(&mut w1, &sign.h, &w1_copy);
+    // Apply the verifier hint in place, per-Scalar, for the same
+    // stack-budget reason as above (avoids an 8 KiB Vector8 copy).
+    for i in 0..8 {
+        let r = w1.v[i];
+        scalar_use_hint(&mut w1.v[i], &sign.h.v[i], &r);
+    }
     let mut w1_encoded = [0u8; 128 * 8];
     w1_encode(&mut w1_encoded, &w1);
 

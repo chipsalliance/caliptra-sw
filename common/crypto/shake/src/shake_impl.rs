@@ -141,13 +141,24 @@ impl KeccakSt {
 
     pub fn absorb(&mut self, mut in_slice: &[u8]) {
         let in_len = in_slice.len();
+        let rate_bytes = self.rate_bytes;
 
         // Absorb partial block.
         if self.absorb_offset != 0 {
-            let first_block_len = self.rate_bytes - self.absorb_offset;
+            let first_block_len = rate_bytes - self.absorb_offset;
             let todo = core::cmp::min(first_block_len, in_len);
-            for (i, in_byte) in in_slice.iter().enumerate().take(todo) {
-                self.state.as_mut_bytes()[self.absorb_offset + i] ^= in_byte;
+            let absorb_offset = self.absorb_offset;
+            // Skip+take iterator avoids the bounds-check panic that
+            // `state.as_mut_bytes()[absorb_offset + i]` would emit.
+            for (dst, in_byte) in self
+                .state
+                .as_mut_bytes()
+                .iter_mut()
+                .skip(absorb_offset)
+                .take(todo)
+                .zip(in_slice.iter())
+            {
+                *dst ^= *in_byte;
             }
 
             // This input didn't fill the block.
@@ -157,21 +168,34 @@ impl KeccakSt {
             }
 
             keccak_f(&mut self.state);
-            in_slice = &in_slice[first_block_len..];
+            // Statically Some: we just consumed `first_block_len` bytes that
+            // were guaranteed to be present (else-branch above).
+            in_slice = match in_slice.get(first_block_len..) {
+                Some(rest) => rest,
+                None => return,
+            };
         }
 
-        // Absorb full blocks.
-        let rate_words = self.rate_bytes / 8;
-        while in_slice.len() >= self.rate_bytes {
-            for i in 0..rate_words {
-                let word = u64::from_le_bytes(in_slice[8 * i..8 * i + 8].try_into().unwrap());
-                self.state[i] ^= word;
+        // Absorb full blocks. Use `split_at_checked` (stable 1.80) and
+        // `as_chunks::<8>()` (stable 1.88) instead of slice ranges with
+        // `try_into().unwrap()` so no panic landing pads are emitted.
+        let rate_words = rate_bytes / 8;
+        while in_slice.len() >= rate_bytes {
+            let (block, rest) = match in_slice.split_at_checked(rate_bytes) {
+                Some(p) => p,
+                None => return,
+            };
+            let (words, _rem) = block.as_chunks::<8>();
+            for (i, word_bytes) in words.iter().enumerate().take(rate_words) {
+                if let Some(slot) = self.state.get_mut(i) {
+                    *slot ^= u64::from_le_bytes(*word_bytes);
+                }
             }
             keccak_f(&mut self.state);
-            in_slice = &in_slice[self.rate_bytes..];
+            in_slice = rest;
         }
 
-        // Absorb partial block.
+        // Absorb partial trailer.
         for (s, in_byte) in self.state.as_mut_bytes().iter_mut().zip(in_slice) {
             *s ^= *in_byte;
         }
@@ -181,10 +205,18 @@ impl KeccakSt {
     fn finalize(&mut self) {
         let terminator = 0x1fu8;
 
-        // XOR the terminator.
+        // Bounds-checked XORs of the two terminator bytes; both indices are
+        // statically valid (`absorb_offset < rate_bytes <= 168 < 200` and
+        // `rate_bytes - 1 < 200`), so the `if let Some` arms always run.
         let state_bytes = self.state.as_mut_bytes();
-        state_bytes[self.absorb_offset] ^= terminator;
-        state_bytes[self.rate_bytes - 1] ^= 0x80;
+        if let Some(b) = state_bytes.get_mut(self.absorb_offset) {
+            *b ^= terminator;
+        }
+        if self.rate_bytes > 0 {
+            if let Some(b) = state_bytes.get_mut(self.rate_bytes - 1) {
+                *b ^= 0x80;
+            }
+        }
 
         keccak_f(&mut self.state);
     }
@@ -203,11 +235,25 @@ impl KeccakSt {
 
             let remaining = self.rate_bytes - self.squeeze_offset;
             let todo = core::cmp::min(out_slice.len(), remaining);
-            out_slice[..todo].copy_from_slice(
-                &self.state.as_bytes()[self.squeeze_offset..self.squeeze_offset + todo],
-            );
 
-            let (_, rest) = out_slice.split_at_mut(todo);
+            // `split_at_mut_checked` / `get` avoid the panic landing pads
+            // that `out_slice[..todo]` and `state[squeeze_offset..+todo]`
+            // would otherwise leave behind. Both are always `Some` here.
+            let (dst, rest) = match out_slice.split_at_mut_checked(todo) {
+                Some(p) => p,
+                None => return,
+            };
+            let state_bytes = self.state.as_bytes();
+            let src = match state_bytes.get(self.squeeze_offset..self.squeeze_offset + todo) {
+                Some(s) => s,
+                None => return,
+            };
+            // Iterator copy: avoids `copy_from_slice`'s length-mismatch
+            // panic landing pad. Both slices have the same length (`todo`).
+            for (d, s) in dst.iter_mut().zip(src.iter()) {
+                *d = *s;
+            }
+
             out_slice = rest;
             self.squeeze_offset += todo;
         }
