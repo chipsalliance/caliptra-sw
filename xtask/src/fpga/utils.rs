@@ -372,7 +372,8 @@ pub fn run_test_suite(
 /// Download a bitstream from a Caliptra bitstream manifest
 pub fn download_bitstream_pdi<P: AsRef<Path>>(target_host: &str, manifest: P) -> Result<()> {
     // Assumes bitstream file is placed in the current directory.
-    let bitstream = bitstream_downloader::download_bitstream(manifest.as_ref())?;
+    let rt = tokio::runtime::Runtime::new()?;
+    let bitstream = rt.block_on(bitstream_downloader::download_bitstream(manifest.as_ref()))?;
 
     rsync_file(
         target_host,

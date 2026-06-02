@@ -15,7 +15,7 @@ use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Device;
 use caliptra_emu_bus::Event;
 use caliptra_emu_bus::EventData;
-use caliptra_emu_bus::{Bus, BusMmio};
+use caliptra_emu_bus::{Bus, BusMmio, MracBus};
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, CpuArgs, InstrTracer, Pic};
@@ -45,14 +45,27 @@ use crate::OcpLockState;
 use crate::Output;
 use crate::TrngMode;
 
+const EMULATOR_MCI_ADDR: u32 = 0x2100_0000;
+const EMULATOR_MCI_ADDR_RANGE_SIZE: u32 = 0xe0_0000;
+const EMULATOR_MCI_END_ADDR: u32 = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
+
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
 impl Bus for EmulatedApbBus<'_> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.model.soc_to_caliptra_bus.read(size, addr);
-        self.model.cpu.bus.log_read("SoC", size, addr, result);
+        let (result, name) = match addr {
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => {
+                (self.model.mci.read(size, addr - EMULATOR_MCI_ADDR), "MCI")
+            }
+            _ => (self.model.soc_to_caliptra_bus.read(size, addr), "SoC"),
+        };
+        self.model
+            .cpu
+            .bus
+            .inner_mut()
+            .log_read(name, size, addr, result);
         result
     }
     fn write(
@@ -61,15 +74,25 @@ impl Bus for EmulatedApbBus<'_> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        let result = self.model.soc_to_caliptra_bus.write(size, addr, val);
-        self.model.cpu.bus.log_write("SoC", size, addr, val, result);
+        let (result, name) = match addr {
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => (
+                self.model.mci.write(size, addr - EMULATOR_MCI_ADDR, val),
+                "MCI",
+            ),
+            _ => (self.model.soc_to_caliptra_bus.write(size, addr, val), "SoC"),
+        };
+        self.model
+            .cpu
+            .bus
+            .inner_mut()
+            .log_write(name, size, addr, val, result);
         result
     }
 }
 
 /// Emulated model
 pub struct ModelEmulated {
-    cpu: Cpu<BusLogger<CaliptraRootBus>>,
+    cpu: Cpu<MracBus<BusLogger<CaliptraRootBus>>>,
     soc_to_caliptra_bus: SocToCaliptraBus,
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
@@ -242,9 +265,17 @@ impl HwModel for ModelEmulated {
 
         let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
         let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
-        root_bus
-            .soc_reg
-            .set_strap_generic(&[ss_strap_generic_reg_0, ss_strap_generic_reg_1, 0, 0]);
+        let ss_strap_generic_reg_3 = if params.stable_owner_key_en {
+            1u32
+        } else {
+            0u32
+        };
+        root_bus.soc_reg.set_strap_generic(&[
+            ss_strap_generic_reg_0,
+            ss_strap_generic_reg_1,
+            0,
+            ss_strap_generic_reg_3,
+        ]);
 
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
@@ -260,7 +291,14 @@ impl HwModel for ModelEmulated {
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus(params.soc_user);
         let (events_to_caliptra, events_from_caliptra, cpu) = {
-            let mut cpu = Cpu::new(BusLogger::new(root_bus), clock, pic, args);
+            let mrac = Rc::new(Cell::new(0u32));
+            let mut cpu = Cpu::new(
+                MracBus::new(BusLogger::new(root_bus), mrac.clone(), true),
+                clock,
+                pic,
+                args,
+                mrac,
+            );
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
             }
@@ -271,7 +309,7 @@ impl HwModel for ModelEmulated {
         let mut hasher = DefaultHasher::new();
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
         let image_tag = hasher.finish();
-        let mci_regs = cpu.bus.bus.mci_external_regs();
+        let mci_regs = cpu.bus.inner().bus.mci_external_regs();
 
         let mut m = ModelEmulated {
             output,
@@ -312,6 +350,18 @@ impl HwModel for ModelEmulated {
         EmulatedApbBus { model: self }
     }
 
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        if !self.subsystem_mode() {
+            panic!("Tried to use the MCI interface in Core only mode")
+        }
+        unsafe {
+            caliptra_registers::mci::RegisterBlock::new_with_mmio(
+                EMULATOR_MCI_ADDR as *mut u32,
+                self.mmio_mut(),
+            )
+        }
+    }
+
     fn step(&mut self) {
         if self.cpu_enabled.get() {
             self.cpu.step(self.trace_fn.as_deref_mut());
@@ -332,12 +382,24 @@ impl HwModel for ModelEmulated {
         // do the bare minimum for the recovery flow: activating the recovery image
         const DEVICE_STATUS_PENDING: u32 = 0x4;
         const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
-        if DeviceStatus0ReadVal::from(self.cpu.bus.bus.dma.axi.recovery.device_status_0.reg.get())
-            .dev_status()
+        if DeviceStatus0ReadVal::from(
+            self.cpu
+                .bus
+                .inner_mut()
+                .bus
+                .dma
+                .axi
+                .recovery
+                .device_status_0
+                .reg
+                .get(),
+        )
+        .dev_status()
             == DEVICE_STATUS_PENDING
         {
             self.cpu
                 .bus
+                .inner_mut()
                 .bus
                 .dma
                 .axi
@@ -354,7 +416,7 @@ impl HwModel for ModelEmulated {
                 (event.dest, event.event)
             {
                 let addr = start_addr as usize;
-                let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data_mut();
+                let mcu_sram_data = self.cpu.bus.inner_mut().bus.dma.axi.mcu_sram.data_mut();
                 let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
                     continue;
                 };
@@ -389,7 +451,7 @@ impl HwModel for ModelEmulated {
             return;
         }
         self.trace_fn = None;
-        self.cpu.bus.log = None;
+        self.cpu.bus.inner_mut().log = None;
         let Some(trace_path) = &self.trace_path else {
             return;
         };
@@ -401,7 +463,7 @@ impl HwModel for ModelEmulated {
                 return;
             }
         };
-        self.cpu.bus.log = Some(log.clone());
+        self.cpu.bus.inner_mut().log = Some(log.clone());
         self.trace_fn = Some(Box::new(move |pc, _instr| {
             writeln!(log, "pc=0x{pc:x}").unwrap();
         }))
@@ -409,20 +471,34 @@ impl HwModel for ModelEmulated {
 
     fn dccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
         let offset = offset as usize;
-        self.cpu.bus.bus.dccm.data()[offset..offset + len].to_vec()
+        self.cpu.bus.inner().bus.dccm.data()[offset..offset + len].to_vec()
     }
 
     fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
         match mode {
             ErrorInjectionMode::None => {
-                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 0;
-                self.cpu.bus.bus.dccm.error_injection = 0;
+                self.cpu
+                    .bus
+                    .inner_mut()
+                    .bus
+                    .iccm
+                    .ram()
+                    .borrow_mut()
+                    .error_injection = 0;
+                self.cpu.bus.inner_mut().bus.dccm.error_injection = 0;
             }
             ErrorInjectionMode::IccmDoubleBitEcc => {
-                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 2;
+                self.cpu
+                    .bus
+                    .inner_mut()
+                    .bus
+                    .iccm
+                    .ram()
+                    .borrow_mut()
+                    .error_injection = 2;
             }
             ErrorInjectionMode::DccmDoubleBitEcc => {
-                self.cpu.bus.bus.dccm.error_injection = 8;
+                self.cpu.bus.inner_mut().bus.dccm.error_injection = 8;
             }
         }
     }
@@ -446,10 +522,11 @@ impl HwModel for ModelEmulated {
         soc_manifest: Option<&[u8]>,
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
-        self.cpu.bus.bus.dma.axi.recovery.cms_data = vec![firmware.to_vec()];
+        self.cpu.bus.inner_mut().bus.dma.axi.recovery.cms_data = vec![firmware.to_vec()];
         if let Some(soc_manifest) = soc_manifest {
             self.cpu
                 .bus
+                .inner_mut()
                 .bus
                 .dma
                 .axi
@@ -459,6 +536,7 @@ impl HwModel for ModelEmulated {
             if let Some(mcu_fw) = mcu_firmware {
                 self.cpu
                     .bus
+                    .inner_mut()
                     .bus
                     .dma
                     .axi
@@ -485,33 +563,50 @@ impl HwModel for ModelEmulated {
         Ok(AxiRootBus::mcu_sram_offset())
     }
 
-    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+    fn write_payload_to_ss_staging_area(
+        &mut self,
+        payload: &[u8],
+        offset: usize,
+    ) -> Result<u64, ModelError> {
         if !self.subsystem_mode() {
             return Err(ModelError::SubsystemSramError);
         }
+        assert!(
+            offset % 4 == 0,
+            "Staging area offset must be 4-byte aligned"
+        );
+        assert!(
+            payload.len() % 4 == 0,
+            "Payload length must be a multiple of 4"
+        );
 
         let payload_len = payload.len();
         self.cpu
             .bus
+            .inner_mut()
             .bus
             .dma
             .axi
             .mcu_sram
             .data_mut()
-            .get_mut(..payload_len)
+            .get_mut(offset..offset + payload_len)
             .ok_or(ModelError::SubsystemSramError)?
             .copy_from_slice(payload);
-        self.staging_physical_address()
+        Ok(self.staging_physical_address()? + offset as u64)
     }
 
-    fn read_payload_from_ss_staging_area(&mut self, length: usize) -> Result<Vec<u8>, ModelError> {
+    fn read_payload_from_ss_staging_area(
+        &mut self,
+        length: usize,
+        offset: usize,
+    ) -> Result<Vec<u8>, ModelError> {
         if !self.subsystem_mode() {
             return Err(ModelError::SubsystemSramError);
         }
 
-        let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data();
+        let mcu_sram_data = self.cpu.bus.inner_mut().bus.dma.axi.mcu_sram.data();
         let payload = mcu_sram_data
-            .get(..length)
+            .get(offset..offset + length)
             .ok_or(ModelError::SubsystemSramError)?
             .to_vec();
         Ok(payload)
@@ -527,7 +622,7 @@ impl HwModel for ModelEmulated {
 
     /// Get OCP LOCK Info
     fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
-        if let Ok(mek) = self.cpu.bus.bus.aes_clp.latest_mek().try_into() {
+        if let Ok(mek) = self.cpu.bus.inner_mut().bus.aes_clp.latest_mek().try_into() {
             Some(OcpLockState { mek })
         } else {
             None

@@ -279,6 +279,7 @@ impl CommandId {
     pub const OCP_LOCK_LOAD_MEK: Self = Self(0x4C4D_454B); // "LMEK"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
+    pub const CERTIFY_KEY_CHUNKS: Self = Self(0x434B4348); // "CKCH"
 }
 
 impl From<u32> for CommandId {
@@ -443,6 +444,7 @@ pub enum MailboxResp {
     OcpLockClearKeyCache(OcpLockClearKeyCacheResp),
     OcpLockUnloadMek(OcpLockUnloadMekResp),
     OcpLockLoadMek(OcpLockLoadMekResp),
+    CertifyKeyChunks(CertifyKeyChunksResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -531,6 +533,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -617,6 +620,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -774,6 +778,7 @@ pub enum MailboxReq {
     OcpLockClearKeyCache(OcpLockClearKeyCacheReq),
     OcpLockUnloadMek(OcpLockUnloadMekReq),
     OcpLockLoadMek(OcpLockLoadMekReq),
+    CertifyKeyChunks(CertifyKeyChunksReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -881,6 +886,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -986,6 +992,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CertifyKeyChunks(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -1097,6 +1104,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(_) => CommandId::OCP_LOCK_CLEAR_KEY_CACHE,
             MailboxReq::OcpLockUnloadMek(_) => CommandId::OCP_LOCK_UNLOAD_MEK,
             MailboxReq::OcpLockLoadMek(_) => CommandId::OCP_LOCK_LOAD_MEK,
+            MailboxReq::CertifyKeyChunks(_) => CommandId::CERTIFY_KEY_CHUNKS,
         }
     }
 
@@ -1185,6 +1193,8 @@ pub struct ActivateFirmwareReq {
     pub fw_id_count: u32,
     pub fw_ids: [u32; ActivateFirmwareReq::MAX_FW_ID_COUNT],
     pub mcu_fw_image_size: u32,
+    /// Optional flags. See [`ActivateFirmwareFlags`].
+    pub flags: u32,
 }
 impl Request for ActivateFirmwareReq {
     const ID: CommandId = CommandId::ACTIVATE_FIRMWARE;
@@ -1204,7 +1214,36 @@ impl Default for ActivateFirmwareReq {
             fw_id_count: 0,
             mcu_fw_image_size: 0,
             fw_ids: [0; ActivateFirmwareReq::MAX_FW_ID_COUNT],
+            flags: 0,
         }
+    }
+}
+
+bitflags::bitflags! {
+    /// Flags for [`ActivateFirmwareReq`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ActivateFirmwareFlags: u32 {
+        /// First-time MCU activation after the encrypted-boot flow:
+        /// MCU ROM has already loaded firmware into MCU SRAM via
+        /// `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` (and possibly decrypted
+        /// it in place via `CM_AES_GCM_DECRYPT_DMA`. Caliptra runtime
+        /// should publish `FW_EXEC_CTRL[MCU]` so MCI releases MCU
+        /// from reset after MCU ROM triggers its own warm reset, and
+        /// skip the hitless-update reset/reload/verify sequence.
+        ///
+        /// Caliptra runtime only honors this flag when:
+        ///   * `BootMode::EncryptedFirmware` was set by ROM
+        ///     (i.e., `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` was the recovery
+        ///     cmd), and
+        ///   * `FW_EXEC_CTRL[MCU]` is currently `0` (MCU has not been
+        ///     activated yet)
+        const INITIAL_ACTIVATE = 1 << 0;
+    }
+}
+
+impl From<u32> for ActivateFirmwareFlags {
+    fn from(value: u32) -> Self {
+        ActivateFirmwareFlags::from_bits_truncate(value)
     }
 }
 
@@ -1644,6 +1683,76 @@ impl CertifyKeyExtendedResp {
     }
 }
 
+// CERTIFY_KEY_CHUNKS
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksReq {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyChunksFlags,
+    pub reserved: u32,
+    pub max_size: u32,
+    pub offset: u32,
+    pub certify_key_req: [u8; Self::CERTIFY_KEY_REQ_SIZE],
+}
+
+impl CertifyKeyChunksReq {
+    pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
+}
+
+impl Request for CertifyKeyChunksReq {
+    const ID: CommandId = CommandId::CERTIFY_KEY_CHUNKS;
+    type Resp = CertifyKeyChunksResp;
+}
+
+#[repr(C)]
+#[derive(
+    Debug, PartialEq, Eq, FromBytes, Immutable, KnownLayout, IntoBytes, Default, Copy, Clone,
+)]
+pub struct CertifyKeyChunksFlags(pub u32);
+
+bitflags! {
+    impl CertifyKeyChunksFlags: u32 {
+        const USE_MLDSA = 1u32 << 31;
+    }
+}
+
+impl CertifyKeyChunksFlags {
+    pub fn use_mldsa(&self) -> bool {
+        self.contains(CertifyKeyChunksFlags::USE_MLDSA)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksRespInfo {
+    pub hdr: MailboxRespHeader,
+    pub context_handle: [u8; 16],
+    pub chunk_len: u32,
+    pub remaining: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyChunksResp {
+    pub info: CertifyKeyChunksRespInfo,
+    pub certify_key_resp: [u8; Self::MAX_CHUNK_SIZE],
+}
+
+impl CertifyKeyChunksResp {
+    pub const MAX_CHUNK_SIZE: usize = 15 * 1024;
+}
+
+impl Response for CertifyKeyChunksResp {}
+
+impl Default for CertifyKeyChunksResp {
+    fn default() -> Self {
+        Self {
+            info: Default::default(),
+            certify_key_resp: [0u8; Self::MAX_CHUNK_SIZE],
+        }
+    }
+}
+
 // INVOKE_DPE_ECC384
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -1780,7 +1889,7 @@ pub struct InvokeDpeResp {
     pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 25152;
+    pub const DATA_MAX_SIZE: usize = 25168;
 }
 impl ResponseVarSize for InvokeDpeResp {}
 
@@ -4734,7 +4843,7 @@ impl CmEcdsaSignReq {
 
 impl Request for CmEcdsaSignReq {
     const ID: CommandId = CommandId::CM_ECDSA_SIGN;
-    type Resp = CmMldsaSignResp;
+    type Resp = CmEcdsaSignResp;
 }
 
 #[repr(C)]
@@ -4934,6 +5043,7 @@ pub enum CmStableKeyType {
     Reserved = 0,
     IDevId,
     LDevId,
+    OwnerKey,
 }
 
 impl From<u32> for CmStableKeyType {
@@ -4941,6 +5051,7 @@ impl From<u32> for CmStableKeyType {
         match val {
             1_u32 => CmStableKeyType::IDevId,
             2_u32 => CmStableKeyType::LDevId,
+            3_u32 => CmStableKeyType::OwnerKey,
             _ => CmStableKeyType::Reserved,
         }
     }
@@ -4951,6 +5062,7 @@ impl From<CmStableKeyType> for u32 {
         match val {
             CmStableKeyType::IDevId => 1,
             CmStableKeyType::LDevId => 2,
+            CmStableKeyType::OwnerKey => 3,
             CmStableKeyType::Reserved => 0,
         }
     }

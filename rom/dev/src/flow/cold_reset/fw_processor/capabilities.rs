@@ -44,6 +44,10 @@ impl CapabilitiesCmd {
             capabilities |= Capabilities::ROM_OCP_LOCK;
         }
 
+        if soc_ifc.stable_owner_key_available() {
+            capabilities |= Capabilities::ROM_STABLE_OWNER_KEY;
+        }
+
         capabilities_resp.hdr = MailboxRespHeader::default();
         capabilities_resp.capabilities = capabilities.to_bytes();
         let resp_bytes = capabilities_resp.as_bytes();

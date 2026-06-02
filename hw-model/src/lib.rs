@@ -251,6 +251,8 @@ pub struct InitParams<'a> {
 
     pub ocp_lock_en: bool,
 
+    pub stable_owner_key_en: bool,
+
     pub uds_fuse_row_granularity_64: bool,
 
     pub otp_dai_idle_bit_offset: u32,
@@ -343,6 +345,7 @@ impl Default for InitParams<'_> {
             dbg_manuf_service: Default::default(),
             subsystem_mode: false,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
+            stable_owner_key_en: false,
             uds_fuse_row_granularity_64: true,
             otp_dai_idle_bit_offset: 30,
             otp_direct_access_cmd_reg_offset: 0x80,
@@ -1042,6 +1045,11 @@ pub trait HwModel: SocManager {
         true
     }
 
+    /// Step until the system is ready to receive runtime mailbox commands.
+    fn step_until_ready_for_runtime(&mut self) {
+        self.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    }
+
     /// Initializes the fuse values and locks them in until the next reset. This
     /// function can only be called during early boot, shortly after the model
     /// is created with `new_unbooted()`.
@@ -1281,7 +1289,7 @@ pub trait HwModel: SocManager {
 
         if self.subsystem_mode() && buf.len() > api::mailbox::SUBSYSTEM_MAILBOX_SIZE_LIMIT {
             // Write payload to staging area
-            let staging_addr = self.write_payload_to_ss_staging_area(buf)?;
+            let staging_addr = self.write_payload_to_ss_staging_area(buf, 0)?;
 
             // Create external mailbox command
             let external_cmd = api::mailbox::ExternalMailboxCmdReq {
@@ -1380,12 +1388,20 @@ pub trait HwModel: SocManager {
     }
 
     /// Upload payload to external MCU SRAM
-    fn write_payload_to_ss_staging_area(&mut self, _payload: &[u8]) -> Result<u64, ModelError> {
+    fn write_payload_to_ss_staging_area(
+        &mut self,
+        _payload: &[u8],
+        _offset: usize,
+    ) -> Result<u64, ModelError> {
         Err(ModelError::SubsystemSramError)
     }
 
     /// Read payload from external MCU SRAM staging area
-    fn read_payload_from_ss_staging_area(&mut self, _length: usize) -> Result<Vec<u8>, ModelError> {
+    fn read_payload_from_ss_staging_area(
+        &mut self,
+        _length: usize,
+        _offset: usize,
+    ) -> Result<Vec<u8>, ModelError> {
         Err(ModelError::SubsystemSramError)
     }
 
@@ -1460,8 +1476,9 @@ pub trait HwModel: SocManager {
         encrypted_mcu_fw: &[u8],
     ) -> Result<(), ModelError> {
         use api::mailbox::{
-            CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage,
-            CommandId, GetMcuFwSizeResp, MailboxReqHeader, MailboxRespHeader,
+            ActivateFirmwareFlags, ActivateFirmwareReq, CmAesGcmDecryptDmaReq,
+            CmAesGcmDecryptDmaResp, CmImportReq, CmImportResp, CmKeyUsage, CommandId,
+            GetMcuFwSizeResp, MailboxReqHeader, MailboxRespHeader,
             CM_AES_GCM_DECRYPT_DMA_MAX_AAD_SIZE,
         };
         use zerocopy::transmute;
@@ -1530,7 +1547,7 @@ pub trait HwModel: SocManager {
         let cmk = cm_import_resp.cmk.clone();
 
         // Step 3: Write ciphertext to staging area and get the AXI address
-        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext)?;
+        let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext, 0)?;
 
         // Step 4: Build and send CM_AES_GCM_DECRYPT_DMA request
         let decrypt_req = CmAesGcmDecryptDmaReq {
@@ -1561,6 +1578,28 @@ pub trait HwModel: SocManager {
         if decrypt_resp.tag_verified != 1 {
             return Err(ModelError::MailboxCmdFailed(0));
         }
+
+        // Step 5: Publish FW_EXEC_CTRL[MCU] via ACTIVATE_FIRMWARE +
+        // INITIAL_ACTIVATE so MCI will release MCU from BOOT_RST_MCU on the
+        // next warm reset. This mirrors what the real MCU ROM does at the
+        // tail of the encrypted-boot flow before it triggers warm reset.
+        let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id_count: 1,
+            mcu_fw_image_size: ciphertext.len() as u32,
+            fw_ids: {
+                let mut arr = [0u32; ActivateFirmwareReq::MAX_FW_ID_COUNT];
+                arr[0] = ActivateFirmwareReq::MCU_IMAGE_ID;
+                arr
+            },
+            flags: ActivateFirmwareFlags::INITIAL_ACTIVATE.bits(),
+        });
+        activate_cmd.populate_chksum().unwrap();
+        self.mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        )?
+        .ok_or(ModelError::MailboxNoResponseData)?;
 
         Ok(())
     }
@@ -1638,6 +1677,11 @@ pub trait HwModel: SocManager {
     /// Get OCP LOCK Info
     fn ocp_lock_state(&mut self) -> Option<OcpLockState> {
         None
+    }
+
+    /// Get MCI BusMmio
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        panic!("mci unimplemented");
     }
 }
 

@@ -153,6 +153,10 @@ const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
             0xaaaa_aaaa,
             0xaaaa_aaaa,
         ],
+        hek_seed: [
+            2860620551, 2304452848, 871097381, 3924343081, 1815452837, 1480756109, 2219727310,
+            3486118852,
+        ],
     },
 
     // The expected results of the HMAC operations performed by the test.
@@ -214,6 +218,7 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
 
         // In debug mode, this defaults to 0xaaaa_aaaa
         keyvault_initial_word_value: 0xaaaa_aaaa,
+        hek_seed: [0u32; 8],
     });
     assert_eq!(vectors, DOE_TEST_VECTORS_DEBUG_MODE);
 }
@@ -251,6 +256,10 @@ const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
         field_entropy: [
             0x3d75d35e, 0xbc44a31e, 0xad27aee5, 0x75cdd170, 0xe51dcaf4, 0x09c096ae, 0xa70ff448,
             0x64834722, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        ],
+        hek_seed: [
+            3923443814, 3838548747, 818996002, 3631880110, 795805636, 902969462, 2272616137,
+            4267400515,
         ],
     },
     expected_test_results: DoeTestResults {
@@ -309,6 +318,7 @@ fn test_generate_doe_vectors_when_debug_locked() {
 
         // in debug-locked mode, this defaults to 0
         keyvault_initial_word_value: 0x0000_0000,
+        hek_seed: [0u32; 8],
     });
     assert_eq!(vectors, DOE_TEST_VECTORS);
 }

@@ -1,6 +1,7 @@
 # Licensed under the Apache-2.0 license
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
+#
 [profile.fpga-subsystem]
 default-filter = """
 (package(caliptra-hw-model) and test(tests::test_execution)) |

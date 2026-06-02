@@ -49,6 +49,10 @@ fn test_encrypted_firmware_decrypt_dma() {
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    // exec_bit 2 = MCU image. Caliptra runtime requires this to be set in
+    // the manifest so ACTIVATE_FIRMWARE knows which FW_EXEC_CTRL bit to
+    // publish for the MCU image during the post-decrypt activation step.
+    flags.set_exec_bit(2);
     let crypto = Crypto::default();
     let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw_image).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
@@ -86,7 +90,7 @@ fn test_encrypted_firmware_decrypt_dma() {
 
     // Read back the decrypted firmware from MCU SRAM and verify.
     let decrypted_fw = model
-        .read_payload_from_ss_staging_area(mcu_fw_plaintext.len())
+        .read_payload_from_ss_staging_area(mcu_fw_plaintext.len(), 0)
         .unwrap();
 
     assert_eq!(

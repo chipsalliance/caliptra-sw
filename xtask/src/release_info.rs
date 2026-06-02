@@ -73,6 +73,7 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "rt-1.2.2",  tag: "rt-1.2.2",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "rt-1.2.3",  tag: "rt-1.2.3",  ty: ReleaseType::Fw, asset_tag: Some("release_v20251105_0"), build: false },
     ReleaseEntry { name: "rt-1.2.4",  tag: "rt-1.2.4",  ty: ReleaseType::Fw, asset_tag: Some("release_v20260312_0"), build: false },
+    ReleaseEntry { name: "rt-1.2.5",  tag: "rt-1.2.5",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.0",  tag: "fw-2.0.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.1",  tag: "fw-2.0.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.0",  tag: "fw-2.1.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },

@@ -38,7 +38,7 @@ static EXPECTED_MEK: LazyLock<Mek> = LazyLock::new(|| {
     let doe_out = DoeOutput::generate(&DoeInput::default());
     OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
         .derive_mek()
 });
@@ -79,7 +79,7 @@ fn test_derive_mek_mix_mpk_hitless_update() {
     let doe_out = DoeOutput::generate(&DoeInput::default());
     let mut builder = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32]);
 
     let mpks = mix_mpk_flow(&mut model, &mut builder, None);
@@ -95,7 +95,7 @@ fn test_derive_mek_mix_mpk_hitless_update() {
 
     let mut new_builder = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32]);
 
     mix_mpk_flow(&mut model, &mut new_builder, Some(&mpks));
@@ -327,7 +327,7 @@ fn test_derive_mek_mix_mpk() {
     let doe_out = DoeOutput::generate(&DoeInput::default());
     let mut builder = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32]);
 
     for _ in 0..3 {
@@ -498,7 +498,7 @@ fn test_derive_mek_debug_unlocked() {
     let debug_unlocked_doe_out = DoeOutput::generate(&DoeInput::debug_unlocked());
     let expected_debug_unlocked_mek = OcpLockKeyLadderBuilder::new(debug_unlocked_doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
         .derive_mek();
 
@@ -734,7 +734,7 @@ fn update_fw(model: &mut DefaultHwModel) {
         &FMC_FPGA_WITH_UART,
         &APP_WITH_UART_OCP_LOCK_FPGA,
         ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )

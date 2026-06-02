@@ -185,10 +185,7 @@ fn test_set_auth_manifest_cmd_external() {
 #[test]
 fn test_set_auth_manifest_cmd_pqc_mldsa() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
@@ -218,10 +215,7 @@ fn test_set_auth_manifest_cmd_pqc_mldsa() {
 #[test]
 fn test_set_auth_manifest_cmd_pqc_lms() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::LMS);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
@@ -251,10 +245,7 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 #[test]
 fn test_set_auth_manifest_fw_info_digest() {
     let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
@@ -301,10 +292,7 @@ fn test_set_auth_manifest_fw_info_digest() {
 fn test_set_auth_manifest_cmd_invalid_len() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), *pqc_key_type);
-
-        model.step_until(|m| {
-            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-        });
+        model.step_until_ready_for_runtime();
 
         let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
             hdr: MailboxReqHeader { chksum: 0 },

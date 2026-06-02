@@ -6,10 +6,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_dpe::{
-    commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command, SignFlags,
-        SignP384Cmd as SignCmd,
-    },
+    commands::{Command, SignFlags, SignP384Cmd as SignCmd},
     context::ContextHandle,
     response::{CertifyKeyResp, Response, SignResp},
 };
@@ -26,8 +23,8 @@ use openssl::{
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
-    TEST_DIGEST, TEST_LABEL,
+    certify_key, execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, CertifyKeyCommandNoRef,
+    CreateCertifyKeyCmdArgs, DpeResult, RuntimeTestArgs, TEST_DIGEST, TEST_LABEL,
 };
 
 #[test]
@@ -71,19 +68,9 @@ fn test_disable_attestation_cmd() {
     );
 
     // get pub key
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp))) = resp else {
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
+    let resp = certify_key(&mut model, certify_key_cmd).unwrap();
+    let CertifyKeyResp::P384(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -156,22 +143,9 @@ fn test_attestation_disabled_flag_after_update_reset() {
     let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        CaliptraDpeProfile::Ecc384,
-        &mut Command::from(&certify_key_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
-    let dpe_leaf_cert: X509 = X509::from_der(certify_key_resp.cert().unwrap()).unwrap();
+    let certify_key_cmd = &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
+    let resp = certify_key(&mut model, certify_key_cmd).unwrap();
+    let dpe_leaf_cert: X509 = X509::from_der(resp.cert().unwrap()).unwrap();
 
     assert!(!dpe_leaf_cert
         .verify(&rt_cert.public_key().unwrap())

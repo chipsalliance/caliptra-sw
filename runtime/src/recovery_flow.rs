@@ -148,7 +148,9 @@ impl RecoveryFlow {
             }
 
             // Check if firmware was loaded encrypted - if so, skip MCU activation
-            // MCU ROM will decrypt the firmware and send CM_ACTIVATE_FIRMWARE command
+            // MCU ROM will decrypt the firmware and send the ACTIVATE_FIRMWARE
+            // mailbox command with the INITIAL_ACTIVATE flag once it is ready
+            // for Caliptra to publish FW_EXEC_CTRL[MCU].
             let boot_mode = drivers.persistent_data.get().rom.boot_mode;
             if boot_mode == BootMode::EncryptedFirmware {
                 cprintln!("[rt] Encrypted firmware boot mode - skipping MCU activation");

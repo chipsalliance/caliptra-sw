@@ -218,8 +218,9 @@ impl FirmwareProcessor {
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
-        // Load the image
+        // Load the image, then verify the loaded ICCM contents against the manifest in DCCM.
         Self::load_image(manifest, txn.as_deref_mut(), &mut env.soc_ifc, &mut env.dma)?;
+        crate::flow::loaded_image::verify_fmc_and_runtime(manifest, &mut env.sha2_512_384)?;
 
         // Complete the mailbox transaction indicating success.
         if let Some(ref mut txn) = txn {
@@ -424,14 +425,25 @@ impl FirmwareProcessor {
                     CommandId::GET_IDEV_MLDSA87_CSR => {
                         GetIdevMldsa87CsrCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::CM_DERIVE_STABLE_KEY => CmDeriveStableKeyCmd::execute(
-                        cmd_bytes,
-                        env.aes_gcm,
-                        env.hmac,
-                        env.trng,
-                        persistent_data,
-                        resp,
-                    )?,
+                    CommandId::CM_DERIVE_STABLE_KEY => {
+                        // Reject OwnerKey if the Stable Owner Key feature is not available.
+                        let req = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
+                            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
+                        let key_type: CmStableKeyType = req.key_type.into();
+                        if key_type == CmStableKeyType::OwnerKey
+                            && !soc_ifc.stable_owner_key_available()
+                        {
+                            Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+                        }
+                        CmDeriveStableKeyCmd::execute(
+                            cmd_bytes,
+                            env.aes_gcm,
+                            env.hmac,
+                            env.trng,
+                            persistent_data,
+                            resp,
+                        )?
+                    }
                     CommandId::CM_RANDOM_GENERATE => {
                         CmRandomGenerateCmd::execute(cmd_bytes, env.trng, resp)?
                     }
@@ -455,18 +467,14 @@ impl FirmwareProcessor {
                     CommandId::INSTALL_OWNER_PK_HASH => {
                         InstallOwnerPkHashCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
-                    CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(
-                        cmd_bytes,
-                        persistent_data,
-                        AlgorithmType::Ecc384,
-                        resp,
-                    )?,
-                    CommandId::GET_LDEV_MLDSA87_CERT => GetLdevCertCmd::execute(
-                        cmd_bytes,
-                        persistent_data,
-                        AlgorithmType::Mldsa87,
-                        resp,
-                    )?,
+                    CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
+                        let algo = if CommandId::from(cmd) == CommandId::GET_LDEV_ECC384_CERT {
+                            AlgorithmType::Ecc384
+                        } else {
+                            AlgorithmType::Mldsa87
+                        };
+                        GetLdevCertCmd::execute(cmd_bytes, persistent_data, algo, resp)?
+                    }
                     CommandId::ZEROIZE_UDS_FE => {
                         ZeroizeUdsFeCmd::execute(cmd_bytes, soc_ifc, dma, resp)?
                     }
@@ -697,9 +705,15 @@ impl FirmwareProcessor {
         };
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
+            "[fwproc] Img verified ecc={} {}={} svn={} fuse_svn={}",
             info.vendor_ecc_pub_key_idx,
-            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type) == Some(FwVerificationPqcKeyType::MLDSA)  { "MLDSA" } else { "LMS" },
+            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type)
+                == Some(FwVerificationPqcKeyType::MLDSA)
+            {
+                "MLDSA"
+            } else {
+                "LMS"
+            },
             info.vendor_pqc_pub_key_idx,
             info.fw_svn,
             info.effective_fuse_svn,
@@ -1124,26 +1138,48 @@ impl FirmwareProcessor {
             CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(
                 caliptra_common::keyids::KEY_ID_STABLE_LDEV,
             )),
+            CmStableKeyType::OwnerKey => AesKey::KV(KeyReadArgs::new(
+                caliptra_common::keyids::KEY_ID_STABLE_OWNER,
+            )),
             CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
 
-        // Prepend "DOT Final" to info and use as label for HMAC KDF
-        const PREFIX: &[u8] = b"DOT Final";
-        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
-        data[..PREFIX.len()].copy_from_slice(PREFIX);
-        data[PREFIX.len()..].copy_from_slice(&request.info);
-
+        // Prepend a domain-separation prefix to info and use as label for HMAC KDF
+        const DOT_PREFIX: &[u8] = b"DOT Final";
+        const OWNER_PREFIX: &[u8] = b"Stable Owner Key";
         let mut tag: Array4x16 = Array4x16::default();
-        hmac_kdf(
-            hmac,
-            HmacKey::Array4x16(&Array4x16::from(k0)),
-            &data[..],
-            None,
-            trng,
-            HmacTag::Array4x16(&mut tag),
-            HmacMode::Hmac512,
-        )?;
+        match key_type {
+            CmStableKeyType::OwnerKey => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + OWNER_PREFIX.len()];
+                data[..OWNER_PREFIX.len()].copy_from_slice(OWNER_PREFIX);
+                data[OWNER_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    hmac,
+                    HmacKey::Array4x16(&Array4x16::from(k0)),
+                    &data,
+                    None,
+                    trng,
+                    HmacTag::Array4x16(&mut tag),
+                    HmacMode::Hmac512,
+                )?;
+            }
+            CmStableKeyType::IDevId | CmStableKeyType::LDevId => {
+                let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + DOT_PREFIX.len()];
+                data[..DOT_PREFIX.len()].copy_from_slice(DOT_PREFIX);
+                data[DOT_PREFIX.len()..].copy_from_slice(&request.info);
+                hmac_kdf(
+                    hmac,
+                    HmacKey::Array4x16(&Array4x16::from(k0)),
+                    &data,
+                    None,
+                    trng,
+                    HmacTag::Array4x16(&mut tag),
+                    HmacMode::Hmac512,
+                )?;
+            }
+            CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+        }
 
         let mut key_material = [0u8; 64];
         for (i, word) in tag.0.iter().enumerate() {

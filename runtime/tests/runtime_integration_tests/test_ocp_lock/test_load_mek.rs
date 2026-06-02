@@ -9,6 +9,7 @@ use caliptra_api::mailbox::{
 use caliptra_builder::{firmware::APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{DoeInput, DoeOutput, Mek, OcpLockKeyLadderBuilder};
 
 use zerocopy::{FromBytes, IntoBytes};
@@ -27,7 +28,7 @@ fn generate_test_mek() -> (Mek, WrappedKey) {
     let doe_out = DoeOutput::generate(&DoeInput::default());
     OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
-        .add_hek([0xABDEu32; 8])
+        .add_hek()
         .add_intermediate_mek_secret([0xAB; 32], [0xCD; 32])
         .generate_and_wrap_mek()
 }
@@ -94,7 +95,14 @@ fn validate_success_response(
 }
 
 fn update_reset(model: &mut DefaultHwModel) {
-    update_fw(model, &APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions::default());
+    update_fw(
+        model,
+        &APP_WITH_UART_OCP_LOCK_FPGA,
+        ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        },
+    );
 }
 
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]

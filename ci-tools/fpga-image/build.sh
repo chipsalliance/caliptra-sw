@@ -157,9 +157,9 @@ else
 fi
 chroot out/rootfs bash -c "echo \"Image variant : ${IMAGE_VARIANT}\" >> /etc/caliptra-build-info"
 chroot out/rootfs bash -c "echo \"Runner version : ${RUNNER_VERSION}\" >> /etc/caliptra-build-info"
-chroot out/rootfs bash -c "echo \"Workflow name : ${GITHUB_WORKFLOW}\" >> /etc/caliptra-build-info"
-chroot out/rootfs bash -c "echo \"Workflow branch : ${GITHUB_HEAD_REF}\" >> /etc/caliptra-build-info"
-chroot out/rootfs bash -c "echo \"Workflow build commit : ${GITHUB_WORKFLOW_SHA}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow name : ${LOCAL_GH_WORKFLOW}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow branch : ${LOCAL_GH_HEAD_REF}\" >> /etc/caliptra-build-info"
+chroot out/rootfs bash -c "echo \"Workflow build commit : ${LOCAL_GH_WORKFLOW_SHA}\" >> /etc/caliptra-build-info"
 HASH=`md5sum out/io-module.ko | awk '{print $1}'`
 chroot out/rootfs bash -c "echo \"Hash io-module.ko : ${HASH}\" >> /etc/caliptra-build-info"
 HASH=`md5sum out/system-boot.tar.gz | awk '{print $1}'`

@@ -17,6 +17,7 @@ mod activate_firmware;
 mod attested_csr;
 mod authorize_and_stash;
 mod capabilities;
+mod certify_key_chunks;
 mod certify_key_extended;
 mod cryptographic_mailbox;
 mod debug_unlock;
@@ -355,6 +356,9 @@ fn execute_command(
             GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
+        CommandId::CERTIFY_KEY_CHUNKS => {
+            certify_key_chunks::CertifyKeyChunksCmd::execute(drivers, cmd_bytes, resp)
+        }
         CommandId::CERTIFY_KEY_EXTENDED_ECC384 => {
             CertifyKeyExtendedCmd::execute_ecc384(drivers, cmd_bytes, resp)
         }
@@ -539,7 +543,6 @@ fn execute_command(
             drivers.debug_unlock.handle_token(
                 &mut drivers.soc_ifc,
                 &mut drivers.sha2_512_384,
-                &mut drivers.sha2_512_384_acc,
                 &mut drivers.ecc384,
                 &mut mldsa,
                 &mut drivers.dma,

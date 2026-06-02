@@ -20,8 +20,6 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::rom_env::RomEnv;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::cfi_check;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
@@ -156,34 +154,15 @@ impl FmcAliasLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(
-            &mut env.ecc384,
-            &mut env.hmac,
-            &mut env.trng,
-            &mut env.key_vault,
+        crate::flow::cold_reset::derive_dice_key_pair(
+            env,
             cdi,
-            b"alias_fmc_ecc_key",
             ecc_priv_key,
-        );
-        cfi_check!(result);
-        let ecc_keypair = result?;
-
-        // Derive the MLDSA Key Pair.
-        let result = env.abr.with_mldsa87(|mut mldsa87| {
-            Crypto::mldsa87_key_gen(
-                &mut mldsa87,
-                &mut env.hmac,
-                &mut env.trng,
-                cdi,
-                b"alias_fmc_mldsa_key",
-                mldsa_keypair_seed,
-            )
-        });
-        cfi_check!(result);
-        let mldsa_keypair = result?;
-
-        report_boot_status(FmcAliasKeyPairDerivationComplete.into());
-        Ok((ecc_keypair, mldsa_keypair))
+            mldsa_keypair_seed,
+            b"alias_fmc_ecc_key",
+            b"alias_fmc_mldsa_key",
+            FmcAliasKeyPairDerivationComplete.into(),
+        )
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -234,7 +213,8 @@ impl FmcAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[afmc] ECC Signing Cert w/ AUTHORITY.KEYID = {}",
+            "[afmc] Signing Cert {} AUTHORITY.KEYID = {}",
+            "ECC",
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(
@@ -314,7 +294,8 @@ impl FmcAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[afmc] MLDSA Signing Cert w/ AUTHORITY.KEYID = {}",
+            "[afmc] Signing Cert {} AUTHORITY.KEYID = {}",
+            "MLDSA",
             auth_priv_key as u8
         );
         let mut sig = env.abr.with_mldsa87(|mut mldsa87| {
@@ -329,10 +310,6 @@ impl FmcAliasLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        cprintln!(
-            "[afmc] MLDSA Erase AUTHORITY.KEYID = {}",
-            auth_priv_key as u8
-        );
         env.key_vault.erase_key(auth_priv_key).inspect_err(|_err| {
             sig.zeroize();
         })?;

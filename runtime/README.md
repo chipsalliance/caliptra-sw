@@ -51,7 +51,8 @@ When ROM receives the `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` command instead of `RI_DO
 3. The MCU ROM can then:
    - Import an AES key using `CM_IMPORT`
    - Decrypt the firmware in-place using `CM_AES_GCM_DECRYPT_DMA`
-   - Send `CM_ACTIVATE_FIRMWARE` to activate the decrypted MCU firmware
+   - Send `ACTIVATE_FIRMWARE` with the `INITIAL_ACTIVATE` flag set, so Runtime publishes `FW_EXEC_CTRL[MCU]` without performing the hitless-update reload/verify dance (the firmware was already integrity-checked end-to-end by `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and `CM_AES_GCM_DECRYPT_DMA`). See [`ACTIVATE_FIRMWARE`](#activate_firmware) for the gating rules.
+   - Trigger a warm reset; MCI releases MCU once `FW_EXEC_CTRL[MCU]` is asserted, and MCU FwBoot jumps into the decrypted firmware.
 
 The `CM_AES_GCM_DECRYPT_DMA` command is intended to be used for the `EncryptedFirmware` boot mode and performs a SHA384 integrity check of the ciphertext before decryption, but can be used to decrypt other images as well in any boot mode.
 
@@ -1351,6 +1352,34 @@ Command Code: `0x434B_584D` ("CKXM")
 | size               | u32       | The size of the response in the certify\_key\_resp field.                  |
 | certify\_key\_resp | u8[25152] | Certify Key Response.                                                      |
 
+### CERTIFY\_KEY\_CHUNKS
+
+Invokes a DPE `CertifyKey` command (ML-DSA-87) and returns the response in chunks. This is useful when the DPE response (which contains a certificate or CSR) is larger than the mailbox size or larger than the caller can easily consume.
+
+Command Code: `0x434B_4348` ("CKCH")
+
+*Table: `CERTIFY_KEY_CHUNKS` input arguments*
+
+| **Name**          | **Type** | **Description**                                                                       |
+| ----------------- | -------- | ------------------------------------------------------------------------------------- |
+| chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian.           |
+| flags             | u32      | Flags (reserved).                                                                     |
+| reserved          | u32      | Reserved.                                                                             |
+| max\_size         | u32      | The maximum length of the chunk the caller wants to receive. If 0, defaults to 15360. |
+| offset            | u32      | Offset into the full CertifyKey response to read from.                                |
+| certify\_key\_req | u8[72]   | The serialized DPE `CertifyKey` command.                                              |
+
+*Table: `CERTIFY_KEY_CHUNKS` output arguments*
+
+| **Name**           | **Type**  | **Description**                                                            |
+| ------------------ | --------- | -------------------------------------------------------------------------- |
+| chksum             | u32       | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status       | u32       | Indicates if the command is FIPS approved or an error.                     |
+| context\_handle    | u8[16]    | The new DPE context handle returned by the `CertifyKey` command.           |
+| chunk\_len         | u32       | The length of the chunk returned in `certify_key_resp`.                    |
+| remaining          | u32       | The number of bytes remaining in the full response after this chunk.       |
+| certify\_key\_resp | u8[15360] | The chunk of the DPE `CertifyKey` response.                                |
+
 ### SET_AUTH_MANIFEST
 
 The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use.
@@ -1511,6 +1540,41 @@ Command Code: `0x4143_5446` ("ACTF")
 | count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
 | mcu_image_size | u32            | Size of MCU image, if included in the activation |
 | image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
+| flags          | u32            | Optional flags (see below). Caliptra runtime 2.1.1+ only.                  |
+
+*Flags*
+
+| **Bit** | **Name**          | **Description**                                                                                                          |
+| ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 0       | `INITIAL_ACTIVATE`| First-time MCU activation after the encrypted-boot flow. Caliptra runtime 2.1.1+ only. See below. |
+
+Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
+
+`INITIAL_ACTIVATE` is used exclusively by MCU ROM at the tail of the
+`EncryptedFirmware` boot flow. MCU ROM has already loaded firmware into MCU
+SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
+`CM_AES_GCM_DECRYPT_DMA`. When this flag is set, Caliptra Runtime:
+
+- Skips the hitless-update steps (set `RESET_REASON.FwHitlessUpd`, clear
+  `FW_EXEC_CTRL`, wait for MCU reset request and reset assertion, DMA-reload
+  from staging, re-`AuthorizeAndStash`).
+- Just publishes `FW_EXEC_CTRL[MCU]` (and any other requested bits) so that
+  MCI's `BOOT_RST_MCU` state releases MCU from reset on the next warm reset
+  that MCU ROM triggers.
+
+Caliptra Runtime only honors `INITIAL_ACTIVATE` when **all** of the following
+are true; otherwise the command fails with `IMAGE_VERIFIER_ACTIVATION_FAILED`:
+
+1. The MCU image bit is included in the activation request.
+2. The boot mode set by ROM is `EncryptedFirmware` (i.e., ROM received
+   `RI_DOWNLOAD_ENCRYPTED_FIRMWARE`).
+3. `FW_EXEC_CTRL[MCU]` is currently `0` — this is an initial activation,
+   not a hitless update masquerading as one.
+
+Together, these checks ensure that the MCU SRAM contents are
+integrity-protected end-to-end (ciphertext digest verified during recovery;
+GCM tag verified during `CM_AES_GCM_DECRYPT_DMA`) before Caliptra releases
+MCU to execute them.
 
 *Table: `ACTIVATE_FIRMWARE` output arguments*
 
@@ -2646,15 +2710,27 @@ Command Code: `0x434D_5247` ("CMRG")
 ### CM\_DERIVE\_STABLE\_KEY
 
 Derives an HMAC key that has a stable value across resets from either
-IDevId or LDevId.
+IDevId, LDevId, or the Owner Root Key (derived from HEK seed).
 
-The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs.
+The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs, or from the HEK-seed-derived Owner Root Key.
 The actual encrypted bytes of the CMK will *not* be the same, and
 the encrypted CMK itself cannot be used across resets. So, the key
 will always need to be re-derived after every *cold* reset.
 
 If a key usage other than HMAC is desired, then the KDF or HKDF
 mailbox functions can be used to derive a key from the returned CMK.
+
+`key_type = OwnerKey` is only available in subsystem mode when the Stable Owner
+Key strap is enabled (`SS_STRAP_GENERIC[3]` bit 0 set to 1) and OCP LOCK is not
+enabled. If these requirements are not met, the command fails with
+`CMB_STABLE_OWNER_KEY_NOT_AVAILABLE`.
+
+For `OwnerKey`, this command derives from the ROM-populated Stable Owner Root
+Key. It first runs AES-256-CMAC KDF with `info` as the input data to produce an
+intermediate key, then runs HMAC-SHA512 KDF with `b"Stable Owner Key" || info`
+as the domain-separation input to produce the returned 64-byte HMAC key
+material. Caliptra wraps that key material as an encrypted CMK before returning
+it to the caller.
 
 Command Code: `0x434D_4453` ("CMDS")
 
@@ -2663,7 +2739,7 @@ Command Code: `0x434D_4453` ("CMDS")
 | **Name**      | **Type** | **Description** |
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId <br> **0x0000_0003:** OwnerKey (derived from HEK seed) |
 | info          | u8[32]   | Data to use in the key derivation. |
 
 *Table: `CM_DERIVE_STABLE_KEY` output arguments*

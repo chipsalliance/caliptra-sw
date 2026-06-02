@@ -34,9 +34,11 @@ fn test_standard() {
 fn test_boot() {
     let args = RuntimeTestArgs {
         test_fwid: Some(&firmware::runtime_tests::BOOT),
+        successful_reach_rt: false,
         ..Default::default()
     };
     let mut model = run_rt_test(args);
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     model.step_until_exit_success().unwrap();
 }
@@ -47,9 +49,11 @@ fn test_boot() {
 fn test_persistent_data() {
     let args = RuntimeTestArgs {
         test_fwid: Some(&firmware::runtime_tests::PERSISTENT_RT),
+        successful_reach_rt: false,
         ..Default::default()
     };
     let mut model = run_rt_test(args);
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     model.step_until_exit_success().unwrap();
 }

@@ -13,7 +13,6 @@ use zerocopy::IntoBytes;
 
 use crate::helpers;
 
-const RT_READY_FOR_COMMANDS: u32 = 0x600;
 const ROM_READY_FOR_FW_PROCESSOR: u32 = 70;
 
 fn generate_csr_envelop(
@@ -39,7 +38,7 @@ fn generate_csr_envelop(
     });
     helpers::test_upload_firmware(hw, &image_bundle.to_bytes().unwrap(), pqc_key_type);
 
-    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    hw.step_until_ready_for_runtime();
 
     let output = hw.output().take(usize::MAX);
     if crate::helpers::rom_from_env() == &firmware::ROM_WITH_UART {

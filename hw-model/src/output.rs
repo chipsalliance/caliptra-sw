@@ -24,6 +24,17 @@ struct OutputSinkImpl {
     char_buffer: Cell<PartialUtf8>, // it's faster to copy than to manage a RefCell
 }
 
+/// Returns the largest byte index `<= pos` that lies on a UTF-8 character
+/// boundary in `s`. This is a stable replacement for the still-unstable
+/// `str::floor_char_boundary`.
+fn floor_char_boundary(s: &str, pos: usize) -> usize {
+    let mut pos = pos.min(s.len());
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
 struct PrettyU64(u64);
 impl Display for PrettyU64 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -355,7 +366,8 @@ impl Output {
         if let Some(term) = &self.search_term {
             if !self.search_matched {
                 self.search_matched = self.output[self.search_pos..].contains(term);
-                self.search_pos = self.output.len().saturating_sub(term.len());
+                self.search_pos =
+                    floor_char_boundary(&self.output, self.output.len().saturating_sub(term.len()));
                 if self.search_matched {
                     self.search_term = None;
                 }
@@ -541,5 +553,70 @@ mod tests {
         assert!(out.search_matched);
         out.set_search_term("string");
         assert!(!out.search_matched);
+    }
+
+    #[test]
+    fn test_search_with_utf8_output() {
+        // Regression test: previously, process_new_data() set search_pos to
+        // `output.len() - term.len()` without aligning to a UTF-8 character
+        // boundary. If the UART output contained multi-byte UTF-8 characters,
+        // a later read of `self.output[self.search_pos..]` would panic.
+
+        let mut out = Output::new(Log::new());
+        out.set_search_term("xx");
+        assert!(!out.search_matched());
+
+        // Push a 3-byte snowman codepoint: ☃ = 0xE2 0x98 0x83.
+        // After process_new_data(), the buggy code sets
+        // search_pos = 3 - 2 = 1, which is in the middle of ☃.
+        for &ch in "☃".as_bytes() {
+            out.sink.push_uart_char(ch);
+        }
+        // Force the search bookkeeping to run; this also exercises the
+        // path that previously left search_pos at a non-boundary index.
+        let _ = out.peek();
+        assert!(!out.search_matched());
+
+        // Push another byte. The buggy code now slices output[1..],
+        // which panics because byte 1 is mid-codepoint.
+        out.sink.push_uart_char(b'a');
+        let _ = out.peek();
+        assert!(!out.search_matched());
+
+        // The search should still be able to match after the multi-byte
+        // character.
+        for &ch in b"xx" {
+            out.sink.push_uart_char(ch);
+        }
+        let _ = out.peek();
+        assert!(out.search_matched());
+    }
+
+    #[test]
+    fn test_search_match_spanning_utf8_boundary() {
+        // Ensure that aligning search_pos down to a char boundary doesn't
+        // cause us to miss a match whose tail lands in subsequent data after
+        // the boundary is clamped back past a multi-byte character.
+        let mut out = Output::new(Log::new());
+        for &ch in b"abc" {
+            out.sink.push_uart_char(ch);
+        }
+        out.set_search_term("xx");
+        // Push a 3-byte snowman: ☃. The buggy code would set
+        // search_pos = output.len() - term.len() = 6 - 2 = 4, which is
+        // mid-codepoint. After the fix, search_pos is clamped down to 3.
+        for &ch in "☃".as_bytes() {
+            out.sink.push_uart_char(ch);
+        }
+        let _ = out.peek();
+        assert!(!out.search_matched());
+
+        // Now push "xx"; the match must still be found even though the
+        // previous search_pos was adjacent to a multi-byte boundary.
+        for &ch in b"xx" {
+            out.sink.push_uart_char(ch);
+        }
+        let _ = out.peek();
+        assert!(out.search_matched());
     }
 }

@@ -1,9 +1,16 @@
 # Licensed under the Apache-2.0 license
-
-[bitstream]
-name = "core-2.1"
-url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/scratch/runtime_0e072048.pdi"
-hash = "27cde566975cefca325aaf2775d3f2d679e9d8ab197c090b529ccd3b866800a7"
+schema_version = "1"
+repository = "chipsalliance/caliptra-sw"
+hw_major_version = "2.1"
+target_branch = "main"
 caliptra_variant = "core"
-caliptra_rtl_commit = "0e072048a4e0ec78d880d3fc414b0924f00e73b2"
-
+date = "2026-05-14T20:25:08.925831090+00:00"
+commit_hash = "c40fb92e3ce8711a4b5d8d9c647e6705346f6597"
+job_id = "25864442546-build-bitstream"
+segmented = true
+github_pr = 3684
+name = "core-bitstream"
+xsa_url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/c40fb92e3ce8711a4b5d8d9c647e6705346f6597/caliptra_fpga.xsa"
+pdi_url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/c40fb92e3ce8711a4b5d8d9c647e6705346f6597/runtime_c40fb92.pdi"
+xsa_hash = "6c7c0dbb4ee2a6f6834a4bf0a75438b061363e6082d0a3931b91cd55e4b84e23"
+pdi_hash = "2ccdeb7bbfc386e093fcb606c7e8a1a69780d191f91fdb35e1fe3d7e5a503431"

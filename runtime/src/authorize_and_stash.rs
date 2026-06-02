@@ -81,6 +81,7 @@ impl AuthorizeAndStashCmd {
         let auth_manifest_image_metadata_col = &persistent_data.fw.auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
+        let mut stash_measurement = cmd.measurement;
         let auth_result = if let Some(metadata_entry) =
             find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
         {
@@ -121,6 +122,7 @@ impl AuthorizeAndStashCmd {
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                     .into();
                 if cfi_launder(metadata_entry.digest) == measurement {
+                    stash_measurement = measurement;
                     caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(measurement).0,
@@ -142,7 +144,7 @@ impl AuthorizeAndStashCmd {
                 let dpe_result = StashMeasurementCmd::stash_measurement(
                     drivers,
                     &cmd.fw_id,
-                    &cmd.measurement,
+                    &stash_measurement,
                     cmd.svn,
                     drivers.caller_privilege_level(),
                     locality,

@@ -13,7 +13,7 @@ use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_T
 use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
-    lc_generate_memory, otp_generate_lifecycle_tokens_mem,
+    lc_generate_memory, otp_generate_lifecycle_tokens_mem, otp_generate_linear_majority_vote,
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
     LifecycleControllerState, OtpSwManufPartition,
 };
@@ -68,14 +68,17 @@ const OTP_SVN_PARTITION_FMC_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET +
 const OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 4; // 16 bytes
 const OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 20; // 16 bytes
 const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36; // 1 byte used
-                                                                                         // VENDOR_HASHES_MANUF_PARTITION
+
+// VENDOR_HASHES_MANUF_PARTITION
 const OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET: usize = 0x420;
 const FUSE_VENDOR_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET;
 const FUSE_PQC_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET + 48;
+
 // VENDOR_HASHES_PROD_PARTITION
 const OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET: usize = 0x460;
 const FUSE_OWNER_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET; // 48 bytes
-                                                                                 // VENDOR_REVOCATIONS_PROD_PARTITION
+
+// VENDOR_REVOCATIONS_PROD_PARTITION
 const OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET: usize = 0x7C0;
 const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 12; // 4 bytes
 const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
@@ -222,7 +225,7 @@ pub struct Mci {
 }
 
 impl Mci {
-    pub fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+    pub fn regs<'a>(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'a>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
                 EMULATOR_MCI_ADDR as *mut u32,
@@ -578,6 +581,10 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
+        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
+        // to the FPGA block RAM fail with a SIGBUS fault.
+        let zeroed_otp = vec![0u8; OTP_SIZE];
+        self.otp_slice().copy_from_slice(&zeroed_otp);
         self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to initialize OTP");
 
@@ -915,13 +922,12 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn i3c_target_configured(&mut self) -> bool {
-        u32::from(
-            self.i3c_core()
-                .unwrap()
-                .stdby_ctrl_mode()
-                .stby_cr_device_addr()
-                .read(),
-        ) != 0
+        self.i3c_core()
+            .unwrap()
+            .i3c_base()
+            .hc_control()
+            .read()
+            .bus_enable()
     }
 
     pub fn start_recovery_bmc(&mut self) {
@@ -1632,11 +1638,8 @@ impl ModelFpgaSubsystem {
             "Setting vendor public key pqc type to {:x?}",
             vendor_pqc_type
         );
-        let val = match vendor_pqc_type {
-            FwVerificationPqcKeyType::MLDSA => 0,
-            FwVerificationPqcKeyType::LMS => 1,
-        };
-        otp_data[FUSE_PQC_OFFSET] = val;
+        let encoded_pqc = otp_generate_linear_majority_vote(2, 3, vendor_pqc_type as u32)?;
+        otp_data[FUSE_PQC_OFFSET..FUSE_PQC_OFFSET + 4].copy_from_slice(&encoded_pqc.to_le_bytes());
 
         // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
         let owner_pk_hash = self.fuses.owner_pk_hash.as_bytes();
@@ -1656,12 +1659,15 @@ impl ModelFpgaSubsystem {
             "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
             vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
         );
+        let encoded_ecc = otp_generate_linear_majority_vote(4, 3, vendor_ecc_revocation)?;
         otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_ecc_revocation.to_le_bytes());
+            .copy_from_slice(&encoded_ecc.to_le_bytes());
+        let encoded_lms = otp_generate_linear_majority_vote(16, 2, vendor_lms_revocation)?;
         otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_lms_revocation.to_le_bytes());
+            .copy_from_slice(&encoded_lms.to_le_bytes());
+        let encoded_mldsa = otp_generate_linear_majority_vote(4, 3, vendor_mldsa_revocation)?;
         otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&vendor_mldsa_revocation.to_le_bytes());
+            .copy_from_slice(&encoded_mldsa.to_le_bytes());
 
         // Firmware/runtime SVN (16 bytes -> 4 words)
         let fw_svn = self.fuses.fw_svn.as_bytes();
@@ -1699,6 +1705,22 @@ impl ModelFpgaSubsystem {
 
     pub fn otp_slice(&self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
+    }
+
+    /// Override the lifecycle controller state that will be provisioned into
+    /// OTP on the next `cold_reset()`. Useful for tests that perform JTAG
+    /// lifecycle transitions and need the new state to survive a cold reset.
+    pub fn set_saved_lc_state(&mut self, lc_state: Option<LifecycleControllerState>) {
+        self.saved_lc_state = lc_state;
+    }
+
+    /// Replace the OTP initialization bytes used on the next `cold_reset()`.
+    /// `setup_hardware_registers()` zeros the OTP slice and then re-provisions
+    /// it from `otp_init` (when non-empty) plus the saved init params, so
+    /// callers can use this to seed OTP contents that should survive a cold
+    /// reset (e.g., to simulate persistent OTP state across boots in tests).
+    pub fn set_otp_init(&mut self, otp_init: Vec<u8>) {
+        self.otp_init = otp_init;
     }
 
     pub fn flash_slice(&self) -> &mut [u8] {
@@ -1780,6 +1802,10 @@ impl HwModel for ModelFpgaSubsystem {
             mmio: self.mmio.caliptra_mmio().unwrap(),
             phantom: Default::default(),
         }
+    }
+
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        self.mmio.mci().unwrap().regs()
     }
 
     fn step(&mut self) {
@@ -2220,6 +2246,14 @@ impl HwModel for ModelFpgaSubsystem {
         true
     }
 
+    fn step_until_ready_for_runtime(&mut self) {
+        self.step_until(|m| {
+            m.mci_boot_milestones()
+                .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
+                || m.soc_ifc().cptra_fw_error_fatal().read() != 0
+        });
+    }
+
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
     }
@@ -2384,8 +2418,20 @@ impl HwModel for ModelFpgaSubsystem {
         Ok(mci_base_addr + 0xc00000)
     }
 
-    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
-        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+    fn write_payload_to_ss_staging_area(
+        &mut self,
+        payload: &[u8],
+        offset: usize,
+    ) -> Result<u64, ModelError> {
+        assert!(
+            offset % 4 == 0,
+            "Staging area offset must be 4-byte aligned"
+        );
+        assert!(
+            payload.len() % 4 == 0,
+            "Payload length must be a multiple of 4"
+        );
+        let staging_offset = (0xc00000_usize + offset) / 4; // Convert to u32 offset since mci.ptr is *mut u32
         let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
 
         // Write complete u32 chunks
@@ -2402,12 +2448,20 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
-        // Return the physical address of the staging area
-        self.staging_physical_address()
+        // Return the physical address of the staging area + offset
+        Ok(self.staging_physical_address()? + offset as u64)
     }
 
-    fn read_payload_from_ss_staging_area(&mut self, len: usize) -> Result<Vec<u8>, ModelError> {
-        let staging_offset = 0xc00000_usize / 4; // Convert to u32 offset since mci.ptr is *mut u32
+    fn read_payload_from_ss_staging_area(
+        &mut self,
+        len: usize,
+        offset: usize,
+    ) -> Result<Vec<u8>, ModelError> {
+        assert!(
+            offset % 4 == 0,
+            "Staging area offset must be 4-byte aligned"
+        );
+        let staging_offset = (0xc00000_usize + offset) / 4; // Convert to u32 offset since mci.ptr is *mut u32
         let staging_ptr = unsafe { self.mmio.mci().unwrap().ptr.add(staging_offset) };
 
         let mut result = Vec::with_capacity(len);
