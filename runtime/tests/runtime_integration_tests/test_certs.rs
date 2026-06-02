@@ -656,7 +656,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rom_stash_dpe_cert = dpe_cert_resp.cert().unwrap();
+        let rom_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
 
         //
         // 2. RUNTIME STASH MEASUREMENT
@@ -677,7 +677,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rt_stash_dpe_cert = &dpe_cert_resp.cert().unwrap();
+        let rt_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
 
         //
         // 3. DPE DERIVE CONTEXT
@@ -710,7 +710,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let derive_context_dpe_cert = &dpe_cert_resp.cert().unwrap();
+        let derive_context_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
 
         //
         // COMPARE CERTS
@@ -721,8 +721,8 @@ pub fn test_all_measurement_apis() {
             // This means the certificate won't match the cert produced with the ROM stashed measurement because the ROM measurement is _before_ the MCU FW measurement.
             assert_eq!(derive_context_dpe_cert, rt_stash_dpe_cert);
         } else {
-            assert_eq!(&rom_stash_dpe_cert, rt_stash_dpe_cert);
-            assert_eq!(&rom_stash_dpe_cert, derive_context_dpe_cert);
+            assert_eq!(rom_stash_dpe_cert, rt_stash_dpe_cert);
+            assert_eq!(rom_stash_dpe_cert, derive_context_dpe_cert);
         }
     }
 }
