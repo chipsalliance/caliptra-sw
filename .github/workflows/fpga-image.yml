@@ -147,13 +147,13 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: 'Download kernel artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vck190-kernel-${{ matrix.image_variant }}
           path: /tmp/vck190-kernel/
 
       - name: 'Download kernel module artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vck190-kernel-module-${{ matrix.image_variant }}
           path: /tmp/vck190-kmod/

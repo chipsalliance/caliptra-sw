@@ -59,6 +59,39 @@ fn test_uds_programming_no_active_mode() {
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
+fn test_uds_programming_debug_intent_set() {
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
+    let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            dbg_manuf_service,
+            debug_intent: true,
+            subsystem_mode: true,
+            ..Default::default()
+        },
+        caliptra_hw_model::BootParams::default(),
+    )
+    .unwrap();
+
+    // Wait for fatal error
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+
+    // Verify fatal code is correct
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        u32::from(CaliptraError::ROM_UDS_PROG_DEBUG_INTENT_SET)
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
+#[test]
 fn test_uds_programming_granularity_64bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
