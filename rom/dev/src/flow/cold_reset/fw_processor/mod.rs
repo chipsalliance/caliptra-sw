@@ -496,7 +496,7 @@ impl FirmwareProcessor {
                     mailbox::populate_checksum(response);
 
                     if CommandId::from(cmd) == CommandId::SHUTDOWN {
-                        Self::zeroize_shutdown_state()?;
+                        Self::zeroize_shutdown_state(env.trng)?;
                     }
 
                     txn.send_response(response)?;
@@ -530,9 +530,10 @@ impl FirmwareProcessor {
         }
     }
 
-    fn zeroize_shutdown_state() -> CaliptraResult<()> {
+    fn zeroize_shutdown_state(trng: &mut Trng) -> CaliptraResult<()> {
         let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
         doe.clear_secrets()?;
+        trng.zeroize()?;
 
         unsafe {
             Aes::zeroize();
