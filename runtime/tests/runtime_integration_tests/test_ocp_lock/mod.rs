@@ -151,7 +151,7 @@ fn boot_ocp_lock_runtime(params: OcpLockBootParams) -> DefaultHwModel {
     let mut model = run_rt_test(RuntimeTestArgs {
         test_fwid: params.rt_fw_id,
         ocp_lock_en: params.force_ocp_lock_en,
-        key_type: Some(FwVerificationPqcKeyType::MLDSA),
+        key_type: Some(FwVerificationPqcKeyType::LMS),
         rom_callback,
         security_state: Some(security_state),
         subsystem_mode: true,

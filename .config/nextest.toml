@@ -2,16 +2,6 @@
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
 #
-# All caliptra-runtime test_ocp_lock::* tests, caliptra-rom
-# test_ocp_lock::test_hek_seed_states, and caliptra-drivers test_ocp_lock /
-# test_ocp_lock_warm_reset are currently skipped on FPGA subsystem because the
-# caliptra-mcu-sw main-2.1 FPGA ROM does not expose the `ocp-lock` feature, so
-# MCU never writes fuse_hek_seed and Caliptra ROM/firmware see a zero HEK.
-# Anything that asserts HEK_AVAILABLE will fail.
-# Re-enable once caliptra-mcu-sw exposes the ocp-lock feature on the FPGA ROM
-# and our CI build pulls it in.
-# See https://github.com/chipsalliance/caliptra-mcu-sw/pull/1135 (a04a9c28)
-# which introduced the cfg(feature = "ocp-lock") gate.
 [profile.fpga-subsystem]
 default-filter = """
 (package(caliptra-hw-model) and test(tests::test_execution)) |
@@ -28,7 +18,6 @@ default-filter = """
     - test(test_reallocate_dpe_context_limits)
     - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
     - test(test_fe_programming::test_fe_programming_cmd)
-    - test(/^test_ocp_lock::/)
     - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)) |
 (package(caliptra-rom)
     - test(test_debug_unlock::)
@@ -36,16 +25,13 @@ default-filter = """
     - test(test_uds_fe)
     - test(test_wdt_activation_and_stoppage::)
     - test(test_warm_reset::test_warm_reset_during_update_reset)
-    - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)
-    - test(test_ocp_lock::test_hek_seed_states)) |
+    - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)) |
 (package(caliptra-drivers)
     - test(test_csrng_adaptive_proportion)
     - test(test_csrng_repetition_count)
     - test(test_csrng_runtime_health_failure)
     - test(test_doe_when_debug_locked)
-    - test(test_doe_when_debug_not_locked)
-    - test(test_ocp_lock)
-    - test(test_ocp_lock_warm_reset)) |
+    - test(test_doe_when_debug_not_locked)) |
 (package(caliptra-fmc)) |
 (package(caliptra-test) &
     ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
