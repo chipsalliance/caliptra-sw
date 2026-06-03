@@ -17,3 +17,4 @@ ufmt.workspace = true
 
 [features]
 "hw-1.0" = ["caliptra-drivers/hw-1.0"]
+mldsa_attestation = ["caliptra-drivers/mldsa_attestation"]
