@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 zeroize.workspace = true
+caliptra-error.workspace = true
 
 [dev-dependencies]
 hex.workspace = true

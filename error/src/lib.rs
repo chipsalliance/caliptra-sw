@@ -2794,6 +2794,11 @@ impl CaliptraError {
             0xa006_0005,
             "UDS FE Zeroization Failed"
         ),
+        (
+            X509_TEMPLATE_DECOMPRESSION_FAILED,
+            0xa007_0001,
+            "X509 template decompression failed"
+        ),
     ];
 }
 

@@ -69,7 +69,7 @@ impl FmcAliasCertTbsMlDsa87 {
     const NOT_AFTER_LEN: usize = 15usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
     pub const TBS_TEMPLATE_LEN: usize = 3415usize;
-    const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
+    const TBS_TEMPLATE_BEFORE_KEY: [u8; 335usize] = [
         48u8, 130u8, 13u8, 83u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
@@ -94,9 +94,7 @@ impl FmcAliasCertTbsMlDsa87 {
         95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8,
         4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
     ];
-    const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
-        Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
-    const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [
+    const TBS_TEMPLATE_AFTER_KEY: [u8; 488usize] = [
         163u8, 130u8, 1u8, 228u8, 48u8, 130u8, 1u8, 224u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8,
         1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 5u8, 48u8, 14u8, 6u8, 3u8,
         85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 31u8, 6u8, 6u8,
@@ -131,18 +129,17 @@ impl FmcAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
     #[cfg(test)]
-    const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
+    pub const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
         let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        let before = Self::TBS_TEMPLATE_BEFORE_KEY;
-        let after = Self::TBS_TEMPLATE_AFTER_KEY;
         let mut i = 0;
-        while i < before.len() {
-            result[i] = before[i];
+        while i < Self::TBS_TEMPLATE_BEFORE_KEY.len() {
+            result[i] = Self::TBS_TEMPLATE_BEFORE_KEY[i];
             i += 1;
         }
         i = 0;
-        while i < after.len() {
-            result[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN + i] = after[i];
+        while i < Self::TBS_TEMPLATE_AFTER_KEY.len() {
+            result[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN + i] =
+                Self::TBS_TEMPLATE_AFTER_KEY[i];
             i += 1;
         }
         result
@@ -221,6 +218,28 @@ impl FmcAliasCertTbsMlDsa87 {
         apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
             params.tcb_info_fw_svn,
+        );
+    }
+}
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+    #[test]
+    fn test_template_construction() {
+        let mut before_key = [0u8; FmcAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET];
+        before_key.copy_from_slice(&FmcAliasCertTbsMlDsa87::TBS_TEMPLATE_BEFORE_KEY);
+        assert_eq!(
+            before_key,
+            FmcAliasCertTbsMlDsa87::TBS_TEMPLATE[..FmcAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET]
+        );
+        let mut after_key = [0u8; FmcAliasCertTbsMlDsa87::TBS_TEMPLATE_LEN
+            - FmcAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET
+            - FmcAliasCertTbsMlDsa87::PUBLIC_KEY_LEN];
+        after_key.copy_from_slice(&FmcAliasCertTbsMlDsa87::TBS_TEMPLATE_AFTER_KEY);
+        assert_eq!(
+            after_key,
+            FmcAliasCertTbsMlDsa87::TBS_TEMPLATE[FmcAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET
+                + FmcAliasCertTbsMlDsa87::PUBLIC_KEY_LEN..]
         );
     }
 }
