@@ -42,6 +42,7 @@ impl FipsTestHook {
     pub const MLDSA_VERIFY_FAILURE: u8 = 0x4A;
     pub const ECC384_ECDH_FAILURE: u8 = 0x4B;
     pub const CSRNG_GENERATE_FAILURE: u8 = 0x4C;
+    pub const CSRNG_RESEED_FAILURE: u8 = 0x4D;
 
     // FW Load Errors
     pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;

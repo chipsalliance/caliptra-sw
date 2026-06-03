@@ -2511,6 +2511,11 @@ impl CaliptraError {
             0x900C0004,
             "ROM KAT Error: CSRNG failed to restore entropy-sourced instance after KAT"
         ),
+        (
+            KAT_CSRNG_RESEED_FAILURE,
+            0x900C0005,
+            "ROM KAT Error: CSRNG reseed failure"
+        ),
         (ROM_INTEGRITY_FAILURE, 0x90080001, "ROM integrity failure"),
         (
             FIPS_HOOKS_INJECTED_ERROR,

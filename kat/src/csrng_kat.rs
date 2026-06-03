@@ -9,20 +9,24 @@ File Name:
 Abstract:
 
     File contains the Known Answer Test (KAT) for the CSRNG / CTR_DRBG-AES-256
-    hardware engine, using a published NIST CAVP test vector.
+    hardware engine, using published NIST CAVP test vectors.
 
     The DRBG is briefly placed into fully-deterministic mode (`flag0=true`)
-    with a fixed seed, exercised against the NIST vector, and then restored
+    with a fixed seed, exercised against the NIST vectors, and then restored
     to its production entropy-sourced state before this routine returns. It
     is therefore safe to invoke after the live `Trng` has been instantiated,
     e.g. as part of the boot-time KAT suite or an on-demand
     `FIPS_SELF_TEST` mailbox command.
 
+    FIPS 140-3 IG 10.3.A requires CAST coverage for SP 800-90A
+    Instantiate, Generate, and Reseed. The no-reseed and reseed sweeps below
+    use CAVP vectors to cover those functions.
+
 --*/
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, Csrng, CsrngSeed, Trng};
 
-// NIST CAVP CTR_DRBG-AES-256 known-answer vector
+// NIST CAVP CTR_DRBG-AES-256 known-answer vector (no reseed)
 // =================================================================
 // Source: NIST CAVP drbgvectors_no_reseed.zip / CTR_DRBG.rsp,
 // section [AES-256 no df], PredictionResistance = False, EntropyInputLen
@@ -62,32 +66,70 @@ const EXPECTED_OUTPUT: [u32; 16] = [
     0x510494b3, 0x64f7ac0c, 0x2581f391, 0x80b1dc2f, 0x793e01c5, 0x87b107ae, 0xdb17514c, 0xa43c41b7,
 ];
 
+// NIST CAVP CTR_DRBG-AES-256 known-answer vector (reseed, PR=False)
+// =================================================================
+// Source: NIST CAVP drbgvectors_pr_false.zip / CTR_DRBG.rsp,
+// section [AES-256 no df], PredictionResistance = False,
+// EntropyInputLen = 384, NonceLen = 0, PersonalizationStringLen = 0,
+// AdditionalInputLen = 0, ReturnedBitsLen = 512, COUNT = 0.
+//
+//   EntropyInput       = e4bc23c5 089a19d8 6f4119cb 3fa08c0a 4991e0a1
+//                        def17e10 1e4c14d9 c323460a 7c2fb58e 0b086c6c
+//                        57b55f56 cae25bad
+//   EntropyInputReseed = fd85a836 bba85019 881e8c6b ad23c906 1adc7547
+//                        7659acae a8e4a01d fe07a183 2dad1c13 6f59d70f
+//                        8653a5dc 118663d6
+//   ReturnedBits       = b2cb8905 c05e5950 ca318950 96be29ea 3d5a3b82
+//                        b2694955 54eb80fe 07de43e1 93b9e7c3 ece73b80
+//                        e062b1c1 f68202fb b1c52a04 0ea24788 64295282
+//                        234aaada
+//
+// The CAVP test schema for this section issues:
+//   Instantiate(EntropyInput) ->
+//   Reseed(EntropyInputReseed) ->
+//   Generate(512 bits, discarded) ->
+//   Generate(512 bits, compared to ReturnedBits).
+// All AdditionalInput, AdditionalInputReseed, PersonalizationString and
+// Nonce fields are empty for this vector.
+
+// Reseed vector values use the same CMD_REQ and GENBITS endianness rules
+// documented above.
+const KAT_RESEED_INIT_SEED: [u32; 12] = [
+    0xcae25bad, 0x57b55f56, 0x0b086c6c, 0x7c2fb58e, 0xc323460a, 0x1e4c14d9, 0xdef17e10, 0x4991e0a1,
+    0x3fa08c0a, 0x6f4119cb, 0x089a19d8, 0xe4bc23c5,
+];
+
+const KAT_RESEED_RESEED_SEED: [u32; 12] = [
+    0x118663d6, 0x8653a5dc, 0x6f59d70f, 0x2dad1c13, 0xfe07a183, 0xa8e4a01d, 0x7659acae, 0x1adc7547,
+    0xad23c906, 0x881e8c6b, 0xbba85019, 0xfd85a836,
+];
+
+const KAT_RESEED_EXPECTED_OUTPUT: [u32; 16] = [
+    0x96be29ea, 0xca318950, 0xc05e5950, 0xb2cb8905, 0x07de43e1, 0x54eb80fe, 0xb2694955, 0x3d5a3b82,
+    0xf68202fb, 0xe062b1c1, 0xece73b80, 0x93b9e7c3, 0x234aaada, 0x64295282, 0x0ea24788, 0xb1c52a04,
+];
+
 #[derive(Default, Debug)]
 pub struct CsrngKat {}
 
 impl CsrngKat {
-    /// Execute the CTR_DRBG-AES-256 known-answer test against the live CSRNG
+    /// Execute the CTR_DRBG-AES-256 known-answer tests against the live CSRNG
     /// instance backing the supplied [`Trng`].
     ///
     /// On `Trng::External` (verilator / no-CSRNG configuration) and
     /// `Trng::MfgMode` (debug-only fake RNG) this is a no-op since there is
     /// no CSRNG hardware to validate.
     ///
-    /// On `Trng::Internal` the routine:
+    /// On `Trng::Internal`, both the no-reseed and reseed sweeps are run.
     ///
-    /// 1. Re-instantiates the DRBG with the deterministic [`KAT_SEED`]
-    ///    (`flag0=true`, fully-deterministic mode).
-    /// 2. Issues two 512-bit Generate commands; the first output is
-    ///    discarded per NIST CAVP convention and the second is compared to
-    ///    [`EXPECTED_OUTPUT`].
-    /// 3. Always re-instantiates the DRBG from `EntropySrc` before
-    ///    returning, so production randomness is restored even if the KAT
-    ///    fails. The KAT failure (if any) is returned in preference to a
-    ///    restore failure so the caller sees the more meaningful diagnostic.
+    /// The DRBG is always re-instantiated from `EntropySrc` before
+    /// returning, so production randomness is restored even if a KAT
+    /// fails. The KAT failure (if any) is returned in preference to a
+    /// restore failure so the caller sees the more meaningful diagnostic.
     pub fn execute(&self, trng: &mut Trng) -> CaliptraResult<()> {
         match trng {
             Trng::Internal(csrng) => {
-                let kat_result = self.run(csrng);
+                let kat_result = self.run(csrng).and_then(|_| self.run_reseed(csrng));
                 let restore_result = csrng
                     .reinstantiate(CsrngSeed::EntropySrc)
                     .map_err(|_| CaliptraError::KAT_CSRNG_RESTORE_FAILURE);
@@ -98,13 +140,8 @@ impl CsrngKat {
     }
 
     fn run(&self, csrng: &mut Csrng) -> CaliptraResult<()> {
-        // Fault-injection hook: simulate a CSRNG generate failure inside the
-        // KAT only. We cannot put this hook inside `Csrng::generate16` /
-        // `Csrng::generate12` because the CSRNG is used for CFI counter
-        // seeding before this KAT runs; injecting an error there would be
-        // caught by `CfiCounter::reset` and surface as
-        // `CfiPanicInfo::TrngError` instead of as the expected
-        // `KAT_CSRNG_GENERATE_FAILURE`.
+        // Keep this hook local to the KAT so earlier CSRNG users report
+        // their own errors.
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             caliptra_drivers::FipsTestHook::error_if_hook_set(
@@ -117,9 +154,7 @@ impl CsrngKat {
             .reinstantiate(CsrngSeed::Constant(&KAT_SEED))
             .map_err(|_| CaliptraError::KAT_CSRNG_INSTANTIATE_FAILURE)?;
 
-        // First Generate is discarded per the NIST CAVP CTR_DRBG validation
-        // schema: the published `ReturnedBits` is the output of the second
-        // Generate after Instantiate.
+        // CAVP vectors compare the second Generate output.
         let _discard = csrng
             .generate16()
             .map_err(|_| CaliptraError::KAT_CSRNG_GENERATE_FAILURE)?;
@@ -129,6 +164,41 @@ impl CsrngKat {
             .map_err(|_| CaliptraError::KAT_CSRNG_GENERATE_FAILURE)?;
 
         if output != EXPECTED_OUTPUT {
+            return Err(CaliptraError::KAT_CSRNG_DIGEST_MISMATCH);
+        }
+
+        Ok(())
+    }
+
+    fn run_reseed(&self, csrng: &mut Csrng) -> CaliptraResult<()> {
+        // Keep this hook local to the KAT so production reseed users are
+        // unaffected.
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::error_if_hook_set(
+                caliptra_drivers::FipsTestHook::CSRNG_RESEED_FAILURE,
+            )
+            .map_err(|_| CaliptraError::KAT_CSRNG_RESEED_FAILURE)?
+        }
+
+        csrng
+            .reinstantiate(CsrngSeed::Constant(&KAT_RESEED_INIT_SEED))
+            .map_err(|_| CaliptraError::KAT_CSRNG_INSTANTIATE_FAILURE)?;
+
+        csrng
+            .reseed(CsrngSeed::Constant(&KAT_RESEED_RESEED_SEED))
+            .map_err(|_| CaliptraError::KAT_CSRNG_RESEED_FAILURE)?;
+
+        // CAVP vectors compare the second Generate output.
+        let _discard = csrng
+            .generate16()
+            .map_err(|_| CaliptraError::KAT_CSRNG_GENERATE_FAILURE)?;
+
+        let output = csrng
+            .generate16()
+            .map_err(|_| CaliptraError::KAT_CSRNG_GENERATE_FAILURE)?;
+
+        if output != KAT_RESEED_EXPECTED_OUTPUT {
             return Err(CaliptraError::KAT_CSRNG_DIGEST_MISMATCH);
         }
 

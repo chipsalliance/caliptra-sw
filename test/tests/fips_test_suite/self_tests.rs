@@ -542,6 +542,24 @@ pub fn kat_csrng_digest_mismatch_rt() {
 }
 
 #[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_csrng_reseed_failure_rom() {
+    self_test_failure_flow_rom_internal_trng(
+        FipsTestHook::CSRNG_RESEED_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_RESEED_FAILURE),
+    );
+}
+
+#[test]
+#[cfg(feature = "slow_tests")]
+pub fn kat_csrng_reseed_failure_rt() {
+    self_test_failure_flow_rt_internal_trng(
+        FipsTestHook::CSRNG_RESEED_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_RESEED_FAILURE),
+    );
+}
+
+#[test]
 #[cfg(feature = "slow_tests")]
 pub fn kat_sha2_512_384acc_digest_mismatch_rt() {
     self_test_failure_flow_rt(
