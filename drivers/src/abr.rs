@@ -75,6 +75,7 @@ impl Abr {
     ///     mldsa.key_pair(seed, trng, None)
     /// })?;
     /// ```
+    #[inline(always)]
     pub fn with_mldsa87<'s, F, R>(&'s mut self, f: F) -> R
     where
         F: FnOnce(Mldsa87<'s>) -> R,
@@ -104,6 +105,7 @@ impl Abr {
     ///     ml_kem.key_pair(seeds)
     /// })?;
     /// ```
+    #[inline(always)]
     pub fn with_ml_kem<'s, F, R>(&'s mut self, f: F) -> R
     where
         F: FnOnce(MlKem1024<'s>) -> R,
