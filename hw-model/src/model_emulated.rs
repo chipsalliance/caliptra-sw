@@ -42,14 +42,23 @@ use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
 
+const EMULATOR_MCI_ADDR: u32 = 0x2100_0000;
+const EMULATOR_MCI_ADDR_RANGE_SIZE: u32 = 0xe0_0000;
+const EMULATOR_MCI_END_ADDR: u32 = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
+
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
 impl Bus for EmulatedApbBus<'_> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.model.soc_to_caliptra_bus.read(size, addr);
-        self.model.cpu.bus.log_read("SoC", size, addr, result);
+        let (result, name) = match addr {
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => {
+                (self.model.mci.read(size, addr - EMULATOR_MCI_ADDR), "MCI")
+            }
+            _ => (self.model.soc_to_caliptra_bus.read(size, addr), "SoC"),
+        };
+        self.model.cpu.bus.log_read(name, size, addr, result);
         result
     }
     fn write(
@@ -58,8 +67,14 @@ impl Bus for EmulatedApbBus<'_> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        let result = self.model.soc_to_caliptra_bus.write(size, addr, val);
-        self.model.cpu.bus.log_write("SoC", size, addr, val, result);
+        let (result, name) = match addr {
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => (
+                self.model.mci.write(size, addr - EMULATOR_MCI_ADDR, val),
+                "MCI",
+            ),
+            _ => (self.model.soc_to_caliptra_bus.write(size, addr, val), "SoC"),
+        };
+        self.model.cpu.bus.log_write(name, size, addr, val, result);
         result
     }
 }
@@ -279,6 +294,18 @@ impl HwModel for ModelEmulated {
     }
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         EmulatedApbBus { model: self }
+    }
+
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        if !self.subsystem_mode() {
+            panic!("Tried to use the MCI interface in Core only mode")
+        }
+        unsafe {
+            caliptra_registers::mci::RegisterBlock::new_with_mmio(
+                EMULATOR_MCI_ADDR as *mut u32,
+                self.mmio_mut(),
+            )
+        }
     }
 
     fn step(&mut self) {

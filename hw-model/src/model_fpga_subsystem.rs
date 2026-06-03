@@ -205,7 +205,7 @@ pub struct Mci {
 }
 
 impl Mci {
-    pub fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+    pub fn regs<'a>(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'a>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
                 EMULATOR_MCI_ADDR as *mut u32,
@@ -417,6 +417,9 @@ pub struct ModelFpgaSubsystem {
 
     pub realtime_thread: Option<thread::JoinHandle<()>>,
     pub realtime_thread_exit_flag: Arc<AtomicBool>,
+    /// Set while a cold reset is in progress so the realtime thread does not
+    /// touch the AXI bus and crash the FPGA driver. Adapted from #3413.
+    pub realtime_thread_paused: Arc<AtomicBool>,
 
     pub fuses: Fuses,
     pub otp_init: Vec<u8>,
@@ -437,6 +440,23 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
+
+    // Init params saved at construction time so that `cold_reset()` can
+    // re-program every FPGA wrapper register that AXI reset clears. Adapted
+    // from #3413.
+    saved_input_wires: [u32; 2],
+    saved_cptra_obf_key: [u32; 8],
+    saved_csr_hmac_key: [u32; 16],
+    saved_uds_seed: [u32; 16],
+    saved_field_entropy: [u32; 8],
+    saved_use_strap_secrets: bool,
+    saved_raw_unlock_token_hash: [u32; 4],
+    saved_rma_or_scrap_ppd: bool,
+    saved_debug_intent: bool,
+    saved_prod_dbg_unlock_pk_hashes_offset: u32,
+    saved_num_prod_dbg_unlock_pk_hashes: u32,
+    saved_security_state: SecurityState,
+    saved_lc_state: Option<LifecycleControllerState>,
 }
 
 impl ModelFpgaSubsystem {
@@ -492,6 +512,77 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
         std::thread::sleep(std::time::Duration::from_micros(1));
+    }
+
+    /// Re-program every FPGA wrapper register that AXI reset clears. Used at
+    /// both initial boot and after `cold_reset()`. Adapted from #3413.
+    fn setup_hardware_registers(&mut self) {
+        let input_wires = self.saved_input_wires;
+        let cptra_obf_key = self.saved_cptra_obf_key;
+        let csr_hmac_key = self.saved_csr_hmac_key;
+        let uds_seed = self.saved_uds_seed;
+        let field_entropy = self.saved_field_entropy;
+        let use_strap_secrets = self.saved_use_strap_secrets;
+        let raw_unlock_token_hash = self.saved_raw_unlock_token_hash;
+        let rma_or_scrap_ppd = self.saved_rma_or_scrap_ppd;
+        let debug_intent = self.saved_debug_intent;
+        let bootfsm_break = self.bootfsm_break;
+        let prod_dbg_offset = self.saved_prod_dbg_unlock_pk_hashes_offset;
+        let num_prod_dbg = self.saved_num_prod_dbg_unlock_pk_hashes;
+        let security_state = self.saved_security_state;
+        let lc_state = self.saved_lc_state;
+
+        self.set_generic_input_wires(&input_wires);
+        self.set_mci_generic_input_wires(&[0, 0]);
+
+        self.set_itrng_divider(ITRNG_DIVISOR);
+
+        for i in 0..8 {
+            self.wrapper.regs().cptra_obf_key[i].set(cptra_obf_key[i]);
+        }
+        for i in 0..16 {
+            self.wrapper.regs().cptra_csr_hmac_key[i].set(csr_hmac_key[i]);
+        }
+        for (i, udsi) in uds_seed.iter().copied().enumerate() {
+            self.wrapper.regs().cptra_obf_uds_seed[i].set(udsi);
+        }
+        for (i, fei) in field_entropy.iter().copied().enumerate() {
+            self.wrapper.regs().cptra_obf_field_entropy[i].set(fei);
+        }
+        self.set_secrets_valid(use_strap_secrets);
+
+        self.set_subsystem_reset(true);
+
+        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
+        // to the FPGA block RAM fail with a SIGBUS fault.
+        let zeroed_otp = vec![0u8; OTP_SIZE];
+        self.otp_slice().copy_from_slice(&zeroed_otp);
+        self.init_otp_with_lc_override(Some(&security_state), lc_state)
+            .expect("Failed to re-initialize OTP after cold reset");
+
+        self.clear_logs();
+
+        self.set_axi_user(DEFAULT_AXI_PAUSER);
+
+        self.set_raw_unlock_token_hash(&raw_unlock_token_hash);
+        self.set_ss_rma_or_scrap_ppd(rma_or_scrap_ppd);
+        self.set_ss_debug_intent(debug_intent);
+        self.set_bootfsm_break(bootfsm_break);
+        self.wrapper
+            .regs()
+            .prod_debug_unlock_auth_pk_hash_reg_bank_offset
+            .set(prod_dbg_offset);
+        self.wrapper
+            .regs()
+            .num_of_prod_debug_unlock_auth_pk_hashes
+            .set(num_prod_dbg);
+
+        self.wrapper
+            .regs()
+            .mcu_reset_vector
+            .set(FPGA_MEMORY_MAP.rom_offset);
+
+        self.set_subsystem_reset(false);
     }
 
     pub fn set_subsystem_reset(&mut self, reset: bool) {
@@ -744,6 +835,7 @@ impl ModelFpgaSubsystem {
     fn realtime_thread_itrng_fn(
         wrapper: Arc<Wrapper>,
         running: Arc<AtomicBool>,
+        paused: Arc<AtomicBool>,
         mut itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
     ) {
         // Reset ITRNG FIFO to clear out old data
@@ -761,6 +853,11 @@ impl ModelFpgaSubsystem {
         thread::sleep(Duration::from_millis(1));
 
         while running.load(Ordering::Relaxed) {
+            if paused.load(Ordering::Relaxed) {
+                // Cold reset is in progress; do not touch the AXI bus.
+                thread::sleep(Duration::from_millis(1));
+                continue;
+            }
             // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
             // FPGA ITRNG FIFO is 1024 DW deep.
             for _ in 0..FPGA_ITRNG_FIFO_SIZE {
@@ -1533,6 +1630,22 @@ impl ModelFpgaSubsystem {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
 
+    /// Override the lifecycle controller state that will be provisioned into
+    /// OTP on the next `cold_reset()`. Useful for tests that perform JTAG
+    /// lifecycle transitions and need the new state to survive a cold reset.
+    pub fn set_saved_lc_state(&mut self, lc_state: Option<LifecycleControllerState>) {
+        self.saved_lc_state = lc_state;
+    }
+
+    /// Replace the OTP initialization bytes used on the next `cold_reset()`.
+    /// `setup_hardware_registers()` zeros the OTP slice and then re-provisions
+    /// it from `otp_init` (when non-empty) plus the saved init params, so
+    /// callers can use this to seed OTP contents that should survive a cold
+    /// reset (e.g., to simulate persistent OTP state across boots in tests).
+    pub fn set_otp_init(&mut self, otp_init: Vec<u8>) {
+        self.otp_init = otp_init;
+    }
+
     pub fn flash_slice(&self) -> &mut [u8] {
         unsafe {
             core::slice::from_raw_parts_mut(
@@ -1610,6 +1723,10 @@ impl HwModel for ModelFpgaSubsystem {
         }
     }
 
+    fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
+        self.mmio.mci().unwrap().regs()
+    }
+
     fn step(&mut self) {
         self.handle_log();
         self.handle_flash();
@@ -1678,6 +1795,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(true));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
+        let realtime_thread_paused = Arc::new(AtomicBool::new(false));
+        let realtime_thread_paused2 = realtime_thread_paused.clone();
         let realtime_wrapper = wrapper.clone();
 
         let xi3c_config = xi3c::Config {
@@ -1732,6 +1851,7 @@ impl HwModel for ModelFpgaSubsystem {
             fuses: params.fuses,
             realtime_thread: None,
             realtime_thread_exit_flag,
+            realtime_thread_paused,
 
             output,
             recovery_started: false,
@@ -1762,6 +1882,24 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
+
+            saved_input_wires: [(!params.uds_granularity_64 as u32) << 31, 0],
+            saved_cptra_obf_key: params.cptra_obf_key,
+            saved_csr_hmac_key: params.csr_hmac_key,
+            saved_uds_seed: DEFAULT_UDS_SEED,
+            saved_field_entropy: DEFAULT_FIELD_ENTROPY,
+            saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
+            saved_raw_unlock_token_hash: params.ss_init_params.raw_unlock_token_hash,
+            saved_rma_or_scrap_ppd: params.ss_init_params.rma_or_scrap_ppd,
+            saved_debug_intent: params.debug_intent,
+            saved_prod_dbg_unlock_pk_hashes_offset: params
+                .ss_init_params
+                .prod_dbg_unlock_pk_hashes_offset,
+            saved_num_prod_dbg_unlock_pk_hashes: params
+                .ss_init_params
+                .num_prod_dbg_unlock_pk_hashes,
+            saved_security_state: params.security_state,
+            saved_lc_state: params.ss_init_params.lc_state,
         };
 
         println!("AXI reset");
@@ -1773,6 +1911,7 @@ impl HwModel for ModelFpgaSubsystem {
             Self::realtime_thread_itrng_fn(
                 realtime_wrapper,
                 realtime_thread_exit_flag2,
+                realtime_thread_paused2,
                 params.itrng_nibbles,
             )
         }));
@@ -2158,11 +2297,31 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn cold_reset(&mut self) {
-        self.set_subsystem_reset(true);
-        std::thread::sleep(std::time::Duration::from_micros(1));
-        self.init_otp(None)
-            .expect("Failed to initialize OTP after cold reset");
-        self.set_subsystem_reset(false);
+        // Adapted from #3413: pause the realtime TRNG thread so it does not
+        // touch the AXI bus during the reset, perform a full AXI reset to
+        // clear all subsystem state (the prior implementation only toggled
+        // CptraSsRstB/CptraPwrgood and the subsystem would intermittently
+        // fail to come out of reset on FPGA), then re-program every FPGA
+        // wrapper register that AXI reset clears.
+
+        // wait a bit for MCU to finish writing any pending log/exit status
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        // Pause the TRNG thread so it doesn't access the AXI bus during reset
+        self.realtime_thread_paused
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        // Full AXI reset to clear all subsystem state including MCU
+        println!("AXI reset");
+        self.axi_reset();
+
+        // Re-program all hardware registers cleared by AXI reset
+        self.setup_hardware_registers();
+
+        // Resume the TRNG thread
+        self.realtime_thread_paused
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn fuses(&self) -> &Fuses {
@@ -2171,6 +2330,11 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
+    }
+
+    fn boot_complete_mcu(&mut self) -> bool {
+        self.mci_boot_milestones()
+            .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
     }
 }
 

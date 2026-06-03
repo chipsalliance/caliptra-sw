@@ -17,11 +17,17 @@ pub const TEST_SRAM_SIZE: usize = 0x1000;
 
 #[cfg(feature = "fpga_subsystem")]
 const MCI_BASE: u32 = 0xA8000000;
+// On the FPGA subsystem the test stages firmware in MCU SRAM directly (the
+// same region the production DMA in `ActivateFirmware` writes to). This way
+// the post-DMA `AuthorizeAndStash(LoadAddress)` (added in #3719) reads from
+// the same address Caliptra just DMA'd into, and the test never has to
+// acquire the MCU mailbox SRAM lock (which would block the MCU ROM's
+// hitless-update flow when MCU comes out of reset).
 #[cfg(feature = "fpga_subsystem")]
-const MCU_MBOX_SRAM_BASE: u32 = MCI_BASE + 0x400000;
+const MCU_SRAM_BASE: u32 = MCI_BASE + 0xC00000;
 #[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_BASE: Addr64 = Addr64 {
-    lo: MCU_MBOX_SRAM_BASE,
+    lo: MCU_SRAM_BASE,
     hi: 0x0000_0000,
 };
 
@@ -97,6 +103,21 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
         assert!(staging_address + image_size <= TEST_SRAM_SIZE);
         test_sram_contents[staging_address..staging_address + image_size]
             .copy_from_slice(&image.contents);
+
+        // On the emulator, the test SRAM (where staging lives) and MCU SRAM
+        // (the DMA destination used by `ActivateFirmware`) are distinct
+        // regions, so the post-DMA `AuthorizeAndStash(LoadAddress)` added in
+        // #3719 would otherwise read zeros at `load_address`. Seed the test
+        // SRAM at the load offset so the hash matches. On the FPGA subsystem
+        // the staging area *is* MCU SRAM, so Caliptra's DMA fills the load
+        // address for us and no seeding is needed.
+        #[cfg(not(feature = "fpga_subsystem"))]
+        {
+            let load_address = image.load_address.lo as usize - TEST_SRAM_BASE.lo as usize;
+            assert!(load_address + image_size <= TEST_SRAM_SIZE);
+            test_sram_contents[load_address..load_address + image_size]
+                .copy_from_slice(&image.contents);
+        }
     }
 
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
@@ -108,7 +129,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
 
     #[cfg(feature = "fpga_subsystem")]
     {
-        crate::test_authorize_and_stash::write_mcu_mbox_sram(&mut model, &test_sram_contents);
+        write_payload_to_mcu_sram(&mut model, &test_sram_contents);
     }
 
     for image in images {
@@ -137,6 +158,25 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
         assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
     }
     model
+}
+
+// Write the staged test payload directly into MCU SRAM (the same region
+// Caliptra's `ActivateFirmware` DMAs into). Unlike `write_mcu_mbox_sram`,
+// this does not acquire the MCU mailbox SRAM lock, so the MCU ROM remains
+// free to use its mailbox during the hitless-update flow that ACTF triggers.
+#[cfg(feature = "fpga_subsystem")]
+fn write_payload_to_mcu_sram(model: &mut DefaultHwModel, data: &[u8]) {
+    assert!(data.len() % 4 == 0, "payload length must be 4-byte aligned");
+    unsafe {
+        let mcu_sram_ptr = model.mmio.mci().unwrap().ptr.add(0xC00000 / 4) as *mut u32;
+        for (count, chunk) in data.chunks(4).enumerate() {
+            // Match the byte ordering used by `write_mcu_mbox_sram` for the
+            // sibling MCU mailbox SRAM region on this same MCI MMIO window.
+            mcu_sram_ptr
+                .add(count)
+                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+        }
+    }
 }
 
 fn send_activate_firmware_cmd(
