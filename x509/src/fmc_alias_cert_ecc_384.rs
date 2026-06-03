@@ -69,7 +69,7 @@ mod tests {
             not_after: &NotAfter::default().value,
         };
 
-        FmcAliasCertTbsEcc384::new(&params)
+        FmcAliasCertTbsEcc384::new(&params).unwrap()
     }
 
     #[test]

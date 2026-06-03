@@ -281,7 +281,7 @@ impl LocalDevIdLayer {
         };
 
         // Generate the ECC `To Be Signed` portion of the CSR
-        let ecc_tbs = LocalDevIdCertTbsEcc384::new(&ecc_tbs_params);
+        let ecc_tbs = LocalDevIdCertTbsEcc384::new(&ecc_tbs_params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(
@@ -353,7 +353,7 @@ impl LocalDevIdLayer {
         };
 
         // Generate the ECC `To Be Signed` portion of the CSR
-        let mldsa_tbs = LocalDevIdCertTbsMlDsa87::new(&mldsa_tbs_params);
+        let mldsa_tbs = LocalDevIdCertTbsMlDsa87::new(&mldsa_tbs_params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(

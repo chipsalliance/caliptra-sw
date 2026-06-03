@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::tbs::TbsTemplate;
+use caliptra_x509::lzss;
 use convert_case::{Case, Casing};
 use quote::{__private::TokenStream, format_ident, quote};
 use std::{path::Path, process::Command};
@@ -85,20 +86,44 @@ impl CodeGen {
             pub const TBS_TEMPLATE_LEN: usize = #tbs_len;
         );
 
-        // Generate chunked template constants and new() body
-        let (template_consts, new_body) = if let (Some(before_key), Some(after_key)) =
+        // Generate chunked template constants, new() body, and verification tests
+        let (template_consts, new_body, verification_test) = if let (
+            Some(before_key),
+            Some(after_key),
+        ) =
             (template.tbs_before_key(), template.tbs_after_key())
         {
+            let compressed_before = lzss::compress(before_key);
+            let compressed_after = lzss::compress(after_key);
+
+            // Build-time verification
+            {
+                let mut decompressed_before = vec![0u8; before_key.len()];
+                assert!(lzss::decompress(
+                    &compressed_before,
+                    &mut decompressed_before
+                ));
+                assert_eq!(before_key, decompressed_before);
+
+                let mut decompressed_after = vec![0u8; after_key.len()];
+                assert!(lzss::decompress(&compressed_after, &mut decompressed_after));
+                assert_eq!(after_key, decompressed_after);
+            }
+
+            let compressed_before_len = compressed_before.len();
+            let compressed_after_len = compressed_after.len();
+
             let template_consts = quote!(
-                const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [#(#before_key,)*];
+                const COMPRESSED_TBS_TEMPLATE_BEFORE_KEY: [u8; #compressed_before_len] = [#(#compressed_before,)*];
+                const COMPRESSED_TBS_TEMPLATE_AFTER_KEY: [u8; #compressed_after_len] = [#(#compressed_after,)*];
+                const TBS_TEMPLATE_BEFORE_KEY_LEN: usize = Self::PUBLIC_KEY_OFFSET;
                 const TBS_TEMPLATE_AFTER_KEY_LEN: usize = Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
-                const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [#(#after_key,)*];
 
                 #[cfg(test)]
                 const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
                     let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-                    let before = Self::TBS_TEMPLATE_BEFORE_KEY;
-                    let after = Self::TBS_TEMPLATE_AFTER_KEY;
+                    let before = [#(#before_key,)*];
+                    let after = [#(#after_key,)*];
                     let mut i = 0;
                     while i < before.len() {
                         result[i] = before[i];
@@ -114,34 +139,90 @@ impl CodeGen {
             );
 
             let new_body = quote!(
-                pub fn new(params: &#param_name) -> Self {
+                pub fn new(params: &#param_name) -> caliptra_error::CaliptraResult<Self> {
                     let mut tbs = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-                    tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_KEY);
-                    tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&Self::TBS_TEMPLATE_AFTER_KEY);
+
+                    let mut before_key = [0u8; Self::TBS_TEMPLATE_BEFORE_KEY_LEN];
+                    if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY, &mut before_key) {
+                        return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+                    }
+                    tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&before_key);
+
+                    let mut after_key = [0u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN];
+                    if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_AFTER_KEY, &mut after_key) {
+                        return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+                    }
+                    tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&after_key);
+
                     let mut template = Self { tbs };
                     template.apply(params);
-                    template
+                    Ok(template)
                 }
             );
 
-            (template_consts, new_body)
+            let verification_test = quote!(
+                #[cfg(test)]
+                mod lzss_tests {
+                    use super::*;
+                    #[test]
+                    fn test_template_decompression() {
+                        let mut before_key = [0u8; #type_name::TBS_TEMPLATE_BEFORE_KEY_LEN];
+                        assert!(crate::lzss::decompress(&#type_name::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY, &mut before_key));
+                        assert_eq!(before_key, #type_name::TBS_TEMPLATE[..#type_name::PUBLIC_KEY_OFFSET]);
+
+                        let mut after_key = [0u8; #type_name::TBS_TEMPLATE_AFTER_KEY_LEN];
+                        assert!(crate::lzss::decompress(&#type_name::COMPRESSED_TBS_TEMPLATE_AFTER_KEY, &mut after_key));
+                        assert_eq!(after_key, #type_name::TBS_TEMPLATE[#type_name::PUBLIC_KEY_OFFSET + #type_name::PUBLIC_KEY_LEN..]);
+                    }
+                }
+            );
+
+            (template_consts, new_body, verification_test)
         } else {
             let tbs = template.tbs();
+            let compressed_tbs = lzss::compress(tbs);
+            let compressed_tbs_len = compressed_tbs.len();
+
+            // Build-time verification
+            {
+                let mut decompressed_tbs = vec![0u8; tbs.len()];
+                assert!(lzss::decompress(&compressed_tbs, &mut decompressed_tbs));
+                assert_eq!(tbs, decompressed_tbs);
+            }
+
             let template_consts = quote!(
+                const COMPRESSED_TBS_TEMPLATE: [u8; #compressed_tbs_len] = [#(#compressed_tbs,)*];
+
+                #[cfg(test)]
                 const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [#(#tbs,)*];
             );
 
             let new_body = quote!(
-                pub fn new(params: &#param_name) -> Self {
-                    let mut template = Self {
-                        tbs: Self::TBS_TEMPLATE,
-                    };
+                pub fn new(params: &#param_name) -> caliptra_error::CaliptraResult<Self> {
+                    let mut tbs = [0u8; Self::TBS_TEMPLATE_LEN];
+                    if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE, &mut tbs) {
+                        return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+                    }
+                    let mut template = Self { tbs };
                     template.apply(params);
-                    template
+                    Ok(template)
                 }
             );
 
-            (template_consts, new_body)
+            let verification_test = quote!(
+                #[cfg(test)]
+                mod lzss_tests {
+                    use super::*;
+                    #[test]
+                    fn test_template_decompression() {
+                        let mut tbs = [0u8; #type_name::TBS_TEMPLATE_LEN];
+                        assert!(crate::lzss::decompress(&#type_name::COMPRESSED_TBS_TEMPLATE, &mut tbs));
+                        assert_eq!(tbs, #type_name::TBS_TEMPLATE);
+                    }
+                }
+            );
+
+            (template_consts, new_body, verification_test)
         };
 
         quote!(
@@ -195,6 +276,8 @@ Abstract:
                     #(#apply_calls)*
                 }
             }
+
+            #verification_test
         )
         .to_string()
     }

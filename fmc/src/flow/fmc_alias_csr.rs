@@ -111,7 +111,7 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     };
 
     // Generate the `To Be Signed` portion of the CSR
-    let tbs = FmcAliasCsrTbsEcc384::new(&params);
+    let tbs = FmcAliasCsrTbsEcc384::new(&params)?;
 
     // Sign the `To Be Signed` portion
     let mut sig = Crypto::ecdsa384_sign_and_verify(
@@ -168,7 +168,7 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     };
 
     // Generate the `To Be Signed` portion of the CSR
-    let tbs = FmcAliasTbsMlDsa87::new(&params);
+    let tbs = FmcAliasTbsMlDsa87::new(&params)?;
 
     // Sign the `To Be Signed` portion
     let mut sig = env.abr.with_mldsa87(|mut mldsa87| {

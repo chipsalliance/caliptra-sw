@@ -38,7 +38,7 @@ mod tests {
             ueid: &TEST_UEID.try_into().unwrap(),
         };
 
-        InitDevIdCsrTbsEcc384::new(&params)
+        InitDevIdCsrTbsEcc384::new(&params).unwrap()
     }
 
     #[test]

@@ -453,7 +453,7 @@ impl InitDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = InitDevIdCsrTbsEcc384::new(&params);
+        let tbs = InitDevIdCsrTbsEcc384::new(&params)?;
 
         cprintln!(
             "[idev] Sign CSR {} SUBJECT.KEYID = {}",
@@ -512,7 +512,7 @@ impl InitDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = InitDevIdCsrTbsMlDsa87::new(&params);
+        let tbs = InitDevIdCsrTbsMlDsa87::new(&params)?;
 
         cprintln!(
             "[idev] Sign CSR {} SUBJECT.KEYID = {}",

@@ -410,7 +410,7 @@ impl RtAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = RtAliasCertTbsEcc384::new(&params);
+        let tbs = RtAliasCertTbsEcc384::new(&params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(
@@ -505,7 +505,7 @@ impl RtAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = RtAliasCertTbsMlDsa87::new(&params);
+        let tbs = RtAliasCertTbsMlDsa87::new(&params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(

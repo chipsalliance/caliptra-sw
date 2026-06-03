@@ -49,49 +49,74 @@ impl OcpLockHybridCertTbsMlDsa87 {
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
     pub const TBS_TEMPLATE_LEN: usize = 2143usize;
-    const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
-        48u8, 130u8, 8u8, 91u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8, 115u8,
-        49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 49u8,
-        38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8,
-        116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8,
-        55u8, 32u8, 82u8, 116u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 48u8, 34u8, 24u8, 15u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 48u8, 129u8, 133u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8,
-        64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 49u8, 56u8, 48u8, 54u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 47u8,
-        79u8, 67u8, 80u8, 32u8, 76u8, 79u8, 67u8, 75u8, 32u8, 72u8, 80u8, 75u8, 69u8, 32u8, 69u8,
-        110u8, 100u8, 111u8, 114u8, 115u8, 101u8, 109u8, 101u8, 110u8, 116u8, 32u8, 77u8, 76u8,
-        45u8, 75u8, 69u8, 77u8, 45u8, 49u8, 48u8, 50u8, 52u8, 45u8, 69u8, 67u8, 68u8, 72u8, 45u8,
-        80u8, 51u8, 56u8, 52u8, 48u8, 130u8, 6u8, 146u8, 48u8, 10u8, 6u8, 8u8, 43u8, 6u8, 1u8, 5u8,
-        5u8, 7u8, 6u8, 63u8, 3u8, 130u8, 6u8, 130u8, 0u8,
+    const COMPRESSED_TBS_TEMPLATE_BEFORE_KEY: [u8; 203usize] = [
+        255u8, 48u8, 130u8, 8u8, 91u8, 160u8, 3u8, 2u8, 1u8, 239u8, 2u8, 2u8, 20u8, 95u8, 0u8,
+        31u8, 95u8, 48u8, 11u8, 255u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 255u8, 4u8,
+        3u8, 19u8, 48u8, 115u8, 49u8, 73u8, 48u8, 255u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8,
+        64u8, 240u8, 2u8, 239u8, 4u8, 15u8, 5u8, 47u8, 6u8, 71u8, 49u8, 38u8, 48u8, 36u8, 254u8,
+        4u8, 177u8, 3u8, 12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 255u8, 112u8, 116u8, 114u8, 97u8,
+        32u8, 50u8, 46u8, 49u8, 255u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 255u8,
+        32u8, 82u8, 116u8, 32u8, 65u8, 108u8, 105u8, 97u8, 159u8, 115u8, 48u8, 34u8, 24u8, 15u8,
+        9u8, 172u8, 1u8, 30u8, 48u8, 131u8, 129u8, 133u8, 9u8, 175u8, 12u8, 255u8, 14u8, 31u8,
+        15u8, 63u8, 9u8, 161u8, 56u8, 251u8, 48u8, 54u8, 9u8, 163u8, 47u8, 79u8, 67u8, 80u8, 32u8,
+        255u8, 76u8, 79u8, 67u8, 75u8, 32u8, 72u8, 80u8, 75u8, 255u8, 69u8, 32u8, 69u8, 110u8,
+        100u8, 111u8, 114u8, 115u8, 255u8, 101u8, 109u8, 101u8, 110u8, 116u8, 32u8, 77u8, 76u8,
+        255u8, 45u8, 75u8, 69u8, 77u8, 45u8, 49u8, 48u8, 50u8, 255u8, 52u8, 45u8, 69u8, 67u8, 68u8,
+        72u8, 45u8, 80u8, 255u8, 51u8, 56u8, 52u8, 48u8, 130u8, 6u8, 146u8, 48u8, 255u8, 10u8, 6u8,
+        8u8, 43u8, 6u8, 1u8, 5u8, 5u8, 255u8, 7u8, 6u8, 63u8, 3u8, 130u8, 6u8, 130u8, 0u8,
     ];
+    const COMPRESSED_TBS_TEMPLATE_AFTER_KEY: [u8; 92usize] = [
+        255u8, 163u8, 122u8, 48u8, 120u8, 48u8, 15u8, 6u8, 3u8, 255u8, 85u8, 29u8, 19u8, 1u8, 1u8,
+        255u8, 4u8, 5u8, 127u8, 48u8, 3u8, 2u8, 1u8, 0u8, 48u8, 14u8, 1u8, 17u8, 253u8, 15u8, 1u8,
+        17u8, 4u8, 3u8, 2u8, 5u8, 32u8, 48u8, 255u8, 21u8, 6u8, 6u8, 103u8, 129u8, 5u8, 21u8, 1u8,
+        255u8, 1u8, 4u8, 11u8, 48u8, 9u8, 2u8, 1u8, 81u8, 183u8, 2u8, 1u8, 2u8, 0u8, 48u8, 48u8,
+        29u8, 3u8, 129u8, 14u8, 223u8, 4u8, 22u8, 4u8, 20u8, 95u8, 0u8, 31u8, 95u8, 48u8, 253u8,
+        31u8, 5u8, 113u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 0u8, 2u8, 31u8, 3u8, 32u8,
+    ];
+    const TBS_TEMPLATE_BEFORE_KEY_LEN: usize = Self::PUBLIC_KEY_OFFSET;
     const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
         Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
-    const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [
-        163u8, 122u8, 48u8, 120u8, 48u8, 15u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8,
-        5u8, 48u8, 3u8, 2u8, 1u8, 0u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8,
-        4u8, 4u8, 3u8, 2u8, 5u8, 32u8, 48u8, 21u8, 6u8, 6u8, 103u8, 129u8, 5u8, 21u8, 1u8, 1u8,
-        4u8, 11u8, 48u8, 9u8, 2u8, 1u8, 81u8, 2u8, 1u8, 2u8, 2u8, 1u8, 2u8, 48u8, 29u8, 6u8, 3u8,
-        85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8,
-        3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-    ];
     #[cfg(test)]
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
         let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        let before = Self::TBS_TEMPLATE_BEFORE_KEY;
-        let after = Self::TBS_TEMPLATE_AFTER_KEY;
+        let before = [
+            48u8, 130u8, 8u8, 91u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8,
+            48u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8,
+            12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8,
+            49u8, 32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 116u8, 32u8, 65u8,
+            108u8, 105u8, 97u8, 115u8, 48u8, 34u8, 24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 24u8, 15u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 129u8,
+            133u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 49u8, 56u8, 48u8, 54u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8,
+            47u8, 79u8, 67u8, 80u8, 32u8, 76u8, 79u8, 67u8, 75u8, 32u8, 72u8, 80u8, 75u8, 69u8,
+            32u8, 69u8, 110u8, 100u8, 111u8, 114u8, 115u8, 101u8, 109u8, 101u8, 110u8, 116u8, 32u8,
+            77u8, 76u8, 45u8, 75u8, 69u8, 77u8, 45u8, 49u8, 48u8, 50u8, 52u8, 45u8, 69u8, 67u8,
+            68u8, 72u8, 45u8, 80u8, 51u8, 56u8, 52u8, 48u8, 130u8, 6u8, 146u8, 48u8, 10u8, 6u8,
+            8u8, 43u8, 6u8, 1u8, 5u8, 5u8, 7u8, 6u8, 63u8, 3u8, 130u8, 6u8, 130u8, 0u8,
+        ];
+        let after = [
+            163u8, 122u8, 48u8, 120u8, 48u8, 15u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8,
+            4u8, 5u8, 48u8, 3u8, 2u8, 1u8, 0u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8,
+            255u8, 4u8, 4u8, 3u8, 2u8, 5u8, 32u8, 48u8, 21u8, 6u8, 6u8, 103u8, 129u8, 5u8, 21u8,
+            1u8, 1u8, 4u8, 11u8, 48u8, 9u8, 2u8, 1u8, 81u8, 2u8, 1u8, 2u8, 2u8, 1u8, 2u8, 48u8,
+            29u8, 6u8, 3u8, 85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8,
+        ];
         let mut i = 0;
         while i < before.len() {
             result[i] = before[i];
@@ -104,14 +129,21 @@ impl OcpLockHybridCertTbsMlDsa87 {
         }
         result
     };
-    pub fn new(params: &OcpLockHybridCertTbsMlDsa87Params) -> Self {
+    pub fn new(params: &OcpLockHybridCertTbsMlDsa87Params) -> caliptra_error::CaliptraResult<Self> {
         let mut tbs = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_KEY);
-        tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..]
-            .copy_from_slice(&Self::TBS_TEMPLATE_AFTER_KEY);
+        let mut before_key = [0u8; Self::TBS_TEMPLATE_BEFORE_KEY_LEN];
+        if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY, &mut before_key) {
+            return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+        }
+        tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&before_key);
+        let mut after_key = [0u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN];
+        if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_AFTER_KEY, &mut after_key) {
+            return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+        }
+        tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&after_key);
         let mut template = Self { tbs };
         template.apply(params);
-        template
+        Ok(template)
     }
     pub fn sign<Sig, Error>(
         &self,
@@ -161,6 +193,33 @@ impl OcpLockHybridCertTbsMlDsa87 {
         apply_slice::<{ Self::NOT_AFTER_OFFSET }, { Self::NOT_AFTER_LEN }>(
             &mut self.tbs,
             params.not_after,
+        );
+    }
+}
+#[cfg(test)]
+mod lzss_tests {
+    use super::*;
+    #[test]
+    fn test_template_decompression() {
+        let mut before_key = [0u8; OcpLockHybridCertTbsMlDsa87::TBS_TEMPLATE_BEFORE_KEY_LEN];
+        assert!(crate::lzss::decompress(
+            &OcpLockHybridCertTbsMlDsa87::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY,
+            &mut before_key
+        ));
+        assert_eq!(
+            before_key,
+            OcpLockHybridCertTbsMlDsa87::TBS_TEMPLATE
+                [..OcpLockHybridCertTbsMlDsa87::PUBLIC_KEY_OFFSET]
+        );
+        let mut after_key = [0u8; OcpLockHybridCertTbsMlDsa87::TBS_TEMPLATE_AFTER_KEY_LEN];
+        assert!(crate::lzss::decompress(
+            &OcpLockHybridCertTbsMlDsa87::COMPRESSED_TBS_TEMPLATE_AFTER_KEY,
+            &mut after_key
+        ));
+        assert_eq!(
+            after_key,
+            OcpLockHybridCertTbsMlDsa87::TBS_TEMPLATE[OcpLockHybridCertTbsMlDsa87::PUBLIC_KEY_OFFSET
+                + OcpLockHybridCertTbsMlDsa87::PUBLIC_KEY_LEN..]
         );
     }
 }

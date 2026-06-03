@@ -209,7 +209,7 @@ impl FmcAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = FmcAliasCertTbsEcc384::new(&params);
+        let tbs = FmcAliasCertTbsEcc384::new(&params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(
@@ -290,7 +290,7 @@ impl FmcAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = FmcAliasCertTbsMlDsa87::new(&params);
+        let tbs = FmcAliasCertTbsMlDsa87::new(&params)?;
 
         // Sign the `To Be Signed` portion
         cprintln!(

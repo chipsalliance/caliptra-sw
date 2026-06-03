@@ -33,7 +33,7 @@ pub fn generate_ldevid_ecc_csr(
         ueid: &ueid,
     };
 
-    let csr_tbs = LocalDevIdCsrTbsEcc384::new(&params);
+    let csr_tbs = LocalDevIdCsrTbsEcc384::new(&params)?;
     let null_sig = Ecdsa384Signature::default();
     let csr_builder = Ecdsa384CsrBuilder::new(csr_tbs.tbs(), &null_sig)
         .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;
@@ -64,7 +64,7 @@ pub fn generate_ldevid_mldsa_csr(
         ueid: &ueid,
     };
 
-    let csr_tbs = LocalDevIdCsrTbsMlDsa87::new(&params);
+    let csr_tbs = LocalDevIdCsrTbsMlDsa87::new(&params)?;
     let null_sig = MlDsa87Signature::default();
     let csr_builder = MlDsa87CsrBuilder::new(csr_tbs.tbs(), &null_sig)
         .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;

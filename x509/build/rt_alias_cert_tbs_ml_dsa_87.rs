@@ -61,58 +61,85 @@ impl RtAliasCertTbsMlDsa87 {
     const NOT_AFTER_LEN: usize = 15usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
     pub const TBS_TEMPLATE_LEN: usize = 3204usize;
-    const TBS_TEMPLATE_BEFORE_KEY: [u8; Self::PUBLIC_KEY_OFFSET] = [
-        48u8, 130u8, 12u8, 128u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
-        116u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 30u8, 67u8, 97u8, 108u8,
-        105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8, 115u8,
-        97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8,
-        73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 34u8,
-        24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 48u8, 115u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8,
-        12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 49u8,
-        32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 116u8, 32u8, 65u8, 108u8,
-        105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8,
-        101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
+    const COMPRESSED_TBS_TEMPLATE_BEFORE_KEY: [u8; 145usize] = [
+        255u8, 48u8, 130u8, 12u8, 128u8, 160u8, 3u8, 2u8, 1u8, 239u8, 2u8, 2u8, 20u8, 95u8, 0u8,
+        31u8, 95u8, 48u8, 11u8, 255u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 255u8, 4u8,
+        3u8, 19u8, 48u8, 116u8, 49u8, 39u8, 48u8, 255u8, 37u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8,
+        30u8, 255u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 255u8, 32u8, 50u8, 46u8,
+        49u8, 32u8, 77u8, 108u8, 68u8, 255u8, 115u8, 97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8,
+        255u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8, 73u8, 59u8, 48u8, 71u8, 2u8, 145u8,
+        5u8, 19u8, 64u8, 5u8, 127u8, 6u8, 159u8, 156u8, 7u8, 191u8, 8u8, 56u8, 34u8, 24u8, 15u8,
+        9u8, 188u8, 1u8, 30u8, 48u8, 95u8, 115u8, 49u8, 38u8, 48u8, 36u8, 9u8, 163u8, 29u8, 9u8,
+        175u8, 6u8, 9u8, 160u8, 82u8, 116u8, 9u8, 159u8, 15u8, 31u8, 16u8, 63u8, 17u8, 95u8, 17u8,
+        199u8, 247u8, 130u8, 10u8, 50u8, 18u8, 10u8, 3u8, 130u8, 10u8, 33u8, 1u8, 0u8,
     ];
+    const COMPRESSED_TBS_TEMPLATE_AFTER_KEY: [u8; 183usize] = [
+        255u8, 163u8, 130u8, 1u8, 15u8, 48u8, 130u8, 1u8, 11u8, 255u8, 48u8, 18u8, 6u8, 3u8, 85u8,
+        29u8, 19u8, 1u8, 191u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 0u8, 112u8, 2u8, 175u8, 1u8, 4u8,
+        48u8, 14u8, 1u8, 65u8, 15u8, 1u8, 65u8, 4u8, 255u8, 3u8, 2u8, 2u8, 132u8, 48u8, 31u8, 6u8,
+        6u8, 255u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 159u8, 48u8, 19u8, 4u8, 17u8,
+        95u8, 0u8, 29u8, 4u8, 83u8, 37u8, 191u8, 4u8, 11u8, 48u8, 9u8, 6u8, 7u8, 2u8, 162u8, 100u8,
+        247u8, 12u8, 48u8, 112u8, 3u8, 84u8, 1u8, 4u8, 102u8, 48u8, 255u8, 100u8, 131u8, 2u8, 1u8,
+        95u8, 166u8, 63u8, 48u8, 255u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 63u8, 3u8,
+        4u8, 2u8, 2u8, 4u8, 48u8, 4u8, 142u8, 1u8, 31u8, 254u8, 6u8, 186u8, 137u8, 29u8, 67u8,
+        65u8, 76u8, 73u8, 80u8, 255u8, 84u8, 82u8, 65u8, 95u8, 50u8, 95u8, 88u8, 95u8, 255u8, 82u8,
+        84u8, 95u8, 70u8, 73u8, 82u8, 77u8, 87u8, 255u8, 65u8, 82u8, 69u8, 95u8, 73u8, 78u8, 70u8,
+        79u8, 251u8, 48u8, 29u8, 12u8, 177u8, 14u8, 4u8, 22u8, 4u8, 20u8, 244u8, 5u8, 175u8, 10u8,
+        80u8, 31u8, 14u8, 161u8, 35u8, 4u8, 24u8, 48u8, 3u8, 22u8, 128u8, 2u8, 31u8, 13u8, 64u8,
+    ];
+    const TBS_TEMPLATE_BEFORE_KEY_LEN: usize = Self::PUBLIC_KEY_OFFSET;
     const TBS_TEMPLATE_AFTER_KEY_LEN: usize =
         Self::TBS_TEMPLATE_LEN - Self::PUBLIC_KEY_OFFSET - Self::PUBLIC_KEY_LEN;
-    const TBS_TEMPLATE_AFTER_KEY: [u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN] = [
-        163u8, 130u8, 1u8, 15u8, 48u8, 130u8, 1u8, 11u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8,
-        1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 4u8, 48u8, 14u8, 6u8, 3u8,
-        85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8, 31u8, 6u8, 6u8,
-        103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 18u8,
-        6u8, 3u8, 85u8, 29u8, 37u8, 4u8, 11u8, 48u8, 9u8, 6u8, 7u8, 103u8, 129u8, 5u8, 5u8, 4u8,
-        100u8, 12u8, 48u8, 112u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 4u8, 102u8, 48u8,
-        100u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8,
-        101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 29u8, 67u8, 65u8, 76u8, 73u8,
-        80u8, 84u8, 82u8, 65u8, 95u8, 50u8, 95u8, 88u8, 95u8, 82u8, 84u8, 95u8, 70u8, 73u8, 82u8,
-        77u8, 87u8, 65u8, 82u8, 69u8, 95u8, 73u8, 78u8, 70u8, 79u8, 48u8, 29u8, 6u8, 3u8, 85u8,
-        29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8,
-        85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-    ];
     #[cfg(test)]
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = {
         let mut result = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        let before = Self::TBS_TEMPLATE_BEFORE_KEY;
-        let after = Self::TBS_TEMPLATE_AFTER_KEY;
+        let before = [
+            48u8, 130u8, 12u8, 128u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8,
+            48u8, 116u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 30u8, 67u8, 97u8,
+            108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 49u8, 32u8, 77u8, 108u8,
+            68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8, 32u8, 65u8, 108u8, 105u8, 97u8,
+            115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 34u8, 24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 24u8, 15u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8,
+            115u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 29u8, 67u8, 97u8, 108u8,
+            105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 49u8, 32u8, 77u8, 108u8, 68u8,
+            115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 116u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8,
+            49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8,
+            72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8,
+        ];
+        let after = [
+            163u8, 130u8, 1u8, 15u8, 48u8, 130u8, 1u8, 11u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8,
+            19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 4u8, 48u8, 14u8,
+            6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8,
+            31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 37u8, 4u8, 11u8, 48u8, 9u8, 6u8,
+            7u8, 103u8, 129u8, 5u8, 5u8, 4u8, 100u8, 12u8, 48u8, 112u8, 6u8, 6u8, 103u8, 129u8,
+            5u8, 5u8, 4u8, 1u8, 4u8, 102u8, 48u8, 100u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8,
+            61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 29u8, 67u8, 65u8, 76u8, 73u8, 80u8, 84u8, 82u8,
+            65u8, 95u8, 50u8, 95u8, 88u8, 95u8, 82u8, 84u8, 95u8, 70u8, 73u8, 82u8, 77u8, 87u8,
+            65u8, 82u8, 69u8, 95u8, 73u8, 78u8, 70u8, 79u8, 48u8, 29u8, 6u8, 3u8, 85u8, 29u8, 14u8,
+            4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8,
+            35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+            95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        ];
         let mut i = 0;
         while i < before.len() {
             result[i] = before[i];
@@ -125,14 +152,21 @@ impl RtAliasCertTbsMlDsa87 {
         }
         result
     };
-    pub fn new(params: &RtAliasCertTbsMlDsa87Params) -> Self {
+    pub fn new(params: &RtAliasCertTbsMlDsa87Params) -> caliptra_error::CaliptraResult<Self> {
         let mut tbs = [0x5F_u8; Self::TBS_TEMPLATE_LEN];
-        tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_BEFORE_KEY);
-        tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..]
-            .copy_from_slice(&Self::TBS_TEMPLATE_AFTER_KEY);
+        let mut before_key = [0u8; Self::TBS_TEMPLATE_BEFORE_KEY_LEN];
+        if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY, &mut before_key) {
+            return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+        }
+        tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&before_key);
+        let mut after_key = [0u8; Self::TBS_TEMPLATE_AFTER_KEY_LEN];
+        if !crate::lzss::decompress(&Self::COMPRESSED_TBS_TEMPLATE_AFTER_KEY, &mut after_key) {
+            return Err(caliptra_error::CaliptraError::X509_TEMPLATE_DECOMPRESSION_FAILED);
+        }
+        tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&after_key);
         let mut template = Self { tbs };
         template.apply(params);
-        template
+        Ok(template)
     }
     pub fn sign<Sig, Error>(
         &self,
@@ -191,6 +225,32 @@ impl RtAliasCertTbsMlDsa87 {
         apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
             params.tcb_info_fw_svn,
+        );
+    }
+}
+#[cfg(test)]
+mod lzss_tests {
+    use super::*;
+    #[test]
+    fn test_template_decompression() {
+        let mut before_key = [0u8; RtAliasCertTbsMlDsa87::TBS_TEMPLATE_BEFORE_KEY_LEN];
+        assert!(crate::lzss::decompress(
+            &RtAliasCertTbsMlDsa87::COMPRESSED_TBS_TEMPLATE_BEFORE_KEY,
+            &mut before_key
+        ));
+        assert_eq!(
+            before_key,
+            RtAliasCertTbsMlDsa87::TBS_TEMPLATE[..RtAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET]
+        );
+        let mut after_key = [0u8; RtAliasCertTbsMlDsa87::TBS_TEMPLATE_AFTER_KEY_LEN];
+        assert!(crate::lzss::decompress(
+            &RtAliasCertTbsMlDsa87::COMPRESSED_TBS_TEMPLATE_AFTER_KEY,
+            &mut after_key
+        ));
+        assert_eq!(
+            after_key,
+            RtAliasCertTbsMlDsa87::TBS_TEMPLATE[RtAliasCertTbsMlDsa87::PUBLIC_KEY_OFFSET
+                + RtAliasCertTbsMlDsa87::PUBLIC_KEY_LEN..]
         );
     }
 }

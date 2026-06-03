@@ -21,3 +21,4 @@ rand.workspace = true
 syn.workspace = true
 x509-cert.workspace = true
 const-oid.workspace = true
+caliptra-x509 = { workspace = true, features = ["std"] }

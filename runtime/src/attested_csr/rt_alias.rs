@@ -33,7 +33,7 @@ pub fn generate_rt_alias_ecc_csr(
         tcb_info_fw_svn: &fw_svn.to_be_bytes(),
     };
 
-    let tbs = RtAliasCsrTbsEcc384::new(&params);
+    let tbs = RtAliasCsrTbsEcc384::new(&params)?;
 
     // Sign the TBS with RT Alias ECC private key
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
@@ -80,7 +80,7 @@ pub fn generate_rt_alias_mldsa_csr(
         tcb_info_fw_svn: &fw_svn.to_be_bytes(),
     };
 
-    let tbs = RtAliasCsrTbsMlDsa87::new(&params);
+    let tbs = RtAliasCsrTbsMlDsa87::new(&params)?;
 
     // Sign the TBS with RT Alias ML-DSA private key
     // ML-DSA handles its own internal hashing, so pass raw TBS data

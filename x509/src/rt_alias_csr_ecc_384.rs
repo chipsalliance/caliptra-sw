@@ -42,7 +42,7 @@ mod tests {
             tcb_info_fw_svn: &TEST_FW_SVN.try_into().unwrap(),
         };
 
-        RtAliasCsrTbsEcc384::new(&params)
+        RtAliasCsrTbsEcc384::new(&params).unwrap()
     }
 
     #[test]

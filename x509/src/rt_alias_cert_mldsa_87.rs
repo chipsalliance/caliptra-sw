@@ -63,7 +63,7 @@ mod tests {
             not_after: &NotAfter::default().value,
         };
 
-        let cert = RtAliasCertTbsMlDsa87::new(&params);
+        let cert = RtAliasCertTbsMlDsa87::new(&params).unwrap();
 
         let sig = cert
             .sign(|b| {

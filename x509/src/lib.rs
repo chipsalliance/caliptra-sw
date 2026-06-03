@@ -26,6 +26,7 @@ mod ldevid_cert_ecc_384;
 mod ldevid_cert_mldsa_87;
 mod ldevid_csr_ecc_384;
 mod ldevid_csr_mldsa_87;
+pub mod lzss;
 mod ocp_lock_hpke_certs;
 mod rt_alias_cert_ecc_384;
 mod rt_alias_cert_mldsa_87;

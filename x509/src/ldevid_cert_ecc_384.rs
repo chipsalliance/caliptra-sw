@@ -54,7 +54,7 @@ mod tests {
             not_after: &NotAfter::default().value,
         };
 
-        LocalDevIdCertTbsEcc384::new(&params)
+        LocalDevIdCertTbsEcc384::new(&params).unwrap()
     }
 
     #[test]

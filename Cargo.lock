@@ -1302,6 +1302,7 @@ dependencies = [
 name = "caliptra-x509"
 version = "0.1.0"
 dependencies = [
+ "caliptra-error",
  "hex",
  "openssl",
  "rand 0.8.5",
@@ -1315,6 +1316,7 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
+ "caliptra-x509",
  "const-oid 0.9.6",
  "convert_case",
  "der 0.7.10",

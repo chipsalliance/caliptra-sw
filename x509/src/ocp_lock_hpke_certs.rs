@@ -54,7 +54,7 @@ pub mod ml_kem_ecc_348 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockMlKemCertTbsEcc384::new(&params);
+            let cert = OcpLockMlKemCertTbsEcc384::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
@@ -189,7 +189,7 @@ pub mod ml_kem_mldsa_87 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockMlKemCertTbsMlDsa87::new(&params);
+            let cert = OcpLockMlKemCertTbsMlDsa87::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
@@ -324,7 +324,7 @@ pub mod ecdh_384_ecc_348 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockEcdh384CertTbsEcc384::new(&params);
+            let cert = OcpLockEcdh384CertTbsEcc384::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
@@ -459,7 +459,7 @@ pub mod ecdh_384_mldsa_87 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockEcdh384CertTbsMlDsa87::new(&params);
+            let cert = OcpLockEcdh384CertTbsMlDsa87::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
@@ -594,7 +594,7 @@ pub mod hybrid_ecc_384 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockHybridCertTbsEcc384::new(&params);
+            let cert = OcpLockHybridCertTbsEcc384::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
@@ -703,7 +703,7 @@ pub mod hybrid_mldsa_87 {
                 not_after: &NotAfter::default().value,
             };
 
-            let cert = OcpLockHybridCertTbsMlDsa87::new(&params);
+            let cert = OcpLockHybridCertTbsMlDsa87::new(&params).unwrap();
 
             let sig = cert
                 .sign(|b| {
