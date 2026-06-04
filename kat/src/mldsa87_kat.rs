@@ -14,10 +14,9 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x16, CaliptraError, CaliptraResult, LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey,
-    Mldsa87Seed, Mldsa87SignRnd, Sha2_512_384, Trng,
+    Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, Sha2_512_384, Trng,
 };
 use caliptra_registers::sha512::Sha512Reg;
-
 use zerocopy::IntoBytes;
 
 const SEED: LEArray4x8 = LEArray4x8::new([
@@ -29,6 +28,9 @@ const KAT_MESSAGE: [u32; 16] = [
     0x735f11ee, 0x23f6c548, 0x358498db, 0x04f50a80, 0xfb169e3c, 0x1c6cd56e, 0xd41baaf3, 0xd418f5c8,
 ];
 
+// FIPS 140-3 IG 10.3.A General Note 7 permits a KAT to compare a hash of the
+// calculated output against a hash of the known expected output using an
+// approved hash function.
 const KAT_PUB_KEY_DIGEST: Array4x16 = Array4x16::new([
     0x156d7184, 0xed6113a4, 0x1944255a, 0x3ffd5aa1, 0x3273e7a7, 0x3d8b5feb, 0xf695df65, 0x351a7476,
     0xb74d6d96, 0xe8927960, 0x0d188fda, 0xb7adaa9a, 0x431308ed, 0xf9544ec3, 0x5fe96fa4, 0xd012c3a8,
@@ -48,35 +50,24 @@ const KAT_SIGNATURE_DIGEST: Array4x16 = Array4x16::new([
 pub struct Mldsa87Kat {}
 
 impl Mldsa87Kat {
-    /// This function executes the Known Answer Tests (aka KAT) for MLDSA87.
+    /// Executes the Known Answer Tests for MLDSA-87 covering KeyGen, SigGen and
+    /// SigVer.
     ///
     /// # Arguments
     ///
-    /// * `mldsa87` - MLDSA87 Driver
-    ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult` - Result denoting the KAT outcome.
+    /// * `mldsa87` - MLDSA-87 driver
+    /// * `trng`    - TRNG driver
     pub fn execute(&self, mldsa87: &mut Mldsa87, trng: &mut Trng) -> CaliptraResult<()> {
-        self.kat_key_pair_gen_sign_and_verify(mldsa87, trng)
+        let pub_key = Self::kat_keygen(mldsa87, trng)?;
+        let signature = Self::kat_sign(mldsa87, trng, &pub_key)?;
+        Self::kat_verify(mldsa87, &pub_key, &signature)
     }
 
-    fn kat_key_pair_gen_sign_and_verify(
-        &self,
-        mldsa87: &mut Mldsa87,
-        trng: &mut Trng,
-    ) -> CaliptraResult<()> {
-        let (pub_key, _priv_key_digest) = Self::kat_keygen(mldsa87, trng)?;
-        Self::kat_sign_verify(mldsa87, trng, &pub_key)
-    }
-
-    /// Keygen phase: generate key pair (includes PCT) and verify key digests.
+    /// KeyGen CAST: derive an MLDSA-87 key pair from the fixed `SEED` and
+    /// compare SHA-512 digests of the public and private keys against
+    /// `KAT_PUB_KEY_DIGEST` and `KAT_PRIV_KEY_DIGEST`.
     #[inline(never)]
-    fn kat_keygen(
-        mldsa87: &mut Mldsa87,
-        trng: &mut Trng,
-    ) -> CaliptraResult<(Mldsa87PubKey, Array4x16)> {
-        // Compare SHA-512 hashes of the keys and signature to save on ROM space.
+    fn kat_keygen(mldsa87: &mut Mldsa87, trng: &mut Trng) -> CaliptraResult<Mldsa87PubKey> {
         let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
         let mut priv_key = Mldsa87PrivKey::default();
         let pub_key = mldsa87
@@ -94,18 +85,19 @@ impl Mldsa87Kat {
             Err(CaliptraError::KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE)?;
         }
 
-        Ok((pub_key, priv_key_digest))
+        Ok(pub_key)
     }
 
-    /// Sign phase: sign with the seed and verify the signature digest.
+    /// SigGen CAST: sign the fixed `KAT_MESSAGE` with the key derived from
+    /// `SEED` using an all-zero signing nonce and compare the SHA-512 digest of
+    /// the signature against `KAT_SIGNATURE_DIGEST`.
     #[inline(never)]
-    fn kat_sign_verify(
+    fn kat_sign(
         mldsa87: &mut Mldsa87,
         trng: &mut Trng,
         pub_key: &Mldsa87PubKey,
-    ) -> CaliptraResult<()> {
+    ) -> CaliptraResult<Mldsa87Signature> {
         let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
-
         let signature = mldsa87
             .sign(
                 Mldsa87Seed::Array4x8(&SEED),
@@ -122,6 +114,24 @@ impl Mldsa87Kat {
 
         if signature_digest != KAT_SIGNATURE_DIGEST {
             Err(CaliptraError::KAT_MLDSA87_SIGNATURE_MISMATCH)?;
+        }
+
+        Ok(signature)
+    }
+
+    /// SigVer CAST: verify `signature` against `pub_key` and `KAT_MESSAGE`.
+    #[inline(never)]
+    fn kat_verify(
+        mldsa87: &mut Mldsa87,
+        pub_key: &Mldsa87PubKey,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<()> {
+        let result = mldsa87
+            .verify_var(pub_key, KAT_MESSAGE.as_bytes(), signature)
+            .map_err(|_| CaliptraError::KAT_MLDSA87_VERIFY_FAILURE)?;
+
+        if result != Mldsa87Result::Success {
+            Err(CaliptraError::KAT_MLDSA87_VERIFY_FAILURE)?;
         }
 
         Ok(())
