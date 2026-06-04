@@ -206,13 +206,10 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     });
 
     let export_cdi_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
-        target_locality: 0,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 
@@ -241,11 +238,9 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     assert!(check_certificate_signature(sign_resp, &original_cdi_resp));
 
     let measurement_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"CCIV"),
-        target_locality: 0,
         ..Default::default()
     };
 
@@ -304,13 +299,10 @@ fn test_sign_with_exported_cdi_measurement_update() {
     });
 
     let export_cdi_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
-        target_locality: 0,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 
@@ -323,11 +315,9 @@ fn test_sign_with_exported_cdi_measurement_update() {
     };
 
     let measurement_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"CCIV"),
-        target_locality: 0,
         ..Default::default()
     };
 
@@ -659,7 +649,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         handle,
         data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
+        tci_type: 1,
         target_locality: 0,
         ..Default::default()
     };
@@ -678,7 +668,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         handle: parent_handle,
         data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        tci_type: 0,
+        tci_type: 2,
         target_locality: 0,
         ..Default::default()
     };

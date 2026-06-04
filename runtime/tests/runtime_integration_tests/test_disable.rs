@@ -165,7 +165,7 @@ fn test_attestation_disabled_flag_after_update_reset() {
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let dpe_leaf_cert: X509 = X509::from_der(&certify_key_resp.cert().unwrap()).unwrap();
+    let dpe_leaf_cert: X509 = X509::from_der(certify_key_resp.cert().unwrap()).unwrap();
 
     assert!(!dpe_leaf_cert
         .verify(&rt_cert.public_key().unwrap())

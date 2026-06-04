@@ -6,11 +6,9 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::HwModel;
 use dpe::{
-    commands::{Command, DeriveContextCmd, DeriveContextFlags, DestroyCtxCmd},
+    commands::{Command, DeriveContextCmd, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
-    tci::TciMeasurement,
-    TCI_SIZE,
 };
 use zerocopy::FromBytes;
 
@@ -214,14 +212,15 @@ fn test_tagging_retired_context() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // retire context via DeriveContext
-    let derive_context_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: TciMeasurement([0u8; TCI_SIZE]),
-        flags: DeriveContextFlags::empty(),
-        tci_type: 0,
-        target_locality: 0,
-        ..Default::default()
-    };
+    //let derive_context_cmd = DeriveContextCmd {
+    //    handle: ContextHandle::default(),
+    //    data: TciMeasurement([0u8; TCI_SIZE]),
+    //    flags: DeriveContextFlags::empty(),
+    //    tci_type: 0,
+    //    target_locality: 0,
+    //    ..Default::default()
+    //};
+    let derive_context_cmd = DeriveContextCmd::default();
     let resp = execute_dpe_cmd(
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
@@ -263,10 +262,7 @@ fn test_tagging_retired_context() {
     // retire tagged context via derive child
     let derive_context_cmd = DeriveContextCmd {
         handle: new_handle,
-        data: TciMeasurement([0u8; TCI_SIZE]),
-        flags: DeriveContextFlags::empty(),
-        tci_type: 0,
-        target_locality: 0,
+        tci_type: 1,
         ..Default::default()
     };
     let resp = execute_dpe_cmd(

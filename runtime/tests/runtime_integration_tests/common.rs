@@ -228,7 +228,7 @@ pub fn execute_dpe_cmd(
 
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
-        DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
+        DpeResult::Success => parse_dpe_response(dpe_cmd, &resp_hdr.data),
         DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })

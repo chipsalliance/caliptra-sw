@@ -485,21 +485,21 @@ fn test_certify_key_with_max_contexts() {
         })
         .unwrap();
 
-    let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: TciMeasurement([0; TCI_SIZE]),
+    let base_derive_context_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::INPUT_ALLOW_X509,
-        tci_type: 0,
-        target_locality: 0,
         ..Default::default()
     };
 
     // Fill PL0 contexts
     let max_after_init_contexts = 32 - 2;
-    for _ in 0..max_after_init_contexts {
+    for i in 0..max_after_init_contexts {
+        let cmd = DeriveContextCmd {
+            tci_type: i + 1,
+            ..base_derive_context_cmd
+        };
         let _ = execute_dpe_cmd(
             &mut model,
-            &mut Command::DeriveContext(&derive_ctx_cmd),
+            &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
         );
     }
@@ -507,7 +507,7 @@ fn test_certify_key_with_max_contexts() {
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
+        &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
 

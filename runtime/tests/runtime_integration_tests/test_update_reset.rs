@@ -217,8 +217,10 @@ fn test_dpe_validation_illegal_state() {
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE state by messing up parent-child links
-    dpe.contexts[1].children = 0.into();
+    // corrupt DPE structure by creating multiple normal connected components
+    dpe.contexts[0].children = 0.into();
+    dpe.contexts[0].state = ContextState::Active;
+    dpe.contexts[1].parent_idx = Context::ROOT_INDEX;
     let _ = model
         .mailbox_execute(0xB000_0000, dpe.as_bytes())
         .unwrap()
@@ -236,7 +238,7 @@ fn test_dpe_validation_illegal_state() {
             .cptra_fw_extended_error_info()
             .read()
             .as_bytes()[..size_of::<u32>()],
-        DpeErrorCode::Validation(ValidationError::ParentChildLinksCorrupted)
+        DpeErrorCode::Validation(ValidationError::MultipleNormalConnectedComponents)
             .get_error_code()
             .to_le_bytes()
     );

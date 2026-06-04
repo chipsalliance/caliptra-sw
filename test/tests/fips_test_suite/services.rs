@@ -485,7 +485,7 @@ pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
         handle: ContextHandle::default(),
         data: TciMeasurement([0u8; 48]),
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
-        tci_type: 0,
+        tci_type: 1,
         target_locality: 0,
         ..Default::default()
     };
@@ -891,7 +891,7 @@ fn derive_context_export_cdi<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdi
     )
     .unwrap();
 
-    let resp_bytes = &resp.data[..resp.data_size as usize];
+    let resp_bytes = &resp.data[..std::mem::size_of::<DeriveContextExportedCdiResp>()];
     DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap()
 }
 

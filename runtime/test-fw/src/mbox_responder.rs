@@ -13,7 +13,7 @@ use caliptra_drivers::{
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
-    mailbox::Mailbox, ContextState, DpeInstance, Drivers, RtBootStatus, TciMeasurement, U8Bool,
+    mailbox::Mailbox, ContextState, Drivers, RtBootStatus, State, TciMeasurement, U8Bool,
     MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
@@ -245,7 +245,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_dpe = DpeInstance::try_read_from_bytes(input_bytes).unwrap();
+                let corrupted_dpe = State::try_read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().dpe = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }

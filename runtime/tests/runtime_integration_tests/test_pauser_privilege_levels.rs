@@ -75,7 +75,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
             handle,
             data: DATA,
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-            tci_type: 0,
+            tci_type: i as u32,
             target_locality: 0,
             ..Default::default()
         };
@@ -145,7 +145,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             handle,
             data: DATA,
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-            tci_type: 0,
+            tci_type: i as u32 + 1,
             target_locality: 0,
             ..Default::default()
         };
@@ -275,7 +275,7 @@ fn test_change_locality() {
         flags: DeriveContextFlags::CHANGE_LOCALITY
             | DeriveContextFlags::MAKE_DEFAULT
             | DeriveContextFlags::INPUT_ALLOW_X509,
-        tci_type: 0,
+        tci_type: 1,
         target_locality: 2,
         ..Default::default()
     };
@@ -293,7 +293,7 @@ fn test_change_locality() {
         handle: ContextHandle::default(),
         data: DATA,
         flags: DeriveContextFlags::MAKE_DEFAULT,
-        tci_type: 0,
+        tci_type: 2,
         target_locality: 2,
         ..Default::default()
     };
@@ -581,14 +581,11 @@ fn test_stash_measurement_pl_context_thresholds() {
 
     // Root node and RT journey (which is technically the Caliptra locality) count as PL0
     let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2;
-    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0u8; 4],
-        measurement: [0u8; 48],
-        context: [0u8; 48],
-        svn: 0,
-    });
-    for _ in 0..num_iterations {
+    for i in 0..num_iterations {
+        let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+            metadata: [i as u8; 4],
+            ..Default::default()
+        });
         cmd.populate_chksum().unwrap();
 
         let _ = model
@@ -599,6 +596,9 @@ fn test_stash_measurement_pl_context_thresholds() {
             .unwrap()
             .expect("We should have received a response");
     }
+
+    let mut cmd: MailboxReq = MailboxReq::StashMeasurement(StashMeasurementReq::default());
+    cmd.populate_chksum().unwrap();
 
     // Attempting one more should return a failure
     let resp = model
@@ -629,7 +629,7 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
             hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0u8; 4],
+            metadata: [idx; 4],
             context: [0u8; 48],
             svn: 0,
         };

@@ -269,7 +269,7 @@ fn test_dpe_leaf_cert() {
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let dpe_leaf_cert: X509 = X509::from_der(&certify_key_resp.cert().unwrap()).unwrap();
+    let dpe_leaf_cert: X509 = X509::from_der(certify_key_resp.cert().unwrap()).unwrap();
 
     // Check that DPE Leaf Cert is signed by RT alias pub key and that subject/issuer names match
     assert!(dpe_leaf_cert
