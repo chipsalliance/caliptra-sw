@@ -21,7 +21,7 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
-use crate::persistent::EntropyConfiguration;
+use crate::persistent::{EntropyConfiguration, EntropyConfigurationExtension};
 use crate::soc_ifc::reset_reason;
 use crate::{wait, CaliptraError, CaliptraResult, PersistentDataAccessor, ResetReason};
 use caliptra_registers::csrng::CsrngReg;
@@ -38,6 +38,12 @@ const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT: u32 = 16;
 const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
 const SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK: u32 = 0x3;
 const SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT: u32 = 31;
+
+#[derive(Clone)]
+struct CsrngEntropyConfiguration {
+    entropy_cfg: EntropyConfiguration,
+    entropy_cfg_extension: EntropyConfigurationExtension,
+}
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -107,9 +113,9 @@ impl Csrng {
         if e.module_enable().read().module_enable() == FALSE {
             // Configure entropy_src
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs(), persistent_data);
-            set_health_check_thresholds(e, entropy_cfg.clone());
+            set_health_check_thresholds(e, entropy_cfg.entropy_cfg.clone());
 
-            let single_bit_mode = entropy_cfg.rng_bit_enable != 0;
+            let single_bit_mode = entropy_cfg.entropy_cfg_extension.rng_bit_enable != 0;
             let rng_bit_enable = if single_bit_mode { TRUE } else { FALSE };
             let threshold_scope = if single_bit_mode { FALSE } else { TRUE };
 
@@ -118,7 +124,7 @@ impl Csrng {
                     .entropy_data_reg_enable(FALSE)
                     .threshold_scope(threshold_scope)
                     .rng_bit_enable(rng_bit_enable)
-                    .rng_bit_sel(entropy_cfg.rng_bit_sel)
+                    .rng_bit_sel(entropy_cfg.entropy_cfg_extension.rng_bit_sel)
             });
 
             // We allow the SoC to set bypass mode so that entropy can be
@@ -405,15 +411,26 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
 fn read_entropy_configuration(
     soc_ifc: &soc_ifc::RegisterBlock<caliptra_ureg::RealMmio>,
     mut persistent_data: PersistentDataAccessor,
-) -> EntropyConfiguration {
+) -> CsrngEntropyConfiguration {
     // Some of the entropy config registers are not lockable,
     // so we keep them in persistent storage so that they cannot
     // be maliciously modified later.
-    let entropy_cfg = persistent_data.get_mut().rom.entropy_cfg.clone();
     let cold_reset = matches!(reset_reason(), ResetReason::ColdReset);
+
+    let persistent_data = persistent_data.get_mut();
+    let entropy_cfg = persistent_data.rom.entropy_cfg.clone();
+    let entropy_cfg_extension = if persistent_data.rom.supports_entropy_cfg_extension() {
+        persistent_data.rom.entropy_cfg_extension.clone()
+    } else {
+        EntropyConfigurationExtension::default()
+    };
+
     // use the cached config only if we aren't in cold reset (assuming it has been configured)
     if !cold_reset && entropy_cfg.configured != 0 {
-        return entropy_cfg;
+        return CsrngEntropyConfiguration {
+            entropy_cfg,
+            entropy_cfg_extension,
+        };
     }
 
     // Configure alert threshold from CPTRA_ITRNG_ENTROPY_CONFIG_1[31:16]
@@ -514,15 +531,22 @@ fn read_entropy_configuration(
         configured: 1,
         alert_threshold,
         health_test_window,
-        rng_bit_enable,
-        rng_bit_sel,
         repcnt_threshold,
         adaptp_hi_threshold,
         adaptp_lo_threshold,
     };
+    let entropy_cfg_extension = EntropyConfigurationExtension {
+        rng_bit_enable,
+        rng_bit_sel,
+    };
     // save for later resets
-    persistent_data.get_mut().rom.entropy_cfg = entropy_cfg.clone();
-    entropy_cfg
+    persistent_data.rom.entropy_cfg = entropy_cfg.clone();
+    persistent_data.rom.entropy_cfg_extension = entropy_cfg_extension.clone();
+
+    CsrngEntropyConfiguration {
+        entropy_cfg,
+        entropy_cfg_extension,
+    }
 }
 
 /// Configure thresholds for the NIST health checks.

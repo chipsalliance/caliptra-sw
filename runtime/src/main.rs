@@ -81,7 +81,7 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(CaliptraError::RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER.into())
     }
     if pdata.rom.major_version != RomPersistentData::MAJOR_VERSION
-        || pdata.rom.minor_version != RomPersistentData::MINOR_VERSION
+        || !pdata.rom.supports_current_minor_version()
     {
         handle_fatal_error(CaliptraError::RUNTIME_INVALID_ROM_PERSISTENT_DATA_VERSION.into())
     }

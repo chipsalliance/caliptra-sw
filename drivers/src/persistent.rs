@@ -55,7 +55,7 @@ pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
-pub const ROM_ENTROPY_CFG_SIZE: u32 = 32;
+pub const ROM_ENTROPY_CFG_SIZE: u32 = 24;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 pub const BOOT_MODE_SIZE: u32 = 4;
 
@@ -366,11 +366,16 @@ pub struct EntropyConfiguration {
     pub configured: u32, // true if non-zero
     pub alert_threshold: u32,
     pub health_test_window: u32,
-    pub rng_bit_enable: u32,
-    pub rng_bit_sel: u32,
     pub repcnt_threshold: u32,
     pub adaptp_hi_threshold: u32,
     pub adaptp_lo_threshold: u32,
+}
+
+#[derive(Clone, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
+pub struct EntropyConfigurationExtension {
+    pub rng_bit_enable: u32,
+    pub rng_bit_sel: u32,
 }
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
@@ -422,7 +427,10 @@ pub struct RomPersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     pub idevid_csr_envelop: InitDevIdCsrEnvelope,
-    reserved6: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
+    pub entropy_cfg_extension: EntropyConfigurationExtension,
+    reserved6: [u8; IDEVID_CSR_ENVELOP_SIZE as usize
+        - size_of::<InitDevIdCsrEnvelope>()
+        - size_of::<EntropyConfigurationExtension>()],
 
     pub cmb_aes_key_share0: LEArray4x8,
     pub cmb_aes_key_share1: LEArray4x8,
@@ -450,7 +458,16 @@ pub struct RomPersistentData {
 impl RomPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
     pub const MAJOR_VERSION: u16 = 1;
-    pub const MINOR_VERSION: u16 = 0;
+    pub const MINOR_VERSION: u16 = 1;
+    pub const MINOR_VERSION_ENTROPY_CFG_EXTENSION: u16 = 1;
+
+    pub fn supports_entropy_cfg_extension(&self) -> bool {
+        self.minor_version >= Self::MINOR_VERSION_ENTROPY_CFG_EXTENSION
+    }
+
+    pub fn supports_current_minor_version(&self) -> bool {
+        self.minor_version <= Self::MINOR_VERSION
+    }
 
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
@@ -532,7 +549,14 @@ impl RomPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
+            persistent_data_offset += size_of::<InitDevIdCsrEnvelope>() as u32;
+            assert_eq!(
+                addr_of!((*P).rom.entropy_cfg_extension) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset +=
+                IDEVID_CSR_ENVELOP_SIZE - size_of::<InitDevIdCsrEnvelope>() as u32;
             assert_eq!(
                 addr_of!((*P).rom.cmb_aes_key_share0) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -899,16 +923,17 @@ mod tests {
             (offset_of!(RomPersistentData, measurement_log), 49152, "measurement_log"),
             (offset_of!(RomPersistentData, fuse_log), 50176, "fuse_log"),
             (offset_of!(RomPersistentData, idevid_csr_envelop), 51200, "idevid_csr_envelop"),
+            (offset_of!(RomPersistentData, entropy_cfg_extension), 59984, "entropy_cfg_extension"),
             (offset_of!(RomPersistentData, cmb_aes_key_share0), 60416, "cmb_aes_key_share0"),
             (offset_of!(RomPersistentData, cmb_aes_key_share1), 60448, "cmb_aes_key_share1"),
             (offset_of!(RomPersistentData, dot_owner_pk_hash), 60480, "dot_owner_pk_hash"),
             (offset_of!(RomPersistentData, cleared_non_fatal_fw_error), 60532, "cleared_non_fatal_fw_error"),
             (offset_of!(RomPersistentData, ocp_lock_metadata), 60536, "ocp_lock_metadata"),
             (offset_of!(RomPersistentData, entropy_cfg), 60544, "entropy_cfg"),
-            (offset_of!(RomPersistentData, boot_mode), 60576, "boot_mode"),
-            (offset_of!(RomPersistentData, major_version), 60580, "major_version"),
-            (offset_of!(RomPersistentData, minor_version), 60582, "minor_version"),
-            (offset_of!(RomPersistentData, marker), 60584, "marker"),
+            (offset_of!(RomPersistentData, boot_mode), 60568, "boot_mode"),
+            (offset_of!(RomPersistentData, major_version), 60572, "major_version"),
+            (offset_of!(RomPersistentData, minor_version), 60574, "minor_version"),
+            (offset_of!(RomPersistentData, marker), 60576, "marker"),
         ];
 
         for (actual, expected, name) in actual_expected {

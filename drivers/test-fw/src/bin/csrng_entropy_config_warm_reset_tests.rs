@@ -26,7 +26,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, PersistentDataAccessor, ResetReason, SocIfc};
+use caliptra_drivers::{Csrng, PersistentDataAccessor, ResetReason, RomPersistentData, SocIfc};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
@@ -51,7 +51,8 @@ fn cold_reset_flow() -> ! {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let mut soc_ifc_reg = unsafe { SocIfcReg::new() };
-    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let mut persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
 
     // First, initialize CSRNG normally - this should succeed and store config in persistent data
     let csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data);
