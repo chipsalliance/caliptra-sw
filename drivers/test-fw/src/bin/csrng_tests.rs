@@ -58,7 +58,7 @@ fn test_entropy_src_seed() {
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
 
-    const EXPECTED_OUTPUT: [u32; 4] = [0xca3d3c2f, 0x552adb53, 0xa9749c5d, 0xdabbe4c3];
+    const EXPECTED_OUTPUT: [u32; 4] = [0x2e22e235, 0x4141d7aa, 0x78b55c15, 0x5f255da1];
     let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg).expect("construct CSRSNG");
 
     assert_eq!(

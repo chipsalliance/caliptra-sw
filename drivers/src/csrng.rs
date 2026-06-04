@@ -104,16 +104,12 @@ impl Csrng {
             } else {
                 FALSE
             };
-            let threshold_scope = if entropy_cfg.rng_bit_enable {
-                FALSE
-            } else {
-                TRUE
-            };
-
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
-                    .threshold_scope(threshold_scope)
+                    // THRESHOLD_SCOPE=FALSE so adaptive-proportion and Markov health
+                    // tests score each of the 4 RNG bus lanes individually.
+                    .threshold_scope(FALSE)
                     .rng_bit_enable(rng_bit_enable)
                     .rng_bit_sel(entropy_cfg.rng_bit_sel)
             });
@@ -483,10 +479,14 @@ fn read_entropy_configuration(
     };
 
     // Configure health test windows from SS_STRAP_GENERIC[2][15:0]
-    // This is the window size for all health tests.
-    // This value is used when entropy is being tested in FIPS mode.
-    // The default value is (2048 bits * 1 clock/4 bits);
-    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
+    // This is the window size for all health tests, in clock cycles.
+    // Each clock samples one bit on each of the 4 RNG lanes, so the
+    // per-lane window in bits is exactly this value and the aggregate
+    // window is `4 * health_test_window` bits. This value is used when
+    // entropy is being tested in FIPS mode.
+    //
+    // Default: 1024 clock cycles = 1024 bits per lane = 4096 bits aggregate.
+    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 1024;
 
     let ss_strap_generic_2 = soc_ifc.ss_strap_generic().at(2).read();
     let health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
@@ -531,17 +531,22 @@ fn read_entropy_configuration(
     //  * Any window has less than the LO threshold of 1's.
     // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
 
-    // If soc doesn't set the window size, then use these defaults.
-    // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
-    // respectively.
+    // If the SoC doesn't override the ADAPTP thresholds, use 75% and 25% of the
+    // per-lane FIPS window size for the default HI and LO thresholds respectively.
+    // Per NIST SP 800-90B Section 4.4.2, these correspond to roughly
+    // 0.6 min-entropy (Table 2).
     //
-    // This window value of 2048 comes from the OpenTitan documentation, since two noise
-    // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
-    const ADAPTP_WINDOW_SIZE_BITS: u32 = 2048;
+    // Each clock samples one bit on each of the 4 RNG lanes, so the per-lane
+    // window in bits is exactly `health_test_window` (the FIPS_WINDOW value
+    // written to the HEALTH_TEST_WINDOWS register). In single-bit mode
+    // entropy_src samples only the selected lane and internally multiplies the
+    // window by four. If the SoC supplied its own window we assume it already
+    // accounts for single-bit mode and use it as-is.
+    // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
     let adaptp_window_size_bits = if rng_bit_enable && health_test_window_is_default {
         health_test_window * 4
     } else {
-        ADAPTP_WINDOW_SIZE_BITS
+        health_test_window
     };
     let adaptp_default_hi = 3 * (adaptp_window_size_bits / 4);
     let adaptp_default_lo = adaptp_window_size_bits / 4;

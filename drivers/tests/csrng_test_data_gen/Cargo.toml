@@ -1,0 +1,25 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-csrng-test-data-gen"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "caliptra_csrng_test_data_gen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "caliptra-csrng-test-data-gen"
+path = "src/main.rs"
+
+[dependencies]
+rand.workspace = true
+
+[features]
+# Tests that depend on the source tree (e.g. the regen drift check) are
+# skipped under these features so the FPGA test runners, which only ship
+# test binaries, don't try to read the missing test_data files.
+fpga_realtime = []
+fpga_subsystem = []

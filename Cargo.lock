@@ -424,6 +424,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-csrng-test-data-gen"
+version = "0.1.0"
+dependencies = [
+ "rand",
+]
+
+[[package]]
 name = "caliptra-drivers"
 version = "0.1.0"
 dependencies = [

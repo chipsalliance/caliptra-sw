@@ -191,7 +191,7 @@ impl AdaptiveProportionTester {
             hi_threshold: 0xffff,
             lo_failures: 0,
             hi_failures: 0,
-            threshold_scope: true,
+            threshold_scope: false,
             per_lane_ones: [0; BITS_PER_NIBBLE],
             num_bits_seen: 0,
             window_size_bits: DEFAULT_WINDOW_SIZE_BITS,

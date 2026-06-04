@@ -14,16 +14,16 @@ fn test_assume_initialized() {
 
     let mut csrng0 = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg).expect("construct CSRNG");
 
-    assert_eq!(csrng0.generate12().unwrap()[0], 0xca3d3c2f);
+    assert_eq!(csrng0.generate12().unwrap()[0], 0x2e22e235);
 
     {
         let mut csrng1 =
             unsafe { Csrng::assume_initialized(CsrngReg::new(), EntropySrcReg::new()) };
 
-        assert_eq!(csrng1.generate12().unwrap()[0], 0x7d63f096);
+        assert_eq!(csrng1.generate12().unwrap()[0], 0x9a24f882);
     }
 
-    assert_eq!(csrng0.generate12().unwrap()[0], 0x248474c6);
+    assert_eq!(csrng0.generate12().unwrap()[0], 0xb3e05057);
 }
 
 test_suite! {
