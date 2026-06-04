@@ -1096,13 +1096,13 @@ pub fn mldsa87_verify(
     verify_internal(&pub_key, encoded_signature, msg, &[])
 }
 
-/// Test-only verification entry point that accepts a signing `context`.
+/// Verification entry point that accepts a signing `context`.
 ///
-/// The firmware-facing API ([`mldsa87_verify`]) always uses an empty context,
-/// but the ACVP sigVer known-answer vectors exercise non-empty contexts. This
-/// wrapper is gated to `cfg(test)` so it adds nothing to the firmware build.
-#[cfg(test)]
-pub(crate) fn mldsa87_verify_with_context(
+/// The firmware-facing API ([`mldsa87_verify`]) always uses an empty context.
+/// This wrapper accepts an explicit context so callers can drive the NIST ACVP
+/// sigVer known-answer vectors, which use non-empty contexts (see the FIPS
+/// ML-DSA-87 signature-verification KAT and the `acvp` test harness).
+pub fn mldsa87_verify_with_context(
     encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     msg: &[u8],
