@@ -7,15 +7,15 @@ File Name:
     csrng_runtime_health_fail_tests.rs
 
 Abstract:
-    https://opentitan.org/book/hw/ip/entropy_src/index.html#description
+    https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
 
     This test verifies that CSRNG properly detects health check failures that occur
-    during runtime (after boot-time health checks pass). This is critical for detecting
+    during runtime (after startup health testing passes). This is critical for detecting
     low-entropy scenarios where the entropy source initially appears healthy but
     degrades during operation.
 
     The test expects:
-    - Boot-time health check to PASS (CSRNG::new succeeds)
+    - Startup health testing to PASS (CSRNG::new succeeds)
     - Runtime health check to FAIL (generate12 fails)
 --*/
 #![no_std]
@@ -31,12 +31,12 @@ fn test_runtime_health_check_failure() {
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
 
-    // CSRNG initialization should succeed with good boot-time entropy
+    // CSRNG initialization should succeed with good startup entropy.
     let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg)
-        .expect("CSRNG should pass boot-time health test");
+        .expect("CSRNG should pass startup health testing");
 
     // First generate should start seeing bad entropy
-    // The emulator will be configured to provide good entropy for boot,
+    // The emulator will be configured to provide good entropy for startup,
     // then bad entropy for runtime operations
     let result = csrng.generate12();
 

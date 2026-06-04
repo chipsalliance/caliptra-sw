@@ -7,7 +7,7 @@ File Name:
     csrng_pass_health_tests.rs
 
 Abstract:
-    https://opentitan.org/book/hw/ip/entropy_src/index.html#description
+    https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
 
     The test cases in this file should pass entropy health tests.
 --*/
@@ -23,7 +23,7 @@ fn test_boot_and_generate_pass() {
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg)
-        .expect("CSRNG should pass boot-time health test");
+        .expect("CSRNG should pass startup health testing");
     let _ = csrng
         .generate12()
         .expect("CSRNG should pass continuous health tests (first generate)");

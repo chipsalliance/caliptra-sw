@@ -44,6 +44,7 @@ members = [
   "drivers",
   "drivers/test-fw",
   "drivers/test-fw/scripts/vector_gen",
+  "drivers/tests/csrng_test_data_gen",
   "fmc",
   "hw/latest/registers",
   "hw/verilated",
