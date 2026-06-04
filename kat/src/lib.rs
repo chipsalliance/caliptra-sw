@@ -20,6 +20,7 @@ mod aes256ctr_kat;
 mod aes256ecb_kat;
 mod aes256gcm_kat;
 mod cmackdf_kat;
+mod csrng_kat;
 mod ecc384_kat;
 mod ecdh_kat;
 mod hkdf_kat;
@@ -40,6 +41,7 @@ pub use aes256ecb_kat::Aes256EcbKat;
 pub use aes256gcm_kat::Aes256GcmKat;
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
 pub use cmackdf_kat::CmacKdfKat;
+pub use csrng_kat::CsrngKat;
 pub use ecc384_kat::Ecc384Kat;
 pub use ecdh_kat::EcdhKat;
 pub use hkdf_kat::{Hkdf384Kat, Hkdf512Kat};
@@ -77,6 +79,9 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] SHA2-512-ACC");
     Sha2_512_384AccKat::default().execute(env.sha2_512_384_acc, env.sha_acc_lock_state)?;
+
+    cprintln!("[kat] CSRNG");
+    CsrngKat::default().execute(env.trng)?;
 
     cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;

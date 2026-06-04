@@ -26,6 +26,7 @@ impl FipsTestHook {
     pub const ECC384_CORRUPT_KEY_PAIR: u8 = 0x2C;
     pub const ECC384_ECDH_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x2D;
     pub const MLDSA87_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x2E;
+    pub const CSRNG_CORRUPT_OUTPUT: u8 = 0x30;
 
     pub const SHA1_DIGEST_FAILURE: u8 = 0x40;
     pub const SHA256_DIGEST_FAILURE: u8 = 0x41;
@@ -39,6 +40,8 @@ impl FipsTestHook {
     pub const ECC384_KEY_PAIR_GENERATE_FAILURE: u8 = 0x49;
     pub const MLDSA_VERIFY_FAILURE: u8 = 0x4A;
     pub const ECC384_ECDH_FAILURE: u8 = 0x4B;
+    pub const CSRNG_GENERATE_FAILURE: u8 = 0x4C;
+    pub const CSRNG_RESEED_FAILURE: u8 = 0x4D;
 
     // FW Load Errors
     pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;
