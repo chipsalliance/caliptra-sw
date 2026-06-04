@@ -1853,6 +1853,31 @@ impl CaliptraError {
             0x000E0094,
             "Runtime Error: Multiple CCIV contexts found"
         ),
+        (
+            RUNTIME_DISABLE_ATTESTATION_FAILED_WARM_RESET,
+            0x000E0097,
+            "Runtime Error: Disable attestation failed during warm reset"
+        ),
+        (
+            RUNTIME_DISABLE_ATTESTATION_FAILED_RESET_FLOW,
+            0x000E0098,
+            "Runtime Error: Disable attestation failed during reset flow"
+        ),
+        (
+            RUNTIME_DISABLE_ATTESTATION_FAILED_DPE_VALIDATION,
+            0x000E0099,
+            "Runtime Error: Disable attestation failed during DPE validation"
+        ),
+        (
+            RUNTIME_DISABLE_ATTESTATION_FAILED_DPE_LIMITS,
+            0x000E009A,
+            "Runtime Error: Disable attestation failed during DPE limits check"
+        ),
+        (
+            RUNTIME_DISABLE_ATTESTATION_FAILED_PCR_VALIDATION,
+            0x000E009B,
+            "Runtime Error: Disable attestation failed during PCR validation"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

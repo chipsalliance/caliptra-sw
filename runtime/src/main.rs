@@ -51,12 +51,10 @@ pub extern "C" fn entry_point() -> ! {
 
     let mut drivers = unsafe { Drivers::new_from_registers() };
     let drivers = okmutref(&mut drivers).unwrap_or_else(|e| {
-        cprintln!("[rt] RT can't load drivers");
         handle_fatal_error(e.into());
     });
 
     if cfg!(feature = "cfi") {
-        cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || {
             drivers
                 .trng
@@ -99,12 +97,10 @@ pub extern "C" fn entry_point() -> ! {
     }
 
     drivers.run_reset_flow().unwrap_or_else(|e| {
-        cprintln!("[rt] RT failed reset flow");
         handle_fatal_error(e.into());
     });
 
     if !drivers.persistent_data.get().rom.fht.is_valid() {
-        cprintln!("[rt] RT can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
     cprintln!("[rt] RT listening for mailbox commands...");
@@ -158,7 +154,6 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
-        cprintln!("[rt] WDT Expired");
         CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
     } else {
         CaliptraError::RUNTIME_GLOBAL_NMI

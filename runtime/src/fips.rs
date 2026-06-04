@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_common::cprintln;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -126,14 +125,12 @@ pub mod fips_self_test_cmd {
                 ResetReason::UpdateReset,
             )
         })?;
-        cprintln!("[rt] Verify complete");
         Ok(())
     }
 
     #[cfg_attr(feature = "cfi", cfi_mod_fn)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
-        cprintln!("[rt] FIPS self test");
         execute_kats(env)?;
         rom_integrity_test(env)?;
         copy_and_verify_image(env)?;
@@ -211,7 +208,6 @@ pub mod fips_self_test_cmd {
         let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
         if digest.0 != rom_info.sha256_digest {
             digest.zeroize();
-            cprintln!("ROM integrity test failed");
             return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
         } else {
             cfi_assert_eq_8_words(&digest.0, &rom_info.sha256_digest);

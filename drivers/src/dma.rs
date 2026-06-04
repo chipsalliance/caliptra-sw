@@ -1005,10 +1005,7 @@ impl<'a> DmaRecovery<'a> {
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
             if dma_sha.lock().read().lock() {
-                cprintln!(
-                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
-                );
-                return Err(CaliptraError::RUNTIME_INTERNAL);
+                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
             }
 
             // we only use the raw SHA accelerator driver to get the digest at the end.
@@ -1073,9 +1070,6 @@ impl<'a> DmaRecovery<'a> {
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
             if dma_sha.lock().read().lock() {
-                cprintln!(
-                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
-                );
                 return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
             }
 
