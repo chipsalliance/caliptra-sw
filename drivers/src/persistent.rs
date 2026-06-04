@@ -55,7 +55,7 @@ pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
-pub const ROM_ENTROPY_CFG_SIZE: u32 = 24;
+pub const ROM_ENTROPY_CFG_SIZE: u32 = 32;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 pub const BOOT_MODE_SIZE: u32 = 4;
 
@@ -366,6 +366,8 @@ pub struct EntropyConfiguration {
     pub configured: u32, // true if non-zero
     pub alert_threshold: u32,
     pub health_test_window: u32,
+    pub rng_bit_enable: u32,
+    pub rng_bit_sel: u32,
     pub repcnt_threshold: u32,
     pub adaptp_hi_threshold: u32,
     pub adaptp_lo_threshold: u32,
@@ -903,10 +905,10 @@ mod tests {
             (offset_of!(RomPersistentData, cleared_non_fatal_fw_error), 60532, "cleared_non_fatal_fw_error"),
             (offset_of!(RomPersistentData, ocp_lock_metadata), 60536, "ocp_lock_metadata"),
             (offset_of!(RomPersistentData, entropy_cfg), 60544, "entropy_cfg"),
-            (offset_of!(RomPersistentData, boot_mode), 60568, "boot_mode"),
-            (offset_of!(RomPersistentData, major_version), 60572, "major_version"),
-            (offset_of!(RomPersistentData, minor_version), 60574, "minor_version"),
-            (offset_of!(RomPersistentData, marker), 60576, "marker"),
+            (offset_of!(RomPersistentData, boot_mode), 60576, "boot_mode"),
+            (offset_of!(RomPersistentData, major_version), 60580, "major_version"),
+            (offset_of!(RomPersistentData, minor_version), 60582, "minor_version"),
+            (offset_of!(RomPersistentData, marker), 60584, "marker"),
         ];
 
         for (actual, expected, name) in actual_expected {

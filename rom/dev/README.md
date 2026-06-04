@@ -83,6 +83,8 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 | Register                         | Field/Bits    | Description                                             |
 | :------------------------------- | :------------ | :------------------------------------------------------ |
 | SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 512). This is the window size for all health tests when entropy is tested in FIPS mode. |
+| SS_STRAP_GENERIC[2]              | [16]    | Entropy source single-bit mode. When set to 1, ROM enables `rng_bit_enable` and clears `threshold_scope`. |
+| SS_STRAP_GENERIC[2]              | [18:17] | Entropy source single-bit mode `rng_bit_sel`. Selects which RNG bit stream to process when single-bit mode is enabled. |
 | SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 1536). The test fails if any window has more than this threshold of 1's. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 512). The test fails if any window has less than this threshold of 1's. |
