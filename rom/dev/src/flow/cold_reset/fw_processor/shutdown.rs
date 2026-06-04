@@ -23,7 +23,8 @@ impl ShutdownCmd {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
-        // Zero value of response buffer is good
+        // The firmware processor zeroizes state before sending this response,
+        // then enters a terminal shutdown state after the response is sent.
         Ok(core::mem::size_of::<MailboxRespHeader>())
     }
 }

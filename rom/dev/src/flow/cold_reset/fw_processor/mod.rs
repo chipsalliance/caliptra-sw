@@ -40,6 +40,7 @@ use caliptra_image_verify::{
     ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier, MAX_FIRMWARE_SVN,
 };
 use caliptra_kat::KatsEnv;
+use caliptra_registers::doe::DoeReg;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
 use dma::AesDmaMode;
@@ -494,6 +495,10 @@ impl FirmwareProcessor {
                         .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
                     mailbox::populate_checksum(response);
 
+                    if CommandId::from(cmd) == CommandId::SHUTDOWN {
+                        Self::zeroize_shutdown_state(env.trng)?;
+                    }
+
                     txn.send_response(response)?;
                 } else {
                     // Response length of 0 indicates failure (e.g., self test commands)
@@ -514,7 +519,8 @@ impl FirmwareProcessor {
                         }
                     }
                     CommandId::SHUTDOWN =>
-                    // Causing a ROM Fatal Error will zeroize the module
+                    // Zeroization was performed before acknowledging the command;
+                    // the fatal error parks ROM in the terminal shutdown state.
                     {
                         Err(CaliptraError::RUNTIME_SHUTDOWN)?
                     }
@@ -522,6 +528,28 @@ impl FirmwareProcessor {
                 };
             }
         }
+    }
+
+    fn zeroize_shutdown_state(trng: &mut Trng) -> CaliptraResult<()> {
+        let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
+        doe.clear_secrets()?;
+        trng.zeroize()?;
+
+        unsafe {
+            Aes::zeroize();
+            Ecc384::zeroize();
+            Hmac::zeroize();
+            Mldsa87::zeroize_no_wait();
+            MlKem1024::zeroize_no_wait();
+            Sha256::zeroize();
+            Sha2_512_384::zeroize();
+            Sha2_512_384Acc::zeroize();
+            Sha3::zeroize();
+            KeyVault::zeroize();
+            Sha2_512_384Acc::lock();
+        }
+
+        Ok(())
     }
 
     /// Load the manifest
