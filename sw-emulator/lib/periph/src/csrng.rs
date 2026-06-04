@@ -9,7 +9,6 @@ use caliptra_registers::entropy_src::regs::{
 };
 use sha3::{Digest, Sha3_384};
 use std::mem;
-use tock_registers::interfaces::Readable;
 
 mod health_test;
 use health_test::HealthTester;
@@ -63,8 +62,8 @@ pub struct Csrng {
     #[register(offset = 0x1024, write_fn = conf_write)]
     conf: u32,
 
-    #[register(offset = 0x1030)]
-    health_test_windows: ReadOnlyRegister<u32>,
+    #[register(offset = 0x1030, write_fn = health_test_windows_write)]
+    health_test_windows: u32,
 
     #[register(offset = 0x1034, write_fn = repcnt_thresholds_write)]
     repcnt_thresholds: u32,
@@ -116,7 +115,7 @@ impl Csrng {
             sw_regupd: 1, // Reset value: enabled (writable)
             module_enable: 0x9,
             conf: 0x909099,
-            health_test_windows: ReadOnlyRegister::new(0x600200),
+            health_test_windows: 0x600200,
             repcnt_thresholds: 0xffffffff,
             repcnts_thresholds: 0xffffffff,
             adaptp_hi_thresholds: 0xffffffff,
@@ -222,7 +221,7 @@ impl Csrng {
             unimplemented!("emulation of non-FIPS mode");
         }
 
-        self.health_tester.test_boot_window();
+        self.health_tester.test_startup_windows();
 
         Ok(())
     }
@@ -233,6 +232,29 @@ impl Csrng {
             return Ok(()); // Silently ignore writes when locked
         }
         self.conf = data;
+
+        let threshold_scope =
+            ConfReadVal::from(self.conf).threshold_scope() == MultiBitBool::True as u32;
+        self.health_tester
+            .adaptp
+            .set_threshold_scope(threshold_scope);
+
+        Ok(())
+    }
+
+    /// HEALTH_TEST_WINDOWS write handler.
+    /// Sets the FIPS health-test window size in clock cycles. Each clock
+    /// produces a 4-bit RNG nibble, so `window_size_bits = 4 * FIPS_WINDOW`.
+    /// Protected by SW_REGUPD just like the other configuration registers.
+    fn health_test_windows_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        if self.sw_regupd == 0 {
+            return Ok(());
+        }
+        self.health_test_windows = data;
+
+        let fips_window = HealthTestWindowsReadVal::from(data).fips_window() as usize;
+        let window_size_bits = BITS_PER_NIBBLE * fips_window;
+        self.health_tester.set_window_size_bits(window_size_bits);
         Ok(())
     }
 
@@ -288,7 +310,7 @@ impl Csrng {
     }
 
     fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+        // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_core.sv
         //
@@ -328,9 +350,6 @@ impl Csrng {
     /// This is only done AFTER boot/instantiate is complete to avoid consuming entropy that's
     /// needed for seed conditioning in tests with limited entropy.
     fn simulate_continuous_health_testing(&mut self) {
-        const HEALTH_TEST_WINDOW_BITS: usize = 2048;
-        const NUM_NIBBLES: usize = HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
-
         // Only run continuous testing if:
         // 1. The module is enabled
         // 2. Boot/instantiate has completed (so we don't consume entropy needed for seed conditioning)
@@ -341,8 +360,10 @@ impl Csrng {
             return;
         }
 
+        let num_nibbles = self.health_tester.window_size_bits() / BITS_PER_NIBBLE;
+
         // Consume a window's worth of entropy through the health testers
-        for _ in 0..NUM_NIBBLES {
+        for _ in 0..num_nibbles {
             if let Some(nibble) = self.health_tester.next() {
                 // The nibble was already fed through health testers in HealthTester::next()
                 let _ = nibble;
@@ -424,13 +445,9 @@ impl Csrng {
     fn get_conditioned_seed(&mut self) -> Seed {
         // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
         const NUM_TEST_WINDOWS: usize = 2;
-        const BITS_PER_CYCLE: usize = 4;
         const BITS_PER_BLOCK: usize = 8 * mem::size_of::<u64>();
 
-        let window_size_bits = {
-            let w = HealthTestWindowsReadVal::from(self.health_test_windows.reg.get());
-            BITS_PER_CYCLE * w.fips_window() as usize
-        };
+        let window_size_bits = self.health_tester.window_size_bits();
         let num_blocks = NUM_TEST_WINDOWS * window_size_bits / BITS_PER_BLOCK;
 
         let mut hasher = Sha3_384::new();
@@ -441,7 +458,7 @@ impl Csrng {
 
             let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
                 let nibble = self.health_tester.next().expect(
-                    "itrng iterator should provide at least two 2048 bit windows in FIPS mode",
+                    "itrng iterator should provide at least two health-test windows in FIPS mode",
                 );
                 packed | (u64::from(nibble) << (i * BITS_PER_NIBBLE))
             });
