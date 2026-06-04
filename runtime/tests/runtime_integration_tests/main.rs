@@ -14,6 +14,8 @@ mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
 mod test_mailbox;
+#[cfg(feature = "mldsa_attestation")]
+mod test_mldsa_verify;
 mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;

@@ -663,6 +663,27 @@ int rt_test_all_commands(const test_info* info)
         printf("LMS Verify: OK\n");
     }
 
+    // MLDSA87_SIGNATURE_VERIFY
+    struct caliptra_mldsa87_signature_verify_req mldsa_req = {};
+
+    status = caliptra_mldsa87_signature_verify(&mldsa_req, false);
+
+    // Not testing for full success.
+    // An all-zero public key + signature is well-formed wire-wise (chksum is
+    // populated by the SDK and `_sig_pad` defaults to zero) but is rejected
+    // by the verify algorithm. Seeing RUNTIME_MLDSA87_VERIFY_FAILED here
+    // proves the FW recognized the new MDSV command and routed it to the
+    // ML-DSA-87 verify code path.
+    uint32_t RUNTIME_MLDSA87_VERIFY_FAILED = 0xE0062;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_MLDSA87_VERIFY_FAILED) {
+        printf("MLDSA87 Signature Verify unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("MLDSA87 Signature Verify: OK\n");
+    }
+
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
     struct caliptra_stash_measurement_resp stash_resp;

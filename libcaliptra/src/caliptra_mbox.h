@@ -35,6 +35,7 @@ enum mailbox_command {
     OP_GET_RT_ALIAS_CERT             = 0x43455252, // "CERR"
     OP_ECDSA384_VERIFY               = 0x53494756, // "SIGV"
     OP_LMS_VERIFY                    = 0x4C4D5356, // "LMSV"
+    OP_MLDSA87_SIGNATURE_VERIFY      = 0x4D445356, // "MDSV"
     OP_STASH_MEASUREMENT             = 0x4D454153, // "MEAS"
     OP_INVOKE_DPE_COMMAND            = 0x44504543, // "DPEC"
     OP_DISABLE_ATTESTATION           = 0x4453424C, // "DSBL"

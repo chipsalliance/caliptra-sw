@@ -14,11 +14,15 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_common::mailbox_api::Mldsa87VerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, LmsResult,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::{Mldsa87, Mldsa87Result};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
@@ -125,6 +129,30 @@ impl LmsVerifyCmd {
         )?;
         if success != LmsResult::Success {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
+        }
+
+        Ok(MailboxResp::default())
+    }
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub struct Mldsa87VerifyCmd;
+#[cfg(feature = "mldsa_attestation")]
+impl Mldsa87VerifyCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(_drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        let cmd = Mldsa87VerifyReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        // Reserved padding byte must be zero per RFC #3700.
+        if cmd._sig_pad != 0 {
+            return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_INVALID_PADDING);
+        }
+
+        let result = Mldsa87::verify(&cmd.pub_key, &cmd.signature, &cmd.message)?;
+        if result != Mldsa87Result::Success {
+            return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
 
         Ok(MailboxResp::default())

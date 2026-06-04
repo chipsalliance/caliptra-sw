@@ -1058,6 +1058,21 @@ int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// ML-DSA-87 Signature Verify (RFC #3700)
+int caliptra_mldsa87_signature_verify(struct caliptra_mldsa87_signature_verify_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_MLDSA87_SIGNATURE_VERIFY, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async)
 {
