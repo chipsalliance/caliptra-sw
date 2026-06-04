@@ -98,14 +98,20 @@ impl RomEnv {
     /// Create the ROM environment. CFI must be initialized before calling this.
     /// Takes ownership of the pre-created TRNG.
     pub unsafe fn new_from_registers(mut trng: Trng) -> CaliptraResult<Self> {
-        // Create SocIfc early so we can start the WDT before running AES KATs
         let mut soc_ifc = SocIfc::new(SocIfcReg::new());
 
         // Start the Watchdog Timer before running KATs
         crate::wdt::start_wdt(&mut soc_ifc);
 
-        // Create AesGcm which runs the GCM and CMAC-KDF KATs at construction time
+        #[cfg(not(feature = "fake-rom"))]
         let aes_gcm = AesGcm::new(AesReg::new(), AesClpReg::new(), &mut trng)?;
+        #[cfg(feature = "fake-rom")]
+        let aes_gcm = {
+            let _ = &mut trng;
+            // SAFETY: fake ROM is emulation-only and not FIPS compliant; skipping
+            // the AES KATs here is acceptable and required to fit the ROM size.
+            unsafe { AesGcm::new_skip_kats(AesReg::new(), AesClpReg::new()) }
+        };
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
