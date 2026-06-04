@@ -292,6 +292,10 @@ impl Csrng {
     pub fn uninstantiate(mut self) {
         let _ = send_command(&mut self.csrng, Command::Uninstantiate);
     }
+
+    pub fn zeroize(&mut self) -> CaliptraResult<()> {
+        send_command(&mut self.csrng, Command::Uninstantiate)
+    }
 }
 
 fn check_for_alert_state(

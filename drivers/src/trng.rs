@@ -137,4 +137,25 @@ impl Trng {
         result[12..].copy_from_slice(&b.0[..4]);
         Ok(Array4x16::from(result))
     }
+
+    pub fn generate8(&mut self) -> CaliptraResult<crate::Array4x8> {
+        let a = self.generate()?;
+        let mut result = [0u32; 8];
+        result.copy_from_slice(&a.0[..8]);
+        Ok(crate::Array4x8::from(result))
+    }
+
+    pub fn zeroize(&mut self) -> CaliptraResult<()> {
+        extern "C" {
+            fn cfi_panic_handler(code: u32) -> !;
+        }
+
+        match self {
+            Self::Internal(csrng) => csrng.zeroize(),
+            Self::External(_) | Self::MfgMode() => Ok(()),
+            _ => unsafe {
+                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+            },
+        }
+    }
 }
