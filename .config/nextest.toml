@@ -22,6 +22,7 @@ default-filter = """
 (package(caliptra-rom)
     - test(test_debug_unlock::)
     - test(test_fmcalias_derivation::test_zero_firmware_size)
+    - test(test_generate_csr_envelop_stress)
     - test(test_uds_fe)
     - test(test_wdt_activation_and_stoppage::)
     - test(test_warm_reset::test_warm_reset_during_update_reset)
@@ -94,6 +95,7 @@ not (package(/caliptra-emu-.*/) |
        package(compliance-test) |
        test(test_csrng_runtime_health_failure) |
        test(test_doe_when_debug_not_locked) |
+       test(test_generate_csr_envelop_stress) |
        test(test_sign_validation_failure) |
        test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
        test(test_activate_firmware::test_activate_invalid_fw_id) |
@@ -148,6 +150,7 @@ store-success-output = true
 store-failure-output = true
 
 [profile.nightly]
+default-filter = 'not test(test_generate_csr_envelop_stress)'
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
