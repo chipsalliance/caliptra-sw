@@ -8,7 +8,7 @@ https://opentitan.org/book/sw/device/lib/dif/dif_entropy_src_h.html
 https://opentitan.org/book/sw/device/lib/dif/dif_csrng_h.html
 
 An overview of the entropy_src and CSRNG peripherals can be found at:
-https://opentitan.org/book/hw/ip/entropy_src/index.html
+https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html
 https://opentitan.org/book/hw/ip/csrng/index.html
 
 File Name:
@@ -228,7 +228,7 @@ impl Csrng {
 fn check_for_alert_state(
     entropy_src: entropy_src::RegisterBlock<caliptra_ureg::RealMmio>,
 ) -> CaliptraResult<()> {
-    // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+    // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
     // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
     const ALERT_HANG: u32 = 0x1fb;
     const CONT_HT_RUNNING: u32 = 0x1a2;
@@ -467,12 +467,14 @@ fn read_entropy_configuration(
 
     // If the SoC doesn't override the ADAPTP thresholds, use 75% and 25% of the
     // per-lane FIPS window size for the default HI and LO thresholds respectively.
+    // Per NIST SP 800-90B Section 4.4.2, these correspond to roughly
+    // 0.6 min-entropy (Table 2).
     //
     // Each clock samples one bit on each of the 4 RNG lanes, so the per-lane
     // window in bits is exactly `health_test_window` (the FIPS_WINDOW value
     // written to the HEALTH_TEST_WINDOWS register). The defaults therefore
     // scale automatically when the SoC overrides the window size.
-    // https://opentitan.org/book/hw/ip/entropy_src/index.html#description
+    // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
     let adaptp_per_lane_window_bits = health_test_window;
     let adaptp_default_hi = 3 * (adaptp_per_lane_window_bits / 4);
     let adaptp_default_lo = adaptp_per_lane_window_bits / 4;

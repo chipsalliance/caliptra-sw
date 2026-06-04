@@ -7,7 +7,7 @@ File Name:
     csrng_fail_adaptp_tests.rs
 
 Abstract:
-    https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#adaptive-proportion-test
+    https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#adaptive-proportion-test
 
     File contains test cases for CSRNG API when the physical entropy source
     has a strong bias to produce too many or too little 1's (and vice-versa for

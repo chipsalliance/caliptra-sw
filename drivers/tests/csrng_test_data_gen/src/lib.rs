@@ -17,7 +17,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
-/// Number of nibbles in a single boot-time health window. With 4 lanes
+/// Number of nibbles in a single startup health-test window. With 4 lanes
 /// each lane is scored over `WINDOW_NIBBLES` bits per window.
 pub const WINDOW_NIBBLES: usize = 1024;
 

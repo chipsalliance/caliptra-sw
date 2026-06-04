@@ -221,7 +221,7 @@ impl Csrng {
             unimplemented!("emulation of non-FIPS mode");
         }
 
-        self.health_tester.test_boot_window();
+        self.health_tester.test_startup_windows();
 
         Ok(())
     }
@@ -310,7 +310,7 @@ impl Csrng {
     }
 
     fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+        // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_core.sv
         //

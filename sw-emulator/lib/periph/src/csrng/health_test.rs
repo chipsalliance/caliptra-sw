@@ -17,7 +17,7 @@ pub struct HealthTester {
     pub repcnt: RepetitionCountTester,
     pub repcnts: RepetitionCountSymbolTester,
     pub adaptp: AdaptiveProportionTester,
-    boot_time_nibbles: Vec<u8>,
+    startup_nibbles: Vec<u8>,
     window_size_bits: usize,
 }
 
@@ -28,7 +28,7 @@ impl HealthTester {
             repcnt: RepetitionCountTester::new(),
             repcnts: RepetitionCountSymbolTester::new(),
             adaptp: AdaptiveProportionTester::new(),
-            boot_time_nibbles: Vec::new(),
+            startup_nibbles: Vec::new(),
             window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
         }
     }
@@ -46,14 +46,14 @@ impl HealthTester {
         self.adaptp.set_window_size_bits(bits);
     }
 
-    pub fn test_boot_window(&mut self) {
-        // The RTL tests TWO consecutive windows during boot-time health testing.
+    pub fn test_startup_windows(&mut self) {
+        // The RTL tests two consecutive windows during startup health testing.
         // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
-        // Only after both windows pass does boot complete.
-        const NUM_BOOT_WINDOWS: usize = 2;
-        let num_nibbles = NUM_BOOT_WINDOWS * self.window_size_bits / BITS_PER_NIBBLE;
+        // Only after both windows pass does startup complete.
+        const NUM_STARTUP_WINDOWS: usize = 2;
+        let num_nibbles = NUM_STARTUP_WINDOWS * self.window_size_bits / BITS_PER_NIBBLE;
 
-        self.boot_time_nibbles = self
+        self.startup_nibbles = self
             .itrng_nibbles
             .by_ref()
             .take(num_nibbles)
@@ -65,13 +65,13 @@ impl HealthTester {
             .collect();
 
         assert_eq!(
-            self.boot_time_nibbles.len(),
+            self.startup_nibbles.len(),
             num_nibbles,
-            "itrng iterator should provide at least {num_nibbles} nibbles for boot-time health testing"
+            "itrng iterator should provide at least {num_nibbles} nibbles for startup health testing"
         );
 
         // We'll want to pull these FIFO.
-        self.boot_time_nibbles.reverse();
+        self.startup_nibbles.reverse();
     }
 
     pub fn failures(&self) -> u32 {
@@ -86,8 +86,8 @@ impl Iterator for HealthTester {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(nibble) = self.boot_time_nibbles.pop() {
-            // First yield any boot-time nibbles we saved while health testing.
+        if let Some(nibble) = self.startup_nibbles.pop() {
+            // First yield any startup nibbles we saved while health testing.
             Some(nibble)
         } else {
             // Then yield directly from the TRNG. Feed nibbles through health checks
@@ -166,10 +166,8 @@ pub struct AdaptiveProportionTester {
     hi_threshold: u32,
     lo_failures: u32,
     hi_failures: u32,
-    // When true, the test scores the sum of ones across all RNG lanes
-    // against hi/lo thresholds (mubi4 strict-true value). When false,
-    // the test scores each lane individually: a failure is counted if
-    // any lane's count exceeds hi or falls below lo.
+    // Reset/default is false, matching CONF.THRESHOLD_SCOPE. ROM configures
+    // false as well; conf_write updates this if software chooses true.
     threshold_scope: bool,
     per_lane_ones: [u32; BITS_PER_NIBBLE],
     num_bits_seen: usize,
@@ -430,7 +428,7 @@ mod tests {
         assert!(t.hi_failures() >= 1);
     }
 
-    /// The boot-time path runs two consecutive windows; failures
+    /// The startup path runs two consecutive windows; failures
     /// accumulate.
     #[test]
     fn failures_accumulate_across_windows() {

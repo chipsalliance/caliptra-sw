@@ -848,7 +848,7 @@ fn test_negative_lms() {
 fn trng_nibbles() -> impl Iterator<Item = u8> + Clone {
     // reversed form of
     // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
-    // cycled infintely to provide enough entropy bits for FIPS boot-time health checks
+    // cycled infinitely to provide enough entropy bits for FIPS startup health checks
     const TRNG_ENTROPY: &str = "749ED7B4E3DE4E72D5CF367FD9D137113493B80AAA65CD17ABEBCE4FB4E8150105CC347E06539656786DA75F56B36F33";
 
     TRNG_ENTROPY
@@ -931,7 +931,7 @@ fn test_csrng_repetition_count() {
         let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
 
         let itrng_nibbles = Box::new({
-            // The boot-time health testing requires two consecutive 4096-bit
+            // Startup health testing requires two consecutive 4096-bit
             // windows to pass or fail health tests. So let's set up our windows
             // to begin with the repeated bits followed by known good entropy.
             const NUM_TEST_WINDOW_NIBBLES: usize = 4096 / 4;
@@ -1033,7 +1033,7 @@ fn test_csrng_adaptive_proportion() {
         PASS,
         Box::new({
             const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1024_ones_3072_zeros");
-            // Boot-time health checks require testing two 4096 bit windows.
+            // Startup health checks require testing two 4096-bit windows.
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
@@ -1200,19 +1200,19 @@ fn test_csrng_runtime_health_failure() {
     )
     .unwrap();
 
-    // Provide just enough good entropy for boot health testing (two 4096-bit windows),
+    // Provide just enough good entropy for startup health testing (two 4096-bit windows),
     // then switch to bad entropy. The bad entropy (stuck at all 1s) will cause
     // the repetition count test to fail during subsequent generate operations.
     //
-    // Boot health testing: 2 windows × 1024 nibbles = 2048 nibbles
+    // Startup health testing: 2 windows x 1024 nibbles = 2048 nibbles
     // These nibbles are stored and re-used during instantiate.
     // During generate, once stored nibbles are exhausted, bad entropy kicks in.
-    const BOOT_WINDOW_NIBBLES: usize = 4096 / 4; // 1024 nibbles per window
-    const BOOT_NIBBLES: usize = BOOT_WINDOW_NIBBLES * 2; // Two windows for boot
+    const STARTUP_WINDOW_NIBBLES: usize = 4096 / 4; // 1024 nibbles per window
+    const STARTUP_NIBBLES: usize = STARTUP_WINDOW_NIBBLES * 2; // Two startup windows
 
     let itrng_nibbles = Box::new(
         trng_nibbles()
-            .take(BOOT_NIBBLES)
+            .take(STARTUP_NIBBLES)
             .chain(iter::repeat(0b1111)), // Stuck at all 1s - will fail repcnt
     );
 
