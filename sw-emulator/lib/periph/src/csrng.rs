@@ -151,6 +151,15 @@ impl Csrng {
                 }
             }
 
+            CmdReqState::ReseedWords { num_words } => {
+                self.seed.push(data);
+                if self.seed.len() == num_words {
+                    self.ctr_drbg.reseed(Instantiate::Words(&self.seed));
+                    self.seed.clear();
+                    self.cmd_req_state = CmdReqState::NewCommand;
+                }
+            }
+
             CmdReqState::UpdateWords { num_words } => {
                 self.update.push(data);
                 if self.update.len() == num_words {
@@ -382,6 +391,7 @@ impl Csrng {
 
     fn process_new_cmd(&mut self, data: RvData) {
         const INSTANTIATE: u32 = 1;
+        const RESEED: u32 = 2;
         const GENERATE: u32 = 3;
         const UPDATE: u32 = 4;
         const UNINSTANTIATE: u32 = 5;
@@ -420,6 +430,33 @@ impl Csrng {
                     }
 
                     _ => unreachable!("invalid INSTANTIATE state: flag0={flag0}, clen={clen}"),
+                }
+            }
+
+            RESEED => {
+                const FALSE: u32 = MultiBitBool::False as u32;
+                const TRUE: u32 = MultiBitBool::True as u32;
+
+                // Mirror INSTANTIATE flag handling for RESEED.
+                match [flag0, clen] {
+                    [FALSE, 0] => {
+                        let seed = self.get_conditioned_seed();
+                        self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
+                    }
+
+                    [FALSE, _] => unimplemented!("reseed: entropy_src XOR constant"),
+
+                    [TRUE, 0] => {
+                        self.ctr_drbg.reseed(Instantiate::default());
+                    }
+
+                    [TRUE, _] => {
+                        self.cmd_req_state = CmdReqState::ReseedWords {
+                            num_words: clen as usize,
+                        };
+                    }
+
+                    _ => unreachable!("invalid RESEED state: flag0={flag0}, clen={clen}"),
                 }
             }
 
@@ -529,6 +566,7 @@ impl ExactSizeIterator for Words {
 enum CmdReqState {
     NewCommand,
     SeedWords { num_words: usize },
+    ReseedWords { num_words: usize },
     UpdateWords { num_words: usize },
 }
 

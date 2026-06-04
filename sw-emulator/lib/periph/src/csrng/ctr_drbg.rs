@@ -72,6 +72,17 @@ impl CtrDrbg {
         self.update(seed_material);
     }
 
+    pub fn reseed(&mut self, seed: Instantiate) {
+        // SP 800-90A Reseed updates the existing Key/V instead of zeroing it.
+        // This matches RTL deterministic mode: flag0 zeroes entropy, then RES
+        // updates current Key/V with cmdreq_adata.
+        let seed_material = match seed {
+            Instantiate::Words(words) => massage_seed(words),
+            Instantiate::Bytes(bytes) => *bytes,
+        };
+        self.update(seed_material);
+    }
+
     pub fn generate(&mut self, num_128_bit_blocks: usize) {
         // Section 10.2.1.5 (page 55).
 

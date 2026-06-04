@@ -10,7 +10,7 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError};
+use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, TrngMode};
 use common::*;
 use zerocopy::IntoBytes;
 
@@ -72,11 +72,28 @@ pub fn fw_load_halt_check_no_output() {
 }
 
 fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
+    self_test_failure_flow_rom_inner(hook_code, exp_error_code, None);
+}
+
+// CSRNG hooks only fire on the internal CTR_DRBG path; on the default emulated
+// model the trng_mode resolves to External absent the `itrng` feature, in
+// which case 'Csrng::generate12' is never called and the KAT silently no-ops.
+// Force Internal TRNG mode so the hook can drive the failure path.
+fn self_test_failure_flow_rom_internal_trng(hook_code: u8, exp_error_code: u32) {
+    self_test_failure_flow_rom_inner(hook_code, exp_error_code, Some(TrngMode::Internal));
+}
+
+fn self_test_failure_flow_rom_inner(
+    hook_code: u8,
+    exp_error_code: u32,
+    trng_mode: Option<TrngMode>,
+) {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
     let mut hw = fips_test_init_to_boot_start(
         Some(InitParams {
             rom: &rom,
+            trng_mode,
             ..Default::default()
         }),
         Some(BootParams {
@@ -128,6 +145,7 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     } else {
         hw = fips_test_init_model(Some(InitParams {
             rom: &rom,
+            trng_mode,
             ..Default::default()
         }))
     }
@@ -144,6 +162,20 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
 }
 
 fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
+    self_test_failure_flow_rt_inner(hook_code, exp_error_code, None);
+}
+
+// See note on 'self_test_failure_flow_rom_internal_trng' -- the runtime KAT
+// path also requires Internal TRNG mode for the CSRNG hooks to be reachable.
+fn self_test_failure_flow_rt_internal_trng(hook_code: u8, exp_error_code: u32) {
+    self_test_failure_flow_rt_inner(hook_code, exp_error_code, Some(TrngMode::Internal));
+}
+
+fn self_test_failure_flow_rt_inner(
+    hook_code: u8,
+    exp_error_code: u32,
+    trng_mode: Option<TrngMode>,
+) {
     // Build FW with test hooks and init to runtime
     let fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
@@ -154,8 +186,13 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     .to_bytes()
     .unwrap();
 
+    let init_params = trng_mode.map(|tm| InitParams {
+        trng_mode: Some(tm),
+        ..Default::default()
+    });
+
     let mut hw = fips_test_init_to_rt(
-        None,
+        init_params,
         Some(BootParams {
             fw_image: Some(&fw_image),
             ..Default::default()
@@ -221,7 +258,10 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         hw.cold_reset();
     } else {
-        hw = fips_test_init_model(None)
+        hw = fips_test_init_model(trng_mode.map(|tm| InitParams {
+            trng_mode: Some(tm),
+            ..Default::default()
+        }))
     }
     hw.boot(BootParams::default()).unwrap();
     hw.step_until(|m| {
@@ -377,6 +417,57 @@ pub fn kat_sha2_512_384acc_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
         u32::from(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH),
+    );
+}
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_csrng_generate_failure_rom() {
+    self_test_failure_flow_rom_internal_trng(
+        FipsTestHook::CSRNG_GENERATE_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_GENERATE_FAILURE),
+    );
+}
+
+#[test]
+pub fn kat_csrng_generate_failure_rt() {
+    self_test_failure_flow_rt_internal_trng(
+        FipsTestHook::CSRNG_GENERATE_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_GENERATE_FAILURE),
+    );
+}
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_csrng_digest_mismatch_rom() {
+    self_test_failure_flow_rom_internal_trng(
+        FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+        u32::from(CaliptraError::KAT_CSRNG_DIGEST_MISMATCH),
+    );
+}
+
+#[test]
+pub fn kat_csrng_digest_mismatch_rt() {
+    self_test_failure_flow_rt_internal_trng(
+        FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+        u32::from(CaliptraError::KAT_CSRNG_DIGEST_MISMATCH),
+    );
+}
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_csrng_reseed_failure_rom() {
+    self_test_failure_flow_rom_internal_trng(
+        FipsTestHook::CSRNG_RESEED_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_RESEED_FAILURE),
+    );
+}
+
+#[test]
+pub fn kat_csrng_reseed_failure_rt() {
+    self_test_failure_flow_rt_internal_trng(
+        FipsTestHook::CSRNG_RESEED_FAILURE,
+        u32::from(CaliptraError::KAT_CSRNG_RESEED_FAILURE),
     );
 }
 
