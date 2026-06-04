@@ -26,7 +26,7 @@ use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::HexSlice;
+use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::io::Write;
@@ -573,6 +573,15 @@ impl ModelFpgaSubsystem {
         }
         for i in 0..16 {
             self.wrapper.regs().cptra_csr_hmac_key[i].set(csr_hmac_key[i]);
+        }
+
+        // Write UDS seed and field entropy to strap registers so that
+        // set_secrets_valid(true) gives DOE deterministic values.
+        for (i, &val) in DEFAULT_UDS_SEED.iter().enumerate() {
+            self.wrapper.regs().cptra_obf_uds_seed[i].set(val);
+        }
+        for (i, &val) in DEFAULT_FIELD_ENTROPY.iter().enumerate() {
+            self.wrapper.regs().cptra_obf_field_entropy[i].set(val);
         }
 
         // Use strap UDS and FE for deterministic IDevID on FPGA when requested

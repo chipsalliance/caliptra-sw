@@ -191,12 +191,12 @@ fn enter_idle(drivers: &mut Drivers) {
     caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
 }
 
-fn human_readable_command(bytes: &[u8]) -> Option<&str> {
+fn human_readable_command(bytes: &[u8]) -> &str {
     if bytes.len() == 4 && bytes.iter().all(|c| c.is_ascii_alphanumeric()) {
         // Safety: we just checked that all bytes are ASCII.
-        Some(unsafe { core::str::from_utf8_unchecked(bytes) })
+        unsafe { core::str::from_utf8_unchecked(bytes) }
     } else {
-        None
+        "?"
     }
 }
 
@@ -246,20 +246,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let cmd_bytes = req_packet.as_bytes()?;
     let cmd_id = req_packet.cmd;
 
-    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
-        cprintln!(
-            "[rt] Received command=0x{:x} ({}), len={}",
-            req_packet.cmd,
-            ascii,
-            req_packet.payload().len()
-        );
-    } else {
-        cprintln!(
-            "[rt] Received command=0x{:x}, len={}",
-            req_packet.cmd,
-            req_packet.payload().len()
-        );
-    }
+    cprintln!(
+        "[rt] Received command=0x{:x} ({}), len={}",
+        req_packet.cmd,
+        human_readable_command(&cmd_id.to_be_bytes()),
+        req_packet.payload().len()
+    );
 
     // Check for EXTERNAL_MAILBOX_CMD and handle FIRMWARE_VERIFY specially
     if drivers.soc_ifc.subsystem_mode()
@@ -632,22 +624,13 @@ fn handle_external_mailbox_cmd(
     // FIRMWARE_VERIFY is handled earlier in handle_command() before this function is called
     cfi_assert_ne(cmd_id, CommandId::FIRMWARE_VERIFY.into());
 
-    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
-        cprintln!(
-            "[rt] Loading external command=0x{:x} ({}), len={} from AXI address: 0x{:x}",
-            external_cmd.command_id,
-            ascii,
-            external_cmd.command_size,
-            u64::from(axi_addr),
-        );
-    } else {
-        cprintln!(
-            "[rt] Loading external command=0x{:x}, len={} from AXI address: 0x{:x}",
-            external_cmd.command_id,
-            external_cmd.command_size,
-            u64::from(axi_addr),
-        );
-    }
+    cprintln!(
+        "[rt] Loading external command=0x{:x} ({}), len={} from AXI address: 0x{:x}",
+        external_cmd.command_id,
+        human_readable_command(&cmd_id.to_be_bytes()),
+        external_cmd.command_size,
+        u64::from(axi_addr),
+    );
     // check that the command is not too large
     if external_cmd.command_size as usize > caliptra_common::mailbox_api::MAX_REQ_SIZE {
         return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -677,20 +660,12 @@ fn handle_external_mailbox_cmd(
         return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
     }
 
-    if let Some(ascii) = human_readable_command(&cmd_id.to_be_bytes()) {
-        cprintln!(
-            "[rt] Received external command=0x{:x} ({}), len={}",
-            cmd_id,
-            ascii,
-            cmd_bytes.len()
-        );
-    } else {
-        cprintln!(
-            "[rt] Received external command=0x{:x}, len={}",
-            cmd_id,
-            cmd_bytes.len()
-        );
-    }
+    cprintln!(
+        "[rt] Received external command=0x{:x} ({}), len={}",
+        cmd_id,
+        human_readable_command(&cmd_id.to_be_bytes()),
+        cmd_bytes.len()
+    );
 
     execute_command(drivers, cmd_id, cmd_bytes)
 }
