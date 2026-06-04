@@ -384,7 +384,10 @@ impl FirmwareProcessor {
                             // TODO: set non-fatal error register?
                             txn.complete(false)?;
                         } else {
+                            #[cfg(not(feature = "fake-rom"))]
                             run_fips_tests(env)?;
+                            #[cfg(feature = "fake-rom")]
+                            let _ = env;
                             let mut resp = MailboxRespHeader::default();
                             resp.populate_chksum();
                             txn.send_response(resp.as_bytes())?;
