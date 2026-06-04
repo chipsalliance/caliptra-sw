@@ -76,8 +76,7 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
-    // Initialize CFI before creating the rest of the environment
-    // (AesGcm::new runs KATs which have CFI annotations)
+    // Initialize CFI before creating the rest of the environment and running KATs.
     if cfg!(feature = "cfi") {
         let mut entropy_gen = || {
             trng.generate4()
@@ -92,7 +91,7 @@ pub extern "C" fn rom_entry() -> ! {
     // before any code that might use memcpy/memset (like AES KATs).
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
-    // Now create the rest of the environment (includes WDT start and AES KATs)
+    // Now create the rest of the environment and start the WDT.
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers(trng) } {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),

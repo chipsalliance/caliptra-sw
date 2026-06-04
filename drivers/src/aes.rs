@@ -193,23 +193,29 @@ impl Aes {
     /// Create a new AES driver.
     ///
     /// Runs the non-GCM KATs (ECB, CBC, CTR, CMAC) at construction time.
-    /// GCM and CMAC-KDF KATs are run by `AesGcm::new()` instead.
+    /// GCM and CMAC-KDF KATs are run by the central KAT harness.
     pub fn new(aes: AesReg, aes_clp: AesClpReg) -> CaliptraResult<Self> {
         if cfg!(feature = "rom") {
             panic!("Do not use in ROM!");
         }
         let mut aes = Self { aes, aes_clp };
         if cfg!(feature = "runtime") {
-            crate::kats::execute_ecb_kat(&mut aes)?;
-            crate::kats::execute_cbc_kat(&mut aes)?;
-            crate::kats::execute_ctr_kat(&mut aes)?;
-            crate::kats::execute_cmac_kat(&mut aes)?;
+            aes.run_kats()?;
         }
         Ok(aes)
     }
 
     fn new_gcm(aes: AesReg, aes_clp: AesClpReg) -> Self {
         Self { aes, aes_clp }
+    }
+
+    /// Run the non-GCM KATs (ECB, CBC, CTR, CMAC).
+    pub fn run_kats(&mut self) -> CaliptraResult<()> {
+        crate::kats::execute_ecb_kat(self)?;
+        crate::kats::execute_cbc_kat(self)?;
+        crate::kats::execute_ctr_kat(self)?;
+        crate::kats::execute_cmac_kat(self)?;
+        Ok(())
     }
 
     /// Seed the AES Trivium stream cipher primitive with fresh entropy.
@@ -1452,36 +1458,34 @@ impl Aes {
     }
 }
 
-/// AES-GCM driver with compile-time KAT guarantee.
+/// AES-GCM driver.
 ///
-/// This struct wraps an `Aes` driver and ensures that the GCM KAT
-/// is executed before any GCM operations can be performed.
-/// This provides compile-time guarantees similar to the `Sha1` driver.
+/// This struct wraps an `Aes` driver for GCM and CMAC operations.
+/// GCM and CMAC-KDF KATs are exposed through `run_kats()` and invoked by the
+/// central KAT harness.
 pub struct AesGcm {
     aes: Aes,
 }
 
 #[allow(clippy::too_many_arguments)]
 impl AesGcm {
-    /// Create a new AesGcm driver after running the GCM KAT.
+    /// Create a new AesGcm driver after seeding AES entropy.
     ///
-    /// Seeds the AES Trivium stream cipher with fresh entropy from the TRNG,
-    /// then runs the GCM and CMAC-KDF KATs.
+    /// Seeds the AES Trivium stream cipher with fresh entropy from the TRNG.
+    /// GCM and CMAC-KDF KATs are run by `run_kats()`.
     ///
     /// # Arguments
     ///
     /// * `aes` - AES register block
     /// * `aes_clp` - AES CLP register block
-    /// * `trng` - TRNG driver (used for entropy seeding and KATs)
+    /// * `trng` - TRNG driver used for entropy seeding
     ///
     /// # Returns
     ///
-    /// * `CaliptraResult<Self>` - The AesGcm driver if KATs pass
+    /// * `CaliptraResult<Self>` - The AesGcm driver if entropy seeding succeeds
     pub fn new(aes: AesReg, aes_clp: AesClpReg, trng: &mut Trng) -> CaliptraResult<Self> {
         let mut aes = Aes::new_gcm(aes, aes_clp);
         aes.seed_entropy_if(trng)?;
-        crate::kats::execute_gcm_kat(&mut aes, trng)?;
-        crate::kats::execute_cmackdf_kat(&mut aes)?;
         Ok(Self { aes })
     }
 
@@ -1525,8 +1529,7 @@ impl AesGcm {
 
     /// Run the GCM and CMAC-KDF KATs.
     ///
-    /// This is used by FIPS SELF_TEST command to re-run the KATs on demand.
-    /// The KATs are also run at `AesGcm::new()` construction time.
+    /// This is used by the central KAT harness.
     pub fn run_kats(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
         crate::kats::execute_gcm_kat(&mut self.aes, trng)?;
         crate::kats::execute_cmackdf_kat(&mut self.aes)?;

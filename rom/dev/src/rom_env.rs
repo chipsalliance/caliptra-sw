@@ -78,7 +78,7 @@ pub struct RomEnv {
     /// Dma engine
     pub dma: Dma,
 
-    /// AES-GCM engine (KATs run at construction after WDT starts)
+    /// AES-GCM engine
     pub aes_gcm: AesGcm,
 }
 
@@ -98,13 +98,12 @@ impl RomEnv {
     /// Create the ROM environment. CFI must be initialized before calling this.
     /// Takes ownership of the pre-created TRNG.
     pub unsafe fn new_from_registers(mut trng: Trng) -> CaliptraResult<Self> {
-        // Create SocIfc early so we can start the WDT before running AES KATs
+        // Create SocIfc early so we can start the WDT before running KATs
         let mut soc_ifc = SocIfc::new(SocIfcReg::new());
 
         // Start the Watchdog Timer before running KATs
         crate::wdt::start_wdt(&mut soc_ifc);
 
-        // Create AesGcm which runs the GCM and CMAC-KDF KATs at construction time
         let aes_gcm = AesGcm::new(AesReg::new(), AesClpReg::new(), &mut trng)?;
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
