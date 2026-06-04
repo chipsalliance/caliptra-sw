@@ -190,12 +190,76 @@ impl Csrng {
             dest.add(9).write(self.csrng.regs().genbits().read());
             dest.add(10).write(self.csrng.regs().genbits().read());
             dest.add(11).write(self.csrng.regs().genbits().read());
-            Ok(result.assume_init())
+            let out = result.assume_init();
+            #[cfg(feature = "fips-test-hooks")]
+            let out = crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+                &out,
+            );
+            Ok(out)
         }
+    }
+
+    /// Return 16 randomly generated [`u32`]s (512 bits = four 128-bit GENBITS
+    /// blocks) from a single Generate command.
+    ///
+    /// This is distinct from invoking [`Self::generate12`] / [`Self::generate4`]
+    /// multiple times because each `Generate` command performs its own internal
+    /// Update step on completion (NIST SP 800-90A). The CTR_DRBG-AES-256 NIST
+    /// CAVP known-answer vectors specify `ReturnedBitsLen = 512`, so the KAT
+    /// must request all 512 bits from one Generate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the internal generate command fails.
+    pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
+        check_for_alert_state(self.entropy_src.regs())?;
+
+        send_command(
+            &mut self.csrng,
+            Command::Generate {
+                num_128_bit_blocks: 16 / WORDS_PER_BLOCK,
+            },
+        )?;
+
+        let mut result = [0u32; 16];
+        for block in result.chunks_mut(WORDS_PER_BLOCK) {
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            for word in block.iter_mut() {
+                *word = self.csrng.regs().genbits().read();
+            }
+        }
+        #[cfg(feature = "fips-test-hooks")]
+        let result = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+                &result,
+            )
+        };
+        Ok(result)
     }
 
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
         send_command(&mut self.csrng, Command::Reseed(seed))
+    }
+
+    /// Tear down the current DRBG instance and create a new one with the
+    /// given seed.
+    ///
+    /// This requires that the CSRNG and ENTROPY_SRC peripherals have already
+    /// been enabled and configured by a prior call to [`Self::new`] /
+    /// [`Self::with_seed`]. It is used by the CTR_DRBG known-answer test to
+    /// briefly swap the live DRBG into deterministic mode (`flag0=true`) for
+    /// validation against a NIST CAVP vector and then restore an
+    /// entropy-sourced instance before returning to production use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either the internal `Uninstantiate` or
+    /// `Instantiate` command fails.
+    pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
+        send_command(&mut self.csrng, Command::Uninstantiate)?;
+        send_command(&mut self.csrng, Command::Instantiate(seed))
     }
 
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {

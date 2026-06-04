@@ -2491,6 +2491,31 @@ impl CaliptraError {
             0x900A0001,
             "ROM KAT Error: SHAKE256 digest mismatch"
         ),
+        (
+            KAT_CSRNG_INSTANTIATE_FAILURE,
+            0x900C0001,
+            "ROM KAT Error: CSRNG instantiate failure"
+        ),
+        (
+            KAT_CSRNG_GENERATE_FAILURE,
+            0x900C0002,
+            "ROM KAT Error: CSRNG generate failure"
+        ),
+        (
+            KAT_CSRNG_DIGEST_MISMATCH,
+            0x900C0003,
+            "ROM KAT Error: CSRNG output mismatch against known answer"
+        ),
+        (
+            KAT_CSRNG_RESTORE_FAILURE,
+            0x900C0004,
+            "ROM KAT Error: CSRNG failed to restore entropy-sourced instance after KAT"
+        ),
+        (
+            KAT_CSRNG_RESEED_FAILURE,
+            0x900C0005,
+            "ROM KAT Error: CSRNG reseed failure"
+        ),
         (ROM_INTEGRITY_FAILURE, 0x90080001, "ROM integrity failure"),
         (
             FIPS_HOOKS_INJECTED_ERROR,
