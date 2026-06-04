@@ -47,6 +47,7 @@ caliptra-image-crypto.workspace = true
 caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
+caliptra-mldsa.workspace = true
 openssl.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 cms.workspace = true
@@ -67,3 +68,4 @@ cfi = ["caliptra-image-verify/cfi", "caliptra-image-types/cfi", "caliptra-driver
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-kat/hw-1.0","caliptra-cpu/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+mldsa_attestation = ["caliptra-drivers/mldsa_attestation"]

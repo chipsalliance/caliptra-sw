@@ -81,6 +81,8 @@ pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use verify::Mldsa87VerifyCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxResp};
@@ -196,6 +198,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::MLDSA87_SIGNATURE_VERIFY => Mldsa87VerifyCmd::execute(drivers, cmd_bytes),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
         CommandId::DISABLE_ATTESTATION => {

@@ -61,6 +61,14 @@ Checks that the lms_signature_verify mailbox command correctly returns an error 
 Checks that the correct error is returned when an unsupported LMS algorithm type is provided in the signature to the lms_signature_verify mailbox command | **test_lms_verify_invalid_sig_lms_type** | RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM
 Checks that the correct error is returned when an unsupported LMS algorithm type is provided in the public key to the lms_signature_verify mailbox command | **test_lms_verify_invalid_key_lms_type** | RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM
 Checks that the correct error is returned when an unsupported LMS OTS algorithm type is provided to the lms_signature_verify mailbox command | **test_lms_verify_invalid_lmots_type** | RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM
+Round-trips deterministically generated ML-DSA-87 keypairs / signatures through the mldsa87_signature_verify mailbox command for two seeds and two messages | **test_mldsa87_verify_cmd** | N/A
+Checks that the mldsa87_signature_verify mailbox command rejects a single-bit-flipped signature | **test_mldsa87_verify_failure_tampered_signature** | RUNTIME_MLDSA87_VERIFY_FAILED
+Checks that the mldsa87_signature_verify mailbox command rejects a signature presented with a different message | **test_mldsa87_verify_failure_wrong_message** | RUNTIME_MLDSA87_VERIFY_FAILED
+Checks that the mldsa87_signature_verify mailbox command rejects a signature presented with a public key from a different seed | **test_mldsa87_verify_failure_wrong_pub_key** | RUNTIME_MLDSA87_VERIFY_FAILED
+Checks that the mldsa87_signature_verify mailbox command rejects an all-zero public key and signature | **test_mldsa87_verify_failure_all_zero** | RUNTIME_MLDSA87_VERIFY_FAILED
+Checks that the mldsa87_signature_verify mailbox command rejects a request with a stale (zero) checksum | **test_mldsa87_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
+Checks that the mldsa87_signature_verify mailbox command rejects a request whose reserved `_sig_pad` byte is nonzero | **test_mldsa87_verify_invalid_padding** | RUNTIME_MLDSA87_VERIFY_INVALID_PADDING
+Checks that the mldsa87_signature_verify mailbox command rejects a request that is shorter than the request struct | **test_mldsa87_verify_truncated_request** | RUNTIME_INSUFFICIENT_MEMORY
 
 
 
