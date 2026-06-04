@@ -22,6 +22,7 @@ mod test_mldsa_verify;
 mod test_panic_missing;
 mod test_pmp;
 mod test_rom_integrity;
+mod test_shutdown;
 mod test_symbols;
 mod test_uds_programming;
 mod test_update_reset;
