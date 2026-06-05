@@ -14,12 +14,9 @@ Abstract:
 
 use crate::mutrefbytes;
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_common::{
-    cprintln,
-    mailbox_api::{
-        ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
-        ProductionAuthDebugUnlockToken,
-    },
+use caliptra_common::mailbox_api::{
+    ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
+    ProductionAuthDebugUnlockToken,
 };
 use caliptra_drivers::{CaliptraResult, Lifecycle};
 use caliptra_error::CaliptraError;
@@ -65,11 +62,8 @@ impl ProductionDebugUnlock {
         let req = ProductionAuthDebugUnlockReq::read_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
 
-        cprintln!("[rt] Starting production debug unlock request");
-
         // Check if the device is in Production lifecycle
         if soc_ifc.lifecycle() != Lifecycle::Production {
-            cprintln!("[rt] Debug unlock request failed: Not in Production lifecycle");
             return Err(CaliptraError::RUNTIME_DEBUG_UNLOCK_INVALID_LIFECYCLE);
         }
 
@@ -86,8 +80,6 @@ impl ProductionDebugUnlock {
             let stored_challenge = challenge.clone();
             self.last_challenge = Some(stored_challenge);
             self.last_request = Some(req);
-
-            cprintln!("[rt] Production debug unlock challenge generated");
 
             let resp = mutrefbytes::<ProductionAuthDebugUnlockChallenge>(resp)?;
             *resp = challenge;
@@ -116,14 +108,11 @@ impl ProductionDebugUnlock {
         let token = ProductionAuthDebugUnlockToken::read_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
 
-        cprintln!("[rt] Starting production debug unlock token validation");
-
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
 
         // Check if the device is in Production lifecycle
         if soc_ifc.lifecycle() != Lifecycle::Production {
-            cprintln!("[rt] Debug unlock token validation failed: Not in Production lifecycle");
             return Err(CaliptraError::RUNTIME_DEBUG_UNLOCK_INVALID_LIFECYCLE);
         }
 
@@ -153,12 +142,10 @@ impl ProductionDebugUnlock {
         let ret = match result {
             Ok(()) => {
                 soc_ifc.set_ss_dbg_unlock_level(request.unlock_level);
-                cprintln!("[rt] Debug unlock successful");
                 soc_ifc.set_ss_dbg_unlock_result(true);
                 Ok(0)
             }
             Err(e) => {
-                cprintln!("[rt] Debug unlock failed: {}", e.0);
                 soc_ifc.set_ss_dbg_unlock_result(false);
                 Err(e)
             }

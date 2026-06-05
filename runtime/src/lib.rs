@@ -660,13 +660,6 @@ fn handle_external_mailbox_cmd(
         return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
     }
 
-    cprintln!(
-        "[rt] Received external command=0x{:x} ({}), len={}",
-        cmd_id,
-        human_readable_command(&cmd_id.to_be_bytes()),
-        cmd_bytes.len()
-    );
-
     execute_command(drivers, cmd_id, cmd_bytes)
 }
 
@@ -706,14 +699,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to cmd busy during warm reset");
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
                     );
                 }
-                Err(e) => {
-                    cprintln!("{}", e.0);
-                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                Err(_) => {
+                    return Err(CaliptraError::RUNTIME_DISABLE_ATTESTATION_FAILED_WARM_RESET);
                 }
             }
         }
