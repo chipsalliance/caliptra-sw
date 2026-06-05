@@ -21,8 +21,8 @@ use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 
 pub use caliptra_mldsa::{
-    Mldsa87Result, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
-    MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
+    MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
 
 /// ML-DSA-87 deterministic key-generation / signing seed (32 bytes).
@@ -30,6 +30,9 @@ pub type Mldsa87Seed = [u8; MLDSA87_PRIVATE_SEED_BYTES];
 
 /// ML-DSA-87 encoded public key (2,592 bytes).
 pub type Mldsa87PubKey = [u8; MLDSA87_PUBLIC_KEY_BYTES];
+
+/// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).
+pub type Mldsa87PrivKey = [u8; MLDSA87_PRIVATE_KEY_BYTES];
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
 pub type Mldsa87Signature = [u8; MLDSA87_SIGNATURE_BYTES];
@@ -48,15 +51,26 @@ pub type Mldsa87Signature = [u8; MLDSA87_SIGNATURE_BYTES];
 pub struct Mldsa87;
 
 impl Mldsa87 {
-    /// Deterministically derive the ML-DSA-87 public key from a 32-byte seed.
+    /// Deterministically derive the ML-DSA-87 public key from a 32-byte seed,
+    /// optionally also producing the FIPS 204 encoded private key (`skEncode`)
+    /// in the same key generation.
     ///
     /// # Arguments
     ///
     /// * `seed` - 32-byte private seed
     /// * `pub_key` - Buffer that receives the encoded public key
+    /// * `priv_key` - Optional buffer; if supplied, receives the encoded private
+    ///   key. Passing `None` skips private-key encoding entirely.
     #[inline(never)]
-    pub fn pub_from_seed(seed: &Mldsa87Seed, pub_key: &mut Mldsa87PubKey) -> CaliptraResult<()> {
-        Mldsa87Sw::pub_from_seed(seed, pub_key);
+    pub fn pub_from_seed(
+        seed: &Mldsa87Seed,
+        pub_key: &mut Mldsa87PubKey,
+        priv_key: Option<&mut Mldsa87PrivKey>,
+    ) -> CaliptraResult<()> {
+        match priv_key {
+            Some(priv_key) => Mldsa87Sw::key_pair_from_seed(seed, pub_key, priv_key),
+            None => Mldsa87Sw::pub_from_seed(seed, pub_key),
+        }
         Ok(())
     }
 
@@ -141,15 +155,15 @@ mod tests {
     fn test_keygen_deterministic() {
         let mut pk1 = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
         let mut pk2 = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        Mldsa87::pub_from_seed(&SEED, &mut pk1).unwrap();
-        Mldsa87::pub_from_seed(&SEED, &mut pk2).unwrap();
+        Mldsa87::pub_from_seed(&SEED, &mut pk1, None).unwrap();
+        Mldsa87::pub_from_seed(&SEED, &mut pk2, None).unwrap();
         assert_eq!(pk1, pk2);
     }
 
     #[test]
     fn test_sign_verify_roundtrip() {
         let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        Mldsa87::pub_from_seed(&SEED, &mut pk).unwrap();
+        Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
         let msg = b"caliptra pqc mldsa-87 driver round-trip";
         let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
@@ -174,7 +188,7 @@ mod tests {
     #[test]
     fn test_verify_rejects_tampered_signature() {
         let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        Mldsa87::pub_from_seed(&SEED, &mut pk).unwrap();
+        Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
         let msg = b"tamper detection";
         let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
@@ -190,7 +204,7 @@ mod tests {
     #[test]
     fn test_verify_rejects_wrong_message() {
         let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        Mldsa87::pub_from_seed(&SEED, &mut pk).unwrap();
+        Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
         let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
         Mldsa87::sign_deterministic(&SEED, b"message one", &mut sig).unwrap();
