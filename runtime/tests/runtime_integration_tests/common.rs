@@ -494,14 +494,13 @@ pub fn execute_dpe_cmd(
     }
     let resp = resp.unwrap();
 
-    let resp_bytes = &resp.data[..resp.data_size as usize];
     Some(match expected_result {
         DpeResult::Success => {
             // Peek response header so we can panic with an error code in case the command failed.
-            check_dpe_status(resp_bytes, DpeErrorCode::NoError);
-            Response::try_read_from_bytes(dpe_cmd, resp_bytes).unwrap()
+            check_dpe_status(&resp.data, DpeErrorCode::NoError);
+            Response::try_read_from_bytes(dpe_cmd, &resp.data).unwrap()
         },
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap()),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::try_read_from_prefix(&resp.data).unwrap().0),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
 }
@@ -591,9 +590,8 @@ pub fn certify_key(
                     &mut Command::from(cmd),
                     None,
                 )?;
-                let resp = resp.data[..resp.data_size as usize].to_vec();
-                check_dpe_status(&resp, DpeErrorCode::NoError);
-                resp
+                check_dpe_status(&resp.data, DpeErrorCode::NoError);
+                resp.data.to_vec()
             }
             CertifyKeyCommandNoRef::Mldsa(ref cmd) => {
                 let resp = execute_dpe_cmd_raw(
@@ -602,9 +600,8 @@ pub fn certify_key(
                     &mut Command::from(cmd),
                     None,
                 )?;
-                let resp = resp.data[..resp.data_size as usize].to_vec();
-                check_dpe_status(&resp, DpeErrorCode::NoError);
-                resp
+                check_dpe_status(&resp.data, DpeErrorCode::NoError);
+                resp.data.to_vec()
             }
         };
         let resp = Response::try_read_from_bytes(&Command::from(&*cmd), &resp).map_err(|e| {
@@ -684,6 +681,7 @@ pub fn certify_key_chunks(
         offset += chunk_len;
     }
 
+    full_resp.resize(size_of::<Response>(), 0);
     let resp = Response::try_read_from_bytes(&Command::from(&*cmd), &full_resp)
         .map_err(|e| anyhow::anyhow!("Failed to convert response into DPE response. {:?}", e))?;
     let Response::CertifyKey(resp) = resp else {
