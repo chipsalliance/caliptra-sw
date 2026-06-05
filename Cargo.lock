@@ -568,13 +568,15 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/clundin25/caliptra-dpe?branch=push-nxrzmoupqtxz#5ccbeb85bfc1a648b5bb06ef4cb66ab87a17c241"
 dependencies = [
+ "arrayvec",
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-types",
  "cfg-if",
  "constant_time_eq",
  "ufmt",
@@ -585,7 +587,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/clundin25/caliptra-dpe?branch=push-nxrzmoupqtxz#5ccbeb85bfc1a648b5bb06ef4cb66ab87a17c241"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -598,12 +600,23 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/clundin25/caliptra-dpe?branch=push-nxrzmoupqtxz#5ccbeb85bfc1a648b5bb06ef4cb66ab87a17c241"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
  "cfg-if",
  "ufmt",
+]
+
+[[package]]
+name = "caliptra-dpe-types"
+version = "0.1.0"
+source = "git+https://github.com/clundin25/caliptra-dpe?branch=push-nxrzmoupqtxz#5ccbeb85bfc1a648b5bb06ef4cb66ab87a17c241"
+dependencies = [
+ "caliptra-dpe-crypto",
+ "caliptra-dpe-platform",
+ "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
