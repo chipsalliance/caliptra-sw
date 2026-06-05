@@ -107,7 +107,8 @@ impl InvokeDpeCmd {
             }
 
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let resp = invoke_dpe_cmd(drivers, &command, None, ueid, None);
+            let mut invoke_resp = InvokeDpeResp::default();
+            let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut invoke_resp.data);
 
             if let Command::DestroyCtx(_) = command {
                 // clear tags for destroyed contexts
@@ -122,19 +123,10 @@ impl InvokeDpeCmd {
                 );
             }
 
-            let mut invoke_resp = InvokeDpeResp {
-                hdr: MailboxRespHeader::default(),
-                data_size: 0,
-                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
-            };
-
             // If DPE command failed, populate header with error code, but
             // don't fail the mailbox command.
-            match resp {
-                Ok(ref r) => {
-                    let resp_bytes = r.as_bytes();
-                    let data_size = resp_bytes.len();
-                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+            match result {
+                Ok(data_size) => {
                     invoke_resp.data_size = data_size as u32;
                 }
                 Err(ref e) => {
@@ -182,33 +174,6 @@ impl InvokeDpeCmd {
 }
 
 pub fn invoke_dpe_cmd(
-    drivers: &mut Drivers,
-    command: &Command<'_>,
-    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
-    ueid: Option<[u8; 17]>,
-    locality: Option<u32>,
-) -> Result<Response, DpeErrorCode> {
-    let locality = locality.unwrap_or(drivers.mbox.user());
-    let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
-    let env = match env.as_mut() {
-        Ok(r) => r,
-        Err(_) => Err(DpeErrorCode::InternalError)?,
-    };
-    let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-    match command {
-        Command::GetProfile(cmd) => cmd.execute(dpe, env, locality),
-        Command::InitCtx(cmd) => cmd.execute(dpe, env, locality),
-        Command::DeriveContext(cmd) => cmd.execute(dpe, env, locality),
-        Command::CertifyKey(cmd) => cmd.execute(dpe, env, locality),
-        Command::DestroyCtx(cmd) => cmd.execute(dpe, env, locality),
-        Command::Sign(cmd) => cmd.execute(dpe, env, locality),
-        Command::RotateCtx(cmd) => cmd.execute(dpe, env, locality),
-        Command::GetCertificateChain(cmd) => cmd.execute(dpe, env, locality),
-        Command::UpdateContextMeasurement(cmd) => cmd.execute(dpe, env, locality),
-    }
-}
-
-pub fn invoke_dpe_cmd_serialized(
     drivers: &mut Drivers,
     command: &Command<'_>,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,

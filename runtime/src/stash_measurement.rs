@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{invoke_dpe::invoke_dpe_cmd_serialized, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
@@ -66,7 +66,7 @@ impl StashMeasurementCmd {
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
             let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
             let derive_context_resp =
-                invoke_dpe_cmd_serialized(drivers, &command, None, ueid, Some(locality), &mut buf);
+                invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality), &mut buf);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,

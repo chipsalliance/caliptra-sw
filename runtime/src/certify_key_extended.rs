@@ -20,7 +20,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::commands::{CertifyKeyP384Cmd, Command};
 use zerocopy::FromBytes;
 
-use crate::{invoke_dpe::invoke_dpe_cmd_serialized, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
@@ -51,7 +51,7 @@ impl CertifyKeyExtendedCmd {
             .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let command = Command::from(certify_key_cmd);
         let mut certify_key_extended_resp = CertifyKeyExtendedResp::default();
-        let result = invoke_dpe_cmd_serialized(
+        let result = invoke_dpe_cmd(
             drivers,
             &command,
             dmtf_device_info,
