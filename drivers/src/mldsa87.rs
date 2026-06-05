@@ -101,6 +101,34 @@ impl Mldsa87 {
     ) -> CaliptraResult<Mldsa87Result> {
         Ok(Mldsa87Sw::verify(pub_key, sig, msg))
     }
+
+    /// Verify an ML-DSA-87 signature over `msg` using an explicit signing
+    /// `context`.
+    ///
+    /// [`Self::verify`] is equivalent to this with an empty context. This entry
+    /// point exists so the FIPS known-answer test can drive the NIST ACVP
+    /// signature-verification vectors, which use a non-empty context.
+    ///
+    /// # Arguments
+    ///
+    /// * `pub_key` - Encoded public key
+    /// * `sig` - Encoded signature
+    /// * `msg` - Message that was signed
+    /// * `context` - Signing context (domain separator)
+    ///
+    /// # Returns
+    ///
+    /// [`Mldsa87Result::Success`] if the signature is valid, otherwise
+    /// [`Mldsa87Result::SigVerifyFailed`].
+    #[inline(never)]
+    pub fn verify_with_context(
+        pub_key: &Mldsa87PubKey,
+        sig: &Mldsa87Signature,
+        msg: &[u8],
+        context: &[u8],
+    ) -> CaliptraResult<Mldsa87Result> {
+        Ok(Mldsa87Sw::verify_with_context(pub_key, sig, msg, context))
+    }
 }
 
 #[cfg(test)]

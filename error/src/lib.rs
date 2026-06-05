@@ -1709,6 +1709,16 @@ impl CaliptraError {
             "KAT Error: LMS Digest Mismatch"
         ),
         (
+            KAT_MLDSA87_SIGNATURE_VERIFY_FAILURE,
+            0x90090001,
+            "KAT Error: ML-DSA-87 Signature Verify Failure"
+        ),
+        (
+            KAT_MLDSA87_SIGNATURE_FALSE_ACCEPT,
+            0x90090002,
+            "KAT Error: ML-DSA-87 Signature False Accept"
+        ),
+        (
             ROM_INTEGRITY_FAILURE,
             0x90080001,
             "ROM Error: Integrity Failure"

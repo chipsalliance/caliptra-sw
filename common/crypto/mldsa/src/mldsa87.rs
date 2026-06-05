@@ -435,12 +435,6 @@ fn vector8_count_ones(a: &Vector8) -> usize {
     count
 }
 
-fn vector8_use_hint(out: &mut Vector8, h: &Vector8, r: &Vector8) {
-    for i in 0..8 {
-        scalar_use_hint(&mut out.v[i], &h.v[i], &r.v[i]);
-    }
-}
-
 /* Bit packing. */
 
 fn scalar_encode_4(out: &mut [u8], s: &Scalar) {
@@ -1002,15 +996,23 @@ fn verify_internal(
     let mut ct1_ntt = Vector8::default();
     vector8_scale_power2_round(&mut ct1_ntt, &pub_key.t1);
     vector8_ntt(&mut ct1_ntt);
-    let ct1_ntt_copy = ct1_ntt;
-    vector8_mul_scalar(&mut ct1_ntt, &ct1_ntt_copy, &c_ntt);
+    // Multiply each Scalar by c_ntt in place. Avoids the 8 KiB Vector8 copy
+    // that vector8_mul_scalar would require: on stack-constrained targets pushes verify over budget
+    for i in 0..8 {
+        let lhs = ct1_ntt.v[i];
+        scalar_mul(&mut ct1_ntt.v[i], &lhs, &c_ntt);
+    }
 
     let mut w1 = Vector8::default();
     vector8_sub(&mut w1, &az_ntt, &ct1_ntt);
     vector8_inverse_ntt(&mut w1);
 
-    let w1_copy = w1;
-    vector8_use_hint(&mut w1, &sign.h, &w1_copy);
+    // Apply the verifier hint in place, per-Scalar, for the same stack-budget
+    // reason as above (avoids an 8 KiB Vector8 copy of w1).
+    for i in 0..8 {
+        let r = w1.v[i];
+        scalar_use_hint(&mut w1.v[i], &sign.h.v[i], &r);
+    }
     let mut w1_encoded = [0u8; 128 * 8];
     w1_encode(&mut w1_encoded, &w1);
 
@@ -1094,13 +1096,13 @@ pub fn mldsa87_verify(
     verify_internal(&pub_key, encoded_signature, msg, &[])
 }
 
-/// Test-only verification entry point that accepts a signing `context`.
+/// Verification entry point that accepts a signing `context`.
 ///
-/// The firmware-facing API ([`mldsa87_verify`]) always uses an empty context,
-/// but the ACVP sigVer known-answer vectors exercise non-empty contexts. This
-/// wrapper is gated to `cfg(test)` so it adds nothing to the firmware build.
-#[cfg(test)]
-pub(crate) fn mldsa87_verify_with_context(
+/// The firmware-facing API ([`mldsa87_verify`]) always uses an empty context.
+/// This wrapper accepts an explicit context so callers can drive the NIST ACVP
+/// sigVer known-answer vectors, which use non-empty contexts (see the FIPS
+/// ML-DSA-87 signature-verification KAT and the `acvp` test harness).
+pub fn mldsa87_verify_with_context(
     encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     msg: &[u8],
