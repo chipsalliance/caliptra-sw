@@ -17,6 +17,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_kat::KatsEnv;
 use zerocopy::FromBytes;
 
+#[cfg(not(feature = "fake-rom"))]
 use crate::run_fips_tests;
 
 pub struct SelfTestStartCmd;
@@ -36,7 +37,10 @@ impl SelfTestStartCmd {
             // Return 0 for response length, will cause txn.complete(false)
             Ok((false, 0))
         } else {
+            #[cfg(not(feature = "fake-rom"))]
             run_fips_tests(env)?;
+            #[cfg(feature = "fake-rom")]
+            let _ = env;
             // Zero value of response buffer is good
             Ok((true, core::mem::size_of::<MailboxRespHeader>()))
         }

@@ -427,6 +427,7 @@ ROM performs the following POST tests to ensure that needed cryptographic module
  - SHA2-384
  - SHA2-512
  - SHA2-512-ACC
+ - CSRNG (CTR_DRBG-AES-256)
  - ECC-384
  - ECDH
  - HMAC-384Kdf

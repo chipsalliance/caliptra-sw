@@ -80,7 +80,7 @@ fpga_subsystem = ["caliptra-drivers/fpga_subsystem", "caliptra-hw-model/fpga_sub
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
-fake-rom = []
+fake-rom = ["caliptra-drivers/fake-rom"]
 skip-clear-sram = []
 cfi = [
   "caliptra-image-verify/cfi",

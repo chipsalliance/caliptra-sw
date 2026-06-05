@@ -559,6 +559,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-csrng-test-data-gen"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"

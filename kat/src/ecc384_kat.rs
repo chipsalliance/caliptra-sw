@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyOut, Ecc384PubKey,
-    Ecc384Signature, Trng,
+    Ecc384Signature, Sha2_512_384, Trng,
 };
 
 const KEY_GEN_PRIV_KEY: Array4x12 = Array4x12::new([
@@ -35,12 +35,12 @@ const KEY_GEN_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
 
 const SIGNATURE: Ecc384Signature = Ecc384Signature {
     r: Array4xN([
-        0x93799D55, 0x12263628, 0x34F60F7B, 0x945290B7, 0xCCE6E996, 0x01FB7EBD, 0x026C2E3C,
-        0x445D3CD9, 0xB65068DA, 0xC0A848BE, 0x9F0560AA, 0x758FDA27,
+        0x78c52a07, 0xa1fcdcae, 0x52fb32e1, 0x4734bf3f, 0x014aa242, 0x778df0f2, 0xbfc09ca1,
+        0x45cceab6, 0x25a7fd5f, 0x6634c02c, 0x80f98919, 0xce53ed47,
     ]),
     s: Array4xN([
-        0xE548E535, 0xA1CC600E, 0x133B5591, 0xAEBAAD78, 0x054006D7, 0x52D0E1DF, 0x94FBFA95,
-        0xD78F0B3F, 0x8E81B911, 0x9C2BE008, 0xBF6D6F4E, 0x4185F87D,
+        0x47226c6b, 0x29719f52, 0xd11bb477, 0x9994b15b, 0xdf594ef8, 0xa686ccfd, 0x78659ffa,
+        0x96787f80, 0x2a63300d, 0xc3f78cb8, 0xa55f13b1, 0xb48aa603,
     ]),
 };
 
@@ -51,7 +51,8 @@ impl Ecc384Kat {
     /// This function executes the Known Answer Tests (aka KAT) for ECC384.
     ///
     /// Test vector source:
-    /// Zeroed inputs, outputs verified against python cryptography lib built on OpenSSL
+    /// Zeroed seed/nonce; key pair derived via test\src\crypto.rs
+    /// Signature verified using python cryptography lib (built on OpenSSL)
     ///
     /// # Arguments
     ///
@@ -60,13 +61,19 @@ impl Ecc384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
-        self.kat_key_pair_gen_sign_and_verify(ecc, trng)
+    pub fn execute(
+        &self,
+        ecc: &mut Ecc384,
+        sha: &mut Sha2_512_384,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
+        self.kat_key_pair_gen_sign_and_verify(ecc, sha, trng)
     }
 
     fn kat_key_pair_gen_sign_and_verify(
         &self,
         ecc: &mut Ecc384,
+        sha: &mut Sha2_512_384,
         trng: &mut Trng,
     ) -> CaliptraResult<()> {
         let mut priv_key = Array4x12::new([0u32; 12]);
@@ -75,8 +82,17 @@ impl Ecc384Kat {
             s: Array4x12::new([0u32; 12]),
         };
 
+        let msg_digest = sha
+            .sha384_digest(&[])
+            .map_err(|_| CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE)?;
+
         let pub_key = ecc
-            .key_pair_for_fips_kat(trng, Ecc384PrivKeyOut::from(&mut priv_key), &mut pct_sig)
+            .key_pair_for_fips_kat(
+                trng,
+                Ecc384PrivKeyOut::from(&mut priv_key),
+                &mut pct_sig,
+                &msg_digest,
+            )
             .map_err(|_| CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE)?;
 
         // NOTE: Signature verify step is performed in ECC driver sign function
