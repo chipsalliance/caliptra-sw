@@ -1285,6 +1285,9 @@ fn test_csrng_config_unlocked_in_debug() {
 fn test_csrng_entropy_config_warm_reset() {
     // Magic boot status that the test firmware writes to signal ready for warm reset
     const WARM_RESET_READY_BOOT_STATUS: u32 = 0xCAFE_1234;
+    const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE: u32 = 1 << 16;
+    const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
+    const RNG_BIT_SEL: u32 = 2;
 
     let rom = caliptra_builder::build_firmware_rom(
         &firmware::driver_tests::CSRNG_ENTROPY_CONFIG_WARM_RESET_TESTS,
@@ -1298,7 +1301,13 @@ fn test_csrng_entropy_config_warm_reset() {
             trng_mode: Some(TrngMode::Internal),
             ..default_init_params()
         },
-        BootParams::default(),
+        BootParams {
+            initial_ss_strap_generic_2: Some(
+                SS_STRAP_GENERIC_2_RNG_BIT_ENABLE
+                    | (RNG_BIT_SEL << SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT),
+            ),
+            ..Default::default()
+        },
     )
     .unwrap();
 

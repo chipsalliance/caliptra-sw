@@ -19,6 +19,7 @@ pub struct HealthTester {
     pub adaptp: AdaptiveProportionTester,
     startup_nibbles: Vec<u8>,
     window_size_bits: usize,
+    rng_bit_enable: bool,
 }
 
 impl HealthTester {
@@ -30,12 +31,35 @@ impl HealthTester {
             adaptp: AdaptiveProportionTester::new(),
             startup_nibbles: Vec::new(),
             window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            rng_bit_enable: false,
         }
     }
 
     /// Returns the current FIPS health-test window size in bits.
     pub fn window_size_bits(&self) -> usize {
         self.window_size_bits
+    }
+
+    /// Number of nibbles consumed per health-test window. In normal mode each
+    /// nibble provides one sample on each of the 4 lanes (window in nibbles =
+    /// `window_size_bits / 4`). In single-bit mode only the selected lane is
+    /// sampled and the RTL scales the window by four, so a window spans
+    /// `window_size_bits` nibbles.
+    pub fn nibbles_per_window(&self) -> usize {
+        if self.rng_bit_enable {
+            self.window_size_bits
+        } else {
+            self.window_size_bits / BITS_PER_NIBBLE
+        }
+    }
+
+    /// Configure single-bit (single-lane) mode, matching CONF.RNG_BIT_ENABLE /
+    /// CONF.RNG_BIT_SEL. In this mode the health tests score only the selected
+    /// RNG lane.
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.repcnt.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
+        self.adaptp.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
     }
 
     /// Updates the FIPS health-test window size in bits. Called when the
@@ -51,7 +75,7 @@ impl HealthTester {
         // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
         // Only after both windows pass does startup complete.
         const NUM_STARTUP_WINDOWS: usize = 2;
-        let num_nibbles = NUM_STARTUP_WINDOWS * self.window_size_bits / BITS_PER_NIBBLE;
+        let num_nibbles = NUM_STARTUP_WINDOWS * self.nibbles_per_window();
 
         self.startup_nibbles = self
             .itrng_nibbles
@@ -112,6 +136,8 @@ pub struct RepetitionCountTester {
     prev_nibble: [Option<Bit>; BITS_PER_NIBBLE],
     repetition_count: [u32; BITS_PER_NIBBLE],
     failures: u32,
+    rng_bit_enable: bool,
+    rng_bit_sel: usize,
 }
 
 impl RepetitionCountTester {
@@ -121,11 +147,18 @@ impl RepetitionCountTester {
             prev_nibble: [None; BITS_PER_NIBBLE],
             repetition_count: [1; BITS_PER_NIBBLE], // the hardware starts the counter at 1
             failures: 0,
+            rng_bit_enable: false,
+            rng_bit_sel: 0,
         }
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntThresholdsReadVal) {
         self.threshold = threshold.fips_thresh();
+    }
+
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.rng_bit_sel = rng_bit_sel;
     }
 
     pub fn failures(&self) -> u32 {
@@ -136,7 +169,7 @@ impl RepetitionCountTester {
         // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_repcnt_ht.sv.
         // If any of the four RNG wires repeats a bit, increment a wire-specific repetition counter.
         // If any of those repetition counters exceed the health check threshold, then increment
-        // failures.
+        // failures. In single-bit mode only the selected lane (rng_bit_sel) is scored.
 
         for i in 0..BITS_PER_NIBBLE {
             let bit = match (nibble >> i) & 1 {
@@ -150,7 +183,8 @@ impl RepetitionCountTester {
             if is_repeat {
                 self.repetition_count[i] += 1;
 
-                if self.repetition_count[i] >= self.threshold {
+                let lane_scored = !self.rng_bit_enable || i == self.rng_bit_sel;
+                if lane_scored && self.repetition_count[i] >= self.threshold {
                     self.failures += 1;
                 }
             } else {
@@ -172,6 +206,8 @@ pub struct AdaptiveProportionTester {
     per_lane_ones: [u32; BITS_PER_NIBBLE],
     num_bits_seen: usize,
     window_size_bits: usize,
+    rng_bit_enable: bool,
+    rng_bit_sel: usize,
 }
 
 impl AdaptiveProportionTester {
@@ -185,6 +221,8 @@ impl AdaptiveProportionTester {
             per_lane_ones: [0; BITS_PER_NIBBLE],
             num_bits_seen: 0,
             window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            rng_bit_enable: false,
+            rng_bit_sel: 0,
         }
     }
 
@@ -198,6 +236,13 @@ impl AdaptiveProportionTester {
 
     pub fn set_threshold_scope(&mut self, threshold_scope: bool) {
         self.threshold_scope = threshold_scope;
+    }
+
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.rng_bit_sel = rng_bit_sel;
+        self.per_lane_ones = [0; BITS_PER_NIBBLE];
+        self.num_bits_seen = 0;
     }
 
     /// Set the per-window size in bits. Mid-window changes restart the
@@ -225,24 +270,31 @@ impl AdaptiveProportionTester {
         for (i, lane) in self.per_lane_ones.iter_mut().enumerate() {
             *lane += u32::from((nibble >> i) & 1);
         }
-        self.num_bits_seen += BITS_PER_NIBBLE;
+        // In normal mode each clock contributes 4 lane-bits to the aggregate
+        // window. In single-bit mode only the selected lane is sampled, so each
+        // nibble advances the (RTL-scaled, 4x larger) window by a single bit.
+        self.num_bits_seen += if self.rng_bit_enable {
+            1
+        } else {
+            BITS_PER_NIBBLE
+        };
 
         if self.num_bits_seen >= self.window_size_bits {
             // adaptp_ht.sv:
-            //   test_cnt_hi_o = threshold_scope_i ? sum(lanes) : max(lanes)
-            //   test_cnt_lo_o = threshold_scope_i ? sum(lanes) : min(lanes)
-            //   fail_hi = (test_cnt_hi_o > thresh_hi)
-            //   fail_lo = (test_cnt_lo_o < thresh_lo)
-            let sum: u32 = self.per_lane_ones.iter().sum();
-            let test_cnt_hi = if self.threshold_scope {
-                sum
+            //   normal:      test_cnt_hi = scope ? sum : max ; test_cnt_lo = scope ? sum : min
+            //   single-bit:  test_cnt_hi = test_cnt_lo = test_cnt[rng_bit_sel]
+            //   fail_hi = (test_cnt_hi > thresh_hi) ; fail_lo = (test_cnt_lo < thresh_lo)
+            let (test_cnt_hi, test_cnt_lo) = if self.rng_bit_enable {
+                let cnt = self.per_lane_ones[self.rng_bit_sel];
+                (cnt, cnt)
+            } else if self.threshold_scope {
+                let sum: u32 = self.per_lane_ones.iter().sum();
+                (sum, sum)
             } else {
-                *self.per_lane_ones.iter().max().expect("4 lanes")
-            };
-            let test_cnt_lo = if self.threshold_scope {
-                sum
-            } else {
-                *self.per_lane_ones.iter().min().expect("4 lanes")
+                (
+                    *self.per_lane_ones.iter().max().expect("4 lanes"),
+                    *self.per_lane_ones.iter().min().expect("4 lanes"),
+                )
             };
 
             if test_cnt_lo < self.lo_threshold {
@@ -449,5 +501,67 @@ mod tests {
         }
         assert_eq!(t.hi_failures(), 0);
         assert_eq!(t.lo_failures(), 0);
+    }
+
+    /// In single-bit mode the RTL scales the window by four and counts one
+    /// sample per nibble, so a window spans `window_size_bits` nibbles (not
+    /// `window_size_bits / 4`). Only the selected lane is scored, against both
+    /// the hi and lo thresholds.
+    #[test]
+    fn single_bit_mode_scores_selected_lane_over_scaled_window() {
+        // ROM writes FIPS_WINDOW=1024 -> window_size_bits=4096 aggregate, and in
+        // single-bit mode the (correctly) scaled thresholds are hi=3072, lo=1024.
+        let mut t = make_adaptp(3072, 1024, false);
+        t.set_window_size_bits(4096);
+        t.set_rng_bit_mode(true, 2);
+
+        // A balanced selected lane has ~2048 ones over the 4096-sample window.
+        // Feeding only lane 2 (alternating) leaves the other lanes at zero, which
+        // must NOT be scored in single-bit mode.
+        for i in 0..4096 {
+            t.feed(((i & 1) as u8) << 2);
+        }
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0));
+    }
+
+    /// Regression for the threshold-scaling bug: with the unscaled 4-bit-mode
+    /// thresholds (hi=768) a balanced selected lane (2048 ones over the scaled
+    /// 4096-sample window) trips the hi failure. This is exactly the entropy_src
+    /// alert that made `Csrng::new()` fail on FPGA before the ROM scaled the
+    /// adaptive-proportion thresholds for single-bit mode.
+    #[test]
+    fn single_bit_mode_balanced_lane_fails_unscaled_thresholds() {
+        let mut t = make_adaptp(768, 256, false);
+        t.set_window_size_bits(4096);
+        t.set_rng_bit_mode(true, 2);
+        for i in 0..4096 {
+            t.feed(((i & 1) as u8) << 2);
+        }
+        assert_eq!(t.hi_failures(), 1);
+    }
+
+    /// repcnt single-bit mode only scores the selected lane: a stuck lane that
+    /// is not selected must not produce a failure.
+    #[test]
+    fn single_bit_repcnt_scores_only_selected_lane() {
+        // Selected lane 2 toggles (no repetition); lane 0 is stuck high.
+        let mut selected = RepetitionCountTester::new();
+        selected.set_threshold(RepcntThresholdsReadVal::from(4));
+        selected.set_rng_bit_mode(true, 2);
+
+        let mut other = RepetitionCountTester::new();
+        other.set_threshold(RepcntThresholdsReadVal::from(4));
+        other.set_rng_bit_mode(true, 0);
+
+        for i in 0..16 {
+            // lane 0 stuck high (long run), lane 2 toggles.
+            let nibble = 0b0001 | (((i & 1) as u8) << 2);
+            selected.feed(nibble);
+            other.feed(nibble);
+        }
+        // Selecting the toggling lane 2: no repetition failure.
+        assert_eq!(selected.failures(), 0);
+        // Selecting the stuck lane 0: repetition failures accumulate.
+        assert!(other.failures() > 0);
     }
 }

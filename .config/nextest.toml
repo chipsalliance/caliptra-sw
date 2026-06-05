@@ -2,6 +2,10 @@
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
 #
+# test(test_csrng_entropy_config_warm_reset): on the subsystem, MCU ROM owns
+# SS_STRAP_GENERIC loading and locks the registers (CPTRA_FUSE_WR_DONE) before the
+# host can inject the strap via soc_ifc, so single-bit entropy mode cannot be
+# configured from the test harness. Re-enable once MCU ROM populates these straps.
 [profile.fpga-subsystem]
 default-filter = """
 (package(caliptra-hw-model) and test(tests::test_execution)) |
@@ -31,6 +35,7 @@ default-filter = """
     - test(test_csrng_adaptive_proportion)
     - test(test_csrng_repetition_count)
     - test(test_csrng_runtime_health_failure)
+    - test(test_csrng_entropy_config_warm_reset)
     - test(test_doe_when_debug_locked)
     - test(test_doe_when_debug_not_locked)) |
 (package(caliptra-fmc)) |

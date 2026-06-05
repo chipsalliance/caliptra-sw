@@ -50,7 +50,7 @@ pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
             cfi_assert_ne(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
 
             let pdata = env.persistent_data.get();
-            if pdata.rom.minor_version != RomPersistentData::MINOR_VERSION {
+            if !pdata.rom.supports_current_minor_version() {
                 return Err(CaliptraError::FMC_INVALID_ROM_PERSISTENT_DATA_VERSION);
             }
             if pdata.fw.marker != FwPersistentData::MAGIC {

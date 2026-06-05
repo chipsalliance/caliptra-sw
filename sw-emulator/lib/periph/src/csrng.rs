@@ -242,11 +242,18 @@ impl Csrng {
         }
         self.conf = data;
 
-        let threshold_scope =
-            ConfReadVal::from(self.conf).threshold_scope() == MultiBitBool::True as u32;
+        let conf = ConfReadVal::from(self.conf);
+        let threshold_scope = conf.threshold_scope() == MultiBitBool::True as u32;
         self.health_tester
             .adaptp
             .set_threshold_scope(threshold_scope);
+
+        // Single-bit (single-lane) mode: entropy_src samples only the RNG lane
+        // selected by RNG_BIT_SEL and runs the health tests on that one bit.
+        let rng_bit_enable = conf.rng_bit_enable() == MultiBitBool::True as u32;
+        let rng_bit_sel = conf.rng_bit_sel() as usize;
+        self.health_tester
+            .set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
 
         Ok(())
     }
@@ -369,7 +376,7 @@ impl Csrng {
             return;
         }
 
-        let num_nibbles = self.health_tester.window_size_bits() / BITS_PER_NIBBLE;
+        let num_nibbles = self.health_tester.nibbles_per_window();
 
         // Consume a window's worth of entropy through the health testers
         for _ in 0..num_nibbles {
