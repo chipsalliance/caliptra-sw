@@ -71,7 +71,7 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     #[cfg(feature = "mldsa_attestation")]
     {
         cprintln!("[kat] ML-DSA-87");
-        Mldsa87Kat::default().execute()?;
+        Mldsa87Kat::default().execute(env.sha384)?;
     }
 
     cprintln!("[kat] --");

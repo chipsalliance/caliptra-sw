@@ -1709,6 +1709,26 @@ impl CaliptraError {
             "KAT Error: ML-DSA-87 Signature False Accept"
         ),
         (
+            KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE,
+            0x90090003,
+            "KAT Error: ML-DSA-87 Key Pair Generate Failure"
+        ),
+        (
+            KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE,
+            0x90090004,
+            "KAT Error: ML-DSA-87 Key Pair Verify Failure"
+        ),
+        (
+            KAT_MLDSA87_SIGNATURE_GENERATE_FAILURE,
+            0x90090005,
+            "KAT Error: ML-DSA-87 Signature Generate Failure"
+        ),
+        (
+            KAT_MLDSA87_SIGNATURE_MISMATCH,
+            0x90090006,
+            "KAT Error: ML-DSA-87 Signature Mismatch"
+        ),
+        (
             ROM_INTEGRITY_FAILURE,
             0x90080001,
             "ROM Error: Integrity Failure"
