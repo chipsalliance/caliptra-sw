@@ -20,6 +20,7 @@ mod release_info;
 mod update_dpe;
 mod update_frozen_images;
 mod util;
+mod vertex_ai;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -27,6 +28,9 @@ struct Xtask {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
+    /// Suppress informational logging (set log level below info, e.g., warn)
+    #[arg(short, long, global = true)]
+    quiet: bool,
     #[command(subcommand)]
     xtask: Commands,
 }
@@ -61,6 +65,40 @@ enum Commands {
     CI {
         #[command(subcommand)]
         command: CICommands,
+    },
+
+    /// Call Vertex AI prediction endpoints
+    VertexAi {
+        /// Google Cloud Project ID
+        #[arg(short, long, default_value = "caliptra-github-ci")]
+        project: String,
+        /// Location/Region (e.g. us-central1)
+        #[arg(short, long, default_value = "us-central1")]
+        location: String,
+        /// Model ID (e.g. gemini-3.5-flash)
+        #[arg(short, long, default_value = "gemini-3.5-flash")]
+        model: String,
+        /// Prompt string to submit to the model
+        prompt: String,
+    },
+
+    /// Diff against a target branch and use Vertex AI to generate a nextest filter expression
+    NextestFilter {
+        /// Google Cloud Project ID
+        #[arg(short, long, default_value = "caliptra-github-ci")]
+        project: String,
+        /// Target git branch/ref to diff against (e.g. main)
+        #[arg(short, long, default_value = "main")]
+        branch: String,
+        /// Cargo nextest profile to validate against and fall back to (e.g. nightly-ci)
+        #[arg(short = 'n', long, default_value = "nightly-ci")]
+        profile: String,
+        /// Location/Region (e.g. us-central1)
+        #[arg(short, long, default_value = "us-central1")]
+        location: String,
+        /// Model ID (e.g. gemini-3.5-flash)
+        #[arg(short, long, default_value = "gemini-3.5-flash")]
+        model: String,
     },
 }
 
@@ -121,6 +159,8 @@ fn main() {
     let cli = Xtask::parse();
     let level = if cli.verbose {
         LevelFilter::Debug
+    } else if cli.quiet {
+        LevelFilter::Warn
     } else {
         LevelFilter::Info
     };
@@ -145,6 +185,36 @@ fn main() {
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
             CICommands::TestMatrix => Ok(()),
         },
+        Commands::VertexAi {
+            project,
+            location,
+            model,
+            prompt,
+        } => {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to build tokio runtime");
+            rt.block_on(vertex_ai::run_generate_content(
+                project.as_str(),
+                location,
+                model,
+                prompt,
+            ))
+        }
+        Commands::NextestFilter {
+            project,
+            branch,
+            profile,
+            location,
+            model,
+        } => {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to build tokio runtime");
+            rt.block_on(vertex_ai::run_generate_nextest_filter(
+                project.as_str(),
+                location,
+                model,
+                branch.as_str(),
+                profile.as_str(),
+            ))
+        }
     };
     result.unwrap_or_else(|e| {
         log::error!("Error: {}", e);
