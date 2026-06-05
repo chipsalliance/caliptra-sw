@@ -134,6 +134,6 @@ fn test_ecdsa_verify_cmd() {
     // Verify FIPS status
     assert_eq!(
         resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
     );
 }

@@ -19,7 +19,7 @@ v2.0:
 * Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
-* `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY`require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra.
+* `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra. These commands return a non-approved FIPS status because the caller supplies the digest.
 
 ## Spec Opens
 
