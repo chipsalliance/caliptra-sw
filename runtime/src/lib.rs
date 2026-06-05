@@ -78,7 +78,7 @@ pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use activate_firmware::ActivateFirmwareCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp};
+use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MailboxRespHeader};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
@@ -108,6 +108,7 @@ use caliptra_common::cprintln;
 
 use caliptra_drivers::{okref, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
+use core::mem::size_of;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
     dpe_instance::{DpeEnv, DpeTypes},
@@ -387,9 +388,17 @@ fn execute_command_with_common_resp(
         }
         // INVOKE_DPE_{ECC384,MLDSA87} are dispatched earlier (see above).
         CommandId::ECDSA384_SIGNATURE_VERIFY => {
-            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
+            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)?;
+            let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
+            Ok(size_of::<MailboxRespHeader>())
         }
-        CommandId::LMS_SIGNATURE_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::LMS_SIGNATURE_VERIFY => {
+            LmsVerifyCmd::execute(drivers, cmd_bytes)?;
+            let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+            resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
+            Ok(size_of::<MailboxRespHeader>())
+        }
         CommandId::MLDSA87_SIGNATURE_VERIFY => {
             caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, cmd_bytes)
         }

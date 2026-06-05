@@ -231,6 +231,7 @@ impl FirmwareProcessor {
         let mut resp = MailboxRespHeader::default();
         match result {
             Ok(_) => {
+                resp.fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST;
                 resp.populate_chksum();
                 txn.send_response(resp.as_bytes())?;
             }
