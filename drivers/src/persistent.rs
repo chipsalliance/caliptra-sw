@@ -371,11 +371,17 @@ pub struct EntropyConfiguration {
     pub adaptp_lo_threshold: u32,
 }
 
-#[derive(Clone, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
-#[repr(C)]
-pub struct EntropyConfigurationExtension {
-    pub rng_bit_enable: u32,
-    pub rng_bit_sel: u32,
+bitfield::bitfield! {
+    /// Packed entropy-source single-bit-mode configuration cached from
+    /// SS_STRAP_GENERIC[2] so that it can be reapplied across warm resets.
+    #[derive(Clone, Copy, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
+    #[repr(C)]
+    pub struct EntropyConfigurationExtension(u32);
+    impl Debug;
+    /// True when entropy_src should run in single-bit (RNG bit) mode.
+    pub rng_bit_enable, set_rng_bit_enable: 0;
+    /// Which of the 4 RNG bus lanes to sample when single-bit mode is enabled.
+    pub u32, rng_bit_sel, set_rng_bit_sel: 2, 1;
 }
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
@@ -847,6 +853,25 @@ mod tests {
         // NOTE: It's not good enough to test this from the host; we also need
         // to call assert_matches_layout() in a risc-v test.
         PersistentData::assert_matches_layout();
+    }
+
+    #[test]
+    fn test_entropy_configuration_extension() {
+        // The packed extension must stay 4 bytes so it fits inside the reserved
+        // region after idevid_csr_envelop without moving any later fields.
+        assert_eq!(size_of::<EntropyConfigurationExtension>(), 4);
+
+        let mut ext = EntropyConfigurationExtension::default();
+        assert!(!ext.rng_bit_enable());
+        assert_eq!(ext.rng_bit_sel(), 0);
+
+        ext.set_rng_bit_enable(true);
+        ext.set_rng_bit_sel(2);
+        assert!(ext.rng_bit_enable());
+        assert_eq!(ext.rng_bit_sel(), 2);
+
+        // rng_bit_sel is 2 bits wide (lanes 0..=3) and packs above rng_bit_enable.
+        assert_eq!(ext.0, 0b1 | (2 << 1));
     }
 
     #[test]

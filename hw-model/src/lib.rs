@@ -829,6 +829,13 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
+        // SS_STRAP_GENERIC is latched from the input port at reset and is only
+        // writable by software until CPTRA_FUSE_WR_DONE is set. init_fuses()
+        // sets CPTRA_FUSE_WR_DONE, so the strap must be written first.
+        if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
+            self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
+        }
+
         HwModel::init_fuses(self);
 
         self.soc_ifc()
@@ -855,10 +862,6 @@ pub trait HwModel: SocManager {
             self.soc_ifc()
                 .cptra_i_trng_entropy_config_0()
                 .write(|_| reg);
-        }
-
-        if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
-            self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)

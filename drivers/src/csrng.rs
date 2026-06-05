@@ -115,7 +115,7 @@ impl Csrng {
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs(), persistent_data);
             set_health_check_thresholds(e, entropy_cfg.entropy_cfg.clone());
 
-            let rng_bit_enable = if entropy_cfg.entropy_cfg_extension.rng_bit_enable != 0 {
+            let rng_bit_enable = if entropy_cfg.entropy_cfg_extension.rng_bit_enable() {
                 TRUE
             } else {
                 FALSE
@@ -128,7 +128,7 @@ impl Csrng {
                     // tests score each of the 4 RNG bus lanes individually.
                     .threshold_scope(FALSE)
                     .rng_bit_enable(rng_bit_enable)
-                    .rng_bit_sel(entropy_cfg.entropy_cfg_extension.rng_bit_sel)
+                    .rng_bit_sel(entropy_cfg.entropy_cfg_extension.rng_bit_sel())
             });
 
             // We allow the SoC to set bypass mode so that entropy can be
@@ -492,7 +492,7 @@ fn read_entropy_configuration(
     let persistent_data = persistent_data.get_mut();
     let entropy_cfg = persistent_data.rom.entropy_cfg.clone();
     let entropy_cfg_extension = if persistent_data.rom.supports_entropy_cfg_extension() {
-        persistent_data.rom.entropy_cfg_extension.clone()
+        persistent_data.rom.entropy_cfg_extension
     } else {
         EntropyConfigurationExtension::default()
     };
@@ -529,16 +529,17 @@ fn read_entropy_configuration(
 
     let ss_strap_generic_2 = soc_ifc.ss_strap_generic().at(2).read();
 
-    let health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
+    let strap_health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
 
-    let health_test_window = if health_test_window == 0 {
+    let health_test_window_is_default = strap_health_test_window == 0;
+    let health_test_window = if health_test_window_is_default {
         DEFAULT_HEALTH_TEST_WINDOW
     } else {
-        health_test_window
+        strap_health_test_window
     };
 
-    let rng_bit_enable = (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT) & 1;
-    let rng_bit_sel = if rng_bit_enable != 0 {
+    let rng_bit_enable = (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT) & 1 != 0;
+    let rng_bit_sel = if rng_bit_enable {
         (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT)
             & SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK
     } else {
@@ -577,14 +578,23 @@ fn read_entropy_configuration(
     // Per NIST SP 800-90B Section 4.4.2, these correspond to roughly
     // 0.6 min-entropy (Table 2).
     //
-    // Each clock samples one bit on each of the 4 RNG lanes, so the per-lane
-    // window in bits is exactly `health_test_window` (the FIPS_WINDOW value
-    // written to the HEALTH_TEST_WINDOWS register). The defaults therefore
-    // scale automatically when the SoC overrides the window size.
+    // In normal mode each clock samples one bit on each of the 4 RNG lanes, so
+    // the per-lane window in bits is exactly `health_test_window` (the FIPS_WINDOW
+    // value written to the HEALTH_TEST_WINDOWS register). In single-bit mode
+    // entropy_src samples only the selected lane and internally multiplies the
+    // window by four (entropy_src_core.sv: health_test_window_scaled), so the
+    // adaptive-proportion counter accumulates over `health_test_window * 4`
+    // samples. We only grow the window used to derive the default thresholds when
+    // we picked the default window; if the SoC supplied its own window we assume
+    // it already accounts for single-bit mode and use it as-is.
     // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
-    let adaptp_per_lane_window_bits = health_test_window;
-    let adaptp_default_hi = 3 * (adaptp_per_lane_window_bits / 4);
-    let adaptp_default_lo = adaptp_per_lane_window_bits / 4;
+    let adaptp_window_bits = if rng_bit_enable && health_test_window_is_default {
+        health_test_window * 4
+    } else {
+        health_test_window
+    };
+    let adaptp_default_hi = 3 * (adaptp_window_bits / 4);
+    let adaptp_default_lo = adaptp_window_bits / 4;
 
     let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
     let adaptp_hi_threshold = config0.high_threshold();
@@ -617,13 +627,12 @@ fn read_entropy_configuration(
         adaptp_hi_threshold,
         adaptp_lo_threshold,
     };
-    let entropy_cfg_extension = EntropyConfigurationExtension {
-        rng_bit_enable,
-        rng_bit_sel,
-    };
+    let mut entropy_cfg_extension = EntropyConfigurationExtension::default();
+    entropy_cfg_extension.set_rng_bit_enable(rng_bit_enable);
+    entropy_cfg_extension.set_rng_bit_sel(rng_bit_sel);
     // save for later resets
     persistent_data.rom.entropy_cfg = entropy_cfg.clone();
-    persistent_data.rom.entropy_cfg_extension = entropy_cfg_extension.clone();
+    persistent_data.rom.entropy_cfg_extension = entropy_cfg_extension;
 
     CsrngEntropyConfiguration {
         entropy_cfg,
