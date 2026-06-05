@@ -61,3 +61,28 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 | **Image Staging Address Low (`image_staging_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
+
+## Owner Authorization Manifest
+
+The owner authorization manifest is a smaller owner-only manifest loaded with
+`SET_OWNER_AUTH_MANIFEST`. It carries owner public keys, owner signatures, and an
+owner-only Image Metadata Collection. Runtime stores these entries separately
+from the vendor + owner collection loaded by `SET_AUTH_MANIFEST`.
+
+Generate one with the authorization manifest app:
+
+```bash
+cargo run -p caliptra-auth-manifest-app -- create-owner-auth-man \
+  --version 1 \
+  --svn 0 \
+  --flags 0 \
+  --pqc-key-type 3 \
+  --key-dir path/to/key-files \
+  --config auth-manifest/app/src/auth-man.toml \
+  --out owner-auth-man.bin
+```
+
+The command uses `owner_fw_key_config`, `owner_man_key_config`, and
+`image_metadata_list` from the TOML configuration. Vendor key sections are ignored
+for owner-only manifest generation. `--flags` uses `OwnerAuthManifestFlags`; bit 0
+sets `APPEND_IMAGE_METADATA`.

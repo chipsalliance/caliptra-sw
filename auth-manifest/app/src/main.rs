@@ -13,8 +13,10 @@ Abstract:
 --*/
 
 use anyhow::Context;
-use caliptra_auth_man_gen::{AuthManifestGenerator, AuthManifestGeneratorConfig};
-use caliptra_auth_man_types::AuthManifestFlags;
+use caliptra_auth_man_gen::{
+    AuthManifestGenerator, AuthManifestGeneratorConfig, OwnerAuthManifestGeneratorConfig,
+};
+use caliptra_auth_man_types::{AuthManifestFlags, OwnerAuthManifestFlags};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -28,10 +30,9 @@ use zerocopy::IntoBytes;
 
 mod config;
 
-/// Entry point
-fn main() {
-    let sub_cmds = vec![Command::new("create-auth-man")
-        .about("Create a new authorization manifest")
+fn manifest_command(name: &'static str, about: &'static str, flags_help: &'static str) -> Command {
+    Command::new(name)
+        .about(about)
         .arg(
             arg!(--"version" <U32> "Manifest Version Number")
                 .required(true)
@@ -43,7 +44,8 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"flags" <U32> "Manifest Flags")
+            arg!(--"flags" <U32>)
+                .help(flags_help)
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )
@@ -66,7 +68,23 @@ fn main() {
             arg!(--"out" <FILE> "Output file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
-        )];
+        )
+}
+
+/// Entry point
+fn main() {
+    let sub_cmds = vec![
+        manifest_command(
+            "create-auth-man",
+            "Create a new authorization manifest",
+            "Manifest Flags",
+        ),
+        manifest_command(
+            "create-owner-auth-man",
+            "Create a new owner authorization manifest",
+            "Owner Manifest Flags",
+        ),
+    ];
 
     let cmd = Command::new("caliptra-auth-man-app")
         .arg_required_else_help(true)
@@ -76,6 +94,7 @@ fn main() {
 
     let result = match cmd.subcommand().unwrap() {
         ("create-auth-man", args) => run_auth_man_cmd(args),
+        ("create-owner-auth-man", args) => run_owner_auth_man_cmd(args),
         (_, _) => unreachable!(),
     };
 
@@ -170,6 +189,93 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
 
     out_file.write_all(manifest.as_bytes())?;
     // Pad to IMAGE_ALIGNMENT boundary
+    let len = manifest.as_bytes().len();
+    let padded = len.next_multiple_of(IMAGE_ALIGNMENT);
+    if padded > len {
+        out_file.write_all(&vec![0u8; padded - len])?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn run_owner_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
+    let version: &u32 = args
+        .get_one::<u32>("version")
+        .with_context(|| "version arg not specified")?;
+
+    let svn: &u32 = args
+        .get_one::<u32>("svn")
+        .with_context(|| "svn arg not specified")?;
+
+    if *svn > 255 {
+        return Err(anyhow::anyhow!("Invalid owner manifest SVN value"));
+    }
+
+    let flags: OwnerAuthManifestFlags = OwnerAuthManifestFlags::from_bits_truncate(
+        *args
+            .get_one::<u32>("flags")
+            .with_context(|| "flags arg not specified")?,
+    );
+
+    let pqc_key_type: &u32 = args
+        .get_one::<u32>("pqc-key-type")
+        .with_context(|| "Type of PQC key validation: 1: MLDSA; 3: LMS")?;
+    let pqc_key_type = match *pqc_key_type {
+        1 => FwVerificationPqcKeyType::MLDSA,
+        3 => FwVerificationPqcKeyType::LMS,
+        _ => return Err(anyhow::anyhow!("Invalid PQC key type")),
+    };
+
+    let config_path: &PathBuf = args
+        .get_one::<PathBuf>("config")
+        .with_context(|| "config arg not specified")?;
+
+    if !config_path.exists() {
+        return Err(anyhow::anyhow!("Invalid config file path"));
+    }
+
+    let key_dir: &PathBuf = args
+        .get_one::<PathBuf>("key-dir")
+        .with_context(|| "key-dir arg not specified")?;
+
+    if !key_dir.exists() {
+        return Err(anyhow::anyhow!("Invalid key directory path"));
+    }
+
+    let out_path: &PathBuf = args
+        .get_one::<PathBuf>("out")
+        .with_context(|| "out arg not specified")?;
+
+    let config = config::load_auth_man_config_from_file(config_path)?;
+
+    let owner_fw_key_info =
+        config::optional_key_config_from_file(key_dir, &config.owner_fw_key_config)?
+            .ok_or_else(|| anyhow::anyhow!("owner_fw_key_config is required"))?;
+    let owner_man_key_info =
+        config::optional_key_config_from_file(key_dir, &config.owner_man_key_config)?
+            .ok_or_else(|| anyhow::anyhow!("owner_man_key_config is required"))?;
+
+    let gen_config = OwnerAuthManifestGeneratorConfig {
+        version: *version,
+        svn: *svn,
+        flags,
+        pqc_key_type,
+        owner_fw_key_info,
+        owner_man_key_info,
+        image_metadata_list: config::image_metadata_config_from_file(&config.image_metadata_list)?,
+    };
+
+    let gen = AuthManifestGenerator::new(Crypto::default());
+    let manifest = gen.generate_owner(&gen_config)?;
+
+    let mut out_file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(out_path)
+        .with_context(|| format!("Failed to create file {}", out_path.display()))?;
+
+    out_file.write_all(manifest.as_bytes())?;
     let len = manifest.as_bytes().len();
     let padded = len.next_multiple_of(IMAGE_ALIGNMENT);
     if padded > len {

@@ -49,3 +49,21 @@ pub struct AuthManifestGeneratorConfig {
 
     pub image_metadata_list: Vec<AuthManifestImageMetadata>,
 }
+
+/// Owner Authorization Manifest Generator Configuration
+#[derive(Default, Clone)]
+pub struct OwnerAuthManifestGeneratorConfig {
+    pub version: u32,
+
+    pub svn: u32,
+
+    pub flags: OwnerAuthManifestFlags,
+
+    pub pqc_key_type: FwVerificationPqcKeyType,
+
+    pub owner_fw_key_info: AuthManifestGeneratorKeyConfig,
+
+    pub owner_man_key_info: AuthManifestGeneratorKeyConfig,
+
+    pub image_metadata_list: Vec<AuthManifestImageMetadata>,
+}

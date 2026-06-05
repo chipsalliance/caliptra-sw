@@ -201,7 +201,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest), and [`AUTHORIZE_AND_STASH`](#authorize_and_stash).
+Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest), [`SET_OWNER_AUTH_MANIFEST`](#set_owner_auth_manifest), and [`AUTHORIZE_AND_STASH`](#authorize_and_stash). `SET_OWNER_AUTH_MANIFEST` carries an owner-only Image Metadata Collection that is searched as a fall-through after the vendor + owner collection populated by `SET_AUTH_MANIFEST`. The provenance of the matching entry is reflected in the `auth_req_result` field of `AUTHORIZE_AND_STASH`. See [RFC: Owner Authorization Manifest](../docs/rfcs/rfc-owner-authorization-manifest.md) for the design rationale.
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -1410,7 +1410,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | metadata\_owner\_PQC\_sig     | u32[1157]    | Metadata Owner MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
+| metadata\_entries             | Metadata[80] | The max number of metadata entries is 80 but less can be used              |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
@@ -1442,6 +1442,49 @@ This command verifies the integrity and authenticity of the provided image manif
 Command Code: `0x4154_564D` ("ATVM")
 
 The input arguments are the same as the `SET_AUTH_MANIFEST` command.
+
+
+### SET_OWNER_AUTH_MANIFEST
+
+The SoC uses this command to program an Owner Authorization Manifest, an owner-only authorization document loaded after `SET_AUTH_MANIFEST`. The runtime parses the manifest, verifies its policy fields and Image Metadata Collection (IMC) signatures, and stores the IMC into a dedicated DCCM region. The vendor + owner collection populated by `SET_AUTH_MANIFEST` is never modified by this command.
+
+Command Code: `0x4F41_4D4E` ("OAMN")
+
+Verification chain:
+
+1. The manifest's `owner_pub_keys` are signed by the firmware-image owner key (latched from FMC at boot via `manifest1.preamble.owner_pub_keys`). This signature also covers the policy fields `version`, `svn`, `flags`, and `owner_pub_keys`.
+2. The manifest's IMC is signed by the manifest's own `owner_pub_keys`, which were just verified to chain to the firmware-image owner key.
+3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][7:0]` (subsystem mode only). The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
+
+The maximum IMC capacity is 32 entries. Calling `SET_OWNER_AUTH_MANIFEST` with the `APPEND_IMAGE_METADATA` flag merges the new entries into the existing collection (subject to the 32-entry cap and rejecting any duplicate `fw_id`). Without the flag, the collection is replaced wholesale.
+
+*Table: `SET_OWNER_AUTH_MANIFEST` input arguments*
+
+| **Name**                              | **Type**     | **Description** |
+| ------------------------------------- | ------------ | --------------- |
+| chksum                                | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size                         | u32          | The size of the full Owner Authorization Manifest. |
+| preamble\_marker                      | u32          | Marker needs to be `0x4D4F_574F` ("OWOM" little-endian) for the preamble to be valid. |
+| preamble\_size                        | u32          | Size of the preamble. |
+| preamble\_version                     | u32          | Version of the preamble. |
+| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against `SS_STRAP_GENERIC[3][7:0]`. |
+| preamble\_flags                       | u32          | See `OWNER_AUTH_MANIFEST_FLAGS` below. |
+| preamble\_owner\_ecc384\_key          | u32[24]      | Owner ECC384 public key carried in the manifest. |
+| preamble\_owner\_pqc\_key             | u32[648]     | Owner MLDSA-87 or LMS-SHA192-H15 public key carried in the manifest. |
+| preamble\_owner\_pub\_keys\_ecc\_sig  | u32[24]      | ECC384 signature by the firmware-image owner key over `version..=owner_pub_keys`. |
+| preamble\_owner\_pub\_keys\_pqc\_sig  | u32[1157]    | PQC signature by the firmware-image owner key over `version..=owner_pub_keys`. |
+| preamble\_owner\_imc\_ecc\_sig        | u32[24]      | ECC384 signature by the manifest's own owner key over the IMC. |
+| preamble\_owner\_imc\_pqc\_sig        | u32[1157]    | PQC signature by the manifest's own owner key over the IMC. |
+| metadata\_entry\_count                | u32          | Number of metadata entries. Must be `1..=32`. |
+| metadata\_entries                     | Metadata[32] | Image Metadata Entries. Per-entry layout is identical to `SET_AUTH_MANIFEST` (see `AUTH_MANIFEST_METADATA_ENTRY` above). |
+
+*Table: `OWNER_AUTH_MANIFEST_FLAGS` input flags*
+
+| **Name**                  | **Value** | **Semantics** |
+| ------------------------- | --------- | ------------- |
+| APPEND_IMAGE_METADATA     | 1 << 0    | Merge entries with the existing owner-only IMC. Without this flag the collection is replaced. |
+
+The response is a `MailboxRespHeader` (no payload).
 
 
 ### AUTHORIZE_AND_STASH
@@ -1476,7 +1519,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) |
+| auth_req_result | u32      |IMAGE_AUTHORIZED_VENDOR_OWNER (0xDEADC0DE, alias of legacy `AUTHORIZE_IMAGE`/`IMAGE_AUTHORIZED`), IMAGE_AUTHORIZED_OWNER_ONLY (0xC0DEDEAD), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB). Lookup order: vendor + owner collection first, then owner-only collection populated by `SET_OWNER_AUTH_MANIFEST`. The success value indicates which collection produced the match. |
 
 ### GET_IMAGE_INFO
 
