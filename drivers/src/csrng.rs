@@ -303,7 +303,7 @@ fn check_for_alert_state(
             ALERT_HANG => {
                 let alert_counts = entropy_src.alert_fail_counts().read();
 
-                if alert_counts.repcnt_fail_count() > 0 || alert_counts.repcnts_fail_count() > 0 {
+                if alert_counts.repcnt_fail_count() > 0 {
                     return Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED);
                 }
 
@@ -594,9 +594,6 @@ fn set_health_check_thresholds(
         .write(|w| w.fips_window(entropy_cfg.health_test_window));
 
     e.repcnt_thresholds()
-        .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
-
-    e.repcnts_thresholds()
         .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
 
     e.adaptp_hi_thresholds()

@@ -1112,8 +1112,10 @@ fn test_csrng_adaptive_proportion() {
     test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/2449_ones_1647_zeros"));
 }
 
-/// Test the Repetition Count Symbol (repcnts) health check.
-/// Unlike the per-wire repcnt test, repcnts checks if the entire 4-bit symbol repeats.
+/// Test that a repeating 4-bit symbol stream is rejected at boot.
+/// The Repetition Count Symbol (repcnts) health test is intentionally disabled
+/// in the driver, but a constant nibble also makes every individual wire
+/// constant, so the per-wire repcnt test still catches these streams.
 #[test]
 #[cfg_attr(
     all(
@@ -1127,15 +1129,15 @@ fn test_csrng_adaptive_proportion() {
     ignore
 )]
 fn test_csrng_repcnts() {
-    // Test that repeating nibble symbols fail the repcnts health check.
-    // A stream of alternating 0x5 and 0xA nibbles passes (nibbles don't repeat),
-    // but a stream of constant nibbles fails because the symbol repeats.
+    // The repcnts (symbol) health test is disabled in the driver. A stream of
+    // constant nibbles still fails because every individual RNG wire is
+    // constant, which trips the per-wire repcnt test.
 
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_REPCNTS_TESTS;
 
     // Constant nibble stream: 0x7, 0x7, 0x7, ...
-    // This will fail both repcnt (individual wires repeat) and repcnts (symbol repeats).
-    // The driver returns DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED for both.
+    // Each wire repeats its bit, so the per-wire repcnt test fails and the
+    // driver returns DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED.
     test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b0111)));
 
     // Different constant value to verify it's not value-specific
