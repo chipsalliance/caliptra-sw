@@ -12,10 +12,11 @@ Abstract:
     File contains test cases for CSRNG API when the physical entropy source
     produces repeated 4-bit symbols (nibbles).
 
-    Unlike the per-wire repcnt test which checks each RNG wire independently,
-    the repcnts test fails when the entire 4-bit symbol repeats consecutively.
-
-    We expect the Repetition Count Symbol health check to fail for these tests.
+    The Repetition Count Symbol (repcnts) health test is intentionally disabled
+    in the driver. A repeating 4-bit symbol means every individual RNG wire is
+    also constant, so the per-wire repetition count (repcnt) test still fails
+    for these streams. We therefore expect CSRNG construction to fail with
+    DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED.
 --*/
 #![no_std]
 #![no_main]
@@ -35,10 +36,10 @@ fn test_boot_fail_repcnts_check() {
         assert_eq!(
             e,
             CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED,
-            "error code should indicate the repetition count (symbol) test failed"
+            "error code should indicate the per-wire repetition count test failed (repcnts is disabled)"
         )
     } else {
-        panic!("failing repetition count symbol test should prevent CSRNG from being constructed");
+        panic!("constant nibble stream should fail the repcnt test and prevent CSRNG from being constructed");
     }
 }
 
