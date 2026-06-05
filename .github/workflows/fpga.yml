@@ -373,10 +373,6 @@ jobs:
         with: 
           ref: ${{ inputs.branch }}
 
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
       - name: 'Download FPGA Bitstream Artifact'
         uses: actions/download-artifact@v4
         with:

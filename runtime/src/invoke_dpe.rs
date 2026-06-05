@@ -15,12 +15,12 @@ Abstract:
 use crate::{ec_dpe_env, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{DpeErrorCode, Response, ResponseHdr},
+    response::{DpeErrorCode, ResponseHdr},
     DpeInstance, DpeProfile, State, U8Bool, MAX_HANDLES,
 };
 use platform::MAX_OTHER_NAME_SIZE;
