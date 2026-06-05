@@ -296,12 +296,27 @@ pub fn exec_cmd_ecdsa_verify<T: HwModel>(hw: &mut T) {
     });
     payload.populate_chksum().unwrap();
 
-    mbx_send_and_check_resp_hdr::<_, MailboxRespHeader>(
-        hw,
-        u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
-        payload.as_bytes().unwrap(),
+    let resp_bytes = hw
+        .mailbox_execute(
+            u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
+            payload.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp_hdr = MailboxRespHeader::read_from_bytes(
+        &resp_bytes[..core::mem::size_of::<MailboxRespHeader>()],
     )
     .unwrap();
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.chksum,
+        0x0,
+        &resp_bytes[core::mem::size_of_val(&resp_hdr.chksum)..],
+    ));
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST
+    );
 }
 
 pub fn exec_cmd_stash_measurement<T: HwModel>(hw: &mut T) {
