@@ -18,13 +18,14 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use caliptra_kat::{Ecc384Kat, EcdhKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -481,6 +482,7 @@ fn test_no_private_key_usage() {
 
 fn test_kat() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut sha = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -496,7 +498,9 @@ fn test_kat() {
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(
-        Ecc384Kat::default().execute(&mut ecc, &mut trng).is_ok(),
+        Ecc384Kat::default()
+            .execute(&mut ecc, &mut sha, &mut trng)
+            .is_ok(),
         true
     );
     assert_eq!(

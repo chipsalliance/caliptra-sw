@@ -84,7 +84,7 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     CsrngKat::default().execute(env.trng)?;
 
     cprintln!("[kat] ECC-384");
-    Ecc384Kat::default().execute(env.ecc384, env.trng)?;
+    Ecc384Kat::default().execute(env.ecc384, env.sha2_512_384, env.trng)?;
 
     cprintln!("[kat] ECDH");
     EcdhKat::default().execute(env.ecc384, env.trng)?;
