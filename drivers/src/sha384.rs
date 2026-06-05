@@ -37,6 +37,7 @@ pub struct Sha384 {
 #[cfg(feature = "runtime")]
 pub struct DpeHasher<'a> {
     op: Sha384DigestOp<'a>,
+    active: Option<()>,
 }
 
 #[cfg(feature = "runtime")]
@@ -44,6 +45,7 @@ impl<'a> DpeHasher<'a> {
     pub fn new(sha: &'a mut Sha384) -> Result<Self, CaliptraError> {
         Ok(Self {
             op: sha.digest_init()?,
+            active: None,
         })
     }
 
@@ -59,16 +61,25 @@ impl crypto::Hasher for DpeHasher<'_> {
         self.op.buf = [0u8; SHA384_BLOCK_BYTE_SIZE];
         self.op.buf_idx = 0;
         self.op.data_size = 0;
+        self.active = Some(());
         Ok(())
     }
 
     fn update(&mut self, bytes: &[u8]) -> Result<(), crypto::CryptoError> {
+        if self.active.is_none() {
+            return Err(crypto::CryptoError::HashError(u32::from(
+                CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR,
+            )));
+        }
         self.op
             .update(bytes)
             .map_err(|e| crypto::CryptoError::HashError(u32::from(e)))
     }
 
     fn finish(&mut self) -> Result<crypto::Digest, crypto::CryptoError> {
+        self.active
+            .take()
+            .ok_or(crypto::CryptoError::HashError(0))?;
         let mut digest = Array4x12::default();
         Sha384DigestOp {
             sha: self.op.sha,

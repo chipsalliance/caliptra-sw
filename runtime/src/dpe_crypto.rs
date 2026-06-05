@@ -81,10 +81,7 @@ impl<'a> DpeCrypto<'a> {
         info: &[u8],
         key_id: KeyId,
     ) -> Result<KeyId, CryptoError> {
-        let hasher = self.hasher()?;
-        hasher.update(measurement.as_slice())?;
-        hasher.update(info)?;
-        let context = hasher.finish()?;
+        let context = self.hash_all(&[&measurement.as_slice(), &info])?;
 
         hmac384_kdf(
             self.hmac384,
