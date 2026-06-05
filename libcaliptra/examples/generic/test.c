@@ -664,6 +664,18 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // MLDSA87_SIGNATURE_VERIFY
+    //
+    // TODO(https://github.com/chipsalliance/caliptra-sw/issues/3835): re-enable once both
+    //   1. caliptra-mldsa::verify_internal stack-budget reduction (per-Scalar
+    //      rewrite so verify fits the runtime's ~85 KiB stack), and
+    //   2. caliptra-mldsa / caliptra-shake panic-freedom audit (so
+    //      test_panic_missing keeps passing once mldsa_attestation is
+    //      enabled in APP_WITH_UART)
+    // both land in caliptra-1.x. Until then, MDSV is not compiled into the
+    // upstream firmware image used by this hwmodel test (the mldsa_attestation
+    // cargo feature on caliptra-runtime is off by default), so calling MDSV
+    // here would return RUNTIME_UNIMPLEMENTED_COMMAND (0xE0002).
+#if 0
     struct caliptra_mldsa87_signature_verify_req mldsa_req = {};
 
     status = caliptra_mldsa87_signature_verify(&mldsa_req, false);
@@ -683,6 +695,7 @@ int rt_test_all_commands(const test_info* info)
     } else {
         printf("MLDSA87 Signature Verify: OK\n");
     }
+#endif
 
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
