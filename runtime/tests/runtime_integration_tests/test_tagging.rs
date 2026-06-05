@@ -212,14 +212,6 @@ fn test_tagging_retired_context() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // retire context via DeriveContext
-    //let derive_context_cmd = DeriveContextCmd {
-    //    handle: ContextHandle::default(),
-    //    data: TciMeasurement([0u8; TCI_SIZE]),
-    //    flags: DeriveContextFlags::empty(),
-    //    tci_type: 0,
-    //    target_locality: 0,
-    //    ..Default::default()
-    //};
     let derive_context_cmd = DeriveContextCmd::default();
     let resp = execute_dpe_cmd(
         &mut model,
