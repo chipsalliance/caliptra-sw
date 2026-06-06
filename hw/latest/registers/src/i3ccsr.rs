@@ -136,21 +136,21 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn tti(&self) -> TtiBlock<&TMmio> {
         TtiBlock {
-            ptr: unsafe { self.ptr.add(0x1c0 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x200 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn so_cmgmt_if(&self) -> SocmgmtifBlock<&TMmio> {
         SocmgmtifBlock {
-            ptr: unsafe { self.ptr.add(0x200 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x300 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn ctrl_cfg(&self) -> CtrlcfgBlock<&TMmio> {
         CtrlcfgBlock {
-            ptr: unsafe { self.ptr.add(0x260 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x368 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -1151,14 +1151,26 @@ impl<TMmio: caliptra_ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`i3ccsr::regs::StbyCrMwlReadVal`]; Write value: [`i3ccsr::regs::StbyCrMwlWriteVal`]
     #[inline(always)]
-    pub fn _rsvd_3(
+    pub fn stby_cr_mwl(
         &self,
-    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeRsvd3, &TMmio> {
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrMwl, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`i3ccsr::regs::StbyCrMrlReadVal`]; Write value: [`i3ccsr::regs::StbyCrMrlWriteVal`]
+    #[inline(always)]
+    pub fn stby_cr_mrl(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::StdbyctrlmodeStbyCrMrl, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1206,7 +1218,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
             )
         }
     }
-    /// Queue Reset Control
+    /// Reset Control for Queues and IBI Retry Counter
     ///
     /// Read value: [`i3ccsr::regs::TtiResetControlReadVal`]; Write value: [`i3ccsr::regs::TtiResetControlWriteVal`]
     #[inline(always)]
@@ -1220,6 +1232,62 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
             )
         }
     }
+    /// Dynamic queue full/empty status for debug and monitoring
+    ///
+    /// Read value: [`i3ccsr::regs::QueueStatusReadVal`]; Write value: [`i3ccsr::regs::QueueStatusWriteVal`]
+    #[inline(always)]
+    pub fn queue_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiQueueStatus, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Current number of entries in descriptor queues
+    ///
+    /// Read value: [`i3ccsr::regs::DescQueueDepthReadVal`]; Write value: [`i3ccsr::regs::DescQueueDepthWriteVal`]
+    #[inline(always)]
+    pub fn desc_queue_depth(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiDescQueueDepth, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Current number of DWORD entries in data queues
+    ///
+    /// Read value: [`i3ccsr::regs::DataQueueDepthReadVal`]; Write value: [`i3ccsr::regs::DataQueueDepthWriteVal`]
+    #[inline(always)]
+    pub fn data_queue_depth(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiDataQueueDepth, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Current number of entries in IBI queue
+    ///
+    /// Read value: [`i3ccsr::regs::IbiQueueDepthReadVal`]; Write value: [`i3ccsr::regs::IbiQueueDepthWriteVal`]
+    #[inline(always)]
+    pub fn ibi_queue_depth(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiIbiQueueDepth, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
     /// Interrupt Status
     ///
     /// Read value: [`i3ccsr::regs::InterruptStatusReadVal`]; Write value: [`i3ccsr::regs::InterruptStatusWriteVal`]
@@ -1229,7 +1297,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptStatus, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1243,7 +1311,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptEnable, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1257,7 +1325,246 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiInterruptForce, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Target Error Detection Control. Set bits to enable error detection. Clear to disable.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCtrlReadVal`]; Write value: [`i3ccsr::regs::TargetErrCtrlWriteVal`]
+    #[inline(always)]
+    pub fn target_err_ctrl(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCtrl, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Target Error Interrupt Status. Write 1 to clear individual bits.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrIntrStatusReadVal`]; Write value: [`i3ccsr::regs::TargetErrIntrStatusWriteVal`]
+    #[inline(always)]
+    pub fn target_err_intr_status(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrIntrStatus, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Target Error Interrupt Enable. Set bits to enable corresponding interrupts.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrIntrEnableReadVal`]; Write value: [`i3ccsr::regs::TargetErrIntrEnableWriteVal`]
+    #[inline(always)]
+    pub fn target_err_intr_enable(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrIntrEnable, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Target Error Interrupt Force. Set bits to force corresponding interrupts for testing.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrIntrForceReadVal`]; Write value: [`i3ccsr::regs::TargetErrIntrForceWriteVal`]
+    #[inline(always)]
+    pub fn target_err_intr_force(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrIntrForce, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE0 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te0(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe0, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE1 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te1(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe1, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE2 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te2(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe2, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x44 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE3 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te3(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe3, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x48 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE4 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te4(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe4, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x4c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts TE5 errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_te5(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntTe5, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x50 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts framing errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_framing(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntFraming, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x54 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface PEC errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_pec(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiPec, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface length mismatch errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_length(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiLength, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface write-to-read-only errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_readonly(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiReadonly, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface unsupported command errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_unsupported(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiUnsupported, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x64 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface RX FIFO overflow errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_rx_fifo_overflow(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiRxFifoOverflow, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x68 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Counts Recovery Interface INDIRECT FIFO overflow errors. Saturates at 255. Write 0 to clear.
+    ///
+    /// Read value: [`i3ccsr::regs::TargetErrCntReadVal`]; Write value: [`i3ccsr::regs::TargetErrCntWriteVal`]
+    #[inline(always)]
+    pub fn target_err_cnt_ri_indirect_fifo_overflow(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTargetErrCntRiIndirectFifoOverflow, &TMmio>
+    {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x6c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1271,7 +1578,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiRxDescQueuePort, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x70 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1285,7 +1592,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiRxDataPort, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x74 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1299,7 +1606,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTxDescQueuePort, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1313,7 +1620,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTxDataPort, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x7c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1327,7 +1634,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiIbiPort, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1341,7 +1648,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueSize, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x84 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1355,7 +1662,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiIbiTtiQueueSize, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1369,7 +1676,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueThldCtrl, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x8c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1383,7 +1690,7 @@ impl<TMmio: caliptra_ureg::Mmio> TtiBlock<TMmio> {
     ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::TtiTtiDataBufferThldCtrl, &TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x90 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -1663,6 +1970,30 @@ impl<TMmio: caliptra_ureg::Mmio> SocmgmtifBlock<TMmio> {
         unsafe {
             caliptra_ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`i3ccsr::regs::HdrTimeoutEnRegReadVal`]; Write value: [`i3ccsr::regs::HdrTimeoutEnRegWriteVal`]
+    #[inline(always)]
+    pub fn hdr_timeout_en_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifHdrTimeoutEnReg, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x5c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`i3ccsr::regs::THdrTimeoutRegReadVal`]; Write value: [`i3ccsr::regs::THdrTimeoutRegWriteVal`]
+    #[inline(always)]
+    pub fn t_hdr_timeout_reg(
+        &self,
+    ) -> caliptra_ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdrTimeoutReg, &TMmio> {
+        unsafe {
+            caliptra_ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -2183,6 +2514,32 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct DataQueueDepthReadVal(u32);
+    impl DataQueueDepthReadVal {
+        /// Number of DWORD entries in TX Data Queue
+        #[inline(always)]
+        pub fn tx_data_queue_depth(&self) -> u32 {
+            (self.0 >> 8) & 0xff
+        }
+        /// Number of DWORD entries in RX Data Queue
+        #[inline(always)]
+        pub fn rx_data_queue_depth(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+    }
+    impl From<u32> for DataQueueDepthReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<DataQueueDepthReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: DataQueueDepthReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct DatSectionOffsetReadVal(u32);
     impl DatSectionOffsetReadVal {
         /// Individual DAT entry size.
@@ -2278,6 +2635,32 @@ pub mod regs {
     impl From<DctSectionOffsetWriteVal> for u32 {
         #[inline(always)]
         fn from(val: DctSectionOffsetWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct DescQueueDepthReadVal(u32);
+    impl DescQueueDepthReadVal {
+        /// Number of entries in TX Descriptor Queue
+        #[inline(always)]
+        pub fn tx_desc_queue_depth(&self) -> u32 {
+            (self.0 >> 8) & 0xff
+        }
+        /// Number of entries in RX Descriptor Queue
+        #[inline(always)]
+        pub fn rx_desc_queue_depth(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+    }
+    impl From<u32> for DescQueueDepthReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<DescQueueDepthReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: DescQueueDepthReadVal) -> u32 {
             val.0
         }
     }
@@ -3220,6 +3603,53 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct HdrTimeoutEnRegReadVal(u32);
+    impl HdrTimeoutEnRegReadVal {
+        /// Enable bit for the optional 60us HDR error recovery timer (I3C spec 5.1.10.1.9). When enabled, the Target can recover from TE0/TE1 errors if both SCL and SDA stay High for a period exceeding the configured threshold. Disabled on reset.
+        #[inline(always)]
+        pub fn hdr_timeout_en(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> HdrTimeoutEnRegWriteVal {
+            HdrTimeoutEnRegWriteVal(self.0)
+        }
+    }
+    impl From<u32> for HdrTimeoutEnRegReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<HdrTimeoutEnRegReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: HdrTimeoutEnRegReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct HdrTimeoutEnRegWriteVal(u32);
+    impl HdrTimeoutEnRegWriteVal {
+        /// Enable bit for the optional 60us HDR error recovery timer (I3C spec 5.1.10.1.9). When enabled, the Target can recover from TE0/TE1 errors if both SCL and SDA stay High for a period exceeding the configured threshold. Disabled on reset.
+        #[inline(always)]
+        pub fn hdr_timeout_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for HdrTimeoutEnRegWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<HdrTimeoutEnRegWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: HdrTimeoutEnRegWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct HwStatusReadVal(u32);
     impl HwStatusReadVal {
         /// Device temperature is critical (may need reset to clear)
@@ -3541,6 +3971,27 @@ pub mod regs {
     impl From<IbiNotifyCtrlWriteVal> for u32 {
         #[inline(always)]
         fn from(val: IbiNotifyCtrlWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct IbiQueueDepthReadVal(u32);
+    impl IbiQueueDepthReadVal {
+        /// Number of entries in IBI Queue
+        #[inline(always)]
+        pub fn ibi_queue_depth(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+    }
+    impl From<u32> for IbiQueueDepthReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<IbiQueueDepthReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: IbiQueueDepthReadVal) -> u32 {
             val.0
         }
     }
@@ -4020,7 +4471,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InterruptStatusReadVal(u32);
     impl InterruptStatusReadVal {
-        /// Bus error occurred
+        /// NOT IMPLEMENTED. Bus error occurred
         #[inline(always)]
         pub fn transfer_err_stat(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
@@ -4030,22 +4481,27 @@ pub mod regs {
         pub fn tx_desc_complete(&self) -> bool {
             ((self.0 >> 26) & 1) != 0
         }
-        /// Bus aborted transaction
+        /// NOT IMPLEMENTED. Bus aborted transaction
         #[inline(always)]
         pub fn transfer_abort_stat(&self) -> bool {
             ((self.0 >> 25) & 1) != 0
         }
+        /// At least one IBI is pending
+        #[inline(always)]
+        pub fn pending_ibi(&self) -> bool {
+            ((self.0 >> 20) & 1) != 0
+        }
         /// Contains the interrupt number of any pending interrupt, or 0 if no interrupts are pending. This encoding allows for up to 15 numbered interrupts. If more than one interrupt is set, then the highest priority interrupt shall be returned.
         #[inline(always)]
         pub fn pending_interrupt(&self) -> u32 {
-            (self.0 >> 15) & 0xf
+            (self.0 >> 16) & 0xf
         }
         /// IBI is done, check LAST_IBI_STATUS for result.
         #[inline(always)]
         pub fn ibi_done(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
-        /// TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`
+        /// NOT IMPLEMENTED. TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`
         #[inline(always)]
         pub fn ibi_thld_stat(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
@@ -4055,7 +4511,7 @@ pub mod regs {
         pub fn rx_desc_thld_stat(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
-        /// TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`
+        /// NOT IMPLEMENTED. TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`
         #[inline(always)]
         pub fn tx_desc_thld_stat(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
@@ -4065,17 +4521,17 @@ pub mod regs {
         pub fn rx_data_thld_stat(&self) -> bool {
             ((self.0 >> 9) & 1) != 0
         }
-        /// TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`
+        /// NOT IMPLEMENTED. TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`
         #[inline(always)]
         pub fn tx_data_thld_stat(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
-        /// Pending Read was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
+        /// NOT IMPLEMENTED. Pending Read was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
         #[inline(always)]
         pub fn tx_desc_timeout(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
-        /// Pending Write was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
+        /// NOT IMPLEMENTED. Pending Write was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
         #[inline(always)]
         pub fn rx_desc_timeout(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
@@ -4111,7 +4567,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InterruptStatusWriteVal(u32);
     impl InterruptStatusWriteVal {
-        /// Bus error occurred
+        /// NOT IMPLEMENTED. Bus error occurred
         #[inline(always)]
         pub fn transfer_err_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
@@ -4121,7 +4577,7 @@ pub mod regs {
         pub fn tx_desc_complete(self, val: bool) -> Self {
             Self((self.0 & !(1 << 26)) | (u32::from(val) << 26))
         }
-        /// Bus aborted transaction
+        /// NOT IMPLEMENTED. Bus aborted transaction
         #[inline(always)]
         pub fn transfer_abort_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
@@ -4129,14 +4585,14 @@ pub mod regs {
         /// Contains the interrupt number of any pending interrupt, or 0 if no interrupts are pending. This encoding allows for up to 15 numbered interrupts. If more than one interrupt is set, then the highest priority interrupt shall be returned.
         #[inline(always)]
         pub fn pending_interrupt(self, val: u32) -> Self {
-            Self((self.0 & !(0xf << 15)) | ((val & 0xf) << 15))
+            Self((self.0 & !(0xf << 16)) | ((val & 0xf) << 16))
         }
         /// IBI is done, check LAST_IBI_STATUS for result.
         #[inline(always)]
         pub fn ibi_done(self, val: bool) -> Self {
             Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
         }
-        /// TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`
+        /// NOT IMPLEMENTED. TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`
         #[inline(always)]
         pub fn ibi_thld_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
@@ -4146,7 +4602,7 @@ pub mod regs {
         pub fn rx_desc_thld_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
         }
-        /// TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`
+        /// NOT IMPLEMENTED. TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`
         #[inline(always)]
         pub fn tx_desc_thld_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
@@ -4156,17 +4612,17 @@ pub mod regs {
         pub fn rx_data_thld_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
-        /// TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`
+        /// NOT IMPLEMENTED. TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`
         #[inline(always)]
         pub fn tx_data_thld_stat(self, val: bool) -> Self {
             Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
         }
-        /// Pending Read was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
+        /// NOT IMPLEMENTED. Pending Read was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
         #[inline(always)]
         pub fn tx_desc_timeout(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
-        /// Pending Write was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
+        /// NOT IMPLEMENTED. Pending Write was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
         #[inline(always)]
         pub fn rx_desc_timeout(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
@@ -5221,6 +5677,72 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct QueueStatusReadVal(u32);
+    impl QueueStatusReadVal {
+        /// IBI Queue is empty
+        #[inline(always)]
+        pub fn ibi_queue_empty(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
+        }
+        /// IBI Queue is full
+        #[inline(always)]
+        pub fn ibi_queue_full(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
+        }
+        /// TX Data Queue is empty
+        #[inline(always)]
+        pub fn tx_data_queue_empty(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// TX Data Queue is full
+        #[inline(always)]
+        pub fn tx_data_queue_full(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// RX Data Queue is empty
+        #[inline(always)]
+        pub fn rx_data_queue_empty(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// RX Data Queue is full
+        #[inline(always)]
+        pub fn rx_data_queue_full(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// TX Descriptor Queue is empty
+        #[inline(always)]
+        pub fn tx_desc_queue_empty(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// TX Descriptor Queue is full
+        #[inline(always)]
+        pub fn tx_desc_queue_full(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// RX Descriptor Queue is empty
+        #[inline(always)]
+        pub fn rx_desc_queue_empty(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// RX Descriptor Queue is full
+        #[inline(always)]
+        pub fn rx_desc_queue_full(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+    }
+    impl From<u32> for QueueStatusReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<QueueStatusReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: QueueStatusReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct QueueThldCtrlReadVal(u32);
     impl QueueThldCtrlReadVal {
         /// Triggers IBI_STATUS_THLD_STAT interrupt when IBI queue has N or more entries. Accepted values are 1:255
@@ -6012,15 +6534,19 @@ pub mod regs {
         ///
         /// Values:
         ///
-        /// 00 - Success: IBI was transmitted and ACK'd by the Active Controller.
-        /// 01 - Failure: Active Controller NACK'd the IBI before any data was sent.
-        /// The Target Device will retry sending the IBI once.
-        /// 10 - Failure: Active Controller NACK'd the IBI after partial data was sent.
-        /// Part of data in the IBI queue is considered corrupted and will be discarded.
-        /// 11 - Failure: IBI was terminated after 1 retry.
+        /// 000 - Success: IBI was transmitted and ACK'd by the Active Controller.
+        /// 001 - FailureNack: Active Controller NACK'd the IBI before any data was sent.
+        /// The device will retry sending the IBI as long as permitted by the retry counter.
+        /// 010 - FailurePartialData: Active Controller NACK'd the IBI after data was
+        /// partially sent. The remaining part of data in the IBI queue is considered
+        /// corrupted and will be discarded.
+        /// 011 - FailureRetry: IBI could not be serviced due to reached retry count.
+        /// 100 - FailureArbitration:: IBI could not be serviced as arbitration was lost
+        /// during the address header. The device will retry sending the IBI as long as
+        /// permitted by the retry counter.
         #[inline(always)]
         pub fn last_ibi_status(&self) -> u32 {
-            (self.0 >> 14) & 3
+            (self.0 >> 12) & 7
         }
         /// Protocol error occurred in the past. This field can only be reset
         /// by the Controller, if it issues the GETSTATUS CCC.
@@ -6033,7 +6559,7 @@ pub mod regs {
         /// of the next GETSTATUS command.
         #[inline(always)]
         pub fn protocol_error(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
+            ((self.0 >> 8) & 1) != 0
         }
     }
     impl From<u32> for StatusReadVal {
@@ -6184,7 +6710,7 @@ pub mod regs {
         pub fn reset_time_peripheral(&self) -> u32 {
             (self.0 >> 8) & 0xff
         }
-        /// Contains the Defining Byte received with the last Direct SET CCC sent by the Active Controller.
+        /// Contains the Defining Byte received with the last Direct SET CCC sent by the Active Controller. If not armed (START or RSTACT with unsupported defining byte) set to spec default 0x1.
         #[inline(always)]
         pub fn rst_action(&self) -> u32 {
             (self.0 >> 0) & 0xff
@@ -6580,14 +7106,14 @@ pub mod regs {
         }
         /// Bus Characteristics, Variable Part.
         ///
-        /// Reset value is set to 5'b00110, because this device:
+        /// Reset value is set to 5'b10110, because this device:
         ///
         ///
-        /// - [bit4] is not a Virtual  Target
+        /// - [bit4] exposes a Virtual Target
         ///
         /// - [bit3] is not Offline Capable
         ///
-        /// - [bit2] uses the MDB in the IBI Payload
+        /// - [bit2] (always) uses the MDB in the IBI Payload
         ///
         /// - [bit1] is capable of IBI requests
         ///
@@ -6637,14 +7163,14 @@ pub mod regs {
         }
         /// Bus Characteristics, Variable Part.
         ///
-        /// Reset value is set to 5'b00110, because this device:
+        /// Reset value is set to 5'b10110, because this device:
         ///
         ///
-        /// - [bit4] is not a Virtual  Target
+        /// - [bit4] exposes a Virtual Target
         ///
         /// - [bit3] is not Offline Capable
         ///
-        /// - [bit2] uses the MDB in the IBI Payload
+        /// - [bit2] (always) uses the MDB in the IBI Payload
         ///
         /// - [bit1] is capable of IBI requests
         ///
@@ -7070,6 +7596,53 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct StbyCrMrlReadVal(u32);
+    impl StbyCrMrlReadVal {
+        /// This field contains the IBI payload size (IBIL) (read-only)
+        #[inline(always)]
+        pub fn ibil(&self) -> u32 {
+            (self.0 >> 16) & 0xff
+        }
+        /// This field contains the maximum read length (MRL) (read-only)
+        #[inline(always)]
+        pub fn mrl(&self) -> u32 {
+            (self.0 >> 0) & 0xffff
+        }
+    }
+    impl From<u32> for StbyCrMrlReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<StbyCrMrlReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: StbyCrMrlReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct StbyCrMwlReadVal(u32);
+    impl StbyCrMwlReadVal {
+        /// This field contains the maximum write length (MWL) (read-only)
+        #[inline(always)]
+        pub fn mwl(&self) -> u32 {
+            (self.0 >> 0) & 0xffff
+        }
+    }
+    impl From<u32> for StbyCrMwlReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<StbyCrMwlReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: StbyCrMwlReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct StbyCrStatusReadVal(u32);
     impl StbyCrStatusReadVal {
         #[inline(always)]
@@ -7143,16 +7716,16 @@ pub mod regs {
         }
         /// Bus Characteristics, Variable Part.
         ///
-        /// Reset value is set to 5'b10110, because this device:
+        /// Reset value is set to 5'b10000, because this device:
         ///
         ///
         /// - [bit4] is a Virtual Target
         ///
         /// - [bit3] is not Offline Capable
         ///
-        /// - [bit2] uses the MDB in the IBI Payload
+        /// - [bit2] does not apply due to bit1
         ///
-        /// - [bit1] is capable of IBI requests
+        /// - [bit1] is not capable of IBI requests
         ///
         /// - [bit0] has no speed limitation
         #[inline(always)]
@@ -7200,16 +7773,16 @@ pub mod regs {
         }
         /// Bus Characteristics, Variable Part.
         ///
-        /// Reset value is set to 5'b10110, because this device:
+        /// Reset value is set to 5'b10000, because this device:
         ///
         ///
         /// - [bit4] is a Virtual Target
         ///
         /// - [bit3] is not Offline Capable
         ///
-        /// - [bit2] uses the MDB in the IBI Payload
+        /// - [bit2] does not apply due to bit1
         ///
-        /// - [bit1] is capable of IBI requests
+        /// - [bit1] is not capable of IBI requests
         ///
         /// - [bit0] has no speed limitation
         #[inline(always)]
@@ -7325,6 +7898,721 @@ pub mod regs {
     impl From<StbyCrVirtDeviceAddrWriteVal> for u32 {
         #[inline(always)]
         fn from(val: StbyCrVirtDeviceAddrWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrCntReadVal(u32);
+    impl TargetErrCntReadVal {
+        /// Error count (saturates at 255). Write 0 to clear.
+        #[inline(always)]
+        pub fn cnt(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> TargetErrCntWriteVal {
+            TargetErrCntWriteVal(self.0)
+        }
+    }
+    impl From<u32> for TargetErrCntReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrCntReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrCntReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrCntWriteVal(u32);
+    impl TargetErrCntWriteVal {
+        /// Error count (saturates at 255). Write 0 to clear.
+        #[inline(always)]
+        pub fn cnt(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
+        }
+    }
+    impl From<u32> for TargetErrCntWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrCntWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrCntWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrCtrlReadVal(u32);
+    impl TargetErrCtrlReadVal {
+        /// Enable Recovery Interface INDIRECT FIFO overflow error detection and transition to Error state. Set to 0 to disable (overflow is still recorded in interrupt status).
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_det_en(&self) -> bool {
+            ((self.0 >> 12) & 1) != 0
+        }
+        /// Enable Recovery Interface RX FIFO overflow error detection and transition to Error state. Set to 0 to disable (overflow is still recorded in interrupt status).
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_det_en(&self) -> bool {
+            ((self.0 >> 11) & 1) != 0
+        }
+        /// Enable Recovery Interface unsupported command error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_unsupported_err_det_en(&self) -> bool {
+            ((self.0 >> 10) & 1) != 0
+        }
+        /// Enable Recovery Interface write-to-read-only error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_readonly_err_det_en(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
+        }
+        /// Enable Recovery Interface length error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_length_err_det_en(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
+        }
+        /// Enable Recovery Interface PEC/CRC error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_pec_err_det_en(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Enable framing error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn framing_err_det_en(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// Enable TE5 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te5_err_det_en(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// Enable TE4 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te4_err_det_en(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Enable TE3 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te3_err_det_en(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Enable TE2 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te2_err_det_en(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Enable TE1 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te1_err_det_en(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Enable TE0 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te0_err_det_en(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> TargetErrCtrlWriteVal {
+            TargetErrCtrlWriteVal(self.0)
+        }
+    }
+    impl From<u32> for TargetErrCtrlReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrCtrlReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrCtrlReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrCtrlWriteVal(u32);
+    impl TargetErrCtrlWriteVal {
+        /// Enable Recovery Interface INDIRECT FIFO overflow error detection and transition to Error state. Set to 0 to disable (overflow is still recorded in interrupt status).
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
+        }
+        /// Enable Recovery Interface RX FIFO overflow error detection and transition to Error state. Set to 0 to disable (overflow is still recorded in interrupt status).
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
+        }
+        /// Enable Recovery Interface unsupported command error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_unsupported_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
+        }
+        /// Enable Recovery Interface write-to-read-only error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_readonly_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
+        }
+        /// Enable Recovery Interface length error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_length_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
+        }
+        /// Enable Recovery Interface PEC/CRC error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn ri_pec_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+        /// Enable framing error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn framing_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// Enable TE5 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te5_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// Enable TE4 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te4_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Enable TE3 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te3_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// Enable TE2 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te2_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Enable TE1 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te1_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Enable TE0 error detection. Set to 0 to disable.
+        #[inline(always)]
+        pub fn te0_err_det_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+    }
+    impl From<u32> for TargetErrCtrlWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrCtrlWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrCtrlWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrEnableReadVal(u32);
+    impl TargetErrIntrEnableReadVal {
+        /// Enables the corresponding interrupt bit `RI_INDIRECT_FIFO_OVERFLOW_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_en(&self) -> bool {
+            ((self.0 >> 13) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `RI_RX_FIFO_OVERFLOW_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_en(&self) -> bool {
+            ((self.0 >> 12) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `RI_UNSUPPORTED_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_unsupported_err_en(&self) -> bool {
+            ((self.0 >> 11) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `RI_READONLY_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_readonly_err_en(&self) -> bool {
+            ((self.0 >> 10) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `RI_LENGTH_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_length_err_en(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `RI_PEC_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_pec_err_en(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `FRAMING_ERR_STAT`
+        #[inline(always)]
+        pub fn framing_err_en(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE5_ERR_STAT`
+        #[inline(always)]
+        pub fn te5_err_en(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE4_ERR_STAT`
+        #[inline(always)]
+        pub fn te4_err_en(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE3_ERR_STAT`
+        #[inline(always)]
+        pub fn te3_err_en(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE2_ERR_STAT`
+        #[inline(always)]
+        pub fn te2_err_en(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE1_ERR_STAT`
+        #[inline(always)]
+        pub fn te1_err_en(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Enables the corresponding interrupt bit `TE0_ERR_STAT`
+        #[inline(always)]
+        pub fn te0_err_en(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> TargetErrIntrEnableWriteVal {
+            TargetErrIntrEnableWriteVal(self.0)
+        }
+    }
+    impl From<u32> for TargetErrIntrEnableReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrEnableReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrEnableReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrEnableWriteVal(u32);
+    impl TargetErrIntrEnableWriteVal {
+        /// Enables the corresponding interrupt bit `RI_INDIRECT_FIFO_OVERFLOW_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
+        }
+        /// Enables the corresponding interrupt bit `RI_RX_FIFO_OVERFLOW_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
+        }
+        /// Enables the corresponding interrupt bit `RI_UNSUPPORTED_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_unsupported_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
+        }
+        /// Enables the corresponding interrupt bit `RI_READONLY_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_readonly_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
+        }
+        /// Enables the corresponding interrupt bit `RI_LENGTH_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_length_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
+        }
+        /// Enables the corresponding interrupt bit `RI_PEC_ERR_STAT`
+        #[inline(always)]
+        pub fn ri_pec_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
+        }
+        /// Enables the corresponding interrupt bit `FRAMING_ERR_STAT`
+        #[inline(always)]
+        pub fn framing_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+        /// Enables the corresponding interrupt bit `TE5_ERR_STAT`
+        #[inline(always)]
+        pub fn te5_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// Enables the corresponding interrupt bit `TE4_ERR_STAT`
+        #[inline(always)]
+        pub fn te4_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// Enables the corresponding interrupt bit `TE3_ERR_STAT`
+        #[inline(always)]
+        pub fn te3_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Enables the corresponding interrupt bit `TE2_ERR_STAT`
+        #[inline(always)]
+        pub fn te2_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// Enables the corresponding interrupt bit `TE1_ERR_STAT`
+        #[inline(always)]
+        pub fn te1_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Enables the corresponding interrupt bit `TE0_ERR_STAT`
+        #[inline(always)]
+        pub fn te0_err_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+    }
+    impl From<u32> for TargetErrIntrEnableWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrEnableWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrEnableWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrForceReadVal(u32);
+    impl TargetErrIntrForceReadVal {
+        /// Forces the corresponding interrupt bit `RI_INDIRECT_FIFO_OVERFLOW_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_force(&self) -> bool {
+            ((self.0 >> 13) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `RI_RX_FIFO_OVERFLOW_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_force(&self) -> bool {
+            ((self.0 >> 12) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `RI_UNSUPPORTED_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_unsupported_err_force(&self) -> bool {
+            ((self.0 >> 11) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `RI_READONLY_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_readonly_err_force(&self) -> bool {
+            ((self.0 >> 10) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `RI_LENGTH_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_length_err_force(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `RI_PEC_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_pec_err_force(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `FRAMING_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn framing_err_force(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE5_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te5_err_force(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE4_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te4_err_force(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE3_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te3_err_force(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE2_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te2_err_force(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE1_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te1_err_force(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Forces the corresponding interrupt bit `TE0_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te0_err_force(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> TargetErrIntrForceWriteVal {
+            TargetErrIntrForceWriteVal(self.0)
+        }
+    }
+    impl From<u32> for TargetErrIntrForceReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrForceReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrForceReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrForceWriteVal(u32);
+    impl TargetErrIntrForceWriteVal {
+        /// Forces the corresponding interrupt bit `RI_INDIRECT_FIFO_OVERFLOW_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
+        }
+        /// Forces the corresponding interrupt bit `RI_RX_FIFO_OVERFLOW_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
+        }
+        /// Forces the corresponding interrupt bit `RI_UNSUPPORTED_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_unsupported_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
+        }
+        /// Forces the corresponding interrupt bit `RI_READONLY_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_readonly_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
+        }
+        /// Forces the corresponding interrupt bit `RI_LENGTH_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_length_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
+        }
+        /// Forces the corresponding interrupt bit `RI_PEC_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn ri_pec_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
+        }
+        /// Forces the corresponding interrupt bit `FRAMING_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn framing_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+        /// Forces the corresponding interrupt bit `TE5_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te5_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// Forces the corresponding interrupt bit `TE4_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te4_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// Forces the corresponding interrupt bit `TE3_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te3_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Forces the corresponding interrupt bit `TE2_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te2_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// Forces the corresponding interrupt bit `TE1_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te1_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Forces the corresponding interrupt bit `TE0_ERR_STAT` to be set to 1
+        #[inline(always)]
+        pub fn te0_err_force(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+    }
+    impl From<u32> for TargetErrIntrForceWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrForceWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrForceWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrStatusReadVal(u32);
+    impl TargetErrIntrStatusReadVal {
+        /// Recovery Interface INDIRECT FIFO overflow error detected
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_stat(&self) -> bool {
+            ((self.0 >> 13) & 1) != 0
+        }
+        /// Recovery Interface RX FIFO overflow error detected
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_stat(&self) -> bool {
+            ((self.0 >> 12) & 1) != 0
+        }
+        /// Recovery Interface unsupported command error detected
+        #[inline(always)]
+        pub fn ri_unsupported_err_stat(&self) -> bool {
+            ((self.0 >> 11) & 1) != 0
+        }
+        /// Recovery Interface write-to-read-only error detected
+        #[inline(always)]
+        pub fn ri_readonly_err_stat(&self) -> bool {
+            ((self.0 >> 10) & 1) != 0
+        }
+        /// Recovery Interface length mismatch error detected
+        #[inline(always)]
+        pub fn ri_length_err_stat(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
+        }
+        /// Recovery Interface PEC/CRC error detected
+        #[inline(always)]
+        pub fn ri_pec_err_stat(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
+        }
+        /// DA padding error (Bit[0] != 0 in SETDASA/SETNEWDA)
+        #[inline(always)]
+        pub fn framing_err_stat(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// TE5: Broadcast/Direct CCC wrong R/W direction
+        #[inline(always)]
+        pub fn te5_err_stat(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// TE4: ENTDAA BCR/DCR mismatch
+        #[inline(always)]
+        pub fn te4_err_stat(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// TE3: ENTDAA PID mismatch
+        #[inline(always)]
+        pub fn te3_err_stat(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// TE2: CCC or Private Write data parity error
+        #[inline(always)]
+        pub fn te2_err_stat(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// TE1: CCC command parity error
+        #[inline(always)]
+        pub fn te1_err_stat(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// TE0: Invalid reserved address + RnW combination
+        #[inline(always)]
+        pub fn te0_err_stat(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> TargetErrIntrStatusWriteVal {
+            TargetErrIntrStatusWriteVal(self.0)
+        }
+    }
+    impl From<u32> for TargetErrIntrStatusReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrStatusReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrStatusReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct TargetErrIntrStatusWriteVal(u32);
+    impl TargetErrIntrStatusWriteVal {
+        /// Recovery Interface INDIRECT FIFO overflow error detected
+        #[inline(always)]
+        pub fn ri_indirect_fifo_overflow_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
+        }
+        /// Recovery Interface RX FIFO overflow error detected
+        #[inline(always)]
+        pub fn ri_rx_fifo_overflow_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
+        }
+        /// Recovery Interface unsupported command error detected
+        #[inline(always)]
+        pub fn ri_unsupported_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
+        }
+        /// Recovery Interface write-to-read-only error detected
+        #[inline(always)]
+        pub fn ri_readonly_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
+        }
+        /// Recovery Interface length mismatch error detected
+        #[inline(always)]
+        pub fn ri_length_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
+        }
+        /// Recovery Interface PEC/CRC error detected
+        #[inline(always)]
+        pub fn ri_pec_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
+        }
+        /// DA padding error (Bit[0] != 0 in SETDASA/SETNEWDA)
+        #[inline(always)]
+        pub fn framing_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+        /// TE5: Broadcast/Direct CCC wrong R/W direction
+        #[inline(always)]
+        pub fn te5_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// TE4: ENTDAA BCR/DCR mismatch
+        #[inline(always)]
+        pub fn te4_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// TE3: ENTDAA PID mismatch
+        #[inline(always)]
+        pub fn te3_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// TE2: CCC or Private Write data parity error
+        #[inline(always)]
+        pub fn te2_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// TE1: CCC command parity error
+        #[inline(always)]
+        pub fn te1_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// TE0: Invalid reserved address + RnW combination
+        #[inline(always)]
+        pub fn te0_err_stat(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+    }
+    impl From<u32> for TargetErrIntrStatusWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<TargetErrIntrStatusWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: TargetErrIntrStatusWriteVal) -> u32 {
             val.0
         }
     }
@@ -7521,7 +8809,7 @@ pub mod regs {
         pub fn rx_data_rst(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
-        /// TTI TX Data Queue Buffer Software Reset
+        /// TTI TX Data Queue Buffer Software Reset. Also resets the tti_conv_Nto8 since first dword is immediately loaded into the converter and can't be cleared otherwise.
         #[inline(always)]
         pub fn tx_data_rst(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
@@ -7562,6 +8850,11 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct TtiResetControlWriteVal(u32);
     impl TtiResetControlWriteVal {
+        /// TTI IBI Retry Counter Software Reset
+        #[inline(always)]
+        pub fn ibi_retry_ctr_rst(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
         /// TTI IBI Queue Buffer Software Reset
         #[inline(always)]
         pub fn ibi_queue_rst(self, val: bool) -> Self {
@@ -7572,7 +8865,7 @@ pub mod regs {
         pub fn rx_data_rst(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
-        /// TTI TX Data Queue Buffer Software Reset
+        /// TTI TX Data Queue Buffer Software Reset. Also resets the tti_conv_Nto8 since first dword is immediately loaded into the converter and can't be cleared otherwise.
         #[inline(always)]
         pub fn tx_data_rst(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
@@ -7649,6 +8942,53 @@ pub mod regs {
     impl From<TFRegWriteVal> for u32 {
         #[inline(always)]
         fn from(val: TFRegWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct THdrTimeoutRegReadVal(u32);
+    impl THdrTimeoutRegReadVal {
+        /// Timer threshold in clock cycles for the optional HDR error recovery (I3C spec 5.1.10.1.9). If both SCL and SDA stay High for this many clock cycles during a TE0/TE1 error-induced HDR mode, the Target exits HDR mode and returns to Idle. Configure based on System Clock to achieve 60us.
+        #[inline(always)]
+        pub fn t_hdr_timeout(&self) -> u32 {
+            (self.0 >> 0) & 0xfffff
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> THdrTimeoutRegWriteVal {
+            THdrTimeoutRegWriteVal(self.0)
+        }
+    }
+    impl From<u32> for THdrTimeoutRegReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<THdrTimeoutRegReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: THdrTimeoutRegReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct THdrTimeoutRegWriteVal(u32);
+    impl THdrTimeoutRegWriteVal {
+        /// Timer threshold in clock cycles for the optional HDR error recovery (I3C spec 5.1.10.1.9). If both SCL and SDA stay High for this many clock cycles during a TE0/TE1 error-induced HDR mode, the Target exits HDR mode and returns to Idle. Configure based on System Clock to achieve 60us.
+        #[inline(always)]
+        pub fn t_hdr_timeout(self, val: u32) -> Self {
+            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
+        }
+    }
+    impl From<u32> for THdrTimeoutRegWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<THdrTimeoutRegWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: THdrTimeoutRegWriteVal) -> u32 {
             val.0
         }
     }
@@ -8281,7 +9621,10 @@ pub mod meta {
         crate::i3ccsr::regs::StbyCrVirtDeviceAddrReadVal,
         crate::i3ccsr::regs::StbyCrVirtDeviceAddrWriteVal,
     >;
-    pub type StdbyctrlmodeRsvd3 = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type StdbyctrlmodeStbyCrMwl =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrMwlReadVal>;
+    pub type StdbyctrlmodeStbyCrMrl =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrMrlReadVal>;
     pub type TtiExtcapHeader =
         caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type TtiControl = caliptra_ureg::ReadWriteReg32<
@@ -8295,6 +9638,13 @@ pub mod meta {
         crate::i3ccsr::regs::TtiResetControlReadVal,
         crate::i3ccsr::regs::TtiResetControlWriteVal,
     >;
+    pub type TtiQueueStatus = caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::QueueStatusReadVal>;
+    pub type TtiDescQueueDepth =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::DescQueueDepthReadVal>;
+    pub type TtiDataQueueDepth =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::DataQueueDepthReadVal>;
+    pub type TtiIbiQueueDepth =
+        caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::IbiQueueDepthReadVal>;
     pub type TtiInterruptStatus = caliptra_ureg::ReadWriteReg32<
         0,
         crate::i3ccsr::regs::InterruptStatusReadVal,
@@ -8309,6 +9659,91 @@ pub mod meta {
         0,
         crate::i3ccsr::regs::InterruptForceReadVal,
         crate::i3ccsr::regs::InterruptForceWriteVal,
+    >;
+    pub type TtiTargetErrCtrl = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCtrlReadVal,
+        crate::i3ccsr::regs::TargetErrCtrlWriteVal,
+    >;
+    pub type TtiTargetErrIntrStatus = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrIntrStatusReadVal,
+        crate::i3ccsr::regs::TargetErrIntrStatusWriteVal,
+    >;
+    pub type TtiTargetErrIntrEnable = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrIntrEnableReadVal,
+        crate::i3ccsr::regs::TargetErrIntrEnableWriteVal,
+    >;
+    pub type TtiTargetErrIntrForce = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrIntrForceReadVal,
+        crate::i3ccsr::regs::TargetErrIntrForceWriteVal,
+    >;
+    pub type TtiTargetErrCntTe0 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntTe1 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntTe2 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntTe3 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntTe4 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntTe5 = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntFraming = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiPec = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiLength = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiReadonly = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiUnsupported = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiRxFifoOverflow = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
+    >;
+    pub type TtiTargetErrCntRiIndirectFifoOverflow = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::TargetErrCntReadVal,
+        crate::i3ccsr::regs::TargetErrCntWriteVal,
     >;
     pub type TtiRxDescQueuePort = caliptra_ureg::ReadOnlyReg32<u32>;
     pub type TtiRxDataPort = caliptra_ureg::ReadOnlyReg32<u32>;
@@ -8405,6 +9840,16 @@ pub mod meta {
     pub type SocmgmtifTFreeReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifTAvalReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifTIdleReg = caliptra_ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SocmgmtifHdrTimeoutEnReg = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::HdrTimeoutEnRegReadVal,
+        crate::i3ccsr::regs::HdrTimeoutEnRegWriteVal,
+    >;
+    pub type SocmgmtifTHdrTimeoutReg = caliptra_ureg::ReadWriteReg32<
+        0,
+        crate::i3ccsr::regs::THdrTimeoutRegReadVal,
+        crate::i3ccsr::regs::THdrTimeoutRegWriteVal,
+    >;
     pub type CtrlcfgExtcapHeader =
         caliptra_ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type CtrlcfgControllerConfig =
