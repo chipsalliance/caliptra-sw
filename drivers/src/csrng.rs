@@ -31,6 +31,11 @@ use core::mem::MaybeUninit;
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
+const SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK: u32 = 0xffff;
+const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT: u32 = 16;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK: u32 = 0x3;
+const SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT: u32 = 31;
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -92,18 +97,34 @@ impl Csrng {
         if e.module_enable().read().module_enable() == FALSE {
             // Configure entropy_src
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs());
-            set_health_check_thresholds(e, entropy_cfg);
+            set_health_check_thresholds(e, &entropy_cfg);
+
+            let rng_bit_enable = if entropy_cfg.rng_bit_enable {
+                TRUE
+            } else {
+                FALSE
+            };
+            let threshold_scope = if entropy_cfg.rng_bit_enable {
+                FALSE
+            } else {
+                TRUE
+            };
 
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
-                    .threshold_scope(TRUE)
-                    .rng_bit_enable(FALSE)
+                    .threshold_scope(threshold_scope)
+                    .rng_bit_enable(rng_bit_enable)
+                    .rng_bit_sel(entropy_cfg.rng_bit_sel)
             });
 
             // We allow the SoC to set bypass mode so that entropy can be
             // characterized directly, without passing through conditioning.
-            if (soc_ifc.regs().ss_strap_generic().at(2).read() >> 31) & 1 == 1 {
+            if (soc_ifc.regs().ss_strap_generic().at(2).read()
+                >> SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT)
+                & 1
+                == 1
+            {
                 e.entropy_control().modify(|w| w.es_type(TRUE));
             }
             e.module_enable().write(|w| w.module_enable(TRUE));
@@ -399,12 +420,22 @@ fn read_entropy_configuration(
     // The default value is (2048 bits * 1 clock/4 bits);
     const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
 
-    let health_test_window = soc_ifc.ss_strap_generic().at(2).read() & 0xffff;
+    let ss_strap_generic_2 = soc_ifc.ss_strap_generic().at(2).read();
+    let health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
 
-    let health_test_window = if health_test_window == 0 {
+    let health_test_window_is_default = health_test_window == 0;
+    let health_test_window = if health_test_window_is_default {
         DEFAULT_HEALTH_TEST_WINDOW
     } else {
         health_test_window
+    };
+
+    let rng_bit_enable = (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT) & 1 != 0;
+    let rng_bit_sel = if rng_bit_enable {
+        (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT)
+            & SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK
+    } else {
+        0
     };
 
     // Configure Repetition Count Test threshold
@@ -439,28 +470,33 @@ fn read_entropy_configuration(
     // This window value of 2048 comes from the OpenTitan documentation, since two noise
     // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
     const ADAPTP_WINDOW_SIZE_BITS: u32 = 2048;
-    const ADAPTP_DEFAULT_HI: u32 = 3 * (ADAPTP_WINDOW_SIZE_BITS / 4);
-    const ADAPTP_DEFAULT_LO: u32 = ADAPTP_WINDOW_SIZE_BITS / 4;
+    let adaptp_window_size_bits = if rng_bit_enable && health_test_window_is_default {
+        health_test_window * 4
+    } else {
+        ADAPTP_WINDOW_SIZE_BITS
+    };
+    let adaptp_default_hi = 3 * (adaptp_window_size_bits / 4);
+    let adaptp_default_lo = adaptp_window_size_bits / 4;
 
     let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
     let adaptp_hi_threshold = config0.high_threshold();
     let adaptp_lo_threshold = config0.low_threshold();
 
     let adaptp_hi_threshold = if adaptp_hi_threshold == 0 {
-        ADAPTP_DEFAULT_HI
+        adaptp_default_hi
     } else {
         adaptp_hi_threshold
     };
 
     let adaptp_lo_threshold = if adaptp_lo_threshold == 0 {
-        ADAPTP_DEFAULT_LO
+        adaptp_default_lo
     } else {
         adaptp_lo_threshold
     };
 
     // ensure lo < hi by using defaults if hi >= lo
     let (adaptp_hi_threshold, adaptp_lo_threshold) = if adaptp_hi_threshold <= adaptp_lo_threshold {
-        (ADAPTP_DEFAULT_HI, ADAPTP_DEFAULT_LO)
+        (adaptp_default_hi, adaptp_default_lo)
     } else {
         (adaptp_hi_threshold, adaptp_lo_threshold)
     };
@@ -471,21 +507,26 @@ fn read_entropy_configuration(
         repcnt_threshold,
         adaptp_hi_threshold,
         adaptp_lo_threshold,
+        rng_bit_enable,
+        rng_bit_sel,
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct EntropyConfiguration {
     pub alert_threshold: u32,
     pub health_test_window: u32,
     pub repcnt_threshold: u32,
     pub adaptp_hi_threshold: u32,
     pub adaptp_lo_threshold: u32,
+    pub rng_bit_enable: bool,
+    pub rng_bit_sel: u32,
 }
 
 /// Configure thresholds for the NIST health checks.
 fn set_health_check_thresholds(
     e: entropy_src::RegisterBlock<caliptra_ureg::RealMmioMut>,
-    entropy_cfg: EntropyConfiguration,
+    entropy_cfg: &EntropyConfiguration,
 ) {
     // configure the alert threshold and its inverse as required
     e.alert_threshold().write(|w| {

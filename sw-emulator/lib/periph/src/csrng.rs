@@ -232,6 +232,17 @@ impl Csrng {
             return Ok(()); // Silently ignore writes when locked
         }
         self.conf = data;
+
+        let conf = ConfReadVal::from(self.conf);
+        let threshold_scope = conf.threshold_scope() == MultiBitBool::True as u32;
+        self.health_tester
+            .adaptp
+            .set_threshold_scope(threshold_scope);
+
+        let rng_bit_enable = conf.rng_bit_enable() == MultiBitBool::True as u32;
+        let rng_bit_sel = conf.rng_bit_sel() as usize;
+        self.health_tester
+            .set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
         Ok(())
     }
 
@@ -241,6 +252,10 @@ impl Csrng {
             return Ok(()); // Silently ignore writes when locked
         }
         self.health_test_windows = data;
+
+        let fips_window = HealthTestWindowsReadVal::from(data).fips_window() as usize;
+        self.health_tester
+            .set_window_size_bits(BITS_PER_NIBBLE * fips_window);
         Ok(())
     }
 
@@ -336,9 +351,6 @@ impl Csrng {
     /// This is only done AFTER boot/instantiate is complete to avoid consuming entropy that's
     /// needed for seed conditioning in tests with limited entropy.
     fn simulate_continuous_health_testing(&mut self) {
-        const HEALTH_TEST_WINDOW_BITS: usize = 2048;
-        const NUM_NIBBLES: usize = HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
-
         // Only run continuous testing if:
         // 1. The module is enabled
         // 2. Boot/instantiate has completed (so we don't consume entropy needed for seed conditioning)
@@ -349,8 +361,10 @@ impl Csrng {
             return;
         }
 
+        let num_nibbles = self.health_tester.nibbles_per_window();
+
         // Consume a window's worth of entropy through the health testers
-        for _ in 0..NUM_NIBBLES {
+        for _ in 0..num_nibbles {
             if let Some(nibble) = self.health_tester.next() {
                 // The nibble was already fed through health testers in HealthTester::next()
                 let _ = nibble;
