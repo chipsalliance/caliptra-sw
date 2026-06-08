@@ -14,7 +14,8 @@ Abstract:
 
 use crate::mutrefbytes;
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::populate_checksum;
 use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_common::mailbox_api::{FirmwareVerifyResp, FirmwareVerifyResult};
@@ -77,7 +78,7 @@ impl FirmwareVerifyCmd {
         Ok(MboxStatusE::DataReady)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn load_manifest(
         persistent_data: &mut PersistentData,
         fw_payload: &[u8],

@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::LmsVerifyReq;
 use caliptra_drivers::{CaliptraError, CaliptraResult, LmsResult};
 use caliptra_lms_types::{
@@ -23,7 +24,7 @@ use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         // Re-run LMS KAT once (since LMS is more SW-based than other crypto)

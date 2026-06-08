@@ -1190,6 +1190,27 @@ int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct cali
     return pack_and_execute_command(&p, async);
 }
 
+// DPE MLDSA87 command
+int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_mldsa87_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    uint32_t actual_bytes = sizeof(req->hdr) + sizeof(uint32_t) * 5 + req->data_size;
+
+    struct parcel p = {
+        .command   = OP_INVOKE_DPE_MLDSA87_COMMAND,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Disable attestation
 int caliptra_disable_attestation(bool async)
 {

@@ -46,6 +46,7 @@ enum mailbox_command {
     OP_LMS_VERIFY                    = 0x4C4D5632, // "LMV2"
     OP_STASH_MEASUREMENT             = 0x4D454153, // "MEAS"
     OP_INVOKE_DPE_COMMAND            = 0x44504543, // "DPEC"
+    OP_INVOKE_DPE_MLDSA87_COMMAND    = 0x4450454D, // "DPEM"
     OP_DISABLE_ATTESTATION           = 0x4453424C, // "DSBL"
     OP_FW_INFO                       = 0x494E464F, // "INFO"
     OP_DPE_TAG_TCI                   = 0x54514754, // "TAGT"

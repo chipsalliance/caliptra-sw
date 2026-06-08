@@ -20,8 +20,8 @@ use caliptra_api::mailbox::CertifyKeyExtendedMldsa87Req;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CertifyKeyExtendedResp, MailboxRespHeader,
 };
+use caliptra_dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub struct CertifyKeyExtendedCmd;

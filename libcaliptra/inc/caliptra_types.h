@@ -421,7 +421,7 @@ struct dpe_resp_hdr
 };
 
 #define DPE_HANDLE_SIZE 16
-#define DPE_CERT_SIZE 7872
+#define DPE_CERT_SIZE 22 * 1024
 
 #ifndef DPE_PROFILE
 #define DPE_PROFILE DPE_PROFILE_384
@@ -434,6 +434,9 @@ struct dpe_resp_hdr
 #if (DPE_PROFILE == DPE_PROFILE_384)
 #define DPE_ECC_SIZE 48
 #endif
+
+#define DPE_ML_DSA87_PUB_KEY_SIZE 2592
+#define DPE_ML_DSA87_SIG_SIZE 4627
 
 // GET_PROFILE
 struct dpe_get_profile_cmd
@@ -514,6 +517,15 @@ struct dpe_certify_key_response
     uint8_t certificate[DPE_CERT_SIZE];
 };
 
+struct dpe_certify_key_mldsa87_response
+{
+    struct dpe_resp_hdr resp_hdr;
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    uint8_t derived_pub_key[DPE_ML_DSA87_PUB_KEY_SIZE];
+    uint32_t certificate_size;
+    uint8_t certificate[DPE_CERT_SIZE];
+};
+
 // SIGN
 struct dpe_sign_cmd
 {
@@ -534,6 +546,13 @@ struct dpe_sign_response
         uint8_t hmac[DPE_ECC_SIZE];
     };
     uint8_t signature_s[DPE_ECC_SIZE];
+};
+
+struct dpe_sign_mldsa87_response
+{
+    struct dpe_resp_hdr resp_hdr;
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    uint8_t signature[DPE_ML_DSA87_SIG_SIZE];
 };
 
 // ROTATE_CONTEXT_HANDLE
@@ -597,6 +616,36 @@ struct caliptra_invoke_dpe_req
     };
 };
 
+struct caliptra_axi_response_info
+{
+    uint32_t addr_lo;
+    uint32_t addr_hi;
+    uint32_t max_size;
+};
+
+struct caliptra_invoke_dpe_mldsa87_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint32_t axi_addr_lo;
+    uint32_t axi_addr_hi;
+    uint32_t axi_max_size;
+    uint32_t data_size;
+    union
+    {
+        struct dpe_cmd_hdr cmd_hdr;
+        struct dpe_get_profile_cmd get_profile_cmd;
+        struct dpe_initialize_context_cmd initialize_context_cmd;
+        struct dpe_derive_context_cmd derive_context_cmd;
+        struct dpe_certify_key_cmd certify_key_cmd;
+        struct dpe_sign_cmd sign_cmd;
+        struct dpe_rotate_context_handle_cmd rotate_context_handle_cmd;
+        struct dpe_destroy_context_cmd destroy_context_cmd;
+        struct dpe_get_certificate_chain_cmd get_certificate_chain_cmd;
+        uint8_t data[0];
+    };
+};
+
 struct caliptra_invoke_dpe_resp
 {
     struct caliptra_resp_header cpl;
@@ -609,7 +658,9 @@ struct caliptra_invoke_dpe_resp
         struct dpe_derive_context_response derive_context_resp;
         struct dpe_derive_context_exported_cdi_response derive_context_exported_cdi_resp;
         struct dpe_certify_key_response certify_key_resp;
+        struct dpe_certify_key_mldsa87_response certify_key_mldsa87_resp;
         struct dpe_sign_response sign_resp;
+        struct dpe_sign_mldsa87_response sign_mldsa87_resp;
         struct dpe_rotate_context_handle_response rotate_context_handle_resp;
         struct dpe_destroy_context_response destroy_context_resp;
         struct dpe_get_certificate_chain_response get_certificate_chain_resp;

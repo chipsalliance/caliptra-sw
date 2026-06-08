@@ -5,14 +5,14 @@ use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
     CommandId, MailboxReq, MailboxReqHeader,
 };
-use caliptra_hw_model::HwModel;
-use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
-use core::mem::size_of;
-use dpe::{
+use caliptra_dpe::{
     commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd},
     context::ContextHandle,
     response::CertifyKeyP384Resp,
 };
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
+use core::mem::size_of;
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };

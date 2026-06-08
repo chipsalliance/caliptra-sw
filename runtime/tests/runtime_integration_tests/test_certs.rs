@@ -15,15 +15,15 @@ use caliptra_common::mailbox_api::{
     StashMeasurementReq,
 };
 use caliptra_common::x509::get_tbs;
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
-use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::{CertifyKeyP384Resp, CertifyKeyResp, Response},
     tci::TciMeasurement,
 };
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use openssl::{
     asn1::Asn1Time,
     bn::BigNum,

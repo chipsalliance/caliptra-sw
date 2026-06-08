@@ -55,22 +55,25 @@ mod verify;
 pub mod mailbox;
 use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib::{
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
+};
 use caliptra_common::cfi_check;
-use crypto::ecdsa::curve_384::EcdsaPub384;
-use crypto::ecdsa::EcdsaPubKey;
-use crypto::ml_dsa::MldsaPublicKey;
-use crypto::PubKey;
+use caliptra_dpe::State;
+use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
+use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
+use caliptra_dpe_crypto::ml_dsa::MldsaPublicKey;
+use caliptra_dpe_crypto::{CryptoSuite, PubKey};
+use caliptra_dpe_platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
-use platform::MAX_OTHER_NAME_SIZE;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
-use crate::dpe_crypto::{DpeEcCrypto, DpeMldsaCrypto};
+use crate::dpe_crypto::DpeCrypto;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
@@ -107,14 +110,13 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
+pub use caliptra_dpe::{
+    context::ContextState, dpe_instance::DpeEnv, support::Support, tci::TciMeasurement,
+    DpeInstance, U8Bool, MAX_HANDLES,
+};
 use caliptra_drivers::{okref, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use core::mem::size_of;
-pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
-use dpe::{
-    dpe_instance::{DpeEnv, DpeTypes},
-    support::Support,
-};
 
 use crate::{
     dice::GetRtAliasCertCmd,
@@ -159,20 +161,6 @@ pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
     // the error should be impossible but check to avoid panic
     let (resp, _) = R::mut_from_prefix(resp).map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
     Ok(resp)
-}
-
-pub struct CptraDpeEcTypes;
-
-impl DpeTypes for CptraDpeEcTypes {
-    type Crypto<'a> = DpeEcCrypto<'a>;
-    type Platform<'a> = DpePlatform<'a>;
-}
-
-pub struct CptraDpeMldsaTypes;
-
-impl DpeTypes for CptraDpeMldsaTypes {
-    type Crypto<'a> = DpeMldsaCrypto<'a>;
-    type Platform<'a> = DpePlatform<'a>;
 }
 
 /// Run pending jobs and enter low power mode.
@@ -807,11 +795,35 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     //    Ok(())
 }
 
+pub struct CaliptraDpeEnv<'a> {
+    crypto: DpeCrypto<'a>,
+    platform: DpePlatform<'a>,
+    state: &'a mut State,
+}
+
+impl DpeEnv for CaliptraDpeEnv<'_> {
+    fn crypto(&mut self) -> &mut dyn CryptoSuite {
+        &mut self.crypto
+    }
+
+    fn platform(&mut self) -> &mut dyn Platform {
+        &mut self.platform
+    }
+
+    fn state(&mut self) -> &mut State {
+        self.state
+    }
+
+    fn get(&mut self) -> (&mut dyn CryptoSuite, &mut dyn Platform, &mut State) {
+        (&mut self.crypto, &mut self.platform, self.state)
+    }
+}
+
 fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<DpeEnv<CptraDpeEcTypes>> {
+) -> CaliptraResult<CaliptraDpeEnv> {
     let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
@@ -821,7 +833,7 @@ fn ec_dpe_env(
         &rt_pub_key.x.into(),
         &rt_pub_key.y.into(),
     )));
-    let crypto = DpeEcCrypto::new(
+    let crypto = DpeCrypto::new_ecc384(
         &mut drivers.sha2_512_384,
         &mut drivers.trng,
         &mut drivers.ecc384,
@@ -831,10 +843,10 @@ fn ec_dpe_env(
         key_id_rt_cdi,
         key_id_rt_priv_key,
         &mut pdata.exported_cdi_slots,
-    );
+    )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
-    Ok(DpeEnv::<CptraDpeEcTypes> {
+    Ok(CaliptraDpeEnv {
         crypto,
         platform: DpePlatform::new(
             CaliptraDpeProfile::Ecc384,
@@ -854,15 +866,15 @@ fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<DpeEnv<CptraDpeMldsaTypes>> {
+) -> CaliptraResult<CaliptraDpeEnv> {
     let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
     let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let rt_pub_key = okref(&rt_pub_key)?;
-    let rt_pub_key = PubKey::MlDsa(MldsaPublicKey((*rt_pub_key).into()));
+    let rt_pub_key = PubKey::Mldsa(MldsaPublicKey((*rt_pub_key).into()));
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
-    let crypto = DpeMldsaCrypto::new(
+    let crypto = DpeCrypto::new_mldsa87(
         &mut drivers.sha2_512_384,
         &mut drivers.trng,
         &mut drivers.mldsa87,
@@ -872,10 +884,10 @@ fn mldsa_dpe_env(
         key_id_rt_cdi,
         key_id_rt_priv_key,
         &mut pdata.exported_cdi_slots,
-    );
+    )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
-    Ok(DpeEnv::<CptraDpeMldsaTypes> {
+    Ok(CaliptraDpeEnv {
         crypto,
         platform: DpePlatform::new(
             CaliptraDpeProfile::Mldsa87,

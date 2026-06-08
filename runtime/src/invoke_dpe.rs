@@ -18,16 +18,17 @@ use caliptra_api::mailbox::{
     AxiResponseInfo, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req, MailboxReqHeader,
     MailboxRespHeader,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
-use dpe::{
+use caliptra_dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
     response::{DpeErrorCode, ResponseHdr},
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
-use platform::MAX_OTHER_NAME_SIZE;
+use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -46,7 +47,7 @@ impl From<CaliptraDpeProfile> for DpeProfile {
 }
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute_ecc384(
         drivers: &mut Drivers,
@@ -72,7 +73,7 @@ impl InvokeDpeCmd {
         Self::execute(drivers, dpe_cmd_buf, mbox_resp, CaliptraDpeProfile::Ecc384)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute_mldsa87(
         drivers: &mut Drivers,
@@ -98,7 +99,7 @@ impl InvokeDpeCmd {
         Self::execute(drivers, dpe_cmd_buf, mbox_resp, CaliptraDpeProfile::Mldsa87)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn execute(
         drivers: &mut Drivers,
@@ -208,9 +209,9 @@ impl InvokeDpeCmd {
     /// * `dpe` - DPE state
     /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
     /// * `context_tags` - Tags for each DPE context
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
-        dpe: &mut dpe::State,
+        dpe: &mut caliptra_dpe::State,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
         context_tags: &mut [u32; MAX_HANDLES],
     ) {
