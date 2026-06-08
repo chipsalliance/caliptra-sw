@@ -1,18 +1,21 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeEcCrypto, mutrefbytes, Drivers, PauserPrivileges};
+use crate::{dpe_crypto::DpeCrypto, mutrefbytes, Drivers, PauserPrivileges};
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 
+use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{
     MailboxRespHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
-use crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
-use crypto::{Crypto, Digest, PubKey, SignData, Signature};
-use dpe::MAX_EXPORTED_CDI_SIZE;
+use caliptra_dpe::MAX_EXPORTED_CDI_SIZE;
+use caliptra_dpe_crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
+use caliptra_dpe_crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
+use caliptra_dpe_crypto::{Crypto, Digest, PubKey, SignData, Signature};
 use zerocopy::FromBytes;
 
 pub struct SignWithExportedEcdsaCmd;
@@ -25,27 +28,30 @@ impl SignWithExportedEcdsaCmd {
     /// * `env` - DPE environment containing Crypto and Platform implementations
     /// * `data` - The data to be signed
     /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn ecdsa_sign(
-        env: &mut DpeEcCrypto,
+        env: &mut DpeCrypto,
         data: &SignData,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> CaliptraResult<(Signature, PubKey)> {
         let key_pair =
             env.derive_key_pair_exported(exported_cdi_handle, b"Exported ECC", b"Exported ECC");
 
-        let _ = &key_pair;
-        let (priv_key, pub_key) = key_pair
+        cfi_check!(key_pair);
+        let signer = key_pair
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
 
-        let sig = env
-            .sign_with_derived(data, &priv_key, &pub_key)
+        let pub_key = signer
+            .public_key()
+            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
+        let sig = signer
+            .sign(data)
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED)?;
 
         Ok((sig, pub_key))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
@@ -72,7 +78,7 @@ impl SignWithExportedEcdsaCmd {
             &rt_pub_key.y.into(),
         )));
 
-        let mut crypto = DpeEcCrypto::new(
+        let mut crypto = DpeCrypto::new_ecc384(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
@@ -82,9 +88,9 @@ impl SignWithExportedEcdsaCmd {
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.exported_cdi_slots,
-        );
+        )?;
 
-        let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
+        let data = Digest::Sha384(caliptra_dpe_crypto::Sha384(cmd.tbs)).into();
         let (
             Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
             PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),

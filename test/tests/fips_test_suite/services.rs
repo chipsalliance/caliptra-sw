@@ -5,17 +5,17 @@ use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
-use caliptra_drivers::CaliptraError;
-use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
-use caliptra_image_types::ImageManifest;
-use common::*;
-use dpe::{
+use caliptra_dpe::{
     commands::*,
     context::ContextHandle,
     response::{CertifyKeyResp, Response, SignResp},
     DpeProfile,
 };
+use caliptra_drivers::CaliptraError;
+use caliptra_drivers::FipsTestHook;
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
+use caliptra_image_types::ImageManifest;
+use common::*;
 use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 

@@ -7,11 +7,7 @@ use caliptra_api::{
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError, SecurityState};
-use caliptra_runtime::{RtBootStatus, TciMeasurement};
-use crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
     context::ContextHandle,
     response::{
@@ -19,6 +15,10 @@ use dpe::{
     },
     TCI_SIZE,
 };
+use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{HwModel, ModelError, SecurityState};
+use caliptra_runtime::{RtBootStatus, TciMeasurement};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -195,7 +195,8 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 
@@ -291,7 +292,8 @@ fn test_sign_with_exported_cdi_measurement_update() {
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT
+            | DeriveContextFlags::ALLOW_RECURSIVE,
         ..Default::default()
     };
 

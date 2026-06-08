@@ -14,14 +14,15 @@ Abstract:
 
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{GetImageInfoReq, GetImageInfoResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
 pub struct GetImageInfoCmd;
 impl GetImageInfoCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,

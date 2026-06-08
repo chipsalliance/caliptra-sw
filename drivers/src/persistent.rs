@@ -7,10 +7,10 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
+#[cfg(feature = "runtime")]
+use caliptra_dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
-#[cfg(feature = "runtime")]
-use dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -78,7 +78,7 @@ pub struct ExportedCdiHandles {
 }
 
 #[cfg(feature = "runtime")]
-const DPE_DCCM_STORAGE: usize = size_of::<dpe::State>()
+const DPE_DCCM_STORAGE: usize = size_of::<caliptra_dpe::State>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
     + size_of::<U8Bool>()
@@ -324,7 +324,7 @@ pub struct PersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     #[cfg(feature = "runtime")]
-    pub state: dpe::State,
+    pub state: caliptra_dpe::State,
     #[cfg(feature = "runtime")]
     pub context_tags: [u32; MAX_HANDLES],
     #[cfg(feature = "runtime")]

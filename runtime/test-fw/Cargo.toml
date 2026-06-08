@@ -13,6 +13,10 @@ riscv = [
     "caliptra-runtime/riscv",
     "caliptra-test-harness/riscv",
 ]
+cfi = [
+    "caliptra-drivers/cfi",
+    "caliptra-runtime/cfi",
+]
 emu = [
     "caliptra-drivers/emu",
     "caliptra-runtime/emu",
@@ -55,6 +59,6 @@ caliptra-registers.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 caliptra-test-harness.workspace = true
 cfg-if.workspace = true
-dpe.workspace = true
+caliptra-dpe.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true

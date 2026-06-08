@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use crate::{handoff::RtHandoff, Drivers, Hmac};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::{CaliptraResult, HmacMode, KeyId};
 use caliptra_error::CaliptraError;
@@ -33,7 +34,7 @@ impl KeyLadder {
     /// * `target_svn` - SVN to which the derived secret should be bound. May not be larger than the current key ladder's SVN.
     /// * `context` - Diversification value
     /// * `dest` - Key Vault slot to whch the derived secret should be written.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn derive_secret(
         drivers: &mut Drivers,

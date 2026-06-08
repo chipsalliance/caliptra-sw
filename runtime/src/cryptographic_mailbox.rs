@@ -15,7 +15,8 @@ Abstract:
 use crate::{mutrefbytes, Drivers};
 use arrayvec::ArrayVec;
 use bitfield::bitfield;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     hmac_cm::hmac,
@@ -408,7 +409,7 @@ const _: () =
 pub(crate) struct Commands {}
 
 impl Commands {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn status(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         if !drivers.cryptographic_mailbox.initialized {
@@ -422,7 +423,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmStatusResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn import(
         drivers: &mut Drivers,
@@ -479,7 +480,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmImportResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn delete(
         drivers: &mut Drivers,
@@ -517,7 +518,7 @@ impl Commands {
         Ok(core::mem::size_of::<MailboxRespHeader>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn clear(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         if !drivers.cryptographic_mailbox.initialized {
@@ -531,7 +532,7 @@ impl Commands {
         Ok(core::mem::size_of::<MailboxRespHeader>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn sha_init(
         drivers: &mut Drivers,
@@ -601,7 +602,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmShaInitResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn sha_update(
         drivers: &mut Drivers,
@@ -676,7 +677,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmShaInitResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn sha_final(
         drivers: &mut Drivers,
@@ -747,7 +748,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn random_generate(
         drivers: &mut Drivers,
@@ -781,7 +782,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn random_stir(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<usize> {
         if cmd_bytes.len() > core::mem::size_of::<CmRandomStirReq>() {
@@ -798,7 +799,7 @@ impl Commands {
         Ok(0)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn aes_256_encrypt_init(
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
@@ -872,7 +873,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_encrypt_update(
         drivers: &mut Drivers,
@@ -914,7 +915,7 @@ impl Commands {
         }
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn aes_256_cbc_decrypt_init(
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
@@ -981,7 +982,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_cbc_decrypt_update(
         drivers: &mut Drivers,
@@ -1148,7 +1149,7 @@ impl Commands {
         Ok(unencrypted_context)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn aes_256_gcm_encrypt_init(
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
@@ -1240,7 +1241,7 @@ impl Commands {
         Ok(unencrypted_context)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn aes_256_gcm_spdm_encrypt_init(
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
@@ -1277,7 +1278,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmAesGcmSpdmEncryptInitResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_encrypt_update(
         drivers: &mut Drivers,
@@ -1323,7 +1324,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_encrypt_final(
         drivers: &mut Drivers,
@@ -1363,7 +1364,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_decrypt_init(
         drivers: &mut Drivers,
@@ -1398,7 +1399,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmAesGcmDecryptInitResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_spdm_decrypt_init(
         drivers: &mut Drivers,
@@ -1437,7 +1438,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmAesGcmSpdmDecryptInitResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_decrypt_update(
         drivers: &mut Drivers,
@@ -1483,7 +1484,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn aes_256_gcm_decrypt_final(
         drivers: &mut Drivers,
@@ -1528,7 +1529,7 @@ impl Commands {
         resp.partial_len()
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn ecdh_generate(
         drivers: &mut Drivers,
@@ -1571,7 +1572,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmEcdhGenerateResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn ecdh_finish(
         drivers: &mut Drivers,
@@ -1670,7 +1671,7 @@ impl Commands {
         }
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn hmac(
         drivers: &mut Drivers,
@@ -1690,7 +1691,7 @@ impl Commands {
         )
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn hmac_kdf_counter(
         drivers: &mut Drivers,
@@ -1807,7 +1808,7 @@ impl Commands {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn hkdf_extract(
         drivers: &mut Drivers,
@@ -1892,7 +1893,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmHkdfExtractResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn hkdf_expand(
         drivers: &mut Drivers,
@@ -1986,7 +1987,7 @@ impl Commands {
         Ok((seed.into(), cmk.fips_valid()))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn mldsa_public_key(
         drivers: &mut Drivers,
@@ -2014,7 +2015,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmMldsaPublicKeyResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn mldsa_sign(
         drivers: &mut Drivers,
@@ -2054,7 +2055,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmMldsaSignResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn mldsa_verify(
         drivers: &mut Drivers,
@@ -2118,7 +2119,7 @@ impl Commands {
         Ok((seed.into(), cmk.fips_valid()))
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn ecdsa_public_key(
         drivers: &mut Drivers,
@@ -2153,7 +2154,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmEcdsaPublicKeyResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn ecdsa_sign(
         drivers: &mut Drivers,
@@ -2201,7 +2202,7 @@ impl Commands {
         Ok(core::mem::size_of::<CmEcdsaSignResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn ecdsa_verify(
         drivers: &mut Drivers,
@@ -2257,7 +2258,7 @@ impl Commands {
         }
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn derive_stable_key(
         drivers: &mut Drivers,

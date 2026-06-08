@@ -127,13 +127,6 @@ pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
 pub use soc_ifc::{report_boot_status, CptraGeneration, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
-#[allow(unused_imports)]
-#[cfg(all(feature = "runtime", not(feature = "no-cfi")))]
-use caliptra_cfi_derive_git as caliptra_cfi_derive;
-#[allow(unused_imports)]
-#[cfg(all(feature = "runtime", not(feature = "no-cfi")))]
-use caliptra_cfi_lib_git as caliptra_cfi_lib;
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
         mod uart;
