@@ -4,11 +4,12 @@
 
 use crate::mldsa87::{
     mldsa87_key_pair_from_seed, mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic,
-    mldsa87_verify, mldsa87_verify_with_context,
+    mldsa87_sign_mu, mldsa87_sign_mu_deterministic, mldsa87_verify, mldsa87_verify_mu,
+    mldsa87_verify_with_context,
 };
 pub use crate::mldsa87::{
-    Mldsa87Result, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
-    MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
+    MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
 
 mod ct;
@@ -52,12 +53,37 @@ impl Mldsa87 {
         mldsa87_sign_deterministic(sig, seed, msg);
     }
 
+    pub fn sign_mu(
+        seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+        randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+        mu: &[u8; MLDSA87_MU_BYTES],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_mu(sig, seed, randomizer, mu);
+    }
+
+    pub fn sign_mu_deterministic(
+        seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+        mu: &[u8; MLDSA87_MU_BYTES],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_mu_deterministic(sig, seed, mu);
+    }
+
     pub fn verify(
         pub_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
         sig: &[u8; MLDSA87_SIGNATURE_BYTES],
         msg: &[u8],
     ) -> Mldsa87Result {
         mldsa87_verify(pub_key, sig, msg)
+    }
+
+    pub fn verify_mu(
+        pub_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
+        sig: &[u8; MLDSA87_SIGNATURE_BYTES],
+        mu: &[u8; MLDSA87_MU_BYTES],
+    ) -> Mldsa87Result {
+        mldsa87_verify_mu(pub_key, sig, mu)
     }
 
     /// Verify a signature using an explicit signing `context`.
