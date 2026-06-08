@@ -29,6 +29,28 @@ use caliptra_kat::{CaliptraError, CaliptraResult};
 pub enum RecoveryFlow {}
 
 impl RecoveryFlow {
+    fn dma_recovery(drivers: &Drivers) -> DmaRecovery<'_> {
+        DmaRecovery::new(
+            drivers.soc_ifc.recovery_interface_base_addr().into(),
+            drivers.soc_ifc.caliptra_base_axi_addr().into(),
+            drivers.soc_ifc.mci_base_addr().into(),
+            &drivers.dma,
+        )
+    }
+
+    fn set_recovery_boot_failure(
+        drivers: &Drivers,
+        image_idx: u32,
+        recovery_reason: u32,
+    ) -> CaliptraResult<()> {
+        let dma_recovery = Self::dma_recovery(drivers);
+        dma_recovery.set_recovery_status(
+            DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
+            image_idx,
+        )?;
+        dma_recovery.set_boot_failure_reason(recovery_reason)
+    }
+
     /// Load the SoC Manifest and MCU firwmare
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -58,7 +80,13 @@ impl RecoveryFlow {
         };
         result?;
 
-        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)?;
+        if let Err(err) =
+            SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)
+        {
+            let recovery_reason = DmaRecovery::recovery_reason_from_auth_manifest_error(err);
+            Self::set_recovery_boot_failure(drivers, SOC_MANIFEST_INDEX, recovery_reason)?;
+            return Err(err);
+        }
         drivers.mbox.unlock();
 
         let digest = {
@@ -98,11 +126,21 @@ impl RecoveryFlow {
             ..Default::default()
         };
 
-        let auth_result = AuthorizeAndStashCmd::authorize_and_stash(
+        let auth_result = match AuthorizeAndStashCmd::authorize_and_stash(
             drivers,
             &auth_and_stash_req,
             pl0_pauser_locality,
-        )?;
+        ) {
+            Ok(auth_result) => auth_result,
+            Err(err) => {
+                Self::set_recovery_boot_failure(
+                    drivers,
+                    MCU_FIRMWARE_INDEX,
+                    DmaRecovery::RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE,
+                )?;
+                return Err(err);
+            }
+        };
 
         {
             let dma = &drivers.dma;
@@ -115,9 +153,10 @@ impl RecoveryFlow {
             );
 
             if auth_result != IMAGE_AUTHORIZED {
-                dma_recovery.set_recovery_status(
-                    DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
-                    0,
+                Self::set_recovery_boot_failure(
+                    drivers,
+                    MCU_FIRMWARE_INDEX,
+                    DmaRecovery::RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE,
                 )?;
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
             }
