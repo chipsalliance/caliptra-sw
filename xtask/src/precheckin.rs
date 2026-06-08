@@ -7,6 +7,6 @@ pub(crate) fn precheckin() -> Result<()> {
     crate::format::check_format()?;
     crate::license::check_license_headers()?;
     crate::clippy::clippy()?;
-    // crate::update_frozen_images::check_frozen_images()?;
+    crate::update_frozen_images::check_frozen_images()?;
     Ok(())
 }

@@ -322,29 +322,31 @@ impl OcpLockKeyLadderBuilder {
     }
 
     pub fn add_hek(self) -> Self {
-        let hek: [u32; 16] =
-            if caliptra_builder::get_ci_rom_version() == caliptra_builder::CiRomVersion::Rom2_1 {
-                // Old key ladder for 2.1 ROM
-                let mut hek: [u32; 16] = transmute!(hmac512_kdf(
-                    swap_word_bytes(&self.cdi).as_bytes(),
-                    b"ocp_lock_hek",
-                    Some(caliptra_hw_model_types::DEFAULT_HEK_SEED.as_bytes()),
-                ));
-                swap_word_bytes_inplace(&mut hek);
-                hek
-            } else {
-                // New key ladder
-                // PRK = HMAC(key=CDI, data=HEK_seed)
-                let prk: [u8; 64] = hmac512(
-                    swap_word_bytes(&self.cdi).as_bytes(),
-                    swap_word_bytes(&self.hek_seed).as_bytes(),
-                );
+        let hek: [u32; 16] = if matches!(
+            caliptra_builder::get_ci_rom_version(),
+            caliptra_builder::CiRomVersion::Rom2_1_0 | caliptra_builder::CiRomVersion::Rom2_1_1
+        ) {
+            // Old key ladder for 2.1 ROM
+            let mut hek: [u32; 16] = transmute!(hmac512_kdf(
+                swap_word_bytes(&self.cdi).as_bytes(),
+                b"ocp_lock_hek",
+                Some(caliptra_hw_model_types::DEFAULT_HEK_SEED.as_bytes()),
+            ));
+            swap_word_bytes_inplace(&mut hek);
+            hek
+        } else {
+            // New key ladder
+            // PRK = HMAC(key=CDI, data=HEK_seed)
+            let prk: [u8; 64] = hmac512(
+                swap_word_bytes(&self.cdi).as_bytes(),
+                swap_word_bytes(&self.hek_seed).as_bytes(),
+            );
 
-                // HEK = KDF(key=PRK, label="ocp_lock_hek")
-                let mut hek: [u32; 16] = transmute!(hmac512_kdf(&prk, b"ocp_lock_hek", None,));
-                swap_word_bytes_inplace(&mut hek);
-                hek
-            };
+            // HEK = KDF(key=PRK, label="ocp_lock_hek")
+            let mut hek: [u32; 16] = transmute!(hmac512_kdf(&prk, b"ocp_lock_hek", None,));
+            swap_word_bytes_inplace(&mut hek);
+            hek
+        };
         Self {
             hek: Some(hek),
             ..self
@@ -536,8 +538,10 @@ fn test_golden_ocp_lock_keyladder() {
         ]
     );
 
-    let is_rom_2_1 =
-        caliptra_builder::get_ci_rom_version() == caliptra_builder::CiRomVersion::Rom2_1;
+    let is_rom_2_1 = matches!(
+        caliptra_builder::get_ci_rom_version(),
+        caliptra_builder::CiRomVersion::Rom2_1_0 | caliptra_builder::CiRomVersion::Rom2_1_1
+    );
 
     let mek = OcpLockKeyLadderBuilder::new(doe_out)
         .add_mdk()
