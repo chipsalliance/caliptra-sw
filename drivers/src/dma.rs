@@ -448,7 +448,23 @@ impl<'a> DmaRecovery<'a> {
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
 
-    const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
+    pub const RECOVERY_REASON_CORRUPTED_CRITICAL_DATA: u32 = 0x4;
+    pub const RECOVERY_REASON_KEY_MANIFEST_MISSING_OR_CORRUPT: u32 = 0x5;
+    pub const RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE: u32 = 0x6;
+    pub const RECOVERY_REASON_KEY_MANIFEST_ANTI_ROLLBACK_FAILURE: u32 = 0x7;
+    pub const RECOVERY_REASON_ANTI_ROLLBACK_FAILURE: u32 = 0xA;
+    pub const RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE: u32 = 0xC;
+    pub const RECOVERY_REASON_FLASHLESS_STREAMING_BOOT: u32 = 0x12;
+    // DEVICE_STATUS_0.REC_REASON_CODE reserves 0x80..=0xFF for vendor-unique boot failure codes.
+    pub const RECOVERY_REASON_VENDOR_KEY_INVALID: u32 = 0x80;
+    pub const RECOVERY_REASON_VENDOR_KEY_REVOKED: u32 = 0x81;
+    pub const RECOVERY_REASON_VENDOR_SIGNATURE_INVALID: u32 = 0x82;
+    pub const RECOVERY_REASON_OWNER_KEY_INVALID: u32 = 0x83;
+    pub const RECOVERY_REASON_OWNER_SIGNATURE_INVALID: u32 = 0x84;
+    pub const RECOVERY_REASON_FIRMWARE_IMAGE_DIGEST_MISMATCH: u32 = 0x85;
+    pub const RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID: u32 = 0x86;
+    pub const RECOVERY_REASON_PQC_CONFIGURATION_INVALID: u32 = 0x87;
+    pub const RECOVERY_REASON_FIRMWARE_VERSION_INVALID: u32 = 0x88;
 
     pub const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
     const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
@@ -458,6 +474,7 @@ impl<'a> DmaRecovery<'a> {
     pub const DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
     const DEVICE_STATUS_PENDING: u32 = 0x4;
     pub const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
+    pub const DEVICE_STATUS_BOOT_FAILURE: u32 = 0xE;
     pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
@@ -478,6 +495,142 @@ impl<'a> DmaRecovery<'a> {
             caliptra_base,
             mci_base,
             dma,
+        }
+    }
+
+    pub fn recovery_reason_from_firmware_verification_error(err: CaliptraError) -> u32 {
+        match err {
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_VERSION_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT
+            | CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+            | CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_PUB_KEY_READ_FAILED
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH => {
+                Self::RECOVERY_REASON_VENDOR_KEY_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED => {
+                Self::RECOVERY_REASON_VENDOR_KEY_REVOKED
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INVALID_ARG
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_SIG_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_SIG_READ_FAILED
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID => {
+                Self::RECOVERY_REASON_VENDOR_SIGNATURE_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG
+            | CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED
+            | CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH => {
+                Self::RECOVERY_REASON_OWNER_KEY_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_SIG_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_SIG_READ_FAILED
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID => {
+                Self::RECOVERY_REASON_OWNER_SIGNATURE_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE
+            | CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE => {
+                Self::RECOVERY_REASON_FIRMWARE_IMAGE_DIGEST_MISMATCH
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED => {
+                Self::RECOVERY_REASON_FIRMWARE_VERSION_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE => {
+                Self::RECOVERY_REASON_ANTI_ROLLBACK_FAILURE
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_VERSION_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_TYPE_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX => {
+                Self::RECOVERY_REASON_PQC_CONFIGURATION_INVALID
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
+            | CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW
+            | CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW => {
+                Self::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
+            }
+            _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn recovery_reason_from_auth_manifest_error(err: CaliptraError) -> u32 {
+        match err {
+            CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID => {
+                Self::RECOVERY_REASON_KEY_MANIFEST_MISSING_OR_CORRUPT
+            }
+            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE => {
+                Self::RECOVERY_REASON_KEY_MANIFEST_ANTI_ROLLBACK_FAILURE
+            }
+            CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH => {
+                Self::RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE
+            }
+            _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,
         }
     }
 
@@ -651,7 +804,7 @@ impl<'a> DmaRecovery<'a> {
                 Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
             );
             recovery.device_status_0().modify(|val| {
-                val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
+                val.rec_reason_code(Self::RECOVERY_REASON_FLASHLESS_STREAMING_BOOT)
                     .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
             });
 
@@ -700,6 +853,28 @@ impl<'a> DmaRecovery<'a> {
                 .device_status_0()
                 .modify(|device_status_val| device_status_val.dev_status(status));
         })
+    }
+
+    pub fn set_device_status_with_recovery_reason(
+        &self,
+        status: u32,
+        recovery_reason: u32,
+    ) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery.device_status_0().modify(|device_status_val| {
+                device_status_val
+                    .dev_status(status)
+                    .rec_reason_code(recovery_reason)
+            });
+        })
+    }
+
+    pub fn set_boot_failure_reason(&self, recovery_reason: u32) -> CaliptraResult<()> {
+        self.set_device_status_with_recovery_reason(
+            Self::DEVICE_STATUS_BOOT_FAILURE,
+            recovery_reason,
+        )
     }
 
     pub fn reset_indirect_fifo_ctrl(&self) -> CaliptraResult<()> {

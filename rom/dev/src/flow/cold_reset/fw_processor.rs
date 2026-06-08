@@ -802,32 +802,35 @@ impl FirmwareProcessor {
             // Reset the Indirect FIFO control so that payload_available is reset.
             dma_recovery.reset_indirect_fifo_ctrl()?;
 
-            let (recovery_status, next_image_idx, device_status) = if info.is_err() {
-                (
+            if let Some(err) = info.as_ref().err().copied() {
+                let recovery_reason =
+                    DmaRecovery::recovery_reason_from_firmware_verification_error(err);
+                cprintln!(
+                    "[fwproc] Setting device recovery status to 0x{:x}, image index 0x0, device status 0x{:x}, recovery reason 0x{:x}",
+                    DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
+                    DmaRecovery::DEVICE_STATUS_BOOT_FAILURE,
+                    recovery_reason
+                );
+                dma_recovery.set_recovery_status(
                     DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
                     0,
-                    DmaRecovery::DEVICE_STATUS_FATAL_ERROR,
-                )
+                )?;
+                dma_recovery.set_boot_failure_reason(recovery_reason)?;
             } else {
                 // we still have to do the SoC and MCU images
                 // we pre-emptively set the next image index to 1 so that the recovery interface
                 // will receive the right index so that no matter what order the recovery registers
                 // are read, we will send the right image next
-                (
-                    DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
-                    1,
-                    DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
-                )
-            };
-
-            cprintln!(
-                "[fwproc] Setting device recovery status to 0x{:x}, image index 0x{:x}, device status 0x{:x}",
-                recovery_status,
-                next_image_idx,
-                device_status
-            );
-            dma_recovery.set_recovery_status(recovery_status, next_image_idx)?;
-            dma_recovery.set_device_status(device_status)?;
+                let recovery_status = DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE;
+                let device_status = DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE;
+                cprintln!(
+                    "[fwproc] Setting device recovery status to 0x{:x}, image index 0x1, device status 0x{:x}",
+                    recovery_status,
+                    device_status
+                );
+                dma_recovery.set_recovery_status(recovery_status, 1)?;
+                dma_recovery.set_device_status(device_status)?;
+            }
         }
 
         let info = match info {
