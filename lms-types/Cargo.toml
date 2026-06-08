@@ -19,4 +19,5 @@ zeroize.workspace = true
 [features]
 default = []
 std = ["dep:serde", "dep:serde_derive"]
+cfi = []
 no-cfi = []

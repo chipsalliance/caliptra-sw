@@ -12,8 +12,9 @@ Abstract:
 
 --*/
 
-use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use caliptra_common::{cfi_check, crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac_kdf, sha2_512_384::Sha2DigestOpTrait, Array4x12, HmacData, HmacKey, HmacMode, HmacTag,
@@ -37,7 +38,7 @@ use crate::Drivers;
 /// # Returns
 ///
 /// * `Ecc384KeyPair` - Generated key pair
-#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn ecc384_key_gen(
     drivers: &mut Drivers,
     input: KeyId,
@@ -71,7 +72,7 @@ fn ecc384_key_gen(
     if KEY_ID_TMP != priv_key {
         drivers.key_vault.erase_key(KEY_ID_TMP)?;
     } else {
-        cfi_assert_eq(KEY_ID_TMP, priv_key);
+        cfi_assert_eq(u32::from(KEY_ID_TMP), u32::from(priv_key));
     }
 
     Ok(Ecc384KeyPair {
@@ -92,7 +93,7 @@ impl Hmac {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn hmac_kdf(
         drivers: &mut Drivers,
         key: KeyId,
@@ -135,7 +136,7 @@ impl Hmac {
     /// # Returns
     ///
     /// * `Array4x12` - Computed HMAC result
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn ecc384_hmac(
         drivers: &mut Drivers,
         input: KeyId,

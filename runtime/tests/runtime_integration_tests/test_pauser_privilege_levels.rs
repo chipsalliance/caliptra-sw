@@ -28,7 +28,7 @@ use caliptra_runtime::{
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
-use dpe::{
+use caliptra_dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd, Command,
         DeriveContextCmd, DeriveContextFlags, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
@@ -678,14 +678,11 @@ fn test_stash_measurement_pl_context_thresholds() {
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
     };
-    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0u8; 4],
-        measurement: [0u8; 48],
-        context: [0u8; 48],
-        svn: 0,
-    });
-    for _ in 0..num_iterations {
+    for i in 0..num_iterations {
+        let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+            metadata: [i as u8; 4],
+            ..Default::default()
+        });
         cmd.populate_chksum().unwrap();
 
         let _ = model
@@ -696,6 +693,9 @@ fn test_stash_measurement_pl_context_thresholds() {
             .unwrap()
             .expect("We should have received a response");
     }
+
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
+    cmd.populate_chksum().unwrap();
 
     // Attempting one more should return a failure
     let resp = model
@@ -732,7 +732,7 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
             hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0u8; 4],
+            metadata: [idx; 4],
             context: [0u8; 48],
             svn: 0,
         };

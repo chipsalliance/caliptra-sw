@@ -23,6 +23,16 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+use caliptra_dpe::{
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
+        CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
+    },
+    context::ContextHandle,
+    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
+    DpeProfile,
+};
+use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -34,16 +44,6 @@ use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use caliptra_runtime::CaliptraDpeProfile;
 use caliptra_test::image_pk_desc_hash;
-use crypto::{Digest, Mu, PrecomputedSignData, Sha384};
-use dpe::{
-    commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command,
-        CommandHdr, SignFlags, SignMldsa87Cmd, SignP384Cmd,
-    },
-    context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
-    DpeProfile,
-};
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     bn::BigNum,
@@ -57,6 +57,7 @@ use openssl::{
 };
 use std::borrow::Cow;
 use std::io;
+use std::sync::atomic::{AtomicU32, Ordering};
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
@@ -83,6 +84,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
     FwVerificationPqcKeyType::MLDSA,
 ];
+static NEXT_TEST_TCI_TYPE: AtomicU32 = AtomicU32::new(u32::from_be_bytes(*b"TST0"));
 
 pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
 
@@ -387,7 +389,22 @@ pub fn execute_dpe_cmd(
     let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = dpe_cmd.as_bytes();
+    let modified_derive_context_cmd;
+    let modified_dpe_cmd;
+    let dpe_cmd_buf = if let Command::DeriveContext(cmd) = dpe_cmd {
+        if cmd.tci_type == 0 && !cmd.flags.is_recursive() {
+            modified_derive_context_cmd = DeriveContextCmd {
+                tci_type: NEXT_TEST_TCI_TYPE.fetch_add(1, Ordering::Relaxed),
+                ..**cmd
+            };
+            modified_dpe_cmd = Command::from(&modified_derive_context_cmd);
+            modified_dpe_cmd.as_bytes()
+        } else {
+            dpe_cmd.as_bytes()
+        }
+    } else {
+        dpe_cmd.as_bytes()
+    };
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
     let mut mbox_cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -941,7 +958,7 @@ pub fn verify_sign_and_certify_key(
         }
         (
             CaliptraDpeProfile::Mldsa87,
-            Response::Sign(SignResp::MlDsa(_sign_resp)),
+            Response::Sign(SignResp::Mldsa87(_sign_resp)),
             CertifyKeyResp::Mldsa87(certify_key_resp),
         ) => {
             // Skip raw MLDSA signature verification (ml-dsa v0.1.0-rc.0 has upstream compile issues)

@@ -2,23 +2,23 @@
 
 use crate::{Drivers, PauserPrivileges};
 
-#[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_derive_git::cfi_impl_fn;
-#[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 
 use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
 use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use caliptra_dpe::U8Bool;
 use constant_time_eq::constant_time_eq;
-use dpe::U8Bool;
 use zerocopy::FromBytes;
 use zeroize::Zeroize;
 
 pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = RevokeExportedCdiHandleReq::ref_from_bytes(cmd_args)
@@ -45,7 +45,7 @@ impl RevokeExportedCdiHandleCmd {
                     handle,
                     active,
                 } if constant_time_eq(handle, &cmd.exported_cdi_handle) && active.get() => {
-                    #[cfg(not(feature = "no-cfi"))]
+                    #[cfg(feature = "cfi")]
                     cfi_assert!(constant_time_eq(handle, &cmd.exported_cdi_handle));
                     // Setting to false is redundant with zeroize but included for clarity.
                     *active = U8Bool::new(false);

@@ -4,18 +4,19 @@ use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
-use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
-use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::response::{CertifyKeyP384Resp, DeriveContextExportedCdiResp, SignP384Resp};
-use dpe::DpeProfile;
-use dpe::{
+use caliptra_dpe::response::{CertifyKeyP384Resp, DeriveContextExportedCdiResp, SignP384Resp};
+use caliptra_dpe::DpeProfile;
+use caliptra_dpe::{
     commands::*,
     response::{
         CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
 };
+use caliptra_drivers::FipsTestHook;
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
+use std::sync::atomic::{AtomicU32, Ordering};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
@@ -25,6 +26,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 
 pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
 pub const HOOK_CODE_OFFSET: u32 = 16;
+static NEXT_TEST_TCI_TYPE: AtomicU32 = AtomicU32::new(u32::from_be_bytes(*b"FIP0"));
 
 // =================================
 //       EXPECTED CONSTANTS
@@ -341,7 +343,22 @@ pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Respons
     let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = dpe_cmd.as_bytes();
+    let modified_derive_context_cmd;
+    let modified_dpe_cmd;
+    let dpe_cmd_buf = if let Command::DeriveContext(cmd) = dpe_cmd {
+        if cmd.tci_type == 0 && !cmd.flags.is_recursive() {
+            modified_derive_context_cmd = DeriveContextCmd {
+                tci_type: NEXT_TEST_TCI_TYPE.fetch_add(1, Ordering::Relaxed),
+                ..**cmd
+            };
+            modified_dpe_cmd = Command::from(&modified_derive_context_cmd);
+            modified_dpe_cmd.as_bytes()
+        } else {
+            dpe_cmd.as_bytes()
+        }
+    } else {
+        dpe_cmd.as_bytes()
+    };
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
 
     let mut payload = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
