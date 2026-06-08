@@ -3,12 +3,12 @@
 #![cfg_attr(not(test), no_std)]
 
 use crate::mldsa87::{
-    mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic, mldsa87_verify,
-    mldsa87_verify_with_context,
+    mldsa87_key_pair_from_seed, mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic,
+    mldsa87_verify, mldsa87_verify_with_context,
 };
 pub use crate::mldsa87::{
-    Mldsa87Result, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
-    MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
+    MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
 
 mod ct;
@@ -22,6 +22,17 @@ impl Mldsa87 {
         pub_key: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES],
     ) {
         mldsa87_pub_from_seed(pub_key, seed)
+    }
+
+    /// Deterministically derive both the encoded public key and the FIPS 204
+    /// encoded private key (`skEncode`) from a 32-byte seed, in one key
+    /// generation.
+    pub fn key_pair_from_seed(
+        seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+        pub_key: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES],
+        priv_key: &mut [u8; MLDSA87_PRIVATE_KEY_BYTES],
+    ) {
+        mldsa87_key_pair_from_seed(pub_key, priv_key, seed)
     }
 
     pub fn sign(

@@ -86,9 +86,9 @@ pub use lms::{
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 #[cfg(feature = "mldsa_attestation")]
 pub use mldsa87::{
-    Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87Signature,
-    MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
-    MLDSA87_SIGNATURE_BYTES,
+    Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87Signature,
+    MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
+    MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
 pub use okref::okmutref;
 pub use okref::okref;

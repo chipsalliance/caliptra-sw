@@ -9,6 +9,9 @@ pub const MLDSA87_PRIVATE_SEED_BYTES: usize = 32;
 pub const MLDSA87_RANDOMIZER_BYTES: usize = 32;
 pub const MLDSA87_PUBLIC_KEY_BYTES: usize = 2592;
 pub const MLDSA87_SIGNATURE_BYTES: usize = 4627;
+/// FIPS 204 `skEncode` length for ML-DSA-87: rho(32) + K(32) + tr(64) +
+/// s1(7*96) + s2(8*96) + t0(8*416).
+pub const MLDSA87_PRIVATE_KEY_BYTES: usize = 4896;
 
 /// Result of an ML-DSA-87 signature verification.
 ///
@@ -763,10 +766,28 @@ fn decode_signature(sign: &mut Signature, in_val: &[u8; MLDSA87_SIGNATURE_BYTES]
 
 /* Main algorithms. */
 
+// FIPS 204 `skEncode` field offsets within the encoded private key.
+const SK_RHO_OFF: usize = 0;
+const SK_K_OFF: usize = SK_RHO_OFF + K_RHO_BYTES; // 32
+const SK_TR_OFF: usize = SK_K_OFF + K_K_BYTES; // 64
+const SK_S1_OFF: usize = SK_TR_OFF + K_TR_BYTES; // 128
+const SK_S_PACK_BYTES: usize = 96; // 256 coeffs * 3 bits / 8  (eta = 2)
+const SK_S2_OFF: usize = SK_S1_OFF + 7 * SK_S_PACK_BYTES; // 800
+const SK_T0_PACK_BYTES: usize = 416; // 256 coeffs * 13 bits / 8
+const SK_T0_OFF: usize = SK_S2_OFF + 8 * SK_S_PACK_BYTES; // 1568
+
+/// Deterministic ML-DSA key generation (FIPS 204 ML-DSA.KeyGen).
+///
+/// Always produces the encoded public key. If `out_encoded_private_key` is
+/// supplied, it is also populated with the FIPS 204 `skEncode` of the private
+/// key, packed in place from the normal-domain `s1`/`s2`/`t0` as they are
+/// produced (before they are converted to the NTT domain for signing). Callers
+/// that only need the public key pass `None` and pay nothing for sk encoding.
 fn generate_key_internal(
     out_encoded_public_key: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES],
     priv_key: &mut PrivateKey,
     entropy: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+    mut out_encoded_private_key: Option<&mut [u8; MLDSA87_PRIVATE_KEY_BYTES]>,
 ) {
     let mut augmented_entropy = [0u8; MLDSA87_PRIVATE_SEED_BYTES + 2];
     augmented_entropy[..MLDSA87_PRIVATE_SEED_BYTES].copy_from_slice(entropy);
@@ -785,11 +806,25 @@ fn generate_key_internal(
     priv_key.rho.copy_from_slice(rho);
     priv_key.k.copy_from_slice(k);
 
+    if let Some(sk) = out_encoded_private_key.as_mut() {
+        sk[SK_RHO_OFF..SK_RHO_OFF + K_RHO_BYTES].copy_from_slice(rho);
+        sk[SK_K_OFF..SK_K_OFF + K_K_BYTES].copy_from_slice(k);
+    }
+
     vectors78_expand_short(
         &mut priv_key.s1_ntt,
         &mut priv_key.s2_ntt,
         sigma.try_into().unwrap(),
     );
+
+    // s1 is in normal domain here (before its NTT for the matrix multiply).
+    if let Some(sk) = out_encoded_private_key.as_mut() {
+        for (i, scalar) in priv_key.s1_ntt.v.iter().enumerate() {
+            let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
+            pack_scalar_bits(&mut sk[off..off + SK_S_PACK_BYTES], scalar, 3, 2);
+        }
+    }
+
     vector7_ntt(&mut priv_key.s1_ntt);
 
     let mut t = Vector8::default();
@@ -806,6 +841,18 @@ fn generate_key_internal(
     };
     vector8_power2_round(&mut pub_key.t1, &mut priv_key.t0_ntt, &t);
 
+    // s2 and t0 are in normal domain here (before their NTTs for signing).
+    if let Some(sk) = out_encoded_private_key.as_mut() {
+        for (i, scalar) in priv_key.s2_ntt.v.iter().enumerate() {
+            let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
+            pack_scalar_bits(&mut sk[off..off + SK_S_PACK_BYTES], scalar, 3, 2);
+        }
+        for (i, scalar) in priv_key.t0_ntt.v.iter().enumerate() {
+            let off = SK_T0_OFF + i * SK_T0_PACK_BYTES;
+            pack_scalar_bits(&mut sk[off..off + SK_T0_PACK_BYTES], scalar, 13, 1 << 12);
+        }
+    }
+
     vector8_ntt(&mut priv_key.s2_ntt);
     vector8_ntt(&mut priv_key.t0_ntt);
 
@@ -814,6 +861,54 @@ fn generate_key_internal(
     let mut shake256 = Shake256::new();
     shake256.absorb(out_encoded_public_key);
     shake256.squeeze(&mut priv_key.public_key_hash);
+
+    if let Some(sk) = out_encoded_private_key.as_mut() {
+        sk[SK_TR_OFF..SK_TR_OFF + K_TR_BYTES].copy_from_slice(&priv_key.public_key_hash);
+    }
+}
+
+/// FIPS 204 `BitPack` of one polynomial, LSB-first, `bits` per coefficient.
+/// Each coefficient is encoded as `(sub - w) mod q` (the FIPS `b - w_i`
+/// transform), matching `BitPack(w, sub-?, sub)` for the appropriate range.
+fn pack_scalar_bits(out: &mut [u8], s: &Scalar, bits: u32, sub: u32) {
+    let mut acc: u64 = 0;
+    let mut nbits: u32 = 0;
+    let mut oi = 0;
+    for i in 0..K_DEGREE {
+        acc |= (mod_sub(sub, s.c[i]) as u64) << nbits;
+        nbits += bits;
+        while nbits >= 8 {
+            out[oi] = (acc & 0xff) as u8;
+            oi += 1;
+            acc >>= 8;
+            nbits -= 8;
+        }
+    }
+}
+
+/// Deterministically derive both the encoded public key and the FIPS 204
+/// encoded private key (`skEncode`) from a 32-byte seed, in a single key
+/// generation. Thin wrapper over [`generate_key_internal`] with the optional
+/// private-key buffer supplied.
+pub fn mldsa87_key_pair_from_seed(
+    out_encoded_public_key: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES],
+    out_encoded_private_key: &mut [u8; MLDSA87_PRIVATE_KEY_BYTES],
+    entropy: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+) {
+    let mut priv_key = PrivateKey {
+        rho: [0u8; K_RHO_BYTES],
+        k: [0u8; K_K_BYTES],
+        public_key_hash: [0u8; K_TR_BYTES],
+        s1_ntt: Vector7::default(),
+        s2_ntt: Vector8::default(),
+        t0_ntt: Vector8::default(),
+    };
+    generate_key_internal(
+        out_encoded_public_key,
+        &mut priv_key,
+        entropy,
+        Some(out_encoded_private_key),
+    );
 }
 
 fn generate_priv_internal(
@@ -821,7 +916,7 @@ fn generate_priv_internal(
     private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
 ) {
     let mut encoded_public_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-    generate_key_internal(&mut encoded_public_key, priv_key, private_key_seed);
+    generate_key_internal(&mut encoded_public_key, priv_key, private_key_seed, None);
 }
 
 fn sign_internal(
@@ -1043,7 +1138,12 @@ pub fn mldsa87_pub_from_seed(
         s2_ntt: Vector8::default(),
         t0_ntt: Vector8::default(),
     };
-    generate_key_internal(out_encoded_public_key, &mut priv_key, private_key_seed);
+    generate_key_internal(
+        out_encoded_public_key,
+        &mut priv_key,
+        private_key_seed,
+        None,
+    );
 }
 
 pub fn mldsa87_sign(
