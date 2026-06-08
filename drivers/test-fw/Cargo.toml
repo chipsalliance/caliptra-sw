@@ -220,6 +220,11 @@ path = "src/bin/csrng_config_unlock_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "csrng_single_bit_mode_tests"
+path = "src/bin/csrng_single_bit_mode_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "csrng_fail_repcnts_tests"
 path = "src/bin/csrng_fail_repcnts_tests.rs"
 required-features = ["riscv"]

@@ -390,6 +390,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
+    pub initial_ss_strap_generic_2: Option<u32>,
     pub valid_axi_user: Vec<u32>,
     pub wdt_timeout_cycles: u64,
     // SoC manifest passed via the recovery interface
@@ -405,6 +406,7 @@ impl Default for BootParams<'_> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
+            initial_ss_strap_generic_2: Default::default(),
             valid_axi_user: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
@@ -692,6 +694,10 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
+        if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
+            self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
+        }
+
         HwModel::init_fuses(self);
 
         self.soc_ifc()
@@ -787,6 +793,7 @@ pub trait HwModel: SocManager {
     {
         // Store non-persistent config regs set at boot
         let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+        let ss_strap_generic_2 = self.soc_ifc().ss_strap_generic().at(2).read();
         let i_trng_entropy_config_1: u32 =
             self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
         let i_trng_entropy_config_0: u32 =
@@ -817,6 +824,10 @@ pub trait HwModel: SocManager {
 
         // Write back stored values and let boot progress
         // Fuse values will remain, just re-set fuse done
+        self.soc_ifc()
+            .ss_strap_generic()
+            .at(2)
+            .write(|_| ss_strap_generic_2);
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
 
         self.soc_ifc()

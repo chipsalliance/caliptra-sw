@@ -1243,6 +1243,47 @@ fn test_csrng_config_unlocked_in_debug() {
     ),
     ignore
 )]
+fn test_csrng_single_bit_mode_config() {
+    const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE: u32 = 1 << 16;
+    const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
+    const RNG_BIT_SEL: u32 = 2;
+
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_SINGLE_BIT_MODE_TESTS)
+            .unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams {
+            initial_ss_strap_generic_2: Some(
+                SS_STRAP_GENERIC_2_RNG_BIT_ENABLE
+                    | (RNG_BIT_SEL << SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT),
+            ),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_trng_in_itrng_mode() {
     // To run this test under verilator, use --features=verilator,itrng
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)

@@ -403,6 +403,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const CSRNG_SINGLE_BIT_MODE_TESTS: FwId = FwId {
+        bin_name: "csrng_single_bit_mode_tests",
+        ..BASE_FWID
+    };
+
     pub const CSRNG_RUNTIME_HEALTH_FAIL_TESTS: FwId = FwId {
         bin_name: "csrng_runtime_health_fail_tests",
         ..BASE_FWID
@@ -610,6 +615,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_FAIL_REPCNTS_TESTS,
     &driver_tests::CSRNG_CONFIG_LOCK_TESTS,
     &driver_tests::CSRNG_CONFIG_UNLOCK_TESTS,
+    &driver_tests::CSRNG_SINGLE_BIT_MODE_TESTS,
     &driver_tests::CSRNG_RUNTIME_HEALTH_FAIL_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,

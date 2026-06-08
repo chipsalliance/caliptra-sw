@@ -6,7 +6,7 @@ use caliptra_registers::entropy_src::regs::{
     RepcntsThresholdsReadVal,
 };
 
-const HEALTH_TEST_WINDOW_BITS: usize = 2048;
+const DEFAULT_WINDOW_SIZE_BITS: usize = 2048;
 
 pub struct HealthTester {
     itrng_nibbles: Box<dyn Iterator<Item = u8>>,
@@ -14,6 +14,8 @@ pub struct HealthTester {
     pub repcnts: RepetitionCountSymbolTester,
     pub adaptp: AdaptiveProportionTester,
     boot_time_nibbles: Vec<u8>,
+    window_size_bits: usize,
+    rng_bit_enable: bool,
 }
 
 impl HealthTester {
@@ -24,7 +26,28 @@ impl HealthTester {
             repcnts: RepetitionCountSymbolTester::new(),
             adaptp: AdaptiveProportionTester::new(),
             boot_time_nibbles: Vec::new(),
+            window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            rng_bit_enable: false,
         }
+    }
+
+    pub fn nibbles_per_window(&self) -> usize {
+        if self.rng_bit_enable {
+            self.window_size_bits
+        } else {
+            self.window_size_bits / BITS_PER_NIBBLE
+        }
+    }
+
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.repcnt.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
+        self.adaptp.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
+    }
+
+    pub fn set_window_size_bits(&mut self, bits: usize) {
+        self.window_size_bits = bits;
+        self.adaptp.set_window_size_bits(bits);
     }
 
     pub fn test_boot_window(&mut self) {
@@ -32,12 +55,12 @@ impl HealthTester {
         // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
         // Only after both windows pass does boot complete.
         const NUM_BOOT_WINDOWS: usize = 2;
-        const NUM_NIBBLES: usize = NUM_BOOT_WINDOWS * HEALTH_TEST_WINDOW_BITS / BITS_PER_NIBBLE;
+        let num_nibbles = NUM_BOOT_WINDOWS * self.nibbles_per_window();
 
         self.boot_time_nibbles = self
             .itrng_nibbles
             .by_ref()
-            .take(NUM_NIBBLES)
+            .take(num_nibbles)
             .inspect(|nibble| {
                 self.repcnt.feed(*nibble);
                 self.repcnts.feed(*nibble);
@@ -45,7 +68,7 @@ impl HealthTester {
             })
             .collect();
 
-        assert_eq!(self.boot_time_nibbles.len(), NUM_NIBBLES, "itrng iterator should provide at least {NUM_NIBBLES} nibbles for boot-time health testing");
+        assert_eq!(self.boot_time_nibbles.len(), num_nibbles, "itrng iterator should provide at least {num_nibbles} nibbles for boot-time health testing");
 
         // We'll want to pull these FIFO.
         self.boot_time_nibbles.reverse();
@@ -89,6 +112,8 @@ pub struct RepetitionCountTester {
     prev_nibble: [Option<Bit>; BITS_PER_NIBBLE],
     repetition_count: [u32; BITS_PER_NIBBLE],
     failures: u32,
+    rng_bit_enable: bool,
+    rng_bit_sel: usize,
 }
 
 impl RepetitionCountTester {
@@ -98,11 +123,18 @@ impl RepetitionCountTester {
             prev_nibble: [None; BITS_PER_NIBBLE],
             repetition_count: [1; BITS_PER_NIBBLE], // the hardware starts the counter at 1
             failures: 0,
+            rng_bit_enable: false,
+            rng_bit_sel: 0,
         }
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntThresholdsReadVal) {
         self.threshold = threshold.fips_thresh();
+    }
+
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.rng_bit_sel = rng_bit_sel;
     }
 
     pub fn failures(&self) -> u32 {
@@ -127,7 +159,8 @@ impl RepetitionCountTester {
             if is_repeat {
                 self.repetition_count[i] += 1;
 
-                if self.repetition_count[i] >= self.threshold {
+                let lane_scored = !self.rng_bit_enable || i == self.rng_bit_sel;
+                if lane_scored && self.repetition_count[i] >= self.threshold {
                     self.failures += 1;
                 }
             } else {
@@ -143,8 +176,12 @@ pub struct AdaptiveProportionTester {
     hi_threshold: u32,
     lo_failures: u32,
     hi_failures: u32,
-    num_ones_seen: u32,
+    threshold_scope: bool,
+    per_lane_ones: [u32; BITS_PER_NIBBLE],
     num_bits_seen: usize,
+    window_size_bits: usize,
+    rng_bit_enable: bool,
+    rng_bit_sel: usize,
 }
 
 impl AdaptiveProportionTester {
@@ -154,8 +191,12 @@ impl AdaptiveProportionTester {
             hi_threshold: 0xffff,
             lo_failures: 0,
             hi_failures: 0,
-            num_ones_seen: 0,
+            threshold_scope: true,
+            per_lane_ones: [0; BITS_PER_NIBBLE],
             num_bits_seen: 0,
+            window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            rng_bit_enable: false,
+            rng_bit_sel: 0,
         }
     }
 
@@ -165,6 +206,23 @@ impl AdaptiveProportionTester {
 
     pub fn set_hi_threshold(&mut self, threshold: AdaptpHiThresholdsReadVal) {
         self.hi_threshold = threshold.fips_thresh();
+    }
+
+    pub fn set_threshold_scope(&mut self, threshold_scope: bool) {
+        self.threshold_scope = threshold_scope;
+    }
+
+    pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
+        self.rng_bit_enable = rng_bit_enable;
+        self.rng_bit_sel = rng_bit_sel;
+        self.per_lane_ones = [0; BITS_PER_NIBBLE];
+        self.num_bits_seen = 0;
+    }
+
+    pub fn set_window_size_bits(&mut self, bits: usize) {
+        self.window_size_bits = bits;
+        self.per_lane_ones = [0; BITS_PER_NIBBLE];
+        self.num_bits_seen = 0;
     }
 
     pub fn lo_failures(&self) -> u32 {
@@ -181,20 +239,39 @@ impl AdaptiveProportionTester {
             nibble.count_ones() <= 4,
             "{nibble} should be a NIBBLE instead of a BYTE"
         );
-        self.num_ones_seen += nibble.count_ones();
-        self.num_bits_seen += BITS_PER_NIBBLE;
+        for (i, lane) in self.per_lane_ones.iter_mut().enumerate() {
+            *lane += u32::from((nibble >> i) & 1);
+        }
+        self.num_bits_seen += if self.rng_bit_enable {
+            1
+        } else {
+            BITS_PER_NIBBLE
+        };
 
-        if self.num_bits_seen >= HEALTH_TEST_WINDOW_BITS {
-            if self.num_ones_seen < self.lo_threshold {
+        if self.num_bits_seen >= self.window_size_bits {
+            let (test_cnt_hi, test_cnt_lo) = if self.rng_bit_enable {
+                let cnt = self.per_lane_ones[self.rng_bit_sel];
+                (cnt, cnt)
+            } else if self.threshold_scope {
+                let sum: u32 = self.per_lane_ones.iter().sum();
+                (sum, sum)
+            } else {
+                (
+                    *self.per_lane_ones.iter().max().expect("4 lanes"),
+                    *self.per_lane_ones.iter().min().expect("4 lanes"),
+                )
+            };
+
+            if test_cnt_lo < self.lo_threshold {
                 self.lo_failures += 1;
             }
 
-            if self.num_ones_seen > self.hi_threshold {
+            if test_cnt_hi > self.hi_threshold {
                 self.hi_failures += 1;
             }
 
             // The test windows are not sliding. Reset for the next window.
-            self.num_ones_seen = 0;
+            self.per_lane_ones = [0; BITS_PER_NIBBLE];
             self.num_bits_seen = 0;
         }
     }
