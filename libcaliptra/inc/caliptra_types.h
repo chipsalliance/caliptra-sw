@@ -247,11 +247,13 @@ struct caliptra_certify_key_extended_req
     uint8_t certify_key_req[72];
 };
 
+#define CERTIFY_KEY_RESP_SIZE 12672
+
 struct caliptra_certify_key_extended_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t size;
-    uint8_t certify_key_resp[12672];
+    uint8_t certify_key_resp[CERTIFY_KEY_RESP_SIZE];
 };
 
 struct caliptra_fips_version_resp
