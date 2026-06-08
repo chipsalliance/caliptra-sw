@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_common::cprintln;
 use caliptra_drivers::Aes;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
