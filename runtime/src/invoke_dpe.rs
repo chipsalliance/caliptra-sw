@@ -12,11 +12,12 @@ Abstract:
 
 --*/
 
-use crate::{ec_dpe_env, Drivers, PauserPrivileges};
+use crate::{ec_dpe_env, Drivers, EcDpeView, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp};
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
+use caliptra_drivers::{CaliptraError, CaliptraResult, KeyId};
+use crypto::Digest;
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
@@ -25,7 +26,7 @@ use dpe::{
 };
 use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
-use zerocopy::IntoBytes;
+use zerocopy::{IntoBytes, TryFromBytes};
 
 #[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
@@ -107,8 +108,34 @@ impl InvokeDpeCmd {
             }
 
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let mut invoke_resp = InvokeDpeResp::default();
-            let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut invoke_resp.data);
+            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+            let locality = drivers.mbox.user();
+            let (_, resp_buf) = drivers
+                .mbox
+                .raw_mailbox_contents_mut()?
+                .split_at_mut(core::mem::offset_of!(InvokeDpeResp, data));
+            let ec_dpe_view = EcDpeView {
+                sha384: &mut drivers.sha384,
+                trng: &mut drivers.trng,
+                ecc384: &mut drivers.ecc384,
+                hmac384: &mut drivers.hmac384,
+                key_vault: &mut drivers.key_vault,
+                cert_chain: &drivers.cert_chain,
+                persistent_data: drivers.persistent_data.get_mut(),
+            };
+            let result = invoke_dpe_cmd(
+                &command,
+                ec_dpe_view,
+                hashed_rt_pub_key,
+                key_id_rt_cdi,
+                key_id_rt_priv_key,
+                None,
+                ueid,
+                locality,
+                resp_buf,
+            );
 
             if let Command::DestroyCtx(_) = command {
                 // clear tags for destroyed contexts
@@ -122,6 +149,12 @@ impl InvokeDpeCmd {
                     context_tags,
                 );
             }
+
+            let (invoke_resp, _) =
+                InvokeDpeResp::try_mut_from_prefix(drivers.mbox.raw_mailbox_contents_mut()?)
+                    .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+            invoke_resp.hdr = MailboxRespHeader::default();
 
             // If DPE command failed, populate header with error code, but
             // don't fail the mailbox command.
@@ -141,7 +174,11 @@ impl InvokeDpeCmd {
                 }
             };
 
-            Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
+            let total_size = core::mem::size_of::<InvokeDpeResp>()
+                - core::mem::size_of_val(&invoke_resp.data)
+                + invoke_resp.data_size as usize;
+
+            Ok(MailboxResp::InPlace(total_size))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
@@ -173,20 +210,30 @@ impl InvokeDpeCmd {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn invoke_dpe_cmd(
-    drivers: &mut Drivers,
     command: &Command<'_>,
+    ec_dpe_view: EcDpeView,
+    hashed_rt_pub_key: Digest,
+    key_id_rt_cdi: KeyId,
+    key_id_rt_priv_key: KeyId,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-    locality: Option<u32>,
-    out: &mut [u8],
+    locality: u32,
+    resp_buf: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
-    let locality = locality.unwrap_or(drivers.mbox.user());
-    let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
+    let mut env = ec_dpe_env(
+        ec_dpe_view,
+        hashed_rt_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_priv_key,
+        dmtf_device_info,
+        ueid,
+    );
     let env = match env.as_mut() {
         Ok(r) => r,
         Err(_) => Err(DpeErrorCode::InternalError)?,
     };
     let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-    command.execute_serialized(dpe, env, locality, out)
+    command.execute_serialized(dpe, env, locality, resp_buf)
 }

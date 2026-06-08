@@ -46,7 +46,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
-pub use drivers::{Drivers, PauserPrivileges};
+pub use drivers::{Drivers, EcDpeView, PauserPrivileges};
 use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
@@ -60,7 +60,7 @@ pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_A
 pub use caliptra_common::fips::FipsVersionCmd;
 use crypto::{
     ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
-    CryptoSuite, PubKey,
+    CryptoSuite, Digest, PubKey,
 };
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -83,14 +83,14 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxResp};
+use caliptra_common::mailbox_api::{populate_checksum, CommandId, MailboxResp};
 use packet::Packet;
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, KeyId, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{dpe_instance::DpeEnv, support::Support};
@@ -251,10 +251,26 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
-    let resp = okmutref(&mut resp)?;
 
-    // Send the response
-    Packet::copy_to_mbox(drivers, resp)?;
+    if let Ok(MailboxResp::InPlace(size)) = resp {
+        if size < core::mem::size_of::<u32>() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_INVALID_SIZE);
+        }
+        // The response is already written to the mailbox SRAM. We only have to finalize the
+        // transaction by populating the checksum and updating DLEN.
+        let data = drivers
+            .mbox
+            .raw_mailbox_contents_mut()?
+            .get_mut(..size)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        populate_checksum(data);
+        drivers.mbox.set_dlen(size as u32)?;
+    } else {
+        let resp = okmutref(&mut resp)?;
+
+        // Send the response
+        Packet::copy_to_mbox(drivers, resp)?;
+    }
 
     Ok(MboxStatusE::DataReady)
 }
@@ -397,44 +413,43 @@ impl DpeEnv for CaliptraDpeEnv<'_> {
 }
 
 fn ec_dpe_env(
-    drivers: &mut Drivers,
+    ec_dpe_view: EcDpeView,
+    hashed_rt_pub_key: Digest,
+    key_id_rt_cdi: KeyId,
+    key_id_rt_priv_key: KeyId,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<CaliptraDpeEnv<'_>> {
-    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-    let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
-    let pdata = drivers.persistent_data.get_mut();
-    let rt_pub_key = pdata.fht.rt_dice_pub_key;
+) -> CaliptraResult<CaliptraDpeEnv> {
+    let rt_pub_key = ec_dpe_view.persistent_data.fht.rt_dice_pub_key;
     let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
         &rt_pub_key.x.into(),
         &rt_pub_key.y.into(),
     )));
     let crypto = DpeCrypto::new(
-        &mut drivers.sha384,
-        &mut drivers.trng,
-        &mut drivers.ecc384,
-        &mut drivers.hmac384,
-        &mut drivers.key_vault,
+        ec_dpe_view.sha384,
+        ec_dpe_view.trng,
+        ec_dpe_view.ecc384,
+        ec_dpe_view.hmac384,
+        ec_dpe_view.key_vault,
         rt_pub_key,
         key_id_rt_cdi,
         key_id_rt_priv_key,
-        &mut pdata.exported_cdi_slots,
+        &mut ec_dpe_view.persistent_data.exported_cdi_slots,
     )?;
-    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
-    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    let pl0_pauser = ec_dpe_view.persistent_data.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&ec_dpe_view.persistent_data.manifest1);
     Ok(CaliptraDpeEnv {
         crypto,
         platform: DpePlatform::new(
             CaliptraDpeProfile::Ecc384,
             pl0_pauser,
             hashed_rt_pub_key,
-            &drivers.cert_chain,
+            ec_dpe_view.cert_chain,
             nb,
             nf,
             dmtf_device_info,
             ueid,
         ),
-        state: &mut pdata.dpe,
+        state: &mut ec_dpe_view.persistent_data.dpe,
     })
 }

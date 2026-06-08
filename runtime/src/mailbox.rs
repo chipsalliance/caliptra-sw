@@ -173,4 +173,17 @@ impl Mailbox {
             )
         }
     }
+
+    /// Retrieve a mutable slice with the contents of the mailbox
+    pub fn raw_mailbox_contents_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if !self.cmd_busy() {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
+        unsafe {
+            Ok(slice::from_raw_parts_mut(
+                memory_layout::MBOX_ORG as *mut u8,
+                memory_layout::MBOX_SIZE as usize,
+            ))
+        }
+    }
 }

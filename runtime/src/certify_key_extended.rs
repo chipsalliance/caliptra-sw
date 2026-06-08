@@ -14,13 +14,13 @@ Abstract:
 
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
+    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, InvokeDpeResp, MailboxResp, MailboxRespHeader,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::commands::{CertifyKeyP384Cmd, Command};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, TryFromBytes};
 
-use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, EcDpeView, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
@@ -50,25 +50,57 @@ impl CertifyKeyExtendedCmd {
         let certify_key_cmd = CertifyKeyP384Cmd::ref_from_bytes(&cmd.certify_key_req[..])
             .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let command = Command::from(certify_key_cmd);
-        let mut certify_key_extended_resp = CertifyKeyExtendedResp::default();
+
+        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let locality = drivers.mbox.user();
+        let ec_dpe_view = EcDpeView {
+            sha384: &mut drivers.sha384,
+            trng: &mut drivers.trng,
+            ecc384: &mut drivers.ecc384,
+            hmac384: &mut drivers.hmac384,
+            key_vault: &mut drivers.key_vault,
+            cert_chain: &drivers.cert_chain,
+            persistent_data: drivers.persistent_data.get_mut(),
+        };
+        let (_, resp_buf) = drivers
+            .mbox
+            .raw_mailbox_contents_mut()?
+            .split_at_mut(core::mem::offset_of!(InvokeDpeResp, data));
         let result = invoke_dpe_cmd(
-            drivers,
             &command,
+            ec_dpe_view,
+            hashed_rt_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
             dmtf_device_info,
             None,
-            None,
-            &mut certify_key_extended_resp.certify_key_resp,
+            locality,
+            resp_buf,
         );
+        let (dpe_resp, _) =
+            InvokeDpeResp::try_mut_from_prefix(drivers.mbox.raw_mailbox_contents_mut()?)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        let resp_size = result.map_err(|e| {
-            // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
-                drivers.soc_ifc.set_fw_extended_error(ext_err);
-            }
-            CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED
-        })?;
-        certify_key_extended_resp.size = resp_size as u32;
+        dpe_resp.hdr = MailboxRespHeader::default();
 
-        Ok(MailboxResp::CertifyKeyExtended(certify_key_extended_resp))
+        result
+            .inspect(|data_size| {
+                dpe_resp.data_size = *data_size as u32;
+            })
+            .map_err(|e| {
+                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                if let Some(ext_err) = e.get_error_detail() {
+                    drivers.soc_ifc.set_fw_extended_error(ext_err);
+                }
+                CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED
+            })?;
+
+        let total_size = core::mem::size_of::<InvokeDpeResp>()
+            - core::mem::size_of_val(&dpe_resp.data)
+            + dpe_resp.data_size as usize;
+
+        Ok(MailboxResp::InPlace(total_size))
     }
 }

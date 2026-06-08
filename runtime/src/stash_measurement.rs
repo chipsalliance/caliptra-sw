@@ -12,19 +12,19 @@ Abstract:
 
 --*/
 
-use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, EcDpeView, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    InvokeDpeResp, MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::{DeriveContextExportedCdiResp, DpeErrorCode},
+    response::DpeErrorCode,
     tci::TciMeasurement,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
@@ -65,12 +65,44 @@ impl StashMeasurementCmd {
             };
             let command = Command::from(&cmd);
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
-            let derive_context_resp =
-                invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality), &mut buf);
+            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+            let ec_dpe_view = EcDpeView {
+                sha384: &mut drivers.sha384,
+                trng: &mut drivers.trng,
+                ecc384: &mut drivers.ecc384,
+                hmac384: &mut drivers.hmac384,
+                key_vault: &mut drivers.key_vault,
+                cert_chain: &drivers.cert_chain,
+                persistent_data: drivers.persistent_data.get_mut(),
+            };
+            let (_, resp_buf) = drivers
+                .mbox
+                .raw_mailbox_contents_mut()?
+                .split_at_mut(core::mem::offset_of!(InvokeDpeResp, data));
+            let result = invoke_dpe_cmd(
+                &command,
+                ec_dpe_view,
+                hashed_rt_pub_key,
+                key_id_rt_cdi,
+                key_id_rt_priv_key,
+                None,
+                ueid,
+                locality,
+                resp_buf,
+            );
+            let (dpe_resp, _) =
+                InvokeDpeResp::try_mut_from_prefix(drivers.mbox.raw_mailbox_contents_mut()?)
+                    .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-            match derive_context_resp {
-                Ok(_) => DpeErrorCode::NoError,
+            dpe_resp.hdr = MailboxRespHeader::default();
+
+            match result {
+                Ok(data_size) => {
+                    dpe_resp.data_size = data_size as u32;
+                    DpeErrorCode::NoError
+                }
                 Err(e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                     if let Some(ext_err) = e.get_error_detail() {
