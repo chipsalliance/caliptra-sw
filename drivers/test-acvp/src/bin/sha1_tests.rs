@@ -16,9 +16,9 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x5, Array4xN, Sha1};
+use caliptra_drivers::Sha1;
 use caliptra_kat::Sha1Kat;
-use caliptra_test_harness::{self, println, test_suite};
+use caliptra_test_harness::{self, test_suite};
 
 const SHA1_HASH_SIZE: usize = 20;
 
@@ -71,17 +71,14 @@ fn run_mct(hex_msg: &str) {
     let mut seed = [0u8; SHA1_HASH_SIZE];
     hex_decode(hex_msg, &mut seed).unwrap();
 
-    let mut a = [0u8; SHA1_HASH_SIZE];
-    let mut b = [0u8; SHA1_HASH_SIZE];
-    let mut c = [0u8; SHA1_HASH_SIZE];
     let mut msg = [0u8; SHA1_HASH_SIZE * 3];
     let mut digest_out = [0u8; SHA1_HASH_SIZE];
 
     for ol in 0..100 {
         println!("MCT ol:{}", ol);
-        a = seed;
-        b = seed;
-        c = seed;
+        let mut a = seed;
+        let mut b = seed;
+        let mut c = seed;
         for il in 0..1000 {
             if il % 100 == 0 {
                 println!("il:{}", il);

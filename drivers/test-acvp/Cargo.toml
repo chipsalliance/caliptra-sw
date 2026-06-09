@@ -9,6 +9,7 @@ edition = "2021"
 caliptra-drivers = { workspace = true, features = ["emu", "cavp-test-harness"] }
 caliptra-kat = { workspace = true }
 caliptra-test-harness = { workspace = true }
+cfg-if.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi",
     "cfi-counter",
@@ -23,6 +24,7 @@ emu = ["caliptra-test-harness/emu"]
 #     --profile=firmware \
 #     --features riscv
 riscv = ["caliptra-test-harness/riscv"]
+runtime = []
 
 [[bin]]
 name = "sha1"
