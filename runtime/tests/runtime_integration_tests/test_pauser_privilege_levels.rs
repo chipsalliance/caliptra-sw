@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::PQC_KEY_TYPE;
+use crate::common::{CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, PQC_KEY_TYPE};
 use caliptra_api::{
     mailbox::{
-        AxiResponseInfo, CertifyKeyExtendedMldsa87Req, RevokeExportedCdiHandleReq,
-        SignWithExportedEcdsaReq,
+        AxiResponseInfo, CertifyKeyChunksFlags, CertifyKeyChunksReq, CertifyKeyExtendedMldsa87Req,
+        RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq,
     },
     SocManager,
 };
@@ -612,6 +612,66 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
                 .mailbox_execute(
                     u32::from(cmd_id),
                     certify_key_extended_cmd.as_bytes().unwrap(),
+                )
+                .unwrap_err();
+            assert_error(
+                &mut model,
+                CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+                resp,
+            );
+        }
+    }
+}
+
+#[test]
+fn test_certify_key_chunks_cannot_be_called_from_pl1() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
+
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
+
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        for profile in [CaliptraDpeProfile::Ecc384, CaliptraDpeProfile::Mldsa87] {
+            let flags = match profile {
+                CaliptraDpeProfile::Ecc384 => CertifyKeyChunksFlags(0),
+                CaliptraDpeProfile::Mldsa87 => CertifyKeyChunksFlags::USE_MLDSA,
+            };
+
+            let cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+                profile,
+                flags: CertifyKeyFlags::empty(),
+                format: CertifyKeyCommand::FORMAT_X509,
+                ..Default::default()
+            });
+            let mut certify_key_req = [0u8; CertifyKeyChunksReq::CERTIFY_KEY_REQ_SIZE];
+            certify_key_req[..cmd.as_bytes().len()].copy_from_slice(cmd.as_bytes());
+
+            let mut certify_key_chunks_cmd = MailboxReq::CertifyKeyChunks(CertifyKeyChunksReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                flags,
+                reserved: 0,
+                max_size: 0,
+                offset: 0,
+                certify_key_req,
+            });
+            certify_key_chunks_cmd.populate_chksum().unwrap();
+
+            let resp = model
+                .mailbox_execute(
+                    u32::from(CommandId::CERTIFY_KEY_CHUNKS),
+                    certify_key_chunks_cmd.as_bytes().unwrap(),
                 )
                 .unwrap_err();
             assert_error(
