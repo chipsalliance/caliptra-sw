@@ -338,7 +338,7 @@ impl UdsFeProgrammingFlow {
             4
         };
 
-        let _ = otp_ctrl.with_regs_mut(|regs| {
+        let verify_result = otp_ctrl.with_regs_mut(|regs| {
             // Helper to wait for DAI idle state
             let wait_dai_idle = || loop {
                 let status = if let Some(status_reg_addr) = config.status_reg_addr {
@@ -411,6 +411,11 @@ impl UdsFeProgrammingFlow {
             // Return the accumulated result
             result
         })?;
+
+        // The closure's return value carries the read-back-verification verdict
+        // (`with_regs_mut`'s own Result only reports DMA transport errors). Propagate it so a
+        // failed UDS/FE zeroization is reported to the caller instead of being discarded.
+        verify_result?;
 
         cprintln!("[{}] -- Zeroization completed", self.prefix());
 
