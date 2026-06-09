@@ -369,7 +369,7 @@ pub fn execute_dpe_cmd(
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let mut mbox_cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data: cmd_data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
@@ -377,7 +377,7 @@ pub fn execute_dpe_cmd(
     mbox_cmd.populate_chksum().unwrap();
 
     let resp = model.mailbox_execute(
-        u32::from(CommandId::INVOKE_DPE),
+        u32::from(CommandId::INVOKE_DPE_ECC384),
         mbox_cmd.as_bytes().unwrap(),
     );
     if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
