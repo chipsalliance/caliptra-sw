@@ -8,6 +8,9 @@ edition = "2021"
 [dependencies]
 caliptra-drivers = { workspace = true, features = ["emu", "cavp-test-harness"] }
 caliptra-kat = { workspace = true }
+caliptra-lms-types = { workspace = true }
+caliptra-registers = { workspace = true }
+zerocopy = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
@@ -29,4 +32,19 @@ runtime = []
 [[bin]]
 name = "sha1"
 path = "src/bin/sha1_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "hmac"
+path = "src/bin/hmac_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "lms_24"
+path = "src/bin/lms_24_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mldsa87"
+path = "src/bin/mldsa87_tests.rs"
 required-features = ["riscv"]
