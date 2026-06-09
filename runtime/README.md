@@ -1166,7 +1166,9 @@ Command Code: `0x434B_4558` ("CKEX")
 
 ### CERTIFY\_KEY\_CHUNKS
 
-Invokes a DPE `CertifyKey` command (ML-DSA-87) and returns the response in chunks. This is useful when the DPE response (which contains a certificate or CSR) is larger than the mailbox size or larger than the caller can easily consume.
+Invokes a DPE `CertifyKey` command (ECC-P384 or ML-DSA-87) and returns the response in chunks. This is useful when the DPE response (which contains a certificate or CSR) is larger than the mailbox size or larger than the caller can easily consume.
+
+The handler re-executes the full DPE `CertifyKey` operation on every call and then returns the requested `[offset, offset+max_size)` window of the freshly generated response. Each call rotates the context handle, if needed. The new handle is returned in the per-chunk response header and must be used for the next call.
 
 Command Code: `0x434B_4348` ("CKCH")
 
@@ -1175,11 +1177,19 @@ Command Code: `0x434B_4348` ("CKCH")
 | **Name**          | **Type** | **Description**                                                                       |
 | ----------------- | -------- | ------------------------------------------------------------------------------------- |
 | chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian.           |
-| flags             | u32      | Flags (reserved).                                                                     |
+| flags             | u32      | Flags.                                                                                |
 | reserved          | u32      | Reserved.                                                                             |
 | max\_size         | u32      | The maximum length of the chunk the caller wants to receive. If 0, defaults to 15360. |
 | offset            | u32      | Offset into the full CertifyKey response to read from.                                |
 | certify\_key\_req | u8[72]   | The serialized DPE `CertifyKey` command.                                              |
+
+*Table: `CERTIFY_KEY_CHUNKS` input flags*
+
+| **Name**  | **Offset** |
+| --------- | ---------- |
+| USE_MLDSA | 1 << 31    |
+
+When `USE_MLDSA` is set, the command operates on the ML-DSA-87 DPE profile; otherwise, it operates on the ECC-P384 profile.
 
 *Table: `CERTIFY_KEY_CHUNKS` output arguments*
 
