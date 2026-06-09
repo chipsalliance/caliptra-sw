@@ -772,6 +772,12 @@ fn test_sha1() {
 }
 
 #[test]
+#[ignore]
+fn test_acvp_sha1() {
+    run_driver_test(&firmware::acvp_tests::SHA1);
+}
+
+#[test]
 fn test_sha256() {
     run_driver_test(&firmware::driver_tests::SHA256);
 }
