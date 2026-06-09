@@ -111,14 +111,23 @@ jobs:
 
   test_unit:
     needs: lint
-    runs-on: ubuntu-24.04
+    runs-on: [e2-standard-4-AI]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
 
+      - name: Install cargo-nextest
+        run: cargo install cargo-nextest --version 0.9.100 --locked --no-default-features --features=default-no-update
+
       - name: Run tests
         run: |
-          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked -- --skip test_generate_csr_envelop_stress
+          PROFILE="nightly"
+          FILTER="default()"
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            git fetch origin main || true
+            FILTER="$(cargo run --quiet -p xtask -- -q nextest-filter -b origin/main -n $PROFILE)"
+          fi
+          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" nextest run --locked --profile "$PROFILE" -E "$FILTER"
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" run --manifest-path ./coverage/Cargo.toml
           CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test -p caliptra-runtime --features ocp-lock test_ocp_lock --locked
 

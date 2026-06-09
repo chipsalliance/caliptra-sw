@@ -82,7 +82,7 @@ jobs:
 
 
   build_test_binaries:
-    runs-on: [e2-standard-8]
+    runs-on: [e2-standard-8-AI]
     timeout-minutes: 60
 
     env:
@@ -161,6 +161,12 @@ jobs:
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
+          FILTER="default()"
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            git fetch origin main || true
+            FILTER="$(cargo run --quiet -p xtask -- -q nextest-filter -b origin/main -n fpga-core)"
+          fi
+          echo "$FILTER" > /tmp/nextest-filter.txt
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
@@ -188,6 +194,13 @@ jobs:
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
+          retention-days: 1
+
+      - name: 'Upload Nextest Filter artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-nextest-filter${{ inputs.artifact-suffix }}
+          path: /tmp/nextest-filter.txt
           retention-days: 1
 
       - name: Build test firmware
@@ -252,6 +265,12 @@ jobs:
           name: caliptra-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-bitstream
 
+      - name: 'Download Nextest Filter Artifact'
+        uses: actions/download-artifact@v8
+        with:
+          name: caliptra-nextest-filter${{ inputs.artifact-suffix }}
+          path: /tmp/
+
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -302,12 +321,14 @@ jobs:
           echo VARS=${VARS}
 
           # TODO remove version test filter once bitstream is up to date
+          FILTER_EXPR=$(cat /tmp/nextest-filter.txt)
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
               --profile=fpga-core
+              -E "${FILTER_EXPR}"
           )
           cargo-nextest --version
           cargo-nextest nextest list \
