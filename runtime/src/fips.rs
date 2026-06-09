@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_common::cprintln;
 use caliptra_drivers::Aes;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
@@ -35,19 +36,23 @@ impl FipsModule {
     /// Clear data structures in DCCM.
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    fn zeroize(env: &mut Drivers) -> CaliptraResult<()> {
-        let trng_zeroize_result = env.trng.zeroize();
+    fn zeroize(env: &mut Drivers) {
+        let _ = env.trng.zeroize();
 
         unsafe {
             // Zeroize the crypto blocks.
+            cprintln!("[rt] zeroize AES");
             Aes::zeroize();
             Ecc384::zeroize();
             Hmac::zeroize();
+            cprintln!("[rt] zeroize MLDSA");
             Mldsa87::zeroize();
+            cprintln!("[rt] zeroize MLKEM");
             MlKem1024::zeroize();
             Sha256::zeroize();
             Sha2_512_384::zeroize();
             Sha2_512_384Acc::zeroize();
+            cprintln!("[rt] zeroize SHA3");
             Sha3::zeroize();
 
             // Zeroize the key vault.
@@ -65,9 +70,6 @@ impl FipsModule {
         };
 
         env.persistent_data.get_mut().zeroize();
-
-        trng_zeroize_result?;
-        Ok(())
     }
 }
 
@@ -236,7 +238,7 @@ impl FipsShutdownCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<usize> {
-        FipsModule::zeroize(env)?;
+        FipsModule::zeroize(env);
         env.is_shutdown = true;
 
         Ok(0)
