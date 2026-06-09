@@ -772,7 +772,7 @@ fn test_sha1() {
 }
 
 #[test]
-#[ignore]
+#[cfg_attr(not(feature = "acvp-tests"), ignore)]
 fn test_acvp_sha1() {
     run_driver_test(&firmware::acvp_tests::SHA1);
 }
