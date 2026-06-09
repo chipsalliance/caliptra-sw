@@ -12,11 +12,12 @@ Abstract:
 
 --*/
 
+use crate::PauserPrivileges;
 use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers};
 use caliptra_api::mailbox::CertifyKeyChunksRespInfo;
 use caliptra_common::mailbox_api::{CertifyKeyChunksReq, CertifyKeyChunksResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
+use dpe::commands::{CertifyKeyCommand, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use dpe::response::{CertifyKeyMldsa87Resp, CertifyKeyP384Resp};
 use memoffset::span_of;
 use zerocopy::FromBytes;
@@ -39,17 +40,26 @@ impl CertifyKeyChunksCmd {
         };
 
         let certify_key_cmd = match profile {
-            CaliptraDpeProfile::Ecc384 => Command::from(
+            CaliptraDpeProfile::Ecc384 => CertifyKeyCommand::from(
                 CertifyKeyP384Cmd::ref_from_bytes(&chunk_cmd.certify_key_req[..]).or(Err(
                     CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
                 ))?,
             ),
-            CaliptraDpeProfile::Mldsa87 => Command::from(
+            CaliptraDpeProfile::Mldsa87 => CertifyKeyCommand::from(
                 CertifyKeyMldsa87Cmd::ref_from_bytes(&chunk_cmd.certify_key_req[..]).or(Err(
                     CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
                 ))?,
             ),
         };
+
+        // Check if command can be executed
+        // PL1 cannot request X509
+        let caller_privilege_level = drivers.caller_privilege_level();
+        if certify_key_cmd.format() == CertifyKeyCommand::FORMAT_X509
+            && caller_privilege_level != PauserPrivileges::PL0
+        {
+            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+        }
 
         let (resp_info, certify_key_resp_bytes) =
             CertifyKeyChunksRespInfo::mut_from_prefix(mbox_resp)
@@ -71,11 +81,10 @@ impl CertifyKeyChunksCmd {
         }
 
         // Get the full CertifyKey response
-        let cmd = &certify_key_cmd;
         let dpe_resp_len = invoke_dpe_cmd(
             profile,
             drivers,
-            cmd,
+            &Command::from(&certify_key_cmd),
             None,
             None,
             None,
