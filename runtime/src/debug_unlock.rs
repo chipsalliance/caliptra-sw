@@ -68,6 +68,7 @@ impl ProductionDebugUnlock {
         }
 
         // Set debug unlock in progress
+        soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(true);
         soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
         let result = (|| -> CaliptraResult<usize> {

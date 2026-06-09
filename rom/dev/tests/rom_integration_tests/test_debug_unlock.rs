@@ -134,14 +134,13 @@ fn test_dbg_unlock_manuf_success() {
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
-        !resp.manuf_dbg_unlock_in_progress()
+        !resp.manuf_dbg_unlock_in_progress() && !resp.tap_mailbox_available()
     });
 
-    assert!(hw
-        .soc_ifc()
-        .ss_dbg_service_reg_rsp()
-        .read()
-        .manuf_dbg_unlock_success());
+    let resp = hw.soc_ifc().ss_dbg_service_reg_rsp().read();
+    assert!(resp.manuf_dbg_unlock_success());
+    assert!(!resp.tap_mailbox_available());
+    assert!(hw.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 }
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070

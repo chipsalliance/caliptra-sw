@@ -114,14 +114,24 @@ impl SocIfc {
         let lifecycle = self.lifecycle();
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         match lifecycle {
-            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
-                w.tap_mailbox_available(in_progress)
-                    .manuf_dbg_unlock_in_progress(in_progress)
-            }),
-            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
-                w.tap_mailbox_available(in_progress)
-                    .prod_dbg_unlock_in_progress(in_progress)
-            }),
+            Lifecycle::Manufacturing => soc_ifc_regs
+                .ss_dbg_service_reg_rsp()
+                .modify(|w| w.manuf_dbg_unlock_in_progress(in_progress)),
+            DeviceLifecycleE::Production => soc_ifc_regs
+                .ss_dbg_service_reg_rsp()
+                .modify(|w| w.prod_dbg_unlock_in_progress(in_progress)),
+            _ => (),
+        }
+    }
+
+    /// Enable or disable TAP access to the mailbox for debug unlock.
+    pub fn set_ss_dbg_unlock_tap_mailbox_available(&mut self, available: bool) {
+        let lifecycle = self.lifecycle();
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        match lifecycle {
+            Lifecycle::Manufacturing | DeviceLifecycleE::Production => soc_ifc_regs
+                .ss_dbg_service_reg_rsp()
+                .modify(|w| w.tap_mailbox_available(available)),
             _ => (),
         }
     }

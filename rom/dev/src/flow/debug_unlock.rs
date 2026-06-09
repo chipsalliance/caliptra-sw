@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::mem::ManuallyDrop;
-
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::CaliptraResult;
 use caliptra_api::mailbox::{
@@ -55,11 +53,28 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     }
 }
 
+fn start_debug_unlock(env: &mut RomEnv) {
+    env.soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(true);
+    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+}
+
+fn finish_debug_unlock(env: &mut RomEnv, response_sent: bool) {
+    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    if response_sent {
+        // Real TAP can clear MBOX_EXECUTE while ROM polls for mailbox idle. In
+        // the emulator, the requester clears MBOX_EXECUTE only after firmware
+        // returns control to the model, so polling here would deadlock tests.
+        #[cfg(not(feature = "emu"))]
+        env.mbox.wait_until_idle();
+        env.soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(false);
+    }
+}
+
 fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_manuf] ++");
 
     // Set debug unlock in progress and unlock the mailbox for tap access.
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+    start_debug_unlock(env);
 
     let mbox = &mut env.mbox;
     let txn = loop {
@@ -77,7 +92,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?;
     }
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+    let mut txn = txn.start_txn();
 
     let result = (|| {
         // Get command bytes and verify checksum
@@ -115,7 +130,8 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         }
     }
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    drop(txn);
+    finish_debug_unlock(env, true);
 
     cprintln!("[dbg_manuf] --");
     result
@@ -123,6 +139,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
 fn handle_auth_debug_unlock_request(
     env: &mut RomEnv,
+    response_sent: &mut bool,
 ) -> CaliptraResult<(
     ProductionAuthDebugUnlockReq,
     ProductionAuthDebugUnlockChallenge,
@@ -142,7 +159,7 @@ fn handle_auth_debug_unlock_request(
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
     }
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+    let mut txn = txn.start_txn();
 
     // Get command bytes and verify checksum
     let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
@@ -167,10 +184,12 @@ fn handle_auth_debug_unlock_request(
     match challenge {
         Err(err) => {
             txn.send_response(MailboxRespHeader::default().as_bytes())?;
+            *response_sent = true;
             Err(err)
         }
         Ok(challenge_resp) => {
             txn.send_response(challenge_resp.as_bytes())?;
+            *response_sent = true;
             Ok((request, challenge_resp))
         }
     }
@@ -180,6 +199,7 @@ fn handle_auth_debug_unlock_token(
     env: &mut RomEnv,
     request: &ProductionAuthDebugUnlockReq,
     challenge: &ProductionAuthDebugUnlockChallenge,
+    response_sent: &mut bool,
 ) -> CaliptraResult<()> {
     let mbox = &mut env.mbox;
     let txn = loop {
@@ -196,7 +216,7 @@ fn handle_auth_debug_unlock_token(
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
     }
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+    let mut txn = txn.start_txn();
 
     // Get command bytes and verify checksum
     let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
@@ -224,22 +244,26 @@ fn handle_auth_debug_unlock_token(
     });
 
     // Send response
-    let _ = txn.send_response(MailboxRespHeader::default().as_bytes());
+    if txn
+        .send_response(MailboxRespHeader::default().as_bytes())
+        .is_ok()
+    {
+        *response_sent = true;
+    }
     result
 }
 
 fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_prod] ++");
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+    start_debug_unlock(env);
 
-    let mut debug_unlock_op = || -> CaliptraResult<u8> {
-        let (request, challenge) = handle_auth_debug_unlock_request(env)?;
-        handle_auth_debug_unlock_token(env, &request, &challenge)?;
+    let mut response_sent = false;
+    let result = (|| -> CaliptraResult<u8> {
+        let (request, challenge) = handle_auth_debug_unlock_request(env, &mut response_sent)?;
+        handle_auth_debug_unlock_token(env, &request, &challenge, &mut response_sent)?;
         Ok(request.unlock_level)
-    };
-
-    let result = debug_unlock_op();
+    })();
     match result {
         Ok(unlock_level) => {
             env.soc_ifc.set_ss_dbg_unlock_level(unlock_level);
@@ -252,7 +276,7 @@ fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
             env.soc_ifc.set_ss_dbg_unlock_result(false);
         }
     }
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    finish_debug_unlock(env, response_sent);
 
     cprintln!("[dbg_prod] --");
     result.map(|_| ())
