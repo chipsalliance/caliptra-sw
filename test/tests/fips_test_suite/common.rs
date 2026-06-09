@@ -62,6 +62,11 @@ const ROM_EXP_2_0_0: RomExpVals = RomExpVals {
     ],
 };
 
+const ROM_EXP_2_1_2: RomExpVals = RomExpVals {
+    rom_version: 0x1042, // 2.1.2
+    ..ROM_EXP_2_1_0
+};
+
 const ROM_EXP_2_1_1: RomExpVals = RomExpVals {
     rom_version: 0x1041, // 2.1.1
     ..ROM_EXP_2_1_0
@@ -72,7 +77,7 @@ const ROM_EXP_2_1_0: RomExpVals = RomExpVals {
     ..ROM_EXP_2_0_0
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_1_1 };
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_1_2 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -118,6 +123,7 @@ impl RomExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_ROM_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_1_2" => ROM_EXP_2_1_2,
                 "2_1_1" => ROM_EXP_2_1_1,
                 "2_1_0" => ROM_EXP_2_1_0,
                 "2_0_0" => ROM_EXP_2_0_0,

@@ -37,7 +37,8 @@ pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
 #[derive(Debug, PartialEq)]
 pub enum CiRomVersion {
-    Rom2_1,
+    Rom2_1_0,
+    Rom2_1_1,
     Latest,
 }
 
@@ -366,7 +367,8 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
 // Default is Latest
 pub fn get_ci_rom_version() -> CiRomVersion {
     match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
-        Ok("2.1") => CiRomVersion::Rom2_1,
+        Ok("2.1.0") => CiRomVersion::Rom2_1_0,
+        Ok("2.1.1") => CiRomVersion::Rom2_1_1,
         Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
         Err(_) => CiRomVersion::Latest,
     }
@@ -377,7 +379,7 @@ pub fn get_ci_rom_version() -> CiRomVersion {
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_1 => {
+        CiRomVersion::Rom2_1_0 => {
             if rom_from_env == &firmware::ROM {
                 Ok(
                     include_bytes!("../../rom/ci_frozen_rom/2.1/caliptra-rom-2.1.0-a72a76f.bin")
@@ -394,6 +396,23 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
                 Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
             }
         }
+        CiRomVersion::Rom2_1_1 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/2.1/caliptra-rom-2.1.1-510a23a.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.1/caliptra-rom-with-log-2.1.1-510a23a.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
+        }
         CiRomVersion::Latest => Ok(build_firmware_rom(rom_from_env)?.into()),
     }
 }
@@ -403,7 +422,7 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
 pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env_fpga(fpga);
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_1 => {
+        CiRomVersion::Rom2_1_0 => {
             if rom_from_env == &firmware::ROM {
                 Ok(
                     include_bytes!("../../rom/ci_frozen_rom/2.1/caliptra-rom-2.1.0-a72a76f.bin")
@@ -425,6 +444,35 @@ pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, 
             } else if rom_from_env == &firmware::ROM_FPGA_WITH_UART {
                 Ok(include_bytes!(
                     "../../rom/ci_frozen_rom/2.1/caliptra-fpga-rom-with-log-2.1.0-a72a76f.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
+        }
+        CiRomVersion::Rom2_1_1 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/2.1/caliptra-rom-2.1.1-510a23a.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_FPGA {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.1/caliptra-fpga-rom-2.1.1-510a23a.bin"
+                )
+                .as_slice()
+                .into())
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.1/caliptra-rom-with-log-2.1.1-510a23a.bin"
+                )
+                .as_slice()
+                .into())
+            } else if rom_from_env == &firmware::ROM_FPGA_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.1/caliptra-fpga-rom-with-log-2.1.1-510a23a.bin"
                 )
                 .as_slice()
                 .into())

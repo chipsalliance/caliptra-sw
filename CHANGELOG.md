@@ -1,3 +1,31 @@
+# rom-2.1.2
+
+## Caliptra ROM 2.1.2 Release Notes
+
+Release notes for changes introduced since ROM 2.1.1.
+
+### Features
+
+- Add Stable Owner Key derivation from HEK seed (#3625)
+
+### Fixes
+
+- Verify firmware after loading to ICCM (#3702)
+- Use SS_STRAP_GENERIC[2] to configure entropy_src single-bit mode during CSRNG initialization (#3809)
+- Disable entropy_src repcnts health test in ROM (#3836)
+- Set CSRNG entropy_src CONF.THRESHOLD_SCOPE to false (#3788)
+- Mark hash-based ECDSA/LMS verify as FIPS non-approved (#3803)
+- Disallow UDS programming when debug intent is set (#3804)
+- Reject prod debug unlock request if pk hash fuse is zeroized or uninitialized (#3602)
+- Zeroize ROM state before acknowledging SHUTDOWN (#3807)
+- Debug unlock token - move key hash check from mailbox SRAM to stack (#3766)
+- Update OCP LOCK key ladder to use DOE (#3701)
+- Use configurable OTP status offset for UDS/FE (#3723)
+- Add MLDSA-87 SigVer KAT (#3795)
+- Add CTR_DRBG-AES-256 KAT for CSRNG (#3706)
+- Add Hashing step to ECDSA KAT (#3821)
+- MLDSA pairwise consistency test (PCT) (#3547)
+
 # rom-2.1.1
 
 ## Caliptra ROM 2.1.1 Release Notes
