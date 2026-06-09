@@ -358,6 +358,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-dpe"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+dependencies = [
+ "bitflags 2.4.0",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
+ "caliptra-dpe-crypto",
+ "caliptra-dpe-platform",
+ "cfg-if 1.0.0",
+ "constant_time_eq",
+ "ufmt",
+ "zerocopy",
+ "zeroize",
+]
+
+[[package]]
+name = "caliptra-dpe-crypto"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+dependencies = [
+ "arrayvec",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
+ "constant_time_eq",
+ "zerocopy",
+ "zeroize",
+]
+
+[[package]]
+name = "caliptra-dpe-platform"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+dependencies = [
+ "arrayvec",
+ "caliptra-dpe-crypto",
+ "cfg-if 1.0.0",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-drivers"
 version = "0.1.0"
 dependencies = [
@@ -368,6 +409,8 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-dpe",
+ "caliptra-dpe-crypto",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -378,7 +421,6 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test",
  "cfg-if 1.0.0",
- "dpe",
  "openssl",
  "ufmt",
  "ureg",
@@ -830,6 +872,9 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-cpu",
+ "caliptra-dpe",
+ "caliptra-dpe-crypto",
+ "caliptra-dpe-platform",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-gen-linker-scripts",
@@ -849,11 +894,8 @@ dependencies = [
  "cfg-if 1.0.0",
  "cms",
  "constant_time_eq",
- "crypto",
- "dpe",
  "memoffset 0.8.0",
  "openssl",
- "platform",
  "sha2",
  "ufmt",
  "wycheproof",
@@ -916,6 +958,7 @@ dependencies = [
  "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-coverage",
+ "caliptra-dpe",
  "caliptra-drivers",
  "caliptra-emu-cpu",
  "caliptra-hw-model",
@@ -929,7 +972,6 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-runtime",
  "caliptra_common",
- "dpe",
  "elf",
  "openssl",
  "rand",
@@ -1178,16 +1220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
- "zeroize",
-]
-
-[[package]]
 name = "crypto-bigint"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1338,22 +1370,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.48",
-]
-
-[[package]]
-name = "dpe"
-version = "0.1.0"
-dependencies = [
- "bitflags 2.4.0",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
- "cfg-if 1.0.0",
- "constant_time_eq",
- "crypto",
- "platform",
- "ufmt",
- "zerocopy",
- "zeroize",
 ]
 
 [[package]]
@@ -1944,15 +1960,6 @@ name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
-
-[[package]]
-name = "platform"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "cfg-if 1.0.0",
- "ufmt",
-]
 
 [[package]]
 name = "powerfmt"
@@ -2913,9 +2920,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.7.0"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
+checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 dependencies = [
  "zeroize_derive",
 ]

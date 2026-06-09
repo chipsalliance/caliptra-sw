@@ -13,10 +13,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
       - name: Check that the ROM hash matches the frozen one
         run: ./ci.sh check_frozen_images
 

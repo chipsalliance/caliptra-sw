@@ -22,7 +22,7 @@ use caliptra_registers::sha512::Sha512Reg;
 
 use zeroize::Zeroize;
 
-const SHA384_BLOCK_BYTE_SIZE: usize = 128;
+pub const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const SHA384_HASH_SIZE: usize = 48;
@@ -32,6 +32,66 @@ pub type Sha384Digest<'a> = &'a mut Array4x12;
 
 pub struct Sha384 {
     sha512: Sha512Reg,
+}
+
+#[cfg(feature = "runtime")]
+pub struct DpeHasher<'a> {
+    op: Sha384DigestOp<'a>,
+    active: Option<()>,
+}
+
+#[cfg(feature = "runtime")]
+impl<'a> DpeHasher<'a> {
+    pub fn new(sha: &'a mut Sha384) -> Result<Self, CaliptraError> {
+        Ok(Self {
+            op: sha.digest_init()?,
+            active: None,
+        })
+    }
+
+    pub fn driver(&mut self) -> &mut Sha384 {
+        self.op.sha
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl crypto::Hasher for DpeHasher<'_> {
+    fn initialize(&mut self) -> Result<(), crypto::CryptoError> {
+        self.op.state = Sha384DigestState::Init;
+        self.op.buf = [0u8; SHA384_BLOCK_BYTE_SIZE];
+        self.op.buf_idx = 0;
+        self.op.data_size = 0;
+        self.active = Some(());
+        Ok(())
+    }
+
+    fn update(&mut self, bytes: &[u8]) -> Result<(), crypto::CryptoError> {
+        if self.active.is_none() {
+            return Err(crypto::CryptoError::HashError(u32::from(
+                CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR,
+            )));
+        }
+        self.op
+            .update(bytes)
+            .map_err(|e| crypto::CryptoError::HashError(u32::from(e)))
+    }
+
+    fn finish(&mut self) -> Result<crypto::Digest, crypto::CryptoError> {
+        self.active
+            .take()
+            .ok_or(crypto::CryptoError::HashError(0))?;
+        let mut digest = Array4x12::default();
+        Sha384DigestOp {
+            sha: self.op.sha,
+            state: self.op.state,
+            buf: self.op.buf,
+            buf_idx: self.op.buf_idx,
+            data_size: self.op.data_size,
+        }
+        .finalize(&mut digest)
+        .map_err(|e| crypto::CryptoError::HashError(u32::from(e)))?;
+        Ok(crypto::Digest::Sha384(crypto::Sha384(digest.into())))
+    }
 }
 
 impl Sha384 {
@@ -332,7 +392,7 @@ impl Sha384 {
 
 /// SHA-384 Digest state
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum Sha384DigestState {
+pub enum Sha384DigestState {
     /// Initial state
     Init,
 

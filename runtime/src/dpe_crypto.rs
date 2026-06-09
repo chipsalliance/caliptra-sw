@@ -17,21 +17,31 @@ use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    ExportedCdiEntry, ExportedCdiHandles, Hmac384, KeyId, KeyReadArgs, KeyUsage, KeyVault,
-    KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
+    hmac384_kdf, sha384::DpeHasher, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
+    Ecc384Seed, ExportedCdiEntry, ExportedCdiHandles, Hmac384, KeyId, KeyReadArgs, KeyUsage,
+    KeyVault, KeyWriteArgs, Sha384, Trng,
 };
+use caliptra_error::CaliptraResult;
 use constant_time_eq::constant_time_eq;
-use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
-use dpe::{ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
+use crypto::{
+    ecdsa::{
+        curve_384::{EcdsaPub384, EcdsaSignature384},
+        EcdsaPubKey, EcdsaSignature,
+    },
+    CdiManager, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher,
+    PubKey, SignData, Signature, SignatureAlgorithm, SignatureType,
+};
+use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 
 pub struct DpeCrypto<'a> {
-    sha384: &'a mut Sha384,
     trng: &'a mut Trng,
-    ecc384: &'a mut Ecc384,
     hmac384: &'a mut Hmac384,
     key_vault: &'a mut KeyVault,
-    rt_pub_key: &'a mut Ecc384PubKey,
+    signer: Signer<'a>,
+    hasher: DpeHasher<'a>,
+    cdi: Option<KeyId>,
+    derived_key: Option<(KeyId, PubKey)>,
+    rt_pub_key: PubKey,
     key_id_rt_cdi: KeyId,
     key_id_rt_priv_key: KeyId,
     exported_cdi_slots: &'a mut ExportedCdiHandles,
@@ -45,83 +55,77 @@ impl<'a> DpeCrypto<'a> {
         ecc384: &'a mut Ecc384,
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
-        rt_pub_key: &'a mut Ecc384PubKey,
+        rt_pub_key: PubKey,
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
-    ) -> Self {
-        Self {
-            sha384,
+    ) -> CaliptraResult<Self> {
+        Ok(Self {
             trng,
-            ecc384,
             hmac384,
             key_vault,
+            signer: Signer::Ec(ecc384),
+            hasher: DpeHasher::new(sha384)?,
+            cdi: None,
+            derived_key: None,
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             exported_cdi_slots,
-        }
+        })
     }
 
     fn derive_cdi_inner(
         &mut self,
-        algs: AlgLen,
         measurement: &Digest,
         info: &[u8],
         key_id: KeyId,
-    ) -> Result<<DpeCrypto<'a> as crypto::Crypto>::Cdi, CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                let mut hasher = self.hash_initialize(algs)?;
-                hasher.update(measurement.bytes())?;
-                hasher.update(info)?;
-                let context = hasher.finish()?;
+    ) -> Result<KeyId, CryptoError> {
+        let context = self.hash_all(&[&measurement.as_slice(), &info])?;
 
-                hmac384_kdf(
-                    self.hmac384,
-                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
-                    b"derive_cdi",
-                    Some(context.bytes()),
-                    self.trng,
-                    KeyWriteArgs::new(
-                        key_id,
-                        KeyUsage::default()
-                            .set_hmac_key_en()
-                            .set_ecc_key_gen_seed_en(),
-                    )
-                    .into(),
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Ok(key_id)
-            }
-        }
+        hmac384_kdf(
+            self.hmac384,
+            KeyReadArgs::new(self.key_id_rt_cdi).into(),
+            b"derive_cdi",
+            Some(context.as_slice()),
+            self.trng,
+            KeyWriteArgs::new(
+                key_id,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
+        .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+        Ok(key_id)
     }
 
     fn derive_key_pair_inner(
         &mut self,
-        algs: AlgLen,
-        cdi: &<DpeCrypto<'a> as crypto::Crypto>::Cdi,
+        cdi: &KeyId,
         label: &[u8],
         info: &[u8],
         key_id: KeyId,
-    ) -> Result<(<DpeCrypto<'a> as crypto::Crypto>::PrivKey, EcdsaPub), CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                hmac384_kdf(
-                    self.hmac384,
-                    KeyReadArgs::new(*cdi).into(),
-                    label,
-                    Some(info),
-                    self.trng,
-                    KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_key_gen_seed_en())
-                        .into(),
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+    ) -> Result<(KeyId, PubKey), CryptoError> {
+        let mut usage: KeyUsage = KeyUsage::default();
+        let usage: KeyUsage = match self.signer {
+            Signer::Ec(_) => usage.set_ecc_key_gen_seed_en(),
+        };
 
-                let pub_key = self
-                    .ecc384
+        hmac384_kdf(
+            self.hmac384,
+            KeyReadArgs::new(*cdi).into(),
+            label,
+            Some(info),
+            self.trng,
+            KeyWriteArgs::new(KEY_ID_TMP, usage).into(),
+        )
+        .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+
+        match &mut self.signer {
+            Signer::Ec(ecc384) => {
+                let pub_key = ecc384
                     .key_pair(
                         &Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
                         &Array4x12::default(),
@@ -130,34 +134,80 @@ impl<'a> DpeCrypto<'a> {
                             .into(),
                     )
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                let pub_key = EcdsaPub {
-                    x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.x))
-                        .map_err(|_| CryptoError::Size)?,
-                    y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.y))
-                        .map_err(|_| CryptoError::Size)?,
-                };
+                let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+                    &pub_key.x.into(),
+                    &pub_key.y.into(),
+                )));
                 Ok((key_id, pub_key))
             }
         }
     }
 
-    pub fn get_cdi_from_exported_handle(
-        &mut self,
-        exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
-    ) -> Option<<DpeCrypto<'a> as crypto::Crypto>::Cdi> {
-        for cdi_slot in self.exported_cdi_slots.entries.iter() {
-            match cdi_slot {
-                ExportedCdiEntry {
-                    key,
-                    handle,
-                    active,
-                } if active.get() && constant_time_eq(handle, exported_cdi_handle) => {
-                    return Some(*key)
-                }
-                _ => (),
+    #[inline(never)]
+    fn sign_ec(
+        ecc384: &mut Ecc384,
+        sha384: &mut Sha384,
+        trng: &mut Trng,
+        data: &SignData,
+        priv_key: &KeyId,
+        pub_key: &PubKey,
+    ) -> Result<Signature, CryptoError> {
+        let priv_key_args = KeyReadArgs::new(*priv_key);
+        let ecc_priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
+
+        let PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })) = pub_key else {
+            return Err(CryptoError::MismatchedAlgorithm);
+        };
+        let ecc_pub_key = Ecc384PubKey {
+            x: Ecc384Scalar::from(x),
+            y: Ecc384Scalar::from(y),
+        };
+        let digest = match data {
+            SignData::Digest(Digest::Sha384(crypto::Sha384(digest))) => Ecc384Scalar::from(digest),
+            SignData::Raw(msg) => sha384.digest(msg).map_err(|_| CryptoError::HashError(0))?,
+            _ => return Err(CryptoError::MismatchedAlgorithm),
+        };
+        let sig = ecc384
+            .sign(&ecc_priv_key, &ecc_pub_key, &digest, trng)
+            .map_err(|e| CryptoError::CryptoLibError(u32::from(e)));
+        let sig = match sig.as_ref() {
+            Ok(s) => s,
+            Err(e) => Err(*e)?,
+        };
+        Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
+            EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
+        )))
+    }
+
+    fn sign_helper(
+        signer: &mut Signer,
+        hasher: &mut DpeHasher,
+        trng: &mut Trng,
+        data: &SignData,
+        priv_key: &KeyId,
+        pub_key: &PubKey,
+    ) -> Result<Signature, CryptoError> {
+        match signer {
+            Signer::Ec(ecc384) => {
+                Self::sign_ec(ecc384, hasher.driver(), trng, data, priv_key, pub_key)
             }
         }
-        None
+    }
+}
+
+impl CryptoSuite for DpeCrypto<'_> {}
+
+impl SignatureType for DpeCrypto<'_> {
+    fn signature_algorithm(&self) -> SignatureAlgorithm {
+        match self.signer {
+            Signer::Ec(_) => SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384),
+        }
+    }
+}
+
+impl DigestType for DpeCrypto<'_> {
+    fn digest_algorithm(&self) -> DigestAlgorithm {
+        DigestAlgorithm::Sha384
     }
 }
 
@@ -169,40 +219,7 @@ impl Drop for DpeCrypto<'_> {
     }
 }
 
-pub struct DpeHasher<'a> {
-    op: Sha384DigestOp<'a>,
-}
-
-impl<'a> DpeHasher<'a> {
-    pub fn new(op: Sha384DigestOp<'a>) -> Self {
-        Self { op }
-    }
-}
-
-impl<'a> Hasher for DpeHasher<'a> {
-    fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
-        self.op
-            .update(bytes)
-            .map_err(|e| CryptoError::HashError(u32::from(e)))
-    }
-
-    fn finish(self) -> Result<Digest, CryptoError> {
-        let mut digest = Array4x12::default();
-        self.op
-            .finalize(&mut digest)
-            .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-        Digest::new(<[u8; AlgLen::Bit384.size()]>::from(digest).as_ref())
-    }
-}
-
-impl<'a> Crypto for DpeCrypto<'a> {
-    type Cdi = KeyId;
-    type Hasher<'b>
-        = DpeHasher<'b>
-    where
-        Self: 'b;
-    type PrivKey = KeyId;
-
+impl Crypto for DpeCrypto<'_> {
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
         for chunk in dst.chunks_mut(48) {
             let trng_bytes = <[u8; 48]>::from(
@@ -215,23 +232,13 @@ impl<'a> Crypto for DpeCrypto<'a> {
         Ok(())
     }
 
-    fn hash_initialize(&mut self, algs: AlgLen) -> Result<Self::Hasher<'_>, CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                let op = self
-                    .sha384
-                    .digest_init()
-                    .map_err(|e| CryptoError::HashError(u32::from(e)))?;
-                Ok(DpeHasher::new(op))
-            }
-        }
+    fn hasher(&mut self) -> Result<&mut dyn Hasher, CryptoError> {
+        Ok(&mut self.hasher)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_exported_cdi(
         &mut self,
-        algs: AlgLen,
         measurement: &Digest,
         info: &[u8],
     ) -> Result<ExportedCdiHandle, CryptoError> {
@@ -259,7 +266,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
                     active,
                 } if !active.get() => {
                     // Empty slot
-                    let cdi = self.derive_cdi_inner(algs, measurement, info, cdi_slot)?;
+                    let cdi = self.derive_cdi_inner(measurement, info, cdi_slot)?;
                     *slot = ExportedCdiEntry {
                         key: cdi,
                         handle: exported_cdi_handle,
@@ -280,32 +287,20 @@ impl<'a> Crypto for DpeCrypto<'a> {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(
         &mut self,
-        algs: AlgLen,
         measurement: &Digest,
         info: &[u8],
-    ) -> Result<Self::Cdi, CryptoError> {
-        self.derive_cdi_inner(algs, measurement, info, KEY_ID_DPE_CDI)
-    }
-
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_key_pair(
-        &mut self,
-        algs: AlgLen,
-        cdi: &Self::Cdi,
-        label: &[u8],
-        info: &[u8],
-    ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
-        self.derive_key_pair_inner(algs, cdi, label, info, KEY_ID_DPE_PRIV_KEY)
+    ) -> Result<&mut dyn CdiManager, CryptoError> {
+        self.cdi = Some(self.derive_cdi_inner(measurement, info, KEY_ID_DPE_CDI)?);
+        Ok(self)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_key_pair_exported(
         &mut self,
-        algs: AlgLen,
         exported_handle: &ExportedCdiHandle,
         label: &[u8],
         info: &[u8],
-    ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
+    ) -> Result<&mut dyn crypto::Signer, CryptoError> {
         let cdi = {
             let mut cdi = None;
             for cdi_slot in self.exported_cdi_slots.entries.iter() {
@@ -323,88 +318,64 @@ impl<'a> Crypto for DpeCrypto<'a> {
             }
             cdi.ok_or(CryptoError::InvalidExportedCdiHandle)
         }?;
-        self.derive_key_pair_inner(algs, &cdi, label, info, KEY_ID_TMP)
+        self.derived_key = Some(self.derive_key_pair_inner(&cdi, label, info, KEY_ID_TMP)?);
+        Ok(self)
     }
 
-    fn ecdsa_sign_with_alias(
+    fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+        Self::sign_helper(
+            &mut self.signer,
+            &mut self.hasher,
+            self.trng,
+            data,
+            &self.key_id_rt_priv_key,
+            &self.rt_pub_key,
+        )
+    }
+}
+
+impl CdiManager for DpeCrypto<'_> {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    fn derive_key_pair(
         &mut self,
-        algs: AlgLen,
-        digest: &Digest,
-    ) -> Result<EcdsaSig, CryptoError> {
-        let pub_key = EcdsaPub {
-            x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.x))
-                .map_err(|_| CryptoError::Size)?,
-            y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y))
-                .map_err(|_| CryptoError::Size)?,
+        label: &[u8],
+        info: &[u8],
+    ) -> Result<&mut dyn crypto::Signer, CryptoError> {
+        let cdi: KeyId = self.cdi.ok_or(CryptoError::CryptoLibError(1))?;
+        self.derived_key =
+            Some(self.derive_key_pair_inner(&cdi, label, info, KEY_ID_DPE_PRIV_KEY)?);
+        Ok(self)
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        // Intentionally unimplemented because this is for test only purposes
+        Default::default()
+    }
+}
+
+impl crypto::Signer for DpeCrypto<'_> {
+    fn sign(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+        let Some((priv_key, pub_key)) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(3));
         };
-        self.ecdsa_sign_with_derived(algs, digest, &self.key_id_rt_priv_key.clone(), &pub_key)
+        Self::sign_helper(
+            &mut self.signer,
+            &mut self.hasher,
+            self.trng,
+            data,
+            priv_key,
+            pub_key,
+        )
     }
 
-    fn ecdsa_sign_with_derived(
-        &mut self,
-        algs: AlgLen,
-        digest: &Digest,
-        priv_key: &Self::PrivKey,
-        pub_key: &EcdsaPub,
-    ) -> Result<EcdsaSig, CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                let priv_key_args = KeyReadArgs::new(*priv_key);
-                let ecc_priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-
-                const SIZE: usize = AlgLen::Bit384.size();
-                let mut x = [0u8; SIZE];
-                let mut y = [0u8; SIZE];
-                x.get_mut(..SIZE)
-                    .ok_or(CryptoError::CryptoLibError(0))?
-                    .copy_from_slice(
-                        pub_key
-                            .x
-                            .bytes()
-                            .get(..SIZE)
-                            .ok_or(CryptoError::CryptoLibError(0))?,
-                    );
-                y.get_mut(..SIZE)
-                    .ok_or(CryptoError::CryptoLibError(0))?
-                    .copy_from_slice(
-                        pub_key
-                            .y
-                            .bytes()
-                            .get(..SIZE)
-                            .ok_or(CryptoError::CryptoLibError(0))?,
-                    );
-                let ecc_pub_key = Ecc384PubKey {
-                    x: Ecc384Scalar::from(x),
-                    y: Ecc384Scalar::from(y),
-                };
-
-                let mut digest_arr = [0u8; SIZE];
-                digest_arr
-                    .get_mut(..SIZE)
-                    .ok_or(CryptoError::CryptoLibError(0))?
-                    .copy_from_slice(
-                        digest
-                            .bytes()
-                            .get(..SIZE)
-                            .ok_or(CryptoError::CryptoLibError(0))?,
-                    );
-
-                let sig = self
-                    .ecc384
-                    .sign(
-                        &ecc_priv_key,
-                        &ecc_pub_key,
-                        &Ecc384Scalar::from(digest_arr),
-                        self.trng,
-                    )
-                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-
-                let r = CryptoBuf::new(&<[u8; SIZE]>::from(sig.r))?;
-                let s = CryptoBuf::new(&<[u8; SIZE]>::from(sig.s))?;
-
-                Ok(EcdsaSig { r, s })
-            }
-        }
+    fn public_key(&mut self) -> Result<PubKey, CryptoError> {
+        let Some((_, pub_key)) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(4));
+        };
+        Ok(pub_key.clone())
     }
+}
+
+enum Signer<'a> {
+    Ec(&'a mut Ecc384),
 }

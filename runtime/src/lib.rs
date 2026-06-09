@@ -41,6 +41,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
@@ -51,18 +52,25 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+pub use crate::invoke_dpe::CaliptraDpeProfile;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
+use crypto::{
+    ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
+    CryptoSuite, PubKey,
+};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
+pub use dpe::State;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+use platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
@@ -85,10 +93,7 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
-use dpe::{
-    dpe_instance::{DpeEnv, DpeTypes},
-    support::Support,
-};
+use dpe::{dpe_instance::DpeEnv, support::Support};
 
 use crate::{
     dice::GetRtAliasCertCmd,
@@ -124,13 +129,6 @@ pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN: usize = 2;
 
 pub const CALIPTRA_LOCALITY: u32 = 0xFFFFFFFF;
 const RESERVED_PAUSER: u32 = CALIPTRA_LOCALITY;
-
-pub struct CptraDpeTypes;
-
-impl DpeTypes for CptraDpeTypes {
-    type Crypto<'a> = DpeCrypto<'a>;
-    type Platform<'a> = DpePlatform<'a>;
-}
 
 /// Run pending jobs and enter low power mode.
 fn enter_idle(drivers: &mut Drivers) {
@@ -375,4 +373,68 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             cfi_assert!(!cmd_ready);
         }
     }
+}
+
+pub struct CaliptraDpeEnv<'a> {
+    crypto: DpeCrypto<'a>,
+    platform: DpePlatform<'a>,
+    state: &'a mut State,
+}
+
+impl DpeEnv for CaliptraDpeEnv<'_> {
+    fn crypto(&mut self) -> &mut dyn CryptoSuite {
+        &mut self.crypto
+    }
+    fn platform(&mut self) -> &mut dyn Platform {
+        &mut self.platform
+    }
+    fn state(&mut self) -> &mut State {
+        self.state
+    }
+    fn get(&mut self) -> (&mut dyn CryptoSuite, &mut dyn Platform, &mut State) {
+        (&mut self.crypto, &mut self.platform, self.state)
+    }
+}
+
+fn ec_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
+    let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+    let pdata = drivers.persistent_data.get_mut();
+    let rt_pub_key = pdata.fht.rt_dice_pub_key;
+    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+        &rt_pub_key.x.into(),
+        &rt_pub_key.y.into(),
+    )));
+    let crypto = DpeCrypto::new(
+        &mut drivers.sha384,
+        &mut drivers.trng,
+        &mut drivers.ecc384,
+        &mut drivers.hmac384,
+        &mut drivers.key_vault,
+        rt_pub_key,
+        key_id_rt_cdi,
+        key_id_rt_priv_key,
+        &mut pdata.exported_cdi_slots,
+    )?;
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    Ok(CaliptraDpeEnv {
+        crypto,
+        platform: DpePlatform::new(
+            CaliptraDpeProfile::Ecc384,
+            pl0_pauser,
+            hashed_rt_pub_key,
+            &drivers.cert_chain,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.dpe,
+    })
 }

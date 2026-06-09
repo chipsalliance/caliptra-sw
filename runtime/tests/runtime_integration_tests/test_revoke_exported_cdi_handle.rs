@@ -9,7 +9,8 @@ use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
+    tci::TciMeasurement,
+    TCI_SIZE,
 };
 
 use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
@@ -23,10 +24,11 @@ fn test_revoke_exported_cdi_handle() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -60,10 +62,11 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -147,12 +150,13 @@ fn test_export_cdi_after_revoke() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
     let Some(Response::DeriveContextExportedCdi(resp)) = execute_dpe_cmd(

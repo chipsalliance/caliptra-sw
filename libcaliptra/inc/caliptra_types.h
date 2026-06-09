@@ -247,10 +247,13 @@ struct caliptra_certify_key_extended_req
     uint8_t certify_key_req[72];
 };
 
+#define CERTIFY_KEY_RESP_SIZE 12672
+
 struct caliptra_certify_key_extended_resp
 {
     struct caliptra_resp_header hdr;
-    uint8_t certify_key_resp[6272];
+    uint32_t size;
+    uint8_t certify_key_resp[CERTIFY_KEY_RESP_SIZE];
 };
 
 struct caliptra_fips_version_resp
@@ -359,7 +362,7 @@ struct dpe_resp_hdr
 };
 
 #define DPE_HANDLE_SIZE 16
-#define DPE_CERT_SIZE 6144
+#define DPE_CERT_SIZE 11 * 1024
 
 #ifndef DPE_PROFILE
 #define DPE_PROFILE DPE_PROFILE_384
@@ -412,6 +415,7 @@ struct dpe_derive_context_cmd
     uint32_t flags;
     uint8_t input_type[4];
     uint32_t target_locality;
+    uint32_t svn;
 };
 
 struct dpe_derive_context_response

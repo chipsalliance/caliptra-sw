@@ -23,12 +23,14 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags,
-        GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignCmd, SignFlags,
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
+        DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd, RotateCtxCmd,
+        RotateCtxFlags, SignFlags, SignP384Cmd,
     },
     context::ContextHandle,
-    response::{DpeErrorCode, Response},
-    DPE_PROFILE,
+    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
+    tci::TciMeasurement,
+    DpeProfile, TCI_SIZE,
 };
 use openssl::{
     bn::BigNum,
@@ -49,11 +51,12 @@ fn test_invoke_dpe_get_profile_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let resp = execute_dpe_cmd(&mut model, &mut Command::GetProfile, DpeResult::Success);
+    let mut cmd: Command<'_> = Command::GetProfile(&GetProfileCmd);
+    let resp = execute_dpe_cmd(&mut model, &mut cmd, DpeResult::Success);
     let Some(Response::GetProfile(profile)) = resp else {
         panic!("Wrong response type!");
     };
-    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(profile.resp_hdr.profile, DpeProfile::P384Sha384);
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
@@ -103,49 +106,53 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let sign_cmd = SignCmd {
+    let sign_cmd = SignP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: SignFlags::empty(),
         digest: TEST_DIGEST,
     };
-    let resp = execute_dpe_cmd(
+    let sign_resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::Sign(&sign_cmd),
+        &mut Command::from(&sign_cmd),
         DpeResult::Success,
-    );
-    let Some(Response::Sign(sign_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+    )
+    .unwrap();
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
-    let resp = execute_dpe_cmd(
+    let certify_key_resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
-    );
-    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
-
-    let sig = EcdsaSig::from_private_components(
-        BigNum::from_slice(&sign_resp.sig_r).unwrap(),
-        BigNum::from_slice(&sign_resp.sig_s).unwrap(),
     )
     .unwrap();
 
-    let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
-        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
-    )
-    .unwrap();
-    assert!(sig.verify(&TEST_DIGEST, &ecc_pub_key).unwrap());
+    match (sign_resp, certify_key_resp) {
+        (
+            Response::Sign(SignResp::P384(sign_resp)),
+            Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)),
+        ) => {
+            let sig = EcdsaSig::from_private_components(
+                BigNum::from_slice(&sign_resp.sig_r).unwrap(),
+                BigNum::from_slice(&sign_resp.sig_s).unwrap(),
+            )
+            .unwrap();
+
+            let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
+                &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+            )
+            .unwrap();
+            assert!(sig.verify(TEST_DIGEST.as_slice(), &ecc_pub_key).unwrap());
+        }
+        _ => panic!("Wrong response type!"),
+    }
 }
 
 #[test]
@@ -156,7 +163,7 @@ fn test_invoke_dpe_asymmetric_sign() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let sign_cmd = SignCmd {
+    let sign_cmd = SignP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: SignFlags::empty(),
@@ -164,15 +171,16 @@ fn test_invoke_dpe_asymmetric_sign() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::Sign(&sign_cmd),
+        &mut Command::from(&sign_cmd),
         DpeResult::Success,
     );
-    let Some(Response::Sign(sign_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
-
-    assert_ne!(sign_resp.sig_r, [0u8; 48]);
-    assert_ne!(sign_resp.sig_s, [0u8; 48]);
+    match resp {
+        Some(Response::Sign(SignResp::P384(sign_resp))) => {
+            assert_ne!(sign_resp.sig_r, [0u8; 48]);
+            assert_ne!(sign_resp.sig_s, [0u8; 48]);
+        }
+        _ => panic!("Wrong response type!"),
+    }
 }
 
 #[test]
@@ -207,15 +215,15 @@ fn test_invoke_dpe_certify_key_csr() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_CSR,
+        format: CertifyKeyCommand::FORMAT_CSR,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -226,10 +234,7 @@ fn test_invoke_dpe_certify_key_csr() {
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // parse CMS ContentInfo
-    let content_info = ContentInfo::from_der(
-        &certify_key_resp.cert[..certify_key_resp.cert_size.try_into().unwrap()],
-    )
-    .unwrap();
+    let content_info = ContentInfo::from_der(certify_key_resp.cert().unwrap()).unwrap();
     // parse SignedData
     let mut signed_data = SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
     assert_eq!(signed_data.version, CmsVersion::V3);
@@ -326,21 +331,21 @@ fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
 fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(&certify_key_cmd),
+        &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(resp)) = resp else {
         panic!("Wrong response type!");
     };
-    check_dice_extension_criticality(&resp.cert[..resp.cert_size.try_into().unwrap()], false);
+    check_dice_extension_criticality(resp.cert().unwrap(), false);
 }
 
 #[test]
@@ -353,10 +358,11 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -379,12 +385,13 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(
@@ -428,10 +435,11 @@ fn test_export_cdi_destroyed_root_context() {
     // destroyed.
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: TciMeasurement([0; TCI_SIZE]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
     let _ = execute_dpe_cmd(
@@ -477,20 +485,21 @@ fn test_certify_key_with_max_contexts() {
         })
         .unwrap();
 
-    let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+    let base_derive_context_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::INPUT_ALLOW_X509,
-        tci_type: 0,
-        target_locality: 0,
+        ..Default::default()
     };
 
     // Fill PL0 contexts
     let max_after_init_contexts = 32 - 2;
-    for _ in 0..max_after_init_contexts {
+    for i in 0..max_after_init_contexts {
+        let cmd = DeriveContextCmd {
+            tci_type: i + 1,
+            ..base_derive_context_cmd
+        };
         let _ = execute_dpe_cmd(
             &mut model,
-            &mut Command::DeriveContext(&derive_ctx_cmd),
+            &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
         );
     }
@@ -498,14 +507,17 @@ fn test_certify_key_with_max_contexts() {
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
+        &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
 
     // Make sure we can get certificates and CSRs
-    let formats = [CertifyKeyCmd::FORMAT_X509, CertifyKeyCmd::FORMAT_CSR];
+    let formats = [
+        CertifyKeyCommand::FORMAT_X509,
+        CertifyKeyCommand::FORMAT_CSR,
+    ];
     for format in formats {
-        let certify_key_cmd = CertifyKeyCmd {
+        let certify_key_cmd = CertifyKeyP384Cmd {
             handle: ContextHandle::default(),
             label: TEST_LABEL,
             flags: CertifyKeyFlags::empty(),
@@ -514,7 +526,7 @@ fn test_certify_key_with_max_contexts() {
 
         let _ = execute_dpe_cmd(
             &mut model,
-            &mut Command::CertifyKey(&certify_key_cmd),
+            &mut Command::from(&certify_key_cmd),
             DpeResult::Success,
         );
     }

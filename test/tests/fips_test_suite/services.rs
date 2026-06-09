@@ -27,11 +27,12 @@ use common::*;
 use dpe::{
     commands::*,
     context::ContextHandle,
-    response::{DeriveContextExportedCdiResp, Response},
-    DPE_PROFILE,
+    response::{CertifyKeyResp, DeriveContextExportedCdiResp, Response, SignResp},
+    tci::TciMeasurement,
+    DpeProfile,
 };
 use openssl::sha::{sha384, sha512};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 pub fn exec_cmd_sha_acc<T: HwModel>(hw: &mut T) {
     let msg: &[u8] = &[0u8; 4];
@@ -460,13 +461,14 @@ pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
-    let resp = execute_dpe_cmd(hw, &mut Command::GetProfile);
+    let mut cmd = Command::GetProfile(&GetProfileCmd);
+    let resp = execute_dpe_cmd(hw, &mut cmd);
 
     let Response::GetProfile(get_profile_resp) = resp else {
         panic!("Wrong response type!");
     };
 
-    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(get_profile_resp.resp_hdr.profile, DpeProfile::P384Sha384);
 }
 
 pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
@@ -481,10 +483,11 @@ pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
 pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0u8; 48],
+        data: TciMeasurement([0u8; 48]),
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
-        tci_type: 0,
+        tci_type: 1,
         target_locality: 0,
+        ..Default::default()
     };
     let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(&derive_context_cmd));
     let Response::DeriveContext(derive_ctx_resp) = resp else {
@@ -500,15 +503,18 @@ pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
         25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     ];
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_CSR,
+        format: CertifyKeyCommand::FORMAT_CSR,
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::CertifyKey(&certify_key_cmd));
+    let resp = execute_dpe_cmd(
+        hw,
+        &mut Command::CertifyKey(CertifyKeyCommand::P384(&certify_key_cmd)),
+    );
 
-    let Response::CertifyKey(certify_key_resp) = resp else {
+    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -531,16 +537,16 @@ pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
         26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
     ];
-    let sign_cmd = SignCmd {
+    let sign_cmd = SignP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: SignFlags::empty(),
         digest: TEST_DIGEST,
     };
 
-    let resp = execute_dpe_cmd(hw, &mut Command::Sign(&sign_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::from(&sign_cmd));
 
-    let Response::Sign(sign_resp) = resp else {
+    let Response::Sign(SignResp::P384(sign_resp)) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -677,11 +683,11 @@ pub fn exec_cmd_certify_key_extended<T: HwModel>(hw: &mut T) {
         25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     ];
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
 
     let mut payload = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
@@ -856,13 +862,14 @@ fn derive_context_export_cdi<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdi
     // Build an INVOKE_DPE request for DeriveContext with EXPORT_CDI | CREATE_CERTIFICATE
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0u8; 48],
+        data: TciMeasurement([0u8; 48]),
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        ..Default::default()
     };
 
-    let cmd_hdr = CommandHdr::new_for_test(Command::DERIVE_CONTEXT);
+    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, Command::DERIVE_CONTEXT);
     let mut cmd_data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     let cmd_body_buf = derive_context_cmd.as_bytes();
@@ -884,8 +891,8 @@ fn derive_context_export_cdi<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdi
     )
     .unwrap();
 
-    let resp_bytes = &resp.data[..resp.data_size as usize];
-    DeriveContextExportedCdiResp::read_from_bytes(resp_bytes).unwrap()
+    let resp_bytes = &resp.data[..std::mem::size_of::<DeriveContextExportedCdiResp>()];
+    DeriveContextExportedCdiResp::try_read_from_bytes(resp_bytes).unwrap()
 }
 
 pub fn exec_cmd_sign_with_exported_ecdsa<T: HwModel>(hw: &mut T) -> DeriveContextExportedCdiResp {

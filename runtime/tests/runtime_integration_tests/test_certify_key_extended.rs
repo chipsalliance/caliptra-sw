@@ -3,19 +3,19 @@
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
-    CommandId, MailboxReq, MailboxReqHeader,
+    CommandId, InvokeDpeResp, MailboxReq, MailboxReqHeader,
 };
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags},
+    commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command},
     context::ContextHandle,
-    response::CertifyKeyResp,
+    response::{CertifyKeyResp, Response},
 };
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
@@ -79,11 +79,11 @@ fn test_dmtf_other_name_extension_present() {
         .unwrap()
         .expect("We should have received a response");
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
     let mut cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -99,10 +99,17 @@ fn test_dmtf_other_name_extension_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
-    let certify_key_resp =
-        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+
+    let mut certify_key_extended_resp = CertifyKeyExtendedResp::default();
+    certify_key_extended_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    let resp = Response::try_read_from_bytes(
+        &Command::from(&CertifyKeyCommand::P384(&certify_key_cmd)),
+        &certify_key_extended_resp.certify_key_resp,
+    )
+    .unwrap();
+    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
 
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
@@ -130,11 +137,11 @@ fn test_dmtf_other_name_extension_not_present() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let certify_key_cmd = CertifyKeyCmd {
+    let certify_key_cmd = CertifyKeyP384Cmd {
         handle: ContextHandle::default(),
         label: TEST_LABEL,
         flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
+        format: CertifyKeyCommand::FORMAT_X509,
     };
 
     // Check that otherName extension is not present if not provided by ADD_SUBJECT_ALT_NAME
@@ -152,10 +159,16 @@ fn test_dmtf_other_name_extension_not_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
-    let certify_key_resp =
-        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    let resp = Response::try_read_from_bytes(
+        &Command::from(&CertifyKeyCommand::P384(&certify_key_cmd)),
+        &resp_hdr.data,
+    )
+    .unwrap();
+    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
             .unwrap();
@@ -196,10 +209,16 @@ fn test_dmtf_other_name_extension_not_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp =
-        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
-    let certify_key_resp =
-        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    let resp = Response::try_read_from_bytes(
+        &Command::from(&CertifyKeyCommand::P384(&certify_key_cmd)),
+        &resp_hdr.data,
+    )
+    .unwrap();
+    let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
             .unwrap();

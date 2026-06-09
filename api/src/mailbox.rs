@@ -673,12 +673,33 @@ bitflags! {
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedResp {
     pub hdr: MailboxRespHeader,
+    pub size: u32,
     pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
 }
 impl CertifyKeyExtendedResp {
-    pub const CERTIFY_KEY_RESP_SIZE: usize = 6272;
+    pub const CERTIFY_KEY_RESP_SIZE: usize = 12672;
 }
 impl Response for CertifyKeyExtendedResp {}
+
+impl Default for CertifyKeyExtendedResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            size: 0,
+            certify_key_resp: [0u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+        }
+    }
+}
+
+impl CertifyKeyExtendedResp {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.size as usize > Self::CERTIFY_KEY_RESP_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::CERTIFY_KEY_RESP_SIZE - self.size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
 
 // INVOKE_DPE_COMMAND
 #[repr(C)]
@@ -746,7 +767,7 @@ pub struct InvokeDpeResp {
     pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 6556;
+    pub const DATA_MAX_SIZE: usize = 15168;
 }
 impl ResponseVarSize for InvokeDpeResp {}
 

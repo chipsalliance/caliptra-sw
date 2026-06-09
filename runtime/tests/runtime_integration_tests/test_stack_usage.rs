@@ -41,10 +41,14 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
+    commands::{
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
+        DeriveContextFlags, GetProfileCmd,
+    },
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
+    tci::TciMeasurement,
+    TCI_SIZE,
 };
 use openssl::{
     ec::{EcGroup, EcKey},
@@ -206,18 +210,18 @@ fn measure_runtime_command_stack_usage() {
     // --- INVOKE_DPE: a light path (GetProfile) and a heavy one (CertifyKey) ---
     results.push((
         "INVOKE_DPE(GetProfile)",
-        measure_dpe(&mut model, &mut Command::GetProfile),
+        measure_dpe(&mut model, &mut Command::GetProfile(&GetProfileCmd)),
     ));
     results.push((
         "INVOKE_DPE(CertifyKey/X509)",
         measure_dpe(
             &mut model,
-            &mut Command::CertifyKey(&CertifyKeyCmd {
+            &mut Command::CertifyKey(CertifyKeyCommand::P384(&CertifyKeyP384Cmd {
                 handle: ContextHandle::default(),
                 label: TEST_LABEL,
                 flags: CertifyKeyFlags::empty(),
-                format: CertifyKeyCmd::FORMAT_X509,
-            }),
+                format: CertifyKeyCommand::FORMAT_X509,
+            })),
         ),
     ));
 
@@ -266,10 +270,11 @@ fn measure_runtime_command_stack_usage() {
     {
         let export_cdi_cmd = DeriveContextCmd {
             handle: ContextHandle::default(),
-            data: [0; DPE_PROFILE.get_tci_size()],
+            data: TciMeasurement([0; TCI_SIZE]),
             flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
             tci_type: 0,
             target_locality: 0,
+            svn: 0,
         };
         let exported_cdi = match execute_dpe_cmd(
             &mut model,
@@ -356,12 +361,12 @@ fn measure_runtime_command_stack_usage() {
             ),
         ));
 
-        let certify_key_cmd = CertifyKeyCmd {
+        let certify_key_cmd = CertifyKeyCommand::P384(&CertifyKeyP384Cmd {
             handle: ContextHandle::default(),
             label: TEST_LABEL,
             flags: CertifyKeyFlags::empty(),
-            format: CertifyKeyCmd::FORMAT_X509,
-        };
+            format: CertifyKeyCommand::FORMAT_X509,
+        });
         results.push((
             "CERTIFY_KEY_EXTENDED",
             measure_req(
