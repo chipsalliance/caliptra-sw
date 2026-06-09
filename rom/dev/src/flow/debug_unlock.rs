@@ -61,10 +61,6 @@ fn start_debug_unlock(env: &mut RomEnv) {
 fn finish_debug_unlock(env: &mut RomEnv, response_sent: bool) {
     env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
     if response_sent {
-        // Real TAP can clear MBOX_EXECUTE while ROM polls for mailbox idle. In
-        // the emulator, the requester clears MBOX_EXECUTE only after firmware
-        // returns control to the model, so polling here would deadlock tests.
-        #[cfg(not(feature = "emu"))]
         env.mbox.wait_until_idle();
         env.soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(false);
     }

@@ -286,10 +286,6 @@ fn debug_unlock_mailbox_access_complete(cmd_id: CommandId, command_failed: bool)
 
 fn finish_debug_unlock_mailbox_access(drivers: &mut Drivers) {
     drivers.soc_ifc.set_ss_dbg_unlock_in_progress(false);
-    // Real TAP can clear MBOX_EXECUTE while runtime polls for mailbox idle. In
-    // the emulator, the requester clears MBOX_EXECUTE only after firmware
-    // returns control to the model, so polling here would deadlock tests.
-    #[cfg(not(feature = "emu"))]
     drivers.mbox.wait_until_idle();
     drivers
         .soc_ifc
