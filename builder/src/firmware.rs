@@ -563,6 +563,21 @@ pub mod acvp_tests {
         bin_name: "sha1",
         ..BASE_FWID
     };
+
+    pub const HMAC: FwId = FwId {
+        bin_name: "hmac",
+        ..BASE_FWID
+    };
+
+    pub const LMS_24: FwId = FwId {
+        bin_name: "lms_24",
+        ..BASE_FWID
+    };
+
+    pub const MLDSA87: FwId = FwId {
+        bin_name: "mldsa87",
+        ..BASE_FWID
+    };
 }
 
 pub const REGISTERED_FW: &[&FwId] = &[
@@ -652,4 +667,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MOCK_RT_INTERACTIVE,
     &api_tests::MAILBOX,
     &acvp_tests::SHA1,
+    &acvp_tests::HMAC,
+    &acvp_tests::LMS_24,
+    &acvp_tests::MLDSA87,
 ];
