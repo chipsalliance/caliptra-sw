@@ -179,8 +179,10 @@ impl RecoveryRegisterInterface {
             // required: device status = bit 4
             // recovery memory access / indirect ctrl = bit 5
             // c-image = bit 7
+            // hardware status = bit 9
+            // flashless boot = bit 11
             // fifo cms support / indirect ctrl= bit 12
-            prot_cap_2: ReadWriteRegister::new(0x10b1_0101),
+            prot_cap_2: ReadWriteRegister::new(0x1ab1_0101),
             prot_cap_3: ReadWriteRegister::new(0x0000_0017), // maximum response time of 128ms, no heartbeat
 
             // Device ID registers

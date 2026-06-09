@@ -912,7 +912,9 @@ ROM supports two commands for firmware download in SUBSYSTEM mode:
 1. On receiving the RI_DOWNLOAD_FIRMWARE or RI_DOWNLOAD_ENCRYPTED_FIRMWARE mailbox command, set the RI PROT_CAP2 register version to 1.1 and the `Agent Capability` field bits:
     - `Device ID`
     - `Device Status`
+    - `Recovery memory access / INDIRECT_CTRL support`
     - `Push C-image support`
+    - `Hardware Status`
     - `Flashless boot`
     - `FIFO CMS support`
 2. Set the RI DEVICE_STATUS_0 register, `Device Status` field  to 0x3 ('Recovery mode - ready to accept recovery image') and
@@ -937,7 +939,7 @@ ROM supports two commands for firmware download in SUBSYSTEM mode:
 10. Validate the image per the [Image Validation Process](#firmware-image-validation-process).
 11. Reset the `RECOVERY_CTRL` register `Activate Recovery Image` field by writing 0x1.
 12. If the validation is succesful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
-13. If the validation fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xc (`Recovery failed`) and `DEVICE_STATUS` register `Device Status` field to 0xF (`Fatal Error (Recover Reason Code not populated)`).
+13. If the validation fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xd (`Authentication Error`) and `DEVICE_STATUS` register `Device Status` field to 0xE (`Boot Failure`) with the `Recovery Reason Code` populated for the failure.
 14. Release the mailbox lock.
 
 #### Image validation
