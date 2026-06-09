@@ -9,6 +9,7 @@ pub const MLDSA87_PRIVATE_SEED_BYTES: usize = 32;
 pub const MLDSA87_RANDOMIZER_BYTES: usize = 32;
 pub const MLDSA87_PUBLIC_KEY_BYTES: usize = 2592;
 pub const MLDSA87_SIGNATURE_BYTES: usize = 4627;
+pub const MLDSA87_MU_BYTES: usize = 64;
 /// FIPS 204 `skEncode` length for ML-DSA-87: rho(32) + K(32) + tr(64) +
 /// s1(7*96) + s2(8*96) + t0(8*416).
 pub const MLDSA87_PRIVATE_KEY_BYTES: usize = 4896;
@@ -80,13 +81,11 @@ pub struct Vector7 {
 pub struct PublicKey {
     pub rho: [u8; K_RHO_BYTES],
     pub t1: Vector8,
-    pub public_key_hash: [u8; K_TR_BYTES],
 }
 
 pub struct PrivateKey {
     pub rho: [u8; K_RHO_BYTES],
     pub k: [u8; K_K_BYTES],
-    pub public_key_hash: [u8; K_TR_BYTES],
     pub s1_ntt: Vector7,
     pub s2_ntt: Vector8,
     pub t0_ntt: Vector8,
@@ -736,10 +735,6 @@ fn encode_public_key(out: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES], pub_key: &PublicK
 fn decode_public_key(pub_key: &mut PublicKey, in_val: &[u8; MLDSA87_PUBLIC_KEY_BYTES]) {
     pub_key.rho.copy_from_slice(&in_val[..K_RHO_BYTES]);
     vector8_decode_10(&mut pub_key.t1, &in_val[K_RHO_BYTES..]);
-
-    let mut shake256 = Shake256::new();
-    shake256.absorb(in_val);
-    shake256.squeeze(&mut pub_key.public_key_hash);
 }
 
 fn encode_signature(out: &mut [u8; MLDSA87_SIGNATURE_BYTES], sign: &Signature) {
@@ -788,6 +783,7 @@ fn generate_key_internal(
     priv_key: &mut PrivateKey,
     entropy: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
     mut out_encoded_private_key: Option<&mut [u8; MLDSA87_PRIVATE_KEY_BYTES]>,
+    mut out_public_key_hash: Option<&mut [u8; K_TR_BYTES]>,
 ) {
     let mut augmented_entropy = [0u8; MLDSA87_PRIVATE_SEED_BYTES + 2];
     augmented_entropy[..MLDSA87_PRIVATE_SEED_BYTES].copy_from_slice(entropy);
@@ -837,7 +833,6 @@ fn generate_key_internal(
     let mut pub_key = PublicKey {
         rho: rho_bytes,
         t1: Vector8::default(),
-        public_key_hash: [0u8; K_TR_BYTES],
     };
     vector8_power2_round(&mut pub_key.t1, &mut priv_key.t0_ntt, &t);
 
@@ -858,12 +853,18 @@ fn generate_key_internal(
 
     encode_public_key(out_encoded_public_key, &pub_key);
 
-    let mut shake256 = Shake256::new();
-    shake256.absorb(out_encoded_public_key);
-    shake256.squeeze(&mut priv_key.public_key_hash);
+    if out_encoded_private_key.is_some() || out_public_key_hash.is_some() {
+        let mut tr = [0u8; K_TR_BYTES];
+        let mut shake256 = Shake256::new();
+        shake256.absorb(out_encoded_public_key);
+        shake256.squeeze(&mut tr);
 
-    if let Some(sk) = out_encoded_private_key.as_mut() {
-        sk[SK_TR_OFF..SK_TR_OFF + K_TR_BYTES].copy_from_slice(&priv_key.public_key_hash);
+        if let Some(sk) = out_encoded_private_key.as_mut() {
+            sk[SK_TR_OFF..SK_TR_OFF + K_TR_BYTES].copy_from_slice(&tr);
+        }
+        if let Some(pub_key_hash) = out_public_key_hash.as_mut() {
+            pub_key_hash.copy_from_slice(&tr);
+        }
     }
 }
 
@@ -898,7 +899,6 @@ pub fn mldsa87_key_pair_from_seed(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        public_key_hash: [0u8; K_TR_BYTES],
         s1_ntt: Vector7::default(),
         s2_ntt: Vector8::default(),
         t0_ntt: Vector8::default(),
@@ -908,38 +908,36 @@ pub fn mldsa87_key_pair_from_seed(
         &mut priv_key,
         entropy,
         Some(out_encoded_private_key),
+        None,
     );
 }
 
 fn generate_priv_internal(
     priv_key: &mut PrivateKey,
     private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+    out_public_key_hash: Option<&mut [u8; K_TR_BYTES]>,
 ) {
     let mut encoded_public_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-    generate_key_internal(&mut encoded_public_key, priv_key, private_key_seed, None);
+    generate_key_internal(
+        &mut encoded_public_key,
+        priv_key,
+        private_key_seed,
+        None,
+        out_public_key_hash,
+    );
 }
 
-fn sign_internal(
+fn sign_internal_with_mu(
     out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
     priv_key: &PrivateKey,
-    msg: &[u8],
-    context: &[u8],
+    mu: &[u8; K_MU_BYTES],
     randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
 ) {
-    let mut mu = [0u8; K_MU_BYTES];
-    let mut shake256 = Shake256::new();
-    shake256.absorb(&priv_key.public_key_hash);
-    let context_prefix = [0u8, context.len() as u8];
-    shake256.absorb(&context_prefix);
-    shake256.absorb(context);
-    shake256.absorb(msg);
-    shake256.squeeze(&mut mu);
-
     let mut rho_prime = [0u8; K_RHO_PRIME_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(&priv_key.k);
     shake256.absorb(randomizer);
-    shake256.absorb(&mu);
+    shake256.absorb(mu);
     shake256.squeeze(&mut rho_prime);
 
     let mut sign = Signature {
@@ -976,7 +974,7 @@ fn sign_internal(
         w1_encode(&mut w1_encoded, &w1);
 
         let mut shake256 = Shake256::new();
-        shake256.absorb(&mu);
+        shake256.absorb(mu);
         shake256.absorb(&w1_encoded);
         shake256.squeeze(&mut sign.c_tilde);
 
@@ -1054,11 +1052,10 @@ fn sign_internal(
     }
 }
 
-fn verify_internal(
+fn verify_internal_with_mu(
     pub_key: &PublicKey,
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
-    msg: &[u8],
-    context: &[u8],
+    mu: &[u8; K_MU_BYTES],
 ) -> Mldsa87Result {
     let mut sign = Signature {
         c_tilde: [0u8; 2 * LAMBDA_BYTES],
@@ -1071,15 +1068,6 @@ fn verify_internal(
 
     let z_max = vector7_max(&sign.z);
     vector7_ntt(&mut sign.z);
-
-    let mut mu = [0u8; K_MU_BYTES];
-    let mut shake256 = Shake256::new();
-    shake256.absorb(&pub_key.public_key_hash);
-    let context_prefix = [0u8, context.len() as u8];
-    shake256.absorb(&context_prefix);
-    shake256.absorb(context);
-    shake256.absorb(msg);
-    shake256.squeeze(&mut mu);
 
     let mut c_ntt = Scalar::default();
     scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
@@ -1113,7 +1101,7 @@ fn verify_internal(
 
     let mut c_tilde = [0u8; 2 * LAMBDA_BYTES];
     let mut shake256 = Shake256::new();
-    shake256.absorb(&mu);
+    shake256.absorb(mu);
     shake256.absorb(&w1_encoded);
     shake256.squeeze(&mut c_tilde);
 
@@ -1122,6 +1110,29 @@ fn verify_internal(
     } else {
         Mldsa87Result::SigVerifyFailed
     }
+}
+
+fn verify_with_mu_context(
+    encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
+    encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
+    msg: &[u8],
+    context: &[u8],
+) -> Mldsa87Result {
+    let mut tr = [0u8; K_TR_BYTES];
+    let mut shake256 = Shake256::new();
+    shake256.absorb(encoded_public_key);
+    shake256.squeeze(&mut tr);
+
+    let mut mu = [0u8; K_MU_BYTES];
+    let mut shake256 = Shake256::new();
+    shake256.absorb(&tr);
+    let context_prefix = [0u8, context.len() as u8];
+    shake256.absorb(&context_prefix);
+    shake256.absorb(context);
+    shake256.absorb(msg);
+    shake256.squeeze(&mut mu);
+
+    mldsa87_verify_mu(encoded_public_key, encoded_signature, &mu)
 }
 
 /* Public API. */
@@ -1133,7 +1144,6 @@ pub fn mldsa87_pub_from_seed(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        public_key_hash: [0u8; K_TR_BYTES],
         s1_ntt: Vector7::default(),
         s2_ntt: Vector8::default(),
         t0_ntt: Vector8::default(),
@@ -1142,6 +1152,7 @@ pub fn mldsa87_pub_from_seed(
         out_encoded_public_key,
         &mut priv_key,
         private_key_seed,
+        None,
         None,
     );
 }
@@ -1155,13 +1166,22 @@ pub fn mldsa87_sign(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        public_key_hash: [0u8; K_TR_BYTES],
         s1_ntt: Vector7::default(),
         s2_ntt: Vector8::default(),
         t0_ntt: Vector8::default(),
     };
-    generate_priv_internal(&mut priv_key, private_key_seed);
-    sign_internal(out_encoded_signature, &priv_key, msg, &[], randomizer);
+    let mut tr = [0u8; K_TR_BYTES];
+    generate_priv_internal(&mut priv_key, private_key_seed, Some(&mut tr));
+
+    let mut mu = [0u8; K_MU_BYTES];
+    let mut shake256 = Shake256::new();
+    shake256.absorb(&tr);
+    let context_prefix = [0u8, 0];
+    shake256.absorb(&context_prefix);
+    shake256.absorb(msg);
+    shake256.squeeze(&mut mu);
+
+    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer);
 }
 
 pub fn mldsa87_sign_deterministic(
@@ -1169,17 +1189,34 @@ pub fn mldsa87_sign_deterministic(
     private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
     msg: &[u8],
 ) {
+    let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
+    mldsa87_sign(out_encoded_signature, private_key_seed, &randomizer, msg);
+}
+
+pub fn mldsa87_sign_mu(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+    randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+    mu: &[u8; K_MU_BYTES],
+) {
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        public_key_hash: [0u8; K_TR_BYTES],
         s1_ntt: Vector7::default(),
         s2_ntt: Vector8::default(),
         t0_ntt: Vector8::default(),
     };
-    generate_priv_internal(&mut priv_key, private_key_seed);
+    generate_priv_internal(&mut priv_key, private_key_seed, None);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer);
+}
+
+pub fn mldsa87_sign_mu_deterministic(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+    mu: &[u8; K_MU_BYTES],
+) {
     let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
-    sign_internal(out_encoded_signature, &priv_key, msg, &[], &randomizer);
+    mldsa87_sign_mu(out_encoded_signature, private_key_seed, &randomizer, mu);
 }
 
 pub fn mldsa87_verify(
@@ -1187,13 +1224,20 @@ pub fn mldsa87_verify(
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     msg: &[u8],
 ) -> Mldsa87Result {
+    verify_with_mu_context(encoded_public_key, encoded_signature, msg, &[])
+}
+
+pub fn mldsa87_verify_mu(
+    encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
+    encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
+    mu: &[u8; K_MU_BYTES],
+) -> Mldsa87Result {
     let mut pub_key = PublicKey {
         rho: [0u8; K_RHO_BYTES],
         t1: Vector8::default(),
-        public_key_hash: [0u8; K_TR_BYTES],
     };
     decode_public_key(&mut pub_key, encoded_public_key);
-    verify_internal(&pub_key, encoded_signature, msg, &[])
+    verify_internal_with_mu(&pub_key, encoded_signature, mu)
 }
 
 /// Verification entry point that accepts a signing `context`.
@@ -1208,13 +1252,7 @@ pub fn mldsa87_verify_with_context(
     msg: &[u8],
     context: &[u8],
 ) -> Mldsa87Result {
-    let mut pub_key = PublicKey {
-        rho: [0u8; K_RHO_BYTES],
-        t1: Vector8::default(),
-        public_key_hash: [0u8; K_TR_BYTES],
-    };
-    decode_public_key(&mut pub_key, encoded_public_key);
-    verify_internal(&pub_key, encoded_signature, msg, context)
+    verify_with_mu_context(encoded_public_key, encoded_signature, msg, context)
 }
 
 #[cfg(test)]
@@ -1467,5 +1505,22 @@ mod tests {
         mldsa87_pub_from_seed(&mut pub_key, &priv_seed);
 
         assert_eq!(mldsa87_verify(&pub_key, &sig, msg), Mldsa87Result::Success);
+    }
+
+    #[test]
+    fn test_mldsa87_sign_verify_mu_roundtrip() {
+        let priv_seed = [0u8; MLDSA87_PRIVATE_SEED_BYTES];
+        let mu = [0xAA; MLDSA87_MU_BYTES];
+
+        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        mldsa87_sign_mu_deterministic(&mut sig, &priv_seed, &mu);
+
+        let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+        mldsa87_pub_from_seed(&mut pub_key, &priv_seed);
+
+        assert_eq!(
+            mldsa87_verify_mu(&pub_key, &sig, &mu),
+            Mldsa87Result::Success
+        );
     }
 }
