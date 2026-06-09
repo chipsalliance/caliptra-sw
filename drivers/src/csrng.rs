@@ -8,7 +8,7 @@ https://opentitan.org/book/sw/device/lib/dif/dif_entropy_src_h.html
 https://opentitan.org/book/sw/device/lib/dif/dif_csrng_h.html
 
 An overview of the entropy_src and CSRNG peripherals can be found at:
-https://opentitan.org/book/hw/ip/entropy_src/index.html
+https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html
 https://opentitan.org/book/hw/ip/csrng/index.html
 
 File Name:
@@ -21,7 +21,7 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
-use crate::persistent::EntropyConfiguration;
+use crate::persistent::{EntropyConfiguration, EntropyConfigurationExtension};
 use crate::soc_ifc::reset_reason;
 use crate::{wait, CaliptraError, CaliptraResult, PersistentDataAccessor, ResetReason};
 use caliptra_registers::csrng::CsrngReg;
@@ -33,6 +33,17 @@ use core::mem::MaybeUninit;
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
+const SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK: u32 = 0xffff;
+const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT: u32 = 16;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
+const SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK: u32 = 0x3;
+const SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT: u32 = 31;
+
+#[derive(Clone)]
+struct CsrngEntropyConfiguration {
+    entropy_cfg: EntropyConfiguration,
+    entropy_cfg_extension: EntropyConfigurationExtension,
+}
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -102,18 +113,31 @@ impl Csrng {
         if e.module_enable().read().module_enable() == FALSE {
             // Configure entropy_src
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs(), persistent_data);
-            set_health_check_thresholds(e, entropy_cfg);
+            set_health_check_thresholds(e, entropy_cfg.entropy_cfg.clone());
+
+            let rng_bit_enable = if entropy_cfg.entropy_cfg_extension.rng_bit_enable() {
+                TRUE
+            } else {
+                FALSE
+            };
 
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
-                    .threshold_scope(TRUE)
-                    .rng_bit_enable(FALSE)
+                    // THRESHOLD_SCOPE=FALSE so adaptive-proportion and Markov health
+                    // tests score each of the 4 RNG bus lanes individually.
+                    .threshold_scope(FALSE)
+                    .rng_bit_enable(rng_bit_enable)
+                    .rng_bit_sel(entropy_cfg.entropy_cfg_extension.rng_bit_sel())
             });
 
             // We allow the SoC to set bypass mode so that entropy can be
             // characterized directly, without passing through conditioning.
-            if (soc_ifc.regs().ss_strap_generic().at(2).read() >> 31) & 1 == 1 {
+            if (soc_ifc.regs().ss_strap_generic().at(2).read()
+                >> SS_STRAP_GENERIC_2_ENTROPY_BYPASS_SHIFT)
+                & 1
+                == 1
+            {
                 e.entropy_control().modify(|w| w.es_type(TRUE));
             }
             e.module_enable().write(|w| w.module_enable(TRUE));
@@ -188,12 +212,76 @@ impl Csrng {
             dest.add(9).write(self.csrng.regs().genbits().read());
             dest.add(10).write(self.csrng.regs().genbits().read());
             dest.add(11).write(self.csrng.regs().genbits().read());
-            Ok(result.assume_init())
+            let out = result.assume_init();
+            #[cfg(feature = "fips-test-hooks")]
+            let out = crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+                &out,
+            );
+            Ok(out)
         }
+    }
+
+    /// Return 16 randomly generated [`u32`]s (512 bits = four 128-bit GENBITS
+    /// blocks) from a single Generate command.
+    ///
+    /// This is distinct from invoking [`Self::generate12`] / [`Self::generate4`]
+    /// multiple times because each `Generate` command performs its own internal
+    /// Update step on completion (NIST SP 800-90A). The CTR_DRBG-AES-256 NIST
+    /// CAVP known-answer vectors specify `ReturnedBitsLen = 512`, so the KAT
+    /// must request all 512 bits from one Generate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the internal generate command fails.
+    pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
+        check_for_alert_state(self.entropy_src.regs())?;
+
+        send_command(
+            &mut self.csrng,
+            Command::Generate {
+                num_128_bit_blocks: 16 / WORDS_PER_BLOCK,
+            },
+        )?;
+
+        let mut result = [0u32; 16];
+        for block in result.chunks_mut(WORDS_PER_BLOCK) {
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            for word in block.iter_mut() {
+                *word = self.csrng.regs().genbits().read();
+            }
+        }
+        #[cfg(feature = "fips-test-hooks")]
+        let result = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+                &result,
+            )
+        };
+        Ok(result)
     }
 
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
         send_command(&mut self.csrng, Command::Reseed(seed))
+    }
+
+    /// Tear down the current DRBG instance and create a new one with the
+    /// given seed.
+    ///
+    /// This requires that the CSRNG and ENTROPY_SRC peripherals have already
+    /// been enabled and configured by a prior call to [`Self::new`] /
+    /// [`Self::with_seed`]. It is used by the CTR_DRBG known-answer test to
+    /// briefly swap the live DRBG into deterministic mode (`flag0=true`) for
+    /// validation against a NIST CAVP vector and then restore an
+    /// entropy-sourced instance before returning to production use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either the internal `Uninstantiate` or
+    /// `Instantiate` command fails.
+    pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
+        send_command(&mut self.csrng, Command::Uninstantiate)?;
+        send_command(&mut self.csrng, Command::Instantiate(seed))
     }
 
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
@@ -217,12 +305,16 @@ impl Csrng {
     pub fn uninstantiate(mut self) {
         let _ = send_command(&mut self.csrng, Command::Uninstantiate);
     }
+
+    pub fn zeroize(&mut self) -> CaliptraResult<()> {
+        send_command(&mut self.csrng, Command::Uninstantiate)
+    }
 }
 
 fn check_for_alert_state(
     entropy_src: entropy_src::RegisterBlock<caliptra_ureg::RealMmio>,
 ) -> CaliptraResult<()> {
-    // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+    // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
     // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
     const ALERT_HANG: u32 = 0x1fb;
     const CONT_HT_RUNNING: u32 = 0x1a2;
@@ -233,7 +325,7 @@ fn check_for_alert_state(
             ALERT_HANG => {
                 let alert_counts = entropy_src.alert_fail_counts().read();
 
-                if alert_counts.repcnt_fail_count() > 0 || alert_counts.repcnts_fail_count() > 0 {
+                if alert_counts.repcnt_fail_count() > 0 {
                     return Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED);
                 }
 
@@ -391,15 +483,26 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
 fn read_entropy_configuration(
     soc_ifc: &soc_ifc::RegisterBlock<caliptra_ureg::RealMmio>,
     mut persistent_data: PersistentDataAccessor,
-) -> EntropyConfiguration {
+) -> CsrngEntropyConfiguration {
     // Some of the entropy config registers are not lockable,
     // so we keep them in persistent storage so that they cannot
     // be maliciously modified later.
-    let entropy_cfg = persistent_data.get_mut().rom.entropy_cfg.clone();
     let cold_reset = matches!(reset_reason(), ResetReason::ColdReset);
+
+    let persistent_data = persistent_data.get_mut();
+    let entropy_cfg = persistent_data.rom.entropy_cfg.clone();
+    let entropy_cfg_extension = if persistent_data.rom.supports_entropy_cfg_extension() {
+        persistent_data.rom.entropy_cfg_extension
+    } else {
+        EntropyConfigurationExtension::default()
+    };
+
     // use the cached config only if we aren't in cold reset (assuming it has been configured)
     if !cold_reset && entropy_cfg.configured != 0 {
-        return entropy_cfg;
+        return CsrngEntropyConfiguration {
+            entropy_cfg,
+            entropy_cfg_extension,
+        };
     }
 
     // Configure alert threshold from CPTRA_ITRNG_ENTROPY_CONFIG_1[31:16]
@@ -415,17 +518,32 @@ fn read_entropy_configuration(
     };
 
     // Configure health test windows from SS_STRAP_GENERIC[2][15:0]
-    // This is the window size for all health tests.
-    // This value is used when entropy is being tested in FIPS mode.
-    // The default value is (2048 bits * 1 clock/4 bits);
-    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 512;
+    // This is the window size for all health tests, in clock cycles.
+    // Each clock samples one bit on each of the 4 RNG lanes, so the
+    // per-lane window in bits is exactly this value and the aggregate
+    // window is `4 * health_test_window` bits. This value is used when
+    // entropy is being tested in FIPS mode.
+    //
+    // Default: 1024 clock cycles = 1024 bits per lane = 4096 bits aggregate.
+    const DEFAULT_HEALTH_TEST_WINDOW: u32 = 1024;
 
-    let health_test_window = soc_ifc.ss_strap_generic().at(2).read() & 0xffff;
+    let ss_strap_generic_2 = soc_ifc.ss_strap_generic().at(2).read();
 
-    let health_test_window = if health_test_window == 0 {
+    let strap_health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
+
+    let health_test_window_is_default = strap_health_test_window == 0;
+    let health_test_window = if health_test_window_is_default {
         DEFAULT_HEALTH_TEST_WINDOW
     } else {
-        health_test_window
+        strap_health_test_window
+    };
+
+    let rng_bit_enable = (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_ENABLE_SHIFT) & 1 != 0;
+    let rng_bit_sel = if rng_bit_enable {
+        (ss_strap_generic_2 >> SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT)
+            & SS_STRAP_GENERIC_2_RNG_BIT_SEL_MASK
+    } else {
+        0
     };
 
     // Configure Repetition Count Test threshold
@@ -449,39 +567,54 @@ fn read_entropy_configuration(
     };
 
     // The Adaptive Proportion test fails if:
-    //  * Any window has more than the HI threshold of 1's; or,
-    //  * Any window has less than the LO threshold of 1's.
-    // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
+    //  * In any window any single RNG lane has more than the HI threshold of 1's; or,
+    //  * Any RNG lane has less than the LO threshold of 1's.
+    // (Each of the 4 RNG bus lanes is scored individually because the ROM configures
+    // entropy_src with CONF.THRESHOLD_SCOPE = FALSE.)
+    // See section 4.4.2 of NIST.SP.800-90B for more information about this test.
 
-    // If soc doesn't set the window size, then use these defaults.
-    // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
-    // respectively.
+    // If the SoC doesn't override the ADAPTP thresholds, use 75% and 25% of the
+    // per-lane FIPS window size for the default HI and LO thresholds respectively.
+    // Per NIST SP 800-90B Section 4.4.2, these correspond to roughly
+    // 0.6 min-entropy (Table 2).
     //
-    // This window value of 2048 comes from the OpenTitan documentation, since two noise
-    // channels are used. https://opentitan.org/book/hw/ip/entropy_src/index.html#description
-    const ADAPTP_WINDOW_SIZE_BITS: u32 = 2048;
-    const ADAPTP_DEFAULT_HI: u32 = 3 * (ADAPTP_WINDOW_SIZE_BITS / 4);
-    const ADAPTP_DEFAULT_LO: u32 = ADAPTP_WINDOW_SIZE_BITS / 4;
+    // In normal mode each clock samples one bit on each of the 4 RNG lanes, so
+    // the per-lane window in bits is exactly `health_test_window` (the FIPS_WINDOW
+    // value written to the HEALTH_TEST_WINDOWS register). In single-bit mode
+    // entropy_src samples only the selected lane and internally multiplies the
+    // window by four (entropy_src_core.sv: health_test_window_scaled), so the
+    // adaptive-proportion counter accumulates over `health_test_window * 4`
+    // samples. We only grow the window used to derive the default thresholds when
+    // we picked the default window; if the SoC supplied its own window we assume
+    // it already accounts for single-bit mode and use it as-is.
+    // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
+    let adaptp_window_bits = if rng_bit_enable && health_test_window_is_default {
+        health_test_window * 4
+    } else {
+        health_test_window
+    };
+    let adaptp_default_hi = 3 * (adaptp_window_bits / 4);
+    let adaptp_default_lo = adaptp_window_bits / 4;
 
     let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
     let adaptp_hi_threshold = config0.high_threshold();
     let adaptp_lo_threshold = config0.low_threshold();
 
     let adaptp_hi_threshold = if adaptp_hi_threshold == 0 {
-        ADAPTP_DEFAULT_HI
+        adaptp_default_hi
     } else {
         adaptp_hi_threshold
     };
 
     let adaptp_lo_threshold = if adaptp_lo_threshold == 0 {
-        ADAPTP_DEFAULT_LO
+        adaptp_default_lo
     } else {
         adaptp_lo_threshold
     };
 
     // ensure lo < hi by using defaults if hi >= lo
     let (adaptp_hi_threshold, adaptp_lo_threshold) = if adaptp_hi_threshold <= adaptp_lo_threshold {
-        (ADAPTP_DEFAULT_HI, ADAPTP_DEFAULT_LO)
+        (adaptp_default_hi, adaptp_default_lo)
     } else {
         (adaptp_hi_threshold, adaptp_lo_threshold)
     };
@@ -494,9 +627,17 @@ fn read_entropy_configuration(
         adaptp_hi_threshold,
         adaptp_lo_threshold,
     };
+    let mut entropy_cfg_extension = EntropyConfigurationExtension::default();
+    entropy_cfg_extension.set_rng_bit_enable(rng_bit_enable);
+    entropy_cfg_extension.set_rng_bit_sel(rng_bit_sel);
     // save for later resets
-    persistent_data.get_mut().rom.entropy_cfg = entropy_cfg.clone();
-    entropy_cfg
+    persistent_data.rom.entropy_cfg = entropy_cfg.clone();
+    persistent_data.rom.entropy_cfg_extension = entropy_cfg_extension;
+
+    CsrngEntropyConfiguration {
+        entropy_cfg,
+        entropy_cfg_extension,
+    }
 }
 
 /// Configure thresholds for the NIST health checks.
@@ -514,9 +655,6 @@ fn set_health_check_thresholds(
         .write(|w| w.fips_window(entropy_cfg.health_test_window));
 
     e.repcnt_thresholds()
-        .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
-
-    e.repcnts_thresholds()
         .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
 
     e.adaptp_hi_thresholds()

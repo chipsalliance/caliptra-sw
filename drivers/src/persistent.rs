@@ -371,6 +371,19 @@ pub struct EntropyConfiguration {
     pub adaptp_lo_threshold: u32,
 }
 
+bitfield::bitfield! {
+    /// Packed entropy-source single-bit-mode configuration cached from
+    /// SS_STRAP_GENERIC[2] so that it can be reapplied across warm resets.
+    #[derive(Clone, Copy, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
+    #[repr(C)]
+    pub struct EntropyConfigurationExtension(u32);
+    impl Debug;
+    /// True when entropy_src should run in single-bit (RNG bit) mode.
+    pub rng_bit_enable, set_rng_bit_enable: 0;
+    /// Which of the 4 RNG bus lanes to sample when single-bit mode is enabled.
+    pub u32, rng_bit_sel, set_rng_bit_sel: 2, 1;
+}
+
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
@@ -420,7 +433,10 @@ pub struct RomPersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     pub idevid_csr_envelop: InitDevIdCsrEnvelope,
-    reserved6: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
+    pub entropy_cfg_extension: EntropyConfigurationExtension,
+    reserved6: [u8; IDEVID_CSR_ENVELOP_SIZE as usize
+        - size_of::<InitDevIdCsrEnvelope>()
+        - size_of::<EntropyConfigurationExtension>()],
 
     pub cmb_aes_key_share0: LEArray4x8,
     pub cmb_aes_key_share1: LEArray4x8,
@@ -448,7 +464,16 @@ pub struct RomPersistentData {
 impl RomPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
     pub const MAJOR_VERSION: u16 = 1;
-    pub const MINOR_VERSION: u16 = 0;
+    pub const MINOR_VERSION: u16 = 1;
+    pub const MINOR_VERSION_ENTROPY_CFG_EXTENSION: u16 = 1;
+
+    pub fn supports_entropy_cfg_extension(&self) -> bool {
+        self.minor_version >= Self::MINOR_VERSION_ENTROPY_CFG_EXTENSION
+    }
+
+    pub fn supports_current_minor_version(&self) -> bool {
+        self.minor_version <= Self::MINOR_VERSION
+    }
 
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
@@ -530,7 +555,14 @@ impl RomPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
+            persistent_data_offset += size_of::<InitDevIdCsrEnvelope>() as u32;
+            assert_eq!(
+                addr_of!((*P).rom.entropy_cfg_extension) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset +=
+                IDEVID_CSR_ENVELOP_SIZE - size_of::<InitDevIdCsrEnvelope>() as u32;
             assert_eq!(
                 addr_of!((*P).rom.cmb_aes_key_share0) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -824,6 +856,25 @@ mod tests {
     }
 
     #[test]
+    fn test_entropy_configuration_extension() {
+        // The packed extension must stay 4 bytes so it fits inside the reserved
+        // region after idevid_csr_envelop without moving any later fields.
+        assert_eq!(size_of::<EntropyConfigurationExtension>(), 4);
+
+        let mut ext = EntropyConfigurationExtension::default();
+        assert!(!ext.rng_bit_enable());
+        assert_eq!(ext.rng_bit_sel(), 0);
+
+        ext.set_rng_bit_enable(true);
+        ext.set_rng_bit_sel(2);
+        assert!(ext.rng_bit_enable());
+        assert_eq!(ext.rng_bit_sel(), 2);
+
+        // rng_bit_sel is 2 bits wide (lanes 0..=3) and packs above rng_bit_enable.
+        assert_eq!(ext.0, 0b1 | (2 << 1));
+    }
+
+    #[test]
     fn test_rom_persistent_data_size() {
         let expected_size = 60580;
         if size_of::<RomPersistentData>() != expected_size {
@@ -897,6 +948,7 @@ mod tests {
             (offset_of!(RomPersistentData, measurement_log), 49152, "measurement_log"),
             (offset_of!(RomPersistentData, fuse_log), 50176, "fuse_log"),
             (offset_of!(RomPersistentData, idevid_csr_envelop), 51200, "idevid_csr_envelop"),
+            (offset_of!(RomPersistentData, entropy_cfg_extension), 59984, "entropy_cfg_extension"),
             (offset_of!(RomPersistentData, cmb_aes_key_share0), 60416, "cmb_aes_key_share0"),
             (offset_of!(RomPersistentData, cmb_aes_key_share1), 60448, "cmb_aes_key_share1"),
             (offset_of!(RomPersistentData, dot_owner_pk_hash), 60480, "dot_owner_pk_hash"),

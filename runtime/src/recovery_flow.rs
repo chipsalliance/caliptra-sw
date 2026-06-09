@@ -90,10 +90,8 @@ impl RecoveryFlow {
             )?;
             dma_recovery.wait_for_payload_not_available();
 
-            cprintln!("[rt] Uploading MCU firmware");
             let mcu_size_bytes =
                 dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
-            cprintln!("[rt] Calculating MCU digest");
             let digest = dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
                 0,
@@ -153,8 +151,6 @@ impl RecoveryFlow {
             // for Caliptra to publish FW_EXEC_CTRL[MCU].
             let boot_mode = drivers.persistent_data.get().rom.boot_mode;
             if boot_mode == BootMode::EncryptedFirmware {
-                cprintln!("[rt] Encrypted firmware boot mode - skipping MCU activation");
-
                 // The image in MCU SRAM is ciphertext || 16-byte GCM tag.
                 // CM_AES_GCM_DECRYPT_DMA expects the tag as a separate field
                 // and verifies the SHA-384 against only the ciphertext portion,
@@ -171,10 +167,6 @@ impl RecoveryFlow {
                 )?;
                 drivers.mcu_fw_info.size = ciphertext_size;
                 drivers.mcu_fw_info.sha384 = ciphertext_digest.into();
-                cprintln!(
-                    "[rt] Stored MCU ciphertext size {} for GET_MCU_FW_SIZE",
-                    ciphertext_size
-                );
 
                 // we're done with recovery, but MCU will handle its own boot after decryption
                 dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
@@ -190,16 +182,8 @@ impl RecoveryFlow {
                 )
             };
 
-            cprintln!("[rt] Setting MCU firmware ready");
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();
-            cprintln!(
-                "[rt] Setting MCU firmware ready: {:08x}{:08x}{:08x}{:08x}",
-                drivers.soc_ifc.fw_ctrl(0),
-                drivers.soc_ifc.fw_ctrl(1),
-                drivers.soc_ifc.fw_ctrl(2),
-                drivers.soc_ifc.fw_ctrl(3)
-            );
 
             // leave recovery status open in case MCU wants to load additional images
         }

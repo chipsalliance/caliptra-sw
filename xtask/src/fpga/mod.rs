@@ -17,6 +17,7 @@ const DEFAULT_MCU_REV: &str = "02ea798304ccccff8e6b5a065781b3d5ed38b118";
 pub struct BuildArgs<'a> {
     pub fw_id: &'a Option<String>,
     pub mcu_rev: &'a str,
+    pub mcu_path: &'a Option<String>,
 }
 
 pub struct BuildTestArgs<'a> {
@@ -57,6 +58,10 @@ pub enum Fpga {
         /// The git revision of the MCU firmware to build
         #[arg(long, default_value = DEFAULT_MCU_REV)]
         mcu_rev: String,
+
+        /// The path to the MCU source code to build from
+        #[arg(long)]
+        mcu_path: Option<String>,
     },
     /// Build FPGA test binaries
     BuildTest {
@@ -98,6 +103,7 @@ pub fn fpga_entry(args: &Fpga) -> Result<()> {
             target_host,
             fw_id: calitpra_fw_id,
             mcu_rev,
+            mcu_path,
         } => {
             println!("Building FPGA firmware");
             let config = Configuration::from_cmd(target_host)?;
@@ -107,6 +113,7 @@ pub fn fpga_entry(args: &Fpga) -> Result<()> {
                 .build(&BuildArgs {
                     fw_id: calitpra_fw_id,
                     mcu_rev,
+                    mcu_path,
                 })?;
         }
         Fpga::BuildTest {

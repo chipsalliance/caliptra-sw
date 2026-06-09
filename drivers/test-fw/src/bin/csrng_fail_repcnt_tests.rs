@@ -7,7 +7,7 @@ File Name:
     csrng_fail_repcnt_tests.rs
 
 Abstract:
-    https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#repetition-count-test
+    https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#repetition-count-test
 
     File contains test cases for CSRNG API when the physical entropy source
     has a stuck bit on at least one of the four external RNG wires.

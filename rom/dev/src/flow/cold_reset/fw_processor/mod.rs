@@ -40,6 +40,7 @@ use caliptra_image_verify::{
     ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier, MAX_FIRMWARE_SVN,
 };
 use caliptra_kat::KatsEnv;
+use caliptra_registers::doe::DoeReg;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
 use dma::AesDmaMode;
@@ -102,6 +103,122 @@ pub struct FwProcInfo {
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
+    fn recovery_reason_from_verification_error(err: CaliptraError) -> u32 {
+        let err = u32::from(err);
+
+        macro_rules! err_is {
+            ($($candidate:expr),+ $(,)?) => {
+                $(err == u32::from($candidate))||+
+            };
+        }
+
+        if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_VERSION_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT,
+            CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS,
+            CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH,
+        ) {
+            DmaRecovery::RECOVERY_REASON_VENDOR_KEY_INVALID
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED,
+        ) {
+            DmaRecovery::RECOVERY_REASON_VENDOR_KEY_REVOKED
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INVALID_ARG,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_SIG_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_SIG_READ_FAILED,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID,
+        ) {
+            DmaRecovery::RECOVERY_REASON_VENDOR_SIGNATURE_INVALID
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG,
+            CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+            CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
+        ) {
+            DmaRecovery::RECOVERY_REASON_OWNER_KEY_INVALID
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_SIG_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_SIG_READ_FAILED,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID,
+        ) {
+            DmaRecovery::RECOVERY_REASON_OWNER_SIGNATURE_INVALID
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE,
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+        ) {
+            DmaRecovery::RECOVERY_REASON_FIRMWARE_IMAGE_DIGEST_MISMATCH
+        } else if err_is!(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED,)
+        {
+            DmaRecovery::RECOVERY_REASON_FIRMWARE_VERSION_INVALID
+        } else if err_is!(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE,) {
+            DmaRecovery::RECOVERY_REASON_ANTI_ROLLBACK_FAILURE
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_VERSION_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_TYPE_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT,
+            CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX,
+        ) {
+            DmaRecovery::RECOVERY_REASON_PQC_CONFIGURATION_INVALID
+        } else if err_is!(
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED,
+            CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW,
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW,
+        ) {
+            DmaRecovery::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
+        } else {
+            DmaRecovery::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA
+        }
+    }
+
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
         // Process mailbox commands.
         let (mut txn, image_size_bytes) = env.abr.with_mldsa87(|mut mldsa87| {
@@ -494,6 +611,10 @@ impl FirmwareProcessor {
                         .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
                     mailbox::populate_checksum(response);
 
+                    if CommandId::from(cmd) == CommandId::SHUTDOWN {
+                        Self::zeroize_shutdown_state(env.trng)?;
+                    }
+
                     txn.send_response(response)?;
                 } else {
                     // Response length of 0 indicates failure (e.g., self test commands)
@@ -514,7 +635,8 @@ impl FirmwareProcessor {
                         }
                     }
                     CommandId::SHUTDOWN =>
-                    // Causing a ROM Fatal Error will zeroize the module
+                    // Zeroization was performed before acknowledging the command;
+                    // the fatal error parks ROM in the terminal shutdown state.
                     {
                         Err(CaliptraError::RUNTIME_SHUTDOWN)?
                     }
@@ -522,6 +644,28 @@ impl FirmwareProcessor {
                 };
             }
         }
+    }
+
+    fn zeroize_shutdown_state(trng: &mut Trng) -> CaliptraResult<()> {
+        let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
+        doe.clear_secrets()?;
+        trng.zeroize()?;
+
+        unsafe {
+            Aes::zeroize();
+            Ecc384::zeroize();
+            Hmac::zeroize();
+            Mldsa87::zeroize_no_wait();
+            MlKem1024::zeroize_no_wait();
+            Sha256::zeroize();
+            Sha2_512_384::zeroize();
+            Sha2_512_384Acc::zeroize();
+            Sha3::zeroize();
+            KeyVault::zeroize();
+            Sha2_512_384Acc::lock();
+        }
+
+        Ok(())
     }
 
     /// Load the manifest
@@ -671,32 +815,35 @@ impl FirmwareProcessor {
             // Reset the Indirect FIFO control so that payload_available is reset.
             dma_recovery.reset_indirect_fifo_ctrl()?;
 
-            let (recovery_status, next_image_idx, device_status) = if info.is_err() {
-                (
+            if let Some(err) = info.as_ref().err().copied() {
+                let recovery_reason = Self::recovery_reason_from_verification_error(err);
+                cprintln!(
+                    "[fwproc] Setting device recovery status to 0x{:x}, image index 0x0, device status 0x{:x}, recovery reason 0x{:x}",
+                    DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
+                    DmaRecovery::DEVICE_STATUS_BOOT_FAILURE,
+                    recovery_reason
+                );
+                dma_recovery.set_recovery_status(
                     DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
                     0,
-                    DmaRecovery::DEVICE_STATUS_FATAL_ERROR,
-                )
+                )?;
+                dma_recovery.set_boot_failure_reason(recovery_reason)?;
             } else {
                 // we still have to do the SoC and MCU images
                 // we pre-emptively set the next image index to 1 so that the recovery interface
                 // will receive the right index so that no matter what order the recovery registers
                 // are read, we will send the right image next
-                (
+                cprintln!(
+                    "[fwproc] Setting device recovery status to 0x{:x}, image index 0x1, device status 0x{:x}",
                     DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
-                    1,
+                    DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
+                );
+                dma_recovery
+                    .set_recovery_status(DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE, 1)?;
+                dma_recovery.set_device_status(
                     DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
-                )
-            };
-
-            cprintln!(
-                "[fwproc] Setting device recovery status to 0x{:x}, image index 0x{:x}, device status 0x{:x}",
-                recovery_status,
-                next_image_idx,
-                device_status
-            );
-            dma_recovery.set_recovery_status(recovery_status, next_image_idx)?;
-            dma_recovery.set_device_status(device_status)?;
+                )?;
+            }
         }
 
         let info = match info {

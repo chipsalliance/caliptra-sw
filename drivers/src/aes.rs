@@ -1485,6 +1485,23 @@ impl AesGcm {
         Ok(Self { aes })
     }
 
+    /// Construct an `AesGcm` driver without running KATs.
+    ///
+    /// Intended for the fake (emulation-only) ROM, which is not FIPS compliant
+    /// and skips KATs to reduce ROM footprint.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure this is never used in production firmware: the
+    /// resulting driver has not had its GCM or CMAC-KDF KATs executed, so any
+    /// FIPS guarantees about the AES engine are forfeit.
+    #[cfg(feature = "fake-rom")]
+    pub unsafe fn new_skip_kats(aes: AesReg, aes_clp: AesClpReg) -> Self {
+        Self {
+            aes: Aes::new_gcm(aes, aes_clp),
+        }
+    }
+
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
     pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
         self.aes.cmac(key, message)

@@ -513,7 +513,19 @@ impl<'a> DmaRecovery<'a> {
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
 
-    const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
+    pub const RECOVERY_REASON_CORRUPTED_CRITICAL_DATA: u32 = 0x4;
+    pub const RECOVERY_REASON_ANTI_ROLLBACK_FAILURE: u32 = 0xA;
+    pub const RECOVERY_REASON_FLASHLESS_STREAMING_BOOT: u32 = 0x12;
+    // DEVICE_STATUS_0.REC_REASON_CODE reserves 0x80..=0xFF for vendor-unique boot failure codes.
+    pub const RECOVERY_REASON_VENDOR_KEY_INVALID: u32 = 0x80;
+    pub const RECOVERY_REASON_VENDOR_KEY_REVOKED: u32 = 0x81;
+    pub const RECOVERY_REASON_VENDOR_SIGNATURE_INVALID: u32 = 0x82;
+    pub const RECOVERY_REASON_OWNER_KEY_INVALID: u32 = 0x83;
+    pub const RECOVERY_REASON_OWNER_SIGNATURE_INVALID: u32 = 0x84;
+    pub const RECOVERY_REASON_FIRMWARE_IMAGE_DIGEST_MISMATCH: u32 = 0x85;
+    pub const RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID: u32 = 0x86;
+    pub const RECOVERY_REASON_PQC_CONFIGURATION_INVALID: u32 = 0x87;
+    pub const RECOVERY_REASON_FIRMWARE_VERSION_INVALID: u32 = 0x88;
 
     pub const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
     const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
@@ -523,6 +535,7 @@ impl<'a> DmaRecovery<'a> {
     pub const DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
     const DEVICE_STATUS_PENDING: u32 = 0x4;
     pub const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
+    pub const DEVICE_STATUS_BOOT_FAILURE: u32 = 0xE;
     pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
@@ -794,7 +807,7 @@ impl<'a> DmaRecovery<'a> {
                 Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
             );
             recovery.device_status_0().modify(|val| {
-                val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
+                val.rec_reason_code(Self::RECOVERY_REASON_FLASHLESS_STREAMING_BOOT)
                     .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
             });
 
@@ -843,6 +856,28 @@ impl<'a> DmaRecovery<'a> {
                 .device_status_0()
                 .modify(|device_status_val| device_status_val.dev_status(status));
         })
+    }
+
+    pub fn set_device_status_with_recovery_reason(
+        &self,
+        status: u32,
+        recovery_reason: u32,
+    ) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery.device_status_0().modify(|device_status_val| {
+                device_status_val
+                    .dev_status(status)
+                    .rec_reason_code(recovery_reason)
+            });
+        })
+    }
+
+    pub fn set_boot_failure_reason(&self, recovery_reason: u32) -> CaliptraResult<()> {
+        self.set_device_status_with_recovery_reason(
+            Self::DEVICE_STATUS_BOOT_FAILURE,
+            recovery_reason,
+        )
     }
 
     pub fn reset_indirect_fifo_ctrl(&self) -> CaliptraResult<()> {
@@ -1005,10 +1040,7 @@ impl<'a> DmaRecovery<'a> {
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
             if dma_sha.lock().read().lock() {
-                cprintln!(
-                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
-                );
-                return Err(CaliptraError::RUNTIME_INTERNAL);
+                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
             }
 
             // we only use the raw SHA accelerator driver to get the digest at the end.
@@ -1073,9 +1105,6 @@ impl<'a> DmaRecovery<'a> {
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
             if dma_sha.lock().read().lock() {
-                cprintln!(
-                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
-                );
                 return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
             }
 

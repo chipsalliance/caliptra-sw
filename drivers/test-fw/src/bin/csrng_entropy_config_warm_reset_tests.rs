@@ -26,12 +26,15 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, PersistentDataAccessor, ResetReason, SocIfc};
+use caliptra_drivers::{Csrng, PersistentDataAccessor, ResetReason, RomPersistentData, SocIfc};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
 /// Magic boot status to signal test harness we're ready for warm reset
 const WARM_RESET_READY_BOOT_STATUS: u32 = 0xCAFE_1234;
+const MULTI_BIT_BOOL_FALSE: u32 = 9;
+const MULTI_BIT_BOOL_TRUE: u32 = 6;
+const EXPECTED_RNG_BIT_SEL: u32 = 2;
 
 fn test_entropy_config_warm_reset() {
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
@@ -47,8 +50,9 @@ fn test_entropy_config_warm_reset() {
 fn cold_reset_flow() -> ! {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
-    let soc_ifc_reg = unsafe { SocIfcReg::new() };
-    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let mut soc_ifc_reg = unsafe { SocIfcReg::new() };
+    let mut persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
 
     // First, initialize CSRNG normally - this should succeed and store config in persistent data
     let csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data);
@@ -56,6 +60,7 @@ fn cold_reset_flow() -> ! {
         csrng.is_ok(),
         "CSRNG should initialize successfully on cold reset"
     );
+    assert_entropy_src_single_bit_mode_configured();
 
     // Drop the CSRNG to release the registers
     drop(csrng);
@@ -65,8 +70,6 @@ fn cold_reset_flow() -> ! {
     // - adaptp_lo = 0xffff (higher than any reasonable hi threshold)
     // - adaptp_hi = 0x0001 (lower than lo threshold - impossible to pass)
     // - repcnt = 0x0001 (threshold of 1 means any repeated bit fails)
-    let mut soc_ifc_reg = unsafe { SocIfcReg::new() };
-
     // Write bad adaptive proportion thresholds
     // high_threshold in low 16 bits, low_threshold in high 16 bits
     // Setting lo=0xFFFF, hi=0x0001 is impossible to satisfy
@@ -87,6 +90,8 @@ fn cold_reset_flow() -> ! {
         .write(|w| {
             w.repetition_count(0x0001) // Threshold of 1 = immediate failure
         });
+
+    soc_ifc_reg.regs_mut().ss_strap_generic().at(2).write(|_| 0);
 
     // Signal test harness that we're ready for warm reset
     loop {
@@ -110,6 +115,8 @@ fn warm_reset_flow() {
 
     match csrng {
         Ok(mut c) => {
+            assert_entropy_src_single_bit_mode_configured();
+
             // Also verify we can generate successfully
             let result = c.generate12();
             assert!(
@@ -121,6 +128,15 @@ fn warm_reset_flow() {
             panic!("CSRNG should initialize successfully on warm reset using stored config, but got error: {:?}", e);
         }
     }
+}
+
+fn assert_entropy_src_single_bit_mode_configured() {
+    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let conf = entropy_src_reg.regs().conf().read();
+
+    assert_eq!(conf.rng_bit_enable(), MULTI_BIT_BOOL_TRUE);
+    assert_eq!(conf.rng_bit_sel(), EXPECTED_RNG_BIT_SEL);
+    assert_eq!(conf.threshold_scope(), MULTI_BIT_BOOL_FALSE);
 }
 
 test_suite! {

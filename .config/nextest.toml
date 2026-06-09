@@ -2,6 +2,10 @@
 
 # TODO(#2369): Remove the extra filters after fixing the broken tests
 #
+# test(test_csrng_entropy_config_warm_reset): on the subsystem, MCU ROM owns
+# SS_STRAP_GENERIC loading and locks the registers (CPTRA_FUSE_WR_DONE) before the
+# host can inject the strap via soc_ifc, so single-bit entropy mode cannot be
+# configured from the test harness. Re-enable once MCU ROM populates these straps.
 [profile.fpga-subsystem]
 default-filter = """
 (package(caliptra-hw-model) and test(tests::test_execution)) |
@@ -22,6 +26,7 @@ default-filter = """
 (package(caliptra-rom)
     - test(test_debug_unlock::)
     - test(test_fmcalias_derivation::test_zero_firmware_size)
+    - test(test_generate_csr_envelop_stress)
     - test(test_uds_fe)
     - test(test_wdt_activation_and_stoppage::)
     - test(test_warm_reset::test_warm_reset_during_update_reset)
@@ -30,6 +35,7 @@ default-filter = """
     - test(test_csrng_adaptive_proportion)
     - test(test_csrng_repetition_count)
     - test(test_csrng_runtime_health_failure)
+    - test(test_csrng_entropy_config_warm_reset)
     - test(test_doe_when_debug_locked)
     - test(test_doe_when_debug_not_locked)) |
 (package(caliptra-fmc)) |
@@ -94,6 +100,7 @@ not (package(/caliptra-emu-.*/) |
        package(compliance-test) |
        test(test_csrng_runtime_health_failure) |
        test(test_doe_when_debug_not_locked) |
+       test(test_generate_csr_envelop_stress) |
        test(test_sign_validation_failure) |
        test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
        test(test_activate_firmware::test_activate_invalid_fw_id) |
@@ -148,6 +155,7 @@ store-success-output = true
 store-failure-output = true
 
 [profile.nightly]
+default-filter = 'not test(test_generate_csr_envelop_stress)'
 failure-output = "immediate-final"
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }

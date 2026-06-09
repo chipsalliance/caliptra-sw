@@ -82,15 +82,18 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 
 | Register                         | Field/Bits    | Description                                             |
 | :------------------------------- | :------------ | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 512). This is the window size for all health tests when entropy is tested in FIPS mode. |
+| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 1024). This is the window size for all health tests when entropy is tested in FIPS mode. In single-bit mode entropy_src internally tests four times this many samples on the selected lane. |
+| SS_STRAP_GENERIC[2]              | [16]    | Entropy source single-bit mode. When set to 1, ROM enables `rng_bit_enable` and clears `threshold_scope`. |
+| SS_STRAP_GENERIC[2]              | [18:17] | Entropy source single-bit mode `rng_bit_sel`. Selects which RNG bit stream to process when single-bit mode is enabled. |
 | SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 1536). The test fails if any window has more than this threshold of 1's. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 512). The test fails if any window has less than this threshold of 1's. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 75% of the FIPS window, i.e. 768 for the default window). The test fails if any window has more than this threshold of 1's. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 25% of the FIPS window, i.e. 256 for the default window). The test fails if any window has less than this threshold of 1's. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [15:0]  | Repetition Count test threshold (default: 41). The test fails if an RNG wire repeats the same bit this many times in a row. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [31:16] | Alert threshold (default: 2). Number of health check failures before an alert is triggered. |
 
 **Notes:**
 - If any threshold value is set to 0, the ROM uses the default value specified above.
+- The Adaptive Proportion default thresholds are derived from the FIPS window (75% high, 25% low). In single-bit mode entropy_src scales the health-test window by four, so when the default window is used the ROM scales these defaults to match (high: 3072, low: 1024). An explicit threshold or window supplied by the SoC is used as-is.
 - These configuration values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset).
 - In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
 - In production mode, ROM locks the entropy source configuration after programming to prevent modification.
@@ -425,6 +428,7 @@ ROM performs the following POST tests to ensure that needed cryptographic module
  - SHA2-384
  - SHA2-512
  - SHA2-512-ACC
+ - CSRNG (CTR_DRBG-AES-256)
  - ECC-384
  - ECDH
  - HMAC-384Kdf
