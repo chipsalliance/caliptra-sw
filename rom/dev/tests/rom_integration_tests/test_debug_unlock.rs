@@ -77,7 +77,6 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
     );
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_success() {
@@ -124,27 +123,30 @@ fn test_dbg_unlock_manuf_success() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..token_req
     };
-    let _ = hw
-        .mailbox_execute(
-            CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
-            token.as_bytes(),
-        )
-        .unwrap()
-        .unwrap();
+    // Do not use mailbox_execute() here: debug-unlock completion waits for
+    // MBOX_IDLE before closing TAP mailbox access, and mailbox_execute() only
+    // clears MBOX_EXECUTE after firmware returns control to the model. Drive
+    // the requester-side cleanup explicitly to model the external TAP release.
+    hw.start_mailbox_execute(
+        CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
+        token.as_bytes(),
+    )
+    .unwrap();
+
+    hw.step_until(|m| m.soc_mbox().status().read().status().data_ready());
+    hw.soc_mbox().execute().write(|w| w.execute(false));
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
-        !resp.manuf_dbg_unlock_in_progress()
+        !resp.manuf_dbg_unlock_in_progress() && !resp.tap_mailbox_available()
     });
 
-    assert!(hw
-        .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
-        .read()
-        .manuf_dbg_unlock_success());
+    let resp = hw.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+    assert!(resp.manuf_dbg_unlock_success());
+    assert!(!resp.tap_mailbox_available());
+    assert!(hw.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_wrong_cmd() {
@@ -204,7 +206,6 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     });
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_invalid_token() {
@@ -289,7 +290,6 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_success() {
@@ -483,7 +483,6 @@ fn test_dbg_unlock_prod_success() {
     });
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_length() {
@@ -567,7 +566,6 @@ fn test_dbg_unlock_prod_invalid_length() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
@@ -697,7 +695,6 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_signature() {
@@ -841,7 +838,6 @@ fn test_dbg_unlock_prod_invalid_signature() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_public_keys() {
@@ -982,7 +978,6 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         .prod_dbg_unlock_fail());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_cmd() {
