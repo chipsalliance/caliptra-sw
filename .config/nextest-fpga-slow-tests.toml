@@ -1,0 +1,21 @@
+# Licensed under the Apache-2.0 license
+#
+# Nextest tool-config layered on top of .config/nextest.toml ONLY for nightly
+# FPGA runs that are built with the `slow_tests` feature (see the FPGA workflows).
+#
+# With `slow_tests`, test_generate_csr_envelop_stress runs many iterations and
+# legitimately needs a long timeout. PR/merge_group runs do NOT pass this file,
+# so they fall through to the short profile default in .config/nextest.toml and a
+# hang fails fast instead of stalling the pipeline for ~90 minutes. See TODO(#2369).
+#
+# Tool-config overrides take precedence over the profile default but sit below
+# .config/nextest.toml, so this file must remain the only place that sets a
+# slow-timeout for this test.
+
+[[profile.fpga-subsystem.overrides]]
+filter = 'test(test_generate_csr_envelop_stress)'
+slow-timeout = { period = "30s", terminate-after = 180 }
+
+[[profile.fpga-core.overrides]]
+filter = 'test(test_generate_csr_envelop_stress)'
+slow-timeout = { period = "30s", terminate-after = 180 }
