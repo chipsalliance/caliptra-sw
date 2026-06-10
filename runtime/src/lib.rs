@@ -317,7 +317,19 @@ const _: () = {
 
 const DPE_RESP_BUF_SIZE: usize = size_of::<caliptra_api::mailbox::CertifyKeyExtendedResp>();
 
-#[inline(never)]
+fn debug_unlock_mailbox_access_complete(cmd_id: CommandId, command_failed: bool) -> bool {
+    matches!(cmd_id, CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN)
+        || (matches!(cmd_id, CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ) && command_failed)
+}
+
+fn finish_debug_unlock_mailbox_access(drivers: &mut Drivers) {
+    drivers.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    drivers.mbox.wait_until_idle();
+    drivers
+        .soc_ifc
+        .set_ss_dbg_unlock_tap_mailbox_available(false);
+}
+
 fn execute_command(
     drivers: &mut Drivers,
     cmd_id: u32,
@@ -751,8 +763,15 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             // Clear non-fatal error before processing command
             caliptra_drivers::clear_fw_error_non_fatal(drivers.persistent_data.get_mut());
 
+            let cmd_id = drivers.mbox.cmd();
             let command_result = handle_command(drivers);
+            let command_failed = command_result.is_err();
+            let debug_unlock_mailbox_access_complete =
+                debug_unlock_mailbox_access_complete(cmd_id, command_failed);
             cfi_check!(command_result);
+            if debug_unlock_mailbox_access_complete {
+                caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+            }
             match command_result {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
@@ -762,7 +781,11 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                     drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
-            caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+            if debug_unlock_mailbox_access_complete {
+                finish_debug_unlock_mailbox_access(drivers);
+            } else {
+                caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+            }
         } else {
             cfi_assert!(!cmd_ready);
         }

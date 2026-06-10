@@ -53,6 +53,11 @@ impl Mailbox {
         mbox.status().read().mbox_fsm_ps()
     }
 
+    /// Wait until the mailbox FSM returns to idle.
+    pub fn wait_until_idle(&self) {
+        while !self.mailbox_state().mbox_idle() {}
+    }
+
     /// Get the length of the current mailbox data in bytes
     pub fn dlen(&self) -> u32 {
         let mbox = self.mbox.regs();

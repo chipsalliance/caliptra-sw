@@ -111,6 +111,12 @@ impl Mailbox {
         }
     }
 
+    /// Wait until the mailbox FSM returns to idle.
+    pub fn wait_until_idle(&self) {
+        let mbox = self.mbox.regs();
+        while !mbox.status().read().mbox_fsm_ps().mbox_idle() {}
+    }
+
     /// Aborts with failure any pending SoC->Uc transactions.
     ///
     /// This is useful to call from a fatal-error-handling routine.
