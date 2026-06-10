@@ -89,6 +89,7 @@ pub struct Context {
     pub rdata0: Option<u32>,
     pub rdata1: Option<u32>,
     pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
+    pub error_injection: bool,
     pub dai_error: bool,
     pub soc_reg: SocRegistersInternal,
 }
@@ -102,6 +103,7 @@ impl Context {
             rdata0: None,
             rdata1: None,
             fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
+            error_injection: false,
             dai_error: false,
             soc_reg,
         }
@@ -234,18 +236,24 @@ impl StateMachineContext for Context {
             let is_marker_or_digest =
                 matches!(addr, 64 | 72 | 88 | 96 | 112 | 120 | 136 | 144 | 160 | 168);
 
-            // Zeroize the word at the address (set to 0xFFFFFFFF)
-            self.fuse_bank[idx] = 0xFFFFFFFF;
+            let zeroize_val = if self.error_injection {
+                0xEEEEEEEE
+            } else {
+                0xFFFFFFFF
+            };
+
+            // Zeroize the word at the address (set to zeroize_val)
+            self.fuse_bank[idx] = zeroize_val;
 
             // Set rdata0 to show zeroized value
-            self.rdata0 = Some(0xFFFFFFFF);
+            self.rdata0 = Some(zeroize_val);
 
             // For 64-bit granularity OR marker/digest addresses, also zeroize the next word
             if (self.granularity() == Granularity::Bits64 || is_marker_or_digest)
                 && idx + 1 < self.fuse_bank.len()
             {
-                self.fuse_bank[idx + 1] = 0xFFFFFFFF;
-                self.rdata1 = Some(0xFFFFFFFF);
+                self.fuse_bank[idx + 1] = zeroize_val;
+                self.rdata1 = Some(zeroize_val);
             }
 
             // Reset address after command is handled
@@ -372,5 +380,9 @@ impl FuseController {
 
     pub fn read_rdata1(&self, _size: RvSize) -> Result<u32, BusError> {
         Ok(self.state_machine.context.rdata1.unwrap_or(0))
+    }
+
+    pub fn set_error_injection(&mut self, enable: bool) {
+        self.state_machine.context.error_injection = enable;
     }
 }
