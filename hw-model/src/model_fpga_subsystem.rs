@@ -9,32 +9,35 @@ use crate::fpga_regs::{
     Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
     ItrngFifoStatus, WrapperRegs,
 };
-use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
+use crate::jtag::CaliptraCoreReg;
+use crate::keys::DEFAULT_LIFECYCLE_RAW_TOKENS;
 use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, otp_generate_linear_majority_vote,
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
-    LifecycleControllerState, OtpSwManufPartition,
+    LifecycleControllerState, ManufDebugUnlockToken, OtpSwManufPartition,
 };
 use crate::xi3c::XI3cError;
 use crate::{
     xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
 };
 use crate::{OcpLockState, SecurityState};
-use anyhow::Result;
+use anyhow::{anyhow, bail, Context, Result};
+use caliptra_api::mailbox::CommandId;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
+use sha2::{Digest, Sha384};
 use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use uio::{UioDevice, UioError};
 use zerocopy::{FromBytes, IntoBytes};
@@ -50,6 +53,7 @@ const MCU_ROM_MAPPING: (usize, usize) = (1, 1);
 const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
+const JTAG_MAILBOX_TIMEOUT: Duration = Duration::from_secs(1);
 
 // Default flash size: 16MB each, initialized to 0xFF
 const DEFAULT_FLASH_SIZE: usize = 16 * 1024 * 1024;
@@ -459,6 +463,8 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
+    debug_unlock_pending: bool,
+    pending_debug_service_req: u32,
 
     // Saved init params needed for cold_reset re-initialization
     saved_input_wires: [u32; 2],
@@ -467,8 +473,10 @@ pub struct ModelFpgaSubsystem {
     saved_raw_unlock_token_hash: [u32; 4],
     saved_rma_or_scrap_ppd: bool,
     saved_debug_intent: bool,
+    saved_dbg_manuf_service: u32,
     saved_prod_dbg_unlock_pk_hashes_offset: u32,
     saved_num_prod_dbg_unlock_pk_hashes: u32,
+    saved_prod_dbg_unlock_pk_hashes: [[u8; 48]; 8],
     saved_ocp_lock_en: bool,
     saved_security_state: SecurityState,
     saved_lc_state: Option<LifecycleControllerState>,
@@ -562,7 +570,14 @@ impl ModelFpgaSubsystem {
             input_wires[0], input_wires[1]
         );
         self.set_generic_input_wires(&input_wires);
-        self.set_mci_generic_input_wires(&[0, 0]);
+        let mci_input_wires = if self.saved_dbg_manuf_service != 0 {
+            // Match caliptra-mcu-sw JTAG debug-unlock setup. MCU ROM samples
+            // these wires very early, before HwModel::boot() is called.
+            [0, 0xc000_0000]
+        } else {
+            [0, 0]
+        };
+        self.set_mci_generic_input_wires(&mci_input_wires);
 
         println!("Set itrng divider");
         self.set_itrng_divider(ITRNG_DIVISOR);
@@ -625,6 +640,19 @@ impl ModelFpgaSubsystem {
 
         println!("Taking subsystem out of reset");
         self.set_subsystem_reset(false);
+
+        let prod_dbg_hashes = self.saved_prod_dbg_unlock_pk_hashes;
+        let mci = self.mci();
+        for (level, hash) in prod_dbg_hashes.iter().enumerate() {
+            for (word, chunk) in hash.chunks_exact(4).enumerate() {
+                mci.prod_debug_unlock_pk_hash_reg()
+                    .get(level)
+                    .unwrap()
+                    .get(word)
+                    .unwrap()
+                    .write(|_| u32::from_le_bytes(chunk.try_into().unwrap()));
+            }
+        }
     }
 
     pub fn set_subsystem_reset(&mut self, reset: bool) {
@@ -1573,14 +1601,15 @@ impl ModelFpgaSubsystem {
 
         // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
         println!("Provisioning SW_TEST_UNLOCK partition.");
-        let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
+        let token =
+            ManufDebugUnlockToken(caliptra_hw_model_types::DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN);
+        let mem = otp_generate_manuf_debug_unlock_token_mem(&token)?;
         let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
         otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         // Provision default SW_MANUF partition.
-        // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
-        // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
         println!("Provisioning SW_MANUF partition.");
+        let prod_dbg_hashes = self.saved_prod_dbg_unlock_pk_hashes;
         let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
             anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
             idevid_cert_attr: self
@@ -1601,6 +1630,14 @@ impl ModelFpgaSubsystem {
                     .unwrap(),
             ),
             stepping_id: self.fuses.soc_stepping_id as u32,
+            prod_debug_unlock_pks_0: prod_dbg_hashes[0],
+            prod_debug_unlock_pks_1: prod_dbg_hashes[1],
+            prod_debug_unlock_pks_2: prod_dbg_hashes[2],
+            prod_debug_unlock_pks_3: prod_dbg_hashes[3],
+            prod_debug_unlock_pks_4: prod_dbg_hashes[4],
+            prod_debug_unlock_pks_5: prod_dbg_hashes[5],
+            prod_debug_unlock_pks_6: prod_dbg_hashes[6],
+            prod_debug_unlock_pks_7: prod_dbg_hashes[7],
             ..Default::default()
         })?;
         let offset = OTP_SW_MANUF_PARTITION_OFFSET;
@@ -1794,6 +1831,211 @@ impl ModelFpgaSubsystem {
         Ok(OpenOcdJtagTap::new(params, tap)?)
     }
 
+    fn jtag_params() -> JtagParams {
+        JtagParams {
+            openocd: std::path::PathBuf::from("openocd"),
+            adapter_speed_khz: 1000,
+            log_stdio: true,
+        }
+    }
+
+    fn with_core_jtag_tap<T>(
+        &mut self,
+        f: impl FnOnce(&mut OpenOcdJtagTap) -> Result<T>,
+    ) -> Result<T> {
+        let params = Self::jtag_params();
+        let mut tap = self.jtag_tap_connect(&params, JtagTap::CaliptraCoreTap)?;
+        f(&mut tap)
+    }
+
+    pub fn jtag_write_debug_service_req(&mut self, value: u32) -> Result<()> {
+        self.with_core_jtag_tap(|tap| {
+            tap.write_reg(&CaliptraCoreReg::SsDbgManufServiceRegReq, value)
+                .context("write SsDbgManufServiceRegReq")
+        })?;
+        self.debug_unlock_pending = value != 0;
+        Ok(())
+    }
+
+    pub fn jtag_release_bootfsm_break(&mut self) -> Result<()> {
+        self.with_core_jtag_tap(|tap| {
+            tap.write_reg(&CaliptraCoreReg::BootfsmGo, 1)
+                .context("write BootfsmGo")
+        })
+    }
+
+    fn jtag_acquire_caliptra_mailbox_lock(tap: &mut OpenOcdJtagTap) -> Result<()> {
+        let start = SystemTime::now();
+        while start.elapsed()? < JTAG_MAILBOX_TIMEOUT {
+            let lock = tap.read_reg(&CaliptraCoreReg::MboxLock)?;
+            if (lock & 1) == 0 {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        bail!("timeout waiting to acquire Caliptra Core mailbox over JTAG")
+    }
+
+    fn jtag_wait_for_caliptra_mailbox_resp(tap: &mut OpenOcdJtagTap) -> Result<u32> {
+        let start = SystemTime::now();
+        while start.elapsed()? < JTAG_MAILBOX_TIMEOUT {
+            let status = tap.read_reg(&CaliptraCoreReg::MboxStatus)? & 0xf;
+            if status != 0 {
+                return Ok(status);
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        bail!("timeout waiting for Caliptra Core mailbox response over JTAG")
+    }
+
+    fn jtag_wait_for_debug_mailbox_available(tap: &mut OpenOcdJtagTap) -> Result<()> {
+        let start = SystemTime::now();
+        while start.elapsed()? < Duration::from_secs(60) {
+            let rsp = tap.read_reg(&CaliptraCoreReg::SsDbgManufServiceRegRsp)?;
+            if rsp & 0x200 != 0 {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        bail!("timeout waiting for Caliptra debug mailbox to become available over JTAG")
+    }
+
+    fn jtag_wait_for_debug_unlock_complete(tap: &mut OpenOcdJtagTap) -> Result<u32> {
+        let start = SystemTime::now();
+        while start.elapsed()? < Duration::from_secs(60) {
+            let rsp = tap.read_reg(&CaliptraCoreReg::SsDbgManufServiceRegRsp)?;
+            if rsp & (0x4 | 0x20) == 0 {
+                return Ok(rsp);
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        bail!("timeout waiting for Caliptra debug unlock to complete over JTAG")
+    }
+
+    pub fn jtag_mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        let params = Self::jtag_params();
+        let mut tap = self
+            .jtag_tap_connect(&params, JtagTap::CaliptraCoreTap)
+            .map_err(|_| ModelError::UnableToReadMailbox)?;
+
+        (|| -> Result<std::result::Result<Option<Vec<u8>>, ModelError>> {
+            // Debug-unlock flows enter with BOOTFSM break asserted. Program the
+            // request bit over JTAG, then release Caliptra and wait until ROM/runtime
+            // exposes the JTAG mailbox path. This mirrors caliptra-mcu-sw's tests.
+            if self.pending_debug_service_req != 0 {
+                tap.write_reg(
+                    &CaliptraCoreReg::SsDbgManufServiceRegReq,
+                    self.pending_debug_service_req,
+                )
+                .context("write SsDbgManufServiceRegReq")?;
+                self.debug_unlock_pending = true;
+                self.pending_debug_service_req = 0;
+            }
+            tap.write_reg(&CaliptraCoreReg::BootfsmGo, 1)
+                .context("write BootfsmGo")?;
+            Self::jtag_wait_for_debug_mailbox_available(&mut tap)?;
+            Self::jtag_acquire_caliptra_mailbox_lock(&mut tap)?;
+            tap.write_reg(&CaliptraCoreReg::MboxCmd, cmd)
+                .context("write MboxCmd")?;
+            tap.write_reg(&CaliptraCoreReg::MboxDlen, buf.len() as u32)
+                .context("write MboxDlen")?;
+            let word_payload = <[u32]>::ref_from_bytes(buf)
+                .map_err(|_| anyhow!("JTAG mailbox payload length must be word-aligned"))?;
+            for word in word_payload {
+                tap.write_reg(&CaliptraCoreReg::MboxDin, *word)
+                    .context("write payload word")?;
+            }
+            tap.write_reg(&CaliptraCoreReg::MboxExecute, 1)
+                .context("set MboxExecute")?;
+
+            let status = Self::jtag_wait_for_caliptra_mailbox_resp(&mut tap)?;
+            match status {
+                1 => {
+                    let len = tap.read_reg(&CaliptraCoreReg::MboxDlen)? as usize;
+                    let mut rsp = vec![0; len];
+                    for i in 0..len / 4 {
+                        let word = tap.read_reg(&CaliptraCoreReg::MboxDout)?;
+                        rsp[i * 4..i * 4 + 4].copy_from_slice(word.as_bytes());
+                    }
+                    tap.write_reg(&CaliptraCoreReg::MboxExecute, 0)
+                        .context("clear MboxExecute")?;
+                    if self.debug_unlock_pending && Self::debug_unlock_completes_after_cmd(cmd) {
+                        let dbg_rsp = Self::jtag_wait_for_debug_unlock_complete(&mut tap)?;
+                        self.debug_unlock_pending = false;
+                        if !Self::is_debug_unlock_cmd(cmd) {
+                            if dbg_rsp & 0x2 != 0 {
+                                return Ok(Err(ModelError::MailboxCmdFailed(0xa000_0001)));
+                            }
+                            if dbg_rsp & 0x10 != 0 {
+                                return Ok(Err(ModelError::MailboxCmdFailed(0xa000_0003)));
+                            }
+                        }
+                    }
+                    Ok(Ok(Some(rsp)))
+                }
+                2 => {
+                    tap.write_reg(&CaliptraCoreReg::MboxExecute, 0)
+                        .context("clear MboxExecute")?;
+                    if self.debug_unlock_pending && Self::debug_unlock_completes_after_cmd(cmd) {
+                        let dbg_rsp = Self::jtag_wait_for_debug_unlock_complete(&mut tap)?;
+                        self.debug_unlock_pending = false;
+                        if !Self::is_debug_unlock_cmd(cmd) {
+                            if dbg_rsp & 0x2 != 0 {
+                                return Ok(Err(ModelError::MailboxCmdFailed(0xa000_0001)));
+                            }
+                            if dbg_rsp & 0x10 != 0 {
+                                return Ok(Err(ModelError::MailboxCmdFailed(0xa000_0003)));
+                            }
+                        }
+                    }
+                    Ok(Ok(None))
+                }
+                3 => {
+                    tap.write_reg(&CaliptraCoreReg::MboxExecute, 0)
+                        .context("clear MboxExecute")?;
+                    let fatal = self.soc_ifc().cptra_fw_error_fatal().read();
+                    let non_fatal = self.soc_ifc().cptra_fw_error_non_fatal().read();
+                    Ok(Err(ModelError::MailboxCmdFailed(if fatal != 0 {
+                        fatal
+                    } else {
+                        non_fatal
+                    })))
+                }
+                _ => Ok(Err(ModelError::UnknownCommandStatus(status))),
+            }
+        })()
+        .map_err(|_| ModelError::UnableToReadMailbox)?
+    }
+
+    fn is_debug_unlock_cmd(cmd: u32) -> bool {
+        cmd == u32::from(CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN)
+            || cmd == u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ)
+            || cmd == u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN)
+    }
+
+    fn debug_unlock_completes_after_cmd(cmd: u32) -> bool {
+        cmd != u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ)
+    }
+
+    fn fake_rom_prod_en_needed(&self) -> bool {
+        matches!(
+            self.saved_lc_state,
+            Some(LifecycleControllerState::Prod | LifecycleControllerState::ProdEnd)
+        ) || self.saved_security_state.device_lifecycle() == DeviceLifecycle::Production
+    }
+
+    fn debug_service_req_with_fake_rom_prod_en(&self, value: u32) -> u32 {
+        if value != 0 && self.fake_rom_prod_en_needed() {
+            value | (1 << 30)
+        } else {
+            value
+        }
+    }
+
     fn otp_status(&mut self) -> u32 {
         u32::from(self.mmio.otp().unwrap().status().read())
     }
@@ -1801,6 +2043,18 @@ impl ModelFpgaSubsystem {
 
 impl HwModel for ModelFpgaSubsystem {
     type TBus<'a> = FpgaRealtimeBus<'a>;
+
+    fn mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        if self.debug_unlock_pending || Self::is_debug_unlock_cmd(cmd) {
+            return self.jtag_mailbox_execute(cmd, buf);
+        }
+        self.start_mailbox_execute(cmd, buf)?;
+        self.finish_mailbox_execute()
+    }
 
     fn trng_mode(&self) -> TrngMode {
         TrngMode::Internal
@@ -1918,6 +2172,43 @@ impl HwModel for ModelFpgaSubsystem {
         );
 
         let saved_input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 0, 0];
+        let prod_dbg_unlock_pk_hashes_offset =
+            if params.ss_init_params.prod_dbg_unlock_pk_hashes_offset != 0 {
+                params.ss_init_params.prod_dbg_unlock_pk_hashes_offset
+            } else {
+                0x480
+            };
+        let num_prod_dbg_unlock_pk_hashes =
+            if params.ss_init_params.num_prod_dbg_unlock_pk_hashes != 0 {
+                params.ss_init_params.num_prod_dbg_unlock_pk_hashes
+            } else {
+                params.prod_dbg_unlock_keypairs.len() as u32
+            };
+        let mut saved_prod_dbg_unlock_pk_hashes = {
+            let default_partition = OtpSwManufPartition::default();
+            [
+                default_partition.prod_debug_unlock_pks_0,
+                default_partition.prod_debug_unlock_pks_1,
+                default_partition.prod_debug_unlock_pks_2,
+                default_partition.prod_debug_unlock_pks_3,
+                default_partition.prod_debug_unlock_pks_4,
+                default_partition.prod_debug_unlock_pks_5,
+                default_partition.prod_debug_unlock_pks_6,
+                default_partition.prod_debug_unlock_pks_7,
+            ]
+        };
+        for (i, (ecc_pub_key, mldsa_pub_key)) in
+            params.prod_dbg_unlock_keypairs.iter().take(8).enumerate()
+        {
+            let mut hasher = Sha384::new();
+            hasher.update(ecc_pub_key.as_slice());
+            hasher.update(mldsa_pub_key.as_slice());
+            let mut hash: [u8; 48] = hasher.finalize().into();
+            for chunk in hash.chunks_mut(4) {
+                chunk.reverse();
+            }
+            saved_prod_dbg_unlock_pk_hashes[i] = hash;
+        }
 
         let mut m = Self {
             devs,
@@ -1956,7 +2247,7 @@ impl HwModel for ModelFpgaSubsystem {
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
             enable_mcu_uart_log: params.ss_init_params.enable_mcu_uart_log,
-            bootfsm_break: params.bootfsm_break,
+            bootfsm_break: params.bootfsm_break || u32::from(params.dbg_manuf_service) != 0,
             rom_callback: params.rom_callback,
             primary_flash: params
                 .ss_init_params
@@ -1975,6 +2266,8 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
+            debug_unlock_pending: false,
+            pending_debug_service_req: 0,
 
             saved_input_wires,
             saved_cptra_obf_key: params.cptra_obf_key,
@@ -1982,12 +2275,10 @@ impl HwModel for ModelFpgaSubsystem {
             saved_raw_unlock_token_hash: params.ss_init_params.raw_unlock_token_hash,
             saved_rma_or_scrap_ppd: params.ss_init_params.rma_or_scrap_ppd,
             saved_debug_intent: params.debug_intent,
-            saved_prod_dbg_unlock_pk_hashes_offset: params
-                .ss_init_params
-                .prod_dbg_unlock_pk_hashes_offset,
-            saved_num_prod_dbg_unlock_pk_hashes: params
-                .ss_init_params
-                .num_prod_dbg_unlock_pk_hashes,
+            saved_dbg_manuf_service: u32::from(params.dbg_manuf_service),
+            saved_prod_dbg_unlock_pk_hashes_offset: prod_dbg_unlock_pk_hashes_offset,
+            saved_num_prod_dbg_unlock_pk_hashes: num_prod_dbg_unlock_pk_hashes,
+            saved_prod_dbg_unlock_pk_hashes,
             saved_ocp_lock_en: params.ocp_lock_en,
             saved_security_state: params.security_state,
             saved_lc_state: params.ss_init_params.lc_state,
@@ -2051,11 +2342,18 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
-        // Set soc_ifc settings before MCU ROM sets fuses
-        if boot_params.initial_dbg_manuf_service_reg != 0 {
+        let dbg_service_req = if boot_params.initial_dbg_manuf_service_reg != 0 {
+            boot_params.initial_dbg_manuf_service_reg
+        } else {
+            self.saved_dbg_manuf_service
+        };
+        let jtag_dbg_service_req = self.debug_service_req_with_fake_rom_prod_en(dbg_service_req);
+        if jtag_dbg_service_req != dbg_service_req {
+            // Fake ROM checks this bit before the Core TAP is reachable. The actual
+            // debug-unlock request bit is still written through JTAG below.
             self.soc_ifc()
                 .cptra_dbg_manuf_service_reg()
-                .write(|_| boot_params.initial_dbg_manuf_service_reg);
+                .write(|_| jtag_dbg_service_req & (1 << 30));
         }
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
@@ -2064,8 +2362,15 @@ impl HwModel for ModelFpgaSubsystem {
 
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
-        // Notify MCU ROM it can start loading the fuse registers
+        // Notify MCU ROM it can start loading the fuse registers.
+        // For debug-unlock flows, also set bit 31 before connecting JTAG to match
+        // caliptra-mcu-sw's JTAG setup (`set_mcu_generic_input_wires(&[0, 0xc000_0000])`).
         let val = current | 1 << 30;
+        let val = if dbg_service_req != 0 {
+            val | 1 << 31
+        } else {
+            val
+        };
         // Notify MCU ROM whether or not we are going to flash boot
         let val = if self.flash_boot {
             val | 1 << 29
@@ -2099,13 +2404,27 @@ impl HwModel for ModelFpgaSubsystem {
             }
         }
 
+        // Set debug-unlock service requests through JTAG after MCU ROM has
+        // advanced subsystem boot far enough for the Caliptra Core TAP to be
+        // reachable. This matches caliptra-mcu-sw's FPGA JTAG tests.
+        if dbg_service_req != 0 {
+            self.pending_debug_service_req = jtag_dbg_service_req;
+            self.debug_unlock_pending = true;
+            // Do not continue the normal boot wait path while BootFSM is intentionally
+            // held. The next mailbox_execute() will program the request bit, release
+            // BootFSM over JTAG, and drive the debug-unlock mailbox flow, matching
+            // caliptra-mcu-sw's JTAG tests.
+            return Ok(());
+        }
+
         // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
         // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
         // the BOOT_WAIT state according to the cptra_flow_status register.
         //
         // We make this dependent on bootfsm_break, which is used to halt boot flows, e.g., for
-        // entering debug unlock modes.
-        if !self.bootfsm_break {
+        // entering debug unlock modes. A debug service request supplied via BootParams also
+        // requires the JTAG path to release BootFSM later, after the request bit is set.
+        if !self.bootfsm_break && dbg_service_req == 0 {
             println!("writing to cptra_bootfsm_go");
             self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
         }

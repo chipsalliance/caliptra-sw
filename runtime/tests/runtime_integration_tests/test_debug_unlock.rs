@@ -17,8 +17,8 @@ use caliptra_common::{
 };
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{
-    CodeRange, DeviceLifecycle, HwModel, ImageInfo, InitParams, ModelError, SecurityState,
-    StackInfo, StackRange, SubsystemInitParams,
+    CodeRange, DefaultHwModel, DeviceLifecycle, HwModel, ImageInfo, InitParams, ModelError,
+    SecurityState, StackInfo, StackRange, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
@@ -50,8 +50,19 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
+fn set_prod_debug_unlock_req(model: &mut DefaultHwModel) {
+    #[cfg(feature = "fpga_subsystem")]
+    model.jtag_write_debug_service_req(0x2).unwrap();
+
+    #[cfg(not(feature = "fpga_subsystem"))]
+    model
+        .soc_ifc()
+        .ss_dbg_service_reg_req()
+        .write(|w| w.prod_dbg_unlock_req(true));
+}
+
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_success() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -112,12 +123,15 @@ fn test_dbg_unlock_prod_success() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -130,17 +144,14 @@ fn test_dbg_unlock_prod_success() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -266,7 +277,7 @@ fn test_dbg_unlock_prod_success() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -327,12 +338,15 @@ fn test_dbg_unlock_prod_invalid_length() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -345,17 +359,14 @@ fn test_dbg_unlock_prod_invalid_length() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: 123u32, // Set an incorrect length
@@ -384,7 +395,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -445,12 +456,15 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -463,17 +477,14 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -544,7 +555,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_token_udi() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -603,12 +614,15 @@ fn test_dbg_unlock_prod_invalid_token_udi() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -621,16 +635,13 @@ fn test_dbg_unlock_prod_invalid_token_udi() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -814,12 +825,15 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -832,17 +846,14 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -977,12 +988,15 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -995,17 +1009,14 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
     let mut model = run_rt_test(runtime_args);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -1033,7 +1044,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
 }
 
 #[test]
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_success() {
     for unlock_level in 1..=8 {
         println!("unlock_level: {}", unlock_level);
@@ -1095,12 +1106,15 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             ..Default::default()
         };
 
-        let mcu_fw = vec![1, 2, 3, 4];
+        #[cfg(feature = "fpga_subsystem")]
+        let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+        #[cfg(not(feature = "fpga_subsystem"))]
+        let mcu_fw = &[1, 2, 3, 4][..];
         const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
         let mut flags = ImageMetadataFlags(0);
         flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
         let crypto = Crypto::default();
-        let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+        let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
         let metadata = vec![AuthManifestImageMetadata {
             fw_id: 2,
             flags: flags.0,
@@ -1113,17 +1127,14 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         let runtime_args = RuntimeTestArgs {
             init_params: Some(init_params),
             soc_manifest: Some(soc_manifest),
-            mcu_fw_image: Some(&mcu_fw),
+            mcu_fw_image: Some(mcu_fw),
             ..Default::default()
         };
 
         let mut model = run_rt_test(runtime_args);
 
         // Set the request bit
-        model
-            .soc_ifc()
-            .ss_dbg_service_reg_req()
-            .write(|w| w.prod_dbg_unlock_req(true));
+        set_prod_debug_unlock_req(&mut model);
 
         let request = ProductionAuthDebugUnlockReq {
             length: {
@@ -1309,12 +1320,15 @@ fn test_dbg_unlock_prod_disabled_all_ones_pk_hash() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -1327,7 +1341,7 @@ fn test_dbg_unlock_prod_disabled_all_ones_pk_hash() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
@@ -1339,10 +1353,7 @@ fn test_dbg_unlock_prod_disabled_all_ones_pk_hash() {
         .set_raw_fuse_hash((unlock_level - 1) as usize, &[0xFFFF_FFFFu32; 12]);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -1434,12 +1445,15 @@ fn test_dbg_unlock_prod_disabled_all_zeros_pk_hash() {
         ..Default::default()
     };
 
-    let mcu_fw = vec![1, 2, 3, 4];
+    #[cfg(feature = "fpga_subsystem")]
+    let mcu_fw = &crate::common::DEFAULT_MCU_FW[..];
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_fw = &[1, 2, 3, 4][..];
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
     flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
     let crypto = Crypto::default();
-    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let digest = from_hw_format(&crypto.sha384_digest(mcu_fw).unwrap());
     let metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: flags.0,
@@ -1452,7 +1466,7 @@ fn test_dbg_unlock_prod_disabled_all_zeros_pk_hash() {
     let runtime_args = RuntimeTestArgs {
         init_params: Some(init_params),
         soc_manifest: Some(soc_manifest),
-        mcu_fw_image: Some(&mcu_fw),
+        mcu_fw_image: Some(mcu_fw),
         ..Default::default()
     };
 
@@ -1465,10 +1479,7 @@ fn test_dbg_unlock_prod_disabled_all_zeros_pk_hash() {
         .set_raw_fuse_hash((unlock_level - 1) as usize, &[0u32; 12]);
 
     // Set the request bit
-    model
-        .soc_ifc()
-        .ss_dbg_service_reg_req()
-        .write(|w| w.prod_dbg_unlock_req(true));
+    set_prod_debug_unlock_req(&mut model);
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
