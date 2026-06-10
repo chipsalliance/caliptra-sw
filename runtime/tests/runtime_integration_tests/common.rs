@@ -9,10 +9,7 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_builder::{
-    firmware::{
-        APP_WITH_UART, APP_WITH_UART_FPGA, APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA,
-        FMC_WITH_UART,
-    },
+    firmware::{APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::{
@@ -232,11 +229,10 @@ pub fn start_rt_test_pqc_model(
 ) -> (DefaultHwModel, ImageBundle) {
     let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
     let ocp_lock = args.ocp_lock_en || cfg!(feature = "ocp-lock");
-    let default_rt_fwid = match (fpga, ocp_lock) {
-        (false, false) => &APP_WITH_UART,
-        (true, false) => &APP_WITH_UART_FPGA,
-        (false, true) => &APP_WITH_UART_OCP_LOCK,
-        (true, true) => &APP_WITH_UART_OCP_LOCK_FPGA,
+    let default_rt_fwid = if fpga {
+        &APP_WITH_UART_OCP_LOCK_FPGA
+    } else {
+        &APP_WITH_UART_OCP_LOCK
     };
 
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
