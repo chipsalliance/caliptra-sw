@@ -360,7 +360,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
 dependencies = [
  "bitflags 2.4.0",
  "caliptra-cfi-derive",
@@ -377,7 +377,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -390,7 +390,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=a174f337998359080d5396fc84a5ee2ada4ae83a#a174f337998359080d5396fc84a5ee2ada4ae83a"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
