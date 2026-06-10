@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::mem::ManuallyDrop;
-
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::CaliptraResult;
 use caliptra_api::mailbox::{
@@ -55,11 +53,24 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     }
 }
 
+fn start_debug_unlock(env: &mut RomEnv) {
+    env.soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(true);
+    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+}
+
+fn finish_debug_unlock(env: &mut RomEnv, response_sent: bool) {
+    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    if response_sent {
+        env.mbox.wait_until_idle();
+        env.soc_ifc.set_ss_dbg_unlock_tap_mailbox_available(false);
+    }
+}
+
 fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_manuf] ++");
 
     // Set debug unlock in progress and unlock the mailbox for tap access.
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+    start_debug_unlock(env);
 
     let mbox = &mut env.mbox;
     let txn = loop {
@@ -77,7 +88,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?;
     }
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+    let mut txn = txn.start_txn();
 
     let result = (|| {
         // Get command bytes and verify checksum
@@ -115,7 +126,8 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         }
     }
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    drop(txn);
+    finish_debug_unlock(env, true);
 
     cprintln!("[dbg_manuf] --");
     result
@@ -123,123 +135,145 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
 fn handle_auth_debug_unlock_request(
     env: &mut RomEnv,
-) -> CaliptraResult<(
-    ProductionAuthDebugUnlockReq,
-    ProductionAuthDebugUnlockChallenge,
-)> {
-    let mbox = &mut env.mbox;
-    let txn = loop {
-        // Random delay for CFI glitch protection.
-        CfiCounter::delay();
+) -> (
+    CaliptraResult<(
+        ProductionAuthDebugUnlockReq,
+        ProductionAuthDebugUnlockChallenge,
+    )>,
+    bool,
+) {
+    let mut response_sent = false;
+    let result = (|| {
+        let mbox = &mut env.mbox;
+        let txn = loop {
+            // Random delay for CFI glitch protection.
+            CfiCounter::delay();
 
-        match mbox.peek_recv() {
-            Some(txn) => break txn,
-            None => continue,
+            match mbox.peek_recv() {
+                Some(txn) => break txn,
+                None => continue,
+            }
+        };
+
+        if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ {
+            Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
         }
-    };
 
-    if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ {
-        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
-    }
+        let mut txn = txn.start_txn();
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+        // Get command bytes and verify checksum
+        let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
 
-    // Get command bytes and verify checksum
-    let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
-
-    // Copy request data since it needs to persist
-    let mut request = ProductionAuthDebugUnlockReq::default();
-    let request_bytes = request.as_mut_bytes();
-    if cmd_bytes.len() != request_bytes.len() {
-        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-    }
-    request_bytes.copy_from_slice(cmd_bytes);
-
-    // Use common function to create challenge
-    let challenge = debug_unlock::create_debug_unlock_challenge(
-        &mut env.trng,
-        &env.soc_ifc,
-        &mut env.dma,
-        &request,
-    );
-
-    // Send response
-    match challenge {
-        Err(err) => {
-            txn.send_response(MailboxRespHeader::default().as_bytes())?;
-            Err(err)
+        // Copy request data since it needs to persist
+        let mut request = ProductionAuthDebugUnlockReq::default();
+        let request_bytes = request.as_mut_bytes();
+        if cmd_bytes.len() != request_bytes.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
         }
-        Ok(challenge_resp) => {
-            txn.send_response(challenge_resp.as_bytes())?;
-            Ok((request, challenge_resp))
+        request_bytes.copy_from_slice(cmd_bytes);
+
+        // Use common function to create challenge
+        let challenge = debug_unlock::create_debug_unlock_challenge(
+            &mut env.trng,
+            &env.soc_ifc,
+            &mut env.dma,
+            &request,
+        );
+
+        // Send response
+        match challenge {
+            Err(err) => {
+                txn.send_response(MailboxRespHeader::default().as_bytes())?;
+                response_sent = true;
+                Err(err)
+            }
+            Ok(challenge_resp) => {
+                txn.send_response(challenge_resp.as_bytes())?;
+                response_sent = true;
+                Ok((request, challenge_resp))
+            }
         }
-    }
+    })();
+    (result, response_sent)
 }
 
 fn handle_auth_debug_unlock_token(
     env: &mut RomEnv,
     request: &ProductionAuthDebugUnlockReq,
     challenge: &ProductionAuthDebugUnlockChallenge,
-) -> CaliptraResult<()> {
-    let mbox = &mut env.mbox;
-    let txn = loop {
-        // Random delay for CFI glitch protection.
-        CfiCounter::delay();
+) -> (CaliptraResult<()>, bool) {
+    let mut response_sent = false;
+    let result = (|| {
+        let mbox = &mut env.mbox;
+        let txn = loop {
+            // Random delay for CFI glitch protection.
+            CfiCounter::delay();
 
-        match mbox.peek_recv() {
-            Some(txn) => break txn,
-            None => continue,
+            match mbox.peek_recv() {
+                Some(txn) => break txn,
+                None => continue,
+            }
+        };
+
+        if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN {
+            Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
         }
-    };
 
-    if CommandId::from(txn.cmd()) != CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN {
-        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
-    }
+        let mut txn = txn.start_txn();
 
-    let mut txn = ManuallyDrop::new(txn.start_txn());
+        // Get command bytes and verify checksum
+        let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
 
-    // Get command bytes and verify checksum
-    let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
+        // Copy token data
+        let mut token = ProductionAuthDebugUnlockToken::default();
+        let token_bytes = token.as_mut_bytes();
+        if cmd_bytes.len() != token_bytes.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+        }
+        token_bytes.copy_from_slice(cmd_bytes);
 
-    // Copy token data
-    let mut token = ProductionAuthDebugUnlockToken::default();
-    let token_bytes = token.as_mut_bytes();
-    if cmd_bytes.len() != token_bytes.len() {
-        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-    }
-    token_bytes.copy_from_slice(cmd_bytes);
+        // Use common validation function
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            debug_unlock::validate_debug_unlock_token(
+                &env.soc_ifc,
+                &mut env.sha2_512_384,
+                &mut env.ecc384,
+                &mut mldsa87,
+                &mut env.dma,
+                request,
+                challenge,
+                &token,
+            )
+        });
 
-    // Use common validation function
-    let result = env.abr.with_mldsa87(|mut mldsa87| {
-        debug_unlock::validate_debug_unlock_token(
-            &env.soc_ifc,
-            &mut env.sha2_512_384,
-            &mut env.ecc384,
-            &mut mldsa87,
-            &mut env.dma,
-            request,
-            challenge,
-            &token,
-        )
-    });
-
-    // Send response
-    let _ = txn.send_response(MailboxRespHeader::default().as_bytes());
-    result
+        // Send response
+        if txn
+            .send_response(MailboxRespHeader::default().as_bytes())
+            .is_ok()
+        {
+            response_sent = true;
+        }
+        result
+    })();
+    (result, response_sent)
 }
 
 fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_prod] ++");
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
+    start_debug_unlock(env);
 
-    let mut debug_unlock_op = || -> CaliptraResult<u8> {
-        let (request, challenge) = handle_auth_debug_unlock_request(env)?;
-        handle_auth_debug_unlock_token(env, &request, &challenge)?;
-        Ok(request.unlock_level)
+    let (result, response_sent) = match handle_auth_debug_unlock_request(env) {
+        (Ok((request, challenge)), request_response_sent) => {
+            let (token_result, token_response_sent) =
+                handle_auth_debug_unlock_token(env, &request, &challenge);
+            (
+                token_result.map(|_| request.unlock_level),
+                request_response_sent || token_response_sent,
+            )
+        }
+        (Err(err), response_sent) => (Err(err), response_sent),
     };
-
-    let result = debug_unlock_op();
     match result {
         Ok(unlock_level) => {
             env.soc_ifc.set_ss_dbg_unlock_level(unlock_level);
@@ -252,7 +286,7 @@ fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
             env.soc_ifc.set_ss_dbg_unlock_result(false);
         }
     }
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    finish_debug_unlock(env, response_sent);
 
     cprintln!("[dbg_prod] --");
     result.map(|_| ())

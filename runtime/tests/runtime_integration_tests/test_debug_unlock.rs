@@ -50,6 +50,30 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
+fn execute_debug_unlock_token(model: &mut impl HwModel, token: &[u8]) -> Result<(), ModelError> {
+    model.start_mailbox_execute(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(), token)?;
+
+    model.step_until(|m| !m.soc_mbox().status().read().status().cmd_busy());
+    let status = model.soc_mbox().status().read().status();
+    model.soc_mbox().execute().write(|w| w.execute(false));
+    model.step();
+
+    if status.cmd_failure() {
+        let soc_ifc = model.soc_ifc();
+        Err(ModelError::MailboxCmdFailed(
+            if soc_ifc.cptra_fw_error_fatal().read() != 0 {
+                soc_ifc.cptra_fw_error_fatal().read()
+            } else {
+                soc_ifc.cptra_fw_error_non_fatal().read()
+            },
+        ))
+    } else if status.cmd_complete() || status.data_ready() {
+        Ok(())
+    } else {
+        Err(ModelError::UnknownCommandStatus(status as u32))
+    }
+}
+
 #[test]
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_dbg_unlock_prod_success() {
@@ -231,12 +255,7 @@ fn test_dbg_unlock_prod_success() {
         ..token
     };
 
-    let _resp = model
-        .mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        )
-        .unwrap();
+    execute_debug_unlock_token(&mut model, token.as_bytes()).unwrap();
 
     model.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
@@ -526,10 +545,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         ..token
     };
 
-    let _ = model.mailbox_execute(
-        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-        token.as_bytes(),
-    );
+    let _ = execute_debug_unlock_token(&mut model, token.as_bytes());
 
     model.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
@@ -716,10 +732,7 @@ fn test_dbg_unlock_prod_invalid_token_udi() {
     };
 
     assert_eq!(
-        model.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        ),
+        execute_debug_unlock_token(&mut model, token.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE.into()
         ))
@@ -895,10 +908,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         ..token
     };
 
-    let _ = model.mailbox_execute(
-        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-        token.as_bytes(),
-    );
+    let _ = execute_debug_unlock_token(&mut model, token.as_bytes());
 
     model.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
@@ -1209,12 +1219,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             ..token
         };
 
-        let _resp = model
-            .mailbox_execute(
-                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-                token.as_bytes(),
-            )
-            .unwrap();
+        execute_debug_unlock_token(&mut model, token.as_bytes()).unwrap();
 
         model.step_until(|m| {
             let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
