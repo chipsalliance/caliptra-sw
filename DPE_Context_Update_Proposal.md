@@ -2,162 +2,183 @@
 
 ## Summary
 
-This proposal introduces three related changes:
+This proposal introduces two related changes:
 
-1. Deprecate `STASH_MEASUREMENT` as a standalone Runtime mailbox command and use `AUTHORIZE_AND_STASH` for authorization, stashing, and stash update flows.
-2. Support updating an already-stashed DPE measurement by `measurement_id`, including measurements stored in retired DPE contexts.
-3. Allow Runtime replay of ROM-originated stashed measurements even when the ROM measurement log contains duplicate `tci_type` values.
+1. Add v2 stash commands: `STASH_MEASUREMENT_V2`, which creates a stashed DPE measurement and returns a Runtime-generated 16-byte `measurement_handle`, and `AUTHORIZE_AND_STASH_V2`, which preserves the existing authorize-and-stash flow and returns a `measurement_handle` when it creates a stashed DPE measurement.
+2. Add `UPDATE_STASH`, a new mailbox command that takes a `measurement_handle` and updates the corresponding stashed DPE measurement.
 
-This proposal requires a narrowly scoped `caliptra-dpe` `DeriveContext` flag for ROM measurement log replay. Runtime will use that flag only for ROM-originated measurements that may have duplicate `tci_type` values. Runtime will handle `UPDATE_STASH` by directly updating the persisted DPE state stored in DCCM; no new DPE update command is required.
+The existing `STASH_MEASUREMENT` and `AUTHORIZE_AND_STASH` commands remain intact for compatibility. Runtime keeps a persistent side table that maps each valid `measurement_handle` to the DPE context index it identifies. `UPDATE_STASH` resolves the handle through that Runtime-owned table and updates the persisted DPE state stored in DCCM. No new public DPE update command is required.
 
-## 1. Deprecate `STASH_MEASUREMENT`
+## 1. Preserve Existing Commands
 
-`STASH_MEASUREMENT` should be retired as a standalone Runtime semantic path. New integrations should use `AUTHORIZE_AND_STASH` for both authorization and stashing.
-
-Today, both commands eventually provide the same key inputs to DPE `DeriveContext`. The existing Runtime command names this value `fw_id`, and the legacy `STASH_MEASUREMENT` command names this value `metadata`. The unified API should expose it as `measurement_id`:
+The current commands remain unchanged:
 
 ```text
-STASH_MEASUREMENT.metadata    -> measurement_id -> DPE DeriveContext.tci_type
+STASH_MEASUREMENT
+  Existing create-only stash command.
+  Existing request and response format remain unchanged.
+  Does not return a measurement_handle.
+  Measurements created by this command cannot be updated by UPDATE_STASH.
+
+AUTHORIZE_AND_STASH
+  Existing authorize-and-optional-stash command.
+  Existing request, response, and flags remain unchanged.
+  Does not return a measurement_handle.
+  Measurements created by this command cannot be updated by UPDATE_STASH.
+```
+
+New callers that need update support should use `STASH_MEASUREMENT_V2` or `AUTHORIZE_AND_STASH_V2`. Only measurements with a valid Runtime-issued `measurement_handle` are updatable.
+
+Today, `STASH_MEASUREMENT` and `AUTHORIZE_AND_STASH` both provide the same key inputs to DPE `DeriveContext`:
+
+```text
+STASH_MEASUREMENT.metadata    -> stash label -> DPE DeriveContext.tci_type
 STASH_MEASUREMENT.measurement -> DPE DeriveContext.data
 STASH_MEASUREMENT.svn         -> DPE DeriveContext.svn
 
-AUTHORIZE_AND_STASH.measurement_id -> Image Metadata Entry lookup key when authorization is requested
-AUTHORIZE_AND_STASH.measurement_id -> DPE DeriveContext.tci_type when stashing or updating
+AUTHORIZE_AND_STASH.fw_id -> Image Metadata Entry lookup key when authorization is requested
+AUTHORIZE_AND_STASH.fw_id -> stash label -> DPE DeriveContext.tci_type when stashing
 AUTHORIZE_AND_STASH.measurement or computed image digest -> DPE DeriveContext.data
-AUTHORIZE_AND_STASH.svn       -> DPE DeriveContext.svn
+AUTHORIZE_AND_STASH.svn   -> DPE DeriveContext.svn
 ```
 
-The measurement may represent firmware, configuration, policy, device state, or another measured object, so `fw_id` is too narrow for the new command semantics.
+The stash label may represent firmware, configuration, policy, device state, or another measured object. It is useful for DPE TCI typing and IME lookup, but it must not be used to select an existing context for update. It is caller-provided, predictable, and may be duplicated by ROM-originated measurements.
 
-In the proposed `AUTHORIZE_AND_STASH` request, `measurement_id` is the caller-provided measurement identifier and is used as the DPE `tci_type` for stash and update operations. When authorization is requested, Runtime will also use `measurement_id` to select the corresponding Image Metadata Entry (IME) in the Image Metadata Collection (IMC).
+## 2. `STASH_MEASUREMENT_V2`
 
-`STASH_MEASUREMENT` can remain temporarily as a compatibility wrapper that internally calls the same stash implementation as `AUTHORIZE_AND_STASH` with `SKIP_AUTH`. The command should be documented as deprecated rather than removed immediately.
+`STASH_MEASUREMENT_V2` should be the updatable version of `STASH_MEASUREMENT`.
 
-## Recommended `AUTHORIZE_AND_STASH` Flag Model
+The request should match `STASH_MEASUREMENT`:
+
+```text
+metadata: u8[4]
+measurement: u8[48]
+context: u8[48]
+svn: u32
+```
+
+The response should include the DPE result and a measurement handle:
+
+```text
+dpe_result: u32
+measurement_handle: u8[16]
+```
+
+On success, Runtime creates the stashed DPE context using the existing stash path, extends PCR31 as today, stores a fresh non-zero `measurement_handle` for the created context index, and returns the handle.
+
+On failure, Runtime returns an all-zero `measurement_handle`.
+
+Current ROM support for `STASH_MEASUREMENT_V2` is out of scope. Future ROMs may support `STASH_MEASUREMENT_V2` before Runtime is loaded, but that would require a ROM measurement log extension that records the generated `measurement_handle` so Runtime can install the handle-to-context-index mapping during replay.
+
+## 3. `AUTHORIZE_AND_STASH_V2`
+
+`AUTHORIZE_AND_STASH_V2` should be the updatable version of `AUTHORIZE_AND_STASH`.
+
+The request should match `AUTHORIZE_AND_STASH`:
+
+```text
+fw_id: u8[4]
+measurement: u8[48]
+context: u8[48]
+svn: u32
+flags: u32
+source: u32
+image_size: u32
+```
+
+The existing `SKIP_STASH` behavior should be preserved:
 
 ```text
 flags = 0
   authorize + create new stash context
-  preserves current AUTHORIZE_AND_STASH behavior
+  returns a newly generated measurement_handle when authorization succeeds
 
 SKIP_STASH
   authorize only
   no DPE context is created or updated
-
-SKIP_AUTH
-  create new stash context only
-  replacement for STASH_MEASUREMENT
-
-UPDATE_STASH
-  authorize + update existing stash context selected by measurement_id
-  updates an existing DPE context instead of creating a new one
-
-UPDATE_STASH | SKIP_AUTH
-  update existing stash context only
-  no Image Metadata Entry authorization is performed
-
-SKIP_AUTH | SKIP_STASH
-  invalid
-  no operation requested
-
-UPDATE_STASH | SKIP_STASH
-  invalid
-  UPDATE_STASH requests a DPE measurement update, while SKIP_STASH requests no DPE measurement operation
+  response measurement_handle is all zero
 
 Any reserved or undefined flag bit
   invalid
 ```
 
-When `UPDATE_STASH` is not set, stashing creates a new DPE context using the normal Runtime stash path. Runtime-created stash contexts continue to use regular DPE `DeriveContext`, where `tci_type` uniqueness is enforced.
-
-When `UPDATE_STASH` is set, the command updates an existing DPE context instead of creating a new one. The update path uses `measurement_id` as the DPE `tci_type`, same as the normal stash path.
-
-## 2. ROM Measurement Log Replay and Duplicate `tci_type` Values
-
-ROM also accepts `STASH_MEASUREMENT` requests. ROM does not create DPE contexts directly. Instead, ROM:
+The response should include the authorization result and the measurement handle:
 
 ```text
-1. Extends PCR31 with the measurement.
-2. Records the measurement in the ROM measurement log.
-3. Stores the request metadata in the measurement log entry.
+auth_req_result: u32
+measurement_handle: u8[16]
 ```
 
-Runtime later replays the ROM measurement log and creates the corresponding DPE contexts. During replay, the ROM measurement log entry metadata is treated as the `measurement_id` and used as the DPE `tci_type`.
+When authorization succeeds and stashing is not skipped, Runtime creates the stashed DPE context, stores a fresh non-zero `measurement_handle` for the created context index, and returns the handle.
 
-This creates a compatibility issue. ROM currently does not check whether the metadata value, now treated as `measurement_id`, is unique. Therefore, it is possible for ROM to successfully record multiple stashed measurements with the same metadata value, but for Runtime to later fail when replaying the log into DPE because normal DPE `DeriveContext` rejects duplicate `tci_type` values.
+When authorization fails or `SKIP_STASH` is set, Runtime returns an all-zero `measurement_handle`.
 
-To avoid boot-time replay failures caused by ROM-accepted measurements, Runtime should allow ROM-originated stashed measurements to create DPE contexts with duplicate `tci_type` values during ROM measurement log replay.
+## 4. Measurement Handle Mapping
 
-## `tci_type` Uniqueness Rules
-
-The uniqueness policy should be split by measurement origin:
+Runtime should store the handle mapping as DPE-side persistent metadata, parallel to the existing context tag side tables:
 
 ```text
-ROM-originated stashed measurements:
-  Duplicate tci_type values are allowed during Runtime replay of the ROM measurement log.
-
-Runtime-originated stashed measurements:
-  tci_type uniqueness remains enforced.
-  AUTHORIZE_AND_STASH / Runtime stash flows must not create a new DPE context if the requested measurement_id already exists as the tci_type of any non-inactive DPE context.
+measurement_handle_valid: [U8Bool; MAX_HANDLES]
+measurement_handles: [[u8; 16]; MAX_HANDLES]
 ```
 
-This preserves compatibility with ROM behavior while keeping Runtime-created DPE contexts uniquely addressable.
+Each valid entry maps one opaque `measurement_handle` to the DPE context at the same index in `fw.dpe.state.contexts`. The DPE context index is not returned to the caller.
 
-## `caliptra-dpe` `DeriveContext` Flag for Duplicate Replay
-
-`caliptra-dpe` should add a restricted `DeriveContext` flag for ROM measurement log replay:
+Handle generation rules:
 
 ```text
-ALLOW_DUPLICATE_TCI_TYPE
+1. Generate 16 random bytes using the TRNG in Runtime.
+2. Reject the all-zero handle value.
+3. Check the candidate against all currently valid handles.
+4. If it collides, retry handle generation.
+5. If Runtime cannot produce a unique handle, fail the command.
 ```
 
-Runtime should set this flag only while replaying ROM-originated measurement log entries. Runtime should reject external or generic DPE invocations that attempt to set this flag. When the flag is set, `DeriveContext` allows the new context's `tci_type` to duplicate an existing non-inactive context's `tci_type`. All other `DeriveContext` behavior remains unchanged.
+A 16-byte random handle is a bearer capability for updating one stashed DPE measurement. It prevents a caller from selecting an update target by guessing or reusing a public `fw_id`, `metadata`, or `tci_type` value. If the handle is disclosed to another caller with access to `UPDATE_STASH`, that caller can request updates to the mapped measurement, so callers must treat the handle as sensitive.
 
-The flag applies only to non-recursive context creation during ROM measurement log replay. It does not change recursive `DeriveContext` behavior.
+Runtime should keep the handle side table in sync with DPE context lifetime. A valid handle entry is only valid while the DPE context at the same index is active or retired. When Runtime clears or reuses a DPE context, it must also clear the handle entry at that index.
 
-All existing context-construction invariants remain enforced, including:
+## 5. `UPDATE_STASH`
+
+`UPDATE_STASH` is a new mailbox command that updates an existing v2-created stashed DPE measurement selected by `measurement_handle`.
+
+The request should include:
 
 ```text
-parent_idx / children links are consistent
-only the latest replayed context is the active default context
-previous replayed contexts are Retired
-inactive contexts remain fully inactive
-context.locality matches context.tci.locality
-TCI current and cumulative values are computed consistently with DPE extend semantics
+measurement_handle: u8[16]
+measurement: u8[48]
+svn: u32
 ```
 
-Normal Runtime-created stash operations continue to use regular DPE `DeriveContext` without this flag and continue to enforce `tci_type` uniqueness.
-
-## 3. `UPDATE_STASH` Behavior
-
-Because ROM-originated measurements may have duplicate `tci_type` values, `tci_type` can no longer be treated as globally unique in all cases.
-
-Any command that updates an existing stashed measurement by `measurement_id` must check how many non-inactive DPE contexts have that `measurement_id` as their `tci_type`.
+The response should include a status result for the update. The exact response shape can mirror existing mailbox status conventions, but the command must fail if the handle is invalid or the mapped context cannot be updated.
 
 The update command should use the following lookup rule:
 
 ```text
-matches = all contexts where:
-  context.state != Inactive
-  context.tci.tci_type == measurement_id
+index = the entry where:
+  measurement_handle_valid[index] == true
+  measurement_handles[index] == request.measurement_handle
 ```
 
 Then:
 
 ```text
-matches.len() == 0:
-  fail, no matching context
+request.measurement_handle == [0; 16]:
+  fail, invalid handle
 
-matches.len() == 1:
-  update the matched context
+no matching index:
+  fail, no matching handle
 
-matches.len() > 1:
-  fail, duplicate tci_type
+matching index and contexts[index].state != Inactive:
+  update the mapped context
+
+matching index and contexts[index].state == Inactive:
+  clear the stale mapping and fail, no matching active or retired context
 ```
 
-This means a stashed measurement can be updated by `measurement_id` only when that value uniquely identifies one active or retired DPE context by `tci_type`.
+`UPDATE_STASH` must not identify the target context by stash label, `fw_id`, `metadata`, DPE `tci_type`, or DPE `ContextHandle`. The `measurement_handle` is the lookup authority.
 
-If that `tci_type` is duplicated, the command must fail rather than guessing which context to update.
+Only v2 stash commands create measurement-handle table entries. Measurements created by legacy `STASH_MEASUREMENT` or legacy `AUTHORIZE_AND_STASH` return no handle, so callers have no valid `measurement_handle` to provide to `UPDATE_STASH` for those measurements.
 
 ## Update Semantics
 
@@ -168,13 +189,21 @@ new_tci_cumulative = SHA384(old_tci_cumulative || new_measurement)
 new_tci_current = new_measurement
 ```
 
-The context state must be preserved:
+On a successful update, Runtime should also extend PCR31 with the request `measurement`, matching the existing stash path.
+
+The context state and identity fields must be preserved:
 
 ```text
 Active remains Active
 Retired remains Retired
 Inactive contexts are never updated
+tci_type is not changed by UPDATE_STASH
+locality is not changed by UPDATE_STASH
+parent_idx / children links are not changed by UPDATE_STASH
+measurement_handle mapping is not changed by UPDATE_STASH
 ```
+
+Runtime should apply the request `svn` using the same SVN handling used when creating a stashed measurement.
 
 ## Effect on Future CDI / CertifyKey
 
