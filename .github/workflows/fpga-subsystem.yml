@@ -378,6 +378,15 @@ jobs:
               --profile=fpga-subsystem
           )
 
+          # Nightly runs build with `slow_tests`, which makes
+          # test_generate_csr_envelop_stress run many iterations and legitimately
+          # take a long time. Layer in the extended timeout only for those runs;
+          # PR/merge_group runs use the short profile default so a hang fails fast
+          # instead of stalling the pipeline. See .config/nextest-fpga-slow-tests.toml
+          if [[ "${{ inputs.extra-features }}" == *slow_tests* ]]; then
+              COMMON_ARGS+=(--tool-config-file "caliptra:$(pwd)/.config/nextest-fpga-slow-tests.toml")
+          fi
+
 
           cargo-nextest --version
           cargo-nextest nextest list \

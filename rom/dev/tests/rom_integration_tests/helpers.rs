@@ -12,7 +12,7 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
-use caliptra_drivers::InitDevIdCsrEnvelope;
+use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
@@ -78,11 +78,30 @@ pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
     image_options: ImageOptions,
 ) -> (DefaultHwModel, ImageBundle) {
+    build_hw_model_and_image_bundle_with_mfg_flags(fuses, image_options, MfgFlags::empty())
+}
+
+/// Same as [`build_hw_model_and_image_bundle`], but latches `mfg_flags` into
+/// `cptra_dbg_manuf_service_reg` via `BootParams` before Caliptra ROM runs.
+///
+/// Flags that ROM samples during the cold-reset flow (e.g.
+/// `GENERATE_IDEVID_CSR`) must be set this way: on the FPGA subsystem `boot()`
+/// runs ROM far enough that setting the register on the built model can race
+/// ROM and be latched too late.
+pub fn build_hw_model_and_image_bundle_with_mfg_flags(
+    fuses: Fuses,
+    image_options: ImageOptions,
+    mfg_flags: MfgFlags,
+) -> (DefaultHwModel, ImageBundle) {
     let image = build_image_bundle(image_options);
-    (build_hw_model(fuses), image)
+    (build_hw_model_with_mfg_flags(fuses, mfg_flags), image)
 }
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
+    build_hw_model_with_mfg_flags(fuses, MfgFlags::empty())
+}
+
+pub fn build_hw_model_with_mfg_flags(fuses: Fuses, mfg_flags: MfgFlags) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
         feature = "fpga_subsystem"
     )))
@@ -116,6 +135,7 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
             ..Default::default()
         },
         BootParams {
+            initial_dbg_manuf_service_reg: mfg_flags.bits(),
             ..Default::default()
         },
     )

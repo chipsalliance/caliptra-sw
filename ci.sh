@@ -111,9 +111,9 @@ fi
 if task_enabled "test"; then
   echo Run tests
   if cargo nextest help > /dev/null 2>/dev/null; then
-    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked -E 'not test(test_generate_csr_envelop_stress)'
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked
   else
-    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked -- --skip test_generate_csr_envelop_stress
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked
   fi
   CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" CPTRA_COVERAGE_PATH="${cov_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" run --manifest-path ./coverage/Cargo.toml
 fi

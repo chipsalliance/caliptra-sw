@@ -20,11 +20,8 @@ fn generate_csr_envelop(
     image_bundle: &ImageBundle,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> InitDevIdCsrEnvelope {
-    // Set gen_idev_id_csr to generate CSR.
-    let flags = MfgFlags::GENERATE_IDEVID_CSR;
-    hw.soc_ifc()
-        .cptra_dbg_manuf_service_reg()
-        .write(|_| flags.bits());
+    // GENERATE_IDEVID_CSR is latched via BootParams when the model is built, so
+    // ROM sees it before sampling it during cold reset.
 
     // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
@@ -63,7 +60,11 @@ fn test_generate_csr_envelop() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
+            fuses,
+            image_options,
+            MfgFlags::GENERATE_IDEVID_CSR,
+        );
         generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
     }
 }
@@ -117,8 +118,11 @@ fn test_generate_csr_envelop_stress() {
         for _ in 0..num_tests {
             let mut fuses = fuses_with_random_uds();
             fuses.fuse_pqc_key_type = *pqc_key_type as u32;
-            let (mut hw, image_bundle) =
-                helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
+            let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
+                fuses.clone(),
+                image_options.clone(),
+                MfgFlags::GENERATE_IDEVID_CSR,
+            );
 
             let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
 
