@@ -1,10 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, PQC_KEY_TYPE};
+use crate::common::{
+    execute_dpe_cmd_raw, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs, PQC_KEY_TYPE,
+};
 use caliptra_api::{
     mailbox::{
         AxiResponseInfo, CertifyKeyChunksFlags, CertifyKeyChunksReq, CertifyKeyExtendedMldsa87Req,
-        RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq,
+        CmAesGcmDecryptDmaReq, ExternalMailboxCmdReq, InvokeDpeResp, RevokeExportedCdiHandleReq,
+        SignWithExportedEcdsaReq,
     },
     SocManager,
 };
@@ -1041,4 +1044,117 @@ fn test_ocp_lock_commands_cannot_be_called_from_pl1() {
             resp,
         );
     }
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_external_dpe_responses_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        subsystem_mode: true,
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
+
+    let external_response_info = {
+        let addr = model.staging_physical_address().unwrap();
+        Some(AxiResponseInfo {
+            addr_lo: addr as u32,
+            addr_hi: (addr >> 32) as u32,
+            max_size: size_of::<InvokeDpeResp>() as u32,
+        })
+    };
+    let resp = execute_dpe_cmd_raw(
+        &mut model,
+        CaliptraDpeProfile::Mldsa87,
+        &mut Command::from(&certify_key_cmd),
+        external_response_info,
+    )
+    .unwrap_err();
+
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_external_command_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        subsystem_mode: true,
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_aes_gcm_decrypt_dma_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        subsystem_mode: true,
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::CmAesGcmDecryptDma(CmAesGcmDecryptDmaReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_DMA),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
 }

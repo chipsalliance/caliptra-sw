@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{mutrefbytes, Drivers};
+use crate::{mutrefbytes, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use bitfield::bitfield;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -2767,6 +2767,14 @@ impl Commands {
         // DMA is only available in subsystem mode
         if !drivers.soc_ifc.subsystem_mode() {
             Err(CaliptraError::RUNTIME_CMB_DMA_NOT_SUBSYSTEM_MODE)?;
+        }
+
+        match drivers.caller_privilege_level() {
+            // CM_AES_GCM_DECRYPT_DMA MUST only be called from PL0
+            PauserPrivileges::PL0 => (),
+            PauserPrivileges::PL1 => {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
         }
 
         if !drivers.cryptographic_mailbox.initialized {
