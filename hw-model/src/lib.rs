@@ -789,6 +789,36 @@ pub const MCU_TEST_IV: [u8; 12] = [
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
+const SUBSYSTEM_MBOX_LOCK_MAX_ATTEMPTS: u32 = 100;
+const SUBSYSTEM_MBOX_LOCK_STEPS_PER_ATTEMPT: u32 = 1000;
+
+/// Operations needed by [`retry_acquire_mailbox_lock`], abstracted so the retry
+/// policy can be unit-tested without a hardware model.
+trait MailboxLockOps {
+    /// Returns `true` if the mailbox lock is now held by us.
+    fn try_acquire_lock(&mut self) -> bool;
+    /// Advance the model so another agent can release the lock.
+    fn step(&mut self);
+}
+
+/// Acquire the mailbox lock, retrying while another agent holds it. Returns
+/// `true` if acquired within `max_attempts`.
+fn retry_acquire_mailbox_lock(
+    ops: &mut impl MailboxLockOps,
+    max_attempts: u32,
+    steps_per_attempt: u32,
+) -> bool {
+    for _ in 0..max_attempts {
+        if ops.try_acquire_lock() {
+            return true;
+        }
+        for _ in 0..steps_per_attempt {
+            ops.step();
+        }
+    }
+    false
+}
+
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use [`crate::new()`] to create a model
 // based on the cargo features (and any model-specific environment variables).
@@ -1271,8 +1301,28 @@ pub trait HwModel: SocManager {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<(), ModelError> {
-        // Read a 0 to get the lock
-        if self.soc_mbox().lock().read().lock() {
+        // In the FPGA subsystem profile the MCU ROM performs post-runtime
+        // mailbox activity that briefly races host commands. Retry the lock,
+        // stepping the model so the MCU can release it.
+        if self.subsystem_mode() {
+            struct ModelLock<'a, M: HwModel + ?Sized>(&'a mut M);
+            impl<M: HwModel + ?Sized> MailboxLockOps for ModelLock<'_, M> {
+                fn try_acquire_lock(&mut self) -> bool {
+                    !self.0.soc_mbox().lock().read().lock()
+                }
+                fn step(&mut self) {
+                    self.0.step();
+                }
+            }
+            let acquired = retry_acquire_mailbox_lock(
+                &mut ModelLock(&mut *self),
+                SUBSYSTEM_MBOX_LOCK_MAX_ATTEMPTS,
+                SUBSYSTEM_MBOX_LOCK_STEPS_PER_ATTEMPT,
+            );
+            if !acquired {
+                return Err(ModelError::UnableToLockMailbox);
+            }
+        } else if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
         }
 
@@ -1729,6 +1779,48 @@ mod tests {
             .write(|_| 0x100 | u32::from(b'i'));
         soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
         rv32_gen.into_inner().empty_loop().build()
+    }
+
+    #[test]
+    fn test_retry_acquire_mailbox_lock() {
+        use crate::{retry_acquire_mailbox_lock, MailboxLockOps};
+
+        // Fake lock held by another agent until `free_after_steps` steps elapse.
+        struct FakeLock {
+            free_after_steps: u32,
+            steps: u32,
+        }
+        impl MailboxLockOps for FakeLock {
+            fn try_acquire_lock(&mut self) -> bool {
+                self.steps >= self.free_after_steps
+            }
+            fn step(&mut self) {
+                self.steps += 1;
+            }
+        }
+
+        // Free immediately: acquired without stepping.
+        let mut lock = FakeLock {
+            free_after_steps: 0,
+            steps: 0,
+        };
+        assert!(retry_acquire_mailbox_lock(&mut lock, 100, 1000));
+        assert_eq!(lock.steps, 0);
+
+        // Released within the retry budget.
+        let mut lock = FakeLock {
+            free_after_steps: 2500,
+            steps: 0,
+        };
+        assert!(retry_acquire_mailbox_lock(&mut lock, 100, 1000));
+
+        // Never released: fails after exhausting all attempts.
+        let mut lock = FakeLock {
+            free_after_steps: u32::MAX,
+            steps: 0,
+        };
+        assert!(!retry_acquire_mailbox_lock(&mut lock, 5, 10));
+        assert_eq!(lock.steps, 50);
     }
 
     #[test]
