@@ -462,3 +462,61 @@ fn test_zeroize_all_partitions_single_shot() {
         m.soc_ifc().cptra_fw_error_fatal().read() == UDS_FE_PROGRAMMING_SHUTDOWN_SUCCESS
     });
 }
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
+fn test_zeroize_failure_propagation() {
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            subsystem_mode: true,
+            ..Default::default()
+        },
+        caliptra_hw_model::BootParams::default(),
+    )
+    .unwrap();
+
+    // Enable error injection in OTP controller
+    hw.set_otp_error_injection(true);
+
+    // Prepare ZEROIZE_UDS_FE command
+    let mut cmd = ZeroizeUdsFeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        flags: ZEROIZE_UDS_FLAG,
+    };
+
+    // Calculate checksum
+    let chksum_size = core::mem::size_of_val(&cmd.hdr.chksum);
+    cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE),
+        &cmd.as_mut_bytes()[chksum_size..],
+    );
+
+    // Execute mailbox command
+    let _ = hw.mailbox_execute(
+        caliptra_common::mailbox_api::CommandId::ZEROIZE_UDS_FE.into(),
+        cmd.as_bytes(),
+    );
+
+    // Wait till fatal error is raised
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+
+    let fatal_error = hw.soc_ifc().cptra_fw_error_fatal().read();
+    assert_eq!(
+        fatal_error,
+        u32::from(CaliptraError::UDS_FE_PROGRAMMING_ZEROIZATION_FAILED)
+    );
+}

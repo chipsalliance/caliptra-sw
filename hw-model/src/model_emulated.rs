@@ -168,6 +168,19 @@ fn hash_slice(slice: &[u8]) -> u64 {
     hasher.finish()
 }
 
+impl ModelEmulated {
+    pub fn set_otp_error_injection(&mut self, enable: bool) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .set_error_injection(enable);
+    }
+}
+
 impl SocManager for ModelEmulated {
     type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
 
