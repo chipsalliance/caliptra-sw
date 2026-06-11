@@ -1120,13 +1120,13 @@ impl Commands {
             )?;
             iv_arr = iv;
             (key, AesGcmIv::Array(&iv_arr))
-        } else if let Some(ref provided_iv) = cmd_iv {
+        } else if let Some(provided_iv) = cmd_iv {
             // Decrypt: use provided IV
             if !matches!(key_usage, CmKeyUsage::Aes) {
                 Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
             }
             let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (key, (*provided_iv).into())
+            (key, provided_iv.into())
         } else {
             // Encrypt: increment and check usage, random IV
             if !matches!(key_usage, CmKeyUsage::Aes) {
@@ -1140,9 +1140,10 @@ impl Commands {
             (key, AesGcmIv::Random)
         };
 
-        let unencrypted_context = drivers
-            .aes
-            .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
 
         Ok(unencrypted_context)
     }
@@ -1231,9 +1232,10 @@ impl Commands {
         let iv = Self::xor_iv(&iv, spdm_counter, flags.counter_big_endian() == 1);
         let iv = AesGcmIv::Array(&iv);
 
-        let unencrypted_context = drivers
-            .aes
-            .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, &key, iv, aad, cmk.fips_valid())?;
 
         Ok(unencrypted_context)
     }

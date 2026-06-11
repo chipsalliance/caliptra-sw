@@ -3462,9 +3462,7 @@ fn test_kek_iv_initialized() {
 fn test_gcm_streaming_ghash_tamper_undetected_mailbox() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let key = [0x42u8; 32];
     let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
@@ -3525,9 +3523,7 @@ fn test_gcm_streaming_ghash_tamper_undetected_mailbox() {
 fn test_aes_gcm_empty_aad_small_chunks() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    model.step_until_ready_for_runtime();
 
     let key = [0x5au8; 32];
     let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);

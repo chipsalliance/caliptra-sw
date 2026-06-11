@@ -24,7 +24,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageSignData};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    CaliptraDpeProfile, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
