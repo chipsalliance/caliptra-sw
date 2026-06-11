@@ -76,9 +76,10 @@ pub enum Granularity {
 // Fuse bank layout (from UDS seed base address):
 //   UDS:           64 bytes (16 x u32)
 //   UDS digest:     8 bytes ( 2 x u32)
-//   FE partitions:  4 x (8 bytes data + 8 bytes digest) = 64 bytes
-//   Total:         136 bytes (34 x u32)
-const FUSE_BANK_SIZE_BYTES: usize = 136;
+//   UDS marker:     8 bytes ( 2 x u32)
+//   FE partitions:  4 x (8 bytes data + 8 bytes digest + 8 bytes marker) = 96 bytes
+//   Total:         176 bytes (44 x u32)
+const FUSE_BANK_SIZE_BYTES: usize = 176;
 const UDS_SIZE_BYTES: usize = 64;
 
 pub struct Context {
