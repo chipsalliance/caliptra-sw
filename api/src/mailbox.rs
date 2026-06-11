@@ -508,7 +508,8 @@ pub enum MailboxReq {
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
     GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
-    InvokeDpeCommand(InvokeDpeReq),
+    InvokeDpeEcc384Command(InvokeDpeReq),
+    InvokeDpeMldsa87Command(InvokeDpeMldsa87Req),
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq),
@@ -585,7 +586,8 @@ impl MailboxReq {
             MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
             MailboxReq::MldsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
+            MailboxReq::InvokeDpeEcc384Command(req) => req.as_bytes_partial(),
+            MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_bytes()),
@@ -664,7 +666,8 @@ impl MailboxReq {
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
+            MailboxReq::InvokeDpeEcc384Command(req) => req.as_bytes_partial_mut(),
+            MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial_mut(),
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
@@ -741,7 +744,8 @@ impl MailboxReq {
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
             MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
-            MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
+            MailboxReq::InvokeDpeEcc384Command(_) => CommandId::INVOKE_DPE_ECC384,
+            MailboxReq::InvokeDpeMldsa87Command(_) => CommandId::INVOKE_DPE_MLDSA87,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_ECC384_CERT,
@@ -1361,7 +1365,7 @@ impl CertifyKeyExtendedResp {
     }
 }
 
-// INVOKE_DPE_COMMAND
+// INVOKE_DPE_ECC384
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeReq {
@@ -1399,7 +1403,7 @@ impl Default for InvokeDpeReq {
     }
 }
 impl Request for InvokeDpeReq {
-    const ID: CommandId = CommandId::INVOKE_DPE;
+    const ID: CommandId = CommandId::INVOKE_DPE_ECC384;
     type Resp = InvokeDpeResp;
 }
 

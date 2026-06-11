@@ -106,7 +106,7 @@ fn test_invoke_dpe_get_profile_cmd() {
 #[test]
 fn test_invoke_dpe_size_too_big() {
     // Test with data_size too big.
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
