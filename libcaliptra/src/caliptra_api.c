@@ -1177,7 +1177,13 @@ int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct cali
     // While it will likely cause no harm, there's no sense in writing more
     // to the FIFO than is absolutely required. This command can have a variable
     // data buffer.
-    uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) + req->data_size;
+    uint32_t actual_bytes = (uint32_t)(offsetof(struct caliptra_invoke_dpe_req, data) + req->data_size);
+
+    // Ensure we don't read past the struct
+    if (actual_bytes > sizeof(*req))
+    {
+        return INVALID_PARAMS;
+    }
 
     struct parcel p = {
         .command   = OP_INVOKE_ECC384_DPE_COMMAND,
@@ -1201,7 +1207,13 @@ int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_mldsa87_req *
     // While it will likely cause no harm, there's no sense in writing more
     // to the FIFO than is absolutely required. This command can have a variable
     // data buffer.
-    uint32_t actual_bytes = sizeof(req->hdr) + sizeof(uint32_t) * 5 + req->data_size;
+    uint32_t actual_bytes = (uint32_t)(offsetof(struct caliptra_invoke_dpe_mldsa87_req, data) + req->data_size);
+
+    // Ensure we don't read past the struct
+    if (actual_bytes > sizeof(*req))
+    {
+        return INVALID_PARAMS;
+    }
 
     struct parcel p = {
         .command   = OP_INVOKE_MLDSA87_DPE_COMMAND,
