@@ -34,7 +34,7 @@ use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprintln,
     pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
-    Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
+    Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentData,
     PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
@@ -71,6 +71,16 @@ use zerocopy::IntoBytes;
 pub enum PauserPrivileges {
     PL0,
     PL1,
+}
+
+pub struct EcDpeView<'a> {
+    pub sha384: &'a mut Sha384,
+    pub trng: &'a mut Trng,
+    pub ecc384: &'a mut Ecc384,
+    pub hmac384: &'a mut Hmac384,
+    pub key_vault: &'a mut KeyVault,
+    pub cert_chain: &'a [u8],
+    pub persistent_data: &'a mut PersistentData,
 }
 
 pub struct Drivers {
