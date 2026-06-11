@@ -1275,10 +1275,29 @@ pub trait HwModel: SocManager {
         &mut self,
         req: R,
     ) -> std::result::Result<R::Resp, ModelError> {
-        let mut response = R::Resp::new_zeroed();
-
-        self.mailbox_exec_req(req, response.as_mut_bytes())
-            .map_err(ModelError::from)
+        // The MCU ROM briefly holds the mailbox after boot in subsystem mode;
+        // the lock acquires on read so it can't be peeked. Retry the whole
+        // request, stepping the model so the MCU can release it.
+        if self.subsystem_mode() {
+            let req_bytes = req.as_bytes().to_vec();
+            let mut response = R::Resp::new_zeroed();
+            for _ in 0..SUBSYSTEM_MBOX_LOCK_MAX_ATTEMPTS {
+                let attempt_req = R::read_from_bytes(&req_bytes).expect("request bytes round-trip");
+                match self.mailbox_exec_req(attempt_req, response.as_mut_bytes()) {
+                    Err(api::CaliptraApiError::UnableToLockMailbox) => {
+                        for _ in 0..SUBSYSTEM_MBOX_LOCK_STEPS_PER_ATTEMPT {
+                            self.step();
+                        }
+                    }
+                    other => return other.map_err(ModelError::from),
+                }
+            }
+            Err(ModelError::UnableToLockMailbox)
+        } else {
+            let mut response = R::Resp::new_zeroed();
+            self.mailbox_exec_req(req, response.as_mut_bytes())
+                .map_err(ModelError::from)
+        }
     }
 
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
