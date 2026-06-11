@@ -191,17 +191,17 @@ fn scalar_ntt(s: &mut Scalar) {
     let mut step = 1;
     while step < K_DEGREE {
         offset >>= 1;
-        let mut k = 0;
-        for i in 0..step {
-            let step_root = NTT_ROOTS_MONTGOMERY[step + i];
-            for j in k..(k + offset) {
-                let even = s.c[j];
-                let odd =
-                    reduce_montgomery((step_root as u64).wrapping_mul(s.c[j + offset] as u64));
-                s.c[j] = reduce_once(odd.wrapping_add(even));
-                s.c[j + offset] = mod_sub(even, odd);
+        for (step_root, chunk) in NTT_ROOTS_MONTGOMERY[step..]
+            .iter()
+            .zip(s.c.chunks_exact_mut(2 * offset))
+        {
+            let (evens, odds) = chunk.split_at_mut(offset);
+            for j in 0..offset {
+                let even = evens[j];
+                let odd = reduce_montgomery((*step_root as u64).wrapping_mul(odds[j] as u64));
+                evens[j] = reduce_once(odd.wrapping_add(even));
+                odds[j] = mod_sub(even, odd);
             }
-            k += 2 * offset;
         }
         step <<= 1;
     }
@@ -212,19 +212,22 @@ fn scalar_inverse_ntt(s: &mut Scalar) {
     let mut offset = 1;
     while offset < K_DEGREE {
         step >>= 1;
-        let mut k = 0;
-        for i in 0..step {
-            let step_root = K_PRIME.wrapping_sub(NTT_ROOTS_MONTGOMERY[step + (step - 1 - i)]);
-            for j in k..(k + offset) {
-                let even = s.c[j];
-                let odd = s.c[j + offset];
-                s.c[j] = reduce_once(odd.wrapping_add(even));
-                s.c[j + offset] = reduce_montgomery(
+        for (step_root, chunk) in NTT_ROOTS_MONTGOMERY[step..step * 2.min(K_DEGREE)]
+            .iter()
+            .rev()
+            .zip(s.c.chunks_exact_mut(2 * offset))
+        {
+            let step_root = K_PRIME.wrapping_sub(*step_root);
+            let (evens, odds) = chunk.split_at_mut(offset);
+            for j in 0..offset {
+                let even = evens[j];
+                let odd = odds[j];
+                evens[j] = reduce_once(odd.wrapping_add(even));
+                odds[j] = reduce_montgomery(
                     (step_root as u64)
                         .wrapping_mul((K_PRIME.wrapping_add(even).wrapping_sub(odd)) as u64),
                 );
             }
-            k += 2 * offset;
         }
         offset <<= 1;
     }
@@ -494,15 +497,15 @@ fn scalar_decode_signed_20_19(out: &mut Scalar, in_val: &[u8]) {
     let k_max = 1u32 << 19;
     let k20_bits = (1u32 << 20) - 1;
 
-    for i in 0..(K_DEGREE / 4) {
-        let a = u32::from_le_bytes(in_val[10 * i..10 * i + 4].try_into().unwrap());
-        let b = u32::from_le_bytes(in_val[10 * i + 4..10 * i + 8].try_into().unwrap());
-        let c = u16::from_le_bytes(in_val[10 * i + 8..10 * i + 10].try_into().unwrap());
+    for (in_chunk, out_chunk) in in_val.chunks_exact(10).zip(out.c.chunks_exact_mut(4)) {
+        let a = u32::from_le_bytes([in_chunk[0], in_chunk[1], in_chunk[2], in_chunk[3]]);
+        let b = u32::from_le_bytes([in_chunk[4], in_chunk[5], in_chunk[6], in_chunk[7]]);
+        let c = u16::from_le_bytes([in_chunk[8], in_chunk[9]]);
 
-        out.c[i * 4] = mod_sub(k_max, a & k20_bits);
-        out.c[i * 4 + 1] = mod_sub(k_max, (a >> 20) | ((b & 0xFF) << 12));
-        out.c[i * 4 + 2] = mod_sub(k_max, (b >> 8) & k20_bits);
-        out.c[i * 4 + 3] = mod_sub(k_max, (b >> 28) | ((c as u32) << 4));
+        out_chunk[0] = mod_sub(k_max, a & k20_bits);
+        out_chunk[1] = mod_sub(k_max, (a >> 20) | ((b & 0xFF) << 12));
+        out_chunk[2] = mod_sub(k_max, (b >> 8) & k20_bits);
+        out_chunk[3] = mod_sub(k_max, (b >> 28) | ((c as u32) << 4));
     }
 }
 
@@ -590,7 +593,7 @@ fn scalar_sample_in_ball_vartime(out: &mut Scalar, seed: &[u8], len: usize) {
     for i in (K_DEGREE - TAU)..K_DEGREE {
         let mut byte: usize;
         loop {
-            if offset == 136 {
+            if offset >= block.len() {
                 shake256.squeeze(&mut block);
                 offset = 0;
             }
@@ -872,17 +875,13 @@ fn generate_key_internal(
 /// Each coefficient is encoded as `(sub - w) mod q` (the FIPS `b - w_i`
 /// transform), matching `BitPack(w, sub-?, sub)` for the appropriate range.
 fn pack_scalar_bits(out: &mut [u8], s: &Scalar, bits: u32, sub: u32) {
-    let mut acc: u64 = 0;
-    let mut nbits: u32 = 0;
-    let mut oi = 0;
-    for i in 0..K_DEGREE {
-        acc |= (mod_sub(sub, s.c[i]) as u64) << nbits;
-        nbits += bits;
-        while nbits >= 8 {
-            out[oi] = (acc & 0xff) as u8;
-            oi += 1;
-            acc >>= 8;
-            nbits -= 8;
+    for (in_chunk, out_chunk) in s.c.chunks_exact(8).zip(out.chunks_exact_mut(bits as usize)) {
+        let mut acc: u128 = 0;
+        for (i, &coeff) in in_chunk.iter().enumerate() {
+            acc |= (mod_sub(sub, coeff) as u128) << (i as u32 * bits);
+        }
+        for (j, byte) in out_chunk.iter_mut().enumerate() {
+            *byte = (acc >> (j * 8)) as u8;
         }
     }
 }

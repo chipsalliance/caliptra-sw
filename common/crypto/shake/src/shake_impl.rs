@@ -146,8 +146,12 @@ impl KeccakSt {
         if self.absorb_offset != 0 {
             let first_block_len = self.rate_bytes - self.absorb_offset;
             let todo = core::cmp::min(first_block_len, in_len);
-            for (i, in_byte) in in_slice.iter().enumerate().take(todo) {
-                self.state.as_mut_bytes()[self.absorb_offset + i] ^= in_byte;
+            let start = self.absorb_offset.min(self.state.as_bytes().len());
+            for (s, b) in self.state.as_mut_bytes()[start..]
+                .iter_mut()
+                .zip(in_slice.iter().take(todo))
+            {
+                *s ^= b;
             }
 
             // This input didn't fill the block.
@@ -161,14 +165,27 @@ impl KeccakSt {
         }
 
         // Absorb full blocks.
+        let state_words = self.state.len();
         let rate_words = self.rate_bytes / 8;
-        while in_slice.len() >= self.rate_bytes {
-            for i in 0..rate_words {
-                let word = u64::from_le_bytes(in_slice[8 * i..8 * i + 8].try_into().unwrap());
-                self.state[i] ^= word;
+        let rate = self.rate_bytes;
+        while in_slice.len() >= rate {
+            for (state_word, word_bytes) in self.state[..rate_words.min(state_words)]
+                .iter_mut()
+                .zip(in_slice.chunks_exact(8))
+            {
+                *state_word ^= u64::from_le_bytes([
+                    word_bytes[0],
+                    word_bytes[1],
+                    word_bytes[2],
+                    word_bytes[3],
+                    word_bytes[4],
+                    word_bytes[5],
+                    word_bytes[6],
+                    word_bytes[7],
+                ]);
             }
             keccak_f(&mut self.state);
-            in_slice = &in_slice[self.rate_bytes..];
+            in_slice = &in_slice[rate..];
         }
 
         // Absorb partial block.
@@ -195,17 +212,19 @@ impl KeccakSt {
             self.phase = KeccakPhase::Squeeze;
         }
 
+        let rate = self.rate_bytes.min(self.state.as_bytes().len());
+
         while !out_slice.is_empty() {
-            if self.squeeze_offset == self.rate_bytes {
+            if self.squeeze_offset >= rate {
                 keccak_f(&mut self.state);
                 self.squeeze_offset = 0;
             }
 
-            let remaining = self.rate_bytes - self.squeeze_offset;
+            let squeeze_off = self.squeeze_offset.min(rate);
+            let remaining = rate - squeeze_off;
             let todo = core::cmp::min(out_slice.len(), remaining);
-            out_slice[..todo].copy_from_slice(
-                &self.state.as_bytes()[self.squeeze_offset..self.squeeze_offset + todo],
-            );
+            out_slice[..todo]
+                .copy_from_slice(&self.state.as_bytes()[squeeze_off..squeeze_off + todo]);
 
             let (_, rest) = out_slice.split_at_mut(todo);
             out_slice = rest;
