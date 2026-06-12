@@ -47,22 +47,35 @@ pub const MCU_LOAD_ADDRESS: Addr64 = Addr64 {
 };
 
 pub const MCU_STAGING_ADDRESS: Addr64 = Addr64 {
-    lo: TEST_SRAM_BASE.lo + 0x200,
-    hi: 0x0000_0000,
-};
-
-pub const SOC_LOAD_ADDRESS: Addr64 = Addr64 {
-    lo: TEST_SRAM_BASE.lo + 0x100,
-    hi: 0x0000_0000,
-};
-
-pub const SOC_STAGING_ADDRESS: Addr64 = Addr64 {
     lo: TEST_SRAM_BASE.lo + 0x300,
     hi: 0x0000_0000,
 };
 
-pub const MCU_FW_SIZE: usize = 256;
+pub const SOC_LOAD_ADDRESS: Addr64 = Addr64 {
+    lo: TEST_SRAM_BASE.lo + 0x200,
+    hi: 0x0000_0000,
+};
+
+pub const SOC_STAGING_ADDRESS: Addr64 = Addr64 {
+    lo: TEST_SRAM_BASE.lo + 0x500,
+    hi: 0x0000_0000,
+};
+
+// Must be > 0x100 so the firmware covers the MCU ROM entry point at
+// MCU_SRAM + 0x100. On FPGA, MCU ROM jumps to that offset after a
+// hitless-update reset.
+pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
+
+/// Create a valid RISC-V firmware image that won't crash with an illegal
+/// instruction exception on real FPGA hardware. Uses `0x37` repeated, which
+/// encodes as `LUI x6, 0x37373` — a valid, harmless RISC-V instruction.
+/// The single-byte pattern is byte-swap invariant, which is required because
+/// `write_payload_to_mcu_sram` applies a BE byte swap when writing to MCU
+/// SRAM via the MCI MMIO window.
+fn mcu_test_firmware() -> Vec<u8> {
+    vec![0x37u8; MCU_FW_SIZE]
+}
 
 #[derive(Debug, Clone)]
 struct Image {
@@ -252,7 +265,7 @@ fn test_activate_mcu_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -282,7 +295,7 @@ fn test_activate_mcu_soc_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -322,7 +335,7 @@ fn test_activate_soc_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -361,7 +374,7 @@ fn test_activate_invalid_fw_id() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -398,7 +411,7 @@ fn test_activate_fw_id_not_in_manifest() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -435,7 +448,7 @@ fn test_invalid_exec_bit_in_manifest() {
         fw_id: MCU_FW_ID_1,
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 

@@ -194,6 +194,11 @@ fn test_pcr_log() {
 
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
+        // In subsystem mode, the owner PK hash flows through the DOT
+        // mailbox command, not the fuse controller, so
+        // owner_pub_keys_digest_in_fuses is false.
+        let owner_pk_in_fuses = !hw.subsystem_mode();
+
         check_pcr_log_entry(
             &pcr_entry_arr,
             0,
@@ -208,7 +213,7 @@ fn test_pcr_log() {
                 0_u8,
                 VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
                 *pqc_key_type as u8,
-                true as u8,
+                owner_pk_in_fuses as u8,
             ],
         );
 
@@ -414,6 +419,11 @@ fn test_pcr_log_fmc_fuse_svn() {
 
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
+        // In subsystem mode, the owner PK hash flows through the DOT
+        // mailbox command, not the fuse controller, so
+        // owner_pub_keys_digest_in_fuses is false.
+        let owner_pk_in_fuses = !hw.subsystem_mode();
+
         check_pcr_log_entry(
             &pcr_entry_arr,
             0,
@@ -428,7 +438,7 @@ fn test_pcr_log_fmc_fuse_svn() {
                 FW_FUSE_SVN as u8,
                 VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
                 *pqc_key_type as u8,
-                true as u8,
+                owner_pk_in_fuses as u8,
             ],
         );
     }
