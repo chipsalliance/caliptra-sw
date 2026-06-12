@@ -25,7 +25,7 @@ use dpe::{
 };
 use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
-use zerocopy::IntoBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 #[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
@@ -44,11 +44,10 @@ pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
-            let mut cmd = InvokeDpeReq::default();
-            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
-
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = InvokeDpeReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+        {
             let caller_privilege_level = drivers.caller_privilege_level();
 
             // Validate data length
@@ -142,8 +141,6 @@ impl InvokeDpeCmd {
             };
 
             Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
-        } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
     }
 

@@ -12,13 +12,14 @@ Abstract:
 
 --*/
 
+use crate::packet::copy_from_mbox;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
-use zerocopy::FromBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 use crate::Drivers;
 
@@ -26,9 +27,9 @@ pub struct TagTciCmd;
 impl TagTciCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = TagTciReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = TagTciReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
         let pdata_mut = drivers.persistent_data.get_mut();
         let dpe = &mut pdata_mut.dpe;
         let context_has_tag = &mut pdata_mut.context_has_tag;
@@ -65,9 +66,9 @@ pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = GetTaggedTciReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = GetTaggedTciReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
         let persistent_data = drivers.persistent_data.get();
         let context_has_tag = &persistent_data.context_has_tag;
         let context_tags = &persistent_data.context_tags;

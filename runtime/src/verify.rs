@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
@@ -22,15 +23,16 @@ use caliptra_drivers::{
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
-use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
+use zerocopy::{BigEndian, FromBytes, FromZeros, IntoBytes, LittleEndian, U32};
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = EcdsaVerifyReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
         // Won't panic, full_digest is always larger than digest
         let full_digest = drivers.sha_acc.regs().digest().read();
         let mut digest = Array4x12::default();
@@ -61,7 +63,10 @@ pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = LmsVerifyReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
         // Re-run LMS KAT once (since LMS is more SW-based than other crypto)
         if let Err(e) =
             caliptra_kat::LmsKat::default().execute_once(&mut drivers.sha256, &mut drivers.lms)
@@ -77,8 +82,6 @@ impl LmsVerifyCmd {
         const LMS_ALGORITHM_TYPE: LmsAlgorithmType = LmsAlgorithmType::new(12);
         const LMOTS_ALGORITHM_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::new(7);
 
-        let cmd = LmsVerifyReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         // Get the digest from the SHA accelerator
         let msg_digest_be = drivers.sha_acc.regs().digest().truncate::<12>().read();
         // Flip the endianness since LMS treats this as raw message bytes

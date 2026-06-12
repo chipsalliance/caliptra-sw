@@ -15,6 +15,7 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
+use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
@@ -31,8 +32,7 @@ use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
     ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
-use memoffset::offset_of;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 use zeroize::Zeroize;
 
 pub struct SetAuthManifestCmd;
@@ -444,32 +444,20 @@ impl SetAuthManifestCmd {
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        // Validate cmd length
-        let manifest_size: usize = {
-            let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
-            let offset = offset_of!(SetAuthManifestReq, manifest_size);
-            u32::from_le_bytes(
-                cmd_args
-                    .get(offset..offset + 4)
-                    .ok_or(err)?
-                    .try_into()
-                    .map_err(|_| err)?,
-            )
-            .try_into()
-            .unwrap()
-        };
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut req = SetAuthManifestReq::new_zeroed();
+        copy_from_mbox(drivers, req.as_mut_bytes())?;
+
+        let manifest_size: usize = req.manifest_size as usize;
 
         if manifest_size > SetAuthManifestReq::MAX_MAN_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
-        let manifest_buf = {
-            let offset = offset_of!(SetAuthManifestReq, manifest);
-            cmd_args
-                .get(offset..offset + manifest_size)
-                .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
-        };
+        let manifest_buf = req
+            .manifest
+            .get(..manifest_size)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {

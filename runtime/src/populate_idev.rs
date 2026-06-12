@@ -16,18 +16,17 @@ use crate::PauserPrivileges;
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{MailboxResp, PopulateIdevCertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zerocopy::IntoBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 use crate::{Drivers, MAX_CERT_CHAIN_SIZE};
 
 pub struct PopulateIDevIdCertCmd;
 impl PopulateIDevIdCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() <= core::mem::size_of::<PopulateIdevCertReq>() {
-            let mut cmd = PopulateIdevCertReq::default();
-            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
-
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = PopulateIdevCertReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+        {
             let cert_size = cmd.cert_size as usize;
             if cert_size > cmd.cert.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -48,8 +47,6 @@ impl PopulateIDevIdCertCmd {
             drivers.cert_chain = tmp_chain;
 
             Ok(MailboxResp::default())
-        } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
     }
 }

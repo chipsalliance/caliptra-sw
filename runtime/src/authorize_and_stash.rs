@@ -24,7 +24,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult};
 use dpe::response::DpeErrorCode;
-use zerocopy::FromBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
 pub const IMAGE_NOT_AUTHORIZED: u32 = 0x21523F21; // FW ID not found in the image metadata entry collection.
@@ -34,8 +34,10 @@ pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = AuthorizeAndStashReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+        {
             if ImageHashSource::from(cmd.source) != ImageHashSource::InRequest {
                 Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
             }
@@ -90,8 +92,6 @@ impl AuthorizeAndStashCmd {
                 hdr: MailboxRespHeader::default(),
                 auth_req_result: auth_result,
             }))
-        } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
     }
 

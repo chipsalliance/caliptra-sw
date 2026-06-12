@@ -22,14 +22,14 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 
-use zerocopy::FromBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct ReallocateDpeContextLimitsCmd;
 impl ReallocateDpeContextLimitsCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = ReallocateDpeContextLimitsReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = ReallocateDpeContextLimitsReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         const TOTAL_DPE_CONTEXT_LIMIT: usize =
             PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD + PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD;

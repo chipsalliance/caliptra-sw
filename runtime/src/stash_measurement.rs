@@ -24,7 +24,7 @@ use dpe::{
     response::{DeriveContextExportedCdiResp, DpeErrorCode},
     tci::TciMeasurement,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
@@ -93,9 +93,9 @@ impl StashMeasurementCmd {
         Ok(dpe_result)
     }
 
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = StashMeasurementReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         let dpe_result =
             Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;

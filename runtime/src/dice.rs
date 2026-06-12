@@ -24,16 +24,15 @@ use caliptra_drivers::{
     PersistentData,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
-use zerocopy::IntoBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
-            let mut cmd = GetIdevCertReq::default();
-            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
-
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = GetIdevCertReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+        {
             // Validate tbs
             if cmd.tbs_size as usize > cmd.tbs.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -59,8 +58,6 @@ impl IDevIdCertCmd {
                 cert_size: cert_size as u32,
                 cert,
             }))
-        } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
     }
 }
