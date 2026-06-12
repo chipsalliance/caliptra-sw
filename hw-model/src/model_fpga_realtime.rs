@@ -138,6 +138,7 @@ pub struct ModelFpgaRealtime {
 
     trng_mode: TrngMode,
     openocd: Option<Child>,
+    rom_callback: Option<crate::ModelCallback>,
 }
 
 impl ModelFpgaRealtime {
@@ -529,6 +530,7 @@ impl HwModel for ModelFpgaRealtime {
             trng_mode: desired_trng_mode,
 
             openocd: None,
+            rom_callback: params.rom_callback,
         };
 
         // Check if the FPGA image is valid
@@ -683,6 +685,14 @@ impl HwModel for ModelFpgaRealtime {
             )
             .ready_for_fw()
                 != 0
+        }
+    }
+
+    fn run_idevid_csr_callback(&mut self) {
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+        } else {
+            self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
         }
     }
 
