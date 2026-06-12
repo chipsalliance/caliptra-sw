@@ -83,8 +83,9 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxResp};
-use packet::Packet;
+use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxResp};
+use packet::{copy_from_mbox, copy_to_mbox};
+use zerocopy::{FromZeros, IntoBytes};
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
 
@@ -183,15 +184,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
-    // Get the command bytes
-    let mut req_packet = Packet::default();
-    Packet::copy_from_mbox(drivers, &mut req_packet)?;
-    let cmd_bytes = req_packet.as_bytes()?;
-
-    cprintln!("[rt]cmd =0x{:x}, len={}", req_packet.cmd, req_packet.len);
-
     // Handle the request and generate the response
-    let mut resp = match CommandId::from(req_packet.cmd) {
+    let mut resp = match drivers.mbox.cmd() {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
         CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
@@ -254,7 +248,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = okmutref(&mut resp)?;
 
     // Send the response
-    Packet::copy_to_mbox(drivers, resp)?;
+    copy_to_mbox(drivers, resp)?;
 
     Ok(MboxStatusE::DataReady)
 }

@@ -121,6 +121,20 @@ impl Mailbox {
         }
     }
 
+    /// Reads `word_count` words from the FIFO into `buf` as little-endian bytes.
+    /// Handles structs whose size is not a multiple of 4.
+    pub fn copy_from_mbox_bytes(&mut self, buf: &mut [u8], word_count: usize) {
+        let mbox = self.mbox.regs_mut();
+        for i in 0..word_count {
+            let word_bytes = mbox.dataout().read().to_le_bytes();
+            let offset = i * 4;
+            if let Some(dst) = buf.get_mut(offset..) {
+                let len = dst.len().min(4);
+                dst[..len].copy_from_slice(&word_bytes[..len]);
+            }
+        }
+    }
+
     /// Clears the mailbox
     pub fn flush(&mut self) {
         let count = self.dlen_words();
