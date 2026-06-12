@@ -2116,13 +2116,19 @@ impl HwModel for ModelFpgaSubsystem {
         while self.cycle_count().wrapping_sub(start) < 20_000_000 {
             self.step();
             let flow_status = self.soc_ifc().cptra_flow_status().read();
-            if flow_status.idevid_csr_ready() && boot_params.fw_image.is_some() {
-                // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
-                // once the CSR is ready to continue making progress.
-                //
-                // Generally the CSR should be read from the mailbox at this point, but to
-                // accommodate test cases that ignore the CSR mailbox, we will ignore it here.
-                self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+            if flow_status.idevid_csr_ready() {
+                if boot_params.read_idevid_csr_in_callback {
+                    // Drain the CSR via the callback while the MCU is still held
+                    // at the firmware-download gate, so the host doesn't race it.
+                    if let Some(cb) = self.rom_callback.take() {
+                        cb(self);
+                    } else {
+                        self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+                    }
+                } else if boot_params.fw_image.is_some() {
+                    // Clear the flag to let boot proceed, ignoring the CSR.
+                    self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+                }
             }
             if flow_status.ready_for_mb_processing() {
                 break;

@@ -18,7 +18,7 @@ use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
     StackRange, SubsystemInitParams,
 };
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelCallback, ModelError};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use zerocopy::TryFromBytes;
 
@@ -172,11 +172,70 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
         .unwrap_or("")
 }
 
+/// Boot takes well under 30M cycles, so a longer wait means the device is hung.
+const BOOT_MAX_WAIT_CYCLES: u32 = 30_000_000;
+
+/// Step until `predicate` is true, failing fast (with a register dump) if the
+/// ROM reports a fatal error or the wait exceeds [`BOOT_MAX_WAIT_CYCLES`]. `what`
+/// names the awaited condition.
+pub fn step_until_boot_or_diagnose(
+    hw: &mut DefaultHwModel,
+    what: &str,
+    mut predicate: impl FnMut(&mut DefaultHwModel) -> bool,
+) {
+    let mut cycles = 0u32;
+    loop {
+        if predicate(hw) {
+            return;
+        }
+        let fatal = hw.soc_ifc().cptra_fw_error_fatal().read();
+        if fatal != 0 {
+            panic!("{}", diagnose(hw, what, "ROM reported a FATAL error"));
+        }
+        if cycles >= BOOT_MAX_WAIT_CYCLES {
+            panic!(
+                "{}",
+                diagnose(
+                    hw,
+                    what,
+                    "timed out (no fatal error reported \u{2013} device hung)"
+                )
+            );
+        }
+        hw.step();
+        cycles += 1;
+    }
+}
+
+fn diagnose(hw: &mut DefaultHwModel, what: &str, summary: &str) -> String {
+    // Read the mailbox FSM (not the lock, which acquires on read) to show whether
+    // the ROM is still contending for the mailbox to send the CSR.
+    let mbox_status = hw.soc_mbox().status().read();
+    let mbox_fsm = mbox_status.mbox_fsm_ps();
+    let soc_ifc = hw.soc_ifc();
+    let flow = soc_ifc.cptra_flow_status().read();
+    format!(
+        "CSR-stress diagnose: {summary} while waiting for `{what}`.\n  \
+         cptra_fw_error_fatal     = 0x{:08x}\n  \
+         cptra_fw_error_non_fatal = 0x{:08x}\n  \
+         cptra_boot_status        = 0x{:08x}\n  \
+         cptra_flow_status        = 0x{:08x} (idevid_csr_ready={} ready_for_mb_processing={} ready_for_runtime={})\n  \
+         mbox_fsm_ps              = idle={} exec_uc={} exec_soc={}",
+        soc_ifc.cptra_fw_error_fatal().read(),
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        soc_ifc.cptra_boot_status().read(),
+        u32::from(flow),
+        flow.idevid_csr_ready(),
+        flow.ready_for_mb_processing(),
+        flow.ready_for_runtime(),
+        mbox_fsm.mbox_idle(),
+        mbox_fsm.mbox_execute_uc(),
+        mbox_fsm.mbox_execute_soc(),
+    )
+}
+
 pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, ModelError> {
-    // Booting to idevid_csr_ready takes well under 30M cycles; bound the wait so
-    // a failed boot fails fast instead of hanging until the harness timeout.
-    const MAX_WAIT_CYCLES: u32 = 30_000_000;
-    hw.step_until_or_timeout("idevid_csr_ready", MAX_WAIT_CYCLES, |m| {
+    step_until_boot_or_diagnose(hw, "idevid_csr_ready", |m| {
         m.soc_ifc().cptra_flow_status().read().idevid_csr_ready()
     });
     let mut txn = hw.wait_for_mailbox_receive()?;
@@ -185,6 +244,75 @@ pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, 
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
     let (csr_envelop, _) = InitDevIdCsrEnvelope::try_read_from_prefix(&result).unwrap();
     Ok(csr_envelop)
+}
+
+/// Holds the IDevID CSR captured during boot for the test to retrieve.
+pub type CapturedCsr = std::sync::Arc<std::sync::Mutex<Option<InitDevIdCsrEnvelope>>>;
+
+/// Build a model that requests the IDevID CSR and drains it from the mailbox
+/// during boot (via `rom_callback`, when `idevid_csr_ready` asserts), then boots
+/// to runtime. The returned cell holds the captured CSR.
+pub fn build_hw_model_capturing_idevid_csr(
+    fuses: Fuses,
+    image_options: ImageOptions,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> (DefaultHwModel, CapturedCsr) {
+    let csr_cell: CapturedCsr = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let cb_cell = csr_cell.clone();
+    let rom_callback: ModelCallback = Box::new(move |hw: &mut DefaultHwModel| {
+        let csr = get_csr_envelop(hw).expect("failed to read IDevID CSR in rom_callback");
+        *cb_cell.lock().unwrap() = Some(csr);
+    });
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let image_bytes = build_image_bundle(image_options).to_bytes().unwrap();
+    let soc_manifest = default_soc_manifest_bytes(pqc_key_type, 1);
+
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+    let mut security_state = SecurityState::from(fuses.life_cycle as u32);
+    security_state.set_debug_locked(fuses.debug_locked);
+
+    let model = caliptra_hw_model::new(
+        InitParams {
+            fuses,
+            rom: &rom,
+            security_state,
+            stack_info: Some(StackInfo::new(image_info)),
+            rom_callback: Some(rom_callback),
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        BootParams {
+            initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
+            read_idevid_csr_in_callback: true,
+            fw_image: Some(&image_bytes),
+            soc_manifest: Some(&soc_manifest),
+            mcu_fw_image: Some(&DEFAULT_MCU_FW),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    (model, csr_cell)
 }
 
 pub fn change_dword_endianess(data: &mut [u8]) {
