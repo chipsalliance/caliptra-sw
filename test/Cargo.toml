@@ -26,7 +26,7 @@ caliptra-image-verify = { workspace = true, default-features = false }
 caliptra-runtime = { workspace = true, default-features = false }
 caliptra-common = { workspace = true, default-features = false }
 der.workspace = true
-dpe.workspace = true
+caliptra-dpe.workspace = true
 elf.workspace = true
 openssl.workspace = true
 rand.workspace = true

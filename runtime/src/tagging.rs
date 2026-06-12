@@ -13,17 +13,18 @@ Abstract:
 --*/
 
 use crate::{mutrefbytes, Drivers};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxRespHeader, TagTciReq,
 };
+use caliptra_dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use zerocopy::FromBytes;
 
 pub struct TagTciCmd;
 impl TagTciCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
@@ -62,7 +63,7 @@ impl TagTciCmd {
 
 pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &Drivers,

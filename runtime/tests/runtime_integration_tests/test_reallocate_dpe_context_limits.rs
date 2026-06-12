@@ -9,10 +9,10 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{MailboxReq, MailboxReqHeader};
+use caliptra_dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use zerocopy::FromBytes;
 
 fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: u32) {
@@ -102,7 +102,7 @@ fn test_pl0_pl1_reallocation_range() {
     let min_pl0_limit: u32 = if first_model.subsystem_mode() { 3 } else { 2 };
     drop(first_model);
 
-    for pl0_limit in min_pl0_limit..dpe::MAX_HANDLES as u32 {
+    for pl0_limit in min_pl0_limit..caliptra_dpe::MAX_HANDLES as u32 {
         println!("\n\n\tPL0 Limit {}\n\n", pl0_limit);
         let mut model = run_rt_test(RuntimeTestArgs::default());
         let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, pl0_limit)
@@ -114,10 +114,14 @@ fn test_pl0_pl1_reallocation_range() {
         assert_eq!(reallocate_resp.new_pl0_context_limit, pl0_limit);
         assert_eq!(
             reallocate_resp.new_pl1_context_limit,
-            dpe::MAX_HANDLES as u32 - pl0_limit
+            caliptra_dpe::MAX_HANDLES as u32 - pl0_limit
         );
 
-        fill_max_dpe_contexts(&mut model, pl0_limit, dpe::MAX_HANDLES as u32 - pl0_limit);
+        fill_max_dpe_contexts(
+            &mut model,
+            pl0_limit,
+            caliptra_dpe::MAX_HANDLES as u32 - pl0_limit,
+        );
     }
 }
 
@@ -225,8 +229,8 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
     model.set_axi_user(1);
     // Try to reallocate contexts to limit PL0 high enough that PL1's share
     // (MAX_HANDLES - pl0_limit) is less than the 12 PL1 contexts we created.
-    let resp =
-        reallocate_pl0_pl1_dpe_contexts(&mut model, dpe::MAX_HANDLES as u32 - 4).unwrap_err();
+    let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, caliptra_dpe::MAX_HANDLES as u32 - 4)
+        .unwrap_err();
     assert_eq!(
         resp,
         ModelError::MailboxCmdFailed(

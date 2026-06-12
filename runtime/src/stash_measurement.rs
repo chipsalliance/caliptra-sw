@@ -15,22 +15,23 @@ Abstract:
 use crate::{
     invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
-use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::{DeriveContextResp, DpeErrorCode},
     tci::TciMeasurement,
 };
+use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use zerocopy::{FromBytes, IntoBytes};
 
 const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     /// This function MUST ONLY be called by Caliptra.
     /// Mailbox commands MUST use the `execute` function.
@@ -54,24 +55,35 @@ impl StashMeasurementCmd {
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
 
-            let cmd = DeriveContextCmd {
-                handle: ContextHandle::default(),
-                data: TciMeasurement(*measurement),
-                flags: DeriveContextFlags::MAKE_DEFAULT
-                    | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type,
-                target_locality: locality,
-                svn,
-            };
+            let invoke_derive_context = |drivers: &mut Drivers, flags: DeriveContextFlags| {
+                let cmd = DeriveContextCmd {
+                    handle: ContextHandle::default(),
+                    data: TciMeasurement(*measurement),
+                    flags,
+                    tci_type,
+                    target_locality: locality,
+                    svn,
+                };
 
-            let profile = CaliptraDpeProfile::Ecc384;
-            let cmd = &Command::from(&cmd);
-            let mut resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
-            let resp = resp_buf.as_mut_bytes();
-            let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let result = &invoke_dpe_cmd(profile, drivers, cmd, None, ueid, Some(locality), resp);
+                let profile = CaliptraDpeProfile::Ecc384;
+                let cmd = &Command::from(&cmd);
+                let mut resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
+                let resp = resp_buf.as_mut_bytes();
+                let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
+                invoke_dpe_cmd(profile, drivers, cmd, None, ueid, Some(locality), resp)
+            };
+            let flags = DeriveContextFlags::MAKE_DEFAULT
+                | DeriveContextFlags::CHANGE_LOCALITY
+                | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
+                | DeriveContextFlags::INPUT_ALLOW_X509
+                | DeriveContextFlags::ALLOW_RECURSIVE;
+            let result = invoke_derive_context(drivers, flags).or_else(|e| {
+                if e == DpeErrorCode::InvalidArgument {
+                    invoke_derive_context(drivers, DeriveContextFlags::RECURSIVE)
+                } else {
+                    Err(e)
+                }
+            });
             match result {
                 Ok(_) => DpeErrorCode::NoError,
                 Err(e) => {
@@ -79,7 +91,7 @@ impl StashMeasurementCmd {
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    *e
+                    e
                 }
             }
         };

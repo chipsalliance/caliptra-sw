@@ -38,6 +38,10 @@ emu = ["caliptra-common/emu", "caliptra-drivers/emu"]
 fake-fmc = []
 fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
+cfi = [
+    "caliptra-drivers/cfi",
+    "caliptra-common/cfi",
+]
 no-cfi = ["caliptra-drivers/no-cfi"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra-common/std", "caliptra-drivers/std", "caliptra-cpu/std"]

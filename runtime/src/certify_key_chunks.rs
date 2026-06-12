@@ -16,9 +16,9 @@ use crate::PauserPrivileges;
 use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers};
 use caliptra_api::mailbox::CertifyKeyChunksRespInfo;
 use caliptra_common::mailbox_api::{CertifyKeyChunksReq, CertifyKeyChunksResp};
+use caliptra_dpe::commands::{CertifyKeyCommand, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
+use caliptra_dpe::response::{CertifyKeyMldsa87Resp, CertifyKeyP384Resp};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::commands::{CertifyKeyCommand, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
-use dpe::response::{CertifyKeyMldsa87Resp, CertifyKeyP384Resp};
 use memoffset::span_of;
 use zerocopy::FromBytes;
 

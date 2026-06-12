@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use crate::{mutrefbytes, Drivers};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     AlgorithmType, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxRespHeader,
     QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req, QuotePcrsMldsa87Resp,
@@ -23,7 +24,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = IncrementPcrResetCounterReq::ref_from_bytes(cmd_args)
@@ -45,7 +46,7 @@ impl IncrementPcrResetCounterCmd {
 
 pub struct GetPcrQuoteCmd;
 impl GetPcrQuoteCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
@@ -108,7 +109,7 @@ impl GetPcrQuoteCmd {
 
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = ExtendPcrReq::ref_from_bytes(cmd_args)
@@ -135,7 +136,7 @@ impl ExtendPcrCmd {
 
 pub struct GetPcrLogCmd;
 impl GetPcrLogCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let resp = mutrefbytes::<GetPcrLogResp>(resp)?;

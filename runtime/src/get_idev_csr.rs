@@ -2,7 +2,8 @@
 
 use crate::{mutrefbytes, Drivers};
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -10,7 +11,7 @@ use caliptra_drivers::{Ecc384IdevIdCsr, Mldsa87IdevIdCsr};
 
 pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
@@ -45,7 +46,7 @@ impl GetIdevCsrCmd {
 
 pub struct GetIdevMldsaCsrCmd;
 impl GetIdevMldsaCsrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.mldsa_csr;
