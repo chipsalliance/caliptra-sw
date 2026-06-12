@@ -356,6 +356,19 @@ impl HwModel for ModelEmulated {
         self.trng_mode
     }
 
+    fn run_idevid_csr_callback(&mut self) {
+        #[cfg(all(
+            not(feature = "verilator"),
+            not(feature = "fpga_realtime"),
+            not(feature = "fpga_subsystem")
+        ))]
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+            return;
+        }
+        self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+    }
+
     fn ready_for_fw(&self) -> bool {
         self.ready_for_fw.get()
     }

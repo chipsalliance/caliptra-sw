@@ -93,6 +93,7 @@ pub struct ModelVerilated {
     log: Rc<RefCell<BusLogger<NullBus>>>,
 
     soc_axi_user: u32,
+    rom_callback: Option<crate::ModelCallback>,
 }
 
 impl ModelVerilated {
@@ -204,6 +205,7 @@ impl HwModel for ModelVerilated {
             log,
 
             soc_axi_user: DEFAULT_AXI_USER,
+            rom_callback: params.rom_callback,
         };
 
         m.tracing_hint(true);
@@ -231,6 +233,14 @@ impl HwModel for ModelVerilated {
 
     fn trng_mode(&self) -> TrngMode {
         self.trng_mode
+    }
+
+    fn run_idevid_csr_callback(&mut self) {
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+        } else {
+            self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+        }
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {

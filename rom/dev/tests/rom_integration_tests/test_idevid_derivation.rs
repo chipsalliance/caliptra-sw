@@ -1,11 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
-use caliptra_drivers::{IdevidCertAttr, InitDevIdCsrEnvelope, MfgFlags, X509KeyIdAlgo};
+use caliptra_drivers::{IdevidCertAttr, InitDevIdCsrEnvelope, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
-use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
@@ -15,38 +15,25 @@ use crate::helpers;
 
 const ROM_READY_FOR_FW_PROCESSOR: u32 = 70;
 
-fn generate_csr_envelop(
-    hw: &mut DefaultHwModel,
-    image_bundle: &ImageBundle,
+fn boot_and_capture_idevid_csr(
+    fuses: Fuses,
+    image_options: ImageOptions,
     pqc_key_type: FwVerificationPqcKeyType,
-) -> InitDevIdCsrEnvelope {
-    // GENERATE_IDEVID_CSR is latched via BootParams when the model is built, so
-    // ROM sees it before sampling it during cold reset.
+) -> (DefaultHwModel, InitDevIdCsrEnvelope) {
+    // The CSR is drained during boot; then boot to runtime for the cert checks.
+    let (mut hw, csr_cell) =
+        helpers::build_hw_model_capturing_idevid_csr(fuses, image_options, pqc_key_type);
 
-    // Download the CSR Envelope from the mailbox.
-    let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
-
-    // Wait for uploading firmware.
-    hw.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
+    helpers::step_until_boot_or_diagnose(&mut hw, "ready_for_runtime", |m| {
+        m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
     });
-    helpers::test_upload_firmware(hw, &image_bundle.to_bytes().unwrap(), pqc_key_type);
 
-    hw.step_until_ready_for_runtime();
-
-    let output = hw.output().take(usize::MAX);
-    if crate::helpers::rom_from_env() == &firmware::ROM_WITH_UART {
-        let csr_str = helpers::get_data("[idev] ECC CSR = ", &output);
-        let uploaded = hex::decode(csr_str).unwrap();
-        assert_eq!(
-            uploaded,
-            &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize]
-        );
-    }
-    csr_envelop
+    let csr_envelop = csr_cell
+        .lock()
+        .unwrap()
+        .take()
+        .expect("IDevID CSR was not captured during boot");
+    (hw, csr_envelop)
 }
 
 #[test]
@@ -60,12 +47,7 @@ fn test_generate_csr_envelop() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
-            fuses,
-            image_options,
-            MfgFlags::GENERATE_IDEVID_CSR,
-        );
-        generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
+        let (_hw, _csr_envelop) = boot_and_capture_idevid_csr(fuses, image_options, *pqc_key_type);
     }
 }
 
@@ -118,13 +100,8 @@ fn test_generate_csr_envelop_stress() {
         for _ in 0..num_tests {
             let mut fuses = fuses_with_random_uds();
             fuses.fuse_pqc_key_type = *pqc_key_type as u32;
-            let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
-                fuses.clone(),
-                image_options.clone(),
-                MfgFlags::GENERATE_IDEVID_CSR,
-            );
-
-            let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle, *pqc_key_type);
+            let (mut hw, csr_envelop) =
+                boot_and_capture_idevid_csr(fuses.clone(), image_options.clone(), *pqc_key_type);
 
             // Ensure ECC CSR is valid X.509
             let req =

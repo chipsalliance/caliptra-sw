@@ -426,6 +426,9 @@ pub struct BootParams<'a> {
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
     /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     pub encrypted_boot: bool,
+    /// Fire `rom_callback` when `idevid_csr_ready` asserts during boot (to drain
+    /// the CSR from the mailbox) instead of auto-clearing the manufacturing flag.
+    pub read_idevid_csr_in_callback: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -441,6 +444,7 @@ impl Default for BootParams<'_> {
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
             encrypted_boot: false,
+            read_idevid_csr_in_callback: false,
         }
     }
 }
@@ -819,6 +823,26 @@ fn retry_acquire_mailbox_lock(
     false
 }
 
+/// Step `ctx` until `predicate` is true, calling `step` between checks. Returns
+/// `false` if `max_wait_cycles` is reached first. Factored out of
+/// [`HwModel::step_until_or_timeout`] so the bound logic is unit-testable.
+fn run_step_until_or_timeout<T: ?Sized>(
+    ctx: &mut T,
+    max_wait_cycles: u32,
+    mut predicate: impl FnMut(&mut T) -> bool,
+    mut step: impl FnMut(&mut T),
+) -> bool {
+    let mut cycle_count = 0u32;
+    while !predicate(ctx) {
+        step(ctx);
+        cycle_count += 1;
+        if cycle_count >= max_wait_cycles {
+            return false;
+        }
+    }
+    true
+}
+
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use [`crate::new()`] to create a model
 // based on the cargo features (and any model-specific environment variables).
@@ -913,7 +937,11 @@ pub trait HwModel: SocManager {
                 // Generally the CSR should be read from the mailbox at this point, but to
                 // accommodate test cases that ignore the CSR mailbox, we will ignore it here.
                 if self.soc_ifc().cptra_flow_status().read().idevid_csr_ready() {
-                    self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+                    if boot_params.read_idevid_csr_in_callback {
+                        self.run_idevid_csr_callback();
+                    } else {
+                        self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+                    }
                 }
 
                 self.step();
@@ -1050,6 +1078,19 @@ pub trait HwModel: SocManager {
         }
     }
 
+    /// Like [`step_until`](Self::step_until), but panics after `max_wait_cycles`
+    /// so a hung device fails fast. `description` names the awaited condition.
+    fn step_until_or_timeout(
+        &mut self,
+        description: &str,
+        max_wait_cycles: u32,
+        mut predicate: impl FnMut(&mut Self) -> bool,
+    ) {
+        if !run_step_until_or_timeout(self, max_wait_cycles, |s| predicate(s), |s| s.step()) {
+            panic!("timed out after {max_wait_cycles} cycles waiting for {description}");
+        }
+    }
+
     /// Toggle reset pins and wait for ready_for_fuses
     fn warm_reset(&mut self) {
         // To be overridden by HwModel implementations that support this
@@ -1106,6 +1147,12 @@ pub trait HwModel: SocManager {
                 format!("Fuse initializaton error: {}", ModelError::from(e))
             );
         }
+    }
+
+    /// Boot hook for `read_idevid_csr_in_callback`. Models with a `rom_callback`
+    /// override this to run it; the default just clears the manufacturing flag.
+    fn run_idevid_csr_callback(&mut self) {
+        self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
     }
 
     fn step_until_exit_success(&mut self) -> std::io::Result<()> {
@@ -1840,6 +1887,41 @@ mod tests {
         };
         assert!(!retry_acquire_mailbox_lock(&mut lock, 5, 10));
         assert_eq!(lock.steps, 50);
+    }
+
+    #[test]
+    fn test_run_step_until_or_timeout() {
+        use crate::run_step_until_or_timeout;
+
+        // Condition met before the budget: returns true, stops stepping early.
+        let mut steps = 0u32;
+        assert!(run_step_until_or_timeout(
+            &mut steps,
+            100,
+            |s| *s >= 5,
+            |s| *s += 1,
+        ));
+        assert_eq!(steps, 5);
+
+        // Condition already true: returns true without stepping.
+        let mut steps = 10u32;
+        assert!(run_step_until_or_timeout(
+            &mut steps,
+            100,
+            |s| *s >= 5,
+            |s| *s += 1,
+        ));
+        assert_eq!(steps, 10);
+
+        // Condition never met: returns false after exactly max_wait_cycles steps.
+        let mut steps = 0u32;
+        assert!(!run_step_until_or_timeout(
+            &mut steps,
+            7,
+            |_| false,
+            |s| *s += 1,
+        ));
+        assert_eq!(steps, 7);
     }
 
     #[test]
