@@ -193,10 +193,10 @@ fn scalar_ntt(s: &mut Scalar) {
         offset >>= 1;
         for (step_root, chunk) in NTT_ROOTS_MONTGOMERY[step..]
             .iter()
-            .zip(s.c.chunks_exact_mut(2 * offset))
+            .zip(s.c.chunks_exact_mut((2 * offset).min(K_DEGREE)))
         {
-            let (evens, odds) = chunk.split_at_mut(offset);
-            for j in 0..offset {
+            let (evens, odds) = chunk.split_at_mut(chunk.len() / 2);
+            for j in 0..evens.len() {
                 let even = evens[j];
                 let odd = reduce_montgomery((*step_root as u64).wrapping_mul(odds[j] as u64));
                 evens[j] = reduce_once(odd.wrapping_add(even));
@@ -212,14 +212,18 @@ fn scalar_inverse_ntt(s: &mut Scalar) {
     let mut offset = 1;
     while offset < K_DEGREE {
         step >>= 1;
-        for (step_root, chunk) in NTT_ROOTS_MONTGOMERY[step..step * 2.min(K_DEGREE)]
+        // The step is always trivially less than or equal to k_degree divided by 2, since it starts
+        // at that value, and offset ends the loop prior to it underflowing.  Add a `min` check to
+        // make it explicit for the compiler so panic checking in the indexes is elided.
+        let safe_step = step.min(K_DEGREE / 2);
+        for (step_root, chunk) in NTT_ROOTS_MONTGOMERY[safe_step..safe_step * 2]
             .iter()
             .rev()
             .zip(s.c.chunks_exact_mut(2 * offset))
         {
             let step_root = K_PRIME.wrapping_sub(*step_root);
-            let (evens, odds) = chunk.split_at_mut(offset);
-            for j in 0..offset {
+            let (evens, odds) = chunk.split_at_mut(chunk.len() / 2);
+            for j in 0..evens.len() {
                 let even = evens[j];
                 let odd = odds[j];
                 evens[j] = reduce_once(odd.wrapping_add(even));
@@ -498,14 +502,17 @@ fn scalar_decode_signed_20_19(out: &mut Scalar, in_val: &[u8]) {
     let k20_bits = (1u32 << 20) - 1;
 
     for (in_chunk, out_chunk) in in_val.chunks_exact(10).zip(out.c.chunks_exact_mut(4)) {
-        let a = u32::from_le_bytes([in_chunk[0], in_chunk[1], in_chunk[2], in_chunk[3]]);
-        let b = u32::from_le_bytes([in_chunk[4], in_chunk[5], in_chunk[6], in_chunk[7]]);
-        let c = u16::from_le_bytes([in_chunk[8], in_chunk[9]]);
+        if let ([b0, b1, b2, b3, b4, b5, b6, b7, b8, b9], [o0, o1, o2, o3]) = (in_chunk, out_chunk)
+        {
+            let a = u32::from_le_bytes([*b0, *b1, *b2, *b3]);
+            let b = u32::from_le_bytes([*b4, *b5, *b6, *b7]);
+            let c = u16::from_le_bytes([*b8, *b9]);
 
-        out_chunk[0] = mod_sub(k_max, a & k20_bits);
-        out_chunk[1] = mod_sub(k_max, (a >> 20) | ((b & 0xFF) << 12));
-        out_chunk[2] = mod_sub(k_max, (b >> 8) & k20_bits);
-        out_chunk[3] = mod_sub(k_max, (b >> 28) | ((c as u32) << 4));
+            *o0 = mod_sub(k_max, a & k20_bits);
+            *o1 = mod_sub(k_max, (a >> 20) | ((b & 0xFF) << 12));
+            *o2 = mod_sub(k_max, (b >> 8) & k20_bits);
+            *o3 = mod_sub(k_max, (b >> 28) | ((c as u32) << 4));
+        }
     }
 }
 
@@ -695,7 +702,12 @@ fn hint_bit_pack(out: &mut [u8; OMEGA + 8], h: &Vector8) {
     for i in 0..8 {
         for j in 0..K_DEGREE {
             if h.v[i].c[j] != 0 {
-                out[index] = j as u8;
+                // This logic is only invoked by the encode_signature against the generated
+                // signature.  By construction (view the conclusion of sign_internal_with_mu), the
+                // signature is guaranteed to have less than OMEGA ones, and thus this is safe.
+                if let Some(o) = out.get_mut(index) {
+                    *o = j as u8
+                };
                 index += 1;
             }
         }

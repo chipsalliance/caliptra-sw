@@ -17,9 +17,9 @@ pub enum ShakeConfig {
 }
 
 pub struct KeccakSt {
+    config: ShakeConfig,
     state: [u64; 25],
     phase: KeccakPhase,
-    rate_bytes: usize,
     absorb_offset: usize,
     squeeze_offset: usize,
 }
@@ -125,17 +125,19 @@ fn keccak_f(state: &mut [u64; 25]) {
 
 impl KeccakSt {
     pub fn new(config: ShakeConfig) -> Self {
-        let capacity_bytes = match config {
-            ShakeConfig::Shake128 => 256 / 8,
-            ShakeConfig::Shake256 => 512 / 8,
-        };
-
         KeccakSt {
+            config,
             state: [0u64; 25],
             phase: KeccakPhase::Absorb,
-            rate_bytes: 200 - capacity_bytes,
             absorb_offset: 0,
             squeeze_offset: 0,
+        }
+    }
+
+    fn rate(&self) -> usize {
+        match self.config {
+            ShakeConfig::Shake128 => 200 - (256 / 8),
+            ShakeConfig::Shake256 => 200 - (512 / 8),
         }
     }
 
@@ -144,7 +146,7 @@ impl KeccakSt {
 
         // Absorb partial block.
         if self.absorb_offset != 0 {
-            let first_block_len = self.rate_bytes - self.absorb_offset;
+            let first_block_len = self.rate() - self.absorb_offset;
             let todo = core::cmp::min(first_block_len, in_len);
             let start = self.absorb_offset.min(self.state.as_bytes().len());
             for (s, b) in self.state.as_mut_bytes()[start..]
@@ -166,8 +168,8 @@ impl KeccakSt {
 
         // Absorb full blocks.
         let state_words = self.state.len();
-        let rate_words = self.rate_bytes / 8;
-        let rate = self.rate_bytes;
+        let rate_words = self.rate() / 8;
+        let rate = self.rate();
         while in_slice.len() >= rate {
             for (state_word, word_bytes) in self.state[..rate_words.min(state_words)]
                 .iter_mut()
@@ -196,12 +198,12 @@ impl KeccakSt {
     }
 
     fn finalize(&mut self) {
-        let terminator = 0x1fu8;
+        let r = self.rate();
+        let ao = self.absorb_offset.min(self.state.as_bytes().len() - 1);
 
-        // XOR the terminator.
         let state_bytes = self.state.as_mut_bytes();
-        state_bytes[self.absorb_offset] ^= terminator;
-        state_bytes[self.rate_bytes - 1] ^= 0x80;
+        state_bytes[ao] ^= 0x1f;
+        state_bytes[r - 1] ^= 0x80;
 
         keccak_f(&mut self.state);
     }
@@ -212,7 +214,7 @@ impl KeccakSt {
             self.phase = KeccakPhase::Squeeze;
         }
 
-        let rate = self.rate_bytes.min(self.state.as_bytes().len());
+        let rate = self.rate();
 
         while !out_slice.is_empty() {
             if self.squeeze_offset >= rate {
@@ -221,12 +223,10 @@ impl KeccakSt {
             }
 
             let squeeze_off = self.squeeze_offset.min(rate);
-            let remaining = rate - squeeze_off;
-            let todo = core::cmp::min(out_slice.len(), remaining);
-            out_slice[..todo]
-                .copy_from_slice(&self.state.as_bytes()[squeeze_off..squeeze_off + todo]);
-
-            let (_, rest) = out_slice.split_at_mut(todo);
+            let state_tail = &self.state.as_bytes()[squeeze_off..rate];
+            let todo = out_slice.len().min(state_tail.len());
+            let (dst, rest) = out_slice.split_at_mut(todo);
+            dst.copy_from_slice(&state_tail[..todo]);
             out_slice = rest;
             self.squeeze_offset += todo;
         }
