@@ -16,7 +16,7 @@ use rand::{
 // * Each byte in a word must be unique to ensure an endianness bug is noticed.
 pub const DEFAULT_UDS_SEED: [u32; 16] = [
     0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f, 0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f,
-    0x20212223, 0x24252627, 0x28292a2b, 0x2c2d2e2f, 0x30313233, 0x34353637, 0x38393a3b, 0x3c3d3e3f,
+    0x20212233, 0x24252627, 0x28292a2b, 0x2c2d2e2f, 0x30313233, 0x34353637, 0x38393a3b, 0x3c3d3e3f,
 ];
 
 pub const DEFAULT_FIELD_ENTROPY: [u32; 8] = [
