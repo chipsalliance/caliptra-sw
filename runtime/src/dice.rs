@@ -32,33 +32,32 @@ impl IDevIdCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut cmd = GetIdevCertReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
-        {
-            // Validate tbs
-            if cmd.tbs_size as usize > cmd.tbs.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
 
-            let sig = Ecdsa384Signature {
-                r: cmd.signature_r,
-                s: cmd.signature_s,
-            };
-
-            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
-            else {
-                return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
-            };
-
-            let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
-            let Some(cert_size) = builder.build(&mut cert) else {
-                return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
-            };
-
-            Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
-                hdr: MailboxRespHeader::default(),
-                cert_size: cert_size as u32,
-                cert,
-            }))
+        // Validate tbs
+        if cmd.tbs_size as usize > cmd.tbs.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
+
+        let sig = Ecdsa384Signature {
+            r: cmd.signature_r,
+            s: cmd.signature_s,
+        };
+
+        let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
+        else {
+            return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+        };
+
+        let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
+        let Some(cert_size) = builder.build(&mut cert) else {
+            return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+        };
+
+        Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
+            hdr: MailboxRespHeader::default(),
+            cert_size: cert_size as u32,
+            cert,
+        }))
     }
 }
 

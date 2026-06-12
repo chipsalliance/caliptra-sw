@@ -47,101 +47,96 @@ impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut cmd = InvokeDpeReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
-        {
-            let caller_privilege_level = drivers.caller_privilege_level();
 
-            // Validate data length
-            if cmd.data_size as usize > cmd.data.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        let caller_privilege_level = drivers.caller_privilege_level();
+
+        // Validate data length
+        if cmd.data_size as usize > cmd.data.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+        let command =
+            Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+
+        // Determine the target privilege level of a new context then check if we exceed thresholds
+        let new_context_privilege_level = match command {
+            Command::DeriveContext(cmd) if cmd.flags.changes_locality() => {
+                drivers.privilege_level_from_locality(cmd.target_locality)
             }
-            let command =
-                Command::deserialize(DpeProfile::P384Sha384, &cmd.data[..cmd.data_size as usize])
-                    .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+            _ => caller_privilege_level,
+        };
+        let dpe_context_threshold_err =
+            drivers.is_dpe_context_threshold_exceeded(new_context_privilege_level);
 
-            // Determine the target privilege level of a new context then check if we exceed thresholds
-            let new_context_privilege_level = match command {
-                Command::DeriveContext(cmd) if cmd.flags.changes_locality() => {
-                    drivers.privilege_level_from_locality(cmd.target_locality)
-                }
-                _ => caller_privilege_level,
-            };
-            let dpe_context_threshold_err =
-                drivers.is_dpe_context_threshold_exceeded(new_context_privilege_level);
-
-            let pdata = drivers.persistent_data.get_mut();
-            let pl0_pauser = pdata.manifest1.header.pl0_pauser;
-            // Check if command can be executed
-            match command {
-                Command::InitCtx(cmd) if InitCtxCmd::flag_is_simulation(cmd) => {
-                    // InitCtx can only create new contexts if they are simulation contexts.
+        let pdata = drivers.persistent_data.get_mut();
+        let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+        // Check if command can be executed
+        match command {
+            Command::InitCtx(cmd) if InitCtxCmd::flag_is_simulation(cmd) => {
+                // InitCtx can only create new contexts if they are simulation contexts.
+                dpe_context_threshold_err?;
+            }
+            Command::DeriveContext(cmd) => {
+                // If the recursive flag is not set, DeriveContext will generate a new context.
+                // If recursive _is_ set, it will extend the existing one, which will not count
+                // against the context threshold.
+                if !cmd.flags.is_recursive() {
+                    // Takes target locality into consideration if applicable. See above
                     dpe_context_threshold_err?;
                 }
-                Command::DeriveContext(cmd) => {
-                    // If the recursive flag is not set, DeriveContext will generate a new context.
-                    // If recursive _is_ set, it will extend the existing one, which will not count
-                    // against the context threshold.
-                    if !cmd.flags.is_recursive() {
-                        // Takes target locality into consideration if applicable. See above
-                        dpe_context_threshold_err?;
-                    }
-                    if cmd.flags.changes_locality()
-                        && cmd.target_locality == pl0_pauser
-                        && caller_privilege_level != PauserPrivileges::PL0
-                    {
-                        return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                    }
-
-                    if cmd.flags.exports_cdi() && caller_privilege_level != PauserPrivileges::PL0 {
-                        return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                    }
-                }
-                Command::CertifyKey(ref cmd)
-                    if cmd.format() == CertifyKeyCommand::FORMAT_X509
-                        && caller_privilege_level != PauserPrivileges::PL0 =>
+                if cmd.flags.changes_locality()
+                    && cmd.target_locality == pl0_pauser
+                    && caller_privilege_level != PauserPrivileges::PL0
                 {
-                    // PL1 cannot request X509
                     return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                 }
-                _ => (),
-            }
 
-            let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-            let mut invoke_resp = InvokeDpeResp::default();
-            let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut invoke_resp.data);
-
-            if let Command::DestroyCtx(_) = command {
-                // clear tags for destroyed contexts
-                let pdata = drivers.persistent_data.get_mut();
-                let state = &mut pdata.dpe;
-                let context_has_tag = &mut pdata.context_has_tag;
-                let context_tags = &mut pdata.context_tags;
-                InvokeDpeCmd::clear_tags_for_inactive_contexts(
-                    state,
-                    context_has_tag,
-                    context_tags,
-                );
-            }
-
-            // If DPE command failed, populate header with error code, but
-            // don't fail the mailbox command.
-            match result {
-                Ok(data_size) => {
-                    invoke_resp.data_size = data_size as u32;
+                if cmd.flags.exports_cdi() && caller_privilege_level != PauserPrivileges::PL0 {
+                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                 }
-                Err(ref e) => {
-                    // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                    if let Some(ext_err) = e.get_error_detail() {
-                        drivers.soc_ifc.set_fw_extended_error(ext_err);
-                    }
-                    let r = ResponseHdr::new(CaliptraDpeProfile::Ecc384.into(), *e);
-                    invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
-                        .copy_from_slice(r.as_bytes());
-                    invoke_resp.data_size = r.as_bytes().len() as u32;
-                }
-            };
-
-            Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
+            }
+            Command::CertifyKey(ref cmd)
+                if cmd.format() == CertifyKeyCommand::FORMAT_X509
+                    && caller_privilege_level != PauserPrivileges::PL0 =>
+            {
+                // PL1 cannot request X509
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
+            _ => (),
         }
+
+        let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
+        let mut invoke_resp = InvokeDpeResp::default();
+        let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut invoke_resp.data);
+
+        if let Command::DestroyCtx(_) = command {
+            // clear tags for destroyed contexts
+            let pdata = drivers.persistent_data.get_mut();
+            let state = &mut pdata.dpe;
+            let context_has_tag = &mut pdata.context_has_tag;
+            let context_tags = &mut pdata.context_tags;
+            InvokeDpeCmd::clear_tags_for_inactive_contexts(state, context_has_tag, context_tags);
+        }
+
+        // If DPE command failed, populate header with error code, but
+        // don't fail the mailbox command.
+        match result {
+            Ok(data_size) => {
+                invoke_resp.data_size = data_size as u32;
+            }
+            Err(ref e) => {
+                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                if let Some(ext_err) = e.get_error_detail() {
+                    drivers.soc_ifc.set_fw_extended_error(ext_err);
+                }
+                let r = ResponseHdr::new(CaliptraDpeProfile::Ecc384.into(), *e);
+                invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
+                    .copy_from_slice(r.as_bytes());
+                invoke_resp.data_size = r.as_bytes().len() as u32;
+            }
+        };
+
+        Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
     }
 
     /// Remove context tags for all inactive DPE contexts
