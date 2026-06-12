@@ -26,8 +26,11 @@ fn generate_csr_envelop(
     // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
 
-    // Wait for uploading firmware.
-    hw.step_until(|m| {
+    // Wait for uploading firmware. Bound the waits so a failed boot fails fast
+    // instead of hanging until the harness timeout (boot is well under 30M
+    // cycles).
+    const MAX_WAIT_CYCLES: u32 = 30_000_000;
+    hw.step_until_or_timeout("ready_for_mb_processing", MAX_WAIT_CYCLES, |m| {
         m.soc_ifc()
             .cptra_flow_status()
             .read()
@@ -35,7 +38,9 @@ fn generate_csr_envelop(
     });
     helpers::test_upload_firmware(hw, &image_bundle.to_bytes().unwrap(), pqc_key_type);
 
-    hw.step_until_ready_for_runtime();
+    hw.step_until_or_timeout("ready_for_runtime", MAX_WAIT_CYCLES, |m| {
+        m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
+    });
 
     let output = hw.output().take(usize::MAX);
     if crate::helpers::rom_from_env() == &firmware::ROM_WITH_UART {

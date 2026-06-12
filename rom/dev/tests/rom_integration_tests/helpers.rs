@@ -173,7 +173,12 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
 }
 
 pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, ModelError> {
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
+    // Booting to idevid_csr_ready takes well under 30M cycles; bound the wait so
+    // a failed boot fails fast instead of hanging until the harness timeout.
+    const MAX_WAIT_CYCLES: u32 = 30_000_000;
+    hw.step_until_or_timeout("idevid_csr_ready", MAX_WAIT_CYCLES, |m| {
+        m.soc_ifc().cptra_flow_status().read().idevid_csr_ready()
+    });
     let mut txn = hw.wait_for_mailbox_receive()?;
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();
