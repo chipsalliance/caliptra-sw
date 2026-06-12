@@ -42,6 +42,7 @@ members = [
   "coverage",
   "cpu",
   "drivers",
+  "drivers/test-acvp",
   "drivers/test-fw",
   "drivers/test-fw/scripts/vector_gen",
   "drivers/tests/csrng_test_data_gen",
@@ -113,6 +114,7 @@ caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
 caliptra-cpu = { path = "cpu" }
 caliptra-drivers = { path = "drivers" }
+caliptra-drivers-acvp-bin = { path = "drivers/test-acvp" }
 caliptra-drivers-test-bin = { path = "drivers/test-fw" }
 caliptra-emu-bus = { path = "sw-emulator/lib/bus" }
 caliptra-emu-cpu = { path = "sw-emulator/lib/cpu" }

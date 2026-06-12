@@ -42,11 +42,13 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-cfi = []
 fips-test-hooks = []
+acvp-tests = []
 cavp-test-harness = []
 
 [dev-dependencies]
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
+caliptra-drivers-acvp-bin.workspace = true
 caliptra-drivers-test-bin.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true

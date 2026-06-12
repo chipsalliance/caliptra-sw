@@ -550,6 +550,36 @@ pub mod api_tests {
     };
 }
 
+pub mod acvp_tests {
+    use super::*;
+
+    const BASE_FWID: FwId = FwId {
+        crate_name: "caliptra-drivers-acvp-bin",
+        bin_name: "",
+        features: &["emu"],
+    };
+
+    pub const SHA1: FwId = FwId {
+        bin_name: "sha1",
+        ..BASE_FWID
+    };
+
+    pub const HMAC: FwId = FwId {
+        bin_name: "hmac",
+        ..BASE_FWID
+    };
+
+    pub const LMS_24: FwId = FwId {
+        bin_name: "lms_24",
+        ..BASE_FWID
+    };
+
+    pub const MLDSA87: FwId = FwId {
+        bin_name: "mldsa87",
+        ..BASE_FWID
+    };
+}
+
 pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_FPGA,
@@ -636,4 +666,8 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
     &api_tests::MAILBOX,
+    &acvp_tests::SHA1,
+    &acvp_tests::HMAC,
+    &acvp_tests::LMS_24,
+    &acvp_tests::MLDSA87,
 ];
