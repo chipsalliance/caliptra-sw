@@ -185,6 +185,11 @@ impl LocalDevIdLayer {
             HmacMode::Hmac512,
             KeyUsage::default().set_aes_key_en(),
         )?;
+        // Write-lock the stable identity root slot so later (potentially
+        // compromised) FMC/runtime firmware cannot overwrite or erase the
+        // ROM-anchored root. Consumers only need read access (key usage),
+        // which the write lock does not affect.
+        env.key_vault.set_key_write_lock(stable_idev);
         Ok(())
     }
 
@@ -215,6 +220,11 @@ impl LocalDevIdLayer {
             HmacMode::Hmac512,
             KeyUsage::default().set_aes_key_en(),
         )?;
+        // Write-lock the stable identity root slot so later (potentially
+        // compromised) FMC/runtime firmware cannot overwrite or erase the
+        // ROM-anchored root. Consumers only need read access (key usage),
+        // which the write lock does not affect.
+        env.key_vault.set_key_write_lock(stable_ldev);
         Ok(())
     }
 
