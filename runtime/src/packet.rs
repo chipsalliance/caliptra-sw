@@ -37,11 +37,11 @@ pub fn copy_from_mbox(drivers: &mut crate::Drivers, buf: &mut [u8]) -> CaliptraR
 
     cprintln!("[rt]cmd=0x{:x}, len={}", cmd, dlen);
 
-    mbox.copy_from_mbox_bytes(buf, dlen_words);
-
     if dlen < core::mem::size_of::<MailboxReqHeader>() {
         return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
     }
+
+    mbox.copy_from_mbox_bytes(buf, dlen_words);
 
     let clamped = dlen.min(buf.len());
     let payload_bytes = &buf[..clamped];
