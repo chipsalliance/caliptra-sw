@@ -18,7 +18,7 @@ use crypto::{
     Crypto, Digest, PubKey, SignData, Signature,
 };
 use dpe::MAX_EXPORTED_CDI_SIZE;
-use zerocopy::FromBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct SignWithExportedEcdsaCmd;
 impl SignWithExportedEcdsaCmd {
@@ -61,9 +61,9 @@ impl SignWithExportedEcdsaCmd {
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = SignWithExportedEcdsaReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = SignWithExportedEcdsaReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         match drivers.caller_privilege_level() {
             // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0

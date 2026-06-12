@@ -1,19 +1,22 @@
 // Licensed under the Apache-2.0 license
 
+use crate::packet::copy_from_mbox;
 use crate::Drivers;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 
-use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxResp};
+use caliptra_common::mailbox_api::{GetIdevCsrReq, GetIdevCsrResp, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::IdevIdCsr;
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, _cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        copy_from_mbox(drivers, GetIdevCsrReq::new_zeroed().as_mut_bytes())?;
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr;
 
         match csr_persistent_mem.get_csr_len() {

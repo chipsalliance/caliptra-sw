@@ -18,16 +18,16 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::commands::{CertifyKeyP384Cmd, Command};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = CertifyKeyExtendedReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = CertifyKeyExtendedReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         match drivers.caller_privilege_level() {
             // CERTIFY_KEY_EXTENDED MUST only be called from PL0

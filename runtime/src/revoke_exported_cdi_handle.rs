@@ -15,16 +15,16 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use constant_time_eq::constant_time_eq;
 use dpe::U8Bool;
-use zerocopy::FromBytes;
+use zerocopy::{FromZeros, IntoBytes};
 use zeroize::Zeroize;
 
 pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = RevokeExportedCdiHandleReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = RevokeExportedCdiHandleReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         match drivers.caller_privilege_level() {
             // REVOKE_EXPORTED_CDI_HANDLE MUST only be called from PL0

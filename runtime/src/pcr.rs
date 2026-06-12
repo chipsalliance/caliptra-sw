@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
@@ -19,15 +20,15 @@ use caliptra_common::mailbox_api::{
     QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = IncrementPcrResetCounterReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = IncrementPcrResetCounterReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         let index =
             u8::try_from(cmd.index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -47,9 +48,9 @@ pub struct GetPcrQuoteCmd;
 impl GetPcrQuoteCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
-        let args: &QuotePcrsReq = QuotePcrsReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut args = QuotePcrsReq::new_zeroed();
+        copy_from_mbox(drivers, args.as_mut_bytes())?;
 
         let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
         let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
@@ -76,9 +77,9 @@ pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = ExtendPcrReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = ExtendPcrReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         let idx =
             u8::try_from(cmd.pcr_idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -103,7 +104,7 @@ pub struct GetPcrLogCmd;
 impl GetPcrLogCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, _cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let next_available = drivers.persistent_data.get().fht.pcr_log_index as usize;
         let Some(pcr_logs) = drivers.persistent_data.get().pcr_log.get(..next_available) else {
             return Err(CaliptraError::RUNTIME_PCR_INVALID_INDEX);

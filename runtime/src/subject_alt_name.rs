@@ -15,7 +15,7 @@ Abstract:
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{AddSubjectAltNameReq, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zerocopy::IntoBytes;
+use zerocopy::{FromZeros, IntoBytes};
 
 use crate::Drivers;
 
@@ -26,28 +26,24 @@ impl AddSubjectAltNameCmd {
         &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x01];
 
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() <= core::mem::size_of::<AddSubjectAltNameReq>() {
-            let mut cmd = AddSubjectAltNameReq::default();
-            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = AddSubjectAltNameReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-            let dmtf_device_info_size = cmd.dmtf_device_info_size as usize;
-            if dmtf_device_info_size > cmd.dmtf_device_info.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
-
-            Self::validate_dmtf_device_info(&cmd.dmtf_device_info[..dmtf_device_info_size])?;
-
-            let mut dmtf_device_info = ArrayVec::new();
-            dmtf_device_info
-                .try_extend_from_slice(&cmd.dmtf_device_info[..dmtf_device_info_size])
-                .map_err(|_| CaliptraError::RUNTIME_STORE_DMTF_DEVICE_INFO_FAILED)?;
-            drivers.dmtf_device_info = Some(dmtf_device_info);
-
-            Ok(MailboxResp::default())
-        } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+        let dmtf_device_info_size = cmd.dmtf_device_info_size as usize;
+        if dmtf_device_info_size > cmd.dmtf_device_info.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
+
+        Self::validate_dmtf_device_info(&cmd.dmtf_device_info[..dmtf_device_info_size])?;
+
+        let mut dmtf_device_info = ArrayVec::new();
+        dmtf_device_info
+            .try_extend_from_slice(&cmd.dmtf_device_info[..dmtf_device_info_size])
+            .map_err(|_| CaliptraError::RUNTIME_STORE_DMTF_DEVICE_INFO_FAILED)?;
+        drivers.dmtf_device_info = Some(dmtf_device_info);
+
+        Ok(MailboxResp::default())
     }
 
     /// Verifies that `dmtf_device_info` only contains ascii characters and contains exactly 2 ':'

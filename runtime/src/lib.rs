@@ -83,8 +83,9 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxResp};
-use packet::Packet;
+use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxResp};
+use packet::{copy_from_mbox, copy_to_mbox};
+use zerocopy::{FromZeros, IntoBytes};
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
 
@@ -183,78 +184,89 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
-    // Get the command bytes
-    let mut req_packet = Packet::default();
-    Packet::copy_from_mbox(drivers, &mut req_packet)?;
-    let cmd_bytes = req_packet.as_bytes()?;
-
-    cprintln!("[rt]cmd =0x{:x}, len={}", req_packet.cmd, req_packet.len);
-
     // Handle the request and generate the response
-    let mut resp = match CommandId::from(req_packet.cmd) {
+    let mut resp = match drivers.mbox.cmd() {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
-        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
+        CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
+        CommandId::GET_IDEV_INFO => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            IDevIdInfoCmd::execute(drivers)
+        }
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
-        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
-        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
-        CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
-        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
-        CommandId::FW_INFO => FwInfoCmd::execute(drivers),
-        CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
-        CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
-        CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
+        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers),
+        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers),
+        CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers),
+        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers),
+        CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
+        CommandId::DISABLE_ATTESTATION => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            DisableAttestationCmd::execute(drivers)
+        }
+        CommandId::FW_INFO => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            FwInfoCmd::execute(drivers)
+        }
+        CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers),
+        CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers),
+        CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
-        CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
-        CommandId::INCREMENT_PCR_RESET_COUNTER => {
-            IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
-        }
-        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
+        CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers),
+        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers),
+        CommandId::INCREMENT_PCR_RESET_COUNTER => IncrementPcrResetCounterCmd::execute(drivers),
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers),
         CommandId::VERSION => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
             FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
         }
-        CommandId::CAPABILITIES => CapabilitiesCmd::execute(),
+        CommandId::CAPABILITIES => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            CapabilitiesCmd::execute()
+        }
         #[cfg(feature = "fips_self_test")]
-        CommandId::SELF_TEST_START => match drivers.self_test_status {
-            SelfTestStatus::Idle => {
-                drivers.self_test_status = SelfTestStatus::InProgress(fips_self_test_cmd::execute);
-                Ok(MailboxResp::default())
+        CommandId::SELF_TEST_START => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            match drivers.self_test_status {
+                SelfTestStatus::Idle => {
+                    drivers.self_test_status =
+                        SelfTestStatus::InProgress(fips_self_test_cmd::execute);
+                    Ok(MailboxResp::default())
+                }
+                _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
             }
-            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
-        },
+        }
         #[cfg(feature = "fips_self_test")]
-        CommandId::SELF_TEST_GET_RESULTS => match drivers.self_test_status {
-            SelfTestStatus::Done => {
-                drivers.self_test_status = SelfTestStatus::Idle;
-                Ok(MailboxResp::default())
+        CommandId::SELF_TEST_GET_RESULTS => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            match drivers.self_test_status {
+                SelfTestStatus::Done => {
+                    drivers.self_test_status = SelfTestStatus::Idle;
+                    Ok(MailboxResp::default())
+                }
+                _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
             }
-            _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
-        },
-        CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
-        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
-        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, cmd_bytes),
-        CommandId::SIGN_WITH_EXPORTED_ECDSA => {
-            SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
         }
-        CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
-            RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
+        CommandId::SHUTDOWN => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            FipsShutdownCmd::execute(drivers)
         }
-        CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
-            ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes)
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
+        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
+        CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),
+        CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers),
+        CommandId::GET_PCR_LOG => {
+            copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            GetPcrLogCmd::execute(drivers)
         }
+        CommandId::SIGN_WITH_EXPORTED_ECDSA => SignWithExportedEcdsaCmd::execute(drivers),
+        CommandId::REVOKE_EXPORTED_CDI_HANDLE => RevokeExportedCdiHandleCmd::execute(drivers),
+        CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => ReallocateDpeContextLimitsCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
     let resp = okmutref(&mut resp)?;
 
     // Send the response
-    Packet::copy_to_mbox(drivers, resp)?;
+    copy_to_mbox(drivers, resp)?;
 
     Ok(MboxStatusE::DataReady)
 }
