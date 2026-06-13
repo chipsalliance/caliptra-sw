@@ -100,8 +100,16 @@ fn fuses_with_random_uds() -> Fuses {
     const UDS_LEN: usize = core::mem::size_of::<u32>() * 16;
     let mut uds_bytes = [0; UDS_LEN];
     rand_bytes(&mut uds_bytes).unwrap();
-    let mut uds_seed = [0u32; 16];
 
+    // WORKAROUND: On FPGA subsystem (core_test mode), UDS words 8-15 are written to OTP at
+    // 0xac8 (DOT_FUSE_ARRAY). MCU ROM treats an odd total popcount as DOT-locked,
+    // and if the DOT blob is absent, it errors out. This ensures an even number of bits are set.
+    let dot_fuse_bits: u32 = uds_bytes[32..64].iter().map(|b| b.count_ones()).sum();
+    if dot_fuse_bits & 1 == 1 {
+        uds_bytes[32] ^= 1;
+    }
+
+    let mut uds_seed = [0u32; 16];
     for (word, bytes) in uds_seed.iter_mut().zip(uds_bytes.chunks_exact(4)) {
         *word = u32::from_be_bytes(bytes.try_into().unwrap());
     }
