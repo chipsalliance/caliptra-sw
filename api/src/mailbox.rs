@@ -2,6 +2,7 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_mldsa::{MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -621,8 +622,8 @@ impl Request for LmsVerifyReq {
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct Mldsa87VerifyReq {
     pub hdr: MailboxReqHeader,
-    pub pub_key: [u8; 2592],
-    pub signature: [u8; 4627],
+    pub pub_key: [u8; MLDSA87_PUBLIC_KEY_BYTES],
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTES],
     pub _pad: u8,
 }
 impl Request for Mldsa87VerifyReq {
@@ -633,8 +634,8 @@ impl Default for Mldsa87VerifyReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
-            pub_key: [0u8; 2592],
-            signature: [0u8; 4627],
+            pub_key: [0u8; MLDSA87_PUBLIC_KEY_BYTES],
+            signature: [0u8; MLDSA87_SIGNATURE_BYTES],
             _pad: 0,
         }
     }

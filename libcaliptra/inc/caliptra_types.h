@@ -131,7 +131,7 @@ struct caliptra_lms_verify_req
     uint8_t signature_tree_path[360];
 };
 
-// MLDSA87_SIGNATURE_VERIFY (RFC #3700).
+// MLDSA87_SIGNATURE_VERIFY.
 // The message digest to verify against is taken from Caliptra's SHA
 // accelerator (matching ECDSA384_VERIFY and LMS_VERIFY). The caller
 // must stream the message through the SHA accelerator before issuing

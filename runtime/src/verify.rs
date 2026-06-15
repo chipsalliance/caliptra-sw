@@ -144,9 +144,9 @@ pub struct Mldsa87VerifyCmd;
 impl Mldsa87VerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = Mldsa87VerifyReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = Mldsa87VerifyReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         // Pull the SHA-384 digest from the SHA accelerator (same pattern as
         // ECDSA384_VERIFY and LMS_VERIFY). The caller is expected to have

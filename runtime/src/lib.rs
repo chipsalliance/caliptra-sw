@@ -199,7 +199,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
-        CommandId::MLDSA87_SIGNATURE_VERIFY => Mldsa87VerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::MLDSA87_SIGNATURE_VERIFY => Mldsa87VerifyCmd::execute(drivers),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
         CommandId::DISABLE_ATTESTATION => {

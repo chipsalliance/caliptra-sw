@@ -218,6 +218,7 @@ dependencies = [
  "caliptra-emu-types",
  "caliptra-error",
  "caliptra-image-types",
+ "caliptra-mldsa",
  "caliptra-registers",
  "ureg",
  "zerocopy",

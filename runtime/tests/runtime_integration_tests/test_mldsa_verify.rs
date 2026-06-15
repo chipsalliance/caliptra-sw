@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license.
 
 //! Integration tests for the `MLDSA87_SIGNATURE_VERIFY` runtime mailbox
-//! command (RFC #3700).
+//! command.
 //!
 //! The command verifies an ML-DSA-87 signature over a message digest that
 //! has been streamed through Caliptra's SHA accelerator (the same pattern

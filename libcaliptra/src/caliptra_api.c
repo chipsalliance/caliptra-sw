@@ -1058,7 +1058,7 @@ int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async)
     return pack_and_execute_command(&p, async);
 }
 
-// ML-DSA-87 Signature Verify (RFC #3700)
+// ML-DSA-87 Signature Verify
 int caliptra_mldsa87_signature_verify(struct caliptra_mldsa87_signature_verify_req *req, bool async)
 {
     if (!req)
