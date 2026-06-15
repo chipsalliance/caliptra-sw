@@ -476,6 +476,10 @@ pub struct ModelFpgaSubsystem {
 }
 
 impl ModelFpgaSubsystem {
+    fn mci_boot_milestones(&mut self) -> McuBootMilestones {
+        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
+    }
+
     fn set_bootfsm_break(&mut self, val: bool) {
         if val {
             self.wrapper
@@ -1758,10 +1762,6 @@ impl ModelFpgaSubsystem {
         (self.mci_flow_status() & 0x0000_ffff) as u16
     }
 
-    pub fn mci_boot_milestones(&mut self) -> McuBootMilestones {
-        McuBootMilestones::from((self.mci_flow_status() >> 16) as u16)
-    }
-
     fn caliptra_axi_bus(&mut self) -> Option<FpgaRealtimeBus<'_>> {
         self.mmio.caliptra_axi_bus()
     }
@@ -2339,7 +2339,13 @@ impl HwModel for ModelFpgaSubsystem {
         // MCU ROM will wait after reaching the mailbox for this bit before booting RT
         gpio.set(current | 1 << 31);
 
-        // ironically, we don't need to support this
+        // Wait for MCU to finish cold boot (including ROM integrity check)
+        // to avoid mailbox contention with the host.
+        self.step_until(|m| {
+            m.mci_boot_milestones()
+                .contains(McuBootMilestones::COLD_BOOT_FLOW_COMPLETE)
+        });
+
         Ok(())
     }
 
