@@ -132,7 +132,6 @@ impl Mldsa87Kat {
         if Mldsa87::verify(public_key, signature, &MESSAGE)? != Mldsa87Result::Success {
             Err(CaliptraError::KAT_MLDSA87_SIGNATURE_VERIFY_FAILURE)?;
         }
-
         Ok(())
     }
 }

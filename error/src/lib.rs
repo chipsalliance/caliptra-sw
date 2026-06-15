@@ -1263,11 +1263,6 @@ impl CaliptraError {
             0x000E0062,
             "Runtime Error: ML-DSA-87 signature verification failed"
         ),
-        (
-            RUNTIME_MLDSA87_VERIFY_INVALID_PADDING,
-            0x000E0063,
-            "Runtime Error: ML-DSA-87 verify request reserved padding byte is non-zero"
-        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

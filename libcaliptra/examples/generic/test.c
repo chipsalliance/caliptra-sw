@@ -682,10 +682,9 @@ int rt_test_all_commands(const test_info* info)
 
     // Not testing for full success.
     // An all-zero public key + signature is well-formed wire-wise (chksum is
-    // populated by the SDK and `_sig_pad` defaults to zero) but is rejected
-    // by the verify algorithm. Seeing RUNTIME_MLDSA87_VERIFY_FAILED here
-    // proves the FW recognized the new MDSV command and routed it to the
-    // ML-DSA-87 verify code path.
+    // populated by the SDK) but is rejected by the verify algorithm. Seeing
+    // RUNTIME_MLDSA87_VERIFY_FAILED here proves the FW recognized the new
+    // MDSV command and routed it to the ML-DSA-87 verify code path.
     uint32_t RUNTIME_MLDSA87_VERIFY_FAILED = 0xE0062;
     non_fatal_error = caliptra_read_fw_non_fatal_error();
     if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_MLDSA87_VERIFY_FAILED) {

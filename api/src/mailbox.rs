@@ -611,14 +611,19 @@ impl Request for LmsVerifyReq {
 // No command-specific output args
 
 // MLDSA87_SIGNATURE_VERIFY
+//
+// The message digest to verify against is taken from Caliptra's SHA
+// accelerator (matching ECDSA384_VERIFY and LMS_VERIFY). Callers must
+// stream the message through the SHA accelerator before issuing this
+// command. Carrying the raw message in-band would put hashing outside
+// the FIPS module boundary and is therefore disallowed.
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct Mldsa87VerifyReq {
     pub hdr: MailboxReqHeader,
     pub pub_key: [u8; 2592],
     pub signature: [u8; 4627],
-    pub _sig_pad: u8,
-    pub message: [u8; 64],
+    pub _pad: u8,
 }
 impl Request for Mldsa87VerifyReq {
     const ID: CommandId = CommandId::MLDSA87_SIGNATURE_VERIFY;
@@ -630,8 +635,7 @@ impl Default for Mldsa87VerifyReq {
             hdr: MailboxReqHeader::default(),
             pub_key: [0u8; 2592],
             signature: [0u8; 4627],
-            _sig_pad: 0,
-            message: [0u8; 64],
+            _pad: 0,
         }
     }
 }

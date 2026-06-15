@@ -132,18 +132,17 @@ struct caliptra_lms_verify_req
 };
 
 // MLDSA87_SIGNATURE_VERIFY (RFC #3700).
-//
-// `_sig_pad` is reserved and must be zero; it aligns `message` on an
-// 8-byte boundary inside the wire-format request. `message` is intended
-// to carry a fixed-size digest (e.g. SHA-256/384/512) computed by the
-// caller, since the runtime command does not pre-hash large payloads.
+// The message digest to verify against is taken from Caliptra's SHA
+// accelerator (matching ECDSA384_VERIFY and LMS_VERIFY). The caller
+// must stream the message through the SHA accelerator before issuing
+// this command. Carrying the raw message in-band would put hashing
+// outside the FIPS module boundary and is therefore disallowed.
 struct caliptra_mldsa87_signature_verify_req
 {
     struct caliptra_req_header hdr;
     uint8_t pub_key[2592];
     uint8_t signature[4627];
-    uint8_t _sig_pad;
-    uint8_t message[64];
+    uint8_t _pad;
 };
 
 struct caliptra_stash_measurement_req

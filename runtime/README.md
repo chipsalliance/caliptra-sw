@@ -420,11 +420,12 @@ Command Code: `0x4C4D_5356` ("LMSV")
 
 ### MLDSA87\_SIGNATURE\_VERIFY
 
-Verifies an ML-DSA-87 (FIPS 204) signature. Unlike the ECDSA and LMS verify
-commands, the message is supplied directly in the request rather than read
-from the SHA accelerator. Callers are expected to pre-hash large payloads
-(SHA-256 / SHA-384 / SHA-512) and pass the digest in the fixed 64-byte
-`message` field.
+Verifies an ML-DSA-87 (FIPS 204) signature. As with the ECDSA and LMS
+verify commands, the message digest to be verified is taken from
+Caliptra's SHA384 accelerator peripheral. Callers must stream the
+message through the SHA accelerator before issuing this command;
+carrying the raw message in-band would put hashing outside the FIPS
+module boundary and is therefore disallowed.
 
 ML-DSA-87 is stateless and does not have the per-key signature budget that
 LMS does, which is the primary motivation for adding this command alongside
@@ -442,8 +443,6 @@ Command Code: `0x4D44_5356` ("MDSV")
 | chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
 | pub\_key     | u8[2592]  | Encoded ML-DSA-87 public key (FIPS 204).
 | signature    | u8[4627]  | Encoded ML-DSA-87 signature (FIPS 204).
-| \_sig\_pad   | u8        | Reserved. Must be zero. Aligns `message` on an 8-byte boundary.
-| message      | u8[64]    | Message to verify. Intended for SHA-256/384/512 digests or other fixed-size messages.
 
 *Table: `MLDSA87_SIGNATURE_VERIFY` output arguments*
 

@@ -144,16 +144,25 @@ pub struct Mldsa87VerifyCmd;
 impl Mldsa87VerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(_drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = Mldsa87VerifyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        // Reserved padding byte must be zero per RFC #3700.
-        if cmd._sig_pad != 0 {
-            return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_INVALID_PADDING);
+        // Pull the SHA-384 digest from the SHA accelerator (same pattern as
+        // ECDSA384_VERIFY and LMS_VERIFY). The caller is expected to have
+        // streamed the message through the accelerator before dispatching
+        // this command. Keeping the hashing inside the SHA accelerator
+        // preserves the FIPS module boundary for this verify operation.
+        let msg_digest_be = drivers.sha_acc.regs().digest().truncate::<12>().read();
+        // The accelerator exposes the digest as big-endian u32 words; flip
+        // them back to a raw byte stream so ML-DSA verifies against the
+        // canonical SHA-384 byte ordering.
+        let mut msg_digest = [0u8; 48];
+        for (i, src_word) in msg_digest_be.iter().enumerate() {
+            msg_digest[i * 4..][..4].copy_from_slice(&src_word.to_be_bytes());
         }
 
-        let result = Mldsa87::verify(&cmd.pub_key, &cmd.signature, &cmd.message)?;
+        let result = Mldsa87::verify(&cmd.pub_key, &cmd.signature, &msg_digest)?;
         if result != Mldsa87Result::Success {
             return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
