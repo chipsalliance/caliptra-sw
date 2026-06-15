@@ -38,7 +38,10 @@ fn default_init_params() -> InitParams<'static> {
     }
 }
 
-fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
+fn start_driver_test_with_boot_params(
+    test_rom: &'static FwId,
+    boot_params: BootParams,
+) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
     let image_info = vec![ImageInfo::new(
         StackRange::new(STACK_START, STACK_END),
@@ -52,8 +55,12 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
             stack_info: Some(StackInfo::new(image_info)),
             ..default_init_params()
         },
-        BootParams::default(),
+        boot_params,
     )
+}
+
+fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
+    start_driver_test_with_boot_params(test_rom, BootParams::default())
 }
 
 fn run_driver_test(test_rom: &'static FwId) {
@@ -826,6 +833,23 @@ fn test_sha3() {
 #[test]
 fn test_status_reporter() {
     run_driver_test(&firmware::driver_tests::STATUS_REPORTER);
+}
+
+#[test]
+fn test_soc_ifc_wait_for_device_reset_before_fatal_error() {
+    const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
+
+    let mut model = start_driver_test_with_boot_params(
+        &firmware::driver_tests::SOC_IFC_WAIT_FOR_DEVICE_RESET,
+        BootParams {
+            initial_ss_strap_generic_3: Some(
+                SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR,
+            ),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    model.step_until_exit_success().unwrap();
 }
 
 #[test]

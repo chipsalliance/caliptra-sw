@@ -1201,6 +1201,12 @@ ROM locks the following entities to prevent any updates:
 ROM performs the same initialization sequence as specified [here](#Initialization)
 
 ### Error handling
+Fatal error reporting can be configured by the following subsystem strap:
+
+| Register                         | Field/Bits | Description                                             |
+| :------------------------------- | :--------- | :------------------------------------------------------ |
+| SS_STRAP_GENERIC[3]              | [1]        | Wait for device reset before fatal error reporting. When set to 1 in subsystem mode, ROM waits for the recovery interface `DEVICE_RESET.RESET_CTRL` field to be set to `0x1` (`Reset Device`) before updating `CPTRA_FW_ERROR_FATAL` in the fatal error handler. When clear, ROM reports fatal errors immediately. |
+
 The ROM executes the following operations:
   - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
   - Zeroizes the following cryptographic hardware modules:
