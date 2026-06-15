@@ -156,6 +156,13 @@ impl Drivers {
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    // Keep the reset flow out-of-line. It runs once at boot, but if inlined into
+    // the runtime entry point its large transient scratch (cert-chain assembly,
+    // DPE initialization/validation) stays reserved on the entry frame for the
+    // entire mailbox-command lifetime, inflating the stack floor every command
+    // pays. Forcing it out-of-line lets that scratch be reclaimed before the
+    // mailbox loop begins.
+    #[inline(never)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
         if self.persistent_data.get().attestation_disabled.get() {
