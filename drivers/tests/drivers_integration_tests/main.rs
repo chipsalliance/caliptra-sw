@@ -836,6 +836,10 @@ fn test_status_reporter() {
 }
 
 #[test]
+#[cfg_attr(
+    any(feature = "fpga_realtime", feature = "fpga_subsystem"),
+    ignore = "requires SS_STRAP_GENERIC_3 strap override, which is not supported on FPGA"
+)]
 fn test_soc_ifc_wait_for_device_reset_before_fatal_error() {
     const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
 
