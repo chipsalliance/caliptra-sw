@@ -86,9 +86,9 @@ const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITI
                                                                                                 // LIFECYCLE_PARTITION
                                                                                                 // VENDOR_NON_SECRET_PROD_PARTITION
 pub const VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET: usize = 0xaa8;
-const UDS_SEED_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET; // 64 bytes
-const FIELD_ENTROPY_OFFSET: usize = VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET + 64; // 32 bytes
-                                                                                       // CPTRA_SS_LOCK_HEK_PROD partitions
+const UDS_SEED_OFFSET: usize = 0xba8;
+const FIELD_ENTROPY_OFFSET: usize = 0xbe8;
+// CPTRA_SS_LOCK_HEK_PROD partitions
 const OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET: usize = 0xCB0;
 const OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET + 48;
 const OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET + 48;
