@@ -46,7 +46,7 @@ impl FipsModule {
             Ecc384::zeroize();
             Hmac::zeroize();
             cprintln!("[rt] zeroize MLDSA");
-            Mldsa87::zeroize();
+            Mldsa87::zeroize_no_wait();
             cprintln!("[rt] zeroize MLKEM");
             MlKem1024::zeroize();
             Sha256::zeroize();
