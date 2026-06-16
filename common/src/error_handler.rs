@@ -1,4 +1,6 @@
 // Licensed under the Apache-2.0 license
+#[cfg(feature = "rom")]
+use caliptra_cfi_lib::{cfi_assert_bool, cfi_launder};
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, Aes, Ecc384, Hmac, KeyVault,
     Mailbox, MlKem1024, Mldsa87, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc,
@@ -15,8 +17,12 @@ pub fn handle_fatal_error(code: u32) -> ! {
     #[cfg(feature = "rom")]
     {
         let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
-        if soc_ifc.wait_for_device_reset_before_fatal_error() {
+        let wait_for_device_reset = soc_ifc.wait_for_device_reset_before_fatal_error();
+        if cfi_launder(wait_for_device_reset) {
+            cfi_assert_bool(wait_for_device_reset);
             wait_for_device_reset_before_fatal_error(&soc_ifc);
+        } else {
+            cfi_assert_bool(!wait_for_device_reset);
         }
     }
 
