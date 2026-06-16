@@ -418,6 +418,39 @@ Command Code: `0x4C4D_5356` ("LMSV")
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
+### MLDSA87\_SIGNATURE\_VERIFY
+
+Verifies an ML-DSA-87 (FIPS 204) signature. As with the ECDSA and LMS
+verify commands, the message digest to be verified is taken from
+Caliptra's SHA384 accelerator peripheral. Callers must stream the
+message through the SHA accelerator before issuing this command;
+carrying the raw message in-band would put hashing outside the FIPS
+module boundary and is therefore disallowed.
+
+ML-DSA-87 is stateless and does not have the per-key signature budget that
+LMS does, which is the primary motivation for adding this command alongside
+the existing `LMS_SIGNATURE_VERIFY`.
+
+In the event of an invalid signature, the mailbox command will report
+`CMD_FAILURE` and the cause will be logged as a non-fatal error.
+
+Command Code: `0x4D44_5356` ("MDSV")
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` input arguments*
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------- | ---------------
+| chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+| pub\_key     | u8[2592]  | Encoded ML-DSA-87 public key (FIPS 204).
+| signature    | u8[4627]  | Encoded ML-DSA-87 signature (FIPS 204).
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` output arguments*
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+
 ### STASH\_MEASUREMENT
 
 Makes a measurement into the DPE default context. This command is intended for

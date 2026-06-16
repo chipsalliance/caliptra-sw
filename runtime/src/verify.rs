@@ -15,11 +15,15 @@ Abstract:
 use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_common::mailbox_api::Mldsa87VerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, LmsResult,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::{Mldsa87, Mldsa87Result};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
@@ -128,6 +132,39 @@ impl LmsVerifyCmd {
         )?;
         if success != LmsResult::Success {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
+        }
+
+        Ok(MailboxResp::default())
+    }
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub struct Mldsa87VerifyCmd;
+#[cfg(feature = "mldsa_attestation")]
+impl Mldsa87VerifyCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut cmd = Mldsa87VerifyReq::new_zeroed();
+        copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
+        // Pull the SHA-384 digest from the SHA accelerator (same pattern as
+        // ECDSA384_VERIFY and LMS_VERIFY). The caller is expected to have
+        // streamed the message through the accelerator before dispatching
+        // this command. Keeping the hashing inside the SHA accelerator
+        // preserves the FIPS module boundary for this verify operation.
+        let msg_digest_be = drivers.sha_acc.regs().digest().truncate::<12>().read();
+        // The accelerator exposes the digest as big-endian u32 words; flip
+        // them back to a raw byte stream so ML-DSA verifies against the
+        // canonical SHA-384 byte ordering.
+        let mut msg_digest = [0u8; 48];
+        for (i, src_word) in msg_digest_be.iter().enumerate() {
+            msg_digest[i * 4..][..4].copy_from_slice(&src_word.to_be_bytes());
+        }
+
+        let result = Mldsa87::verify(&cmd.pub_key, &cmd.signature, &msg_digest)?;
+        if result != Mldsa87Result::Success {
+            return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
 
         Ok(MailboxResp::default())
