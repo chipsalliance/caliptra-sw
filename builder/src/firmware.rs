@@ -382,6 +382,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const SOC_IFC_WAIT_FOR_DEVICE_RESET: FwId = FwId {
+        bin_name: "soc_ifc_wait_for_device_reset",
+        ..BASE_FWID
+    };
+
     pub const TEST_LMS_24: FwId = FwId {
         bin_name: "test_lms_24",
         ..BASE_FWID
@@ -684,6 +689,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA512,
     &driver_tests::SHA2_512_384ACC,
     &driver_tests::STATUS_REPORTER,
+    &driver_tests::SOC_IFC_WAIT_FOR_DEVICE_RESET,
     &driver_tests::TEST_LMS_24,
     &driver_tests::TEST_LMS_32,
     &driver_tests::TEST_NEGATIVE_LMS,

@@ -2062,6 +2062,10 @@ impl HwModel for ModelFpgaSubsystem {
             self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
 
+        if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
+            self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
+        }
+
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();
         // Notify MCU ROM it can start loading the fuse registers
