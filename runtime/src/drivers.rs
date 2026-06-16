@@ -617,6 +617,7 @@ impl Drivers {
     }
 
     /// Create certificate chain and store in Drivers
+    #[inline(never)]
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let data_vault = &drivers.data_vault;
