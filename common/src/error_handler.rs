@@ -14,25 +14,6 @@ use caliptra_registers::soc_ifc::SocIfcReg;
 pub fn handle_fatal_error(code: u32) -> ! {
     cprintln!("Fatal Error: 0x{:08X}", code);
 
-    #[cfg(feature = "rom")]
-    {
-        let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
-        let wait_for_device_reset = soc_ifc.wait_for_device_reset_before_fatal_error();
-        if cfi_launder(wait_for_device_reset) {
-            cfi_assert_bool(wait_for_device_reset);
-            wait_for_device_reset_before_fatal_error(&soc_ifc);
-        } else {
-            cfi_assert_bool(!wait_for_device_reset);
-        }
-    }
-
-    report_fw_error_fatal(code);
-    // Populate the non-fatal error code too; if there was a
-    // non-fatal error stored here before we don't want somebody
-    // mistakenly thinking that was the reason for their mailbox
-    // command failure.
-    report_fw_error_non_fatal(code);
-
     unsafe {
         // Zeroize the crypto blocks.
         Aes::zeroize();
@@ -55,6 +36,25 @@ pub fn handle_fatal_error(code: u32) -> ! {
         // Note: This is an idempotent operation.
         SocIfc::stop_wdt1();
     }
+
+    #[cfg(feature = "rom")]
+    {
+        let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
+        let wait_for_device_reset = soc_ifc.wait_for_device_reset_before_fatal_error();
+        if cfi_launder(wait_for_device_reset) {
+            cfi_assert_bool(wait_for_device_reset);
+            wait_for_device_reset_before_fatal_error(&soc_ifc);
+        } else {
+            cfi_assert_bool(!wait_for_device_reset);
+        }
+    }
+
+    report_fw_error_fatal(code);
+    // Populate the non-fatal error code too; if there was a
+    // non-fatal error stored here before we don't want somebody
+    // mistakenly thinking that was the reason for their mailbox
+    // command failure.
+    report_fw_error_non_fatal(code);
 
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish
