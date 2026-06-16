@@ -20,7 +20,10 @@ use caliptra_api::mailbox::{
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
+use caliptra_common::{
+    checksum::verify_checksum,
+    mailbox_api::{InvokeDpeReq, InvokeDpeResp},
+};
 use caliptra_dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
@@ -29,6 +32,7 @@ use caliptra_dpe::{
 };
 use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
+use core::mem::{size_of, size_of_val};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -47,21 +51,60 @@ impl From<CaliptraDpeProfile> for DpeProfile {
 }
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
+    fn copy_from_mbox(drivers: &mut Drivers, staging_words: &mut [u32]) -> CaliptraResult<usize> {
+        let mbox = &mut drivers.mbox;
+        let cmd = mbox.cmd();
+        let dlen = mbox.dlen() as usize;
+        let dlen_words = mbox.dlen_words() as usize;
+
+        if dlen_words > staging_words.len() {
+            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        }
+        if dlen < size_of::<MailboxReqHeader>() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
+        mbox.copy_from_mbox(
+            staging_words
+                .get_mut(..dlen_words)
+                .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+        );
+
+        let staging_bytes = staging_words.as_bytes();
+        let payload = staging_bytes
+            .get(..dlen)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let req_hdr = MailboxReqHeader::ref_from_bytes(
+            payload
+                .get(..size_of::<MailboxReqHeader>())
+                .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let checksum_data = payload
+            .get(size_of_val(&req_hdr.chksum)..)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        if !verify_checksum(req_hdr.chksum, u32::from(cmd), checksum_data) {
+            return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
+        }
+
+        Ok(dlen)
+    }
+
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute_ecc384(
         drivers: &mut Drivers,
-        cmd_args: &[u8],
         mbox_resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         // The mailbox SRAM has to be accessed in word alignment, copying the command locally to
         // avoid unaligned accesses.
         let mut staging_buffer_buf = [0u32; size_of::<InvokeDpeReq>() / 4];
-        let staging_buffer = staging_buffer_buf.as_mut_bytes();
-        if cmd_args.len() > staging_buffer.len() {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-        staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
+        let dlen = Self::copy_from_mbox(drivers, &mut staging_buffer_buf)?;
+        let staging_buffer = staging_buffer_buf
+            .as_bytes()
+            .get(..dlen)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         // Parse the header to get the DPE command size and buffer
         let (cmd, dpe_cmd_buf) = InvokeDpeEcc384Header::ref_from_prefix(staging_buffer)
@@ -77,17 +120,16 @@ impl InvokeDpeCmd {
     #[inline(never)]
     pub(crate) fn execute_mldsa87(
         drivers: &mut Drivers,
-        cmd_args: &[u8],
         mbox_resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         // The mailbox SRAM has to be accessed in word alignment, copying the command locally to
         // avoid unaligned accesses.
         let mut staging_buffer_buf = [0u32; size_of::<InvokeDpeMldsa87Req>() / 4];
-        let staging_buffer = staging_buffer_buf.as_mut_bytes();
-        if cmd_args.len() > staging_buffer.len() {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-        staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
+        let dlen = Self::copy_from_mbox(drivers, &mut staging_buffer_buf)?;
+        let staging_buffer = staging_buffer_buf
+            .as_bytes()
+            .get(..dlen)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         // Parse the header to get the DPE command size and buffer
         let (cmd, dpe_cmd_buf) = InvokeDpeMldsa87Header::ref_from_prefix(staging_buffer)
