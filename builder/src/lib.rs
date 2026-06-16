@@ -39,6 +39,7 @@ pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 pub enum CiRomVersion {
     Rom2_0_0,
     Rom2_0_1,
+    Rom2_0_2,
     Latest,
 }
 
@@ -369,6 +370,7 @@ pub fn get_ci_rom_version() -> CiRomVersion {
     match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
         Ok("2.0.0") => CiRomVersion::Rom2_0_0,
         Ok("2.0.1") => CiRomVersion::Rom2_0_1,
+        Ok("2.0.2") => CiRomVersion::Rom2_0_2,
         Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
         Err(_) => CiRomVersion::Latest,
     }
@@ -406,6 +408,23 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
             } else if rom_from_env == &firmware::ROM_WITH_UART {
                 Ok(include_bytes!(
                     "../../rom/ci_frozen_rom/2.0/caliptra-rom-with-log-2.0.1-3824083.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
+        }
+        CiRomVersion::Rom2_0_2 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/2.0/caliptra-rom-2.0.2-473ae25.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.0/caliptra-rom-with-log-2.0.2-473ae25.bin"
                 )
                 .as_slice()
                 .into())
@@ -473,6 +492,35 @@ pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, 
             } else if rom_from_env == &firmware::ROM_FPGA_WITH_UART {
                 Ok(include_bytes!(
                     "../../rom/ci_frozen_rom/2.0/caliptra-rom-fpga-with-log-2.0.1-3824083.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
+        }
+        CiRomVersion::Rom2_0_2 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/2.0/caliptra-rom-2.0.2-473ae25.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_FPGA {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.0/caliptra-rom-fpga-2.0.2-473ae25.bin"
+                )
+                .as_slice()
+                .into())
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.0/caliptra-rom-with-log-2.0.2-473ae25.bin"
+                )
+                .as_slice()
+                .into())
+            } else if rom_from_env == &firmware::ROM_FPGA_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/2.0/caliptra-rom-fpga-with-log-2.0.2-473ae25.bin"
                 )
                 .as_slice()
                 .into())

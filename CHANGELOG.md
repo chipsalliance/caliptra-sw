@@ -1,3 +1,22 @@
+# rom-2.0.3
+
+## Caliptra ROM 2.0.3 Release Notes
+
+Release notes for changes introduced since ROM 2.0.2 (`473ae255`) through `cda85a69` on the `caliptra-2.0` branch.
+
+### Features
+
+- **Use SS_STRAP_GENERIC[2] to configure entropy_src single-bit mode during CSRNG initialization** ([#3809](https://github.com/chipsalliance/caliptra-sw/pull/3809))
+- **Add CTR_DRBG-AES-256 and MLDSA-87 SigVer KAT coverage** ([#3706](https://github.com/chipsalliance/caliptra-sw/pull/3706), [#3795](https://github.com/chipsalliance/caliptra-sw/pull/3795))
+
+### Fixes
+
+- **Zeroize ROM state before acknowledging SHUTDOWN** ([#3807](https://github.com/chipsalliance/caliptra-sw/pull/3807))
+- **Update CSRNG entropy source configuration and health-test behavior** ([#3788](https://github.com/chipsalliance/caliptra-sw/pull/3788), [#3836](https://github.com/chipsalliance/caliptra-sw/pull/3836))
+- **Fix production debug unlock behavior** ([#3629](https://github.com/chipsalliance/caliptra-sw/pull/3629), [#3676](https://github.com/chipsalliance/caliptra-sw/pull/3676), [#3848](https://github.com/chipsalliance/caliptra-sw/pull/3848))
+- **Use configurable OTP status offset for UDS/FE programming** ([#3723](https://github.com/chipsalliance/caliptra-sw/pull/3723))
+- **Mark hash-based ECDSA/LMS verify as FIPS non-approved and add ECDSA KAT hashing coverage** ([#3803](https://github.com/chipsalliance/caliptra-sw/pull/3803), [#3821](https://github.com/chipsalliance/caliptra-sw/pull/3821))
+
 # rom-2.0.2
 
 ## Caliptra ROM 2.0.2 Release Notes
