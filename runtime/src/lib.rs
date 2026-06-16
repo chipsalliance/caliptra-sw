@@ -235,6 +235,27 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
+    let cmd = drivers.mbox.cmd();
+    match cmd {
+        CommandId::INVOKE_DPE_ECC384 => {
+            cprintln!(
+                "[rt] Received command=0x{:x} (DPEC), len={}",
+                u32::from(cmd),
+                drivers.mbox.dlen()
+            );
+            return execute_invoke_dpe_ecc384(drivers);
+        }
+        CommandId::INVOKE_DPE_MLDSA87 => {
+            cprintln!(
+                "[rt] Received command=0x{:x} (DPEM), len={}",
+                u32::from(cmd),
+                drivers.mbox.dlen()
+            );
+            return execute_invoke_dpe_mldsa87(drivers);
+        }
+        _ => (),
+    }
+
     // Get the command bytes
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
@@ -337,8 +358,8 @@ fn execute_command(
         CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => {
             execute_certify_key_extended_mldsa87(drivers, cmd_bytes)
         }
-        CommandId::INVOKE_DPE_ECC384 => execute_invoke_dpe_ecc384(drivers, cmd_bytes),
-        CommandId::INVOKE_DPE_MLDSA87 => execute_invoke_dpe_mldsa87(drivers, cmd_bytes),
+        CommandId::INVOKE_DPE_ECC384 => execute_invoke_dpe_ecc384(drivers),
+        CommandId::INVOKE_DPE_MLDSA87 => execute_invoke_dpe_mldsa87(drivers),
         CommandId::CERTIFY_KEY_CHUNKS => execute_certify_key_chunks(drivers, cmd_bytes),
         CommandId::GET_ATTESTED_ECC384_CSR => {
             attested_csr::AttestedEccCsrCmd::execute(drivers, cmd_bytes)
@@ -637,22 +658,16 @@ fn execute_certify_key_extended_mldsa87(
 }
 
 #[inline(never)]
-fn execute_invoke_dpe_ecc384(
-    drivers: &mut Drivers,
-    cmd_bytes: &[u8],
-) -> CaliptraResult<MboxStatusE> {
+fn execute_invoke_dpe_ecc384(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
-    let len = InvokeDpeCmd::execute_ecc384(drivers, cmd_bytes, resp)?;
+    let len = InvokeDpeCmd::execute_ecc384(drivers, resp)?;
     finalize_response(drivers, resp, len)
 }
 
 #[inline(never)]
-fn execute_invoke_dpe_mldsa87(
-    drivers: &mut Drivers,
-    cmd_bytes: &[u8],
-) -> CaliptraResult<MboxStatusE> {
+fn execute_invoke_dpe_mldsa87(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; DPE_RESP_BUF_SIZE][..];
-    let len = InvokeDpeCmd::execute_mldsa87(drivers, cmd_bytes, resp)?;
+    let len = InvokeDpeCmd::execute_mldsa87(drivers, resp)?;
     finalize_response(drivers, resp, len)
 }
 
