@@ -1,3 +1,40 @@
+# fw-2.1.1
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.1 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.0.
+
+### Features
+
+- **DPE & Certification**:
+  - Add support for `SIGN_WITH_EXPORTED_MLDSA` (#3679)
+  - Add a new command to chunk DPE certificates (`CertifyKeyChunks`) (#3765)
+- **Runtime/FMC Functionality**:
+  - Add `ACTIVATE_FIRMWARE` `INITIAL_ACTIVATE` flag (#3720)
+  - Add more telemetry to `fw_info` (#3631)
+
+### Fixes
+
+- **Mailbox & Debug Unlock**:
+  - Fix TAP mailbox availability after debug unlock (#3848)
+  - Bind debug unlock token to device UDI (#3694)
+  - Fix WDT stop after production debug unlock (#3675)
+  - Set `PROD_DBG_UNLOCK_IN_PROGRESS` bit in runtime to match ROM (#3628)
+  - Require non-zeroized SEK & DPK for OCP-LOCK (#3606)
+- **Firmware Activation & Auth**:
+  - Fix `ActivateFirmware` to call `AuthorizeAndStash` correctly (#3719)
+  - Fix `ACTIVATE_FIRMWARE` to use `exec_bit` instead of `fw_id` for activate bitmap (#3619)
+  - Bound auth manifest metadata lookup by `entry_count` (#3732)
+  - Address-based authorize-and-stash measurement (#3688)
+- **FIPS & Cryptography**:
+  - Fix AES-GCM streaming GHASH save/restore bug (#3790)
+  - Add missing KATs in runtime start up (#3799)
+  - Add ML-KEM, ML-DSA, and ECDH pairwise consistency tests (PCT) (#3548, #3547, #3546)
+- **General**:
+  - Expand PAUSER checks for mailbox operations (#3734, #3864, & #3841)
+
 # rom-2.1.2
 
 ## Caliptra ROM 2.1.2 Release Notes
