@@ -12,7 +12,7 @@ mod configurations;
 
 mod utils;
 
-const DEFAULT_MCU_REV: &str = "02ea798304ccccff8e6b5a065781b3d5ed38b118";
+const DEFAULT_MCU_REV: &str = "47810a48a4fcf6f80b50bac7a7e6721eb9123d6c";
 
 pub struct BuildArgs<'a> {
     pub fw_id: &'a Option<String>,

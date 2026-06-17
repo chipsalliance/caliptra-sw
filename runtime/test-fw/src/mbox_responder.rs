@@ -368,6 +368,48 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(true);
                 write_response(&mut drivers.mbox, &[]);
             }
+            CommandId::CM_SHA_INIT | CommandId::CM_SHA_UPDATE | CommandId::CM_SHA_FINAL => {
+                let (ptr, len) = {
+                    let raw_data = read_request(&drivers.mbox);
+                    (raw_data.as_ptr(), raw_data.len())
+                };
+                let cmd_bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+                let mut resp = [0u8; 256];
+
+                // The MCU ROM relies on these SHA commands to calculate the ROM image. We need to
+                // implement them in this responder to be able to boot to the runtime.
+                //
+                // SAFETY: These functions are unsafe as they expose internal crypto commands,
+                // but are safe to use here in the mock runtime for testing.
+                let res = unsafe {
+                    match cmd {
+                        CommandId::CM_SHA_INIT => {
+                            caliptra_runtime::sha_init(drivers, cmd_bytes, &mut resp)
+                        }
+                        CommandId::CM_SHA_UPDATE => {
+                            caliptra_runtime::sha_update(drivers, cmd_bytes, &mut resp)
+                        }
+                        CommandId::CM_SHA_FINAL => {
+                            caliptra_runtime::sha_final(drivers, cmd_bytes, &mut resp)
+                        }
+                        _ => unreachable!(),
+                    }
+                };
+                match res {
+                    Ok(len) => {
+                        let len = len.max(8);
+                        let resp_slice = &mut resp[..len];
+                        let checksum =
+                            caliptra_common::checksum::calc_checksum(0, &resp_slice[4..]);
+                        resp_slice[..4].copy_from_slice(&checksum.to_ne_bytes());
+                        write_response(&mut drivers.mbox, resp_slice);
+                        return Ok(MboxStatusE::DataReady);
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
             _ => {
                 drivers.mbox.set_status(MboxStatusE::CmdFailure);
             }
