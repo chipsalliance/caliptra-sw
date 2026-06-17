@@ -1,0 +1,11 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitstream-downloader.workspace = true
+tokio = { version = "1.35", features = ["rt", "macros"] }
+clap = { workspace = true, features = ["derive"] }
