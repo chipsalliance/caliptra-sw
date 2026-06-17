@@ -2,7 +2,9 @@
 
 use anyhow::{anyhow, bail, Context, Error, Result};
 use log::info;
+use octocrab::models::repos::Release;
 use std::fs;
+use std::process::Command;
 use std::str::FromStr;
 
 use crate::PROJECT_ROOT;
@@ -52,18 +54,12 @@ async fn deploy_async(tag_str: &str) -> Result<()> {
 
     let tag: ReleaseTag = tag_str.parse()?;
     let release_name = tag.release_name();
+    let head_commit = git_stdout(&["rev-parse", "HEAD"])?;
 
-    info!("Creating git tag: {}", release_name);
-    let tag_status = std::process::Command::new("git")
-        .args(["tag", &release_name])
-        .status()?;
-
-    if !tag_status.success() {
-        bail!("Failed to create git tag '{}'", release_name);
-    }
+    create_tag_if_needed(&release_name, &head_commit)?;
 
     info!("Pushing git tag to release-repo: {}", release_name);
-    let push_status = std::process::Command::new("git")
+    let push_status = Command::new("git")
         .args(["push", "release-repo", &release_name])
         .status()?;
 
@@ -75,6 +71,59 @@ async fn deploy_async(tag_str: &str) -> Result<()> {
 
     let meta = GitHubReleaseManager::new(&tag)?;
     meta.create_github_release().await?;
+
+    Ok(())
+}
+
+fn git_stdout(args: &[&str]) -> Result<String> {
+    let output = Command::new("git").args(args).output()?;
+    if !output.status.success() {
+        bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn tag_exists(tag: &str) -> Result<bool> {
+    let tag_ref = format!("refs/tags/{tag}");
+    let status = Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", &tag_ref])
+        .status()?;
+    Ok(status.success())
+}
+
+fn tag_target_commit(tag: &str) -> Result<String> {
+    let tag_ref = format!("refs/tags/{tag}^{{}}");
+    git_stdout(&["rev-parse", &tag_ref])
+}
+
+fn create_tag_if_needed(tag: &str, head_commit: &str) -> Result<()> {
+    if tag_exists(tag)? {
+        let existing_commit = tag_target_commit(tag)?;
+        if existing_commit != head_commit {
+            bail!(
+                "Tag '{}' already exists at {}, expected {}",
+                tag,
+                existing_commit,
+                head_commit
+            );
+        }
+        info!(
+            "Git tag {} already exists at {}; reusing it",
+            tag, head_commit
+        );
+        return Ok(());
+    }
+
+    info!("Creating git tag: {}", tag);
+    let tag_status = Command::new("git").args(["tag", tag]).status()?;
+
+    if !tag_status.success() {
+        bail!("Failed to create git tag '{}'", tag);
+    }
 
     Ok(())
 }
@@ -309,15 +358,13 @@ struct GitHubReleaseManager {
 impl GitHubReleaseManager {
     fn new(tag: &ReleaseTag) -> Result<Self> {
         let head_commit = {
-            let head_output = std::process::Command::new("git")
-                .args(["rev-parse", "HEAD"])
-                .output()?;
+            let head_output = Command::new("git").args(["rev-parse", "HEAD"]).output()?;
             String::from_utf8_lossy(&head_output.stdout)
                 .trim()
                 .to_string()
         };
         let nightly_tag = {
-            let head_output = std::process::Command::new("git")
+            let head_output = Command::new("git")
                 .args(["describe", "--tags", &head_commit])
                 .output()?;
             String::from_utf8_lossy(&head_output.stdout)
@@ -335,7 +382,7 @@ impl GitHubReleaseManager {
         };
 
         let url = {
-            let output = std::process::Command::new("git")
+            let output = Command::new("git")
                 .args(["remote", "get-url", "release-repo"])
                 .output()?;
             String::from_utf8_lossy(&output.stdout).trim().to_string()
@@ -404,13 +451,7 @@ impl GitHubReleaseManager {
         let poll_interval = std::time::Duration::from_secs(10);
 
         let release = loop {
-            match self
-                .crab
-                .repos(&self.owner, &self.repo)
-                .releases()
-                .get_by_tag(&self.nightly_tag)
-                .await
-            {
+            match self.find_release_by_tag(&self.nightly_tag).await {
                 Ok(r) => break r,
                 Err(e) => {
                     if start.elapsed() >= timeout {
@@ -445,6 +486,37 @@ impl GitHubReleaseManager {
 
         info!("Successfully created GitHub release: {}", release.html_url);
         Ok(())
+    }
+
+    async fn find_release_by_tag(&self, tag_name: &str) -> Result<Release> {
+        match self
+            .crab
+            .repos(&self.owner, &self.repo)
+            .releases()
+            .get_by_tag(tag_name)
+            .await
+        {
+            Ok(release) => return Ok(release),
+            Err(err) => info!(
+                "Release lookup by tag failed for {}; searching release list... (Error: {:#})",
+                tag_name, err
+            ),
+        }
+
+        let page = self
+            .crab
+            .repos(&self.owner, &self.repo)
+            .releases()
+            .list()
+            .per_page(100)
+            .send()
+            .await?;
+        let releases: Vec<Release> = self.crab.all_pages(page).await?;
+
+        releases
+            .into_iter()
+            .find(|release| release.tag_name == tag_name)
+            .ok_or_else(|| anyhow!("Could not find GitHub release with tag {}", tag_name))
     }
 }
 
