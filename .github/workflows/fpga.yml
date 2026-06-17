@@ -82,7 +82,7 @@ jobs:
 
 
   build_test_binaries:
-    runs-on: [e2-standard-8]
+    runs-on: [e2-standard-8-staging]
     timeout-minutes: 60
 
     env:
