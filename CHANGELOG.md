@@ -2,7 +2,7 @@
 
 ## Caliptra ROM 2.0.3 Release Notes
 
-Release notes for changes introduced since ROM 2.0.2 (`473ae255`) through `f727f10e` on the `caliptra-2.0` branch.
+Release notes for changes introduced since ROM 2.0.2 (`473ae255`) through `c1e3ff2e` on the `caliptra-2.0` branch.
 
 ### Features
 
@@ -16,6 +16,7 @@ Release notes for changes introduced since ROM 2.0.2 (`473ae255`) through `f727f
 - **Fix production debug unlock behavior** ([#3629](https://github.com/chipsalliance/caliptra-sw/pull/3629), [#3676](https://github.com/chipsalliance/caliptra-sw/pull/3676), [#3848](https://github.com/chipsalliance/caliptra-sw/pull/3848))
 - **Bind production debug unlock tokens to the device UDI** ([#3694](https://github.com/chipsalliance/caliptra-sw/pull/3694))
 - **Move production debug unlock token public-key hash check from mailbox SRAM to stack** ([#3766](https://github.com/chipsalliance/caliptra-sw/pull/3766))
+- **Advertise recovery capabilities and report boot failure reasons** ([#3846](https://github.com/chipsalliance/caliptra-sw/pull/3846))
 - **Use configurable OTP status offset for UDS/FE programming** ([#3723](https://github.com/chipsalliance/caliptra-sw/pull/3723))
 - **Mark hash-based ECDSA/LMS verify as FIPS non-approved and add ECDSA KAT hashing coverage** ([#3803](https://github.com/chipsalliance/caliptra-sw/pull/3803), [#3821](https://github.com/chipsalliance/caliptra-sw/pull/3821))
 
