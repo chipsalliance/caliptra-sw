@@ -10,9 +10,8 @@ use caliptra_common::mailbox_api::{
 use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
     context::ContextHandle,
-    response::{
-        DeriveContextExportedCdiResp, DeriveContextResp, DpeErrorCode, NewHandleResp, Response,
-    },
+    error::DpeErrorCode,
+    response::{DeriveContextExportedCdiResp, DeriveContextResp, NewHandleResp, Response},
     TCI_SIZE,
 };
 use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};

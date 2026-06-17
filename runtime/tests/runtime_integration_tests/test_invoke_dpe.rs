@@ -16,7 +16,8 @@ use caliptra_dpe::{
         GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
     },
     context::ContextHandle,
-    response::{DpeErrorCode, Response, SignResp},
+    error::DpeErrorCode,
+    response::{Response, SignResp},
     DpeProfile,
 };
 use caliptra_drivers::CaliptraError;

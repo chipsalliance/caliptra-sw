@@ -123,7 +123,8 @@ impl CertifyKeyExtendedCmd {
             }
             Err(e) => {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
+                let ext_err = e.get_error_code();
+                if ext_err != 0 {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 Err(CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED)

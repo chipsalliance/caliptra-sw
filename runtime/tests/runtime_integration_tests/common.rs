@@ -29,7 +29,8 @@ use caliptra_dpe::{
         CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
+    error::DpeErrorCode,
+    response::{CertifyKeyResp, Response, ResponseHdr, SignResp},
     DpeProfile,
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};

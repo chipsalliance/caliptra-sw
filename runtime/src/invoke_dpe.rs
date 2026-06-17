@@ -27,7 +27,8 @@ use caliptra_common::{
 use caliptra_dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{DpeErrorCode, ResponseHdr},
+    error::DpeErrorCode,
+    response::ResponseHdr,
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
 use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
@@ -231,7 +232,8 @@ impl InvokeDpeCmd {
             }
             Err(ref e) => {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
+                let ext_err = e.get_error_code();
+                if ext_err != 0 {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 let r = ResponseHdr::new(profile.into(), *e);
@@ -304,7 +306,9 @@ fn invoke_ecc_dpe_cmd(
     out: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
     let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
-    let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
+    let env = okmutref(&mut env).map_err(|_| {
+        DpeErrorCode::InternalError(caliptra_dpe::error::InternalErrorCode::ContextIndexOob)
+    })?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
     command.execute_serialized(dpe, env, locality, out)
 }
@@ -319,7 +323,9 @@ fn invoke_mldsa_dpe_cmd(
     out: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
     let mut env = mldsa_dpe_env(drivers, dmtf_device_info, ueid);
-    let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
+    let env = okmutref(&mut env).map_err(|_| {
+        DpeErrorCode::InternalError(caliptra_dpe::error::InternalErrorCode::ContextIndexOob)
+    })?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::Mldsa87);
     command.execute_serialized(dpe, env, locality, out)
 }

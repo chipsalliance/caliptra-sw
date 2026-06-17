@@ -129,7 +129,7 @@ impl Platform for DpePlatform<'_> {
         };
         let issuer_len = issuer_writer
             .encode_rdn(&name)
-            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
+            .map_err(|e| PlatformError::IssuerNameError(e.get_error_code()))?;
 
         Ok(issuer_len)
     }

@@ -56,6 +56,9 @@ type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 
+/// ML-DSA-87 signature size per FIPS 204 spec (4627 bytes).
+pub const MLDSA87_SPEC_SIGNATURE_BYTE_SIZE: usize = 4627;
+
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
 pub enum Mldsa87Seed<'a> {
@@ -412,6 +415,139 @@ impl Mldsa87 {
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
+    }
+
+    /// Sign a variable-length message, writing the signature directly into a
+    /// caller-provided byte slice to avoid placing the 4628-byte signature on
+    /// the stack.
+    pub fn sign_var_into_slice(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &Mldsa87PubKey,
+        msg: &[u8],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+        sig_out: &mut [u8],
+    ) -> CaliptraResult<()> {
+        if sig_out.len() < MLDSA87_SPEC_SIGNATURE_BYTE_SIZE {
+            return Err(CaliptraError::DRIVER_MLDSA87_HW_ERROR);
+        }
+
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Sign RND.
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
+
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.privkey_in())
+            }
+        }
+
+        // Program the command register
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+            .stream_msg(true)
+        });
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
+
+        // Read signature registers word-by-word into the output buffer.
+        // The last word (index 1156) has only 3 valid bytes (4627 = 1156*4 + 3).
+        let sig_regs = mldsa.signature();
+        let full_words = MLDSA87_SPEC_SIGNATURE_BYTE_SIZE / 4;
+        let tail_bytes = MLDSA87_SPEC_SIGNATURE_BYTE_SIZE % 4;
+        for i in 0..full_words {
+            let word = sig_regs.at(i).read();
+            sig_out[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        if tail_bytes > 0 {
+            let word = sig_regs.at(full_words).read();
+            let bytes = word.to_le_bytes();
+            sig_out[full_words * 4..MLDSA87_SPEC_SIGNATURE_BYTE_SIZE]
+                .copy_from_slice(&bytes[..tail_bytes]);
+        }
+
+        // Clear the hardware.
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Verify: check truncated signature is non-zero (anti-glitch check)
+        let truncated_sig: &[u8] = &sig_out[..MLDSA87_VERIFY_RES_WORD_LEN * 4];
+        let empty = [0u8; MLDSA87_VERIFY_RES_WORD_LEN * 4];
+        if truncated_sig == empty {
+            return Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE);
+        }
+
+        // Write pub_key and signature to hardware for verification
+        let mldsa = self.mldsa87.regs_mut();
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        pub_key.write_to_reg(mldsa.pubkey());
+
+        // Write signature from output buffer back to registers for verification
+        let sig_reg = mldsa.signature();
+        for i in 0..full_words {
+            let word = u32::from_le_bytes(sig_out[i * 4..(i + 1) * 4].try_into().unwrap());
+            sig_reg.at(i).write(|_| word);
+        }
+        if tail_bytes > 0 {
+            // Last word: pad remaining bytes with zeros
+            let mut last_word_bytes = [0u8; 4];
+            last_word_bytes[..tail_bytes]
+                .copy_from_slice(&sig_out[full_words * 4..MLDSA87_SPEC_SIGNATURE_BYTE_SIZE]);
+            let word = u32::from_le_bytes(last_word_bytes);
+            sig_reg.at(full_words).write(|_| word);
+        }
+
+        // Program verification with streaming
+        mldsa
+            .ctrl()
+            .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+        Mldsa87::program_var_msg(mldsa, msg)?;
+
+        // Read verification result
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Compare truncated signature with verify result
+        let mut expected = [0u32; MLDSA87_VERIFY_RES_WORD_LEN];
+        for i in 0..MLDSA87_VERIFY_RES_WORD_LEN {
+            expected[i] = u32::from_le_bytes(sig_out[i * 4..(i + 1) * 4].try_into().unwrap());
+        }
+
+        let result = if verify_res.0 == expected {
+            cfi_assert_eq_16_words(&verify_res.0, &expected);
+            Mldsa87Result::Success
+        } else {
+            Mldsa87Result::SigVerifyFailed
+        };
+
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(())
         } else {
             Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
         }

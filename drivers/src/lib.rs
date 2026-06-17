@@ -105,7 +105,7 @@ pub use lms::{
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use mldsa87::{
     Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
-    Mldsa87Signature,
+    Mldsa87Signature, MLDSA87_SPEC_SIGNATURE_BYTE_SIZE,
 };
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;

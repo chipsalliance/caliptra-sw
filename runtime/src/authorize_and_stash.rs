@@ -22,7 +22,7 @@ use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
-use caliptra_dpe::response::DpeErrorCode;
+use caliptra_dpe::error::DpeErrorCode;
 use caliptra_drivers::DmaRecovery;
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;

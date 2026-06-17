@@ -31,7 +31,7 @@ use caliptra_drivers::{
     hmac_kdf, okref, sha2_512_384::DpeHasher, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
     Ecc384PubKey, Ecc384Scalar, Ecc384Seed, ExportedCdiEntry, ExportedCdiHandles, Hmac, HmacMode,
     KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
-    Mldsa87SignRnd, Sha2_512_384, Trng,
+    Mldsa87SignRnd, Sha2_512_384, Trng, MLDSA87_SPEC_SIGNATURE_BYTE_SIZE,
 };
 use constant_time_eq::constant_time_eq;
 use zerocopy::IntoBytes;
@@ -48,6 +48,28 @@ pub struct DpeCrypto<'a> {
     key_id_rt_cdi: KeyId,
     key_id_rt_priv_key: KeyId,
     exported_cdi_slots: &'a mut ExportedCdiHandles,
+}
+
+/// Copy `src` into `dst`, returning `CryptoError::Size` if lengths differ.
+/// Uses indexing that the compiler can prove won't panic.
+#[inline(always)]
+fn checked_copy(dst: &mut [u8], src: &[u8]) -> Result<(), CryptoError> {
+    if dst.len() != src.len() {
+        return Err(CryptoError::Size);
+    }
+    for (d, s) in dst.iter_mut().zip(src.iter()) {
+        *d = *s;
+    }
+    Ok(())
+}
+
+/// Split `buf` at `mid`, returning error instead of panicking if out of bounds.
+#[inline(always)]
+fn checked_split_at_mut(buf: &mut [u8], mid: usize) -> Result<(&mut [u8], &mut [u8]), CryptoError> {
+    if mid > buf.len() {
+        return Err(CryptoError::Size);
+    }
+    Ok(buf.split_at_mut(mid))
 }
 
 impl<'a> DpeCrypto<'a> {
@@ -267,21 +289,30 @@ impl DpeCrypto<'_> {
         priv_key: &KeyId,
         pub_key: &Mldsa87PubKey,
     ) -> Result<Signature, CryptoError> {
+        let mut dpe_sig = [0u8; MLDSA87_SPEC_SIGNATURE_BYTE_SIZE];
+        Self::sign_mldsa_into_slice(mldsa87, trng, data, priv_key, pub_key, &mut dpe_sig)?;
+        Ok(Signature::Mldsa(MldsaSignature(dpe_sig)))
+    }
+
+    fn sign_mldsa_into_slice(
+        mldsa87: &mut Mldsa87,
+        trng: &mut Trng,
+        data: &SignData,
+        priv_key: &KeyId,
+        pub_key: &Mldsa87PubKey,
+        out: &mut [u8],
+    ) -> Result<(), CryptoError> {
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let priv_key = Mldsa87Seed::Key(priv_key_args);
-
         let sign_rnd = Mldsa87SignRnd::default();
 
-        let sig = match data {
-            SignData::Raw(msg) => mldsa87.sign_var(priv_key, pub_key, msg, &sign_rnd, trng),
-            SignData::Mu(_) => return Err(CryptoError::NotImplemented),
-            _ => return Err(CryptoError::MismatchedAlgorithm),
-        };
-        let sig = okref(&sig).map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-
-        let mut dpe_sig = [0u8; 4627];
-        dpe_sig.copy_from_slice(&sig.as_bytes()[..4627]);
-        Ok(Signature::Mldsa(MldsaSignature(dpe_sig)))
+        match data {
+            SignData::Raw(msg) => mldsa87
+                .sign_var_into_slice(priv_key, pub_key, msg, &sign_rnd, trng, out)
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
+            SignData::Mu(_) => Err(CryptoError::NotImplemented),
+            _ => Err(CryptoError::MismatchedAlgorithm),
+        }
     }
 
     fn sign_helper(
@@ -321,7 +352,9 @@ impl Crypto for DpeCrypto<'_> {
                     .generate()
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?,
             );
-            chunk.copy_from_slice(&trng_bytes[..chunk.len()])
+            for (d, s) in chunk.iter_mut().zip(trng_bytes.iter()) {
+                *d = *s;
+            }
         }
         Ok(())
     }
@@ -419,6 +452,123 @@ impl Crypto for DpeCrypto<'_> {
             &self.rt_pub_key,
         )
     }
+
+    fn sign_with_alias_into_slice(
+        &mut self,
+        data: &SignData,
+        signature: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        match (&mut self.signer, &self.rt_pub_key) {
+            (Signer::Ec(ecc384), PubKey::Ecdsa(pub_key)) => {
+                let sig = Self::sign_ec(
+                    ecc384,
+                    self.hasher.driver(),
+                    self.trng,
+                    data,
+                    &self.key_id_rt_priv_key,
+                    pub_key,
+                )?;
+                if let Signature::Ecdsa(ecdsa_sig) = sig {
+                    let (r, s) = ecdsa_sig.as_slice();
+                    if signature.len() != r.len() + s.len() {
+                        return Err(CryptoError::Size);
+                    }
+                    let (left, right) = checked_split_at_mut(signature, r.len())?;
+                    checked_copy(left, r)?;
+                    checked_copy(right, s)?;
+                    Ok(())
+                } else {
+                    Err(CryptoError::MismatchedAlgorithm)
+                }
+            }
+            (Signer::Mldsa(mldsa87), PubKey::Mldsa(MldsaPublicKey(pub_key))) => {
+                let pub_key = Mldsa87PubKey::from(pub_key);
+                Self::sign_mldsa_into_slice(
+                    mldsa87,
+                    self.trng,
+                    data,
+                    &self.key_id_rt_priv_key,
+                    &pub_key,
+                    signature,
+                )
+            }
+            _ => Err(CryptoError::MismatchedAlgorithm),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn sign_with_derived_into_slice(
+        &mut self,
+        measurement: &Digest,
+        info: &[u8],
+        label: &[u8],
+        derived_info: &[u8],
+        data: &SignData,
+        pub_key: Option<&[u8]>,
+        signature: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.derive_cdi(measurement, info)?;
+        let cdi = self.cdi.ok_or(CryptoError::CryptoLibError(1))?;
+        self.derived_key =
+            Some(self.derive_key_pair_inner(&cdi, label, derived_info, KEY_ID_DPE_PRIV_KEY)?);
+
+        let Some(derived_key) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(3));
+        };
+        match (derived_key, &mut self.signer) {
+            (DerivedKey::Ecc(key_id, ecc_pub_key), Signer::Ec(ecc384)) => {
+                let sig = Self::sign_ec(
+                    ecc384,
+                    self.hasher.driver(),
+                    self.trng,
+                    data,
+                    key_id,
+                    ecc_pub_key,
+                )?;
+                if let Signature::Ecdsa(ecdsa_sig) = sig {
+                    let (r, s) = ecdsa_sig.as_slice();
+                    if signature.len() != r.len() + s.len() {
+                        return Err(CryptoError::Size);
+                    }
+                    let (left, right) = checked_split_at_mut(signature, r.len())?;
+                    checked_copy(left, r)?;
+                    checked_copy(right, s)?;
+                    Ok(())
+                } else {
+                    Err(CryptoError::MismatchedAlgorithm)
+                }
+            }
+            (DerivedKey::Mldsa(key_id), Signer::Mldsa(mldsa87)) => {
+                // Use the pre-derived public key from the caller to avoid
+                // re-deriving (which puts 2592 bytes on the stack).
+                if let Some(pk_bytes) = pub_key {
+                    let pk_arr =
+                        <&[u8; MldsaAlgorithm::Mldsa87.public_key_size()]>::try_from(pk_bytes)
+                            .map_err(|_| CryptoError::Size)?;
+                    let mldsa_pub_key = Mldsa87PubKey::from(pk_arr);
+                    Self::sign_mldsa_into_slice(
+                        mldsa87,
+                        self.trng,
+                        data,
+                        key_id,
+                        &mldsa_pub_key,
+                        signature,
+                    )
+                } else {
+                    let mldsa_pub_key = Self::derive_mldsa_pub_key(mldsa87, self.trng, key_id)?;
+                    Self::sign_mldsa_into_slice(
+                        mldsa87,
+                        self.trng,
+                        data,
+                        key_id,
+                        &mldsa_pub_key,
+                        signature,
+                    )
+                }
+            }
+            _ => Err(CryptoError::MismatchedAlgorithm),
+        }
+    }
 }
 
 impl CdiManager for DpeCrypto<'_> {
@@ -461,6 +611,46 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
         }
     }
 
+    fn sign_into_slice(
+        &mut self,
+        data: &SignData,
+        _pub_key: Option<&[u8]>,
+        signature: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        let Some(derived_key) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(3));
+        };
+        match (derived_key, &mut self.signer) {
+            (DerivedKey::Ecc(key_id, pub_key), Signer::Ec(ecc384)) => {
+                let sig = Self::sign_ec(
+                    ecc384,
+                    self.hasher.driver(),
+                    self.trng,
+                    data,
+                    key_id,
+                    pub_key,
+                )?;
+                if let Signature::Ecdsa(ecdsa_sig) = sig {
+                    let (r, s) = ecdsa_sig.as_slice();
+                    if signature.len() != r.len() + s.len() {
+                        return Err(CryptoError::Size);
+                    }
+                    let (left, right) = checked_split_at_mut(signature, r.len())?;
+                    checked_copy(left, r)?;
+                    checked_copy(right, s)?;
+                    Ok(())
+                } else {
+                    Err(CryptoError::MismatchedAlgorithm)
+                }
+            }
+            (DerivedKey::Mldsa(key_id), Signer::Mldsa(mldsa87)) => {
+                let pub_key = Self::derive_mldsa_pub_key(mldsa87, self.trng, key_id)?;
+                Self::sign_mldsa_into_slice(mldsa87, self.trng, data, key_id, &pub_key, signature)
+            }
+            _ => Err(CryptoError::MismatchedAlgorithm),
+        }
+    }
+
     fn public_key(&mut self) -> Result<PubKey, CryptoError> {
         let Some(derived_key) = &self.derived_key else {
             return Err(CryptoError::CryptoLibError(4));
@@ -474,6 +664,37 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
                 let pub_key = Self::derive_mldsa_pub_key(mldsa87, self.trng, key_id)?;
                 let pub_key = <[u8; MldsaAlgorithm::Mldsa87.public_key_size()]>::from(pub_key);
                 Ok(PubKey::Mldsa(MldsaPublicKey(pub_key)))
+            }
+        }
+    }
+
+    fn public_key_into(&mut self, pub_key_out: &mut [u8]) -> Result<(), CryptoError> {
+        let Some(derived_key) = &self.derived_key else {
+            return Err(CryptoError::CryptoLibError(4));
+        };
+        match derived_key {
+            DerivedKey::Ecc(_, pub_key) => {
+                let (x, y) = pub_key.as_slice();
+                let expected_len = x.len() + y.len();
+                if pub_key_out.len() != expected_len {
+                    return Err(CryptoError::Size);
+                }
+                let (left, right) = checked_split_at_mut(pub_key_out, x.len())?;
+                checked_copy(left, x)?;
+                checked_copy(right, y)?;
+                Ok(())
+            }
+            DerivedKey::Mldsa(key_id) => {
+                let Signer::Mldsa(mldsa87) = &mut self.signer else {
+                    return Err(CryptoError::MismatchedAlgorithm);
+                };
+                let pub_key = Self::derive_mldsa_pub_key(mldsa87, self.trng, key_id)?;
+                let pub_key_bytes = pub_key.as_bytes();
+                if pub_key_out.len() != pub_key_bytes.len() {
+                    return Err(CryptoError::Size);
+                }
+                checked_copy(pub_key_out, pub_key_bytes)?;
+                Ok(())
             }
         }
     }

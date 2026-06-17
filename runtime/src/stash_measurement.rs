@@ -21,7 +21,8 @@ use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, Stash
 use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::{DeriveContextResp, DpeErrorCode},
+    error::DpeErrorCode,
+    response::DeriveContextResp,
     tci::TciMeasurement,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
@@ -88,7 +89,8 @@ impl StashMeasurementCmd {
                 Ok(_) => DpeErrorCode::NoError,
                 Err(e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                    if let Some(ext_err) = e.get_error_detail() {
+                    let ext_err = e.get_error_code();
+                    if ext_err != 0 {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
                     e
