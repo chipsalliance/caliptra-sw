@@ -1,0 +1,124 @@
+# Licensed under the Apache-2.0 license
+
+name: FPGA Bitstream build
+
+on:
+  push:
+    branches:
+      - caliptra-1.x
+    paths:
+      - ".github/workflows/bitstream-build.yml"
+      - "hw/**/*"
+
+  workflow_dispatch:
+
+jobs:
+  build-bitstream:
+    runs-on: [bitstream-builder]
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          submodules: 'recursive'
+
+      - name: Create Core bitstream
+        run: |
+          source /vck190-tools/Vivado/2024.2/settings64.sh
+          cd hw/fpga/
+          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
+
+      - name: Rename outputs for downloader compatibility
+        run: |
+          mv hw/fpga/caliptra_build/caliptra_fpga.bin hw/fpga/caliptra_build/caliptra_fpga.pdi
+          mv hw/fpga/caliptra_build/caliptra_fpga.bit hw/fpga/caliptra_build/caliptra_fpga.xsa
+
+      - name: 'Upload bitstream artifact'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        with:
+          name: caliptra-fpga-bitstream
+          path: |
+            hw/fpga/caliptra_build/*.pdi
+            hw/fpga/caliptra_build/*.xsa
+          retention-days: 7
+
+      - name: Bundle bitstream
+        run: |
+          # Leave a copy for the uploader
+          mkdir manifest-bundle
+          
+          caliptra-bitstream-downloader bundle-manifest \
+            --repository "${{ github.repository }}" \
+            --hw-major-version "1.0" \
+            --target-branch "${{ github.base_ref || github.ref_name }}" \
+            --caliptra-variant "core" \
+            --commit-hash "${{ github.sha }}" \
+            --job-id "${{ github.run_id }}-${{ github.job }}" \
+            ${{ github.event.pull_request.number && format('--github-pr {0}', github.event.pull_request.number) || '' }} \
+            --pdi-file hw/fpga/caliptra_build/caliptra_fpga.pdi \
+            --xsa-file hw/fpga/caliptra_build/caliptra_fpga.xsa \
+            --output-dir manifest-bundle
+
+          cp manifest-bundle/caliptra-bitstream.tar.gz /tmp
+
+      - name: 'Upload bitstream bundle'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        with:
+          name: caliptra-bitstream-bundle
+          path: /tmp/caliptra-bitstream.tar.gz
+          retention-days: 7
+
+  open-pr:
+    needs: build-bitstream
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          submodules: 'recursive'
+
+      - name: Download updated manifest from GCS
+        run: |
+          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml"
+          TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
+          echo "Downloading manifest from $URL to $TARGET_PATH"
+          
+          # Retry for up to 5 minutes (30 * 10s)
+          for i in {1..30}; do
+            if curl -s -f -o "$TARGET_PATH" "$URL"; then
+              echo "Successfully downloaded manifest!"
+              break
+            fi
+            echo "Waiting for manifest to be uploaded... (attempt $i)"
+            sleep 10
+          done
+          
+          if [ ! -f "$TARGET_PATH" ]; then
+            echo "Error: Failed to download manifest after 5 minutes."
+            exit 1
+          fi
+
+      - name: Commit and Push changes
+        run: |
+          BRANCH_NAME="update-bitstream-${{ github.run_id }}-${{ github.run_attempt }}"
+          git checkout -b "$BRANCH_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add hw/fpga/bitstream_manifests/core.toml
+          git commit -m "Update bitstream manifest for run ${{ github.run_id }}"
+          git push origin "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "Update bitstream manifest: Run ${{ github.run_id }}" \
+            --body "Automated update for run ${{ github.run_id }}. [GCS Manifest](https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml)" \
+            --head "${{ env.BRANCH_NAME }}" \
+            --base "${{ github.base_ref || github.ref_name }}"
