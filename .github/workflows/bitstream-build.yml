@@ -3,7 +3,9 @@
 name: FPGA Bitstream build
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - ".github/workflows/bitstream-build.yml"
       - "hw/**/*"
@@ -80,3 +82,63 @@ jobs:
           name: caliptra-bitstream-bundle-${{ matrix.segmented && 'segmented' || 'standard' }}
           path: /tmp/caliptra-bitstream.tar.gz
           retention-days: 7
+
+      - name: Clean up bundle for non-segmented build
+        if: matrix.segmented == false
+        run: |
+          rm -rf manifest-bundle
+          rm -f /tmp/caliptra-bitstream.tar.gz
+
+  open-pr:
+    needs: build-bitstream
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          submodules: 'recursive'
+
+      - name: Download updated manifest from GCS
+        run: |
+          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml"
+          TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
+          echo "Downloading manifest from $URL to $TARGET_PATH"
+          
+          # Retry for up to 5 minutes (30 * 10s)
+          for i in {1..30}; do
+            if curl -s -f -o "$TARGET_PATH" "$URL"; then
+              echo "Successfully downloaded manifest!"
+              break
+            fi
+            echo "Waiting for manifest to be uploaded... (attempt $i)"
+            sleep 10
+          done
+          
+          if [ ! -f "$TARGET_PATH" ]; then
+            echo "Error: Failed to download manifest after 5 minutes."
+            exit 1
+          fi
+
+      - name: Commit and Push changes
+        run: |
+          BRANCH_NAME="update-bitstream-${{ github.run_id }}-${{ github.run_attempt }}"
+          git checkout -b "$BRANCH_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add hw/fpga/bitstream_manifests/core.toml
+          git commit -m "Update bitstream manifest for run ${{ github.run_id }}"
+          git push origin "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "Update bitstream manifest: Run ${{ github.run_id }}" \
+            --body "Automated update for run ${{ github.run_id }}. [GCS Manifest](https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml)" \
+            --head "${{ env.BRANCH_NAME }}" \
