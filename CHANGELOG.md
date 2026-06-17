@@ -2,11 +2,12 @@
 
 ## Caliptra ROM 2.1.2 Release Notes
 
-Release notes for changes introduced since ROM 2.1.1.
+Release notes for changes introduced since ROM 2.1.1 through `45de392f` on the `main` branch.
 
 ### Features
 
 - Add Stable Owner Key derivation from HEK seed (#3625)
+- Gate fatal error reporting on recovery reset strap (#3887)
 
 ### Fixes
 
@@ -25,6 +26,10 @@ Release notes for changes introduced since ROM 2.1.1.
 - Add CTR_DRBG-AES-256 KAT for CSRNG (#3706)
 - Add Hashing step to ECDSA KAT (#3821)
 - MLDSA pairwise consistency test (PCT) (#3547)
+- Advertise recovery capabilities and report boot failure reasons (#3846)
+- Fix TAP mailbox availability after debug unlock (#3848)
+- Raise OTP error result on zeroization (#3858)
+- Write lock stable keys (#3873)
 
 # rom-2.1.1
 
