@@ -199,13 +199,18 @@ fn test_pcr_log() {
 
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
+        // In subsystem mode, the owner PK hash flows through the DOT
+        // mailbox command, not the fuse controller, so
+        // owner_pub_keys_digest_in_fuses is false.
+        let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+
         check_pcr_log_entry(
             &pcr_entry_arr,
             0,
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
-                (fuses.owner_pk_hash != [0u32; 12]) as u8, // owner_pub_keys_digest_in_fuses
+                owner_pk_in_fuses as u8,
                 anti_rollback_disable as u8,
                 fuses.fuse_ecc_revocation as u8,
                 fuses.fuse_lms_revocation.to_le_bytes()[0],
@@ -434,13 +439,18 @@ fn test_pcr_log_fmc_fuse_svn() {
 
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
+        // In subsystem mode, the owner PK hash flows through the DOT
+        // mailbox command, not the fuse controller, so
+        // owner_pub_keys_digest_in_fuses is false.
+        let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+
         check_pcr_log_entry(
             &pcr_entry_arr,
             0,
             PcrLogEntryId::DeviceStatus,
             PCR0_AND_PCR1_EXTENDED_ID,
             &[
-                (fuses.owner_pk_hash != [0u32; 12]) as u8, // owner_pub_keys_digest_in_fuses
+                owner_pk_in_fuses as u8,
                 anti_rollback_disable as u8,
                 fuses.fuse_ecc_revocation as u8,
                 fuses.fuse_lms_revocation.to_le_bytes()[0],

@@ -554,11 +554,20 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
+        // In subsystem mode, the owner PK hash flows through the DOT mailbox
+        // command (INSTALL_OWNER_PK_HASH) from the MCU ROM, not through the
+        // fuse controller registers. So the verifier hits the DOT check path.
+        let expected_err = if hw.subsystem_mode() {
+            CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH
+        } else {
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
+        };
+
         helpers::assert_fatal_fw_load(
             &mut hw,
             *pqc_key_type,
             &image_bundle.to_bytes().unwrap(),
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH,
+            expected_err,
         );
 
         assert_eq!(
