@@ -1,0 +1,12 @@
+# Licensed under the Apache-2.0 license
+schema_version = "1"
+repository = "chipsalliance/caliptra-sw"
+hw_major_version = "1.0"
+target_branch = "caliptra-1.x"
+caliptra_variant = "core"
+date = "2026-07-06T18:00:42.061401923+00:00"
+commit_hash = "57a7603e204779191a2807ee5061c10c28164c4f"
+job_id = "27794200211-build-bitstream"
+segmented = false
+xsa_hash = "58961014bb166ccad73cc5c169c8b40e88912fc2f9be733c33c70eae45dfd8d3"
+pdi_hash = "c297b5f48d55aba1dfc2ee887b82a08c11093f481913b8ac439cb7211cb980b9"
