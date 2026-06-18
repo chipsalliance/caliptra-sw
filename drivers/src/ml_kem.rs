@@ -155,11 +155,8 @@ impl<'a> MlKem1024<'a> {
 
     /// Re-run KATs (for FIPS self-test).
     pub fn run_kats(&mut self) -> CaliptraResult<()> {
-        crate::cprintln!("[mlkem] run_kats ++");
-        self.trace_self_abr_status("run_kats entry");
         crate::kats::execute_mlkem1024_kat(self)?;
         self.trace_self_abr_status("run_kats exit");
-        crate::cprintln!("[mlkem] run_kats --");
         Ok(())
     }
 
