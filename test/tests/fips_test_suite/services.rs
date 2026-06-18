@@ -46,7 +46,12 @@ pub fn exec_cmd_version<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u
         ]
     );
     let name = &version_resp.name[..];
-    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
+    let expected_name = if hw.subsystem_mode() {
+        FipsVersionCmd::NAME_ROT.as_bytes()
+    } else {
+        FipsVersionCmd::NAME.as_bytes()
+    };
+    assert_eq!(name, expected_name);
 }
 
 pub fn exec_cmd_self_test_start<T: HwModel>(hw: &mut T) {

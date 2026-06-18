@@ -288,7 +288,10 @@ fn test_version(
     assert_eq!(received_fmc_version, fmc_version);
     assert_eq!(received_app_version, app_version);
     let name = &version_resp.name[..];
-    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
+    assert_eq!(
+        name,
+        crate::helpers::expected_fips_version_name(hw.subsystem_mode())
+    );
 }
 
 #[test]

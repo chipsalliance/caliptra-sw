@@ -20,7 +20,7 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
-use zerocopy::TryFromBytes;
+use zerocopy::{IntoBytes, TryFromBytes};
 
 pub use caliptra_test::{default_soc_manifest_bytes, test_upload_firmware, DEFAULT_MCU_FW};
 
@@ -191,6 +191,14 @@ pub fn change_dword_endianess(data: &mut [u8]) {
     for idx in (0..data.len()).step_by(4) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
+    }
+}
+
+pub fn expected_fips_version_name(subsystem_mode: bool) -> &'static [u8] {
+    if subsystem_mode {
+        caliptra_common::fips::FipsVersionCmd::NAME_ROT.as_bytes()
+    } else {
+        caliptra_common::fips::FipsVersionCmd::NAME.as_bytes()
     }
 }
 

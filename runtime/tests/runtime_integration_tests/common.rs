@@ -1090,3 +1090,11 @@ pub fn verify_sign_and_certify_key(
         _ => panic!("Wrong response type!"),
     }
 }
+
+pub fn expected_fips_version_name(subsystem_mode: bool) -> &'static [u8] {
+    if subsystem_mode {
+        caliptra_common::fips::FipsVersionCmd::NAME_ROT.as_bytes()
+    } else {
+        caliptra_common::fips::FipsVersionCmd::NAME.as_bytes()
+    }
+}

@@ -1214,7 +1214,7 @@ Table: `VERSION` output arguments
 | fips_status  | u32       | Indicates if the command is FIPS approved or an error
 | mode         | u32       | Mode identifier
 | fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
-| name         | u8[12]    | 12 character module name "Caliptra RTM"
+| name         | u8[12]    | 12 character module name ("Caliptra ROT" in subsystem mode, otherwise "Caliptra RTM")
 
 ### SELF\_TEST\_START
 

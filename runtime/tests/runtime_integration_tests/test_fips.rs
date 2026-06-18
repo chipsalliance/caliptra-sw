@@ -69,7 +69,10 @@ fn test_fips_version() {
         ]
     );
     let name = &fips_version.name[..];
-    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
+    assert_eq!(
+        name,
+        crate::common::expected_fips_version_name(model.subsystem_mode())
+    );
 }
 
 #[test]

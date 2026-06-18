@@ -53,5 +53,8 @@ fn test_version() {
         [HW_REV_ID, (version::get_rom_version() as u32), 0x0]
     );
     let name = &version_resp.name[..];
-    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
+    assert_eq!(
+        name,
+        helpers::expected_fips_version_name(hw.subsystem_mode())
+    );
 }
