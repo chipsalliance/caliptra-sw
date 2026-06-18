@@ -5,7 +5,6 @@
 mod common;
 #[cfg(any())]
 mod test_activate_firmware;
-#[cfg(any())]
 mod test_attested_csr;
 #[cfg(any())]
 mod test_authorize_and_stash;
@@ -23,7 +22,6 @@ mod test_certify_key_extended;
 mod test_certs;
 #[cfg(any())]
 mod test_certs_384_warmreset;
-#[cfg(any())]
 mod test_cryptographic_mailbox;
 #[cfg(any())]
 mod test_debug_unlock;
@@ -52,7 +50,6 @@ mod test_invoke_dpe;
 mod test_lms;
 #[cfg(any())]
 mod test_mailbox;
-#[cfg(any())]
 mod test_mldsa;
 #[cfg(any())]
 mod test_ocp_lock;
@@ -60,7 +57,6 @@ mod test_ocp_lock;
 mod test_panic_missing;
 #[cfg(any())]
 mod test_pauser_privilege_levels;
-#[cfg(any())]
 mod test_pcr;
 #[cfg(any())]
 mod test_populate_idev;

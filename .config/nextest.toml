@@ -8,7 +8,15 @@
 # configured from the test harness. Re-enable once MCU ROM populates these straps.
 [profile.fpga-subsystem]
 default-filter = """
-package(caliptra-runtime) & test(test_fips::test_fips_shutdown)
+(package(caliptra-runtime) & test(test_fips::test_fips_shutdown)) |
+(package(caliptra-runtime) & test(test_mldsa::)) |
+(package(caliptra-runtime) & test(test_cryptographic_mailbox::test_mldsa)) |
+(package(caliptra-runtime) & test(test_cryptographic_mailbox::test_mlkem)) |
+(package(caliptra-runtime) & test(test_pcr::test_pcr_quote_mldsa)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_common::test_get_attested_mldsa_csr_invalid_key_id)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_fmc_alias::test_get_attested_fmc_alias_mldsa_csr)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_ldevid::test_get_attested_ldevid_mldsa_csr)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_rt_alias::test_get_attested_rt_alias_mldsa_csr))
 """
 failure-output = "immediate-final"
 fail-fast = false
@@ -51,7 +59,15 @@ store-failure-output = true
 # test(test_csrng_runtime_health_failure): entropy on FPGA seems to be behaving a bit differently and does not fail the test immediately, as expected
 [profile.fpga-core]
 default-filter = """
-package(caliptra-runtime) & test(test_fips::test_fips_shutdown)
+(package(caliptra-runtime) & test(test_fips::test_fips_shutdown)) |
+(package(caliptra-runtime) & test(test_mldsa::)) |
+(package(caliptra-runtime) & test(test_cryptographic_mailbox::test_mldsa)) |
+(package(caliptra-runtime) & test(test_cryptographic_mailbox::test_mlkem)) |
+(package(caliptra-runtime) & test(test_pcr::test_pcr_quote_mldsa)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_common::test_get_attested_mldsa_csr_invalid_key_id)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_fmc_alias::test_get_attested_fmc_alias_mldsa_csr)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_ldevid::test_get_attested_ldevid_mldsa_csr)) |
+(package(caliptra-runtime) & test(test_attested_csr::test_rt_alias::test_get_attested_rt_alias_mldsa_csr))
 """
 failure-output = "immediate-final"
 fail-fast = false
