@@ -49,6 +49,8 @@ impl FipsModule {
             Ecc384::zeroize();
             cprintln!("[rt-zeroize] hmac");
             Hmac::zeroize();
+            Mldsa87::trace_last_operation_status();
+            MlKem1024::trace_last_operation_status();
             cprintln!("[rt-zeroize] mldsa87");
             Mldsa87::zeroize();
             cprintln!("[rt-zeroize] mlkem1024");
