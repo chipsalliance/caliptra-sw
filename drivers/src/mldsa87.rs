@@ -157,15 +157,15 @@ impl<'a> Mldsa87<'a> {
     ) -> CaliptraResult<()> {
         let poll_count = core::cell::Cell::new(0u32);
         crate::cprintln!("[mldsa87] wait-ready {} ++", label);
-        Self::trace_abr_status(label, regs);
         let result = Mldsa87::wait(regs, || {
             let next = poll_count.get().wrapping_add(1);
             poll_count.set(next);
-            if Self::should_trace_poll(next) {
+            let ready = regs.mldsa_status().read().ready();
+            if !ready && Self::should_trace_poll(next) {
                 crate::cprintln!("[mldsa87] wait-ready {} poll={}", label, next);
                 Self::trace_abr_status(label, regs);
             }
-            regs.mldsa_status().read().ready()
+            ready
         });
         if result.is_err() {
             crate::cprintln!(
@@ -173,14 +173,17 @@ impl<'a> Mldsa87<'a> {
                 label,
                 poll_count.get()
             );
+            Self::trace_abr_status(label, regs);
         } else {
             crate::cprintln!(
                 "[mldsa87] wait-ready {} ok polls={}",
                 label,
                 poll_count.get()
             );
+            if poll_count.get() > 1 {
+                Self::trace_abr_status(label, regs);
+            }
         }
-        Self::trace_abr_status(label, regs);
         result
     }
 
@@ -239,7 +242,12 @@ impl<'a> Mldsa87<'a> {
         };
 
         self.pct(seed, &pubkey, trng)?;
+        self.trace_self_abr_status("key_pair exit");
         Ok(pubkey)
+    }
+
+    fn trace_self_abr_status(&mut self, label: &str) {
+        Self::trace_abr_status(label, self.mldsa87.regs_mut());
     }
 
     /// Raw key pair generation without PCT.
@@ -286,6 +294,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware when done
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("key_pair_internal exit", mldsa);
 
         Ok(pubkey)
     }
@@ -372,6 +381,7 @@ impl<'a> Mldsa87<'a> {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = self.verify_internal(pub_key, data, &signature)?;
+        self.trace_self_abr_status("sign_internal exit");
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -530,6 +540,7 @@ impl<'a> Mldsa87<'a> {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = self.verify_var(pub_key, msg, &signature)?;
+        self.trace_self_abr_status("sign_var exit");
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -590,6 +601,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("sign_var_no_verify exit", mldsa);
 
         Ok(signature)
     }
@@ -665,6 +677,7 @@ impl<'a> Mldsa87<'a> {
             Mldsa87Result::SigVerifyFailed
         };
 
+        Self::trace_abr_status("verify_internal exit", mldsa);
         Ok(result)
     }
 
@@ -719,6 +732,7 @@ impl<'a> Mldsa87<'a> {
             Mldsa87Result::SigVerifyFailed
         };
 
+        Self::trace_abr_status("verify_var exit", mldsa);
         Ok(result)
     }
 
@@ -754,6 +768,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("pcr_sign_flow exit", mldsa);
 
         Ok(signature)
     }
