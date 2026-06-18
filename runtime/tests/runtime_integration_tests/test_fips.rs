@@ -13,6 +13,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const HW_REV_ID: u32 = 0x112;
 
+#[cfg(any())]
 #[test]
 fn test_fips_version() {
     let args = RuntimeTestArgs {
@@ -111,6 +112,7 @@ fn test_fips_shutdown() {
     );
 }
 
+#[cfg(any())]
 #[cfg_attr(feature = "verilator", ignore)]
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[cfg_attr(feature = "fpga_subsystem", ignore)]

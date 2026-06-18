@@ -285,6 +285,8 @@ pub fn attempt_ssp_access_rt() {
 pub fn zeroize_check_inaccessible() {
     let mut hw = fips_test_init_to_rt(None, None);
 
+    hw.step_until_ready_for_runtime();
+
     // SHUTDOWN/Zeroize
     crate::services::exec_cmd_shutdown(&mut hw);
 

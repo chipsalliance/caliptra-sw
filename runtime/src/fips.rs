@@ -36,29 +36,38 @@ impl FipsModule {
     /// Clear data structures in DCCM.
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    fn zeroize(env: &mut Drivers) {
-        let _ = env.trng.zeroize();
+    fn zeroize(env: &mut Drivers) -> CaliptraResult<()> {
+        cprintln!("[rt-zeroize] ++");
+        cprintln!("[rt-zeroize] trng");
+        let trng_zeroize_result = env.trng.zeroize();
 
         unsafe {
             // Zeroize the crypto blocks.
-            cprintln!("[rt] zeroize AES");
+            cprintln!("[rt-zeroize] aes");
             Aes::zeroize();
+            cprintln!("[rt-zeroize] ecc384");
             Ecc384::zeroize();
+            cprintln!("[rt-zeroize] hmac");
             Hmac::zeroize();
-            cprintln!("[rt] zeroize MLDSA");
-            Mldsa87::zeroize_no_wait();
-            cprintln!("[rt] zeroize MLKEM");
+            cprintln!("[rt-zeroize] mldsa87");
+            Mldsa87::zeroize();
+            cprintln!("[rt-zeroize] mlkem1024");
             MlKem1024::zeroize();
+            cprintln!("[rt-zeroize] sha256");
             Sha256::zeroize();
+            cprintln!("[rt-zeroize] sha2_512_384");
             Sha2_512_384::zeroize();
+            cprintln!("[rt-zeroize] sha2_512_384acc");
             Sha2_512_384Acc::zeroize();
-            cprintln!("[rt] zeroize SHA3");
+            cprintln!("[rt-zeroize] sha3");
             Sha3::zeroize();
 
             // Zeroize the key vault.
+            cprintln!("[rt-zeroize] keyvault");
             KeyVault::zeroize();
 
             // Lock the SHA Accelerator.
+            cprintln!("[rt-zeroize] sha-acc-lock");
             Sha2_512_384Acc::lock();
         }
 
@@ -70,6 +79,10 @@ impl FipsModule {
         };
 
         env.persistent_data.get_mut().zeroize();
+
+        trng_zeroize_result?;
+        cprintln!("[rt-zeroize] --");
+        Ok(())
     }
 }
 
@@ -238,7 +251,7 @@ impl FipsShutdownCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<usize> {
-        FipsModule::zeroize(env);
+        FipsModule::zeroize(env)?;
         env.is_shutdown = true;
 
         Ok(0)

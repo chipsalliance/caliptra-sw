@@ -155,7 +155,81 @@ impl<'a> MlKem1024<'a> {
 
     /// Re-run KATs (for FIPS self-test).
     pub fn run_kats(&mut self) -> CaliptraResult<()> {
-        crate::kats::execute_mlkem1024_kat(self)
+        crate::cprintln!("[mlkem] run_kats ++");
+        self.trace_self_abr_status("run_kats entry");
+        crate::kats::execute_mlkem1024_kat(self)?;
+        self.trace_self_abr_status("run_kats after KAT before final wait");
+        self.zeroize_internal_with_label("run_kats final cleanup")?;
+        self.trace_self_abr_status("run_kats --");
+        Ok(())
+    }
+
+    fn trace_self_abr_status(&mut self, label: &str) {
+        Self::trace_abr_status(label, self.mlkem.regs_mut());
+    }
+
+    fn trace_abr_status(label: &str, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) {
+        let mldsa_status = u32::from(regs.mldsa_status().read());
+        let mlkem_status = u32::from(regs.mlkem_status().read());
+        let error_global = u32::from(regs.intr_block_rf().error_global_intr_r().read());
+        let error_internal = u32::from(regs.intr_block_rf().error_internal_intr_r().read());
+        let kv_mldsa_seed = u32::from(regs.kv_mldsa_seed_rd_status().read());
+        let kv_mlkem_seed = u32::from(regs.kv_mlkem_seed_rd_status().read());
+        let kv_mlkem_msg = u32::from(regs.kv_mlkem_msg_rd_status().read());
+        let kv_mlkem_shared = u32::from(regs.kv_mlkem_sharedkey_wr_status().read());
+
+        crate::cprintln!(
+            "[abr-debug] {} status mldsa=0x{:08x} mlkem=0x{:08x} err_global=0x{:08x} err_internal=0x{:08x}",
+            label,
+            mldsa_status,
+            mlkem_status,
+            error_global,
+            error_internal
+        );
+        crate::cprintln!(
+            "[abr-debug] {} kv mldsa_seed=0x{:08x} mlkem_seed=0x{:08x} mlkem_msg=0x{:08x} mlkem_shared=0x{:08x}",
+            label,
+            kv_mldsa_seed,
+            kv_mlkem_seed,
+            kv_mlkem_msg,
+            kv_mlkem_shared
+        );
+    }
+
+    fn should_trace_poll(poll_count: u32) -> bool {
+        matches!(
+            poll_count,
+            1 | 10 | 100 | 1000 | 10_000 | 100_000 | 1_000_000 | 10_000_000 | 100_000_000
+        ) || poll_count % 1_000_000_000 == 0
+    }
+
+    fn wait_ready_with_trace(
+        regs: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        label: &str,
+    ) -> CaliptraResult<()> {
+        let poll_count = core::cell::Cell::new(0u32);
+        crate::cprintln!("[mlkem] wait-ready {} ++", label);
+        Self::trace_abr_status(label, regs);
+        let result = MlKem1024::wait(regs, || {
+            let next = poll_count.get().wrapping_add(1);
+            poll_count.set(next);
+            if Self::should_trace_poll(next) {
+                crate::cprintln!("[mlkem] wait-ready {} poll={}", label, next);
+                Self::trace_abr_status(label, regs);
+            }
+            regs.mlkem_status().read().ready()
+        });
+        if result.is_err() {
+            crate::cprintln!(
+                "[mlkem] wait-ready {} error polls={}",
+                label,
+                poll_count.get()
+            );
+        } else {
+            crate::cprintln!("[mlkem] wait-ready {} ok polls={}", label, poll_count.get());
+        }
+        Self::trace_abr_status(label, regs);
+        result
     }
 
     // Wait on the provided condition OR the error condition defined in this function
@@ -205,7 +279,7 @@ impl<'a> MlKem1024<'a> {
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
         let kv_seeds = matches!(seeds, MlKem1024Seeds::Key(_));
 
-        self.zeroize_internal()?;
+        self.zeroize_internal_with_label("key_pair entry")?;
 
         let mlkem = self.mlkem.regs_mut();
 
@@ -234,7 +308,9 @@ impl<'a> MlKem1024<'a> {
         let decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
 
         // Clear the keygen hardware state before PCT operations.
+        Self::trace_abr_status("key_pair cleanup before zeroize", mlkem);
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("key_pair cleanup after zeroize", mlkem);
 
         self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv)?;
 
@@ -385,7 +461,7 @@ impl<'a> MlKem1024<'a> {
         message: MlKem1024MessageSource,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<MlKem1024Ciphertext> {
-        self.zeroize_internal()?;
+        self.zeroize_internal_with_label("encapsulate entry")?;
 
         let mlkem = self.mlkem.regs_mut();
 
@@ -447,7 +523,9 @@ impl<'a> MlKem1024<'a> {
         let ciphertext = MlKem1024Ciphertext::read_from_reg(mlkem.mlkem_ciphertext());
 
         // Clear the hardware when done
+        Self::trace_abr_status("encapsulate cleanup before zeroize", mlkem);
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("encapsulate cleanup after zeroize", mlkem);
 
         Ok(ciphertext)
     }
@@ -470,7 +548,7 @@ impl<'a> MlKem1024<'a> {
         ciphertext: &MlKem1024Ciphertext,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<()> {
-        self.zeroize_internal()?;
+        self.zeroize_internal_with_label("decapsulate entry")?;
 
         let mlkem = self.mlkem.regs_mut();
 
@@ -520,7 +598,9 @@ impl<'a> MlKem1024<'a> {
         }
 
         // Clear the hardware when done
+        Self::trace_abr_status("decapsulate cleanup before zeroize", mlkem);
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("decapsulate cleanup after zeroize", mlkem);
 
         Ok(())
     }
@@ -543,7 +623,7 @@ impl<'a> MlKem1024<'a> {
         ciphertext: &MlKem1024Ciphertext,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<()> {
-        self.zeroize_internal()?;
+        self.zeroize_internal_with_label("keygen_decapsulate entry")?;
 
         let mlkem = self.mlkem.regs_mut();
 
@@ -606,7 +686,9 @@ impl<'a> MlKem1024<'a> {
         }
 
         // Clear the hardware when done
+        Self::trace_abr_status("keygen_decapsulate cleanup before zeroize", mlkem);
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status("keygen_decapsulate cleanup after zeroize", mlkem);
 
         Ok(())
     }
@@ -624,10 +706,14 @@ impl<'a> MlKem1024<'a> {
     pub unsafe fn zeroize() {
         let mut mlkem_reg = AbrReg::new();
         let mlkem = mlkem_reg.regs_mut();
+        crate::cprintln!("[mlkem] zeroize ++");
+        Self::trace_abr_status("mlkem zeroize before write", mlkem);
         mlkem.mlkem_ctrl().write(|f| f.zeroize(true));
+        Self::trace_abr_status("mlkem zeroize after write", mlkem);
 
         // Wait for hardware ready. Ignore errors
-        let _ = MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready());
+        let _ = Self::wait_ready_with_trace(mlkem, "mlkem zeroize wait");
+        crate::cprintln!("[mlkem] zeroize --");
     }
 
     /// Zeroize the hardware registers without waiting.
@@ -647,16 +733,23 @@ impl<'a> MlKem1024<'a> {
     }
 
     fn zeroize_internal(&mut self) -> CaliptraResult<()> {
+        self.zeroize_internal_with_label("zeroize_internal")
+    }
+
+    fn zeroize_internal_with_label(&mut self, label: &str) -> CaliptraResult<()> {
         let mlkem = self.mlkem.regs_mut();
 
         // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
+        Self::wait_ready_with_trace(mlkem, label)?;
 
         // Clear the hardware before start
+        Self::trace_abr_status(label, mlkem);
+        crate::cprintln!("[mlkem] {} write zeroize", label);
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+        Self::trace_abr_status(label, mlkem);
 
         // Wait for hardware ready
-        MlKem1024::wait(mlkem, || mlkem.mlkem_status().read().ready())?;
+        Self::wait_ready_with_trace(mlkem, label)?;
 
         Ok(())
     }

@@ -116,6 +116,74 @@ impl<'a> Mldsa87<'a> {
         Self { mldsa87 }
     }
 
+    fn trace_abr_status(label: &str, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) {
+        let mldsa_status = u32::from(regs.mldsa_status().read());
+        let mlkem_status = u32::from(regs.mlkem_status().read());
+        let error_global = u32::from(regs.intr_block_rf().error_global_intr_r().read());
+        let error_internal = u32::from(regs.intr_block_rf().error_internal_intr_r().read());
+        let kv_mldsa_seed = u32::from(regs.kv_mldsa_seed_rd_status().read());
+        let kv_mlkem_seed = u32::from(regs.kv_mlkem_seed_rd_status().read());
+        let kv_mlkem_msg = u32::from(regs.kv_mlkem_msg_rd_status().read());
+        let kv_mlkem_shared = u32::from(regs.kv_mlkem_sharedkey_wr_status().read());
+
+        crate::cprintln!(
+            "[abr-debug] {} status mldsa=0x{:08x} mlkem=0x{:08x} err_global=0x{:08x} err_internal=0x{:08x}",
+            label,
+            mldsa_status,
+            mlkem_status,
+            error_global,
+            error_internal
+        );
+        crate::cprintln!(
+            "[abr-debug] {} kv mldsa_seed=0x{:08x} mlkem_seed=0x{:08x} mlkem_msg=0x{:08x} mlkem_shared=0x{:08x}",
+            label,
+            kv_mldsa_seed,
+            kv_mlkem_seed,
+            kv_mlkem_msg,
+            kv_mlkem_shared
+        );
+    }
+
+    fn should_trace_poll(poll_count: u32) -> bool {
+        matches!(
+            poll_count,
+            1 | 10 | 100 | 1000 | 10_000 | 100_000 | 1_000_000 | 10_000_000 | 100_000_000
+        ) || poll_count % 1_000_000_000 == 0
+    }
+
+    fn wait_ready_with_trace(
+        regs: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        label: &str,
+    ) -> CaliptraResult<()> {
+        let poll_count = core::cell::Cell::new(0u32);
+        crate::cprintln!("[mldsa87] wait-ready {} ++", label);
+        Self::trace_abr_status(label, regs);
+        let result = Mldsa87::wait(regs, || {
+            let next = poll_count.get().wrapping_add(1);
+            poll_count.set(next);
+            if Self::should_trace_poll(next) {
+                crate::cprintln!("[mldsa87] wait-ready {} poll={}", label, next);
+                Self::trace_abr_status(label, regs);
+            }
+            regs.mldsa_status().read().ready()
+        });
+        if result.is_err() {
+            crate::cprintln!(
+                "[mldsa87] wait-ready {} error polls={}",
+                label,
+                poll_count.get()
+            );
+        } else {
+            crate::cprintln!(
+                "[mldsa87] wait-ready {} ok polls={}",
+                label,
+                poll_count.get()
+            );
+        }
+        Self::trace_abr_status(label, regs);
+        result
+    }
+
     // Wait on the provided condition OR the error condition defined in this function
     // In the event of the error condition being set, clear the error bits and return an error
     fn wait<F>(regs: RegisterBlock<caliptra_ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
@@ -701,13 +769,16 @@ impl<'a> Mldsa87<'a> {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        Self::zeroize_no_wait();
-
         let mut mldsa_reg = AbrReg::new();
         let mldsa = mldsa_reg.regs_mut();
+        crate::cprintln!("[mldsa87] zeroize ++");
+        Self::trace_abr_status("mldsa zeroize before write", mldsa);
+        mldsa.mldsa_ctrl().write(|f| f.zeroize(true));
+        Self::trace_abr_status("mldsa zeroize after write", mldsa);
 
         // Wait for hardware ready. Ignore errors
-        let _ = Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready());
+        let _ = Self::wait_ready_with_trace(mldsa, "mldsa zeroize wait");
+        crate::cprintln!("[mldsa87] zeroize --");
     }
 
     /// Zeroize the hardware registers without waiting for readiness.
