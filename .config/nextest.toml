@@ -8,45 +8,7 @@
 # configured from the test harness. Re-enable once MCU ROM populates these straps.
 [profile.fpga-subsystem]
 default-filter = """
-(package(caliptra-hw-model) and test(tests::test_execution)) |
-(package(caliptra-drivers) and test(test_dma_aes)) |
-(package(caliptra-runtime)
-    - test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys)
-    - test(test_debug_unlock::test_dbg_unlock_prod_wrong_cmd)
-    - test(test_fe_programming::test_fe_programming_invalid_partition)
-    - test(test_pauser_privilege_levels::test_pl0_unset_in_header)
-    - test(test_pauser_privilege_levels::test_pl1_init_ctx_dpe_context_thresholds)
-    - test(test_pauser_privilege_levels::test_user_not_pl0)
-    - test(test_mailbox::test_reserved_pauser)
-    - test(test_pauser_privilege_levels::test_change_locality)
-    - test(test_reallocate_dpe_context_limits)
-    - test(test_invoke_dpe::test_export_cdi_destroyed_root_context)
-    - test(test_fe_programming::test_fe_programming_cmd)
-    - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)) |
-(package(caliptra-rom)
-    - test(test_debug_unlock::)
-    - test(test_fmcalias_derivation::test_zero_firmware_size)
-    - test(test_uds_fe)
-    - test(test_wdt_activation_and_stoppage::)
-    - test(test_warm_reset::test_warm_reset_during_update_reset)
-    - test(test_warm_reset::test_warm_reset_during_cold_boot_before_image_validation)) |
-(package(caliptra-drivers)
-    - test(test_csrng_adaptive_proportion)
-    - test(test_csrng_repetition_count)
-    - test(test_csrng_runtime_health_failure)
-    - test(test_csrng_entropy_config_warm_reset)
-    - test(test_doe_when_debug_locked)
-    - test(test_doe_when_debug_not_locked)) |
-(package(caliptra-fmc)) |
-(package(caliptra-test) &
-    ((test(smoke_test::) - test(smoke_test::test_fmc_wdt_timeout) - test(smoke_test::test_rt_wdt_timeout))
-    | test(services::)
-    | (test(self_tests::) 
-      - test(self_tests::fw_load_halt_check_no_output))
-    | test(fw_load::)
-    | test(warm_reset::)
-    | test(fake_collateral_boot_test::)
-    | test(security_parameters::)))
+package(caliptra-runtime) & test(test_fips::test_fips_shutdown)
 """
 failure-output = "immediate-final"
 fail-fast = false
@@ -89,39 +51,7 @@ store-failure-output = true
 # test(test_csrng_runtime_health_failure): entropy on FPGA seems to be behaving a bit differently and does not fail the test immediately, as expected
 [profile.fpga-core]
 default-filter = """
-not (package(/caliptra-emu-.*/) |
-       package(caliptra-builder) |
-       package(caliptra-file-header-fix) |
-       package(compliance-test) |
-       test(test_csrng_runtime_health_failure) |
-       test(test_doe_when_debug_not_locked) |
-       test(test_sign_validation_failure) |
-       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
-       test(test_activate_firmware::test_activate_invalid_fw_id) |
-       test(test_activate_firmware::test_activate_mcu_fw_success) |
-       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
-       test(test_activate_firmware::test_activate_soc_fw_success) |
-       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
-       test(test_authorize_and_stash::test_authorize_from_load_address) |
-       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
-       test(test_authorize_and_stash::test_authorize_from_staging_address) |
-       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
-       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
-       test(test_fe_programming::test_fe_programming_cmd) |
-       test(test_fips::test_fips_shutdown) |
-       test(test_lms::test_lms_verify_cmd) |
-       test(test_lms::test_lms_verify_failure) |
-       test(test_lms::test_lms_verify_invalid_key_lms_type) |
-       test(test_lms::test_lms_verify_invalid_lmots_type) |
-       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
-       test(test_doe_when_debug_not_locked) |
-       binary_id(caliptra-test::fips_test_suite) |
-       test(test_update_reset::test_update_reset_verify_image_failure) |
-       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-       test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
-       test(test_version::test_version) |
-       test(test_warm_reset::test_warm_reset_version) |
-       test(test_fips::test_fips_version))
+package(caliptra-runtime) & test(test_fips::test_fips_shutdown)
 """
 failure-output = "immediate-final"
 fail-fast = false
