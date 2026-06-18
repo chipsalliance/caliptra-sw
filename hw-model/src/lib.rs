@@ -211,6 +211,9 @@ pub struct SubsystemInitParams<'a> {
     // from strap registers instead of OTP. This gives deterministic
     // IDevID on FPGA, required for attestation tests.
     pub use_strap_secrets: bool,
+
+    // When true, do not provision fuses in OTP. Useful for testing provisioning flows.
+    pub skip_otp_provisioning: bool,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -225,6 +228,7 @@ impl Default for SubsystemInitParams<'_> {
             primary_flash_initial_contents: None,
             lc_state: None,
             use_strap_secrets: false,
+            skip_otp_provisioning: false,
         }
     }
 }
