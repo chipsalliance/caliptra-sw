@@ -29,8 +29,8 @@ use crate::hmac_cm::mutrefbytes;
 ///
 /// # Returns
 ///
-/// * `Ecc384Signature` - The formed signature
-pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
+/// * `&Ecc384Signature` - The formed signature
+pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> &Ecc384Signature {
     persistent_data.rom.data_vault.ldev_dice_ecc_signature()
 }
 
@@ -42,8 +42,8 @@ pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
 ///
 /// # Returns
 ///
-/// * `Mldsa87Signature` - The formed signature
-pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Signature {
+/// * `&Mldsa87Signature` - The formed signature
+pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> &Mldsa87Signature {
     persistent_data.rom.data_vault.ldev_dice_mldsa_signature()
 }
 
@@ -158,7 +158,7 @@ pub fn copy_ldevid_ecc384_cert(
         .ecc_ldevid_tbs
         .get(..persistent_data.rom.fht.ecc_ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data);
-    ecc384_cert_from_tbs_and_sig(tbs, &sig, cert).map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
+    ecc384_cert_from_tbs_and_sig(tbs, sig, cert).map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
 }
 
 /// Copy MLDSA LDevID certificate produced by ROM to `cert` buffer
@@ -181,7 +181,7 @@ pub fn copy_ldevid_mldsa87_cert(
         .mldsa_ldevid_tbs
         .get(..persistent_data.rom.fht.mldsa_ldevid_tbs_size.into());
     let sig = ldevid_dice_mldsa87_sign(persistent_data);
-    mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
+    mldsa87_cert_from_tbs_and_sig(tbs, sig, cert)
         .map_err(|_| CaliptraError::GET_LDEVID_CERT_FAILED)
 }
 
