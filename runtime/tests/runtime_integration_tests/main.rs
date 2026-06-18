@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+#![allow(dead_code, unused_imports)]
+
 mod common;
 #[cfg(any())]
 mod test_activate_firmware;
