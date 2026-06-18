@@ -111,92 +111,6 @@ pub struct Mldsa87<'a> {
     mldsa87: &'a mut AbrReg,
 }
 
-#[cfg(feature = "runtime")]
-#[derive(Clone, Copy)]
-struct AbrTraceSnapshot {
-    op: u32,
-    mldsa_status: u32,
-    mlkem_status: u32,
-    error_global: u32,
-    error_internal: u32,
-    kv_mldsa_seed: u32,
-    kv_mlkem_seed: u32,
-    kv_mlkem_msg: u32,
-    kv_mlkem_shared: u32,
-}
-
-#[cfg(feature = "runtime")]
-impl AbrTraceSnapshot {
-    const fn empty() -> Self {
-        Self {
-            op: 0,
-            mldsa_status: 0,
-            mlkem_status: 0,
-            error_global: 0,
-            error_internal: 0,
-            kv_mldsa_seed: 0,
-            kv_mlkem_seed: 0,
-            kv_mlkem_msg: 0,
-            kv_mlkem_shared: 0,
-        }
-    }
-
-    fn capture(op: u32, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) -> Self {
-        Self {
-            op,
-            mldsa_status: u32::from(regs.mldsa_status().read()),
-            mlkem_status: u32::from(regs.mlkem_status().read()),
-            error_global: u32::from(regs.intr_block_rf().error_global_intr_r().read()),
-            error_internal: u32::from(regs.intr_block_rf().error_internal_intr_r().read()),
-            kv_mldsa_seed: u32::from(regs.kv_mldsa_seed_rd_status().read()),
-            kv_mlkem_seed: u32::from(regs.kv_mlkem_seed_rd_status().read()),
-            kv_mlkem_msg: u32::from(regs.kv_mlkem_msg_rd_status().read()),
-            kv_mlkem_shared: u32::from(regs.kv_mlkem_sharedkey_wr_status().read()),
-        }
-    }
-
-    fn trace(&self, label: &str) {
-        crate::cprintln!(
-            "[abr-debug] {} op={} status mldsa=0x{:08x} mlkem=0x{:08x} err_global=0x{:08x} err_internal=0x{:08x}",
-            label,
-            self.op,
-            self.mldsa_status,
-            self.mlkem_status,
-            self.error_global,
-            self.error_internal
-        );
-        crate::cprintln!(
-            "[abr-debug] {} op={} kv mldsa_seed=0x{:08x} mlkem_seed=0x{:08x} mlkem_msg=0x{:08x} mlkem_shared=0x{:08x}",
-            label,
-            self.op,
-            self.kv_mldsa_seed,
-            self.kv_mlkem_seed,
-            self.kv_mlkem_msg,
-            self.kv_mlkem_shared
-        );
-    }
-}
-
-#[cfg(feature = "runtime")]
-static mut LAST_MLDSA_OPERATION: AbrTraceSnapshot = AbrTraceSnapshot::empty();
-
-#[cfg(feature = "runtime")]
-const MLDSA_OP_KEY_PAIR: u32 = 1;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_KEY_PAIR_INTERNAL: u32 = 2;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_SIGN_INTERNAL: u32 = 3;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_SIGN_VAR: u32 = 4;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_SIGN_VAR_NO_VERIFY: u32 = 5;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_VERIFY_INTERNAL: u32 = 6;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_VERIFY_VAR: u32 = 7;
-#[cfg(feature = "runtime")]
-const MLDSA_OP_PCR_SIGN_FLOW: u32 = 8;
-
 impl<'a> Mldsa87<'a> {
     pub fn new(mldsa87: &'a mut AbrReg) -> Self {
         Self { mldsa87 }
@@ -328,25 +242,12 @@ impl<'a> Mldsa87<'a> {
         };
 
         self.pct(seed, &pubkey, trng)?;
-        #[cfg(feature = "runtime")]
-        self.record_self_abr_status(MLDSA_OP_KEY_PAIR);
+        self.trace_self_abr_status("mldsa key_pair exit");
         Ok(pubkey)
     }
 
-    #[cfg(feature = "runtime")]
-    fn record_self_abr_status(&mut self, op: u32) {
-        Self::record_abr_status(op, self.mldsa87.regs_mut());
-    }
-
-    #[cfg(feature = "runtime")]
-    fn record_abr_status(op: u32, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) {
-        unsafe { LAST_MLDSA_OPERATION = AbrTraceSnapshot::capture(op, regs) };
-    }
-
-    #[cfg(feature = "runtime")]
-    pub fn trace_last_operation_status() {
-        let snapshot = unsafe { LAST_MLDSA_OPERATION };
-        snapshot.trace("last mldsa operation before shutdown");
+    fn trace_self_abr_status(&mut self, label: &str) {
+        Self::trace_abr_status(label, self.mldsa87.regs_mut());
     }
 
     /// Raw key pair generation without PCT.
@@ -393,8 +294,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware when done
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLDSA_OP_KEY_PAIR_INTERNAL, mldsa);
+        Self::trace_abr_status("mldsa key_pair_internal exit", mldsa);
 
         Ok(pubkey)
     }
@@ -481,8 +381,7 @@ impl<'a> Mldsa87<'a> {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = self.verify_internal(pub_key, data, &signature)?;
-        #[cfg(feature = "runtime")]
-        self.record_self_abr_status(MLDSA_OP_SIGN_INTERNAL);
+        self.trace_self_abr_status("mldsa sign_internal exit");
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -641,8 +540,7 @@ impl<'a> Mldsa87<'a> {
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = self.verify_var(pub_key, msg, &signature)?;
-        #[cfg(feature = "runtime")]
-        self.record_self_abr_status(MLDSA_OP_SIGN_VAR);
+        self.trace_self_abr_status("mldsa sign_var exit");
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -703,8 +601,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLDSA_OP_SIGN_VAR_NO_VERIFY, mldsa);
+        Self::trace_abr_status("mldsa sign_var_no_verify exit", mldsa);
 
         Ok(signature)
     }
@@ -780,8 +677,7 @@ impl<'a> Mldsa87<'a> {
             Mldsa87Result::SigVerifyFailed
         };
 
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLDSA_OP_VERIFY_INTERNAL, mldsa);
+        Self::trace_abr_status("mldsa verify_internal exit", mldsa);
         Ok(result)
     }
 
@@ -836,8 +732,7 @@ impl<'a> Mldsa87<'a> {
             Mldsa87Result::SigVerifyFailed
         };
 
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLDSA_OP_VERIFY_VAR, mldsa);
+        Self::trace_abr_status("mldsa verify_var exit", mldsa);
         Ok(result)
     }
 
@@ -873,8 +768,7 @@ impl<'a> Mldsa87<'a> {
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLDSA_OP_PCR_SIGN_FLOW, mldsa);
+        Self::trace_abr_status("mldsa pcr_sign_flow exit", mldsa);
 
         Ok(signature)
     }

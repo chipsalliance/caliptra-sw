@@ -148,86 +148,6 @@ pub struct MlKem1024<'a> {
     mlkem: &'a mut AbrReg,
 }
 
-#[cfg(feature = "runtime")]
-#[derive(Clone, Copy)]
-struct AbrTraceSnapshot {
-    op: u32,
-    mldsa_status: u32,
-    mlkem_status: u32,
-    error_global: u32,
-    error_internal: u32,
-    kv_mldsa_seed: u32,
-    kv_mlkem_seed: u32,
-    kv_mlkem_msg: u32,
-    kv_mlkem_shared: u32,
-}
-
-#[cfg(feature = "runtime")]
-impl AbrTraceSnapshot {
-    const fn empty() -> Self {
-        Self {
-            op: 0,
-            mldsa_status: 0,
-            mlkem_status: 0,
-            error_global: 0,
-            error_internal: 0,
-            kv_mldsa_seed: 0,
-            kv_mlkem_seed: 0,
-            kv_mlkem_msg: 0,
-            kv_mlkem_shared: 0,
-        }
-    }
-
-    fn capture(op: u32, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) -> Self {
-        Self {
-            op,
-            mldsa_status: u32::from(regs.mldsa_status().read()),
-            mlkem_status: u32::from(regs.mlkem_status().read()),
-            error_global: u32::from(regs.intr_block_rf().error_global_intr_r().read()),
-            error_internal: u32::from(regs.intr_block_rf().error_internal_intr_r().read()),
-            kv_mldsa_seed: u32::from(regs.kv_mldsa_seed_rd_status().read()),
-            kv_mlkem_seed: u32::from(regs.kv_mlkem_seed_rd_status().read()),
-            kv_mlkem_msg: u32::from(regs.kv_mlkem_msg_rd_status().read()),
-            kv_mlkem_shared: u32::from(regs.kv_mlkem_sharedkey_wr_status().read()),
-        }
-    }
-
-    fn trace(&self, label: &str) {
-        crate::cprintln!(
-            "[abr-debug] {} op={} status mldsa=0x{:08x} mlkem=0x{:08x} err_global=0x{:08x} err_internal=0x{:08x}",
-            label,
-            self.op,
-            self.mldsa_status,
-            self.mlkem_status,
-            self.error_global,
-            self.error_internal
-        );
-        crate::cprintln!(
-            "[abr-debug] {} op={} kv mldsa_seed=0x{:08x} mlkem_seed=0x{:08x} mlkem_msg=0x{:08x} mlkem_shared=0x{:08x}",
-            label,
-            self.op,
-            self.kv_mldsa_seed,
-            self.kv_mlkem_seed,
-            self.kv_mlkem_msg,
-            self.kv_mlkem_shared
-        );
-    }
-}
-
-#[cfg(feature = "runtime")]
-static mut LAST_MLKEM_OPERATION: AbrTraceSnapshot = AbrTraceSnapshot::empty();
-
-#[cfg(feature = "runtime")]
-const MLKEM_OP_RUN_KATS: u32 = 1;
-#[cfg(feature = "runtime")]
-const MLKEM_OP_KEY_PAIR: u32 = 2;
-#[cfg(feature = "runtime")]
-const MLKEM_OP_ENCAPSULATE: u32 = 3;
-#[cfg(feature = "runtime")]
-const MLKEM_OP_DECAPSULATE: u32 = 4;
-#[cfg(feature = "runtime")]
-const MLKEM_OP_KEYGEN_DECAPSULATE: u32 = 5;
-
 impl<'a> MlKem1024<'a> {
     pub fn new(mlkem: &'a mut AbrReg) -> Self {
         Self { mlkem }
@@ -236,25 +156,12 @@ impl<'a> MlKem1024<'a> {
     /// Re-run KATs (for FIPS self-test).
     pub fn run_kats(&mut self) -> CaliptraResult<()> {
         crate::kats::execute_mlkem1024_kat(self)?;
-        #[cfg(feature = "runtime")]
-        self.record_self_abr_status(MLKEM_OP_RUN_KATS);
+        self.trace_self_abr_status("mlkem run_kats exit");
         Ok(())
     }
 
-    #[cfg(feature = "runtime")]
-    fn record_self_abr_status(&mut self, op: u32) {
-        Self::record_abr_status(op, self.mlkem.regs_mut());
-    }
-
-    #[cfg(feature = "runtime")]
-    fn record_abr_status(op: u32, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) {
-        unsafe { LAST_MLKEM_OPERATION = AbrTraceSnapshot::capture(op, regs) };
-    }
-
-    #[cfg(feature = "runtime")]
-    pub fn trace_last_operation_status() {
-        let snapshot = unsafe { LAST_MLKEM_OPERATION };
-        snapshot.trace("last mlkem operation before shutdown");
+    fn trace_self_abr_status(&mut self, label: &str) {
+        Self::trace_abr_status(label, self.mlkem.regs_mut());
     }
 
     fn trace_abr_status(label: &str, regs: RegisterBlock<caliptra_ureg::RealMmioMut>) {
@@ -404,8 +311,7 @@ impl<'a> MlKem1024<'a> {
 
         self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv)?;
 
-        #[cfg(feature = "runtime")]
-        self.record_self_abr_status(MLKEM_OP_KEY_PAIR);
+        self.trace_self_abr_status("mlkem key_pair exit");
         Ok((encaps_key, decaps_key))
     }
 
@@ -616,8 +522,7 @@ impl<'a> MlKem1024<'a> {
 
         // Clear the hardware when done
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLKEM_OP_ENCAPSULATE, mlkem);
+        Self::trace_abr_status("mlkem encapsulate exit", mlkem);
 
         Ok(ciphertext)
     }
@@ -691,8 +596,7 @@ impl<'a> MlKem1024<'a> {
 
         // Clear the hardware when done
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLKEM_OP_DECAPSULATE, mlkem);
+        Self::trace_abr_status("mlkem decapsulate exit", mlkem);
 
         Ok(())
     }
@@ -779,8 +683,7 @@ impl<'a> MlKem1024<'a> {
 
         // Clear the hardware when done
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
-        #[cfg(feature = "runtime")]
-        Self::record_abr_status(MLKEM_OP_KEYGEN_DECAPSULATE, mlkem);
+        Self::trace_abr_status("mlkem keygen_decapsulate exit", mlkem);
 
         Ok(())
     }
