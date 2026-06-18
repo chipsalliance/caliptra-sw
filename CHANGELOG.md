@@ -1,3 +1,49 @@
+# fw-2.0.2
+
+## Caliptra FW 2.0.2 Release Notes
+
+Release notes for changes introduced since FW 2.0.1.
+
+### Features
+
+- **DPE Upgrades**:
+  - DPE core upgrades including support for SVN in `DeriveContext`, a new Crypto API, and unified environment creation ([99c1d64a](https://github.com/chipsalliance/caliptra-sw/commit/99c1d64ad3b15595f6604dd211676e16256d6911))
+  - Support DPE ML-DSA hybrid mode ([#3622](https://github.com/chipsalliance/caliptra-sw/pull/3622))
+  - Add a new command to chunk DPE certificates (`CertifyKeyChunksReq`) ([#3765](https://github.com/chipsalliance/caliptra-sw/pull/3765))
+- **Attested CSR**:
+  - Add Attested CSR support for Runtime Alias key ([#3406](https://github.com/chipsalliance/caliptra-sw/pull/3406)) and FMC Alias key ([#3405](https://github.com/chipsalliance/caliptra-sw/pull/3405))
+  - Add `GET_ATTESTED_ECC384_CSR` and `GET_ATTESTED_MLDSA87_CSR` mailbox commands ([#3339](https://github.com/chipsalliance/caliptra-sw/pull/3339))
+- **Cryptographic & Drivers**:
+  - Add ML-DSA pairwise consistency test (PCT) ([#3547](https://github.com/chipsalliance/caliptra-sw/pull/3547))
+  - Add ECDH pairwise consistency test (PCT) ([#3546](https://github.com/chipsalliance/caliptra-sw/pull/3546))
+  - Add MLDSA-87 SigVer KAT and CTR_DRBG-AES-256 KAT coverage ([#3795](https://github.com/chipsalliance/caliptra-sw/pull/3795), [#3706](https://github.com/chipsalliance/caliptra-sw/pull/3706))
+  - Add hashing step to ECDSA KAT ([#3821](https://github.com/chipsalliance/caliptra-sw/pull/3821))
+- **Runtime & Firmware Capabilities**:
+  - Add more information about how firmware was verified to `fw_info` ([#3638](https://github.com/chipsalliance/caliptra-sw/pull/3638))
+  - Modify `AuthorizeAndStash` command to not skip stash by default ([#3402](https://github.com/chipsalliance/caliptra-sw/pull/3402))
+- **Optimizations**:
+  - Skip Runtime journey PCR extension when booting the same firmware version ([#3055](https://github.com/chipsalliance/caliptra-sw/pull/3055))
+
+### Fixes
+
+- **Security & Debug Unlock**:
+  - Fix some logic around production debug unlock ([#3694](https://github.com/chipsalliance/caliptra-sw/pull/3694), [#3766](https://github.com/chipsalliance/caliptra-sw/pull/3766), [#3628](https://github.com/chipsalliance/caliptra-sw/pull/3628), [#3636](https://github.com/chipsalliance/caliptra-sw/pull/3636))
+  - Fix TAP mailbox availability after debug unlock ([#3848](https://github.com/chipsalliance/caliptra-sw/pull/3848))
+  - Fix WDT stop after production debug unlock ([#3675](https://github.com/chipsalliance/caliptra-sw/pull/3675), [#3676](https://github.com/chipsalliance/caliptra-sw/pull/3676))
+  - Re-derive dummy FMC key pairs on warm reset in debug unlocked mode as a workaround for key vault reset ([143b72ec](https://github.com/chipsalliance/caliptra-sw/commit/143b72ec47c1b9c9728e95c30e0b79dd163fa323))
+- **Boot & Recovery**:
+  - Populate Runtime recovery reason on boot failures and synchronize recovery codes ([852d1e25](https://github.com/chipsalliance/caliptra-sw/commit/852d1e252809f9bbe5390cf9c2c8579196a0b549))
+  - Advertise recovery capabilities (PROT_CAP_2) and clean up recovery reason mapping ([25eed8c5](https://github.com/chipsalliance/caliptra-sw/commit/25eed8c57d029e2510bdf042401639346bf041dd))
+- **Robustness & Bug Fixes**:
+  - Bound authority manifest metadata lookup by `entry_count` ([#3732](https://github.com/chipsalliance/caliptra-sw/pull/3732))
+  - Implement address-based authorize-and-stash measurement ([#3688](https://github.com/chipsalliance/caliptra-sw/pull/3688))
+  - Fix AES-GCM streaming GHASH save/restore bug in drivers ([#3790](https://github.com/chipsalliance/caliptra-sw/pull/3790))
+  - Fix mailbox packet handling to validate packet length (`dlen`) against mailbox SRAM size ([#3414](https://github.com/chipsalliance/caliptra-sw/pull/3414), [#3571](https://github.com/chipsalliance/caliptra-sw/pull/3571))
+  - Handle mailbox FSM error state and unexpected DataReady in drivers ([#3393](https://github.com/chipsalliance/caliptra-sw/pull/3393), [#3516](https://github.com/chipsalliance/caliptra-sw/pull/3516))
+  - Mark hash-based ECDSA/LMS verification as FIPS non-approved ([#3803](https://github.com/chipsalliance/caliptra-sw/pull/3803))
+  - Add missing DICE EKU extension to Runtime alias certificates ([#3202](https://github.com/chipsalliance/caliptra-sw/pull/3202))
+  - Use configurable OTP status offset for UDS/FE programming ([#3723](https://github.com/chipsalliance/caliptra-sw/pull/3723))
+
 # rom-2.0.3
 
 ## Caliptra ROM 2.0.3 Release Notes
