@@ -108,7 +108,6 @@ not (package(/caliptra-emu-.*/) |
        test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
        test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
        test(test_fe_programming::test_fe_programming_cmd) |
-       test(test_fips::test_fips_shutdown) |
        test(test_lms::test_lms_verify_cmd) |
        test(test_lms::test_lms_verify_failure) |
        test(test_lms::test_lms_verify_invalid_key_lms_type) |
