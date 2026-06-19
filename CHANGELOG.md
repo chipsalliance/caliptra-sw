@@ -32,6 +32,7 @@ Release notes for changes introduced since Firmware 2.1.0.
   - Fix AES-GCM streaming GHASH save/restore bug (#3790)
   - Add missing KATs in runtime start up (#3799)
   - Add ML-KEM, ML-DSA, and ECDH pairwise consistency tests (PCT) (#3548, #3547, #3546)
+  - Fix runtime FIPS shutdown zeroization (#3808)
 - **General**:
   - Expand PAUSER checks for mailbox operations (#3734, #3864, & #3841)
 
