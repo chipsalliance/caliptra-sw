@@ -43,6 +43,7 @@ Release notes for changes introduced since FW 2.0.1.
   - Mark hash-based ECDSA/LMS verification as FIPS non-approved ([#3803](https://github.com/chipsalliance/caliptra-sw/pull/3803))
   - Add missing DICE EKU extension to Runtime alias certificates ([#3202](https://github.com/chipsalliance/caliptra-sw/pull/3202))
   - Use configurable OTP status offset for UDS/FE programming ([#3723](https://github.com/chipsalliance/caliptra-sw/pull/3723))
+  - Fix runtime FIPS shutdown zeroization ([#3908](https://github.com/chipsalliance/caliptra-sw/pull/3908))
 
 # rom-2.0.3
 
