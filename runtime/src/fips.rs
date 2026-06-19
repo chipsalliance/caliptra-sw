@@ -13,11 +13,13 @@ Abstract:
 --*/
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
+use caliptra_drivers::Aes;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
 use caliptra_drivers::Hmac;
 use caliptra_drivers::KeyVault;
+use caliptra_drivers::Mldsa87;
 use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha2_512_384;
 use caliptra_drivers::Sha2_512_384Acc;
@@ -35,6 +37,8 @@ impl FipsModule {
     fn zeroize(env: &mut Drivers) {
         unsafe {
             // Zeroize the crypto blocks.
+            Mldsa87::zeroize();
+            Aes::zeroize();
             Ecc384::zeroize();
             Hmac::zeroize();
             Sha256::zeroize();
