@@ -70,6 +70,9 @@ jobs:
             cargo build -p $proj --locked --no-default-features --features rustcrypto
           done
 
+      - name: Pull Caliptra subsystem RTL submodule
+        run: git submodule update --init hw/latest/caliptra-ss
+
       - name: Build hw-model with fpga_realtime, fpga_subsystem, itrng, coverage
         run: |
           for feature in fpga_realtime fpga_subsystem itrng coverage; do

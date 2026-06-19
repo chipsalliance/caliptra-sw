@@ -54,51 +54,14 @@ const OTP_MAPPING: (usize, usize) = (1, 4);
 // Default flash size: 16MB each, initialized to 0xFF
 const DEFAULT_FLASH_SIZE: usize = 16 * 1024 * 1024;
 
-// TODO(timothytrippel): autogenerate these from the OTP memory map definition
-// Offsets in the OTP for all partitions.
-// SW_TEST_UNLOCK_PARTITION
-const OTP_SW_TEST_UNLOCK_PARTITION_OFFSET: usize = 0x0;
-// SW_MANUF_PARTITION
-const OTP_SW_MANUF_PARTITION_OFFSET: usize = 0x0F8;
-// SECRET_LC_TRANSITION_PARTITION
-const OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET: usize = 0x300;
-// SVN_PARTITION
-const OTP_SVN_PARTITION_OFFSET: usize = 0x3B8;
-const OTP_SVN_PARTITION_FMC_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 0; // 4 bytes
-const OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 4; // 16 bytes
-const OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 20; // 16 bytes
-const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36; // 1 byte used
+#[allow(dead_code)]
+mod otp_ctrl_mmap {
+    include!(concat!(env!("OUT_DIR"), "/otp_ctrl_mmap_offsets.rs"));
+}
+use otp_ctrl_mmap as otp;
 
-// VENDOR_HASHES_MANUF_PARTITION
-const OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET: usize = 0x420;
-const FUSE_VENDOR_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET;
-const FUSE_PQC_OFFSET: usize = OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET + 48;
-
-// VENDOR_HASHES_PROD_PARTITION
-const OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET: usize = 0x460;
-const FUSE_OWNER_PKHASH_OFFSET: usize = OTP_VENDOR_HASHES_PROD_PARTITION_OFFSET; // 48 bytes
-
-// VENDOR_REVOCATIONS_PROD_PARTITION
-const OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET: usize = 0x7C0;
-const FUSE_VENDOR_ECC_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 12; // 4 bytes
-const FUSE_VENDOR_LMS_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 16; // 4 bytes
-const FUSE_VENDOR_REVOCATION_OFFSET: usize = OTP_VENDOR_REVOCATIONS_PROD_PARTITION_OFFSET + 20; // 4 bytes
-                                                                                                // LIFECYCLE_PARTITION
-                                                                                                // VENDOR_NON_SECRET_PROD_PARTITION
-pub const VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET: usize = 0xaa8;
-const UDS_SEED_OFFSET: usize = 0xba8;
-const FIELD_ENTROPY_OFFSET: usize = 0xbe8;
-// CPTRA_SS_LOCK_HEK_PROD partitions
-const OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET: usize = 0xCB0;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_1_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_2_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_3_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_4_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_5_OFFSET + 48;
-const OTP_CPTRA_SS_LOCK_HEK_PROD_7_OFFSET: usize = OTP_CPTRA_SS_LOCK_HEK_PROD_6_OFFSET + 48;
-// LIFECYCLE_PARTITION
-const OTP_LIFECYCLE_PARTITION_OFFSET: usize = 0xE30;
+pub const VENDOR_NON_SECRET_PROD_PARTITION_BYTE_OFFSET: usize =
+    otp::VENDOR_NON_SECRET_PROD_PARTITION_OFFSET;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
@@ -196,7 +159,8 @@ const OTP_FULL_SIZE: usize = 16384;
 const FLASH_SIZE: usize = 8192;
 const OTP_SIZE: usize = 8192;
 const _: () = assert!(OTP_SIZE + FLASH_SIZE == OTP_FULL_SIZE);
-const _: () = assert!(OTP_LIFECYCLE_PARTITION_OFFSET + 88 + 8 <= OTP_SIZE);
+const _: () = assert!(otp::OTP_CTRL_MMAP_SIZE <= OTP_SIZE);
+const _: () = assert!(otp::LIFE_CYCLE_OFFSET + 88 + 8 <= OTP_SIZE);
 const AXI_CLK_HZ: u32 = 199_999_000;
 const I3C_CLK_HZ: u32 = 12_500_000;
 
@@ -1561,7 +1525,7 @@ impl ModelFpgaSubsystem {
         if let Some(lc_state) = lc_state {
             println!("Provisioning lifecycle partition (State: {}).", lc_state);
             let mem = lc_generate_memory(lc_state, 1)?;
-            let offset = OTP_LIFECYCLE_PARTITION_OFFSET;
+            let offset = otp::LIFE_CYCLE_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
         }
 
@@ -1570,14 +1534,14 @@ impl ModelFpgaSubsystem {
             println!("Provisioning SECRET_LC_TRANSITION partition.");
             let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
             let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
-            let offset = OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET;
+            let offset = otp::SECRET_LC_TRANSITION_PARTITION_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
             // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
             println!("Provisioning SW_TEST_UNLOCK partition.");
             let mem =
                 otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
-            let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
+            let offset = otp::SW_TEST_UNLOCK_PARTITION_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
             // Provision default SW_MANUF partition.
@@ -1606,11 +1570,13 @@ impl ModelFpgaSubsystem {
                 stepping_id: self.fuses.soc_stepping_id as u32,
                 ..Default::default()
             })?;
-            let offset = OTP_SW_MANUF_PARTITION_OFFSET;
+            let offset = otp::SW_MANUF_PARTITION_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
-            // Provision UDS seed in SECRET_MANUF partition
-            println!("Provisioning UDS seed in SECRET_MANUF partition.");
+            // Provision UDS seed in FPGA test vendor non-secret fuse slots.
+            // The MCU ROM `core_test` path reads UDS from these slots because the
+            // real SECRET_MANUF partition is hardware-scrambled and not DAI-accessible.
+            println!("Provisioning UDS seed in FPGA test fuse slots.");
             let uds_seed_bytes: Vec<u8> = self
                 .fuses
                 .uds_seed
@@ -1618,11 +1584,16 @@ impl ModelFpgaSubsystem {
                 .flat_map(|&word| word.to_le_bytes())
                 .collect();
             println!("Setting UDS seed to {:x?}", HexSlice(&uds_seed_bytes));
-            otp_data[UDS_SEED_OFFSET..UDS_SEED_OFFSET + uds_seed_bytes.len()]
-                .copy_from_slice(&uds_seed_bytes);
+            let (uds_lo, uds_hi) = uds_seed_bytes.split_at(32);
+            otp_data[otp::FPGA_TEST_UDS_SEED_LO_OFFSET
+                ..otp::FPGA_TEST_UDS_SEED_LO_OFFSET + uds_lo.len()]
+                .copy_from_slice(uds_lo);
+            otp_data[otp::FPGA_TEST_UDS_SEED_HI_OFFSET
+                ..otp::FPGA_TEST_UDS_SEED_HI_OFFSET + uds_hi.len()]
+                .copy_from_slice(uds_hi);
 
-            // Provision field entropy in SECRET_MANUF partition
-            println!("Provisioning field entropy in SECRET_MANUF partition.");
+            // Provision field entropy in FPGA test vendor non-secret fuse slot.
+            println!("Provisioning field entropy in FPGA test fuse slot.");
             let field_entropy_bytes: Vec<u8> = self
                 .fuses
                 .field_entropy
@@ -1633,7 +1604,8 @@ impl ModelFpgaSubsystem {
                 "Setting field entropy to {:x?}",
                 HexSlice(&field_entropy_bytes)
             );
-            otp_data[FIELD_ENTROPY_OFFSET..FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
+            otp_data[otp::FPGA_TEST_FIELD_ENTROPY_OFFSET
+                ..otp::FPGA_TEST_FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
                 .copy_from_slice(&field_entropy_bytes);
 
             let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
@@ -1641,7 +1613,8 @@ impl ModelFpgaSubsystem {
                 "Setting vendor public key hash to {:x?}",
                 HexSlice(vendor_pk_hash)
             );
-            otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
+            otp_data[otp::CPTRA_CORE_VENDOR_PK_HASH_0_OFFSET
+                ..otp::CPTRA_CORE_VENDOR_PK_HASH_0_OFFSET + vendor_pk_hash.len()]
                 .copy_from_slice(vendor_pk_hash);
 
             let vendor_pqc_type =
@@ -1652,7 +1625,8 @@ impl ModelFpgaSubsystem {
                 vendor_pqc_type
             );
             let encoded_pqc = otp_generate_linear_majority_vote(2, 3, vendor_pqc_type as u32)?;
-            otp_data[FUSE_PQC_OFFSET..FUSE_PQC_OFFSET + 4]
+            otp_data
+                [otp::CPTRA_CORE_PQC_KEY_TYPE_0_OFFSET..otp::CPTRA_CORE_PQC_KEY_TYPE_0_OFFSET + 4]
                 .copy_from_slice(&encoded_pqc.to_le_bytes());
 
             // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
@@ -1661,7 +1635,8 @@ impl ModelFpgaSubsystem {
                 "Setting owner public key hash to {:x?}",
                 HexSlice(owner_pk_hash)
             );
-            otp_data[FUSE_OWNER_PKHASH_OFFSET..FUSE_OWNER_PKHASH_OFFSET + owner_pk_hash.len()]
+            otp_data[otp::CPTRA_SS_OWNER_PK_HASH_OFFSET
+                ..otp::CPTRA_SS_OWNER_PK_HASH_OFFSET + owner_pk_hash.len()]
                 .copy_from_slice(owner_pk_hash);
 
             // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
@@ -1674,20 +1649,23 @@ impl ModelFpgaSubsystem {
                 vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
             );
             let encoded_ecc = otp_generate_linear_majority_vote(4, 3, vendor_ecc_revocation)?;
-            otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
+            otp_data[otp::CPTRA_CORE_ECC_REVOCATION_0_OFFSET
+                ..otp::CPTRA_CORE_ECC_REVOCATION_0_OFFSET + 4]
                 .copy_from_slice(&encoded_ecc.to_le_bytes());
             let encoded_lms = otp_generate_linear_majority_vote(16, 2, vendor_lms_revocation)?;
-            otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
+            otp_data[otp::CPTRA_CORE_LMS_REVOCATION_0_OFFSET
+                ..otp::CPTRA_CORE_LMS_REVOCATION_0_OFFSET + 4]
                 .copy_from_slice(&encoded_lms.to_le_bytes());
             let encoded_mldsa = otp_generate_linear_majority_vote(4, 3, vendor_mldsa_revocation)?;
-            otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
+            otp_data[otp::CPTRA_CORE_MLDSA_REVOCATION_0_OFFSET
+                ..otp::CPTRA_CORE_MLDSA_REVOCATION_0_OFFSET + 4]
                 .copy_from_slice(&encoded_mldsa.to_le_bytes());
 
             // Firmware/runtime SVN (16 bytes -> 4 words)
             let fw_svn = self.fuses.fw_svn.as_bytes();
             println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
-            otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
-                ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
+            otp_data[otp::CPTRA_CORE_RUNTIME_SVN_OFFSET
+                ..otp::CPTRA_CORE_RUNTIME_SVN_OFFSET + fw_svn.len()]
                 .copy_from_slice(fw_svn);
 
             // SoC manifest SVN (16 bytes -> 4 words)
@@ -1696,13 +1674,13 @@ impl ModelFpgaSubsystem {
                 "Setting SoC manifest SVN to {:x?}",
                 HexSlice(soc_manifest_svn)
             );
-            otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
-                ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
+            otp_data[otp::CPTRA_CORE_SOC_MANIFEST_SVN_OFFSET
+                ..otp::CPTRA_CORE_SOC_MANIFEST_SVN_OFFSET + soc_manifest_svn.len()]
                 .copy_from_slice(soc_manifest_svn);
 
             println!("Provisioning CPTRA_SS_LOCK_HEK_PROD_0 partition.");
             let hek_seed_bytes = self.fuses.hek_seed.as_bytes();
-            let offset = OTP_CPTRA_SS_LOCK_HEK_PROD_0_OFFSET;
+            let offset = otp::CPTRA_SS_LOCK_HEK_PROD_0_OFFSET;
             otp_data[offset..offset + hek_seed_bytes.len()].copy_from_slice(hek_seed_bytes);
 
             // Max SOC Manifest SVN (1 byte used)
@@ -1710,7 +1688,7 @@ impl ModelFpgaSubsystem {
                 "Burning fuse for SOC MAX SVN {}",
                 self.fuses.soc_manifest_max_svn
             );
-            otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = self.fuses.soc_manifest_max_svn;
+            otp_data[otp::CPTRA_CORE_SOC_MANIFEST_MAX_SVN_OFFSET] = self.fuses.soc_manifest_max_svn;
         }
 
         self.otp_slice().copy_from_slice(&otp_data);
