@@ -77,8 +77,12 @@ fn test_sigver_acvp() {
 
     let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
 
-    let result = Lms::default()
-        .verify_lms_signature(&mut sha256, &msg_buf[..msg_len], lms_public_key, lms_sig);
+    let result = Lms::default().verify_lms_signature(
+        &mut sha256,
+        &msg_buf[..msg_len],
+        lms_public_key,
+        lms_sig,
+    );
 
     match result {
         Ok(LmsResult::Success) => println!("LMS_SIGVER:01"),

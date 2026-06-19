@@ -16,8 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
-    Mldsa87SignRnd, Mldsa87Signature, Trng,
+    LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
+    Mldsa87Signature, Trng,
 };
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;

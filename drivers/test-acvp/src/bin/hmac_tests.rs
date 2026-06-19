@@ -16,9 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{
-    hmac_kdf, Array4x12, Hmac, HmacMode, Trng,
-};
+use caliptra_drivers::{hmac_kdf, Array4x12, Hmac, HmacMode, Trng};
 use caliptra_kat::{Hmac384KdfKat, Hmac512KdfKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
