@@ -444,6 +444,7 @@ dependencies = [
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib",
  "caliptra-cfi-lib-git",
+ "caliptra-drivers-acvp-bin",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -460,6 +461,18 @@ dependencies = [
  "ufmt",
  "zerocopy",
  "zeroize",
+]
+
+[[package]]
+name = "caliptra-drivers-acvp-bin"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cfi-lib",
+ "caliptra-drivers",
+ "caliptra-kat",
+ "caliptra-registers",
+ "caliptra-test-harness",
+ "cfg-if",
 ]
 
 [[package]]
