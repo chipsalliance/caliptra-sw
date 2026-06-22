@@ -46,6 +46,11 @@ pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
 pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const DPE_PL_CONTEXT_LIMITS_SIZE: u32 = 2;
+#[cfg(feature = "mldsa_attestation")]
+pub const PQ_DEVID_SEED_SIZE: u32 = 32;
+#[cfg(feature = "mldsa_attestation")]
+pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2 - PQ_DEVID_SEED_SIZE;
+#[cfg(not(feature = "mldsa_attestation"))]
 pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
@@ -315,6 +320,9 @@ pub struct PersistentData {
 
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
+
+    #[cfg(feature = "mldsa_attestation")]
+    pub pq_devid_seed: [u8; PQ_DEVID_SEED_SIZE as usize],
 
     // Reserved memory for future objects.
     // New objects should always source memory from this range.
