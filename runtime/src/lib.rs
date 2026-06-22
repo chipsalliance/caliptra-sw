@@ -426,7 +426,7 @@ fn ec_dpe_env(
         &rt_pub_key.x.into(),
         &rt_pub_key.y.into(),
     )));
-    let crypto = DpeCrypto::new(
+    let crypto = DpeCrypto::new_ec(
         &mut drivers.sha384,
         &mut drivers.trng,
         &mut drivers.ecc384,

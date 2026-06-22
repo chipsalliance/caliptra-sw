@@ -82,7 +82,7 @@ impl SignWithExportedEcdsaCmd {
             &rt_pub_key.y.into(),
         )));
 
-        let mut crypto = DpeCrypto::new(
+        let mut crypto = DpeCrypto::new_ec(
             &mut drivers.sha384,
             &mut drivers.trng,
             &mut drivers.ecc384,
