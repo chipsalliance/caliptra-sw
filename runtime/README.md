@@ -2983,7 +2983,7 @@ Command Code: `0x5357_4545` ("SWEE")
 | signature_r        | u8[48]   | The R BigNum of an ECDSA signature.                                        |
 | signature_s        | u8[48]   | The S BigNum of an ECDSA signature.                                        |
 
-The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+The `exported_cdi_handle` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 ### REVOKE\_EXPORTED\_CDI\_HANDLE
 
@@ -2998,10 +2998,10 @@ Command Code: `5256_4348` ("RVCH")
 | chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | exported_cdi_handle  | u8[32]   | The exported CDI handle returned by the DPE `DeriveContext` command. Opaque byte array; copy the bytes exactly as returned. |
 
-The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+The `exported_cdi_handle` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
-has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+has been revoked, a new exported CDI handle can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 ### EXTERNAL_MAILBOX_CMD
 
@@ -3276,20 +3276,20 @@ At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 
 Further, it is not allowed for PL1 to call DeriveContext with the intent to change locality to PL0's locality; this would increase the number
 of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
 
-### DPE profile implementation
+### Caliptra DPE Profile
 
-The DPE iRoT profile leaves some choices up to implementers. This section
-describes specific requirements for the Caliptra DPE implementation.
+Caliptra defines the **Caliptra DPE Profile**, which inherits from the [OCP DPE iRoT Profile](https://github.com/opencomputeproject/Security/tree/main/specifications/dpe-irot-profile) (`DPE_PROFILE_IROT_P384_SHA384`) with some modifications. This section describes the profile attributes and specific requirements for the Caliptra DPE implementation.
 
 | Name                       | Value                          | Description                                                                                            |
 | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Profile Variant            | `DPE_PROFILE_IROT_P384_SHA384` | The profile variant that Caliptra implements.                                                          |
+| Profile Variant            | `Caliptra DPE Profile`         | Derived from `DPE_PROFILE_IROT_P384_SHA384`.                                                           |
 | KDF                        | SP800-108 HMAC-CTR             | KDF to use for CDI (tcg.derive.kdf-sha384) and asymmetric key (tcg.derive.kdf-sha384-p384) derivation. |
 | Simulation Context Support | Yes                            | Whether Caliptra implements the optional Simulation Contexts feature.                                  |
 | Supports ExtendTci         | Yes                            | Whether Caliptra implements the optional ExtendTci command.                                            |
 | Supports Auto Init         | Yes                            | Whether Caliptra will automatically initialize the default DPE context.                                |
 | Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.                                    |
 | CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates that are produced by the DPE CertifyKey command.        |
+| `export-cdi-format`        | KeyVault Slot Handle           | Overrides the iRoT profile default (which returns the actual CDI) to return a 32-byte handle to a KeyVault slot instead. |
 
 ### Supported DPE commands
 
@@ -3299,6 +3299,7 @@ Caliptra DPE supports the following commands:
 * InitializeContext
 * DeriveContext
     * **Note**: The "export-cdi" flag is only available in the locality of the PL0 PAUSER.
+    * **Note**: The value returned when `export-cdi` is requested is a 32-byte handle to a KeyVault slot containing the CDI, not the actual CDI. This overrides the default iRoT profile behavior.
 * CertifyKey
   * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
     X.509 is only available to PL0 PAUSERs.

@@ -300,6 +300,42 @@ fn finish_debug_unlock_mailbox_access(drivers: &mut Drivers) {
         .set_ss_dbg_unlock_tap_mailbox_available(false);
 }
 
+/// # Safety
+///
+/// This function is unsafe because it exposes internal cryptographic mailbox
+/// commands directly. It should ONLY be used by integration tests (e.g. the mock runtime).
+pub unsafe fn sha_init(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+    resp: &mut [u8],
+) -> CaliptraResult<usize> {
+    cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes, resp)
+}
+
+/// # Safety
+///
+/// This function is unsafe because it exposes internal cryptographic mailbox
+/// commands directly. It should ONLY be used by integration tests (e.g. the mock runtime).
+pub unsafe fn sha_update(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+    resp: &mut [u8],
+) -> CaliptraResult<usize> {
+    cryptographic_mailbox::Commands::sha_update(drivers, cmd_bytes, resp)
+}
+
+/// # Safety
+///
+/// This function is unsafe because it exposes internal cryptographic mailbox
+/// commands directly. It should ONLY be used by integration tests (e.g. the mock runtime).
+pub unsafe fn sha_final(
+    drivers: &mut Drivers,
+    cmd_bytes: &[u8],
+    resp: &mut [u8],
+) -> CaliptraResult<usize> {
+    cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes, resp)
+}
+
 fn execute_command(
     drivers: &mut Drivers,
     cmd_id: u32,

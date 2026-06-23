@@ -5,9 +5,9 @@
 # NOTE: Only the first keys in the vendor config are populated. The keys are
 # copied from image/fake-keys/src/lib.rs.
 
-fmc_version = 0x1040
+fmc_version = 0x1041
 fw_svn = 0x0
-app_version = 0x2010000
+app_version = 0x2010001
 pqc_key_type = "MLDSA"
 
 [vendor_config]
