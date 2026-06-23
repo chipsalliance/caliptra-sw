@@ -320,7 +320,7 @@ pub struct PersistentData {
     #[cfg(feature = "mldsa_attestation")]
     pub pq_devid_seed: [u8; PQ_DEVID_SEED_SIZE as usize],
     #[cfg(not(feature = "mldsa_attestation"))]
-    reserved12: [u8; PQ_DEVID_SEED_SIZE as usize],
+    pq_devid_seed: [u8; PQ_DEVID_SEED_SIZE as usize],
 
     // Reserved memory for future objects.
     // New objects should always source memory from this range.
@@ -430,6 +430,12 @@ impl PersistentData {
             );
 
             persistent_data_offset += DPE_PL_CONTEXT_LIMITS_SIZE;
+            assert_eq!(
+                addr_of!((*P).pq_devid_seed) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PQ_DEVID_SEED_SIZE;
             assert_eq!(
                 addr_of!((*P).reserved_memory) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
