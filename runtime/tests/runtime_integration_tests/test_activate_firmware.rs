@@ -207,7 +207,7 @@ fn send_activate_firmware_cmd(
     {
         if reset_expected {
             let clear_interrupt = |model: &mut DefaultHwModel| {
-                let mut retry_count = 10;
+                let mut retry_count = 100;
                 loop {
                     let intr_status = model
                         .mmio
@@ -222,7 +222,7 @@ fn send_activate_firmware_cmd(
                     }
                     retry_count -= 1;
                     if retry_count == 0 {
-                        return;
+                        panic!("Timed out waiting for notif_cptra_mcu_reset_req_sts interrupt");
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
