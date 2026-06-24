@@ -276,7 +276,8 @@ impl HwModel for ModelEmulated {
 
         root_bus.soc_reg.set_generic_input_wires(&[0, 0]);
 
-        let ss_strap_generic_reg_0 = params.otp_dai_idle_bit_offset << 16;
+        let ss_strap_generic_reg_0 =
+            (params.otp_dai_idle_bit_offset << 16) | (params.otp_status_reg_offset & 0xFFFF);
         let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
         let ss_strap_generic_reg_3 = if params.stable_owner_key_en {
             1u32

@@ -262,6 +262,8 @@ pub struct InitParams<'a> {
 
     pub otp_dai_idle_bit_offset: u32,
 
+    pub otp_status_reg_offset: u32,
+
     pub otp_direct_access_cmd_reg_offset: u32,
 
     // Keypairs for production debug unlock levels, from low to high.
@@ -353,6 +355,7 @@ impl Default for InitParams<'_> {
             stable_owner_key_en: false,
             uds_fuse_row_granularity_64: true,
             otp_dai_idle_bit_offset: 30,
+            otp_status_reg_offset: 0x10,
             otp_direct_access_cmd_reg_offset: 0x80,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
