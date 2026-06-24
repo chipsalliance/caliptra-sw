@@ -87,6 +87,10 @@ fn test_stash_measurement() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
+        // MCU ROM stashes field_entropy_state measurement
+        let mut fe_hasher = Sha384::new();
+        fe_hasher.update([0u8; 48]);
+        hasher.update(fe_hasher.finalize());
     }
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();

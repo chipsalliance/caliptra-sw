@@ -232,7 +232,7 @@ fn test_certify_key_with_max_contexts() {
 
     // Fill PL0 contexts
     let max_after_init_contexts = if model.subsystem_mode() {
-        64 - 3
+        64 - 4
     } else {
         64 - 2
     };
