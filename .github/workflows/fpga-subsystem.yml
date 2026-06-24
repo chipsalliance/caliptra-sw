@@ -95,7 +95,7 @@ jobs:
 
   check_mcu_commit:
     runs-on: ubuntu-22.04
-    if: github.event_name != 'workflow_call'
+    if: github.repository != 'chipsalliance/caliptra-mcu-sw'
     steps:
       - name: Check MCU Commit validity
         run: |
