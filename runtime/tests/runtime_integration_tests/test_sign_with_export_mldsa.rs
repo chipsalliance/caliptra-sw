@@ -223,7 +223,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
         data: TciMeasurement([0xa; caliptra_dpe::TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            0
         } else {
             u32::from_be_bytes(*b"CCIV")
         },
@@ -305,7 +305,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
         data: TciMeasurement([0xa; caliptra_dpe::TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            0
         } else {
             u32::from_be_bytes(*b"CCIV")
         },

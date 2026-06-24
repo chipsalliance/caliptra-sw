@@ -61,7 +61,7 @@ permissions:
   contents: read
 
 env:
-  CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '47810a48a4fcf6f80b50bac7a7e6721eb9123d6c' }}
+  CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '067e8dbdafc36123f99189aa14eba3ee480182ff' }}
 
 jobs:
   check_cache:

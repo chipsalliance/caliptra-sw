@@ -42,12 +42,25 @@ pub const MCU_LOAD_OFFSET: usize = 0x000;
 
 pub const MCU_STAGING_OFFSET: usize = 0x200;
 
-pub const SOC_LOAD_OFFSET: usize = 0x100;
+pub const SOC_LOAD_OFFSET: usize = 0x200;
 
-pub const SOC_STAGING_OFFSET: usize = 0x300;
+pub const SOC_STAGING_OFFSET: usize = 0x500;
 
-pub const MCU_FW_SIZE: usize = 256;
+// Must be > 0x100 so the firmware covers the MCU ROM entry point at
+// MCU_SRAM + 0x100. On FPGA, MCU ROM jumps to that offset after a
+// hitless-update reset.
+pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
+
+/// Create a valid RISC-V firmware image that won't crash with an illegal
+/// instruction exception on real FPGA hardware. Uses `0x37` repeated, which
+/// encodes as `LUI x6, 0x37373` — a valid, harmless RISC-V instruction.
+/// The single-byte pattern is byte-swap invariant, which is required because
+/// `write_payload_to_mcu_sram` applies a BE byte swap when writing to MCU
+/// SRAM via the MCI MMIO window.
+fn mcu_test_firmware() -> Vec<u8> {
+    vec![0x37u8; MCU_FW_SIZE]
+}
 
 #[derive(Debug, Clone)]
 struct Image {
@@ -232,7 +245,7 @@ fn test_activate_mcu_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -263,7 +276,7 @@ fn test_activate_mcu_soc_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -304,7 +317,7 @@ fn test_activate_soc_fw_success() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -344,7 +357,7 @@ fn test_activate_invalid_fw_id() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -382,7 +395,7 @@ fn test_activate_fw_id_not_in_manifest() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -420,7 +433,7 @@ fn test_invalid_exec_bit_in_manifest() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -462,7 +475,7 @@ fn test_activate_firmware_old_format_no_flags() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -572,7 +585,7 @@ fn test_activate_firmware_unknown_flag_bit_rejected() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -606,7 +619,7 @@ fn test_activate_firmware_initial_activate_wrong_boot_mode() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -639,7 +652,7 @@ fn test_activate_firmware_initial_activate_without_mcu_bit_rejected() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -676,7 +689,7 @@ fn test_activate_mcu_fw_digest_mismatch() {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        contents: mcu_test_firmware(),
         exec_bit: 2,
     };
 
@@ -684,7 +697,7 @@ fn test_activate_mcu_fw_digest_mismatch() {
 
     // Tamper with the image in the staging area so the digest won't match the manifest
     model
-        .write_payload_to_ss_staging_area(&[0x75u8, 0x55u8, 0x55u8, 0x55u8], MCU_STAGING_OFFSET)
+        .write_payload_to_ss_staging_area(&[0x75u8, 0x37u8, 0x37u8, 0x37u8], MCU_STAGING_OFFSET)
         .unwrap();
 
     // Send ActivateFirmware command

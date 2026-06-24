@@ -277,7 +277,17 @@ fn fw_load_error_flow_base(
         None => {
             if hw.subsystem_mode() {
                 hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
-                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
+                // In subsystem mode, the MCU ROM installs the owner PK hash via
+                // the DOT mechanism, so owner PK digest mismatches are reported
+                // as the DOT variant.
+                let exp = if exp_error_code
+                    == u32::from(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH)
+                {
+                    u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH)
+                } else {
+                    exp_error_code
+                };
+                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp);
             } else {
                 // Verify the correct error was returned from FW load
                 assert_eq!(
@@ -1843,7 +1853,17 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
     // Make sure we got the right error
     if hw.subsystem_mode() {
         hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
-        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
+        // In subsystem mode, the MCU ROM installs the owner PK hash via
+        // the DOT mechanism, so owner PK digest mismatches are reported
+        // as the DOT variant.
+        let exp = if exp_error_code
+            == u32::from(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH)
+        {
+            u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH)
+        } else {
+            exp_error_code
+        };
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp);
     } else {
         assert_eq!(
             ModelError::MailboxCmdFailed(exp_error_code),

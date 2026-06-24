@@ -231,7 +231,9 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            // MCU ROM stashes field_entropy_state as the last measurement,
+            // making it the default context with tci_type 0.
+            0
         } else {
             u32::from_be_bytes(*b"CCIV")
         },
@@ -315,7 +317,9 @@ fn test_sign_with_exported_cdi_measurement_update() {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            // MCU ROM stashes field_entropy_state as the last measurement,
+            // making it the default context with tci_type 0.
+            0
         } else {
             u32::from_be_bytes(*b"CCIV")
         },

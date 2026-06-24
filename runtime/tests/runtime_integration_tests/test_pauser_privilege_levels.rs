@@ -76,8 +76,8 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     // The RT Journey measurement also is counted against PL0's limit. Thus, we can call derive child
     // from PL0 exactly 14 times, and the last iteration of this loop, is expected to throw a threshold reached error.
     let num_iterations = if model.subsystem_mode() {
-        // Subsystem uses a context for the MCU FW
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        // Subsystem uses contexts for the MCU FW and field entropy state
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -202,7 +202,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
 
     // 2 PL0 contexts are used by Caliptra
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -744,9 +744,9 @@ fn test_stash_measurement_pl_context_thresholds() {
     });
 
     // Root node and RT journey (which is technically the Caliptra locality) count as PL0
-    // In subsystem mode, the MCU FW is also measured into a PL0 context.
+    // In subsystem mode, the MCU FW and field entropy state are also measured into PL0 contexts.
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 4
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
     };
@@ -796,8 +796,8 @@ fn test_measurement_log_pl_context_threshold() {
     // Since 2 measurements taken by Caliptra upon startup, this will cause
     // the PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD to be breached.
     let invocations = if model.subsystem_mode() {
-        // MCU uses an extra DPE context
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        // MCU uses extra DPE contexts for MCU FW and field entropy state
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };

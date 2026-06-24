@@ -222,6 +222,10 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
+        // MCU ROM stashes field_entropy_state measurement
+        let mut fe_hasher = Sha384::new();
+        fe_hasher.update([0u8; 48]);
+        hasher.update(fe_hasher.finalize());
     }
     let expected_measurement_hash = hasher.finalize();
 
@@ -288,6 +292,10 @@ fn test_authorize_and_stash_cmd_success() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
+        // MCU ROM stashes field_entropy_state measurement
+        let mut fe_hasher = Sha384::new();
+        fe_hasher.update([0u8; 48]);
+        hasher.update(fe_hasher.finalize());
     }
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
