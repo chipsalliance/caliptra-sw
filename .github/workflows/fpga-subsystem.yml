@@ -95,7 +95,7 @@ jobs:
 
   check_mcu_commit:
     runs-on: ubuntu-22.04
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_call'
     steps:
       - name: Check MCU Commit validity
         run: |
