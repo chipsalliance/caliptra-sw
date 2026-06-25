@@ -435,8 +435,11 @@ jobs:
 
       - name: Print results
         run: |
-          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
+          cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer --rev 9f4cab25d3a837c632d88790a8640689f39177be
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           for xml in /tmp/junit/junit-*.xml; do
-            /tmp/test-printer/bin/test-printer --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
+            PARTITION_NUMBER=$(echo "$xml" | grep -oE '[0-9]+')
+            JSON_PATH="/tmp/junit/nextest-list-${PARTITION_NUMBER}.json"
+            echo "Validating '$xml' with '$JSON_PATH'..."
+            /tmp/test-printer/bin/test-printer --xml-path "$xml" --json-path "$JSON_PATH" >> $GITHUB_STEP_SUMMARY
           done
