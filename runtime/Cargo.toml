@@ -23,6 +23,7 @@ dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
 constant_time_eq.workspace = true
 crypto.workspace = true
 platform.workspace = true
+caliptra-dpe-response-buffer.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
