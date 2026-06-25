@@ -12,15 +12,18 @@ Abstract:
 
 --*/
 
-use crate::{ec_dpe_env, Drivers, PauserPrivileges};
+use caliptra_dpe_response_buffer::{OffsetResponseBuffer, ResponseBuffer};
+
+use crate::{ec_dpe_env, Drivers, MboxResponseWriter, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp};
+use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxRespHeader, MailboxRespHeaderVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{DpeErrorCode, ResponseHdr},
+    error::DpeErrorCode,
+    response::ResponseHdr,
     DpeInstance, DpeProfile, State, U8Bool, MAX_HANDLES,
 };
 use platform::MAX_OTHER_NAME_SIZE;
@@ -44,7 +47,7 @@ pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = InvokeDpeReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -106,8 +109,11 @@ impl InvokeDpeCmd {
         }
 
         let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-        let mut invoke_resp = InvokeDpeResp::default();
-        let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut invoke_resp.data);
+
+        let mut writer = MboxResponseWriter {};
+        let mut w = OffsetResponseBuffer::new(&mut writer, size_of::<MailboxRespHeaderVarSize>());
+
+        let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut w);
 
         if let Command::DestroyCtx(_) = command {
             // clear tags for destroyed contexts
@@ -118,25 +124,29 @@ impl InvokeDpeCmd {
             InvokeDpeCmd::clear_tags_for_inactive_contexts(state, context_has_tag, context_tags);
         }
 
-        // If DPE command failed, populate header with error code, but
-        // don't fail the mailbox command.
-        match result {
-            Ok(data_size) => {
-                invoke_resp.data_size = data_size as u32;
+        let data_len: u32 = match result {
+            Ok(n) => {
+                // writer already populated data[0..n] in SRAM
+                n as u32
             }
             Err(ref e) => {
-                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
-                    drivers.soc_ifc.set_fw_extended_error(ext_err);
-                }
+                // Error: write a ResponseHdr into the data field.
+                drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                 let r = ResponseHdr::new(CaliptraDpeProfile::Ecc384.into(), *e);
-                invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
-                    .copy_from_slice(r.as_bytes());
-                invoke_resp.data_size = r.as_bytes().len() as u32;
+                w.clear()
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
+                w.write_at(0, r.as_bytes())
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
+                size_of::<ResponseHdr>() as u32
             }
         };
 
-        Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
+        let header = MailboxRespHeaderVarSize {
+            hdr: MailboxRespHeader::default(),
+            data_len,
+        };
+        crate::packet::finalize_mbox_buffer(&mut drivers.mbox, &mut writer, header)?;
+        Ok(())
     }
 
     /// Remove context tags for all inactive DPE contexts
@@ -171,13 +181,17 @@ pub fn invoke_dpe_cmd(
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
     locality: Option<u32>,
-    out: &mut [u8],
+    out: &mut dyn ResponseBuffer,
 ) -> Result<usize, DpeErrorCode> {
     let locality = locality.unwrap_or(drivers.mbox.user());
     let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
     let env = match env.as_mut() {
         Ok(r) => r,
-        Err(_) => Err(DpeErrorCode::InternalError)?,
+        Err(_) => {
+            return Err(DpeErrorCode::InternalError(
+                dpe::error::InternalErrorCode::ActiveContextNotFound,
+            ))
+        }
     };
     let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
     command.execute_serialized(dpe, env, locality, out)
