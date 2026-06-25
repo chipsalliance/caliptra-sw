@@ -5,6 +5,7 @@ mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
+mod test_command_timing;
 mod test_disable;
 mod test_ecdsa;
 mod test_fips;
@@ -14,6 +15,7 @@ mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
 mod test_mailbox;
+mod test_measurements_common;
 #[cfg(feature = "mldsa_attestation")]
 mod test_mldsa_verify;
 mod test_panic_missing;
