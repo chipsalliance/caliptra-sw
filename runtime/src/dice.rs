@@ -14,7 +14,6 @@ Abstract:
 
 use caliptra_common::mailbox_api::{
     GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
-    MailboxResp, MailboxRespHeader,
 };
 
 use crate::Drivers;
@@ -29,7 +28,7 @@ use zerocopy::{FromZeros, IntoBytes};
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = GetIdevCertReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -48,23 +47,20 @@ impl IDevIdCertCmd {
             return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
         };
 
-        let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
-        let Some(cert_size) = builder.build(&mut cert) else {
+        let mut resp = GetIdevCertResp::default();
+        let Some(cert_size) = builder.build(&mut resp.cert) else {
             return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
         };
 
-        Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
-            hdr: MailboxRespHeader::default(),
-            cert_size: cert_size as u32,
-            cert,
-        }))
+        resp.cert_size = cert_size as u32;
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
 
 pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut resp = GetLdevCertResp::default();
 
         resp.data_size = copy_ldevid_cert(
@@ -73,14 +69,14 @@ impl GetLdevCertCmd {
             &mut resp.data,
         )? as u32;
 
-        Ok(MailboxResp::GetLdevCert(resp))
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
 
 pub struct GetFmcAliasCertCmd;
 impl GetFmcAliasCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut resp = GetFmcAliasCertResp::default();
 
         resp.data_size = copy_fmc_alias_cert(
@@ -89,19 +85,19 @@ impl GetFmcAliasCertCmd {
             &mut resp.data,
         )? as u32;
 
-        Ok(MailboxResp::GetFmcAliasCert(resp))
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
 
 pub struct GetRtAliasCertCmd;
 impl GetRtAliasCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut resp = GetRtAliasCertResp::default();
 
         resp.data_size = copy_rt_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
 
-        Ok(MailboxResp::GetRtAliasCert(resp))
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
 

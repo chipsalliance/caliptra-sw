@@ -19,11 +19,11 @@ use caliptra_auth_man_types::{
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{
-    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource, MailboxResp,
+    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
 use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult};
-use dpe::response::DpeErrorCode;
+use dpe::error::DpeErrorCode;
 use zerocopy::{FromZeros, IntoBytes};
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
@@ -34,7 +34,7 @@ pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = AuthorizeAndStashReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
         if ImageHashSource::from(cmd.source) != ImageHashSource::InRequest {
@@ -86,10 +86,11 @@ impl AuthorizeAndStashCmd {
             }
         }
 
-        Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {
+        let mut resp = AuthorizeAndStashResp {
             hdr: MailboxRespHeader::default(),
             auth_req_result: auth_result,
-        }))
+        };
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 
     /// Search for a metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.

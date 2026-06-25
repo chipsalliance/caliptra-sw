@@ -5,9 +5,7 @@ use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 
-use caliptra_common::mailbox_api::{
-    MailboxResp, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
-};
+use caliptra_common::mailbox_api::{SignWithExportedEcdsaReq, SignWithExportedEcdsaResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
@@ -61,7 +59,7 @@ impl SignWithExportedEcdsaCmd {
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = SignWithExportedEcdsaReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -128,6 +126,10 @@ impl SignWithExportedEcdsaCmd {
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
-        Ok(MailboxResp::SignWithExportedEcdsa(resp))
+
+        // Explicitely drop crypto and pdata so the multable borrow to drivers also ends.
+        drop(crypto);
+        let _ = pdata;
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }

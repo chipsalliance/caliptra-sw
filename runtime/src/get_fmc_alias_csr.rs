@@ -1,21 +1,21 @@
 // Licensed under the Apache-2.0 license
 
-use crate::packet::copy_from_mbox;
+use crate::packet::{copy_from_mbox, copy_to_mbox};
 use crate::Drivers;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 
-use caliptra_common::mailbox_api::{GetFmcAliasCsrReq, GetFmcAliasCsrResp, MailboxResp};
+use caliptra_common::mailbox_api::{GetFmcAliasCsrReq, GetFmcAliasCsrResp};
+use caliptra_drivers::FmcAliasCsr;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use caliptra_drivers::FmcAliasCsr;
 use zerocopy::{FromZeros, IntoBytes};
 
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         copy_from_mbox(drivers, GetFmcAliasCsrReq::new_zeroed().as_mut_bytes())?;
         let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
 
@@ -23,11 +23,6 @@ impl GetFmcAliasCsrCmd {
             FmcAliasCsr::UNPROVISIONED_CSR => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED),
             0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
             len => {
-                let mut resp = GetFmcAliasCsrResp {
-                    data_size: len,
-                    ..Default::default()
-                };
-
                 let csr = csr_persistent_mem
                     .get()
                     .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
@@ -39,9 +34,11 @@ impl GetFmcAliasCsrCmd {
                 //
                 // A valid `FmcAliasCsr` cannot be larger than `MAX_FMC_ALIAS_CSR_SIZE`, which is the max
                 // size of the buffer in `GetIdevCsrResp`
-                resp.data[..resp.data_size as usize].copy_from_slice(csr);
+                let mut resp = GetFmcAliasCsrResp::new_zeroed();
+                resp.data_size = len;
+                resp.data[..len as usize].copy_from_slice(csr);
 
-                Ok(MailboxResp::GetFmcAliasCsr(resp))
+                copy_to_mbox(drivers, resp.as_mut_bytes())
             }
         }
     }

@@ -30,6 +30,7 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder,
 };
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprintln,
@@ -551,7 +552,7 @@ impl Drivers {
 
         // Call DeriveContext to create a measurement for the caliptra configured initialization values and change
         // locality to the pl0 pauser locality
-        let mut buf = [0u8; size_of::<DeriveContextResp>()];
+        let mut buf_storage = [0u8; size_of::<DeriveContextResp>()];
         let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(<[u8; 48]>::from(initialization_values_hash)),
@@ -564,7 +565,12 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut buf);
+        .execute_serialized(
+            &mut dpe,
+            &mut env,
+            CALIPTRA_LOCALITY,
+            &mut SliceResponseBuffer::new(&mut buf_storage),
+        );
         if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
@@ -604,7 +610,12 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut buf);
+            .execute_serialized(
+                &mut dpe,
+                &mut env,
+                pl0_pauser_locality,
+                &mut SliceResponseBuffer::new(&mut buf_storage),
+            );
             if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
