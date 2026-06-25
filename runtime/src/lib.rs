@@ -28,6 +28,7 @@ pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
+pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
 mod reallocate_dpe_context_limits;

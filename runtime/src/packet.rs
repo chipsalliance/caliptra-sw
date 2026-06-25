@@ -12,10 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_common::cprintln;
-use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
+use caliptra_common::mailbox_api::{populate_checksum, MailboxReqHeader, MailboxRespHeaderVarSize};
+use caliptra_common::{checksum::response_buffer_checksum, cprintln};
+use caliptra_dpe_response_buffer::ResponseBuffer;
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
+
+use crate::MboxResponseWriter;
 
 /// Reads the pending mailbox command payload into `buf`.
 ///
@@ -61,18 +64,35 @@ pub fn copy_from_mbox(drivers: &mut crate::Drivers, buf: &mut [u8]) -> CaliptraR
     Ok(())
 }
 
-/// Writes `resp` to the mailbox
-///
-/// # Arguments
-///
-/// * `drivers` - Drivers
-/// * `resp` - Response from a mailbox command that is to be copied to mailbox
-pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut MailboxResp) -> CaliptraResult<()> {
-    let mbox = &mut drivers.mbox;
+/// Write a fixed-size response `resp` to MBOX SRAM.
+/// Fills `resp[0..4]` with the Caliptra checksum
+/// then calls `mbox.write_response` which sets dlen and copies bytes.
+#[inline(never)]
+pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut [u8]) -> CaliptraResult<()> {
+    if resp.len() < 4 {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+    populate_checksum(resp);
+    drivers.mbox.write_response(resp)
+}
 
-    // Generate response checksum
-    resp.populate_chksum()?;
+/// Finalise a variable-length response written via `MboxResponseWriter`, including
+/// writing the VarSize header and populating the checksum.
+#[inline(never)]
+pub fn finalize_mbox_buffer(
+    mbox: &mut crate::Mailbox,
+    buffer: &mut MboxResponseWriter,
+    mut header: MailboxRespHeaderVarSize,
+) -> CaliptraResult<()> {
+    let total_len = size_of::<MailboxRespHeaderVarSize>() + (header.data_len as usize);
+    buffer
+        .write_at(0, header.as_mut_bytes())
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+    let checksum = response_buffer_checksum(buffer, size_of::<u32>()..total_len)
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+    buffer
+        .write_at(0, &checksum.to_le_bytes())
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
 
-    // Send the payload
-    mbox.write_response(resp.as_bytes()?)
+    mbox.set_dlen(total_len as u32)
 }
