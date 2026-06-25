@@ -567,9 +567,7 @@ impl Drivers {
         .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut buf);
         if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
-                drivers.soc_ifc.set_fw_extended_error(ext_err);
-            }
+            drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
             Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
         }
 
@@ -609,9 +607,7 @@ impl Drivers {
             .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut buf);
             if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
-                    drivers.soc_ifc.set_fw_extended_error(ext_err);
-                }
+                drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                 Err(CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?
             }
         }

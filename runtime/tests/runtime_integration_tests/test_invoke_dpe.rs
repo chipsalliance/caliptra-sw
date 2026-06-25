@@ -28,7 +28,8 @@ use dpe::{
         RotateCtxFlags, SignFlags, SignP384Cmd,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, SignResp},
+    error::DpeErrorCode,
+    response::{CertifyKeyResp, Response, SignResp},
     tci::TciMeasurement,
     DpeProfile, TCI_SIZE,
 };
@@ -145,8 +146,8 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 
             let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
                 &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_x).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_y).unwrap(),
             )
             .unwrap();
             assert!(sig.verify(TEST_DIGEST.as_slice(), &ecc_pub_key).unwrap());
@@ -374,7 +375,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         panic!("expected derive context resp!");
     };
     check_dice_extension_criticality(
-        &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
+        &resp.new_certificate[..resp.header.certificate_size.try_into().unwrap()],
         false,
     );
 }

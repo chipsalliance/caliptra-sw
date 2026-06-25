@@ -41,7 +41,7 @@ fn test_revoke_exported_cdi_handle() {
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
     });
     cmd.populate_chksum().unwrap();
 
@@ -79,7 +79,7 @@ fn test_revoke_already_revoked_exported_cdi_handle() {
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
     });
     cmd.populate_chksum().unwrap();
 
@@ -169,7 +169,7 @@ fn test_export_cdi_after_revoke() {
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: resp.exported_cdi,
+        exported_cdi_handle: resp.header.exported_cdi,
     });
     cmd.populate_chksum().unwrap();
 

@@ -519,12 +519,16 @@ pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
     };
 
     assert_eq!(
-        certify_key_resp.new_context_handle.0,
+        certify_key_resp.header.new_context_handle.0,
         [0u8; ContextHandle::SIZE]
     );
-    assert!(contains_some_data(&certify_key_resp.derived_pubkey_x));
-    assert!(contains_some_data(&certify_key_resp.derived_pubkey_y));
-    assert_ne!(0, certify_key_resp.cert_size);
+    assert!(contains_some_data(
+        &certify_key_resp.header.derived_pubkey_x
+    ));
+    assert!(contains_some_data(
+        &certify_key_resp.header.derived_pubkey_y
+    ));
+    assert_ne!(0, certify_key_resp.header.cert_size);
     assert!(contains_some_data(&certify_key_resp.cert));
 }
 
@@ -906,7 +910,7 @@ pub fn exec_cmd_sign_with_exported_ecdsa<T: HwModel>(hw: &mut T) -> DeriveContex
 
     let mut payload = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: exported_cdi_resp.exported_cdi,
+        exported_cdi_handle: exported_cdi_resp.header.exported_cdi,
         tbs,
     });
     payload.populate_chksum().unwrap();
@@ -932,7 +936,7 @@ pub fn exec_cmd_revoke_exported_cdi_handle<T: HwModel>(
 ) {
     let mut payload = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: exported_cdi_resp.exported_cdi,
+        exported_cdi_handle: exported_cdi_resp.header.exported_cdi,
     });
     payload.populate_chksum().unwrap();
 
