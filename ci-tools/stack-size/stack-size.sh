@@ -1,6 +1,6 @@
+#!/usr/bin/env bash
 # Licensed under the Apache-2.0 license
 
-#!/usr/bin/env bash
 # Run the per-command runtime stack-usage measurement test and print only the
 # resulting usage table.
 set -euo pipefail
