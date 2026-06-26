@@ -51,6 +51,10 @@ caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
 tock-registers.workspace = true
 
+[build-dependencies]
+deser-hjson.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
 [dev-dependencies]
 caliptra-builder.workspace = true
 caliptra-registers.workspace = true

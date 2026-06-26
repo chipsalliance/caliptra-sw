@@ -122,6 +122,9 @@ jobs:
           repository: ${{ inputs.repository || 'chipsalliance/caliptra-sw' }}
           ref: ${{ inputs.branch }}
 
+      - name: Pull Caliptra subsystem RTL submodule
+        run: git submodule update --init hw/latest/caliptra-ss
+
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
         id: restore_sysroot_cache
@@ -206,7 +209,14 @@ jobs:
           path: /tmp/caliptra-mcu-binaries.tar.gz
           key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}-${{ env.CACHE_BUSTER }}
 
+      - name: Download MCU fuses.hjson
+        run: |
+          curl -sL "https://raw.githubusercontent.com/chipsalliance/caliptra-mcu-sw/${CALIPTRA_MCU_COMMIT}/hw/fuses.hjson" \
+            -o /tmp/mcu-fuses.hjson
+
       - name: Build test binaries
+        env:
+          CALIPTRA_MCU_FUSES_HJSON: /tmp/mcu-fuses.hjson
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
