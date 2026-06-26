@@ -1266,6 +1266,158 @@ pub fn mldsa87_verify_with_context(
     verify_with_mu_context(encoded_public_key, encoded_signature, msg, context)
 }
 
+/// Inverse of [`pack_scalar_bits`]: recover each coefficient from its packed
+/// form via `mod_sub(sub, packed)`.  Only used by the ACVP sigGen harness.
+#[cfg(test)]
+fn unpack_scalar_bits(s: &mut Scalar, data: &[u8], bits: u32, sub: u32) {
+    for (out_chunk, in_chunk) in
+        s.c.chunks_exact_mut(8)
+            .zip(data.chunks_exact(bits as usize))
+    {
+        let mut acc: u128 = 0;
+        for (j, &byte) in in_chunk.iter().enumerate() {
+            acc |= (byte as u128) << (j * 8);
+        }
+        let mask = (1u128 << bits) - 1;
+        for (i, coeff) in out_chunk.iter_mut().enumerate() {
+            let packed = ((acc >> (i as u32 * bits)) & mask) as u32;
+            *coeff = mod_sub(sub, packed);
+        }
+    }
+}
+
+/// Decode an FIPS 204 `skEncode` byte string into the internal [`PrivateKey`]
+/// representation (with s1/s2/t0 in NTT domain) and return `tr`.
+/// Only used by the ACVP sigGen harness.
+#[cfg(test)]
+fn decode_private_key_internal(
+    priv_key: &mut PrivateKey,
+    sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+) -> [u8; K_TR_BYTES] {
+    priv_key
+        .rho
+        .copy_from_slice(&sk[SK_RHO_OFF..SK_RHO_OFF + K_RHO_BYTES]);
+    priv_key
+        .k
+        .copy_from_slice(&sk[SK_K_OFF..SK_K_OFF + K_K_BYTES]);
+    let tr: [u8; K_TR_BYTES] = sk[SK_TR_OFF..SK_TR_OFF + K_TR_BYTES].try_into().unwrap();
+
+    for i in 0..7 {
+        let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
+        unpack_scalar_bits(
+            &mut priv_key.s1_ntt.v[i],
+            &sk[off..off + SK_S_PACK_BYTES],
+            3,
+            2,
+        );
+    }
+    vector7_ntt(&mut priv_key.s1_ntt);
+
+    for i in 0..8 {
+        let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
+        unpack_scalar_bits(
+            &mut priv_key.s2_ntt.v[i],
+            &sk[off..off + SK_S_PACK_BYTES],
+            3,
+            2,
+        );
+    }
+    vector8_ntt(&mut priv_key.s2_ntt);
+
+    for i in 0..8 {
+        let off = SK_T0_OFF + i * SK_T0_PACK_BYTES;
+        unpack_scalar_bits(
+            &mut priv_key.t0_ntt.v[i],
+            &sk[off..off + SK_T0_PACK_BYTES],
+            13,
+            1 << 12,
+        );
+    }
+    vector8_ntt(&mut priv_key.t0_ntt);
+
+    tr
+}
+
+/// Sign `msg` with an explicit `context` using an encoded private key.
+///
+/// Equivalent to [`mldsa87_sign`] but accepts the FIPS 204 `skEncode` byte
+/// string instead of the 32-byte seed.  Added to drive the NIST ACVP sigGen
+/// known-answer vectors (group 5: external interface, pure preHash).
+#[cfg(test)]
+pub fn mldsa87_sign_with_context_from_sk(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+    randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+    msg: &[u8],
+    context: &[u8],
+) {
+    let mut priv_key = PrivateKey {
+        rho: [0u8; K_RHO_BYTES],
+        k: [0u8; K_K_BYTES],
+        s1_ntt: Vector7::default(),
+        s2_ntt: Vector8::default(),
+        t0_ntt: Vector8::default(),
+    };
+    let tr = decode_private_key_internal(&mut priv_key, sk);
+
+    let mut mu = [0u8; K_MU_BYTES];
+    let mut shake256 = Shake256::new();
+    shake256.absorb(&tr);
+    let context_prefix = [0u8, context.len() as u8];
+    shake256.absorb(&context_prefix);
+    shake256.absorb(context);
+    shake256.absorb(msg);
+    shake256.squeeze(&mut mu);
+
+    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer);
+}
+
+/// Deterministic variant of [`mldsa87_sign_with_context_from_sk`].
+#[cfg(test)]
+pub fn mldsa87_sign_with_context_deterministic_from_sk(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+    msg: &[u8],
+    context: &[u8],
+) {
+    let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
+    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context);
+}
+
+/// Sign a pre-computed `mu` using an encoded private key.
+///
+/// Equivalent to [`mldsa87_sign_mu`] but accepts the FIPS 204 `skEncode`
+/// byte string instead of the 32-byte seed.  Added to drive the NIST ACVP
+/// sigGen known-answer vectors (group 11: internal interface, externalMu=true).
+#[cfg(test)]
+pub fn mldsa87_sign_mu_from_sk(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+    randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+    mu: &[u8; MLDSA87_MU_BYTES],
+) {
+    let mut priv_key = PrivateKey {
+        rho: [0u8; K_RHO_BYTES],
+        k: [0u8; K_K_BYTES],
+        s1_ntt: Vector7::default(),
+        s2_ntt: Vector8::default(),
+        t0_ntt: Vector8::default(),
+    };
+    decode_private_key_internal(&mut priv_key, sk);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer);
+}
+
+/// Deterministic variant of [`mldsa87_sign_mu_from_sk`].
+#[cfg(test)]
+pub fn mldsa87_sign_mu_deterministic_from_sk(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+    mu: &[u8; MLDSA87_MU_BYTES],
+) {
+    let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
+    mldsa87_sign_mu_from_sk(out_encoded_signature, sk, &randomizer, mu);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

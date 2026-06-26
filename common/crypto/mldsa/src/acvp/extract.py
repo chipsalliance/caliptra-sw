@@ -7,6 +7,7 @@
 #     https://github.com/usnistgov/ACVP-Server
 #         gen-val/json-files/ML-DSA-keyGen-FIPS204/internalProjection.json
 #         gen-val/json-files/ML-DSA-sigVer-FIPS204/internalProjection.json
+#         gen-val/json-files/ML-DSA-sigGen-FIPS204/internalProjection.json
 #
 # We keep only the ML-DSA-87 cases that the pure-software `caliptra-mldsa`
 # implementation can actually drive:
@@ -18,6 +19,12 @@
 #     separator and computes mu itself). The `internal`, `externalMu`, and
 #     `preHash` (HashML-DSA) groups are intentionally excluded -- they use
 #     message processing the library does not implement.
+#   * sigGen: two deterministic groups:
+#       - external / pure / externalMu=false (group 5): sign(sk, msg, ctx)
+#       - internal / externalMu=true (group 11): sign_mu(sk, mu)
+#     Non-deterministic groups are excluded (randomizer not available in vectors).
+#     The preHash and internal/externalMu=false groups are excluded for the same
+#     reasons as sigVer above.
 #
 # The vectors are derived from NIST's ACVP-Server project and are subject to
 # its license: https://github.com/usnistgov/ACVP-Server#license
@@ -25,7 +32,7 @@
 # Usage:
 #     python3 extract.py /path/to/ACVP-Server/gen-val/json-files
 #
-# Run from this directory; it overwrites key_gen.json and sig_ver.json.
+# Run from this directory; it overwrites key_gen.json, sig_ver.json, and sig_gen.json.
 
 import json
 import os
@@ -84,6 +91,37 @@ def main():
         tests = [{k: t.get(k, "") for k in fields} for t in g["tests"]]
         sv_groups.append({"tgId": g["tgId"], "parameterSet": g["parameterSet"], "tests": tests})
     write("sig_ver.json", sv_groups)
+
+    # sigGen (two deterministic groups only):
+    #   group 5: external / pure / externalMu=false -> sign_with_context(sk, msg, ctx)
+    #   group 11: internal / externalMu=true        -> sign_mu(sk, mu)
+    sg = load(root, "ML-DSA-sigGen-FIPS204")
+    sg_groups = []
+    for g in mldsa87_groups(
+        sg, signatureInterface="external", preHash="pure", externalMu=False, deterministic=True
+    ):
+        fields_ext = ("tcId", "sk", "message", "context", "signature")
+        tests = [{k: t.get(k, "") for k in fields_ext} for t in g["tests"]]
+        sg_groups.append({
+            "tgId": g["tgId"],
+            "parameterSet": g["parameterSet"],
+            "signatureInterface": g["signatureInterface"],
+            "externalMu": g["externalMu"],
+            "tests": tests,
+        })
+    for g in mldsa87_groups(
+        sg, signatureInterface="internal", externalMu=True, deterministic=True
+    ):
+        fields_mu = ("tcId", "sk", "mu", "signature")
+        tests = [{k: t.get(k, "") for k in fields_mu} for t in g["tests"]]
+        sg_groups.append({
+            "tgId": g["tgId"],
+            "parameterSet": g["parameterSet"],
+            "signatureInterface": g["signatureInterface"],
+            "externalMu": g["externalMu"],
+            "tests": tests,
+        })
+    write("sig_gen.json", sg_groups)
 
 
 if __name__ == "__main__":

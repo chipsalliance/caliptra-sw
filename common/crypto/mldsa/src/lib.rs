@@ -7,6 +7,11 @@ use crate::mldsa87::{
     mldsa87_sign_mu, mldsa87_sign_mu_deterministic, mldsa87_verify, mldsa87_verify_mu,
     mldsa87_verify_with_context,
 };
+#[cfg(test)]
+use crate::mldsa87::{
+    mldsa87_sign_mu_deterministic_from_sk, mldsa87_sign_mu_from_sk,
+    mldsa87_sign_with_context_deterministic_from_sk, mldsa87_sign_with_context_from_sk,
+};
 pub use crate::mldsa87::{
     Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
     MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
@@ -84,6 +89,56 @@ impl Mldsa87 {
         mu: &[u8; MLDSA87_MU_BYTES],
     ) -> Mldsa87Result {
         mldsa87_verify_mu(pub_key, sig, mu)
+    }
+
+    /// Sign `msg` with an explicit `context` using an encoded private key.
+    ///
+    /// Added to drive NIST ACVP sigGen vectors (group 5: external interface,
+    /// pure preHash). Use [`Self::sign`] for production signing from a seed.
+    #[cfg(test)]
+    pub fn sign_with_context_from_sk(
+        sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+        randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+        msg: &[u8],
+        context: &[u8],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_with_context_from_sk(sig, sk, randomizer, msg, context);
+    }
+
+    /// Deterministic variant of [`Self::sign_with_context_from_sk`].
+    #[cfg(test)]
+    pub fn sign_with_context_deterministic_from_sk(
+        sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+        msg: &[u8],
+        context: &[u8],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_with_context_deterministic_from_sk(sig, sk, msg, context);
+    }
+
+    /// Sign a pre-computed `mu` using an encoded private key.
+    ///
+    /// Added to drive NIST ACVP sigGen vectors (group 11: internal interface,
+    /// externalMu=true). Use [`Self::sign_mu`] for production signing from a seed.
+    #[cfg(test)]
+    pub fn sign_mu_from_sk(
+        sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+        randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+        mu: &[u8; MLDSA87_MU_BYTES],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_mu_from_sk(sig, sk, randomizer, mu);
+    }
+
+    /// Deterministic variant of [`Self::sign_mu_from_sk`].
+    #[cfg(test)]
+    pub fn sign_mu_deterministic_from_sk(
+        sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
+        mu: &[u8; MLDSA87_MU_BYTES],
+        sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
+    ) {
+        mldsa87_sign_mu_deterministic_from_sk(sig, sk, mu);
     }
 
     /// Verify a signature using an explicit signing `context`.
