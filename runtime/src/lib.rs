@@ -33,6 +33,9 @@ mod populate_idev;
 mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
+#[cfg(feature = "mldsa_attestation")]
+#[allow(dead_code)]
+mod set_pq_seed;
 mod sign_with_exported_ecdsa;
 mod stash_measurement;
 mod subject_alt_name;
@@ -255,6 +258,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             FipsShutdownCmd::execute(drivers)
         }
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::SET_PQ_SEED => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers),

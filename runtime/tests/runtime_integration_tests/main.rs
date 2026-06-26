@@ -25,6 +25,8 @@ mod test_populate_idev;
 mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
 mod test_set_auth_manifest;
+#[cfg(feature = "mldsa_attestation")]
+mod test_set_pq_seed;
 mod test_sign_with_export_ecdsa;
 mod test_stack_usage;
 mod test_stash_measurement;

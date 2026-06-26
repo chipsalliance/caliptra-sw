@@ -1268,6 +1268,11 @@ impl CaliptraError {
             0x000E0063,
             "Runtime Error: ML-DSA-87 DevID seed too large"
         ),
+        (
+            RUNTIME_SET_PQ_SEED_ALREADY_SET,
+            0x000E0064,
+            "Runtime Error: SET_PQ_SEED already enabled PQC mode"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
