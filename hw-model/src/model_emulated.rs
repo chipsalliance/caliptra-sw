@@ -117,6 +117,13 @@ impl ModelEmulated {
     pub fn stack_min_sp(&self) -> Option<u32> {
         self.cpu.stack_min_sp()
     }
+
+    /// Return the total number of simulated clock cycles elapsed since the
+    /// model was created. Subtract two snapshots to measure the cost of a
+    /// code region.
+    pub fn cycle_count(&self) -> u64 {
+        self.cpu.clock.now()
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
