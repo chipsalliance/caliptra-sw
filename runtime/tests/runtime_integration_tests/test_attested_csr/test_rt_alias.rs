@@ -25,7 +25,7 @@ fn get_ecc_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
     let CertifyKeyResp::P384(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
-    X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
+    X509::from_der(&certify_key_resp.cert[..certify_key_resp.header.cert_size as usize])
         .expect("Failed to parse ECC DPE leaf cert")
 }
 
@@ -43,7 +43,7 @@ fn get_mldsa_dpe_leaf_cert(model: &mut DefaultHwModel) -> X509 {
     let CertifyKeyResp::Mldsa87(certify_key_resp) = resp else {
         panic!("Wrong response type!");
     };
-    X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
+    X509::from_der(&certify_key_resp.cert[..certify_key_resp.header.cert_size as usize])
         .expect("Failed to parse MLDSA DPE leaf cert")
 }
 

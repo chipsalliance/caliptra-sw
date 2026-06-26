@@ -15,7 +15,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_dpe::{
     context::{Context, ContextHandle, ContextType},
-    response::DpeErrorCode,
+    error::DpeErrorCode,
     tci::TciMeasurement,
     validation::ValidationError,
     U8Bool, MAX_HANDLES, TCI_SIZE,

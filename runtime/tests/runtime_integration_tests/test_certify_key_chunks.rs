@@ -7,7 +7,7 @@ use crate::common::{
 };
 use caliptra_api::SocManager;
 use caliptra_dpe::commands::{CertifyKeyCommand, Command};
-use caliptra_dpe::response::{DpeErrorCode, Response};
+use caliptra_dpe::{error::DpeErrorCode, response::Response};
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 

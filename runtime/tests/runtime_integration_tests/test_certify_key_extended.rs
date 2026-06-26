@@ -107,9 +107,10 @@ fn test_dmtf_other_name_extension_present() {
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
 
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     let ext = cert.subject_alternative_name().unwrap().unwrap();
     assert!(!ext.critical);
     let san = ext.value;
@@ -161,9 +162,10 @@ fn test_dmtf_other_name_extension_not_present() {
     let (certify_key_resp, _) =
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 
     // populate DMTF otherName
@@ -207,8 +209,9 @@ fn test_dmtf_other_name_extension_not_present() {
     let (certify_key_resp, _) =
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 }

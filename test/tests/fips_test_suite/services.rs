@@ -528,12 +528,16 @@ pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
     };
 
     assert_eq!(
-        certify_key_resp.new_context_handle.0,
+        certify_key_resp.header.new_context_handle.0,
         [0u8; ContextHandle::SIZE]
     );
-    assert!(contains_some_data(&certify_key_resp.derived_pubkey_x));
-    assert!(contains_some_data(&certify_key_resp.derived_pubkey_y));
-    assert_ne!(0, certify_key_resp.cert_size);
+    assert!(contains_some_data(
+        &certify_key_resp.header.derived_pubkey_x
+    ));
+    assert!(contains_some_data(
+        &certify_key_resp.header.derived_pubkey_y
+    ));
+    assert_ne!(0, certify_key_resp.header.cert_size);
     assert!(contains_some_data(&certify_key_resp.cert));
 }
 

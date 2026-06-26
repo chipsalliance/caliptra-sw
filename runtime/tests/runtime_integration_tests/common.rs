@@ -29,7 +29,8 @@ use caliptra_dpe::{
         CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
+    error::DpeErrorCode,
+    response::{CertifyKeyResp, Response, ResponseHdr, SignResp},
     DpeProfile,
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
@@ -940,8 +941,8 @@ pub fn verify_sign_and_certify_key(
 
             let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
                 &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_x).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_y).unwrap(),
             )
             .unwrap();
             assert!(sig.verify(data, &ecc_pub_key).unwrap());
@@ -952,7 +953,8 @@ pub fn verify_sign_and_certify_key(
             let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
             let alias_pubkey = alias_x509.public_key().unwrap();
 
-            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_cert_bytes =
+                &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize];
             let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
             assert!(leaf_x509.verify(&alias_pubkey).unwrap());
         }
@@ -968,7 +970,8 @@ pub fn verify_sign_and_certify_key(
             let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
             let alias_pubkey = alias_x509.public_key().unwrap();
 
-            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_cert_bytes =
+                &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize];
             let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
             assert!(leaf_x509.verify(&alias_pubkey).unwrap());
         }

@@ -24,14 +24,16 @@ use caliptra_dpe_crypto::{
         EcdsaPubKey, EcdsaSignature,
     },
     ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
-    CdiManager, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, PubKey,
-    SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
+    CdiManager, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, Hasher,
+    PubKey, SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm,
+    SignatureType,
 };
+use caliptra_dpe_response_buffer::{ResponseBufError, ResponseBuffer};
 use caliptra_drivers::{
-    hmac_kdf, okref, sha2_512_384::DpeHasher, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
-    Ecc384PubKey, Ecc384Scalar, Ecc384Seed, ExportedCdiEntry, ExportedCdiHandles, Hmac, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
-    Mldsa87SignRnd, Sha2_512_384, Trng,
+    hmac_kdf, okref, sha2_512_384::DpeHasher, Array4x12, CaliptraError, CaliptraResult, Ecc384,
+    Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, ExportedCdiEntry, ExportedCdiHandles,
+    Hmac, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey,
+    Mldsa87Seed, Mldsa87SignRnd, Sha2_512_384, Trng,
 };
 use constant_time_eq::constant_time_eq;
 use zerocopy::IntoBytes;
@@ -216,7 +218,7 @@ impl DpeCrypto<'_> {
         key_id: &KeyId,
     ) -> Result<Mldsa87PubKey, CryptoError> {
         let pub_key = mldsa87
-            .key_pair(Mldsa87Seed::Key(KeyReadArgs::new(*key_id)), trng, None)
+            .dpe_derive_pub_key_from_kv_seed(KeyReadArgs::new(*key_id), trng)
             .map_err(|e| CryptoError::CryptoLibError(u32::from(e)));
         let pub_key = okref(&pub_key)?;
         Ok(*pub_key)
@@ -225,7 +227,7 @@ impl DpeCrypto<'_> {
     #[inline(never)]
     fn sign_ec(
         ecc384: &mut Ecc384,
-        sha2_512_384: &mut Sha2_512_384,
+        hasher: &mut DpeHasher,
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
@@ -245,9 +247,18 @@ impl DpeCrypto<'_> {
             SignData::Digest(Digest::Sha384(caliptra_dpe_crypto::Sha384(digest))) => {
                 Ecc384Scalar::from(digest)
             }
-            SignData::Raw(msg) => sha2_512_384
+            SignData::Raw(msg) => hasher
+                .driver()
                 .sha384_digest(msg)
                 .map_err(|_| CryptoError::HashError(0))?,
+            SignData::ResponseBuffer(buf, range) => {
+                let Digest::Sha384(caliptra_dpe_crypto::Sha384(digest)) =
+                    Self::hash_response_buffer(hasher, *buf, range.clone())?
+                else {
+                    return Err(CryptoError::MismatchedAlgorithm);
+                };
+                Ecc384Scalar::from(&digest)
+            }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         let sig = ecc384
@@ -257,6 +268,27 @@ impl DpeCrypto<'_> {
         Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
             EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
         )))
+    }
+
+    fn hash_response_buffer(
+        hasher: &mut DpeHasher,
+        buf: &dyn ResponseBuffer,
+        range: core::ops::Range<usize>,
+    ) -> Result<Digest, CryptoError> {
+        hasher.initialize()?;
+        let mut hash_error = None;
+        let read_result = buf.read_range(range, &mut |chunk| {
+            if let Err(e) = hasher.update(chunk) {
+                hash_error = Some(e);
+                return Err(ResponseBufError::Overflow);
+            }
+            Ok(())
+        });
+        if let Some(e) = hash_error {
+            return Err(e);
+        }
+        read_result.map_err(|_| CryptoError::Size)?;
+        hasher.finish()
     }
 
     #[inline(never)]
@@ -274,13 +306,31 @@ impl DpeCrypto<'_> {
 
         let sig = match data {
             SignData::Raw(msg) => mldsa87.sign_var(priv_key, pub_key, msg, &sign_rnd, trng),
+            SignData::ResponseBuffer(buf, range) => {
+                mldsa87.sign_var_stream(priv_key, pub_key, &sign_rnd, trng, |write_chunk| {
+                    let mut write_error = None;
+                    let read_result = buf.read_range(range.clone(), &mut |chunk| {
+                        if let Err(e) = write_chunk(chunk) {
+                            write_error = Some(e);
+                            return Err(ResponseBufError::Overflow);
+                        }
+                        Ok(())
+                    });
+                    if let Some(e) = write_error {
+                        return Err(e);
+                    }
+                    read_result.map_err(|_| CaliptraError::DRIVER_MLDSA87_HW_ERROR)
+                })
+            }
             SignData::Mu(_) => return Err(CryptoError::NotImplemented),
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         let sig = okref(&sig).map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
         let mut dpe_sig = [0u8; 4627];
-        dpe_sig.copy_from_slice(&sig.as_bytes()[..4627]);
+        for (dst, src) in dpe_sig.iter_mut().zip(sig.as_bytes().iter()) {
+            *dst = *src;
+        }
         Ok(Signature::Mldsa(MldsaSignature(dpe_sig)))
     }
 
@@ -294,7 +344,7 @@ impl DpeCrypto<'_> {
     ) -> Result<Signature, CryptoError> {
         match (signer, pub_key) {
             (Signer::Ec(ecc384), PubKey::Ecdsa(pub_key)) => {
-                Self::sign_ec(ecc384, hasher.driver(), trng, data, priv_key, pub_key)
+                Self::sign_ec(ecc384, hasher, trng, data, priv_key, pub_key)
             }
             (Signer::Mldsa(mldsa87), PubKey::Mldsa(MldsaPublicKey(pub_key))) => {
                 let pub_key = Mldsa87PubKey::from(pub_key);
@@ -445,14 +495,9 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
             return Err(CryptoError::CryptoLibError(3));
         };
         match (derived_key, &mut self.signer) {
-            (DerivedKey::Ecc(key_id, pub_key), Signer::Ec(ecc384)) => Self::sign_ec(
-                ecc384,
-                self.hasher.driver(),
-                self.trng,
-                data,
-                key_id,
-                pub_key,
-            ),
+            (DerivedKey::Ecc(key_id, pub_key), Signer::Ec(ecc384)) => {
+                Self::sign_ec(ecc384, &mut self.hasher, self.trng, data, key_id, pub_key)
+            }
             (DerivedKey::Mldsa(key_id), Signer::Mldsa(mldsa87)) => {
                 let pub_key = Self::derive_mldsa_pub_key(mldsa87, self.trng, key_id)?;
                 Self::sign_mldsa(mldsa87, self.trng, data, key_id, &pub_key)

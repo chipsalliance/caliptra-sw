@@ -444,7 +444,8 @@ fn test_dpe_leaf_cert() {
         panic!("Wrong response type!");
     };
     let dpe_leaf_cert: X509 =
-        X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
+        X509::from_der(&certify_key_resp.cert[..certify_key_resp.header.cert_size as usize])
+            .unwrap();
 
     // Check that DPE Leaf Cert is signed by RT alias pub key and that subject/issuer names match
     assert!(dpe_leaf_cert
@@ -649,7 +650,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rom_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let rom_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.header.cert_size as usize];
 
         //
         // 2. RUNTIME STASH MEASUREMENT
@@ -669,7 +670,7 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let rt_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let rt_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.header.cert_size as usize];
 
         //
         // 3. DPE DERIVE CONTEXT
@@ -700,7 +701,8 @@ pub fn test_all_measurement_apis() {
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
-        let derive_context_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+        let derive_context_dpe_cert =
+            &dpe_cert_resp.cert[..dpe_cert_resp.header.cert_size as usize];
 
         //
         // COMPARE CERTS

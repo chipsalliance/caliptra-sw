@@ -433,13 +433,14 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "bitflags 2.9.1",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "cfg-if",
  "constant_time_eq",
  "ufmt",
@@ -450,11 +451,12 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-dpe-response-buffer",
  "constant_time_eq",
  "zerocopy",
  "zeroize",
@@ -463,13 +465,18 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc#3e5b97094e71a5d5c6f6a5bd1882f4006830f2cc"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
  "cfg-if",
  "ufmt",
 ]
+
+[[package]]
+name = "caliptra-dpe-response-buffer"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 
 [[package]]
 name = "caliptra-drivers"
@@ -991,6 +998,7 @@ dependencies = [
  "caliptra-dpe",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-error",

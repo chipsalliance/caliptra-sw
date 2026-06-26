@@ -19,6 +19,7 @@ use crate::debug_unlock::ProductionDebugUnlock;
 use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::invoke_dpe::dpe_error_detail;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
     dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpePlatform, Mailbox,
@@ -50,6 +51,7 @@ use caliptra_dpe::{
 };
 use caliptra_dpe::{DpeFlags, DpeProfile};
 use caliptra_dpe_crypto::{Digest, PubKey, Sha256 as DpeSha256};
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::{
     cprintln,
     hand_off::DataStore,
@@ -633,7 +635,8 @@ impl Drivers {
         let initialization_values_hash: [u8; 48] = <[u8; 48]>::from(initialization_values_hash);
         // Use execute_serialized with a small buffer instead of execute() to avoid
         // allocating the full Response enum (~25KB) on the stack.
-        let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+        let mut resp_buf_storage = [0u8; size_of::<DeriveContextResp>()];
+        let mut resp_buf = SliceResponseBuffer::new(&mut resp_buf_storage);
         let derive_context_result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(initialization_values_hash),
@@ -649,7 +652,7 @@ impl Drivers {
         .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut resp_buf);
         if let Err(e) = derive_context_result {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
+            if let Some(ext_err) = dpe_error_detail(&e) {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
             }
             Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
@@ -675,7 +678,8 @@ impl Drivers {
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
             // Use execute_serialized with a small buffer instead of execute() to avoid
             // allocating the full Response enum (~25KB) on the stack.
-            let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+            let mut resp_buf_storage = [0u8; size_of::<DeriveContextResp>()];
+            let mut resp_buf = SliceResponseBuffer::new(&mut resp_buf_storage);
             let derive_context_result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
@@ -695,7 +699,7 @@ impl Drivers {
             .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
             if let Err(e) = derive_context_result {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
+                if let Some(ext_err) = dpe_error_detail(&e) {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 Err(CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?
