@@ -94,5 +94,5 @@ pub fn finalize_mbox_buffer(
         .write_at(0, &checksum.to_le_bytes())
         .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
 
-    mbox.set_dlen(total_len as u32)
+    mbox.flush_sram_to_datain(total_len)
 }

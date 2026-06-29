@@ -172,6 +172,31 @@ impl Mailbox {
         Ok(())
     }
 
+    /// Re-copies SRAM[0..total_len] via the `datain` register to advance
+    /// `mbox_wrptr` to match the response length.
+    ///
+    /// `MboxResponseWriter` writes directly to SRAM via AHB without advancing
+    /// `mbox_wrptr`. At the ExecUc→ExecSoc state transition (triggered by
+    /// `set_status(DataReady)`), the RTL latches the effective read limit as
+    /// `min(mbox_wrptr, mbox_dlen_in_dws)` (mbox.sv:228) and drives `dataout`
+    /// to zero whenever that limit is zero (mbox.sv:541). If `mbox_wrptr` was
+    /// never advanced the SOC reads all zeros regardless of SRAM content.
+    /// Replaying the response words via `datain` advances `mbox_wrptr` to
+    /// `total_len / 4` so the latch captures the correct limit.
+    pub fn flush_sram_to_datain(&mut self, total_len: usize) -> CaliptraResult<()> {
+        self.set_dlen(total_len as u32)?;
+        let total_words = total_len.div_ceil(4);
+        let sram_ptr = memory_layout::MBOX_ORG as *const u32;
+        let mbox = self.mbox.regs_mut();
+        for i in 0..total_words {
+            // SAFETY: set_dlen bounds-checks total_len <= MBOX_SIZE; MBOX_ORG is
+            // the start of the mailbox SRAM window, so offsets 0..total_words are valid.
+            let word = unsafe { sram_ptr.add(i).read_volatile() };
+            mbox.datain().write(|_| word);
+        }
+        Ok(())
+    }
+
     /// Set mailbox status to `status`
     pub fn set_status(&mut self, status: MboxStatusE) {
         let mbox = self.mbox.regs_mut();
