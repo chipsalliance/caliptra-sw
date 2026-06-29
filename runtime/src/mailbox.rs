@@ -176,13 +176,11 @@ impl Mailbox {
     /// `mbox_wrptr` to match the response length.
     ///
     /// `MboxResponseWriter` writes directly to SRAM via AHB without advancing
-    /// `mbox_wrptr`. At the ExecUc→ExecSoc state transition (triggered by
-    /// `set_status(DataReady)`), the RTL latches the effective read limit as
+    /// `mbox_wrptr`. T he RTL latches the effective read limit as
     /// `min(mbox_wrptr, mbox_dlen_in_dws)` (mbox.sv:228) and drives `dataout`
-    /// to zero whenever that limit is zero (mbox.sv:541). If `mbox_wrptr` was
-    /// never advanced the SOC reads all zeros regardless of SRAM content.
-    /// Replaying the response words via `datain` advances `mbox_wrptr` to
-    /// `total_len / 4` so the latch captures the correct limit.
+    /// to zero whenever that limit is zero (mbox.sv:541). As such we need to
+    /// explicitely use datain for populating the mbox sram prior to marking the
+    /// buffer ready.
     pub fn flush_sram_to_datain(&mut self, total_len: usize) -> CaliptraResult<()> {
         self.set_dlen(total_len as u32)?;
         let total_words = total_len.div_ceil(4);

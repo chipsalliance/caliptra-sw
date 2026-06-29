@@ -127,7 +127,7 @@ impl SignWithExportedEcdsaCmd {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
-        // Explicitely drop crypto and pdata so the multable borrow to drivers also ends.
+        // Explicitely drop crypto and pdata so the mutable borrow to drivers also ends.
         drop(crypto);
         let _ = pdata;
         crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())

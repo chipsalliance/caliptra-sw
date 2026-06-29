@@ -110,7 +110,7 @@ impl InvokeDpeCmd {
 
         let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
 
-        let mut writer = MboxResponseWriter {};
+        let mut writer = MboxResponseWriter::from_mbox_base();
         let mut w = OffsetResponseBuffer::new(&mut writer, size_of::<MailboxRespHeaderVarSize>());
 
         let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut w);

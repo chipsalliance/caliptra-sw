@@ -51,7 +51,7 @@ impl CertifyKeyExtendedCmd {
             .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let command = Command::from(certify_key_cmd);
 
-        let mut writer = MboxResponseWriter {};
+        let mut writer = MboxResponseWriter::from_mbox_base();
         let mut w = OffsetResponseBuffer::new(&mut writer, size_of::<MailboxRespHeaderVarSize>());
 
         let resp_size = invoke_dpe_cmd(drivers, &command, dmtf_device_info, None, None, &mut w)
