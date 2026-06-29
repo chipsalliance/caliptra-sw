@@ -140,15 +140,14 @@ fn test_uds_programming_configurable_status_reg_offset() {
         dbg_manuf_service,
         subsystem_mode: true,
         uds_fuse_row_granularity_64: true,
+        otp_status_reg_offset: OTP_STATUS_REG_OFFSET,
         ..Default::default()
     })
     .unwrap();
 
-    let otp_dai_idle_bit_num = hw.soc_ifc().ss_strap_generic().at(0).read() & 0xFFFF_0000;
-    hw.soc_ifc()
-        .ss_strap_generic()
-        .at(0)
-        .write(|_| otp_dai_idle_bit_num | OTP_STATUS_REG_OFFSET);
+    let status_reg_offset = hw.soc_ifc().ss_strap_generic().at(0).read() & 0xFFFF;
+    assert_eq!(status_reg_offset, OTP_STATUS_REG_OFFSET);
+
     hw.boot(BootParams::default()).unwrap();
 
     hw.step_until(|m| {
