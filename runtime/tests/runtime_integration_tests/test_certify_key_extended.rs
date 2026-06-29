@@ -5,14 +5,14 @@ use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
     CommandId, MailboxReq, MailboxReqHeader,
 };
-use caliptra_hw_model::HwModel;
-use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
-use core::mem::size_of;
-use dpe::{
+use caliptra_dpe::{
     commands::{CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd as CertifyKeyCmd},
     context::ContextHandle,
     response::CertifyKeyP384Resp,
 };
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::{AddSubjectAltNameCmd, RtBootStatus};
+use core::mem::size_of;
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };
@@ -107,9 +107,10 @@ fn test_dmtf_other_name_extension_present() {
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
 
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     let ext = cert.subject_alternative_name().unwrap().unwrap();
     assert!(!ext.critical);
     let san = ext.value;
@@ -161,9 +162,10 @@ fn test_dmtf_other_name_extension_not_present() {
     let (certify_key_resp, _) =
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 
     // populate DMTF otherName
@@ -207,8 +209,9 @@ fn test_dmtf_other_name_extension_not_present() {
     let (certify_key_resp, _) =
         CertifyKeyP384Resp::try_read_from_prefix(&certify_key_extended_resp.certify_key_resp[..])
             .unwrap();
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 }

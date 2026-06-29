@@ -8,17 +8,18 @@ build = "build.rs"
 
 [dependencies]
 bitfield.workspace = true
-caliptra-cfi-lib-git = { workspace = true, default-features = false, features = [
-    "cfi",
-    "cfi-counter",
-] }
-caliptra-cfi-derive-git.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter"] }
+caliptra-cfi-derive = { workspace = true }
 caliptra-common = { workspace = true, default-features = false, features = [
     "runtime",
 ] }
 caliptra-api.workspace = true
 caliptra-cpu.workspace = true
 caliptra-drivers = { workspace = true, features = ["runtime"] }
+caliptra-dpe = { workspace = true }
+caliptra-dpe-crypto.workspace = true
+caliptra-dpe-platform.workspace = true
+caliptra-dpe-response-buffer.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-auth-man-types = { workspace = true, default-features = false }
@@ -26,10 +27,7 @@ caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe = { workspace = true }
 constant_time_eq.workspace = true
-crypto.workspace = true
-platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
@@ -63,7 +61,7 @@ caliptra-image-crypto.workspace = true
 caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-test.workspace = true
-caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
+caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
 cbc.workspace = true
 cipher.workspace = true
 coset.workspace = true
@@ -84,7 +82,7 @@ x509-cert.workspace = true
 asn1.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "cfi"]
 emu = ["caliptra-common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-drivers/itrng", "caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
@@ -92,10 +90,16 @@ std = ["ufmt/std", "caliptra-common/std"]
 slow_tests = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test = []
+cfi = [
+    "caliptra-image-types/cfi",
+    "caliptra-image-verify/cfi",
+    "caliptra-drivers/cfi",
+    "caliptra-common/cfi",
+    "caliptra-dpe/cfi",
+]
 no-cfi = [
     "caliptra-image-verify/no-cfi",
     "caliptra-drivers/no-cfi",
-    "dpe/no-cfi",
 ]
 fpga_realtime = [
     "caliptra-drivers/fpga_realtime",

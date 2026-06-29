@@ -5,13 +5,13 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
-use caliptra_hw_model::HwModel;
-use caliptra_image_types::FwVerificationPqcKeyType;
-use dpe::{
+use caliptra_dpe::{
     commands::{Command, SignFlags, SignP384Cmd as SignCmd},
     context::ContextHandle,
     response::{CertifyKeyResp, Response, SignResp},
 };
+use caliptra_hw_model::HwModel;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -79,8 +79,8 @@ fn test_disable_attestation_cmd() {
     .unwrap();
     let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
         &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-        &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+        &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_x).unwrap(),
+        &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_y).unwrap(),
     )
     .unwrap();
     // check that signature is unable to be verified by the pub key

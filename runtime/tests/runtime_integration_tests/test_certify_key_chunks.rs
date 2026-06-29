@@ -6,10 +6,10 @@ use crate::common::{
     SignCommandNoRef, TEST_SD_MU, TEST_SD_SHA384,
 };
 use caliptra_api::SocManager;
+use caliptra_dpe::commands::{CertifyKeyCommand, Command};
+use caliptra_dpe::{error::DpeErrorCode, response::Response};
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
-use dpe::commands::{CertifyKeyCommand, Command};
-use dpe::response::{DpeErrorCode, Response};
 
 fn test_certify_chunks_helper(profile: CaliptraDpeProfile, max_chunk_size: Option<usize>) {
     let mut model = run_rt_test(RuntimeTestArgs {

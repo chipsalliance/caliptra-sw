@@ -16,23 +16,42 @@ Abstract:
 
 use crate::cryptographic_mailbox::CmStorage;
 use crate::debug_unlock::ProductionDebugUnlock;
+use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::invoke_dpe::dpe_error_detail;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CaliptraDpeProfile, CptraDpeEcTypes, DisableAttestationCmd, DpeEcCrypto, DpePlatform,
-    Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpePlatform, Mailbox,
+    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_ECC_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
 use arrayvec::ArrayVec;
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder,
+};
 use caliptra_common::cfi_check;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+use caliptra_dpe::commands::DeriveContextCmd;
+use caliptra_dpe::context::{Context, ContextState, ContextType};
+use caliptra_dpe::response::DeriveContextResp;
+use caliptra_dpe::tci::TciMeasurement;
+use caliptra_dpe::validation::DpeValidator;
+use caliptra_dpe::MAX_HANDLES;
+use caliptra_dpe::{
+    commands::{CommandExecution, DeriveContextFlags},
+    context::ContextHandle,
+    dpe_instance::DpeInstance,
+};
+use caliptra_dpe::{DpeFlags, DpeProfile};
+use caliptra_dpe_crypto::{Digest, PubKey, Sha256 as DpeSha256};
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::{
     cprintln,
     hand_off::DataStore,
@@ -53,19 +72,6 @@ use caliptra_registers::{
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
-use crypto::{Digest, PubKey};
-use dpe::commands::DeriveContextCmd;
-use dpe::context::{Context, ContextState, ContextType};
-use dpe::response::DeriveContextResp;
-use dpe::tci::TciMeasurement;
-use dpe::validation::DpeValidator;
-use dpe::MAX_HANDLES;
-use dpe::{
-    commands::{CommandExecution, DeriveContextFlags},
-    context::ContextHandle,
-    dpe_instance::{DpeEnv, DpeInstance},
-};
-use dpe::{DpeFlags, DpeProfile};
 
 use core::cmp::Ordering::{Equal, Greater};
 use zerocopy::IntoBytes;
@@ -206,7 +212,7 @@ impl Drivers {
         })
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
         self.cryptographic_mailbox
@@ -262,7 +268,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the root DPE context
     #[inline(always)]
-    pub fn get_dpe_root_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_root_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
         let root_idx = dpe
             .contexts
@@ -292,7 +298,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the CCIV DPE context
     #[inline(always)]
-    pub fn get_dpe_cciv_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
+    pub fn get_dpe_cciv_context_idx(dpe: &caliptra_dpe::State) -> CaliptraResult<usize> {
         // Find the root context index using your existing helper
         let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
 
@@ -385,7 +391,7 @@ impl Drivers {
     }
 
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_dpe_rt_tci(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -398,7 +404,7 @@ impl Drivers {
     }
 
     /// Update DPE CCIV measurement with new values
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn update_dpe_cciv(drivers: &mut Drivers) -> CaliptraResult<()> {
         if drivers.persistent_data.get().attestation_disabled.get() {
             // If attestation is disabled, do not attempt to update CCIV values
@@ -530,30 +536,30 @@ impl Drivers {
     }
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ECC RT Alias public key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn compute_ecc_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self.persistent_data.get().fht.rt_dice_ecc_pub_key.to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(DpeSha256(rt_digest.into()));
 
         Ok(token)
     }
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the ML-DSA RT Alias public key
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub fn compute_mldsa_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key_id = Self::get_key_id_rt_mldsa_keypair_seed(self)?;
         let pub_key = Self::get_key_id_rt_mldsa_pub_key(self)?;
         let rt_digest = self.sha256.digest(pub_key.0.as_bytes())?;
         let _ = key_id; // used for key derivation
-        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
+        let token = Digest::Sha256(DpeSha256(rt_digest.into()));
 
         Ok(token)
     }
 
     /// Initialize DPE with measurements and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let manifest = drivers.persistent_data.get().manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
@@ -574,14 +580,14 @@ impl Drivers {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let crypto = DpeEcCrypto::new(
+        let crypto = DpeCrypto::new_ecc384(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            PubKey::Ecdsa(crypto::ecdsa::EcdsaPubKey::Ecdsa384(
-                crypto::ecdsa::curve_384::EcdsaPub384::from_slice(
+            PubKey::Ecdsa(caliptra_dpe_crypto::ecdsa::EcdsaPubKey::Ecdsa384(
+                caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384::from_slice(
                     &pdata.fht.rt_dice_ecc_pub_key.x.into(),
                     &pdata.fht.rt_dice_ecc_pub_key.y.into(),
                 ),
@@ -589,11 +595,11 @@ impl Drivers {
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut pdata.exported_cdi_slots,
-        );
+        )?;
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
-        let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
-        let mut env = DpeEnv::<CptraDpeEcTypes> {
+        let mut state = caliptra_dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
+        let mut env = CaliptraDpeEnv {
             crypto,
             platform: DpePlatform::new(
                 CaliptraDpeProfile::Ecc384,
@@ -629,14 +635,16 @@ impl Drivers {
         let initialization_values_hash: [u8; 48] = <[u8; 48]>::from(initialization_values_hash);
         // Use execute_serialized with a small buffer instead of execute() to avoid
         // allocating the full Response enum (~25KB) on the stack.
-        let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+        let mut resp_buf_storage = [0u8; size_of::<DeriveContextResp>()];
+        let mut resp_buf = SliceResponseBuffer::new(&mut resp_buf_storage);
         let derive_context_result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(initialization_values_hash),
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
                 | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                | DeriveContextFlags::INPUT_ALLOW_X509,
+                | DeriveContextFlags::INPUT_ALLOW_X509
+                | DeriveContextFlags::ALLOW_RECURSIVE,
             tci_type: u32::from_be_bytes(*b"CCIV"),
             target_locality: pl0_pauser_locality,
             svn: 0,
@@ -644,7 +652,7 @@ impl Drivers {
         .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut resp_buf);
         if let Err(e) = derive_context_result {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
+            if let Some(ext_err) = dpe_error_detail(&e) {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
             }
             Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
@@ -670,7 +678,8 @@ impl Drivers {
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
             // Use execute_serialized with a small buffer instead of execute() to avoid
             // allocating the full Response enum (~25KB) on the stack.
-            let mut resp_buf = [0u8; size_of::<DeriveContextResp>()];
+            let mut resp_buf_storage = [0u8; size_of::<DeriveContextResp>()];
+            let mut resp_buf = SliceResponseBuffer::new(&mut resp_buf_storage);
             let derive_context_result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
@@ -681,7 +690,8 @@ impl Drivers {
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::INPUT_ALLOW_X509
+                    | DeriveContextFlags::ALLOW_RECURSIVE,
                 tci_type,
                 target_locality: pl0_pauser_locality,
                 svn: 0,
@@ -689,7 +699,7 @@ impl Drivers {
             .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
             if let Err(e) = derive_context_result {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
+                if let Some(ext_err) = dpe_error_detail(&e) {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 Err(CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?
@@ -706,13 +716,13 @@ impl Drivers {
     }
 
     /// Create certificate chain and store in Drivers
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         Self::create_ecc_cert_chain(drivers)?;
         Self::create_mldsa_cert_chain(drivers)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_ecc_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
 
@@ -757,7 +767,7 @@ impl Drivers {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn create_mldsa_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
 
@@ -814,7 +824,7 @@ impl Drivers {
 
     fn dpe_get_used_context_counts_helper(
         pl0_pauser: u32,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
     ) -> CaliptraResult<(usize, usize)> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
@@ -852,7 +862,7 @@ impl Drivers {
     fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
         caller_privilege_level: PauserPrivileges,
-        dpe: &dpe::State,
+        dpe: &caliptra_dpe::State,
         pl0_context_limit: usize,
         pl1_context_limit: usize,
     ) -> CaliptraResult<()> {

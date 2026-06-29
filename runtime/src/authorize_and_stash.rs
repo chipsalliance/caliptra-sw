@@ -15,15 +15,16 @@ Abstract:
 use crate::manifest::find_metadata_entry;
 use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
+use caliptra_dpe::error::DpeErrorCode;
 use caliptra_drivers::DmaRecovery;
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
-use dpe::response::DpeErrorCode;
 use zerocopy::FromBytes;
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
@@ -32,7 +33,7 @@ pub const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image dig
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
@@ -59,7 +60,7 @@ impl AuthorizeAndStashCmd {
         }
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn authorize_and_stash(
         drivers: &mut Drivers,
@@ -92,7 +93,7 @@ impl AuthorizeAndStashCmd {
                 IMAGE_AUTHORIZED
             } else if source == ImageHashSource::InRequest {
                 if cfi_launder(metadata_entry.digest) == cmd.measurement {
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(cmd.measurement).0,
                     );
@@ -122,7 +123,7 @@ impl AuthorizeAndStashCmd {
                     .into();
                 if cfi_launder(metadata_entry.digest) == measurement {
                     stash_measurement = measurement;
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(measurement).0,
                     );

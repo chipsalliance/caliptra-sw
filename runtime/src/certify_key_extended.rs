@@ -13,15 +13,16 @@ Abstract:
 --*/
 
 use crate::{
-    invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
+    invoke_dpe::{dpe_error_detail, invoke_dpe_cmd},
+    mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
 };
 use arrayvec::ArrayVec;
 use caliptra_api::mailbox::CertifyKeyExtendedMldsa87Req;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CertifyKeyExtendedResp, MailboxRespHeader,
 };
+use caliptra_dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub struct CertifyKeyExtendedCmd;
@@ -123,7 +124,7 @@ impl CertifyKeyExtendedCmd {
             }
             Err(e) => {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
+                if let Some(ext_err) = dpe_error_detail(&e) {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
                 }
                 Err(CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED)

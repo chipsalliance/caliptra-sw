@@ -251,7 +251,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_dpe = dpe::State::try_read_from_bytes(input_bytes).unwrap();
+                let corrupted_dpe = caliptra_dpe::State::try_read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().state = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }

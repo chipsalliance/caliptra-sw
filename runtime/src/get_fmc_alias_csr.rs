@@ -2,7 +2,8 @@
 
 use crate::{mutrefbytes, Drivers};
 
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_common::mailbox_api::{GetFmcAliasCsrResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -11,7 +12,7 @@ use caliptra_drivers::FmcAliasCsrs;
 
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
@@ -39,7 +40,7 @@ impl GetFmcAliasCsrCmd {
 
 pub struct GetFmcAliasMldsaCsrCmd;
 impl GetFmcAliasMldsaCsrCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, mbox_resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;

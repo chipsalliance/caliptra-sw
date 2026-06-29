@@ -23,4 +23,5 @@ zeroize.workspace = true
 [features]
 default = ["std"]
 std = ["dep:serde", "dep:serde_derive", "caliptra-lms-types/std"]
+cfi = ["caliptra-lms-types/cfi"]
 no-cfi = ["caliptra-lms-types/no-cfi"]

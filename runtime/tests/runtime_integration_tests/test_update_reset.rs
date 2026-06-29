@@ -13,6 +13,13 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
 };
+use caliptra_dpe::{
+    context::{Context, ContextHandle, ContextType},
+    error::DpeErrorCode,
+    tci::TciMeasurement,
+    validation::ValidationError,
+    U8Bool, MAX_HANDLES, TCI_SIZE,
+};
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -20,13 +27,6 @@ use caliptra_hw_model::{
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{ContextState, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
-use dpe::{
-    context::{Context, ContextHandle, ContextType},
-    response::DpeErrorCode,
-    tci::TciMeasurement,
-    validation::ValidationError,
-    U8Bool, MAX_HANDLES, TCI_SIZE,
-};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::common::{
@@ -292,7 +292,7 @@ fn test_dpe_validation_deformed_structure() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = caliptra_dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating multiple normal connected components
     dpe.contexts[0].children = 0u64.into();
@@ -347,7 +347,7 @@ fn test_dpe_validation_illegal_state() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = caliptra_dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE state by messing up parent-child links
     dpe.contexts[1].children = 0b1u64.into();
@@ -400,7 +400,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = caliptra_dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
 
@@ -445,7 +445,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
             pl0_context_count += 1;
         }
         current_idx += 1;
-        assert!(current_idx < dpe::MAX_HANDLES);
+        assert!(current_idx < caliptra_dpe::MAX_HANDLES);
     }
     let _ = model
         .mailbox_execute(0xB000_0000, dpe.as_bytes())

@@ -18,7 +18,8 @@ use crate::{
     set_auth_manifest::AuthManifestSource,
     Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
@@ -52,7 +53,7 @@ impl RecoveryFlow {
     }
 
     /// Load the SoC Manifest and MCU firwmare
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
         const SOC_MANIFEST_INDEX: u32 = 1;
         const MCU_FIRMWARE_INDEX: u32 = 2;

@@ -237,7 +237,8 @@ impl DevIdKeyType {
 
 use crate::mutrefbytes;
 use caliptra_api::mailbox::{GetAttestedEccCsrReq, GetAttestedMldsaCsrReq};
-use caliptra_cfi_derive_git::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{AttestedCsrResp, ResponseVarSize};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -248,7 +249,7 @@ impl AttestedEccCsrCmd {
     /// public key + subject key identifier. Runs in a frame that does
     /// NOT have the mailbox response buffer alive, keeping peak stack
     /// usage low.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn prepare(
         drivers: &mut Drivers,
@@ -277,7 +278,7 @@ impl AttestedEccCsrCmd {
     /// the COSE-Sign1-encoded attested CSR EAT into it. This runs after
     /// [`prepare`] so the heavy CSR/key generation does not overlap with
     /// the response buffer.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn sign_and_finalize(
         drivers: &mut Drivers,
@@ -302,7 +303,7 @@ impl AttestedEccCsrCmd {
         crate::finalize_response(drivers, &mut resp_buf, len)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MboxStatusE> {
         let cmd = GetAttestedEccCsrReq::ref_from_bytes(cmd_args)
@@ -340,7 +341,7 @@ impl AttestedMldsaCsrCmd {
     /// key-pair generation (with its PCT) in a frame that does NOT have
     /// the mailbox response buffer alive, so the peak stack usage is
     /// minimized.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn prepare(
         drivers: &mut Drivers,
@@ -371,7 +372,7 @@ impl AttestedMldsaCsrCmd {
     /// the COSE-Sign1-encoded attested CSR EAT into it. This runs after
     /// [`prepare`] so the heavy CSR/key generation does not overlap with
     /// the response buffer.
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     fn sign_and_finalize(
         drivers: &mut Drivers,
@@ -396,7 +397,7 @@ impl AttestedMldsaCsrCmd {
         crate::finalize_response(drivers, &mut resp_buf, len)
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MboxStatusE> {
         let cmd = GetAttestedMldsaCsrReq::ref_from_bytes(cmd_args)

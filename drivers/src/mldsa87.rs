@@ -25,6 +25,7 @@ use caliptra_cfi_lib::{
     cfi_assert_eq, cfi_assert_eq_16_words, cfi_assert_ne_16_words, cfi_launder,
 };
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
+use core::mem::size_of;
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
 use zeroize::Zeroize;
@@ -55,6 +56,8 @@ pub type Mldsa87SignRnd = LEArray4x8;
 type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
+#[cfg(feature = "runtime")]
+pub const MLDSA87_PUB_KEY_BYTE_SIZE: usize = 2592;
 
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
@@ -155,6 +158,16 @@ impl Mldsa87 {
 
         self.pct(seed, &pubkey, trng)?;
         Ok(pubkey)
+    }
+
+    #[cfg(feature = "runtime")]
+    #[doc(hidden)]
+    pub fn dpe_derive_pub_key_from_kv_seed(
+        &mut self,
+        key: KeyReadArgs,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87PubKey> {
+        self.key_pair_internal(Mldsa87Seed::Key(key), trng, None)
     }
 
     /// Raw key pair generation without PCT.
@@ -307,10 +320,136 @@ impl Mldsa87 {
         }
     }
 
+    #[cfg(feature = "runtime")]
+    pub fn sign_var_stream_pub_key_bytes<F>(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &[u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+        mut stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Signature>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Sign RND.
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
+
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.privkey_in())
+            }
+        }
+
+        // Program the command register for key generation
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+            .stream_msg(true)
+        });
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg_stream(mldsa, &mut stream_msg)?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+
+        // Clear the hardware.
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        let result = self.verify_var_stream_pub_key_bytes(pub_key, &signature, stream_msg)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
+    }
+
     fn program_var_msg(
         mldsa: RegisterBlock<caliptra_ureg::RealMmioMut>,
         msg: &[u8],
     ) -> CaliptraResult<()> {
+        #[cfg(feature = "runtime")]
+        {
+            Self::program_var_msg_stream(mldsa, &mut |write_chunk| write_chunk(msg))
+        }
+
+        #[cfg(not(feature = "runtime"))]
+        {
+            // Wait for stream ready or valid status.
+            Mldsa87::wait(mldsa, || {
+                mldsa.status().read().msg_stream_ready() || mldsa.status().read().valid()
+            })?;
+
+            // Check if the operation completed prematurely.
+            // This can happen in case of verification where the signature is invalid.
+            // In this case, we should not proceed with streaming the message.
+            if mldsa.status().read().valid() {
+                return Ok(());
+            }
+
+            // Reset the message strobe register.
+            mldsa.msg_strobe().write(|s| s.strobe(0xF));
+
+            // Stream the message to the hardware.
+            let dwords = msg.chunks_exact(size_of::<u32>());
+            let remainder = dwords.remainder();
+            for dword in dwords {
+                let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
+                mldsa.msg().at(0).write(|_| dw.get());
+            }
+
+            let last_strobe = match remainder.len() {
+                0 => 0b0000,
+                1 => 0b0001,
+                2 => 0b0011,
+                3 => 0b0111,
+                _ => 0b0000, // should never happen
+            };
+            mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+
+            // Write last dword; 0 for no remainder.
+            let mut last_word = 0_u32;
+            last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+            mldsa.msg().at(0).write(|_| last_word);
+
+            // Wait for status to be valid
+            Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    fn program_var_msg_stream<F>(
+        mldsa: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        stream_msg: &mut F,
+    ) -> CaliptraResult<()>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
         // Wait for stream ready or valid status.
         Mldsa87::wait(mldsa, || {
             mldsa.status().read().msg_stream_ready() || mldsa.status().read().valid()
@@ -326,15 +465,53 @@ impl Mldsa87 {
         // Reset the message strobe register.
         mldsa.msg_strobe().write(|s| s.strobe(0xF));
 
-        // Stream the message to the hardware.
-        let dwords = msg.chunks_exact(size_of::<u32>());
-        let remainder = dwords.remainder();
-        for dword in dwords {
-            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
-            mldsa.msg().at(0).write(|_| dw.get());
+        let mut remainder = [0u8; size_of::<u32>()];
+        let mut remainder_len = 0;
+        {
+            let mut write_chunk = |mut chunk: &[u8]| -> CaliptraResult<()> {
+                if remainder_len != 0 {
+                    let fill_len = (size_of::<u32>() - remainder_len).min(chunk.len());
+                    let remainder_dst = remainder
+                        .get_mut(remainder_len..remainder_len + fill_len)
+                        .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+                    let chunk_src = chunk
+                        .get(..fill_len)
+                        .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+                    remainder_dst.copy_from_slice(chunk_src);
+                    remainder_len += fill_len;
+                    chunk = chunk
+                        .get(fill_len..)
+                        .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+
+                    if remainder_len == size_of::<u32>() {
+                        let dw = <Unalign<u32>>::read_from_bytes(&remainder)
+                            .map_err(|_| CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+                        mldsa.msg().at(0).write(|_| dw.get());
+                        remainder_len = 0;
+                    }
+                }
+
+                let dwords = chunk.chunks_exact(size_of::<u32>());
+                let chunk_remainder = dwords.remainder();
+                for dword in dwords {
+                    let dw = <Unalign<u32>>::read_from_bytes(dword)
+                        .map_err(|_| CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+                    mldsa.msg().at(0).write(|_| dw.get());
+                }
+
+                let remainder_dst = remainder
+                    .get_mut(..chunk_remainder.len())
+                    .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+                remainder_dst.copy_from_slice(chunk_remainder);
+                remainder_len = chunk_remainder.len();
+
+                Ok(())
+            };
+
+            stream_msg(&mut write_chunk)?;
         }
 
-        let last_strobe = match remainder.len() {
+        let last_strobe = match remainder_len {
             0 => 0b0000,
             1 => 0b0001,
             2 => 0b0011,
@@ -345,7 +522,14 @@ impl Mldsa87 {
 
         // Write last dword; 0 for no remainder.
         let mut last_word = 0_u32;
-        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+        let last_word_bytes = last_word
+            .as_mut_bytes()
+            .get_mut(..remainder_len)
+            .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+        let remainder_src = remainder
+            .get(..remainder_len)
+            .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+        last_word_bytes.copy_from_slice(remainder_src);
         mldsa.msg().at(0).write(|_| last_word);
 
         // Wait for status to be valid
@@ -409,6 +593,73 @@ impl Mldsa87 {
         mldsa.ctrl().write(|w| w.zeroize(true));
 
         let result = self.verify_var(pub_key, msg, &signature)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn sign_var_stream<F>(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &Mldsa87PubKey,
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+        mut stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Signature>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Sign RND.
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
+
+        // Generate randomness for SCA protection.
+        trng.generate16()?.write_to_reg(mldsa.entropy());
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                priv_key.write_to_reg(mldsa.privkey_in())
+            }
+        }
+
+        // Program the command register for key generation
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+            .stream_msg(true)
+        });
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg_stream(mldsa, &mut stream_msg)?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+
+        // Clear the hardware.
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        let result = self.verify_var_stream(pub_key, &signature, stream_msg)?;
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -494,20 +745,90 @@ impl Mldsa87 {
         if truncated_signature == empty_verify_res {
             Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
         }
-        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
+        #[cfg(feature = "runtime")]
+        {
+            let mut truncated_signature_arr = [0u32; MLDSA87_VERIFY_RES_WORD_LEN];
+            for (dst, src) in truncated_signature_arr
+                .iter_mut()
+                .zip(truncated_signature.iter())
+            {
+                *dst = *src;
+            }
+            cfi_assert_ne_16_words(&truncated_signature_arr, &empty_verify_res);
+
+            let mldsa = self.mldsa87.regs_mut();
+
+            // Wait for hardware ready
+            Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+            // Copy pubkey
+            pub_key.write_to_reg(mldsa.pubkey());
+
+            // Copy signature
+            signature.write_to_reg(mldsa.signature());
+
+            Ok(truncated_signature_arr)
+        }
+
+        #[cfg(not(feature = "runtime"))]
+        {
+            cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
+
+            let mldsa = self.mldsa87.regs_mut();
+
+            // Wait for hardware ready
+            Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+            // Copy pubkey
+            pub_key.write_to_reg(mldsa.pubkey());
+
+            // Copy signature
+            signature.write_to_reg(mldsa.signature());
+
+            Ok(truncated_signature.try_into().unwrap())
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    fn verify_common_setup_pub_key_bytes(
+        &mut self,
+        pub_key: &[u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<[u32; MLDSA87_VERIFY_RES_WORD_LEN]> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
+        }
+
+        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
+        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == empty_verify_res {
+            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
+        }
+        let mut truncated_signature_arr = [0u32; MLDSA87_VERIFY_RES_WORD_LEN];
+        for (dst, src) in truncated_signature_arr
+            .iter_mut()
+            .zip(truncated_signature.iter())
+        {
+            *dst = *src;
+        }
+        cfi_assert_ne_16_words(&truncated_signature_arr, &empty_verify_res);
 
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
-        // Copy pubkey
-        pub_key.write_to_reg(mldsa.pubkey());
+        for (idx, word) in pub_key.chunks_exact(size_of::<u32>()).enumerate() {
+            let word = <Unalign<u32>>::read_from_bytes(word)
+                .map_err(|_| CaliptraError::DRIVER_MLDSA87_HW_ERROR)?;
+            mldsa.pubkey().at(idx).write(|_| word.get());
+        }
 
         // Copy signature
         signature.write_to_reg(mldsa.signature());
 
-        Ok(truncated_signature.try_into().unwrap())
+        Ok(truncated_signature_arr)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -545,6 +866,43 @@ impl Mldsa87 {
         Ok(result)
     }
 
+    #[cfg(feature = "runtime")]
+    pub fn verify_var_stream_pub_key_bytes<F>(
+        &mut self,
+        pub_key: &[u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+        signature: &Mldsa87Signature,
+        mut stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Result>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
+        let truncated_signature = self.verify_common_setup_pub_key_bytes(pub_key, signature)?;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Program the command register for signature verification with streaming
+        mldsa
+            .ctrl()
+            .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg_stream(mldsa, &mut stream_msg)?;
+
+        // Copy the result
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+
+        // Clear the hardware when done
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        let result = if verify_res.0 == truncated_signature {
+            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
+            Mldsa87Result::Success
+        } else {
+            Mldsa87Result::SigVerifyFailed
+        };
+
+        Ok(result)
+    }
+
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn verify_var(
         &mut self,
@@ -552,6 +910,51 @@ impl Mldsa87 {
         msg: &[u8],
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
+        #[cfg(feature = "runtime")]
+        {
+            self.verify_var_stream(pub_key, signature, |write_chunk| write_chunk(msg))
+        }
+
+        #[cfg(not(feature = "runtime"))]
+        {
+            let truncated_signature = self.verify_common_setup(pub_key, signature)?;
+            let mldsa = self.mldsa87.regs_mut();
+
+            // Program the command register for signature verification with streaming
+            mldsa
+                .ctrl()
+                .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+
+            // Program the message to the hardware
+            Mldsa87::program_var_msg(mldsa, msg)?;
+
+            // Copy the result
+            let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+
+            // Clear the hardware when done
+            mldsa.ctrl().write(|w| w.zeroize(true));
+
+            let result = if verify_res.0 == truncated_signature {
+                cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
+                Mldsa87Result::Success
+            } else {
+                Mldsa87Result::SigVerifyFailed
+            };
+
+            Ok(result)
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn verify_var_stream<F>(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        signature: &Mldsa87Signature,
+        mut stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Result>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
         let truncated_signature = self.verify_common_setup(pub_key, signature)?;
         let mldsa = self.mldsa87.regs_mut();
 
@@ -561,7 +964,7 @@ impl Mldsa87 {
             .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
 
         // Program the message to the hardware
-        Mldsa87::program_var_msg(mldsa, msg)?;
+        Mldsa87::program_var_msg_stream(mldsa, &mut stream_msg)?;
 
         // Copy the result
         let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());

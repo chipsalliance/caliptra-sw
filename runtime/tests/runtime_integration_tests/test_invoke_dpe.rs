@@ -10,6 +10,16 @@ use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
+use caliptra_dpe::{
+    commands::{
+        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
+        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
+    },
+    context::ContextHandle,
+    error::DpeErrorCode,
+    response::{Response, SignResp},
+    DpeProfile,
+};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
@@ -17,15 +27,6 @@ use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
     signed_data::{SignedData, SignerIdentifier},
-};
-use dpe::{
-    commands::{
-        CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
-        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
-    },
-    context::ContextHandle,
-    response::{DpeErrorCode, Response, SignResp},
-    DpeProfile,
 };
 use openssl::{ecdsa::EcdsaSig, x509::X509};
 use sha2::{Digest, Sha384};
@@ -94,7 +95,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
-    assert_eq!(profile.max_tci_nodes, dpe::MAX_HANDLES as u32);
+    assert_eq!(profile.max_tci_nodes, caliptra_dpe::MAX_HANDLES as u32);
 }
 
 #[test]
@@ -394,7 +395,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         panic!("expected derive context resp!");
     };
     check_dice_extension_criticality(
-        &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
+        &resp.new_certificate[..resp.header.certificate_size.try_into().unwrap()],
         false,
     );
 }
