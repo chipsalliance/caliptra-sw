@@ -163,8 +163,10 @@ impl Mldsa87VerifyCmd {
         }
 
         let result = Mldsa87::verify(
-            Mldsa87PubKey::from_ref(&cmd.pub_key),
-            Mldsa87Signature::from_ref(&cmd.signature),
+            Mldsa87PubKey::ref_from_bytes(&cmd.pub_key)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            Mldsa87Signature::ref_from_bytes(&cmd.signature)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
             &msg_digest,
         )?;
         if result != Mldsa87Result::Success {
