@@ -20,6 +20,7 @@ Abstract:
 use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 use core::ops::{Deref, DerefMut};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 use zeroize::Zeroize;
 
 pub use caliptra_mldsa::{
@@ -34,6 +35,7 @@ pub struct Mldsa87Seed([u8; MLDSA87_PRIVATE_SEED_BYTES]);
 
 /// ML-DSA-87 encoded public key (2,592 bytes).
 #[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
 pub struct Mldsa87PubKey([u8; MLDSA87_PUBLIC_KEY_BYTES]);
 
 /// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).
@@ -43,6 +45,7 @@ pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
 #[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
 pub struct Mldsa87Signature([u8; MLDSA87_SIGNATURE_BYTES]);
 
 macro_rules! impl_helper_traits {
@@ -50,11 +53,6 @@ macro_rules! impl_helper_traits {
         impl $name {
             pub const fn new(data: [u8; core::mem::size_of::<$name>()]) -> Self {
                 Self(data)
-            }
-
-            pub fn from_ref(data: &[u8; core::mem::size_of::<$name>()]) -> &Self {
-                // SAFETY: Self is transparent over u8 array.
-                unsafe { &*(data.as_ptr() as *const Self) }
             }
 
             pub fn as_slice(&self) -> &[u8] {
