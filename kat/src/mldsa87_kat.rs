@@ -14,8 +14,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Seed, Mldsa87Signature, Sha384, MLDSA87_PRIVATE_KEY_BYTES,
-    MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, Mldsa87Seed, Mldsa87Signature, Sha384,
 };
 
 // Digest-based KAT, mirroring the Caliptra 2.x / `main` ML-DSA KAT format and
@@ -30,10 +29,10 @@ use caliptra_drivers::{
 // vector's `sk` byte-for-byte). See common/crypto/mldsa/src/acvp. The signature
 // is the FIPS 204 deterministic signature over `MESSAGE` with an empty context.
 
-const SEED: Mldsa87Seed = [
+const SEED: Mldsa87Seed = Mldsa87Seed::new([
     0xf7, 0x05, 0x2f, 0xbb, 0x92, 0x17, 0x59, 0xcd, 0x87, 0x16, 0x77, 0x3b, 0xa6, 0x35, 0x56, 0x30,
     0x12, 0x1d, 0x69, 0x27, 0x89, 0x9f, 0xdd, 0xa5, 0x76, 0x8e, 0x2b, 0xc2, 0x40, 0xfc, 0xcb, 0x7b,
-];
+]);
 
 const MESSAGE: [u8; 64] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -88,16 +87,16 @@ impl Mldsa87Kat {
     fn kat_keygen(sha384: &mut Sha384) -> CaliptraResult<Mldsa87PubKey> {
         // A single key generation produces both the public key and the encoded
         // private key (the optional sk buffer is supplied).
-        let mut public_key: Mldsa87PubKey = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        let mut private_key: Mldsa87PrivKey = [0u8; MLDSA87_PRIVATE_KEY_BYTES];
+        let mut public_key = Mldsa87PubKey::default();
+        let mut private_key = Mldsa87PrivKey::default();
         Mldsa87::pub_from_seed(&SEED, &mut public_key, Some(&mut private_key))
             .map_err(|_| CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE)?;
 
         let pub_key_digest = sha384
-            .digest(&public_key)
+            .digest(public_key.as_slice())
             .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
         let priv_key_digest = sha384
-            .digest(&private_key)
+            .digest(private_key.as_slice())
             .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
 
         if pub_key_digest != PUB_KEY_DIGEST || priv_key_digest != PRIV_KEY_DIGEST {
@@ -112,12 +111,12 @@ impl Mldsa87Kat {
     /// against `SIGNATURE_DIGEST`.
     #[inline(never)]
     fn kat_sign(sha384: &mut Sha384) -> CaliptraResult<Mldsa87Signature> {
-        let mut signature: Mldsa87Signature = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut signature = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, &MESSAGE, &mut signature)
             .map_err(|_| CaliptraError::KAT_MLDSA87_SIGNATURE_GENERATE_FAILURE)?;
 
         let signature_digest = sha384
-            .digest(&signature)
+            .digest(signature.as_slice())
             .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
         if signature_digest != SIGNATURE_DIGEST {
             Err(CaliptraError::KAT_MLDSA87_SIGNATURE_MISMATCH)?;

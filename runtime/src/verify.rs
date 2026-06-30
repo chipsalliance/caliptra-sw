@@ -23,7 +23,7 @@ use caliptra_drivers::{
     Ecc384Signature, LmsResult,
 };
 #[cfg(feature = "mldsa_attestation")]
-use caliptra_drivers::{Mldsa87, Mldsa87Result};
+use caliptra_drivers::{Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
@@ -162,7 +162,13 @@ impl Mldsa87VerifyCmd {
             msg_digest[i * 4..][..4].copy_from_slice(&src_word.to_be_bytes());
         }
 
-        let result = Mldsa87::verify(&cmd.pub_key, &cmd.signature, &msg_digest)?;
+        let result = Mldsa87::verify(
+            Mldsa87PubKey::ref_from_bytes(&cmd.pub_key)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            Mldsa87Signature::ref_from_bytes(&cmd.signature)
+                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            &msg_digest,
+        )?;
         if result != Mldsa87Result::Success {
             return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
