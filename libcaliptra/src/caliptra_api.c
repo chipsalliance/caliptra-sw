@@ -214,6 +214,27 @@ int caliptra_mbox_pauser_set_and_lock(uint32_t pauser)
 }
 
 /**
+ * caliptra_mbox_pauser_is_valid
+ *
+ * Checks whether the provided pauser value matches any locked PAUSER slot
+ *
+ * @param[in] pauser pauser value to check
+ *
+ * @return true if pauser matches a locked slot, false otherwise
+ */
+bool caliptra_mbox_pauser_is_valid(uint32_t pauser)
+{
+    for (int i = 0; i < MBOX_PAUSER_SLOTS; i++) {
+        if (caliptra_read_mbox_pauser_lock(i) &&
+            caliptra_read_mbox_valid_pauser(i) == pauser) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * caliptra_fuse_pauser_set_and_lock
  *
  * Sets the provided pauser value in the fuse_pauser_valid reg and sets the lock bit
@@ -233,6 +254,21 @@ int caliptra_fuse_pauser_set_and_lock(uint32_t pauser)
     }
 
     return PAUSER_LOCKED;
+}
+
+/**
+ * caliptra_fuse_pauser_is_valid
+ *
+ * Checks whether the provided pauser value matches the locked fuse PAUSER slot
+ *
+ * @param[in] pauser pauser value to check
+ *
+ * @return true if the fuse pauser slot is locked and matches pauser, false otherwise
+ */
+bool caliptra_fuse_pauser_is_valid(uint32_t pauser)
+{
+    return caliptra_read_fuse_pauser_lock() &&
+           caliptra_read_fuse_valid_pauser() == pauser;
 }
 
 /**
