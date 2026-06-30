@@ -37,9 +37,8 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 use {
     caliptra_drivers::{
         Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
-        MLDSA87_SIGNATURE_BYTES,
     },
-    crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey},
     zeroize::Zeroizing,
 };
 
@@ -280,11 +279,9 @@ impl<'a> DpeCrypto<'a> {
     }
 
     #[cfg(feature = "mldsa_attestation")]
-    fn sign_helper_mldsa(data: &SignData, seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
-        Mldsa87::sign_deterministic(seed, data.as_slice(), &mut sig)
-            .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-        Ok(Signature::Mldsa(MldsaSignature(sig)))
+    fn sign_helper_mldsa(_data: &SignData, _seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
+        // TODO: Issue #3936 - Implement MLDSA DPE Hash.
+        Err(CryptoError::MismatchedAlgorithm)
     }
 }
 
