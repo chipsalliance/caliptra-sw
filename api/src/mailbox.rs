@@ -2,6 +2,8 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_mldsa::MLDSA87_PRIVATE_SEED_BYTES;
 use caliptra_mldsa::{MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -9,6 +11,10 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use crate::CaliptraApiError;
 use caliptra_registers::mbox;
 use ureg::MmioMut;
+
+/// PQ IDevID seed size in bytes for SET_PQ_SEED.
+#[cfg(feature = "mldsa_attestation")]
+pub const SET_PQ_SEED_SEED_SIZE: usize = MLDSA87_PRIVATE_SEED_BYTES;
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
@@ -26,6 +32,8 @@ impl CommandId {
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
+    #[cfg(feature = "mldsa_attestation")]
+    pub const SET_PQ_SEED: Self = Self(0x5051_5344); // "PQSD"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
@@ -281,6 +289,8 @@ pub enum MailboxReq {
     GetRtAliasCert(GetRtAliasCertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
+    #[cfg(feature = "mldsa_attestation")]
+    SetPqSeed(SetPqSeedReq),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
@@ -311,6 +321,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::SetPqSeed(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
@@ -341,6 +353,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::SetPqSeed(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
@@ -371,6 +385,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::SetPqSeed(_) => CommandId::SET_PQ_SEED,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
@@ -1042,6 +1058,25 @@ impl Response for QuotePcrsResp {}
 impl Request for QuotePcrsReq {
     const ID: CommandId = CommandId::QUOTE_PCRS;
     type Resp = QuotePcrsResp;
+}
+
+// SET_PQ_SEED
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct SetPqSeedReq {
+    pub hdr: MailboxReqHeader,
+    pub seed: [u8; SET_PQ_SEED_SEED_SIZE],
+}
+
+#[cfg(feature = "mldsa_attestation")]
+const _: () =
+    assert!(size_of::<SetPqSeedReq>() == size_of::<MailboxReqHeader>() + SET_PQ_SEED_SEED_SIZE);
+
+#[cfg(feature = "mldsa_attestation")]
+impl Request for SetPqSeedReq {
+    const ID: CommandId = CommandId::SET_PQ_SEED;
+    type Resp = MailboxRespHeader;
 }
 
 // SET_AUTH_MANIFEST

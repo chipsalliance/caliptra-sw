@@ -58,7 +58,13 @@ x509-parser.workspace = true
 default = ["std", "cfi"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-hw-model/itrng"]
-mldsa_attestation = ["caliptra-kat/mldsa_attestation", "dpe/ml-dsa"]
+mldsa_attestation = [
+    "caliptra-api/mldsa_attestation",
+    "caliptra_common/mldsa_attestation",
+    "caliptra-drivers/mldsa_attestation",
+    "caliptra-kat/mldsa_attestation",
+    "dpe/ml-dsa",
+]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 slow_tests = []
