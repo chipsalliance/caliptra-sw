@@ -28,6 +28,9 @@
 // Globals should be uninitialized to maximize environment compatibility
 static struct caliptra_buffer g_caliptra_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
 static uint8_t g_caliptra_fw_load_piecewise_in_progress CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
+// Shared rx buffer for commands that have no meaningful response beyond the standard header.
+// Safe to share because only one mailbox command can be in-flight at a time.
+static struct caliptra_resp_header g_resp_hdr CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
 
 #define CREATE_PARCEL(name, op, req, resp) \
     struct parcel name = { \
@@ -478,12 +481,16 @@ static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
     }
 
     uint32_t remaining_len = buffer->len;
-    uint32_t *data_dw = (uint32_t *)buffer->data;
+    const uint8_t *data_p = buffer->data;
 
     // Copy DWord multiples
     while (remaining_len > sizeof(uint32_t))
     {
-        caliptra_mbox_write(MBOX_CSR_MBOX_DATAIN, *data_dw++);
+        uint32_t data;
+        // memcpy to a temp dword to guarantee no issues with any misaligned reads on certain architectures
+        memcpy(&data, data_p, sizeof(uint32_t));
+        caliptra_mbox_write(MBOX_CSR_MBOX_DATAIN, data);
+        data_p += sizeof(uint32_t);
         remaining_len -= sizeof(uint32_t);
     }
 
@@ -491,7 +498,7 @@ static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
     if (remaining_len)
     {
         uint32_t data = 0;
-        memcpy(&data, data_dw, remaining_len);
+        memcpy(&data, data_p, remaining_len);
         caliptra_mbox_write(MBOX_CSR_MBOX_DATAIN, data);
     }
 
@@ -526,12 +533,14 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer, uint32_t *
         return INVALID_PARAMS;
     }
 
-    uint32_t *data_dw = (uint32_t *)buffer->data;
+    uint8_t *data_p = (uint8_t *)buffer->data;
 
     // Copy DWord multiples
     while (remaining_len >= sizeof(uint32_t))
     {
-        *data_dw++ = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
+        uint32_t data = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
+        memcpy(data_p, &data, sizeof(uint32_t));
+        data_p += sizeof(uint32_t);
         remaining_len -= sizeof(uint32_t);
         if (bytes_read) {
             *bytes_read += 4;
@@ -542,7 +551,7 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer, uint32_t *
     if (remaining_len)
     {
         uint32_t data = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
-        memcpy(data_dw, &data, remaining_len);
+        memcpy(data_p, &data, remaining_len);
         if (bytes_read) {
             *bytes_read += remaining_len;
         }
@@ -781,6 +790,9 @@ static int pack_and_execute_command(struct parcel *parcel, bool async)
         .len  = parcel->rx_bytes,
     };
 
+    // Clear the rx buffer before use to avoid stale data in the response
+    memset(rx_buf.data, 0, rx_buf.len);
+
     // Calculate and populate the checksum field
     // Clear the checksum field before calculating
     *((caliptra_checksum*)tx_buf.data) = 0x0;
@@ -983,9 +995,7 @@ int caliptra_populate_idev_ecc384_cert(struct caliptra_populate_idev_ecc384_cert
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_POPULATE_IDEV_ECC384_CERT, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_POPULATE_IDEV_ECC384_CERT, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1071,9 +1081,7 @@ int caliptra_populate_idev_mldsa87_cert(struct caliptra_populate_idev_mldsa87_ce
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_POPULATE_IDEV_MLDSA87_CERT, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_POPULATE_IDEV_MLDSA87_CERT, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1131,9 +1139,7 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool asyn
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_ECDSA384_VERIFY, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_ECDSA384_VERIFY, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1146,9 +1152,7 @@ int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async)
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_LMS_VERIFY, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_LMS_VERIFY, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1217,10 +1221,9 @@ int caliptra_invoke_dpe_mldsa87_command(struct caliptra_invoke_dpe_mldsa87_req *
 // Disable attestation
 int caliptra_disable_attestation(bool async)
 {
-    struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_DISABLE_ATTESTATION, &checksum, &resp_hdr);
+    CREATE_PARCEL(p, OP_DISABLE_ATTESTATION, &checksum, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1248,9 +1251,7 @@ int caliptra_dpe_tag_tci(struct caliptra_dpe_tag_tci_req *req, bool async)
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_DPE_TAG_TCI, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_DPE_TAG_TCI, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1276,9 +1277,7 @@ int caliptra_increment_pcr_reset_counter(struct caliptra_increment_pcr_reset_cou
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_INCREMENT_PCR_RESET_COUNTER, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_INCREMENT_PCR_RESET_COUNTER, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1317,9 +1316,7 @@ int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async)
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_EXTEND_PCR, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_EXTEND_PCR, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1332,9 +1329,7 @@ int caliptra_add_subject_alt_name(struct caliptra_add_subject_alt_name_req *req,
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_ADD_SUBJECT_ALT_NAME, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_ADD_SUBJECT_ALT_NAME, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1459,9 +1454,7 @@ int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_hand
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_REVOKE_EXPORTED_CDI_HANDLE, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_REVOKE_EXPORTED_CDI_HANDLE, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1469,10 +1462,9 @@ int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_hand
 // Self test start
 int caliptra_self_test_start(bool async)
 {
-    struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_SELF_TEST_START, &checksum, &resp_hdr);
+    CREATE_PARCEL(p, OP_SELF_TEST_START, &checksum, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1480,10 +1472,9 @@ int caliptra_self_test_start(bool async)
 // Self test get results
 int caliptra_self_test_get_results(bool async)
 {
-    struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_SELF_TEST_GET_RESULTS, &checksum, &resp_hdr);
+    CREATE_PARCEL(p, OP_SELF_TEST_GET_RESULTS, &checksum, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1491,10 +1482,9 @@ int caliptra_self_test_get_results(bool async)
 // Shutdown
 int caliptra_shutdown(bool async)
 {
-    struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_SHUTDOWN, &checksum, &resp_hdr);
+    CREATE_PARCEL(p, OP_SHUTDOWN, &checksum, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1522,9 +1512,7 @@ int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool 
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_SET_AUTH_MANIFEST, req, &resp_hdr);
+    CREATE_PARCEL(p,OP_SET_AUTH_MANIFEST, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
