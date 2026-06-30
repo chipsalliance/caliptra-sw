@@ -109,7 +109,7 @@ pub(crate) fn extend_pcrs(
         data_vault.cold_boot_fw_svn() as u8,
         data_vault.vendor_ecc_pk_index() as u8,
         data_vault.vendor_pqc_pk_index() as u8,
-        soc_ifc.subsystem_mode() as u8,
+        soc_ifc.subsystem_mode() as u8, // CPTRA_HW_CONFIG.subsystem_mode_en (0=passive, 1=subsystem)
     ];
 
     let mut pcr = PcrExtender {

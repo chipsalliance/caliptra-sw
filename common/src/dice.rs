@@ -266,7 +266,7 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
     // Image Bundle FW SVN from cold boot (u8)
     // PK Index ECC (u8)
     // PK Index PQC (u8)
-    // Subsystem mode (u8)
+    // Subsystem mode (CPTRA_HW_CONFIG.subsystem_mode_en) (u8)
     let mut fuse_vendor_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
 
