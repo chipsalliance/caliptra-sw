@@ -115,6 +115,10 @@ When the feature is available, ROM derives the Stable Owner Root Key during the 
 
 If subsystem mode is not active, the strap is clear, or OCP LOCK is enabled, ROM skips this derivation and `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` is unavailable.
 
+The following diagram summarizes the ROM-populated stable roots, including IDevID, LDevID, and the optional Owner root:
+
+![Stable Root Key Derivation](doc/svg/stable-root-derivation.svg)
+
 For a comprehensive overview of the SOC interface registers, please refer to the following link::
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
