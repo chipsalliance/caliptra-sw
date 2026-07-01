@@ -36,9 +36,10 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 #[cfg(feature = "mldsa_attestation")]
 use {
     caliptra_drivers::{
-        Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
+        Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
+        MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
     },
-    crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey},
+    crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
     zeroize::Zeroizing,
 };
 
@@ -279,9 +280,24 @@ impl<'a> DpeCrypto<'a> {
     }
 
     #[cfg(feature = "mldsa_attestation")]
-    fn sign_helper_mldsa(_data: &SignData, _seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
-        // TODO: Issue #3936 - Implement MLDSA DPE Hash.
-        Err(CryptoError::MismatchedAlgorithm)
+    fn sign_helper_mldsa(data: &SignData, seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
+        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        match data {
+            SignData::ResponseBuffer(buf, range) => {
+                let mut mu = [0u8; MLDSA87_MU_BYTES];
+                Mldsa87::generate_mu(seed, *buf, range.clone(), &mut mu)
+                    .map_err(|_| CryptoError::HashError(0))?;
+                Mldsa87::sign_mu_deterministic(seed, &mu, &mut sig)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
+            }
+            SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, &mut sig)
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
+            SignData::Mu(mu) => Mldsa87::sign_mu_deterministic(seed, &mu.0, &mut sig)
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
+            _ => return Err(CryptoError::MismatchedAlgorithm),
+        }?;
+
+        Ok(Signature::Mldsa(MldsaSignature(sig)))
     }
 }
 
