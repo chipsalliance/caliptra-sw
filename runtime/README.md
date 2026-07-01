@@ -2334,6 +2334,10 @@ mailbox functions can be used to derive a key from the returned CMK.
 
 Note that in Caliptra 2.0 in subsystem mode, derived stable keys, their derivatives, and commands using them will be marked with a FIPS status of invalid since the UDS and FE cannot be completely zeroized.
 
+The command derivation is summarized below:
+
+![CM_DERIVE_STABLE_KEY Derivation](../rom/dev/doc/svg/cm-derive-stable-key.svg)
+
 Command Code: `0x434D_4453` ("CMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*
