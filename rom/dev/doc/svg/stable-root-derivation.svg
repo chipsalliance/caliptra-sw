@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="820" viewBox="0 0 1180 820" role="img" aria-labelledby="title desc">
+  <title id="title">Caliptra stable root key derivation</title>
+  <desc id="desc">Diagram showing ROM derivation of Stable IDevID, Stable LDevID, and optional Stable Owner root keys.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f3437"/>
+    </marker>
+    <style>
+      .title { font: 700 24px Arial, sans-serif; fill: #1f2528; }
+      .lane-title { font: 700 18px Arial, sans-serif; fill: #1f2528; }
+      .label { font: 600 15px Arial, sans-serif; fill: #1f2528; }
+      .small { font: 13px Arial, sans-serif; fill: #3c4448; }
+      .tiny { font: 12px Arial, sans-serif; fill: #4d555a; }
+      .source { fill: #eaf4f8; stroke: #2f3437; stroke-width: 1.4; }
+      .kdf { fill: #dff1f7; stroke: #2f3437; stroke-width: 1.4; }
+      .hmac { fill: #fff2c7; stroke: #2f3437; stroke-width: 1.4; }
+      .output { fill: #e8f5e8; stroke: #2f3437; stroke-width: 1.4; }
+      .owner { fill: #f7e5e2; stroke: #2f3437; stroke-width: 1.4; }
+      .note { fill: #f8f9fa; stroke: #8b949e; stroke-width: 1.2; }
+      .line { stroke: #2f3437; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+      .soft-line { stroke: #6a737d; stroke-width: 1.3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1180" height="820" fill="#ffffff"/>
+  <text x="40" y="44" class="title">Stable Root Key Derivation in ROM</text>
+  <text x="40" y="70" class="small">ROM derives write-locked AES-usage root keys that later feed CM_DERIVE_STABLE_KEY.</text>
+
+  <text x="48" y="122" class="lane-title">Stable IDevID Root</text>
+  <rect x="50" y="150" width="160" height="72" rx="8" class="source"/>
+  <text x="130" y="179" text-anchor="middle" class="label">CDI_IDEVID</text>
+  <text x="130" y="202" text-anchor="middle" class="small">KV slot 6</text>
+
+  <polygon points="300,146 440,146 416,226 324,226" class="kdf"/>
+  <text x="370" y="178" text-anchor="middle" class="label">KBKDF</text>
+  <text x="370" y="201" text-anchor="middle" class="label">512</text>
+  <rect x="286" y="92" width="168" height="44" rx="4" fill="#ffffff" stroke="#2f3437" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="370" y="111" text-anchor="middle" class="small">"stable_identity</text>
+  <text x="370" y="128" text-anchor="middle" class="small">_root_idev"</text>
+
+  <rect x="530" y="150" width="210" height="72" rx="8" class="output"/>
+  <text x="635" y="176" text-anchor="middle" class="label">STABLE_IDEV_ROOT</text>
+  <text x="635" y="198" text-anchor="middle" class="small">KeyId0 / AES key</text>
+  <text x="635" y="216" text-anchor="middle" class="tiny">write-locked</text>
+
+  <path d="M210 186 L300 186" class="line"/>
+  <path d="M440 186 L530 186" class="line"/>
+
+  <text x="48" y="300" class="lane-title">Stable LDevID Root</text>
+  <rect x="50" y="328" width="160" height="72" rx="8" class="source"/>
+  <text x="130" y="357" text-anchor="middle" class="label">CDI_LDEVID</text>
+  <text x="130" y="380" text-anchor="middle" class="small">KV slot 6</text>
+
+  <polygon points="300,324 440,324 416,404 324,404" class="kdf"/>
+  <text x="370" y="356" text-anchor="middle" class="label">KBKDF</text>
+  <text x="370" y="379" text-anchor="middle" class="label">512</text>
+  <rect x="286" y="270" width="168" height="44" rx="4" fill="#ffffff" stroke="#2f3437" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="370" y="289" text-anchor="middle" class="small">"stable_identity</text>
+  <text x="370" y="306" text-anchor="middle" class="small">_root_ldev"</text>
+
+  <rect x="530" y="328" width="210" height="72" rx="8" class="output"/>
+  <text x="635" y="354" text-anchor="middle" class="label">STABLE_LDEV_ROOT</text>
+  <text x="635" y="376" text-anchor="middle" class="small">KeyId1 / AES key</text>
+  <text x="635" y="394" text-anchor="middle" class="tiny">write-locked</text>
+
+  <path d="M210 364 L300 364" class="line"/>
+  <path d="M440 364 L530 364" class="line"/>
+  <text x="56" y="424" class="tiny">Derived after Field Entropy is mixed into the LDevID CDI.</text>
+
+  <text x="48" y="466" class="lane-title">Optional Stable Owner Root</text>
+  <rect x="50" y="542" width="160" height="78" rx="8" class="source"/>
+  <text x="130" y="569" text-anchor="middle" class="label">HEK seed</text>
+  <text x="130" y="591" text-anchor="middle" class="small">KeyId14</text>
+  <text x="130" y="609" text-anchor="middle" class="tiny">HMAC block data</text>
+
+  <polygon points="285,536 425,536 402,626 308,626" class="hmac"/>
+  <text x="355" y="568" text-anchor="middle" class="label">HMAC</text>
+  <text x="355" y="591" text-anchor="middle" class="label">512</text>
+  <text x="355" y="612" text-anchor="middle" class="tiny">HKDF-Extract</text>
+  <rect x="265" y="482" width="180" height="44" rx="4" fill="#ffffff" stroke="#2f3437" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="355" y="501" text-anchor="middle" class="small">salt:</text>
+  <text x="355" y="518" text-anchor="middle" class="small">"stable_owner_root_key"</text>
+
+  <rect x="500" y="542" width="142" height="78" rx="8" class="owner"/>
+  <text x="571" y="570" text-anchor="middle" class="label">PRK</text>
+  <text x="571" y="592" text-anchor="middle" class="small">KeyId14</text>
+  <text x="571" y="610" text-anchor="middle" class="tiny">HMAC key</text>
+
+  <polygon points="715,536 855,536 832,626 738,626" class="kdf"/>
+  <text x="785" y="568" text-anchor="middle" class="label">KBKDF</text>
+  <text x="785" y="591" text-anchor="middle" class="label">512</text>
+  <text x="785" y="612" text-anchor="middle" class="tiny">HKDF-Expand</text>
+  <rect x="695" y="482" width="180" height="44" rx="4" fill="#ffffff" stroke="#2f3437" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="785" y="501" text-anchor="middle" class="small">"stable_owner</text>
+  <text x="785" y="518" text-anchor="middle" class="small">_root_key"</text>
+
+  <rect x="930" y="542" width="210" height="78" rx="8" class="output"/>
+  <text x="1035" y="568" text-anchor="middle" class="label">STABLE_OWNER_ROOT</text>
+  <text x="1035" y="590" text-anchor="middle" class="small">KeyId15 / AES key</text>
+  <text x="1035" y="608" text-anchor="middle" class="tiny">write-locked</text>
+
+  <path d="M210 581 L285 581" class="line"/>
+  <path d="M425 581 L500 581" class="line"/>
+  <path d="M642 581 L715 581" class="line"/>
+  <path d="M855 581 L930 581" class="line"/>
+
+  <rect x="50" y="682" width="1090" height="86" rx="8" class="note"/>
+  <text x="72" y="710" class="label">Availability and lifetime</text>
+  <text x="72" y="735" class="small">Stable Owner Root is derived only in subsystem mode when SS_STRAP_GENERIC[3][0] is set and OCP LOCK is disabled.</text>
+  <text x="72" y="758" class="small">Root keys stay in key vault and are write-locked; CM_DERIVE_STABLE_KEY derives wrapped key material from these roots.</text>
+</svg>

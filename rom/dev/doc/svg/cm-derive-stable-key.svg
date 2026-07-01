@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="620" viewBox="0 0 1180 620" role="img" aria-labelledby="title desc">
+  <title id="title">CM_DERIVE_STABLE_KEY derivation</title>
+  <desc id="desc">Diagram showing how CM_DERIVE_STABLE_KEY derives wrapped stable key material from a ROM-populated stable root key.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f3437"/>
+    </marker>
+    <style>
+      .title { font: 700 24px Arial, sans-serif; fill: #1f2528; }
+      .section { font: 700 18px Arial, sans-serif; fill: #1f2528; }
+      .label { font: 600 15px Arial, sans-serif; fill: #1f2528; }
+      .small { font: 13px Arial, sans-serif; fill: #3c4448; }
+      .tiny { font: 12px Arial, sans-serif; fill: #4d555a; }
+      .root { fill: #e8f5e8; stroke: #2f3437; stroke-width: 1.4; }
+      .input { fill: #f8f9fa; stroke: #2f3437; stroke-width: 1.4; }
+      .cmac { fill: #dff1f7; stroke: #2f3437; stroke-width: 1.4; }
+      .hmac { fill: #fff2c7; stroke: #2f3437; stroke-width: 1.4; }
+      .material { fill: #f7e5e2; stroke: #2f3437; stroke-width: 1.4; }
+      .wrap { fill: #eee7fa; stroke: #2f3437; stroke-width: 1.4; }
+      .note { fill: #ffffff; stroke: #8b949e; stroke-width: 1.2; }
+      .line { stroke: #2f3437; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+      .soft-line { stroke: #6a737d; stroke-width: 1.3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1180" height="620" fill="#ffffff"/>
+  <text x="40" y="44" class="title">CM_DERIVE_STABLE_KEY</text>
+  <text x="40" y="70" class="small">Runtime and ROM use the same mailbox command flow: select a stable root, derive key material, then return it as an encrypted CMK.</text>
+
+  <rect x="44" y="112" width="220" height="184" rx="8" class="root"/>
+  <text x="154" y="140" text-anchor="middle" class="section">Selected Stable Root</text>
+  <text x="154" y="170" text-anchor="middle" class="small">key_type = IDevId</text>
+  <text x="154" y="190" text-anchor="middle" class="tiny">KEY_ID_STABLE_IDEV / KeyId0</text>
+  <text x="154" y="216" text-anchor="middle" class="small">key_type = LDevId</text>
+  <text x="154" y="236" text-anchor="middle" class="tiny">KEY_ID_STABLE_LDEV / KeyId1</text>
+  <text x="154" y="262" text-anchor="middle" class="small">key_type = OwnerKey</text>
+  <text x="154" y="282" text-anchor="middle" class="tiny">KEY_ID_STABLE_OWNER / KeyId15</text>
+
+  <rect x="44" y="330" width="220" height="82" rx="8" class="input"/>
+  <text x="154" y="361" text-anchor="middle" class="section">Request Info</text>
+  <text x="154" y="386" text-anchor="middle" class="small">info[32]</text>
+
+  <polygon points="360,150 520,150 492,250 388,250" class="cmac"/>
+  <text x="440" y="185" text-anchor="middle" class="label">CMAC-KDF</text>
+  <text x="440" y="209" text-anchor="middle" class="label">AES-256</text>
+  <text x="440" y="232" text-anchor="middle" class="small">4 rounds</text>
+
+  <rect x="595" y="166" width="150" height="68" rx="8" class="material"/>
+  <text x="670" y="194" text-anchor="middle" class="label">K0</text>
+  <text x="670" y="216" text-anchor="middle" class="small">64 bytes</text>
+
+  <polygon points="830,150 990,150 962,250 858,250" class="hmac"/>
+  <text x="910" y="185" text-anchor="middle" class="label">KBKDF</text>
+  <text x="910" y="209" text-anchor="middle" class="label">HMAC-SHA512</text>
+  <text x="910" y="232" text-anchor="middle" class="small">final key material</text>
+
+  <rect x="770" y="300" width="220" height="132" rx="8" class="input"/>
+  <text x="880" y="328" text-anchor="middle" class="section">Domain Input</text>
+  <text x="880" y="354" text-anchor="middle" class="small">IDevId/LDevId:</text>
+  <text x="880" y="376" text-anchor="middle" class="tiny">"DOT Final" || info</text>
+  <text x="880" y="402" text-anchor="middle" class="small">OwnerKey:</text>
+  <text x="880" y="424" text-anchor="middle" class="tiny">"Stable Owner Key" || info</text>
+
+  <rect x="1014" y="150" width="126" height="100" rx="8" class="material"/>
+  <text x="1077" y="184" text-anchor="middle" class="label">Stable Key</text>
+  <text x="1077" y="207" text-anchor="middle" class="small">64 bytes</text>
+  <text x="1077" y="229" text-anchor="middle" class="tiny">HMAC CMK data</text>
+
+  <rect x="1014" y="338" width="126" height="72" rx="8" class="wrap"/>
+  <text x="1077" y="367" text-anchor="middle" class="label">Encrypted</text>
+  <text x="1077" y="389" text-anchor="middle" class="label">CMK</text>
+
+  <path d="M264 188 L360 188" class="line"/>
+  <text x="306" y="176" text-anchor="middle" class="tiny">AES key</text>
+  <path d="M264 371 L360 226" class="soft-line"/>
+  <text x="318" y="314" text-anchor="middle" class="tiny">label = info</text>
+  <path d="M520 200 L595 200" class="line"/>
+  <path d="M745 200 L830 200" class="line"/>
+  <text x="787" y="188" text-anchor="middle" class="tiny">HMAC key</text>
+  <path d="M880 300 L910 250" class="soft-line"/>
+  <text x="830" y="282" text-anchor="middle" class="tiny">label input</text>
+  <path d="M990 200 L1014 200" class="line"/>
+  <path d="M1077 250 L1077 338" class="line"/>
+
+  <rect x="44" y="472" width="1096" height="92" rx="8" class="note"/>
+  <text x="68" y="501" class="label">Derivation summary</text>
+  <text x="68" y="526" class="small">K0 = CMAC-KDF(selected stable root, label = info, context = None, rounds = 4)</text>
+  <text x="68" y="549" class="small">StableKey = KBKDF-HMAC-SHA512(K0, label = prefix || info, context = None); the response contains this material wrapped as a CMK.</text>
+</svg>

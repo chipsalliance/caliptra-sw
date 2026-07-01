@@ -2748,6 +2748,10 @@ as the domain-separation input to produce the returned 64-byte HMAC key
 material. Caliptra wraps that key material as an encrypted CMK before returning
 it to the caller.
 
+The command derivation is summarized below:
+
+![CM_DERIVE_STABLE_KEY Derivation](../rom/dev/doc/svg/cm-derive-stable-key.svg)
+
 Command Code: `0x434D_4453` ("CMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*
