@@ -15,6 +15,7 @@ Abstract:
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::cprintln;
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
@@ -110,7 +111,8 @@ impl Platform for DpePlatform<'_> {
         out: &mut [u8; MAX_ISSUER_NAME_SIZE],
     ) -> Result<usize, PlatformError> {
         const CALIPTRA_CN: &[u8] = b"Caliptra 1.0 Rt Alias";
-        let mut issuer_writer = CertWriter::new(out, self.profile.into(), true);
+        let mut issuer_buf = SliceResponseBuffer::new(out.as_mut_slice());
+        let mut issuer_writer = CertWriter::new(&mut issuer_buf, self.profile.into(), true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
@@ -124,7 +126,7 @@ impl Platform for DpePlatform<'_> {
         };
         let issuer_len = issuer_writer
             .encode_rdn(&name)
-            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
+            .map_err(|e| PlatformError::IssuerNameError(e.get_error_code()))?;
 
         Ok(issuer_len)
     }

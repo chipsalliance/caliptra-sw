@@ -15,7 +15,7 @@ Abstract:
 use crate::packet::copy_from_mbox;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
+    GetTaggedTciReq, GetTaggedTciResp, MailboxRespHeader, TagTciReq,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
@@ -27,7 +27,7 @@ pub struct TagTciCmd;
 impl TagTciCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = TagTciReq::new_zeroed();
         copy_from_mbox(drivers, cmd.as_mut_bytes())?;
         let pdata_mut = drivers.persistent_data.get_mut();
@@ -58,7 +58,7 @@ impl TagTciCmd {
         context_has_tag[idx] = U8Bool::new(true);
         context_tags[idx] = cmd.tag;
 
-        Ok(MailboxResp::default())
+        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 }
 
@@ -66,7 +66,7 @@ pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = GetTaggedTciReq::new_zeroed();
         copy_from_mbox(drivers, cmd.as_mut_bytes())?;
         let persistent_data = drivers.persistent_data.get();
@@ -85,10 +85,11 @@ impl GetTaggedTciCmd {
         }
         let context = persistent_data.dpe.contexts[idx];
 
-        Ok(MailboxResp::GetTaggedTci(GetTaggedTciResp {
+        let mut resp = GetTaggedTciResp {
             hdr: MailboxRespHeader::default(),
             tci_cumulative: context.tci.tci_cumulative.0,
             tci_current: context.tci.tci_current.0,
-        }))
+        };
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }

@@ -23,7 +23,8 @@ use caliptra_hw_model::{
 use caliptra_image_types::ImageBundle;
 use dpe::{
     commands::{Command, CommandHdr},
-    response::{DpeErrorCode, Response, ResponseHdr},
+    error::DpeErrorCode,
+    response::{Response, ResponseHdr},
     DpeProfile,
 };
 use openssl::{

@@ -1,5 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use core::ops::Range;
+
+use caliptra_dpe_response_buffer::{ResponseBufError, ResponseBuffer};
+
 /// Verify checksum
 pub fn verify_checksum(checksum: u32, cmd: u32, data: &[u8]) -> bool {
     calc_checksum(cmd, data) == checksum
@@ -18,8 +22,28 @@ pub fn calc_checksum(cmd: u32, data: &[u8]) -> u32 {
     0u32.wrapping_sub(checksum)
 }
 
+/// Calculate the checksum on top of a ResponseBuffer.  Since this is a response the command is
+/// automatically assigned to be 0, and thus only the data is added to the checksum.
+pub fn response_buffer_checksum(
+    buffer: &dyn ResponseBuffer,
+    range: Range<usize>,
+) -> Result<u32, ResponseBufError> {
+    let mut checksum = 0u32;
+    buffer.read_range(range, &mut |data| {
+        for d in data {
+            checksum = checksum.wrapping_add(*d as u32);
+        }
+
+        Ok(())
+    })?;
+
+    Ok(0u32.wrapping_sub(checksum))
+}
+
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
+    use caliptra_dpe_response_buffer::SliceResponseBuffer;
+
     use super::*;
 
     #[test]
@@ -63,5 +87,13 @@ mod tests {
         let data = [0x00000000u32; 1];
         let checksum = calc_checksum(cmd, data[0].to_le_bytes().as_ref());
         assert!(verify_checksum(checksum, cmd, &data[0].to_le_bytes()));
+    }
+
+    #[test]
+    fn test_response_buffer_round_trip() {
+        let mut data = [0x01, 0x02, 0x03, 0x04];
+        let checksum =
+            response_buffer_checksum(&SliceResponseBuffer::new(&mut data), 0..4).unwrap();
+        assert!(verify_checksum(checksum, 0, &data));
     }
 }

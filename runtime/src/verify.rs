@@ -17,7 +17,7 @@ use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "mldsa_attestation")]
 use caliptra_common::mailbox_api::Mldsa87VerifyReq;
-use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxRespHeader};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, LmsResult,
@@ -33,7 +33,7 @@ pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = EcdsaVerifyReq::new_zeroed();
         copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -59,7 +59,7 @@ impl EcdsaVerifyCmd {
             return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
 
-        Ok(MailboxResp::default())
+        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 }
 
@@ -67,7 +67,7 @@ pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = LmsVerifyReq::new_zeroed();
         copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -134,7 +134,7 @@ impl LmsVerifyCmd {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
         }
 
-        Ok(MailboxResp::default())
+        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 }
 
@@ -144,7 +144,7 @@ pub struct Mldsa87VerifyCmd;
 impl Mldsa87VerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = Mldsa87VerifyReq::new_zeroed();
         copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -167,6 +167,6 @@ impl Mldsa87VerifyCmd {
             return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
 
-        Ok(MailboxResp::default())
+        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 }

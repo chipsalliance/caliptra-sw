@@ -7,9 +7,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 
-use caliptra_common::mailbox_api::{
-    MailboxResp, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
-};
+use caliptra_common::mailbox_api::{RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp};
 use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -22,7 +20,7 @@ pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = RevokeExportedCdiHandleReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -54,9 +52,8 @@ impl RevokeExportedCdiHandleCmd {
                     *active = U8Bool::new(false);
                     slot.zeroize();
 
-                    return Ok(MailboxResp::RevokeExportedCdiHandle(
-                        RevokeExportedCdiHandleResp::default(),
-                    ));
+                    let mut resp = RevokeExportedCdiHandleResp::default();
+                    return crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes());
                 }
                 _ => (),
             }

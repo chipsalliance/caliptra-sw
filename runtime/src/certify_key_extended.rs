@@ -12,20 +12,20 @@ Abstract:
 
 --*/
 
+use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, MboxResponseWriter, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
+    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, MailboxRespHeader, MailboxRespHeaderVarSize,
 };
-use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_dpe_response_buffer::{OffsetResponseBuffer, ResponseBuffer};
+use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::commands::{CertifyKeyP384Cmd, Command};
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
-
-use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = CertifyKeyExtendedReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -50,25 +50,24 @@ impl CertifyKeyExtendedCmd {
         let certify_key_cmd = CertifyKeyP384Cmd::ref_from_bytes(&cmd.certify_key_req[..])
             .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let command = Command::from(certify_key_cmd);
-        let mut certify_key_extended_resp = CertifyKeyExtendedResp::default();
-        let result = invoke_dpe_cmd(
-            drivers,
-            &command,
-            dmtf_device_info,
-            None,
-            None,
-            &mut certify_key_extended_resp.certify_key_resp,
-        );
 
-        let resp_size = result.map_err(|e| {
-            // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
-                drivers.soc_ifc.set_fw_extended_error(ext_err);
-            }
-            CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED
-        })?;
-        certify_key_extended_resp.size = resp_size as u32;
+        let mut writer = MboxResponseWriter::from_mbox_base();
+        let mut w = OffsetResponseBuffer::new(&mut writer, size_of::<MailboxRespHeaderVarSize>());
 
-        Ok(MailboxResp::CertifyKeyExtended(certify_key_extended_resp))
+        let resp_size = invoke_dpe_cmd(drivers, &command, dmtf_device_info, None, None, &mut w)
+            .map_err(|e| {
+                drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
+                // The Mbox writer cannot encounter an error during clear, and the Certify Key
+                // extended error is more important.
+                let _ = writer.clear();
+                CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED
+            })?;
+
+        let header = MailboxRespHeaderVarSize {
+            hdr: MailboxRespHeader::default(),
+            data_len: resp_size as u32,
+        };
+        crate::packet::finalize_mbox_buffer(&mut drivers.mbox, &mut writer, header)?;
+        Ok(())
     }
 }

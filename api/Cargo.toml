@@ -12,6 +12,7 @@ bitflags.workspace = true
 caliptra-error.workspace = true
 caliptra-mldsa.workspace = true
 zerocopy.workspace = true
+caliptra-dpe-response-buffer.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-api-types.workspace = true

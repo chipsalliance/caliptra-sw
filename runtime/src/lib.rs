@@ -28,6 +28,7 @@ pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
+pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
 mod reallocate_dpe_context_limits;
@@ -80,6 +81,7 @@ pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use mbox_response_writer::MboxResponseWriter;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
@@ -88,7 +90,7 @@ pub use stash_measurement::StashMeasurementCmd;
 pub use verify::Mldsa87VerifyCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxResp};
+use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
 use packet::{copy_from_mbox, copy_to_mbox};
 use zerocopy::{FromZeros, IntoBytes};
 pub mod tagging;
@@ -96,7 +98,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{dpe_instance::DpeEnv, support::Support};
@@ -189,9 +191,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         );
     }
 
-    // Handle the request and generate the response
-    let mut resp = match drivers.mbox.cmd() {
-        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+    // Handle the request; each arm writes its response directly to MBOX SRAM.
+    match drivers.mbox.cmd() {
+        CommandId::FIRMWARE_LOAD => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
         CommandId::GET_IDEV_INFO => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
@@ -207,7 +209,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
         CommandId::DISABLE_ATTESTATION => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
-            DisableAttestationCmd::execute(drivers)
+            DisableAttestationCmd::execute(drivers)?;
+            copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
         }
         CommandId::FW_INFO => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
@@ -224,11 +227,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers),
         CommandId::VERSION => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
-            FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
+            let mut resp = FipsVersionCmd::execute(&drivers.soc_ifc)?;
+            copy_to_mbox(drivers, resp.as_mut_bytes())
         }
         CommandId::CAPABILITIES => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
-            CapabilitiesCmd::execute()
+            CapabilitiesCmd::execute(drivers)
         }
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => {
@@ -237,7 +241,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 SelfTestStatus::Idle => {
                     drivers.self_test_status =
                         SelfTestStatus::InProgress(fips_self_test_cmd::execute);
-                    Ok(MailboxResp::default())
+                    copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
                 }
                 _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
             }
@@ -248,7 +252,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             match drivers.self_test_status {
                 SelfTestStatus::Done => {
                     drivers.self_test_status = SelfTestStatus::Idle;
-                    Ok(MailboxResp::default())
+                    copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
                 }
                 _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
             }
@@ -270,12 +274,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SIGN_WITH_EXPORTED_ECDSA => SignWithExportedEcdsaCmd::execute(drivers),
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => RevokeExportedCdiHandleCmd::execute(drivers),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => ReallocateDpeContextLimitsCmd::execute(drivers),
-        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-    };
-    let resp = okmutref(&mut resp)?;
-
-    // Send the response
-    copy_to_mbox(drivers, resp)?;
+        _ => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+    }?;
 
     Ok(MboxStatusE::DataReady)
 }

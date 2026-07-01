@@ -938,6 +938,7 @@ fn generate_priv_internal(
     );
 }
 
+#[inline(never)]
 fn sign_internal_with_mu(
     out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
     priv_key: &PrivateKey,

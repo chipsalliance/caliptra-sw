@@ -16,7 +16,7 @@ use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
-    response::DpeErrorCode,
+    error::DpeErrorCode,
     tci::TciMeasurement,
     validation::ValidationError,
     U8Bool, MAX_HANDLES, TCI_SIZE,

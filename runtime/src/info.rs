@@ -13,13 +13,14 @@ Abstract:
 --*/
 
 use crate::{handoff::RtHandoff, Drivers};
-use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraResult;
+use zerocopy::IntoBytes;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
 
         let handoff = RtHandoff {
@@ -32,7 +33,7 @@ impl FwInfoCmd {
         let fmc_manifest_svn = handoff.fmc_svn()?;
         let rom_info = handoff.fht.rom_info_addr.get()?;
 
-        Ok(MailboxResp::FwInfo(FwInfoResp {
+        let mut resp = FwInfoResp {
             hdr: MailboxRespHeader::default(),
             pl0_pauser: pdata.manifest1.header.pl0_pauser,
             runtime_svn,
@@ -47,21 +48,23 @@ impl FwInfoCmd {
             runtime_sha384_digest: pdata.manifest1.runtime.digest,
             owner_pub_key_hash: drivers.data_vault.owner_pk_hash().into(),
             authman_sha384_digest: pdata.auth_manifest_digest,
-        }))
+        };
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
 
 pub struct IDevIdInfoCmd;
 impl IDevIdInfoCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let pub_key = pdata.fht.idev_dice_pub_key;
 
-        Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
+        let mut resp = GetIdevInfoResp {
             hdr: MailboxRespHeader::default(),
             idev_pub_x: pub_key.x.into(),
             idev_pub_y: pub_key.y.into(),
-        }))
+        };
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }

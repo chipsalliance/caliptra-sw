@@ -215,6 +215,7 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-api-types",
  "caliptra-builder",
+ "caliptra-dpe-response-buffer",
  "caliptra-emu-types",
  "caliptra-error",
  "caliptra-image-types",
@@ -319,7 +320,7 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-derive"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=72c75dc70cde4120a9ce149d4f5cb21621399958#72c75dc70cde4120a9ce149d4f5cb21621399958"
 dependencies = [
  "pastey",
  "proc-macro2",
@@ -330,7 +331,7 @@ dependencies = [
 [[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=aa96c53073ce7f298f7482c1ac57f5f65ffc115e#aa96c53073ce7f298f7482c1ac57f5f65ffc115e"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=72c75dc70cde4120a9ce149d4f5cb21621399958#72c75dc70cde4120a9ce149d4f5cb21621399958"
 
 [[package]]
 name = "caliptra-coverage"
@@ -361,13 +362,14 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "bitflags 2.4.0",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "cfg-if 1.0.0",
  "constant_time_eq",
  "ufmt",
@@ -378,11 +380,12 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-dpe-response-buffer",
  "constant_time_eq",
  "zerocopy",
  "zeroize",
@@ -391,13 +394,18 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=bde76549610ea2446952661a9ddf717e4a58f0fa#bde76549610ea2446952661a9ddf717e4a58f0fa"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
  "cfg-if 1.0.0",
  "ufmt",
 ]
+
+[[package]]
+name = "caliptra-dpe-response-buffer"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=cf3224c41b64789aa556e4f0c78e7395c6528a43#cf3224c41b64789aa556e4f0c78e7395c6528a43"
 
 [[package]]
 name = "caliptra-drivers"
@@ -876,6 +884,7 @@ dependencies = [
  "caliptra-dpe",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-gen-linker-scripts",
@@ -891,6 +900,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-mldsa",
  "caliptra-registers",
+ "caliptra-shake",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",

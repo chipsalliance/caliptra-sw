@@ -12,16 +12,17 @@ Abstract:
 
 --*/
 
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
+
 use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
-};
+use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::{DeriveContextExportedCdiResp, DpeErrorCode},
+    error::DpeErrorCode,
+    response::DeriveContextExportedCdiResp,
     tci::TciMeasurement,
 };
 use zerocopy::{FromZeros, IntoBytes};
@@ -66,16 +67,15 @@ impl StashMeasurementCmd {
             let command = Command::from(&cmd);
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
             let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
+            let mut out = SliceResponseBuffer::new(&mut buf);
             let derive_context_resp =
-                invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality), &mut buf);
+                invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality), &mut out);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
                 Err(e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                    if let Some(ext_err) = e.get_error_detail() {
-                        drivers.soc_ifc.set_fw_extended_error(ext_err);
-                    }
+                    drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     e
                 }
             }
@@ -93,16 +93,17 @@ impl StashMeasurementCmd {
         Ok(dpe_result)
     }
 
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = StashMeasurementReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         let dpe_result =
             Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;
 
-        Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
+        let mut resp = StashMeasurementResp {
             hdr: MailboxRespHeader::default(),
             dpe_result: dpe_result.get_error_code(),
-        }))
+        };
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }

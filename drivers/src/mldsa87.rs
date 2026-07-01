@@ -21,8 +21,8 @@ use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 
 pub use caliptra_mldsa::{
-    Mldsa87Result, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES,
-    MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
+    MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
 
 /// ML-DSA-87 deterministic key-generation / signing seed (32 bytes).
@@ -36,6 +36,8 @@ pub type Mldsa87PrivKey = [u8; MLDSA87_PRIVATE_KEY_BYTES];
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
 pub type Mldsa87Signature = [u8; MLDSA87_SIGNATURE_BYTES];
+
+pub type Mldsa87Mu = [u8; MLDSA87_MU_BYTES];
 
 /// Software ML-DSA-87 engine.
 ///
@@ -71,6 +73,26 @@ impl Mldsa87 {
             Some(priv_key) => Mldsa87Sw::key_pair_from_seed(seed, pub_key, priv_key),
             None => Mldsa87Sw::pub_from_seed(seed, pub_key),
         }
+        Ok(())
+    }
+
+    /// Deterministically sign `mu` with the key derived from `seed`.
+    ///
+    /// Determinism (no per-signature randomizer) means the same seed and message
+    /// always produce the same signature, which is what lets the CSR and DPE
+    /// artifacts be regenerated on demand instead of being stored.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - 32-byte private seed
+    /// * `mu` - Message digest to be signed
+    /// * `sig` - Buffer that receives the encoded signature
+    pub fn sign_mu_deterministic(
+        seed: &Mldsa87Seed,
+        mu: &Mldsa87Mu,
+        sig: &mut Mldsa87Signature,
+    ) -> CaliptraResult<()> {
+        Mldsa87Sw::sign_mu_deterministic(seed, mu, sig);
         Ok(())
     }
 

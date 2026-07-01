@@ -7,7 +7,7 @@ pub mod capabilities {
     pub use caliptra_api::Capabilities;
 }
 pub mod checksum {
-    pub use caliptra_api::{calc_checksum, verify_checksum};
+    pub use caliptra_api::{calc_checksum, response_buffer_checksum, verify_checksum};
 }
 pub mod crypto;
 pub mod dice;

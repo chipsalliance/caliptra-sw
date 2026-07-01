@@ -18,11 +18,13 @@ caliptra-auth-man-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
+caliptra-shake.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
 constant_time_eq.workspace = true
 crypto.workspace = true
 platform.workspace = true
+caliptra-dpe-response-buffer.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true

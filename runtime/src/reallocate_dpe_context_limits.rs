@@ -18,7 +18,7 @@ use crate::{
     PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN, PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, ReallocateDpeContextLimitsReq, ReallocateDpeContextLimitsResp,
+    MailboxRespHeader, ReallocateDpeContextLimitsReq, ReallocateDpeContextLimitsResp,
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 
@@ -27,7 +27,7 @@ use zerocopy::{FromZeros, IntoBytes};
 pub struct ReallocateDpeContextLimitsCmd;
 impl ReallocateDpeContextLimitsCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = ReallocateDpeContextLimitsReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
@@ -64,12 +64,12 @@ impl ReallocateDpeContextLimitsCmd {
         drivers.persistent_data.get_mut().dpe_pl1_context_limit =
             TOTAL_DPE_CONTEXT_LIMIT as u8 - cmd.pl0_context_limit as u8;
 
-        let resp = ReallocateDpeContextLimitsResp {
+        let mut resp = ReallocateDpeContextLimitsResp {
             hdr: MailboxRespHeader::default(),
             new_pl0_context_limit: drivers.persistent_data.get().dpe_pl0_context_limit as u32,
             new_pl1_context_limit: drivers.persistent_data.get().dpe_pl1_context_limit as u32,
         };
 
-        Ok(MailboxResp::ReallocateDpeContextLimits(resp))
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }

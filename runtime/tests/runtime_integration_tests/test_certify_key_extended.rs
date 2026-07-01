@@ -111,9 +111,10 @@ fn test_dmtf_other_name_extension_present() {
         panic!("Wrong response type!");
     };
 
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     let ext = cert.subject_alternative_name().unwrap().unwrap();
     assert!(!ext.critical);
     let san = ext.value;
@@ -169,9 +170,10 @@ fn test_dmtf_other_name_extension_not_present() {
     let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 
     // populate DMTF otherName
@@ -219,8 +221,9 @@ fn test_dmtf_other_name_extension_not_present() {
     let Response::CertifyKey(CertifyKeyResp::P384(certify_key_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let (_, cert) =
-        X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
-            .unwrap();
+    let (_, cert) = X509Certificate::from_der(
+        &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize],
+    )
+    .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
 }
