@@ -6,7 +6,7 @@ To update the register definitions (and RTL submodule) to the latest version of 
 ```console
 ~/git/caliptra-sw$ git submodule update --init  # If you haven't already populated the submodule
 ~/git/caliptra-sw$ (cd hw/latest/rtl/ && git checkout main && git pull --rebase)
-~/git/caliptra-sw$ registers/update.sh
+~/git/caliptra-sw$ registers/update.sh latest
    Compiling caliptra_registers_generator (~/git/caliptra-sw/registers/bin/generator)
      Running `~/git/caliptra-sw/target/release/caliptra_registers_generator ../../rtl-caliptra src/`
 Writing to "src/doe.rs"

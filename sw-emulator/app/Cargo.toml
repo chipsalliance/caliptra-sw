@@ -21,3 +21,7 @@ gdbstub_arch.workspace = true
 gdbstub.workspace = true
 hex.workspace = true
 tock-registers.workspace = true
+
+[features]
+rev-latest = ["caliptra-registers/rev-latest", "caliptra-hw-model/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1", "caliptra-hw-model/rev-2_1"]

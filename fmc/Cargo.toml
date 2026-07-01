@@ -50,3 +50,5 @@ cfi = [
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra-common/std", "caliptra-drivers/std", "caliptra-cpu/std"]
 verilator = ["caliptra-hw-model/verilator"]
+rev-latest = ["caliptra-registers/rev-latest", "caliptra-common/rev-latest", "caliptra-drivers/rev-latest", "caliptra-cpu/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1", "caliptra-common/rev-2_1",  "caliptra-drivers/rev-2_1", "caliptra-cpu/rev-2_1"]

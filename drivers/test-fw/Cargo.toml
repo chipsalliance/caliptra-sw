@@ -31,6 +31,8 @@ hex = { workspace = true }
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]
+rev-latest = ["caliptra-registers/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1"]
 
 
 # This feature is used to filter all these binary targets during normal builds
