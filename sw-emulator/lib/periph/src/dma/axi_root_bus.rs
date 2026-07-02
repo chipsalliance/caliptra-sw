@@ -30,7 +30,9 @@ use std::{rc::Rc, sync::mpsc};
 
 pub type AxiAddr = u64;
 
-const TEST_SRAM_SIZE: usize = 64 * 1024;
+// Large enough to stage firmware images bigger than the DMA's 1 MiB
+// per-transfer limit, so tests can exercise multi-transfer image hashing.
+const TEST_SRAM_SIZE: usize = 4 * 1024 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
 const MCU_SRAM_SIZE: usize = 384 * 1024;
 
@@ -117,9 +119,11 @@ impl AxiRootBus {
             if test_sram_content.len() > TEST_SRAM_SIZE {
                 panic!("test_sram_content length exceeds TEST_SRAM_SIZE");
             }
-            let mut sram_data = [0u8; TEST_SRAM_SIZE];
-            sram_data[..test_sram_content.len()].copy_from_slice(test_sram_content);
-            Some(ReadWriteMemory::new_with_data(sram_data))
+            // Allocate zeroed (heap-backed, so a large TEST_SRAM_SIZE does not
+            // overflow the stack) and copy the caller's content into the front.
+            let mut sram = ReadWriteMemory::new();
+            sram.data_mut()[..test_sram_content.len()].copy_from_slice(test_sram_content);
+            Some(sram)
         } else {
             None
         };
