@@ -24,6 +24,8 @@ emu = [
 ]
 fpga_realtime = ["caliptra-runtime/fpga_realtime"]
 fpga_subsystem = ["caliptra-runtime/fpga_subsystem"]
+rev-latest = ["caliptra-registers/rev-latest", "caliptra-cpu/rev-latest", "caliptra-drivers/rev-latest", "caliptra-runtime/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1", "caliptra-cpu/rev-2_1", "caliptra-drivers/rev-2_1", "caliptra-runtime/rev-2_1"]
 
 [[bin]]
 name = "boot"

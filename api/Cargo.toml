@@ -19,3 +19,7 @@ caliptra-image-types = { workspace = true, default-features = false }
 
 [dev-dependencies]
 caliptra-builder.workspace = true
+
+[features]
+rev-latest = ["caliptra-registers/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1"]

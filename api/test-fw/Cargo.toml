@@ -17,6 +17,8 @@ zerocopy.workspace = true
 [features]
 emu = ["caliptra-test-harness/emu"]
 riscv = ["caliptra-test-harness/riscv"]
+rev-latest = ["caliptra-registers/rev-latest", "caliptra-api/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1", "caliptra-api/rev-2_1"]
 
 [[bin]]
 name = "api_mailbox_panic_test"

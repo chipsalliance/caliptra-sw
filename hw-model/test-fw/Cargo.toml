@@ -9,6 +9,8 @@ edition = "2021"
 default = []
 riscv = ["caliptra-test-harness/riscv"]
 emu = ["caliptra-test-harness/emu"]
+rev-latest = ["caliptra-registers/rev-latest", "caliptra-api/rev-latest", "caliptra-drivers/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1", "caliptra-api/rev-2_1", "caliptra-drivers/rev-2_1"]
 
 [dependencies]
 caliptra-api.workspace = true

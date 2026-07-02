@@ -16,6 +16,8 @@ itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
 # Defaults `InitParams` to enable OCP LOCK.
 ocp-lock = []
+rev-latest = ["caliptra-registers/rev-latest"]
+rev-2_1 = ["caliptra-registers/rev-2_1"]
 
 [dependencies]
 anyhow.workspace = true

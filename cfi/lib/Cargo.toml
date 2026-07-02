@@ -9,7 +9,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra-registers.workspace = true
 caliptra-error.workspace = true
 ufmt.workspace = true
 

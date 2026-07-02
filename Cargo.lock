@@ -1036,10 +1036,19 @@ name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
  "caliptra-registers-latest",
+ "caliptra-registers-rev-2-1",
+ "mutually_exclusive_features",
 ]
 
 [[package]]
 name = "caliptra-registers-latest"
+version = "0.1.0"
+dependencies = [
+ "caliptra-ureg",
+]
+
+[[package]]
+name = "caliptra-registers-rev-2-1"
 version = "0.1.0"
 dependencies = [
  "caliptra-ureg",
@@ -3349,6 +3358,12 @@ dependencies = [
  "hybrid-array 0.4.8",
  "num-traits",
 ]
+
+[[package]]
+name = "mutually_exclusive_features"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e94e1e6445d314f972ff7395df2de295fe51b71821694f0b0e1e79c4f12c8577"
 
 [[package]]
 name = "nix"
