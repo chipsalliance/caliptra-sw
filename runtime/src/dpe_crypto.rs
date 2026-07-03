@@ -37,7 +37,7 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 use {
     caliptra_drivers::{
         Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
-        MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
+        MLDSA87_SIGNATURE_BYTES,
     },
     crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
     zeroize::Zeroizing,
@@ -435,8 +435,8 @@ impl Crypto for DpeCrypto<'_> {
             }
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa => {
-                let mut seed = Zeroizing::new([0u8; MLDSA87_PRIVATE_SEED_BYTES]);
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut seed = Mldsa87Seed::default();
+                let mut pub_key = Mldsa87PubKey::default();
                 self.derive_key_pair_mldsa(&cdi, label, info, &mut seed, &mut pub_key)?;
                 self.derived_key = Some(DerivedKey::Mldsa(seed));
             }
@@ -478,8 +478,8 @@ impl CdiManager for DpeCrypto<'_> {
 
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa => {
-                let mut seed = Zeroizing::new([0u8; MLDSA87_PRIVATE_SEED_BYTES]);
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut seed = Mldsa87Seed::default();
+                let mut pub_key = Mldsa87PubKey::default();
                 self.derive_key_pair_mldsa(&cdi, label, info, &mut seed, &mut pub_key)?;
                 self.derived_key = Some(DerivedKey::Mldsa(seed));
             }
@@ -524,10 +524,10 @@ impl crypto::Signer for DpeCrypto<'_> {
             Some(DerivedKey::Ec((_, pub_key))) => Ok(pub_key.clone()),
             #[cfg(feature = "mldsa_attestation")]
             Some(DerivedKey::Mldsa(seed)) => {
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut pub_key = Mldsa87PubKey::default();
                 Mldsa87::pub_from_seed(seed, &mut pub_key, None)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Ok(PubKey::Mldsa(MldsaPublicKey(pub_key)))
+                Ok(PubKey::Mldsa(MldsaPublicKey(*pub_key)))
             }
             _ => Err(CryptoError::CryptoLibError(4)),
         }
@@ -547,5 +547,5 @@ enum Signer<'a> {
 enum DerivedKey {
     Ec((KeyId, PubKey)),
     #[cfg(feature = "mldsa_attestation")]
-    Mldsa(Zeroizing<Mldsa87Seed>),
+    Mldsa(Mldsa87Seed),
 }
