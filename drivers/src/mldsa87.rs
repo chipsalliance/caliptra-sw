@@ -41,7 +41,6 @@ pub struct Mldsa87PubKey([u8; MLDSA87_PUBLIC_KEY_BYTES]);
 
 /// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).
 #[repr(transparent)]
-#[derive(Zeroize)]
 pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
