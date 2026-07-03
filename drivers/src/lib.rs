@@ -98,8 +98,6 @@ pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 
-#[cfg(feature = "mldsa_attestation")]
-pub use persistent::PQ_DEVID_SEED_SIZE;
 pub use persistent::{
     FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
     StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_FMC_ALIAS_CSR_SIZE, MAX_IDEVID_CSR_SIZE,
