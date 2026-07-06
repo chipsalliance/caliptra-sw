@@ -21,7 +21,7 @@ use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 use core::ops::{Deref, DerefMut};
 use zerocopy::{FromBytes, Immutable, KnownLayout};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use caliptra_mldsa::{
     Mldsa87Result, ResponseBufError, ResponseBuffer, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES,
@@ -31,7 +31,7 @@ pub use caliptra_mldsa::{
 
 /// ML-DSA-87 deterministic key-generation / signing seed (32 bytes).
 #[repr(transparent)]
-#[derive(Zeroize)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Mldsa87Seed([u8; MLDSA87_PRIVATE_SEED_BYTES]);
 
 /// ML-DSA-87 encoded public key (2,592 bytes).
@@ -41,6 +41,7 @@ pub struct Mldsa87PubKey([u8; MLDSA87_PUBLIC_KEY_BYTES]);
 
 /// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).
 #[repr(transparent)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
