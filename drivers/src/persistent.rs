@@ -46,11 +46,11 @@ pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
 pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const DPE_PL_CONTEXT_LIMITS_SIZE: u32 = 2;
-pub const PQ_DEVID_SEED_SIZE: u32 = 32;
+pub const PQ_DEVID_CDI_SIZE: u32 = 48;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
 #[cfg(feature = "mldsa_attestation")]
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
-pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2 - PQ_DEVID_SEED_SIZE - PQC_STATUS_FLAGS_SIZE;
+pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2 - PQ_DEVID_CDI_SIZE - PQC_STATUS_FLAGS_SIZE;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
@@ -321,9 +321,9 @@ pub struct PersistentData {
     pub dpe_pl1_context_limit: u8,
 
     #[cfg(feature = "mldsa_attestation")]
-    pub pq_devid_seed: [u8; PQ_DEVID_SEED_SIZE as usize],
+    pub pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
     #[cfg(not(feature = "mldsa_attestation"))]
-    pq_devid_seed: [u8; PQ_DEVID_SEED_SIZE as usize],
+    pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
 
     #[cfg(feature = "mldsa_attestation")]
     pub pqc_status_flags: u8,
@@ -449,11 +449,11 @@ impl PersistentData {
 
             persistent_data_offset += DPE_PL_CONTEXT_LIMITS_SIZE;
             assert_eq!(
-                addr_of!((*P).pq_devid_seed) as u32,
+                addr_of!((*P).pq_devid_cdi) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += PQ_DEVID_SEED_SIZE;
+            persistent_data_offset += PQ_DEVID_CDI_SIZE;
             assert_eq!(
                 addr_of!((*P).pqc_status_flags) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

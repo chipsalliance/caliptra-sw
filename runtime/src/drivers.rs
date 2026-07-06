@@ -60,11 +60,6 @@ use dpe::{
     response::DeriveContextResp,
 };
 use dpe::{DpeFlags, DpeProfile, State};
-#[cfg(feature = "mldsa_attestation")]
-use {
-    caliptra_common::keyids::KEY_ID_PQ_DEVID_CDI,
-    caliptra_drivers::{hmac384_kdf, KeyUsage, KeyWriteArgs, PQ_DEVID_SEED_SIZE},
-};
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::{
@@ -493,10 +488,6 @@ impl Drivers {
         // Create a hash of critical initialization values
         let initialization_values_hash = Self::compute_initialization_values_hash(drivers)?;
 
-        // Derive the PQ DevID CDI when ML-DSA is enabled.
-        #[cfg(feature = "mldsa_attestation")]
-        Self::derive_pq_devid_cdi(drivers)?;
-
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
@@ -630,23 +621,6 @@ impl Drivers {
         // Write DPE to persistent data.
         pdata.dpe = state;
         Ok(())
-    }
-
-    #[cfg(feature = "mldsa_attestation")]
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_pq_devid_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let mut buf = [0u8; core::mem::size_of::<Array4x12>()];
-        buf.get_mut(..PQ_DEVID_SEED_SIZE as usize)
-            .ok_or(CaliptraError::RUNTIME_MLDSA87_DEVID_SEED_TOO_LARGE)?
-            .copy_from_slice(&drivers.persistent_data.get().pq_devid_seed);
-        hmac384_kdf(
-            &mut drivers.hmac384,
-            (&Array4x12::from(&buf)).into(),
-            b"pq_devid_cdi",
-            None,
-            &mut drivers.trng,
-            KeyWriteArgs::new(KEY_ID_PQ_DEVID_CDI, KeyUsage::default().set_hmac_key_en()).into(),
-        )
     }
 
     /// Create certificate chain and store in Drivers
