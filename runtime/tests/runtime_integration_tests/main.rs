@@ -4,6 +4,8 @@ mod common;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
+#[cfg(feature = "mldsa_attestation")]
+mod test_certify_key_extended_mldsa;
 mod test_certs;
 mod test_command_timing;
 mod test_disable;
@@ -11,8 +13,12 @@ mod test_ecdsa;
 mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
+#[cfg(feature = "mldsa_attestation")]
+mod test_get_pq_csr;
 mod test_info;
 mod test_invoke_dpe;
+#[cfg(feature = "mldsa_attestation")]
+mod test_invoke_dpe_mldsa;
 mod test_lms;
 mod test_mailbox;
 mod test_measurements_common;

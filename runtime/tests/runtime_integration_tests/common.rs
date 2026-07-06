@@ -73,6 +73,25 @@ pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBun
     run_rt_test_base(args, false)
 }
 
+// Boot the ML-DSA attestation runtime image and wait until it is ready for
+// commands. Shared by the per-command PQC DPE integration tests.
+#[cfg(feature = "mldsa_attestation")]
+pub fn run_pqc_rt_test() -> DefaultHwModel {
+    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
+    use caliptra_runtime::RtBootStatus;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    model
+}
+
 pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwModel, ImageBundle) {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
