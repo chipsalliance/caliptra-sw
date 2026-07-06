@@ -21,8 +21,9 @@ use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 
 pub use caliptra_mldsa::{
-    Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
-    MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, ResponseBufError, ResponseBuffer, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES,
+    MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
+    MLDSA87_SIGNATURE_BYTES,
 };
 
 /// ML-DSA-87 deterministic key-generation / signing seed (32 bytes).
@@ -74,6 +75,17 @@ impl Mldsa87 {
             None => Mldsa87Sw::pub_from_seed(seed, pub_key),
         }
         Ok(())
+    }
+
+    /// Compute `mu` from a seed and a message in a [`ResponseBuffer`].
+    #[inline(never)]
+    pub fn generate_mu(
+        seed: &Mldsa87Seed,
+        msg: &dyn ResponseBuffer,
+        msg_range: core::ops::Range<usize>,
+        out_mu: &mut Mldsa87Mu,
+    ) -> Result<(), ResponseBufError> {
+        Mldsa87Sw::generate_mu(seed, msg, msg_range, out_mu)
     }
 
     /// Deterministically sign `mu` with the key derived from `seed`.
