@@ -3,9 +3,9 @@
 #![cfg_attr(not(test), no_std)]
 
 use crate::mldsa87::{
-    mldsa87_key_pair_from_seed, mldsa87_pub_from_seed, mldsa87_sign, mldsa87_sign_deterministic,
-    mldsa87_sign_mu, mldsa87_sign_mu_deterministic, mldsa87_verify, mldsa87_verify_mu,
-    mldsa87_verify_with_context,
+    mldsa87_generate_mu, mldsa87_key_pair_from_seed, mldsa87_pub_from_seed, mldsa87_sign,
+    mldsa87_sign_deterministic, mldsa87_sign_mu, mldsa87_sign_mu_deterministic, mldsa87_verify,
+    mldsa87_verify_mu, mldsa87_verify_with_context,
 };
 #[cfg(test)]
 use crate::mldsa87::{
@@ -16,6 +16,7 @@ pub use crate::mldsa87::{
     Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
     MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
 };
+pub use caliptra_dpe_response_buffer::{ResponseBufError, ResponseBuffer};
 
 mod ct;
 mod mldsa87;
@@ -139,6 +140,16 @@ impl Mldsa87 {
         sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
     ) {
         mldsa87_sign_mu_deterministic_from_sk(sig, sk, mu);
+    }
+
+    /// Generate the mu for an MLDSA operation based on the given response buffer and public key.
+    pub fn generate_mu(
+        seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+        msg: &dyn ResponseBuffer,
+        msg_range: core::ops::Range<usize>,
+        out_mu: &mut [u8; MLDSA87_MU_BYTES],
+    ) -> Result<(), ResponseBufError> {
+        mldsa87_generate_mu(seed, msg, msg_range, out_mu)
     }
 
     /// Verify a signature using an explicit signing `context`.

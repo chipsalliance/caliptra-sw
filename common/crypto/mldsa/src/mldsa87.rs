@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::ct::{ct_ge, ct_if, ct_lt};
+use caliptra_dpe_response_buffer::{ResponseBufError, ResponseBuffer};
 use caliptra_shake::{Shake128, Shake256};
 use core::convert::TryInto;
 
@@ -1406,6 +1407,37 @@ pub fn mldsa87_sign_mu_from_sk(
     };
     decode_private_key_internal(&mut priv_key, sk);
     sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer);
+}
+
+/// Compute `mu` (the 64-byte message representative) from a private key seed
+/// and a message supplied via a [`ResponseBuffer`].
+///
+/// Implements FIPS 204 HashML-DSA with an empty (zero-length) context:
+/// `mu = SHAKE256(tr || 0x00 || 0x00 || M)` where `tr = SHAKE256(pk)` and
+/// `pk` is derived from `seed`.
+pub fn mldsa87_generate_mu(
+    private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
+    msg: &dyn ResponseBuffer,
+    msg_range: core::ops::Range<usize>,
+    out_mu: &mut [u8; MLDSA87_MU_BYTES],
+) -> Result<(), ResponseBufError> {
+    let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+    mldsa87_pub_from_seed(&mut pub_key, private_key_seed);
+
+    let mut tr = [0u8; K_TR_BYTES];
+    let mut shake256 = Shake256::new();
+    shake256.absorb(&pub_key);
+    shake256.squeeze(&mut tr);
+
+    let mut shake256 = Shake256::new();
+    shake256.absorb(&tr);
+    shake256.absorb(&[0u8, 0u8]);
+    msg.read_range(msg_range, &mut |d| {
+        shake256.absorb(d);
+        Ok(())
+    })?;
+    shake256.squeeze(out_mu);
+    Ok(())
 }
 
 /// Deterministic variant of [`mldsa87_sign_mu_from_sk`].

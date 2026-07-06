@@ -781,6 +781,7 @@ dependencies = [
 name = "caliptra-mldsa"
 version = "0.1.0"
 dependencies = [
+ "caliptra-dpe-response-buffer",
  "caliptra-shake",
  "hex",
  "serde_json",
