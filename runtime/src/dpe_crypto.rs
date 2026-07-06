@@ -36,10 +36,11 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 #[cfg(feature = "mldsa_attestation")]
 use {
     caliptra_drivers::{
-        Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
-        MLDSA87_SIGNATURE_BYTES,
+        Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature,
+        MLDSA87_PRIVATE_SEED_BYTES,
     },
     crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    zerocopy::FromBytes,
     zeroize::Zeroizing,
 };
 
@@ -281,10 +282,10 @@ impl<'a> DpeCrypto<'a> {
 
     #[cfg(feature = "mldsa_attestation")]
     fn sign_helper_mldsa(data: &SignData, seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig = Mldsa87Signature::default();
         match data {
             SignData::ResponseBuffer(buf, range) => {
-                let mut mu = [0u8; MLDSA87_MU_BYTES];
+                let mut mu = Mldsa87Mu::default();
                 Mldsa87::generate_mu(seed, *buf, range.clone(), &mut mu)
                     .map_err(|_| CryptoError::HashError(0))?;
                 Mldsa87::sign_mu_deterministic(seed, &mu, &mut sig)
@@ -292,12 +293,15 @@ impl<'a> DpeCrypto<'a> {
             }
             SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, &mut sig)
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
-            SignData::Mu(mu) => Mldsa87::sign_mu_deterministic(seed, &mu.0, &mut sig)
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
+            SignData::Mu(mu) => {
+                let mu = Mldsa87Mu::ref_from_bytes(&mu.0).map_err(|_| CryptoError::Size)?;
+                Mldsa87::sign_mu_deterministic(seed, mu, &mut sig)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
+            }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         }?;
 
-        Ok(Signature::Mldsa(MldsaSignature(sig)))
+        Ok(Signature::Mldsa(MldsaSignature(*sig)))
     }
 }
 

@@ -48,6 +48,10 @@ pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 #[derive(KnownLayout, Immutable, FromBytes)]
 pub struct Mldsa87Signature([u8; MLDSA87_SIGNATURE_BYTES]);
 
+#[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
+pub struct Mldsa87Mu([u8; MLDSA87_MU_BYTES]);
+
 macro_rules! impl_helper_traits {
     ($name:ty) => {
         impl $name {
@@ -85,8 +89,7 @@ impl_helper_traits!(Mldsa87Seed);
 impl_helper_traits!(Mldsa87PubKey);
 impl_helper_traits!(Mldsa87PrivKey);
 impl_helper_traits!(Mldsa87Signature);
-
-pub type Mldsa87Mu = [u8; MLDSA87_MU_BYTES];
+impl_helper_traits!(Mldsa87Mu);
 
 /// Software ML-DSA-87 engine.
 ///
