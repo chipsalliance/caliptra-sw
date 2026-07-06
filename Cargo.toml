@@ -143,7 +143,7 @@ clap = { version = "3.2.14", default-features = false, features = ["std"] }
 cms = "0.2.2"
 constant_time_eq = "0.3.0"
 convert_case = "0.6.0"
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", package = "caliptra-dpe", features = ["p384", "arbitrary_max_handles"] }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", package = "caliptra-dpe", features = ["hybrid", "arbitrary_max_handles"] }
 crypto = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", package = "caliptra-dpe-crypto", default-features = false }
 platform = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", package = "caliptra-dpe-platform", default-features = false }
 caliptra-dpe-response-buffer = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", default-features = false }
