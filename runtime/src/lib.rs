@@ -41,7 +41,6 @@ mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 #[cfg(feature = "mldsa_attestation")]
-#[allow(dead_code)]
 mod set_pq_seed;
 mod sign_with_exported_ecdsa;
 mod stash_measurement;
@@ -97,6 +96,8 @@ pub use mbox_response_writer::MboxResponseWriter;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use set_pq_seed::SetPqSeedCmd;
 pub use stash_measurement::StashMeasurementCmd;
 #[cfg(feature = "mldsa_attestation")]
 pub use verify::Mldsa87VerifyCmd;
@@ -275,7 +276,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
-        CommandId::SET_PQ_SEED => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::SET_PQ_SEED => SetPqSeedCmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
         CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeMldsa87Cmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
