@@ -6,6 +6,8 @@ github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260529004809-
 github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260529004809-a174f3379983/go.mod h1:6wRR/2VE9+SSX7bdiSbgBoUL0WpGPU0F8Roe+1taPj0=
 github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260625202335-ce921a0a1fb9 h1:u0pHWSjodPtpEk5GSOvnn1zQSmTt298+maP2Sjpq7zU=
 github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260625202335-ce921a0a1fb9/go.mod h1:6wRR/2VE9+SSX7bdiSbgBoUL0WpGPU0F8Roe+1taPj0=
+github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260706162234-e5809995fc7f h1:OUp7vljcAoroRJkZ5j+3fxh+ScRDz1PKEb8Juz8kbhk=
+github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260706162234-e5809995fc7f/go.mod h1:6wRR/2VE9+SSX7bdiSbgBoUL0WpGPU0F8Roe+1taPj0=
 github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20240305022518-f4e3dd792a5c h1:AU8lHtgX1iZCjO/UZiaW226dc7mMl4zBhwjQqefB9ps=
 github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20240305022518-f4e3dd792a5c/go.mod h1:tCF7Q+jyiox85doSbjd2pFsdlFbzhdYQngIAJa85iHU=
 github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260529004809-a174f3379983 h1:LgwiTCg3KUaiiSL32xQhlwtKv5h4zAGq9FW3TVMoGnM=
@@ -15,6 +17,8 @@ github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260529004809
 github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260529004809-a174f3379983/go.mod h1:KTs671NV0uvqBbTIGE82u4MbooZsqbTJ+EBlGxeBOF8=
 github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260625202335-ce921a0a1fb9 h1:R0zxyFdu/gekTwGJkNUgwGGmXjZ+MAbr84cV+KV4NjE=
 github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260625202335-ce921a0a1fb9/go.mod h1:KTs671NV0uvqBbTIGE82u4MbooZsqbTJ+EBlGxeBOF8=
+github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260706162234-e5809995fc7f h1:VE+jDDUCCFtaYbO3FSVRIjBEzwZX6xSe+Zj1eInQl/M=
+github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260706162234-e5809995fc7f/go.mod h1:KTs671NV0uvqBbTIGE82u4MbooZsqbTJ+EBlGxeBOF8=
 github.com/cloudflare/circl v1.1.0/go.mod h1:prBCrKB9DV4poKZY1l9zBXg2QJY7mvgRvtMxxK7fi4I=
 github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ0=
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
