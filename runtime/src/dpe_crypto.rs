@@ -36,10 +36,11 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 #[cfg(feature = "mldsa_attestation")]
 use {
     caliptra_drivers::{
-        Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
-        MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
+        Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature,
+        MLDSA87_PRIVATE_SEED_BYTES,
     },
     crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
+    zerocopy::FromBytes,
     zeroize::Zeroizing,
 };
 
@@ -281,10 +282,10 @@ impl<'a> DpeCrypto<'a> {
 
     #[cfg(feature = "mldsa_attestation")]
     fn sign_helper_mldsa(data: &SignData, seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig = Mldsa87Signature::default();
         match data {
             SignData::ResponseBuffer(buf, range) => {
-                let mut mu = [0u8; MLDSA87_MU_BYTES];
+                let mut mu = Mldsa87Mu::default();
                 Mldsa87::generate_mu(seed, *buf, range.clone(), &mut mu)
                     .map_err(|_| CryptoError::HashError(0))?;
                 Mldsa87::sign_mu_deterministic(seed, &mu, &mut sig)
@@ -292,12 +293,15 @@ impl<'a> DpeCrypto<'a> {
             }
             SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, &mut sig)
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
-            SignData::Mu(mu) => Mldsa87::sign_mu_deterministic(seed, &mu.0, &mut sig)
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
+            SignData::Mu(mu) => {
+                let mu = Mldsa87Mu::ref_from_bytes(&mu.0).map_err(|_| CryptoError::Size)?;
+                Mldsa87::sign_mu_deterministic(seed, mu, &mut sig)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
+            }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         }?;
 
-        Ok(Signature::Mldsa(MldsaSignature(sig)))
+        Ok(Signature::Mldsa(MldsaSignature(*sig)))
     }
 }
 
@@ -435,8 +439,8 @@ impl Crypto for DpeCrypto<'_> {
             }
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa => {
-                let mut seed = Zeroizing::new([0u8; MLDSA87_PRIVATE_SEED_BYTES]);
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut seed = Mldsa87Seed::default();
+                let mut pub_key = Mldsa87PubKey::default();
                 self.derive_key_pair_mldsa(&cdi, label, info, &mut seed, &mut pub_key)?;
                 self.derived_key = Some(DerivedKey::Mldsa(seed));
             }
@@ -478,8 +482,8 @@ impl CdiManager for DpeCrypto<'_> {
 
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa => {
-                let mut seed = Zeroizing::new([0u8; MLDSA87_PRIVATE_SEED_BYTES]);
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut seed = Mldsa87Seed::default();
+                let mut pub_key = Mldsa87PubKey::default();
                 self.derive_key_pair_mldsa(&cdi, label, info, &mut seed, &mut pub_key)?;
                 self.derived_key = Some(DerivedKey::Mldsa(seed));
             }
@@ -524,10 +528,10 @@ impl crypto::Signer for DpeCrypto<'_> {
             Some(DerivedKey::Ec((_, pub_key))) => Ok(pub_key.clone()),
             #[cfg(feature = "mldsa_attestation")]
             Some(DerivedKey::Mldsa(seed)) => {
-                let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+                let mut pub_key = Mldsa87PubKey::default();
                 Mldsa87::pub_from_seed(seed, &mut pub_key, None)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Ok(PubKey::Mldsa(MldsaPublicKey(pub_key)))
+                Ok(PubKey::Mldsa(MldsaPublicKey(*pub_key)))
             }
             _ => Err(CryptoError::CryptoLibError(4)),
         }
@@ -547,5 +551,5 @@ enum Signer<'a> {
 enum DerivedKey {
     Ec((KeyId, PubKey)),
     #[cfg(feature = "mldsa_attestation")]
-    Mldsa(Zeroizing<Mldsa87Seed>),
+    Mldsa(Mldsa87Seed),
 }
