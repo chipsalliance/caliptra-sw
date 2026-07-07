@@ -19,25 +19,78 @@ Abstract:
 
 use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
+use core::ops::{Deref, DerefMut};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use caliptra_mldsa::{
-    Mldsa87Result, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
-    MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES, MLDSA87_SIGNATURE_BYTES,
+    Mldsa87Result, ResponseBufError, ResponseBuffer, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES,
+    MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_RANDOMIZER_BYTES,
+    MLDSA87_SIGNATURE_BYTES,
 };
 
 /// ML-DSA-87 deterministic key-generation / signing seed (32 bytes).
-pub type Mldsa87Seed = [u8; MLDSA87_PRIVATE_SEED_BYTES];
+#[repr(transparent)]
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct Mldsa87Seed([u8; MLDSA87_PRIVATE_SEED_BYTES]);
 
 /// ML-DSA-87 encoded public key (2,592 bytes).
-pub type Mldsa87PubKey = [u8; MLDSA87_PUBLIC_KEY_BYTES];
+#[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
+pub struct Mldsa87PubKey([u8; MLDSA87_PUBLIC_KEY_BYTES]);
 
 /// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).
-pub type Mldsa87PrivKey = [u8; MLDSA87_PRIVATE_KEY_BYTES];
+#[repr(transparent)]
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
-pub type Mldsa87Signature = [u8; MLDSA87_SIGNATURE_BYTES];
+#[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
+pub struct Mldsa87Signature([u8; MLDSA87_SIGNATURE_BYTES]);
 
-pub type Mldsa87Mu = [u8; MLDSA87_MU_BYTES];
+#[repr(transparent)]
+#[derive(KnownLayout, Immutable, FromBytes)]
+pub struct Mldsa87Mu([u8; MLDSA87_MU_BYTES]);
+
+macro_rules! impl_helper_traits {
+    ($name:ty) => {
+        impl $name {
+            pub const fn new(data: [u8; core::mem::size_of::<$name>()]) -> Self {
+                Self(data)
+            }
+
+            pub fn as_slice(&self) -> &[u8] {
+                &self.0
+            }
+        }
+
+        impl Deref for $name {
+            type Target = [u8; core::mem::size_of::<$name>()];
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self([0u8; core::mem::size_of::<$name>()])
+            }
+        }
+    };
+}
+
+impl_helper_traits!(Mldsa87Seed);
+impl_helper_traits!(Mldsa87PubKey);
+impl_helper_traits!(Mldsa87PrivKey);
+impl_helper_traits!(Mldsa87Signature);
+impl_helper_traits!(Mldsa87Mu);
 
 /// Software ML-DSA-87 engine.
 ///
@@ -74,6 +127,17 @@ impl Mldsa87 {
             None => Mldsa87Sw::pub_from_seed(seed, pub_key),
         }
         Ok(())
+    }
+
+    /// Compute `mu` from a seed and a message in a [`ResponseBuffer`].
+    #[inline(never)]
+    pub fn generate_mu(
+        seed: &Mldsa87Seed,
+        msg: &dyn ResponseBuffer,
+        msg_range: core::ops::Range<usize>,
+        out_mu: &mut Mldsa87Mu,
+    ) -> Result<(), ResponseBufError> {
+        Mldsa87Sw::generate_mu(seed, msg, msg_range, out_mu)
     }
 
     /// Deterministically sign `mu` with the key derived from `seed`.
