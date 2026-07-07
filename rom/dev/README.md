@@ -556,11 +556,9 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
 
-10. Generate the MACs over the tbs digests as follows:
+10. Generate the CSR envelope MAC. The MAC is computed over the CSR envelope bytes up to, but not including, the CSR MAC field:
 
-    `IDevIdTbsEcdsaMac = hmac_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa, HmacMode::Hmac384)`
-
-    `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa, HmacMode::Hmac512)`
+    `IDevIdCsrMac = hmac512_mac(HmacKey::CsrMode(), Marker || Size || EccCsrSize || EccCsr || MldsaCsrSize || MldsaCsr, HmacMode::Hmac512)`
 
 11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
 
@@ -571,11 +569,11 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 | Field          | Size (bytes) | Description                                                                                     |
 |----------------|--------------|-------------------------------------------------------------------------------------------------|
 | Marker         | 4            | Magic Number marking the start of the CSR payload. The value must be 0x435352 (‘CSR’ in ASCII). |
-| Size           | 4            | Size of the entire CSR payload.                                                                 |
+| Size           | 4            | Size of the entire CSR payload. Current size is 8784 bytes.                                      |
 | ECC CSR Size   | 4            | Size of the ECC CSR in bytes.                                                                   |
 | ECC CSR        | 512          | ECC CSR buffer. Actual CSR size is indicated by 'ECC CSR Size'.                                 |
 | MLDSA CSR Size | 4            | Size of the MLDSA CSR in bytes.                                                                 |
-| MLDSA CSR      | 7680         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
+| MLDSA CSR      | 8192         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
 | CSR MAC        | 64           | HMAC-512 MAC, computed over the envelope bytes up to but not including this field.       |
 
 **Post-conditions:**
