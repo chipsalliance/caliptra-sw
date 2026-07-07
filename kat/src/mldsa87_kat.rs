@@ -75,21 +75,26 @@ impl Mldsa87Kat {
     ///
     /// * `sha384` - SHA2-384 driver, used to digest the regenerated artifacts
     pub fn execute(&self, sha384: &mut Sha384) -> CaliptraResult<()> {
-        let public_key = Self::kat_keygen(sha384)?;
-        let signature = Self::kat_sign(sha384)?;
-        Self::kat_verify(&public_key, &signature)
+        // `public_key` is the only artifact that must survive across steps
+        // (KeyGen produces it, SigVer consumes it), so it lives in this frame.
+        // The much larger private-key (4,896 B) and signature (4,627 B) buffers
+        // are each scoped to a single sub-step so they never coexist on the
+        // stack with the multi-KB ML-DSA keygen/sign frames -- keeping the KAT
+        // within the runtime stack budget.
+        let mut public_key = Mldsa87PubKey::default();
+        Self::kat_keygen(sha384, &mut public_key)?;
+        Self::kat_sign_and_verify(sha384, &public_key)
     }
 
     /// KeyGen CAST: derive the ML-DSA-87 key pair from the fixed `SEED` and
     /// compare SHA-384 digests of the public and private keys against
     /// `PUB_KEY_DIGEST` and `PRIV_KEY_DIGEST`.
     #[inline(never)]
-    fn kat_keygen(sha384: &mut Sha384) -> CaliptraResult<Mldsa87PubKey> {
+    fn kat_keygen(sha384: &mut Sha384, public_key: &mut Mldsa87PubKey) -> CaliptraResult<()> {
         // A single key generation produces both the public key and the encoded
         // private key (the optional sk buffer is supplied).
-        let mut public_key = Mldsa87PubKey::default();
         let mut private_key = Mldsa87PrivKey::default();
-        Mldsa87::pub_from_seed(&SEED, &mut public_key, Some(&mut private_key))
+        Mldsa87::pub_from_seed(&SEED, public_key, Some(&mut private_key))
             .map_err(|_| CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE)?;
 
         let pub_key_digest = sha384
@@ -103,14 +108,17 @@ impl Mldsa87Kat {
             Err(CaliptraError::KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE)?;
         }
 
-        Ok(public_key)
+        Ok(())
     }
 
-    /// SigGen CAST: deterministically sign the fixed `MESSAGE` with the key
-    /// derived from `SEED` and compare the SHA-384 digest of the signature
-    /// against `SIGNATURE_DIGEST`.
+    /// SigGen CAST followed by SigVer CAST. The signature buffer lives only in
+    /// this frame (not across KeyGen), and SigVer reuses it directly.
+    ///
+    /// SigGen: deterministically sign the fixed `MESSAGE` with the key derived
+    /// from `SEED` and compare the SHA-384 digest of the signature against
+    /// `SIGNATURE_DIGEST`.
     #[inline(never)]
-    fn kat_sign(sha384: &mut Sha384) -> CaliptraResult<Mldsa87Signature> {
+    fn kat_sign_and_verify(sha384: &mut Sha384, public_key: &Mldsa87PubKey) -> CaliptraResult<()> {
         let mut signature = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, &MESSAGE, &mut signature)
             .map_err(|_| CaliptraError::KAT_MLDSA87_SIGNATURE_GENERATE_FAILURE)?;
@@ -122,7 +130,7 @@ impl Mldsa87Kat {
             Err(CaliptraError::KAT_MLDSA87_SIGNATURE_MISMATCH)?;
         }
 
-        Ok(signature)
+        Self::kat_verify(public_key, &signature)
     }
 
     /// SigVer CAST: verify `signature` against `public_key` and `MESSAGE`.
