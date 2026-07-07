@@ -35,10 +35,6 @@ impl SetPqSeedCmd {
         let mut cmd = SetPqSeedReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        if cmd.seed == [0; SET_PQ_SEED_SEED_SIZE] {
-            return Err(CaliptraError::RUNTIME_INVALID_PQ_SEED);
-        }
-
         let mut out = Array4x12::default();
         Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
 

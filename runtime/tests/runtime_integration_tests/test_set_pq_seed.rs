@@ -60,26 +60,3 @@ fn test_repeated_set_pq_seed_rejected() {
         resp,
     );
 }
-
-#[test]
-fn test_zero_pq_seed_rejected() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0u8; SET_PQ_SEED_SEED_SIZE],
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .unwrap_err();
-    assert_error(&mut model, CaliptraError::RUNTIME_INVALID_PQ_SEED, resp);
-}

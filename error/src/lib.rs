@@ -1273,11 +1273,6 @@ impl CaliptraError {
             0x000E0064,
             "Runtime Error: SET_PQ_SEED already enabled PQC mode"
         ),
-        (
-            RUNTIME_INVALID_PQ_SEED,
-            0x000E0065,
-            "Runtime Error: Invalid PQ seed"
-        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
