@@ -15,6 +15,8 @@ Abstract:
 
 use crate::{der_encode_len, der_encode_uint, der_uint_len};
 
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::Mldsa87Signature;
 use zeroize::Zeroize;
 
 /// DER Bit String Tag
@@ -215,34 +217,16 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
 pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, MAX_ECDSA384_SIG_LEN>;
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
 
-/// Ml-Dsa87 Signature
+// ML-DSA-87 signatures use the shared `caliptra_drivers::Mldsa87Signature`
+// crypto type rather than an x509-local struct; only the DER encoding lives here.
 #[cfg(feature = "mldsa_attestation")]
-pub struct MlDsa87Signature {
-    pub sig: [u8; Self::MLDSA87_SIG_LEN],
-}
-
-#[cfg(feature = "mldsa_attestation")]
-impl Default for MlDsa87Signature {
-    fn default() -> Self {
-        Self {
-            sig: [0; Self::MLDSA87_SIG_LEN],
-        }
-    }
-}
-
-#[cfg(feature = "mldsa_attestation")]
-impl MlDsa87Signature {
-    /// ML-DSA-87 raw signature length (FIPS 204)
-    pub const MLDSA87_SIG_LEN: usize = 4627;
-}
-
-#[cfg(feature = "mldsa_attestation")]
-impl Signature<MAX_MLDSA87_SIG_DER_LEN> for MlDsa87Signature {
+impl Signature<MAX_MLDSA87_SIG_DER_LEN> for Mldsa87Signature {
     fn to_der(&self, buf: &mut [u8; MAX_MLDSA87_SIG_DER_LEN]) -> Option<usize> {
         //
         // Signature DER Sequence encoding
         //
-        let sig_seq_len = self.sig.len();
+        let sig = self.as_slice();
+        let sig_seq_len = sig.len();
         let mut pos = 0;
 
         // Encode Signature DER Bit String
@@ -252,8 +236,7 @@ impl Signature<MAX_MLDSA87_SIG_DER_LEN> for MlDsa87Signature {
         *buf.get_mut(pos)? = 0x0;
         pos += 1;
 
-        buf.get_mut(pos..pos + self.sig.len())?
-            .copy_from_slice(&self.sig);
+        buf.get_mut(pos..pos + sig_seq_len)?.copy_from_slice(sig);
         pos += sig_seq_len;
 
         Some(pos)
@@ -269,6 +252,6 @@ impl Signature<MAX_MLDSA87_SIG_DER_LEN> for MlDsa87Signature {
 
 // Type alias for Ml-Dsa87 Certificate Builder
 #[cfg(feature = "mldsa_attestation")]
-pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, MlDsa87Signature, MAX_MLDSA87_SIG_DER_LEN>;
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, Mldsa87Signature, MAX_MLDSA87_SIG_DER_LEN>;
 #[cfg(feature = "mldsa_attestation")]
 pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;

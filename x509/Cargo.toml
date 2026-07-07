@@ -10,6 +10,7 @@ build = "build/build.rs"
 doctest = false
 
 [dependencies]
+caliptra-drivers = { workspace = true, optional = true }
 zeroize.workspace = true
 
 [build-dependencies]
@@ -32,5 +33,5 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 std = []
-mldsa_attestation = []
+mldsa_attestation = ["dep:caliptra-drivers", "caliptra-drivers/mldsa_attestation"]
 generate_templates = ["dep:asn1", "dep:bitfield", "dep:caliptra_common", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:rand", "dep:syn"]
