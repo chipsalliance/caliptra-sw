@@ -16,6 +16,8 @@ Abstract:
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
+#[cfg(feature = "mldsa_attestation")]
+mod certify_key_extended_mldsa;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -24,10 +26,14 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
+#[cfg(feature = "mldsa_attestation")]
+mod get_pq_csr;
 pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
+#[cfg(feature = "mldsa_attestation")]
+mod invoke_dpe_mldsa;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
@@ -55,8 +61,14 @@ use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use crate::certify_key_extended_mldsa::CertifyKeyExtendedMldsa87Cmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use crate::get_pq_csr::GetPqCsrCmd;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
+#[cfg(feature = "mldsa_attestation")]
+pub use crate::invoke_dpe_mldsa::InvokeDpeMldsa87Cmd;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
@@ -264,6 +276,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
         CommandId::SET_PQ_SEED => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeMldsa87Cmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::GET_PQ_CSR => GetPqCsrCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => CertifyKeyExtendedMldsa87Cmd::execute(drivers),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers),
