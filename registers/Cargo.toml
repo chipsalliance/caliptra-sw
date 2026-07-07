@@ -8,11 +8,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-caliptra-registers-latest = { workspace = true, optional = true }
-mutually_exclusive_features = "0.1.0"
+caliptra-registers-latest = { workspace = true }
+caliptra-registers-rev-2-1 = { workspace = true }
 
-[features]
-default = [ "latest" ]
-latest = [ "dep:caliptra-registers-latest" ]
-rev-2_0 = []
-rev-2_1 = []
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(hw_rev, values("latest", "2.0", "2.1"))']}
+
