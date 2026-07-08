@@ -45,6 +45,7 @@ fn main() {
                 .value_parser(value_parser!(PathBuf))
         )
         .arg(arg!(--"zeros" "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
+        .arg(arg!(--"mldsa-attestation" "Build the RT app with the mldsa_attestation feature (compiles in MLDSA87_SIGNATURE_VERIFY)"))
         .arg(arg!(--"owner-sig-override" [FILE] "Manually overwrite the owner_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"vendor-sig-override" [FILE] "Manually overwrite the vendor_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)))
@@ -95,6 +96,8 @@ fn main() {
         // Get image types (zeros or actual firmware)
         let (fmc_type, app_type) = if args.contains_id("zeros") {
             (firmware::FMC_ZEROS, firmware::APP_ZEROS)
+        } else if args.contains_id("mldsa-attestation") {
+            (firmware::FMC_WITH_UART, firmware::APP_MLDSA_ATTESTATION)
         } else {
             (firmware::FMC_WITH_UART, firmware::APP_WITH_UART)
         };
