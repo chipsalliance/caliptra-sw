@@ -538,6 +538,8 @@ impl crypto::Signer for DpeCrypto<'_> {
     }
 }
 
+// The mldsa key is significantly larger than ecdsa.  Allow a large enum variant to support it.
+#[allow(clippy::large_enum_variant)]
 enum Signer<'a> {
     Ec {
         ecc384: &'a mut Ecc384,
@@ -548,6 +550,8 @@ enum Signer<'a> {
     Mldsa,
 }
 
+// The mldsa key is significantly larger than ecdsa.  Allow a large enum variant to support it.
+#[allow(clippy::large_enum_variant)]
 enum DerivedKey {
     Ec((KeyId, PubKey)),
     #[cfg(feature = "mldsa_attestation")]

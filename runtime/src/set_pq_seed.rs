@@ -52,7 +52,7 @@ impl SetPqSeedCmd {
     ) -> CaliptraResult<()> {
         let mut buf = [0u8; core::mem::size_of::<Array4x12>()];
 
-        buf.get_mut(..SET_PQ_SEED_SEED_SIZE as usize)
+        buf.get_mut(..SET_PQ_SEED_SEED_SIZE)
             .ok_or(CaliptraError::RUNTIME_MLDSA87_DEVID_SEED_TOO_LARGE)?
             .copy_from_slice(seed);
 
