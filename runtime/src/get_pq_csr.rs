@@ -31,7 +31,7 @@ use caliptra_drivers::{
 use caliptra_x509::{MlDsa87CsrBuilder, PqDevIdCsrTbsMlDsa87, PqDevIdCsrTbsMlDsa87Params};
 use crypto::Digest;
 use zerocopy::{FromZeros, IntoBytes};
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 pub struct GetPqCsrCmd;
 
@@ -76,7 +76,6 @@ impl GetPqCsrCmd {
 
         // Seed and derived key material are no longer needed.
         drop(seed);
-        public_key.zeroize();
 
         // Assemble and send the CSR in a separate (inline-never) frame. The
         // response buffer is ~12.8 KB; keeping it out of this frame ensures it
