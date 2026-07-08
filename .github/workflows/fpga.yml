@@ -159,7 +159,7 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/core.toml
+          cargo r --manifest-path ci-tools/bitstream-downloader/Cargo.toml -- --bitstream-manifest hw/fpga/bitstream_manifests/core.toml --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
           mv core.pdi /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
