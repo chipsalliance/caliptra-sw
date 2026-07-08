@@ -235,24 +235,24 @@ impl Mldsa87 {
 mod tests {
     use super::*;
 
-    const SEED: Mldsa87Seed = [0x42; MLDSA87_PRIVATE_SEED_BYTES];
+    const SEED: Mldsa87Seed = Mldsa87Seed::new([0x42; MLDSA87_PRIVATE_SEED_BYTES]);
 
     #[test]
     fn test_keygen_deterministic() {
-        let mut pk1 = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-        let mut pk2 = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+        let mut pk1 = Mldsa87PubKey::default();
+        let mut pk2 = Mldsa87PubKey::default();
         Mldsa87::pub_from_seed(&SEED, &mut pk1, None).unwrap();
         Mldsa87::pub_from_seed(&SEED, &mut pk2, None).unwrap();
-        assert_eq!(pk1, pk2);
+        assert_eq!(pk1.as_slice(), pk2.as_slice());
     }
 
     #[test]
     fn test_sign_verify_roundtrip() {
-        let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+        let mut pk = Mldsa87PubKey::default();
         Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
         let msg = b"caliptra pqc mldsa-87 driver round-trip";
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, msg, &mut sig).unwrap();
 
         assert_eq!(
@@ -264,20 +264,20 @@ mod tests {
     #[test]
     fn test_sign_is_deterministic() {
         let msg = b"deterministic signing";
-        let mut sig1 = [0u8; MLDSA87_SIGNATURE_BYTES];
-        let mut sig2 = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig1 = Mldsa87Signature::default();
+        let mut sig2 = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, msg, &mut sig1).unwrap();
         Mldsa87::sign_deterministic(&SEED, msg, &mut sig2).unwrap();
-        assert_eq!(sig1, sig2);
+        assert_eq!(sig1.as_slice(), sig2.as_slice());
     }
 
     #[test]
     fn test_verify_rejects_tampered_signature() {
-        let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+        let mut pk = Mldsa87PubKey::default();
         Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
         let msg = b"tamper detection";
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, msg, &mut sig).unwrap();
         sig[0] ^= 0xFF;
 
@@ -289,10 +289,10 @@ mod tests {
 
     #[test]
     fn test_verify_rejects_wrong_message() {
-        let mut pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
+        let mut pk = Mldsa87PubKey::default();
         Mldsa87::pub_from_seed(&SEED, &mut pk, None).unwrap();
 
-        let mut sig = [0u8; MLDSA87_SIGNATURE_BYTES];
+        let mut sig = Mldsa87Signature::default();
         Mldsa87::sign_deterministic(&SEED, b"message one", &mut sig).unwrap();
 
         assert_eq!(
