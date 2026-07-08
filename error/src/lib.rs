@@ -1273,6 +1273,26 @@ impl CaliptraError {
             0x000E0064,
             "Runtime Error: SET_PQ_SEED already enabled PQC mode"
         ),
+        (
+            RUNTIME_PQC_NOT_INITIALIZED,
+            0x000E0065,
+            "Runtime Error: PQC mode not initialized (SET_PQ_SEED not performed)"
+        ),
+        (
+            RUNTIME_PQ_CSR_BUILDER_INIT_FAILURE,
+            0x000E0066,
+            "Runtime Error: PQ.DevID CSR builder initialization failed"
+        ),
+        (
+            RUNTIME_PQ_CSR_BUILDER_BUILD_FAILURE,
+            0x000E0067,
+            "Runtime Error: PQ.DevID CSR builder build failed"
+        ),
+        (
+            RUNTIME_PQ_CSR_SUBJECT_SN_FAILED,
+            0x000E0068,
+            "Runtime Error: PQ.DevID CSR subject serial number generation failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

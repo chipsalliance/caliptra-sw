@@ -65,6 +65,7 @@ mldsa_attestation = [
     "caliptra_common/mldsa_attestation",
     "caliptra-drivers/mldsa_attestation",
     "caliptra-kat/mldsa_attestation",
+    "caliptra-x509/mldsa_attestation",
     "dpe/ml-dsa",
 ]
 riscv = ["caliptra-cpu/riscv"]
