@@ -1190,7 +1190,7 @@ impl<'a> DmaRecovery<'a> {
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<()> {
         if aes_mode.aes() {
-            return Err(CaliptraError::DRIVER_DMA_INVALID_DMA_TARGET);
+            return Err(CaliptraError::DRIVER_DMA_AES_CHUNKING_UNSUPPORTED);
         }
 
         for offset in (0..length).step_by(Self::DMA_MAX_XFER_SIZE as usize) {
