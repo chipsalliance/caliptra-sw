@@ -20,10 +20,9 @@
 //!   malformed inputs.
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::checksum::calc_checksum;
-use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, Mldsa87VerifyReq,
-};
+use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxRespHeader, Mldsa87VerifyReq};
 use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_mldsa::{
     Mldsa87, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
@@ -122,7 +121,10 @@ fn boot_ready<T: HwModel>(model: &mut T) {
 /// path.
 #[test]
 fn test_mldsa87_verify_cmd() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     for seed in [&SEED_A, &SEED_B] {
@@ -143,7 +145,10 @@ fn test_mldsa87_verify_cmd() {
 /// with `RUNTIME_MLDSA87_VERIFY_FAILED` rather than crash or pass.
 #[test]
 fn test_mldsa87_verify_failure_tampered_signature() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     let (pk, mut sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -169,7 +174,10 @@ fn test_mldsa87_verify_failure_tampered_signature() {
 /// SHA-384 digest streamed into the accelerator) must fail.
 #[test]
 fn test_mldsa87_verify_failure_wrong_message() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     let (pk, sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -195,7 +203,10 @@ fn test_mldsa87_verify_failure_wrong_message() {
 /// fail.
 #[test]
 fn test_mldsa87_verify_failure_wrong_pub_key() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     let (_, sig_a) = keygen_and_sign(&SEED_A, MSG_1);
@@ -222,7 +233,10 @@ fn test_mldsa87_verify_failure_wrong_pub_key() {
 /// cryptographically meaningless" path.
 #[test]
 fn test_mldsa87_verify_failure_all_zero() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     let pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
@@ -252,7 +266,10 @@ fn test_mldsa87_verify_failure_all_zero() {
 /// first; skipping that step must surface as `RUNTIME_INVALID_CHECKSUM`.
 #[test]
 fn test_mldsa87_verify_bad_chksum() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
     let (pk, sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -277,19 +294,26 @@ fn test_mldsa87_verify_bad_chksum() {
     );
 }
 
-/// Sending a payload that's shorter than `Mldsa87VerifyReq` (but with a
-/// valid checksum over the truncated bytes, so the dispatcher's chksum
-/// gate passes) must be rejected by the handler's `ref_from_bytes` parse
-/// with `RUNTIME_INSUFFICIENT_MEMORY`.
+/// Sending a payload larger than `Mldsa87VerifyReq` must be rejected by the
+/// mailbox length guard with `RUNTIME_INSUFFICIENT_MEMORY` (the request does
+/// not fit the handler's fixed-size request buffer).
+///
+/// Note: an under-sized (truncated) request is *not* rejected here — the
+/// mailbox zero-pads it into the request buffer, so it degenerates to an
+/// all-zero key/signature and fails closed with `RUNTIME_MLDSA87_VERIFY_FAILED`
+/// (see `test_mldsa87_verify_failure_all_zero`).
 #[test]
-fn test_mldsa87_verify_truncated_request() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+fn test_mldsa87_verify_oversized_request() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&APP_MLDSA_ATTESTATION),
+        ..Default::default()
+    });
     boot_ready(&mut model);
 
-    // Build a payload that contains the mailbox header plus a few extra
-    // bytes — well short of the full request size.
-    let mut payload = vec![0u8; core::mem::size_of::<MailboxReqHeader>() + 32];
-    // Compute a valid checksum over everything after the chksum field.
+    // One word larger than the request buffer trips the mailbox size guard.
+    let mut payload = vec![0u8; core::mem::size_of::<Mldsa87VerifyReq>() + 4];
+    // A valid checksum is not required to reach the guard (the size check runs
+    // first), but stamp one so the payload is otherwise well-formed.
     let chksum_size = core::mem::size_of::<u32>();
     let chksum = calc_checksum(
         u32::from(CommandId::MLDSA87_SIGNATURE_VERIFY),

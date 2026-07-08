@@ -50,6 +50,12 @@ mkdir -p target-ci
 
 export CARGO_TARGET_DIR="${PWD}/target-ci"
 
+# Packages that define the `mldsa_attestation` (PQC ML-DSA) feature and carry
+# feature-gated code and tests. The feature is not a default and cannot be
+# enabled at the virtual-workspace level, so these packages are built, linted,
+# and tested with the feature in separate, package-scoped invocations below.
+MLDSA_PKGS="-p caliptra-runtime -p caliptra-x509 -p caliptra-drivers -p caliptra-kat"
+
 function build_rom_images() {
     rm -rf "${CARGO_TARGET_DIR}/riscv32imc-unknown-none-elf"
     CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder -- \
@@ -80,6 +86,9 @@ fi
 if task_enabled "check_lint"; then
   echo Clippy lint check
   RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
+  echo Clippy lint check "(mldsa_attestation)"
+  RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets \
+    ${MLDSA_PKGS} --features mldsa_attestation -- -D warnings
 fi
 
 if task_enabled "check_license"; then
@@ -90,6 +99,9 @@ fi
 if task_enabled "build"; then
   echo Build
   cargo --config "${EXTRA_CARGO_CONFIG}" build --locked
+  echo Build "(mldsa_attestation)"
+  cargo --config "${EXTRA_CARGO_CONFIG}" build --locked \
+    ${MLDSA_PKGS} --features mldsa_attestation
 fi
 
 if task_enabled "build_fw"; then
@@ -101,8 +113,14 @@ if task_enabled "test"; then
   echo Run tests
   if cargo nextest help > /dev/null 2>/dev/null; then
     CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked
+    echo Run tests "(mldsa_attestation)"
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked \
+      ${MLDSA_PKGS} --features mldsa_attestation
   else
     CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked
+    echo Run tests "(mldsa_attestation)"
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked \
+      ${MLDSA_PKGS} --features mldsa_attestation
   fi
   CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" CPTRA_COVERAGE_PATH="${cov_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" run --manifest-path ./coverage/Cargo.toml
 fi
