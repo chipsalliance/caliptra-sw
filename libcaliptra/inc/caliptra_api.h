@@ -26,9 +26,15 @@ void caliptra_configure_itrng_entropy(uint16_t low_threshold, uint16_t high_thre
 // If all slots are locked, returns PAUSER_LOCKED error
 int caliptra_mbox_pauser_set_and_lock(uint32_t pauser);
 
+// Returns true if pauser matches any locked PAUSER slot, false otherwise
+bool caliptra_mbox_pauser_is_valid(uint32_t pauser);
+
 // Sets the provided pauser value in the fuse_pauser_valid reg and sets the lock bit
 // Returns PAUSER_LOCKED error if already locked
 int caliptra_fuse_pauser_set_and_lock(uint32_t pauser);
+
+// Returns true if the fuse PAUSER slot is locked and matches pauser, false otherwise
+bool caliptra_fuse_pauser_is_valid(uint32_t pauser);
 
 // Determine if Caliptra is ready to program fuses
 bool caliptra_ready_for_fuses(void);
