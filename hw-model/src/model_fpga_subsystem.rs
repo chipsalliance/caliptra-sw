@@ -1646,7 +1646,7 @@ impl ModelFpgaSubsystem {
 
             let vendor_pqc_type =
                 FwVerificationPqcKeyType::from_u8(self.fuses.fuse_pqc_key_type as u8)
-                    .unwrap_or(FwVerificationPqcKeyType::LMS);
+                    .unwrap_or(FwVerificationPqcKeyType::MLDSA);
             println!(
                 "Setting vendor public key pqc type to {:x?}",
                 vendor_pqc_type

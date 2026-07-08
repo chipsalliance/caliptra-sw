@@ -1377,7 +1377,7 @@ fn smoke_test_flash_boot() {
     use caliptra_hw_model::flash_image::build_flash_image_bytes;
     use caliptra_hw_model::SubsystemInitParams;
 
-    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let fw_svn = 1;
 
     let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(true).unwrap();

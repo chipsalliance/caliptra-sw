@@ -16,7 +16,7 @@ use caliptra_test::{default_soc_manifest_bytes, image_pk_desc_hash};
 
 #[test]
 fn warm_reset_basic() {
-    let pqc_key_type = FwVerificationPqcKeyType::LMS; // Default for test
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
@@ -82,7 +82,7 @@ fn warm_reset_basic() {
 
 #[test]
 fn warm_reset_during_fw_load() {
-    let pqc_key_type = FwVerificationPqcKeyType::LMS; // Default for test
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
