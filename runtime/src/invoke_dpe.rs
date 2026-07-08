@@ -33,12 +33,16 @@ use zerocopy::{FromZeros, IntoBytes};
 #[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
     Ecc384,
+    #[cfg(feature = "mldsa_attestation")]
+    Mldsa,
 }
 
 impl From<CaliptraDpeProfile> for DpeProfile {
     fn from(profile: CaliptraDpeProfile) -> Self {
         match profile {
             CaliptraDpeProfile::Ecc384 => DpeProfile::P384Sha384,
+            #[cfg(feature = "mldsa_attestation")]
+            CaliptraDpeProfile::Mldsa => DpeProfile::Mldsa87,
         }
     }
 }

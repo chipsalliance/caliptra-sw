@@ -21,6 +21,8 @@ mod fmc_alias_csr_ecc_384;
 mod idevid_csr_ecc_384;
 mod ldevid_cert_ecc_384;
 #[cfg(feature = "mldsa_attestation")]
+mod pq_dev_id_cert_mldsa_87;
+#[cfg(feature = "mldsa_attestation")]
 mod pq_dev_id_csr_mldsa_87;
 mod rt_alias_cert_ecc_384;
 mod test_util;
@@ -33,6 +35,8 @@ pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Par
 pub use fmc_alias_csr_ecc_384::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};
 pub use idevid_csr_ecc_384::{InitDevIdCsrTbsEcc384, InitDevIdCsrTbsEcc384Params};
 pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
+#[cfg(feature = "mldsa_attestation")]
+pub use pq_dev_id_cert_mldsa_87::{PqDevIdCertTbsMlDsa87, PqDevIdCertTbsMlDsa87Params};
 #[cfg(feature = "mldsa_attestation")]
 pub use pq_dev_id_csr_mldsa_87::{PqDevIdCsrTbsMlDsa87, PqDevIdCsrTbsMlDsa87Params};
 pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};

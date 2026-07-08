@@ -143,6 +143,11 @@ impl From<RtBootStatus> for u32 {
 pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
+// Consists of public key (2592 bytes), signature (4627 bytes), and
+// some additional room for the rest of the TBS.
+#[cfg(feature = "mldsa_attestation")]
+pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 8192;
+
 pub const PL0_PAUSER_FLAG: u32 = 1;
 pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
@@ -471,6 +476,41 @@ fn ec_dpe_env(
             pl0_pauser,
             hashed_rt_pub_key,
             &drivers.cert_chain,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.dpe,
+    })
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "mldsa_attestation")]
+fn mldsa_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
+    let (_, _, digest) = drivers.compute_mldsa_key_material()?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeCrypto::new_mldsa87(
+        &mut drivers.sha384,
+        &mut drivers.trng,
+        &mut drivers.hmac384,
+        &mut drivers.key_vault,
+        &pdata.pq_devid_cdi,
+        &mut pdata.exported_cdi_slots,
+    )?;
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    Ok(CaliptraDpeEnv {
+        crypto,
+        platform: DpePlatform::new(
+            CaliptraDpeProfile::Mldsa,
+            pl0_pauser,
+            digest,
+            &drivers.mldsa_cert_chain,
             nb,
             nf,
             dmtf_device_info,
