@@ -31,7 +31,8 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{MlDsa87CsrBuilder, MlDsa87Signature};
+    use crate::MlDsa87CsrBuilder;
+    use caliptra_drivers::Mldsa87Signature;
 
     const TEST_UEID: &[u8] = &[0xAB; PqDevIdCsrTbsMlDsa87::UEID_LEN];
 
@@ -79,9 +80,7 @@ mod tests {
             TEST_UEID,
         );
 
-        let mldsa_sig = MlDsa87Signature {
-            sig: sig.try_into().unwrap(),
-        };
+        let mldsa_sig = Mldsa87Signature::new(sig.try_into().unwrap());
 
         let builder = crate::MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
@@ -109,9 +108,7 @@ mod tests {
             })
             .unwrap();
 
-        let mldsa_sig = MlDsa87Signature {
-            sig: sig.try_into().unwrap(),
-        };
+        let mldsa_sig = Mldsa87Signature::new(sig.try_into().unwrap());
 
         let builder = MlDsa87CsrBuilder::new(csr.tbs(), &mldsa_sig).unwrap();
         let mut buf = vec![0u8; builder.len()];
