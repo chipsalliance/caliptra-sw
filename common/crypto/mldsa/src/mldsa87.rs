@@ -79,23 +79,31 @@ pub struct Vector7 {
 
 /* Complex types. */
 
-pub struct PublicKey {
-    pub rho: [u8; K_RHO_BYTES],
-    pub t1: Vector8,
-}
-
 pub struct PrivateKey {
     pub rho: [u8; K_RHO_BYTES],
     pub k: [u8; K_K_BYTES],
-    pub s1_ntt: Vector7,
-    pub s2_ntt: Vector8,
+    pub sigma: [u8; K_SIGMA_BYTES],
     pub t0_ntt: Vector8,
 }
 
-pub struct Signature {
-    pub c_tilde: [u8; 2 * LAMBDA_BYTES],
-    pub z: Vector7,
-    pub h: Vector8,
+#[derive(Clone, Copy)]
+pub struct HintEnt {
+    pub v: [u8; OMEGA],
+    pub num_hints: usize,
+}
+
+impl Default for HintEnt {
+    fn default() -> Self {
+        HintEnt {
+            v: [0u8; OMEGA],
+            num_hints: 0,
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct Hint {
+    pub v: [HintEnt; 8],
 }
 
 /* Arithmetic. */
@@ -258,18 +266,6 @@ fn vector8_sub(out: &mut Vector8, lhs: &Vector8, rhs: &Vector8) {
     }
 }
 
-fn vector8_mul_scalar(out: &mut Vector8, lhs: &Vector8, rhs: &Scalar) {
-    for i in 0..8 {
-        scalar_mul(&mut out.v[i], &lhs.v[i], rhs);
-    }
-}
-
-fn vector7_mul_scalar(out: &mut Vector7, lhs: &Vector7, rhs: &Scalar) {
-    for i in 0..7 {
-        scalar_mul(&mut out.v[i], &lhs.v[i], rhs);
-    }
-}
-
 fn vector8_ntt(a: &mut Vector8) {
     for i in 0..8 {
         scalar_ntt(&mut a.v[i]);
@@ -284,12 +280,6 @@ fn vector7_ntt(a: &mut Vector7) {
 
 fn vector8_inverse_ntt(a: &mut Vector8) {
     for i in 0..8 {
-        scalar_inverse_ntt(&mut a.v[i]);
-    }
-}
-
-fn vector7_inverse_ntt(a: &mut Vector7) {
-    for i in 0..7 {
         scalar_inverse_ntt(&mut a.v[i]);
     }
 }
@@ -340,6 +330,16 @@ fn make_hint(ct0: u32, cs2: u32, w: u32) -> i32 {
     (high_bits(r) != high_bits(r_plus_z)) as i32
 }
 
+fn scalar_low_bits(out: &mut Scalar, in_val: &Scalar) {
+    for (out_c, in_c) in out.c.iter_mut().zip(in_val.c.iter()) {
+        *out_c = low_bits(*in_c) as u32;
+    }
+}
+
+fn scalar_count_ones(s: &Scalar) -> usize {
+    s.c.iter().map(|&c| c as usize).sum()
+}
+
 fn use_hint(h: u32, r: u32) -> u32 {
     let mut r1 = 0;
     let mut r0 = 0;
@@ -353,12 +353,6 @@ fn use_hint(h: u32, r: u32) -> u32 {
         }
     }
     r1
-}
-
-fn scalar_power2_round(s1: &mut Scalar, s0: &mut Scalar, s: &Scalar) {
-    for i in 0..K_DEGREE {
-        power2_round(&mut s1.c[i], &mut s0.c[i], s.c[i]);
-    }
 }
 
 fn scalar_scale_power2_round(out: &mut Scalar, in_val: &Scalar) {
@@ -387,15 +381,28 @@ fn scalar_max_signed(max: &mut u32, s: &Scalar) {
     }
 }
 
-fn scalar_use_hint(out: &mut Scalar, h: &Scalar, r: &Scalar) {
-    for i in 0..K_DEGREE {
-        out.c[i] = use_hint(h.c[i], r.c[i]);
+fn scalar_use_hint_sparse(out: &mut Scalar, h_ent: &HintEnt, r: &Scalar) {
+    for (i, (out_c, &r_c)) in out.c.iter_mut().zip(r.c.iter()).enumerate() {
+        let hint = if h_ent
+            .v
+            .iter()
+            .take(h_ent.num_hints)
+            .any(|&idx| idx as usize == i)
+        {
+            1
+        } else {
+            0
+        };
+        *out_c = use_hint(hint, r_c);
     }
 }
 
-fn vector8_power2_round(t1: &mut Vector8, t0: &mut Vector8, t: &Vector8) {
-    for i in 0..8 {
-        scalar_power2_round(&mut t1.v[i], &mut t0.v[i], &t.v[i]);
+fn vector8_power2_round_in_place(t1: &mut Vector8, t0: &mut Vector8) {
+    for (t1_scalar, t0_scalar) in t1.v.iter_mut().zip(t0.v.iter_mut()) {
+        for (t1_c, t0_c) in t1_scalar.c.iter_mut().zip(t0_scalar.c.iter_mut()) {
+            let r = *t0_c;
+            power2_round(t1_c, t0_c, r);
+        }
     }
 }
 
@@ -405,44 +412,12 @@ fn vector8_scale_power2_round(out: &mut Vector8, in_val: &Vector8) {
     }
 }
 
-fn vector8_high_bits(out: &mut Vector8, in_val: &Vector8) {
-    for i in 0..8 {
-        scalar_high_bits(&mut out.v[i], &in_val.v[i]);
-    }
-}
-
-fn vector8_max(a: &Vector8) -> u32 {
-    let mut max = 0;
-    for i in 0..8 {
-        scalar_max(&mut max, &a.v[i]);
-    }
-    max
-}
-
 fn vector7_max(a: &Vector7) -> u32 {
     let mut max = 0;
     for i in 0..7 {
         scalar_max(&mut max, &a.v[i]);
     }
     max
-}
-
-fn vector8_max_signed(a: &Vector8) -> u32 {
-    let mut max = 0;
-    for i in 0..8 {
-        scalar_max_signed(&mut max, &a.v[i]);
-    }
-    max
-}
-
-fn vector8_count_ones(a: &Vector8) -> usize {
-    let mut count = 0;
-    for i in 0..8 {
-        for j in 0..K_DEGREE {
-            count += a.v[i].c[j] as usize;
-        }
-    }
-    count
 }
 
 /* Bit packing. */
@@ -635,7 +610,7 @@ fn matrix87_expand_mul(out: &mut Vector8, rho: &[u8; K_RHO_BYTES], a: &Vector7) 
     }
 }
 
-fn vectors78_expand_short(s1: &mut Vector7, s2: &mut Vector8, sigma: &[u8; K_SIGMA_BYTES]) {
+fn expand_s1_short(s1: &mut Vector7, sigma: &[u8; K_SIGMA_BYTES]) {
     let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
     derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
     derived_seed[K_SIGMA_BYTES] = 0;
@@ -644,30 +619,95 @@ fn vectors78_expand_short(s1: &mut Vector7, s2: &mut Vector8, sigma: &[u8; K_SIG
         scalar_uniform_2(&mut s1.v[i], &derived_seed);
         derived_seed[K_SIGMA_BYTES] = derived_seed[K_SIGMA_BYTES].wrapping_add(1);
     }
+}
+
+fn expand_s2_short(s2: &mut Vector8, sigma: &[u8; K_SIGMA_BYTES]) {
+    let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
+    derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
+    derived_seed[K_SIGMA_BYTES] = 7;
+    derived_seed[K_SIGMA_BYTES + 1] = 0;
     for i in 0..8 {
         scalar_uniform_2(&mut s2.v[i], &derived_seed);
         derived_seed[K_SIGMA_BYTES] = derived_seed[K_SIGMA_BYTES].wrapping_add(1);
     }
 }
 
-fn vector7_expand_mask(out: &mut Vector7, seed: &[u8; K_RHO_PRIME_BYTES], kappa: usize) {
-    let mut derived_seed = [0u8; K_RHO_PRIME_BYTES + 2];
-    derived_seed[..K_RHO_PRIME_BYTES].copy_from_slice(seed);
-    for i in 0..7 {
-        let index = kappa + i;
-        derived_seed[K_RHO_PRIME_BYTES] = (index & 0xFF) as u8;
-        derived_seed[K_RHO_PRIME_BYTES + 1] = ((index >> 8) & 0xFF) as u8;
-        scalar_sample_mask(&mut out.v[i], &derived_seed);
+fn expand_s1_ntt_mul_scalar(
+    out: &mut Scalar,
+    i: usize,
+    sigma: &[u8; K_SIGMA_BYTES],
+    sk_opt: Option<&[u8; MLDSA87_PRIVATE_KEY_BYTES]>,
+    rhs: &Scalar,
+) {
+    if let Some(sk) = sk_opt {
+        let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
+        unpack_scalar_bits(out, &sk[off..off + SK_S_PACK_BYTES], 3, 2);
+    } else {
+        let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
+        derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
+        derived_seed[K_SIGMA_BYTES] = i as u8;
+        derived_seed[K_SIGMA_BYTES + 1] = 0;
+        scalar_uniform_2(out, &derived_seed);
+    }
+    scalar_ntt(out);
+    let out_copy = *out;
+    scalar_mul(out, &out_copy, rhs);
+}
+
+fn expand_s2_ntt_mul_scalar(
+    out: &mut Scalar,
+    i: usize,
+    sigma: &[u8; K_SIGMA_BYTES],
+    sk_opt: Option<&[u8; MLDSA87_PRIVATE_KEY_BYTES]>,
+    rhs: &Scalar,
+) {
+    if let Some(sk) = sk_opt {
+        let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
+        unpack_scalar_bits(out, &sk[off..off + SK_S_PACK_BYTES], 3, 2);
+    } else {
+        let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
+        derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
+        derived_seed[K_SIGMA_BYTES] = (i + 7) as u8;
+        derived_seed[K_SIGMA_BYTES + 1] = 0;
+        scalar_uniform_2(out, &derived_seed);
+    }
+    scalar_ntt(out);
+    let out_copy = *out;
+    scalar_mul(out, &out_copy, rhs);
+}
+
+fn matrix87_expand_mul_mask(
+    out: &mut Vector8,
+    rho: &[u8; K_RHO_BYTES],
+    rho_prime: &[u8; K_RHO_PRIME_BYTES],
+    kappa: usize,
+) {
+    vector8_zero(out);
+    let mut derived_seed = [0u8; K_RHO_BYTES + 2];
+    derived_seed[..K_RHO_BYTES].copy_from_slice(rho);
+    let mut mask_seed = [0u8; K_RHO_PRIME_BYTES + 2];
+    mask_seed[..K_RHO_PRIME_BYTES].copy_from_slice(rho_prime);
+
+    for j in 0..7 {
+        let mut y_j = Scalar::default();
+        let index = kappa + j;
+        mask_seed[K_RHO_PRIME_BYTES] = (index & 0xFF) as u8;
+        mask_seed[K_RHO_PRIME_BYTES + 1] = ((index >> 8) & 0xFF) as u8;
+        scalar_sample_mask(&mut y_j, &mask_seed);
+        scalar_ntt(&mut y_j);
+
+        for (i, out_scalar) in out.v.iter_mut().enumerate() {
+            let mut m_ij = Scalar::default();
+            derived_seed[K_RHO_BYTES + 1] = i as u8;
+            derived_seed[K_RHO_BYTES] = j as u8;
+            scalar_from_keccak_vartime(&mut m_ij, &derived_seed);
+            let out_copy = *out_scalar;
+            scalar_mul_add(out_scalar, &out_copy, &m_ij, &y_j);
+        }
     }
 }
 
 /* Encoding. */
-
-fn vector8_encode_4(out: &mut [u8], a: &Vector8) {
-    for i in 0..8 {
-        scalar_encode_4(&mut out[i * 4 * K_DEGREE / 8..], &a.v[i]);
-    }
-}
 
 fn vector8_encode_10(out: &mut [u8], a: &Vector8) {
     for i in 0..8 {
@@ -681,20 +721,10 @@ fn vector8_decode_10(out: &mut Vector8, in_val: &[u8]) {
     }
 }
 
-fn vector7_encode_signed_20_19(out: &mut [u8], a: &Vector7) {
-    for i in 0..7 {
-        scalar_encode_signed_20_19(&mut out[i * 20 * K_DEGREE / 8..], &a.v[i]);
-    }
-}
-
 fn vector7_decode_signed_20_19(out: &mut Vector7, in_val: &[u8]) {
     for i in 0..7 {
         scalar_decode_signed_20_19(&mut out.v[i], &in_val[i * 20 * K_DEGREE / 8..]);
     }
-}
-
-fn w1_encode(out: &mut [u8; 128 * 8], w1: &Vector8) {
-    vector8_encode_4(out, w1);
 }
 
 fn hint_bit_pack(out: &mut [u8; OMEGA + 8], h: &Vector8) {
@@ -716,24 +746,26 @@ fn hint_bit_pack(out: &mut [u8; OMEGA + 8], h: &Vector8) {
     }
 }
 
-fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> Mldsa87Result {
-    vector8_zero(h);
+fn hint_bit_unpack(h: &mut Hint, in_val: &[u8; OMEGA + 8]) -> Mldsa87Result {
+    *h = Hint::default();
     let mut index = 0;
     for i in 0..8 {
         let limit = in_val[OMEGA + i] as usize;
         if limit < index || limit > OMEGA {
             return Mldsa87Result::SigVerifyFailed;
         }
+        let slice = &in_val[index..limit];
         let mut last: i32 = -1;
-        while index < limit {
-            let byte = in_val[index] as usize;
-            index += 1;
+        for (&byte_u8, out_slot) in slice.iter().zip(h.v[i].v.iter_mut()) {
+            let byte = byte_u8 as usize;
             if last >= 0 && byte <= last as usize {
                 return Mldsa87Result::SigVerifyFailed;
             }
             last = byte as i32;
-            h.v[i].c[byte] = 1;
+            *out_slot = byte_u8;
         }
+        h.v[i].num_hints = slice.len();
+        index = limit;
     }
     for val in in_val.iter().take(OMEGA).skip(index) {
         if *val != 0 {
@@ -743,36 +775,20 @@ fn hint_bit_unpack(h: &mut Vector8, in_val: &[u8; OMEGA + 8]) -> Mldsa87Result {
     Mldsa87Result::Success
 }
 
-fn encode_public_key(out: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES], pub_key: &PublicKey) {
-    out[..K_RHO_BYTES].copy_from_slice(&pub_key.rho);
-    vector8_encode_10(&mut out[K_RHO_BYTES..], &pub_key.t1);
-}
-
-fn decode_public_key(pub_key: &mut PublicKey, in_val: &[u8; MLDSA87_PUBLIC_KEY_BYTES]) {
-    pub_key.rho.copy_from_slice(&in_val[..K_RHO_BYTES]);
-    vector8_decode_10(&mut pub_key.t1, &in_val[K_RHO_BYTES..]);
-}
-
-fn encode_signature(out: &mut [u8; MLDSA87_SIGNATURE_BYTES], sign: &Signature) {
-    out[..2 * LAMBDA_BYTES].copy_from_slice(&sign.c_tilde);
-    vector7_encode_signed_20_19(&mut out[2 * LAMBDA_BYTES..], &sign.z);
-
-    let hint_out: &mut [u8; OMEGA + 8] = (&mut out
-        [2 * LAMBDA_BYTES + 640 * 7..2 * LAMBDA_BYTES + 640 * 7 + OMEGA + 8])
-        .try_into()
-        .unwrap();
-    hint_bit_pack(hint_out, &sign.h);
-}
-
-fn decode_signature(sign: &mut Signature, in_val: &[u8; MLDSA87_SIGNATURE_BYTES]) -> Mldsa87Result {
-    sign.c_tilde.copy_from_slice(&in_val[..2 * LAMBDA_BYTES]);
-    vector7_decode_signed_20_19(&mut sign.z, &in_val[2 * LAMBDA_BYTES..]);
+fn decode_signature(
+    c_tilde: &mut [u8; 2 * LAMBDA_BYTES],
+    z: &mut Vector7,
+    h: &mut Hint,
+    in_val: &[u8; MLDSA87_SIGNATURE_BYTES],
+) -> Mldsa87Result {
+    c_tilde.copy_from_slice(&in_val[..2 * LAMBDA_BYTES]);
+    vector7_decode_signed_20_19(z, &in_val[2 * LAMBDA_BYTES..]);
 
     let hint_in: &[u8; OMEGA + 8] = (&in_val
         [2 * LAMBDA_BYTES + 640 * 7..2 * LAMBDA_BYTES + 640 * 7 + OMEGA + 8])
         .try_into()
         .unwrap();
-    hint_bit_unpack(&mut sign.h, hint_in)
+    hint_bit_unpack(h, hint_in)
 }
 
 /* Main algorithms. */
@@ -817,57 +833,75 @@ fn generate_key_internal(
 
     priv_key.rho.copy_from_slice(rho);
     priv_key.k.copy_from_slice(k);
+    priv_key.sigma.copy_from_slice(sigma);
 
     if let Some(sk) = out_encoded_private_key.as_mut() {
         sk[SK_RHO_OFF..SK_RHO_OFF + K_RHO_BYTES].copy_from_slice(rho);
         sk[SK_K_OFF..SK_K_OFF + K_K_BYTES].copy_from_slice(k);
     }
 
-    vectors78_expand_short(
-        &mut priv_key.s1_ntt,
-        &mut priv_key.s2_ntt,
-        sigma.try_into().unwrap(),
-    );
+    #[allow(clippy::large_enum_variant)]
+    enum KeygenState {
+        V7(Vector7),
+        V8(Vector8),
+    }
+
+    let mut state = KeygenState::V7(Vector7::default());
+    let s1_ntt = match &mut state {
+        KeygenState::V7(v) => v,
+        _ => unreachable!(),
+    };
+    expand_s1_short(s1_ntt, sigma.try_into().unwrap());
 
     // s1 is in normal domain here (before its NTT for the matrix multiply).
     if let Some(sk) = out_encoded_private_key.as_mut() {
-        for (i, scalar) in priv_key.s1_ntt.v.iter().enumerate() {
+        for (i, scalar) in s1_ntt.v.iter().enumerate() {
             let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
             pack_scalar_bits(&mut sk[off..off + SK_S_PACK_BYTES], scalar, 3, 2);
         }
     }
 
-    vector7_ntt(&mut priv_key.s1_ntt);
+    vector7_ntt(s1_ntt);
 
-    let mut t = Vector8::default();
-    matrix87_expand_mul(&mut t, rho.try_into().unwrap(), &priv_key.s1_ntt);
-    vector8_inverse_ntt(&mut t);
-    let t_copy = t;
-    vector8_add(&mut t, &t_copy, &priv_key.s2_ntt);
+    matrix87_expand_mul(&mut priv_key.t0_ntt, rho.try_into().unwrap(), s1_ntt);
+    vector8_inverse_ntt(&mut priv_key.t0_ntt);
 
-    let rho_bytes: [u8; K_RHO_BYTES] = rho.try_into().unwrap();
-    let mut pub_key = PublicKey {
-        rho: rho_bytes,
-        t1: Vector8::default(),
+    state = KeygenState::V8(Vector8::default());
+    let s2_ntt = match &mut state {
+        KeygenState::V8(v) => v,
+        _ => unreachable!(),
     };
-    vector8_power2_round(&mut pub_key.t1, &mut priv_key.t0_ntt, &t);
+    expand_s2_short(s2_ntt, sigma.try_into().unwrap());
 
-    // s2 and t0 are in normal domain here (before their NTTs for signing).
     if let Some(sk) = out_encoded_private_key.as_mut() {
-        for (i, scalar) in priv_key.s2_ntt.v.iter().enumerate() {
+        for (i, scalar) in s2_ntt.v.iter().enumerate() {
             let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
             pack_scalar_bits(&mut sk[off..off + SK_S_PACK_BYTES], scalar, 3, 2);
         }
+    }
+
+    let t0_copy = priv_key.t0_ntt;
+    vector8_add(&mut priv_key.t0_ntt, &t0_copy, s2_ntt);
+
+    state = KeygenState::V8(Vector8::default());
+    let t1 = match &mut state {
+        KeygenState::V8(v) => v,
+        _ => unreachable!(),
+    };
+    vector8_power2_round_in_place(t1, &mut priv_key.t0_ntt);
+
+    // s2 and t0 are in normal domain here (before their NTTs for signing).
+    if let Some(sk) = out_encoded_private_key.as_mut() {
         for (i, scalar) in priv_key.t0_ntt.v.iter().enumerate() {
             let off = SK_T0_OFF + i * SK_T0_PACK_BYTES;
             pack_scalar_bits(&mut sk[off..off + SK_T0_PACK_BYTES], scalar, 13, 1 << 12);
         }
     }
 
-    vector8_ntt(&mut priv_key.s2_ntt);
     vector8_ntt(&mut priv_key.t0_ntt);
 
-    encode_public_key(out_encoded_public_key, &pub_key);
+    out_encoded_public_key[..K_RHO_BYTES].copy_from_slice(rho);
+    vector8_encode_10(&mut out_encoded_public_key[K_RHO_BYTES..], t1);
 
     if out_encoded_private_key.is_some() || out_public_key_hash.is_some() {
         let mut tr = [0u8; K_TR_BYTES];
@@ -911,8 +945,7 @@ pub fn mldsa87_key_pair_from_seed(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
     generate_key_internal(
@@ -945,6 +978,7 @@ fn sign_internal_with_mu(
     priv_key: &PrivateKey,
     mu: &[u8; K_MU_BYTES],
     randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
+    sk_opt: Option<&[u8; MLDSA87_PRIVATE_KEY_BYTES]>,
 ) {
     let mut rho_prime = [0u8; K_RHO_PRIME_BYTES];
     let mut shake256 = Shake256::new();
@@ -953,145 +987,147 @@ fn sign_internal_with_mu(
     shake256.absorb(mu);
     shake256.squeeze(&mut rho_prime);
 
-    let mut sign = Signature {
-        c_tilde: [0u8; 2 * LAMBDA_BYTES],
-        z: Vector7::default(),
-        h: Vector8::default(),
-    };
-    let mut w1 = Vector8::default();
-
-    #[allow(clippy::large_enum_variant)]
-    enum CsVector {
-        V7(Vector7),
-        V8(Vector8),
-    }
-
-    let mut cs;
-
     let mut kappa = 0;
     loop {
-        cs = CsVector::V7(Vector7::default());
-        let cs1 = match &mut cs {
-            CsVector::V7(v) => v,
-            _ => unreachable!(),
-        };
+        let mut tmp = Vector8::default();
+        matrix87_expand_mul_mask(&mut tmp, &priv_key.rho, &rho_prime, kappa);
+        vector8_inverse_ntt(&mut tmp);
 
-        vector7_expand_mask(&mut sign.z, &rho_prime, kappa);
-        vector7_ntt(&mut sign.z);
-
-        matrix87_expand_mul(&mut sign.h, &priv_key.rho, &sign.z);
-        vector8_inverse_ntt(&mut sign.h);
-
-        vector8_high_bits(&mut w1, &sign.h);
-        let mut w1_encoded = [0u8; 128 * 8];
-        w1_encode(&mut w1_encoded, &w1);
-
+        let mut c_tilde = [0u8; 2 * LAMBDA_BYTES];
         let mut shake256 = Shake256::new();
         shake256.absorb(mu);
-        shake256.absorb(&w1_encoded);
-        shake256.squeeze(&mut sign.c_tilde);
+        for i in 0..8 {
+            let mut w1_encoded_part = [0u8; 128];
+            let mut temp = Scalar::default();
+            scalar_high_bits(&mut temp, &tmp.v[i]);
+            scalar_encode_4(&mut w1_encoded_part, &temp);
+            shake256.absorb(&w1_encoded_part);
+        }
+        shake256.squeeze(&mut c_tilde);
 
         let mut c_ntt = Scalar::default();
-        scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
+        scalar_sample_in_ball_vartime(&mut c_ntt, &c_tilde, c_tilde.len());
         scalar_ntt(&mut c_ntt);
 
-        vector7_mul_scalar(cs1, &priv_key.s1_ntt, &c_ntt);
-        vector7_inverse_ntt(cs1);
+        out_encoded_signature[..2 * LAMBDA_BYTES].copy_from_slice(&c_tilde);
 
-        vector7_expand_mask(&mut sign.z, &rho_prime, kappa);
+        let mut z_max = 0u32;
+        let mut mask_seed = [0u8; K_RHO_PRIME_BYTES + 2];
+        mask_seed[..K_RHO_PRIME_BYTES].copy_from_slice(&rho_prime);
 
-        // Inline implementation of vector7_add to prevent creating a copy to save stack space
-        for (lhs, rhs) in sign.z.v.iter_mut().zip(cs1.v.iter()) {
-            // Inline implementaiton of scalar_add
-            for (lhs, rhs) in lhs.c.iter_mut().zip(rhs.c.iter()) {
-                *lhs = reduce_once(lhs.wrapping_add(*rhs));
-            }
+        for i in 0..7 {
+            let mut cs_i = Scalar::default();
+            expand_s1_ntt_mul_scalar(&mut cs_i, i, &priv_key.sigma, sk_opt, &c_ntt);
+            scalar_inverse_ntt(&mut cs_i);
+
+            let mut z_i = Scalar::default();
+            let index = kappa + i;
+            mask_seed[K_RHO_PRIME_BYTES] = (index & 0xFF) as u8;
+            mask_seed[K_RHO_PRIME_BYTES + 1] = ((index >> 8) & 0xFF) as u8;
+            scalar_sample_mask(&mut z_i, &mask_seed);
+            let z_copy = z_i;
+            scalar_add(&mut z_i, &z_copy, &cs_i);
+
+            scalar_max(&mut z_max, &z_i);
+
+            let out_slice = &mut out_encoded_signature
+                [2 * LAMBDA_BYTES + i * 640..2 * LAMBDA_BYTES + (i + 1) * 640];
+            scalar_encode_signed_20_19(out_slice, &z_i);
         }
 
-        cs = CsVector::V8(Vector8::default());
-        let cs2 = match &mut cs {
-            CsVector::V8(v) => v,
-            _ => unreachable!(),
-        };
+        let mut r0_max = 0u32;
+        let mut ct0_max = 0u32;
+        let mut h_ones = 0usize;
 
-        vector8_mul_scalar(cs2, &priv_key.s2_ntt, &c_ntt);
-        vector8_inverse_ntt(cs2);
+        for i in 0..8 {
+            let mut cs_i = Scalar::default();
+            expand_s2_ntt_mul_scalar(&mut cs_i, i, &priv_key.sigma, sk_opt, &c_ntt);
+            scalar_inverse_ntt(&mut cs_i);
 
-        let r0 = &mut w1;
-        vector8_sub(r0, &sign.h, cs2);
+            let mut r0_i = Scalar::default();
+            scalar_sub(&mut r0_i, &tmp.v[i], &cs_i);
+            let r0_copy = r0_i;
+            scalar_low_bits(&mut r0_i, &r0_copy);
 
-        // Inline implementation of vector8_low_bits to prevent creating a copy to save stack space
-        for s in r0.v.iter_mut() {
-            // Inline implementation of scalar_low_bits
-            for c in s.c.iter_mut() {
-                *c = low_bits(*c) as u32;
+            scalar_max_signed(&mut r0_max, &r0_i);
+
+            let ct0_i = &mut r0_i;
+            scalar_mul(ct0_i, &priv_key.t0_ntt.v[i], &c_ntt);
+            scalar_inverse_ntt(ct0_i);
+
+            // Inline implementation of vector8_make_hint to prevent creating a copy to save stack space
+            for (tmp_c, (ct0_c, cs2_c)) in
+                tmp.v[i].c.iter_mut().zip(ct0_i.c.iter().zip(cs_i.c.iter()))
+            {
+                *tmp_c = make_hint(*ct0_c, *cs2_c, *tmp_c) as u32;
             }
+
+            scalar_max(&mut ct0_max, ct0_i);
+            h_ones += scalar_count_ones(&tmp.v[i]);
         }
 
-        let z_max = vector7_max(&sign.z);
-        let r0_max = vector8_max_signed(r0);
-
-        if (ct_ge(z_max, GAMMA1.wrapping_sub(BETA)) | ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA)))
+        if (ct_ge(z_max, GAMMA1.wrapping_sub(BETA))
+            | ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA))
+            | ct_ge(ct0_max, K_GAMMA_2)
+            | ct_lt(OMEGA as u32, h_ones as u32))
             != 0
         {
             kappa += 7;
             continue;
         }
 
-        let ct0 = &mut w1;
-        vector8_mul_scalar(ct0, &priv_key.t0_ntt, &c_ntt);
-        vector8_inverse_ntt(ct0);
-
-        // Inline implementation of vector8_make_hint to prevent creating a copy to save stack space
-        for (sign_s, (ct0_s, cs2_s)) in sign.h.v.iter_mut().zip(ct0.v.iter().zip(cs2.v.iter())) {
-            // Inline implementation of scalar_make_hint
-            for (sign_c, (ct0_c, cs2_c)) in
-                sign_s.c.iter_mut().zip(ct0_s.c.iter().zip(cs2_s.c.iter()))
-            {
-                *sign_c = make_hint(*ct0_c, *cs2_c, *sign_c) as u32;
-            }
-        }
-
-        let ct0_max = vector8_max(ct0);
-        let h_ones = vector8_count_ones(&sign.h);
-
-        if (ct_ge(ct0_max, K_GAMMA_2) | ct_lt(OMEGA as u32, h_ones as u32)) != 0 {
-            kappa += 7;
-            continue;
-        }
-
-        encode_signature(out_encoded_signature, &sign);
+        let hint_out: &mut [u8; OMEGA + 8] = (&mut out_encoded_signature
+            [2 * LAMBDA_BYTES + 640 * 7..2 * LAMBDA_BYTES + 640 * 7 + OMEGA + 8])
+            .try_into()
+            .unwrap();
+        hint_bit_pack(hint_out, &tmp);
         return;
     }
 }
 
 fn verify_internal_with_mu(
-    pub_key: &PublicKey,
+    encoded_public_key: &[u8; MLDSA87_PUBLIC_KEY_BYTES],
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     mu: &[u8; K_MU_BYTES],
 ) -> Mldsa87Result {
-    let mut sign = Signature {
-        c_tilde: [0u8; 2 * LAMBDA_BYTES],
-        z: Vector7::default(),
-        h: Vector8::default(),
+    let mut sig_c_tilde = [0u8; 2 * LAMBDA_BYTES];
+    let mut h = Hint::default();
+
+    #[allow(clippy::large_enum_variant)]
+    enum VerifyState {
+        V7(Vector7),
+        V8(Vector8),
+    }
+
+    let mut state = VerifyState::V7(Vector7::default());
+    let z = match &mut state {
+        VerifyState::V7(v) => v,
+        _ => unreachable!(),
     };
-    if decode_signature(&mut sign, encoded_signature) != Mldsa87Result::Success {
+    if decode_signature(&mut sig_c_tilde, z, &mut h, encoded_signature) != Mldsa87Result::Success {
         return Mldsa87Result::SigVerifyFailed;
     }
 
-    let z_max = vector7_max(&sign.z);
-    vector7_ntt(&mut sign.z);
+    let z_max = vector7_max(z);
+    vector7_ntt(z);
 
     let mut c_ntt = Scalar::default();
-    scalar_sample_in_ball_vartime(&mut c_ntt, &sign.c_tilde, sign.c_tilde.len());
+    scalar_sample_in_ball_vartime(&mut c_ntt, &sig_c_tilde, sig_c_tilde.len());
     scalar_ntt(&mut c_ntt);
 
+    let pub_rho: &[u8; K_RHO_BYTES] = (&encoded_public_key[..K_RHO_BYTES]).try_into().unwrap();
     let mut az_ntt = Vector8::default();
-    matrix87_expand_mul(&mut az_ntt, &pub_key.rho, &sign.z);
+    matrix87_expand_mul(&mut az_ntt, pub_rho, z);
 
-    let mut ct1_ntt = Vector8::default();
-    vector8_scale_power2_round(&mut ct1_ntt, &pub_key.t1);
-    vector8_ntt(&mut ct1_ntt);
+    state = VerifyState::V8(Vector8::default());
+    let ct1_ntt = match &mut state {
+        VerifyState::V8(v) => v,
+        _ => unreachable!(),
+    };
+    vector8_decode_10(ct1_ntt, &encoded_public_key[K_RHO_BYTES..]);
+    let ct1_copy = *ct1_ntt;
+    vector8_scale_power2_round(ct1_ntt, &ct1_copy);
+    vector8_ntt(ct1_ntt);
     // Multiply each Scalar by c_ntt in place. Avoids the 8 KiB Vector8 copy
     // that vector8_mul_scalar would require: on stack-constrained targets pushes verify over budget
     for i in 0..8 {
@@ -1100,25 +1136,26 @@ fn verify_internal_with_mu(
     }
 
     let mut w1 = Vector8::default();
-    vector8_sub(&mut w1, &az_ntt, &ct1_ntt);
+    vector8_sub(&mut w1, &az_ntt, ct1_ntt);
     vector8_inverse_ntt(&mut w1);
 
     // Apply the verifier hint in place, per-Scalar, for the same stack-budget
     // reason as above (avoids an 8 KiB Vector8 copy of w1).
     for i in 0..8 {
         let r = w1.v[i];
-        scalar_use_hint(&mut w1.v[i], &sign.h.v[i], &r);
+        scalar_use_hint_sparse(&mut w1.v[i], &h.v[i], &r);
     }
-    let mut w1_encoded = [0u8; 128 * 8];
-    w1_encode(&mut w1_encoded, &w1);
-
     let mut c_tilde = [0u8; 2 * LAMBDA_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(mu);
-    shake256.absorb(&w1_encoded);
+    for i in 0..8 {
+        let mut w1_encoded_part = [0u8; 128];
+        scalar_encode_4(&mut w1_encoded_part, &w1.v[i]);
+        shake256.absorb(&w1_encoded_part);
+    }
     shake256.squeeze(&mut c_tilde);
 
-    if z_max < (GAMMA1 - BETA) && c_tilde == sign.c_tilde {
+    if z_max < (GAMMA1 - BETA) && c_tilde == sig_c_tilde {
         Mldsa87Result::Success
     } else {
         Mldsa87Result::SigVerifyFailed
@@ -1131,21 +1168,20 @@ fn verify_with_mu_context(
     msg: &[u8],
     context: &[u8],
 ) -> Mldsa87Result {
-    let mut tr = [0u8; K_TR_BYTES];
+    let mut tr_mu = [0u8; K_TR_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(encoded_public_key);
-    shake256.squeeze(&mut tr);
+    shake256.squeeze(&mut tr_mu);
 
-    let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
-    shake256.absorb(&tr);
+    shake256.absorb(&tr_mu);
     let context_prefix = [0u8, context.len() as u8];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
-    shake256.squeeze(&mut mu);
+    shake256.squeeze(&mut tr_mu);
 
-    mldsa87_verify_mu(encoded_public_key, encoded_signature, &mu)
+    mldsa87_verify_mu(encoded_public_key, encoded_signature, &tr_mu)
 }
 
 /* Public API. */
@@ -1157,8 +1193,7 @@ pub fn mldsa87_pub_from_seed(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
     generate_key_internal(
@@ -1179,22 +1214,20 @@ pub fn mldsa87_sign(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
-    let mut tr = [0u8; K_TR_BYTES];
-    generate_priv_internal(&mut priv_key, private_key_seed, Some(&mut tr));
+    let mut tr_mu = [0u8; K_TR_BYTES];
+    generate_priv_internal(&mut priv_key, private_key_seed, Some(&mut tr_mu));
 
-    let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
-    shake256.absorb(&tr);
+    shake256.absorb(&tr_mu);
     let context_prefix = [0u8, 0];
     shake256.absorb(&context_prefix);
     shake256.absorb(msg);
-    shake256.squeeze(&mut mu);
+    shake256.squeeze(&mut tr_mu);
 
-    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, &tr_mu, randomizer, None);
 }
 
 pub fn mldsa87_sign_deterministic(
@@ -1215,12 +1248,11 @@ pub fn mldsa87_sign_mu(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
     generate_priv_internal(&mut priv_key, private_key_seed, None);
-    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer, None);
 }
 
 pub fn mldsa87_sign_mu_deterministic(
@@ -1245,12 +1277,7 @@ pub fn mldsa87_verify_mu(
     encoded_signature: &[u8; MLDSA87_SIGNATURE_BYTES],
     mu: &[u8; K_MU_BYTES],
 ) -> Mldsa87Result {
-    let mut pub_key = PublicKey {
-        rho: [0u8; K_RHO_BYTES],
-        t1: Vector8::default(),
-    };
-    decode_public_key(&mut pub_key, encoded_public_key);
-    verify_internal_with_mu(&pub_key, encoded_signature, mu)
+    verify_internal_with_mu(encoded_public_key, encoded_signature, mu)
 }
 
 /// Verification entry point that accepts a signing `context`.
@@ -1270,7 +1297,6 @@ pub fn mldsa87_verify_with_context(
 
 /// Inverse of [`pack_scalar_bits`]: recover each coefficient from its packed
 /// form via `mod_sub(sub, packed)`.  Only used by the ACVP sigGen harness.
-#[cfg(test)]
 fn unpack_scalar_bits(s: &mut Scalar, data: &[u8], bits: u32, sub: u32) {
     for (out_chunk, in_chunk) in
         s.c.chunks_exact_mut(8)
@@ -1304,28 +1330,6 @@ fn decode_private_key_internal(
         .copy_from_slice(&sk[SK_K_OFF..SK_K_OFF + K_K_BYTES]);
     let tr: [u8; K_TR_BYTES] = sk[SK_TR_OFF..SK_TR_OFF + K_TR_BYTES].try_into().unwrap();
 
-    for i in 0..7 {
-        let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
-        unpack_scalar_bits(
-            &mut priv_key.s1_ntt.v[i],
-            &sk[off..off + SK_S_PACK_BYTES],
-            3,
-            2,
-        );
-    }
-    vector7_ntt(&mut priv_key.s1_ntt);
-
-    for i in 0..8 {
-        let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
-        unpack_scalar_bits(
-            &mut priv_key.s2_ntt.v[i],
-            &sk[off..off + SK_S_PACK_BYTES],
-            3,
-            2,
-        );
-    }
-    vector8_ntt(&mut priv_key.s2_ntt);
-
     for i in 0..8 {
         let off = SK_T0_OFF + i * SK_T0_PACK_BYTES;
         unpack_scalar_bits(
@@ -1356,8 +1360,7 @@ pub fn mldsa87_sign_with_context_from_sk(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
     let tr = decode_private_key_internal(&mut priv_key, sk);
@@ -1371,7 +1374,7 @@ pub fn mldsa87_sign_with_context_from_sk(
     shake256.absorb(msg);
     shake256.squeeze(&mut mu);
 
-    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer, Some(sk));
 }
 
 /// Deterministic variant of [`mldsa87_sign_with_context_from_sk`].
@@ -1401,12 +1404,11 @@ pub fn mldsa87_sign_mu_from_sk(
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
-        s1_ntt: Vector7::default(),
-        s2_ntt: Vector8::default(),
+        sigma: [0u8; K_SIGMA_BYTES],
         t0_ntt: Vector8::default(),
     };
     decode_private_key_internal(&mut priv_key, sk);
-    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer);
+    sign_internal_with_mu(out_encoded_signature, &priv_key, mu, randomizer, Some(sk));
 }
 
 /// Compute `mu` (the 64-byte message representative) from a private key seed
