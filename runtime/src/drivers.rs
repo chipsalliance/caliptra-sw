@@ -276,6 +276,7 @@ impl Drivers {
     }
 
     /// Validate DPE and disable attestation if validation fails
+    #[inline(never)]
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let dpe_validator = DpeValidator { dpe };
@@ -440,6 +441,7 @@ impl Drivers {
     }
 
     /// Check that inactive DPE contexts do not have context tags set
+    #[inline(never)]
     fn validate_context_tags(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = &pdata.context_has_tag;
