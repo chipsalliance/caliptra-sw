@@ -485,3 +485,150 @@ pub fn run_command_suite(
 
     results
 }
+
+/// Drive the PQC (ML-DSA-87) commands through `sampler`, in dependency order,
+/// and return `(name, measurement)` pairs unsorted.
+///
+/// `SET_PQ_SEED` provisions the PQ.DevID CDI and enables PQC mode, so it must
+/// precede `GET_PQ_CSR` and `CERTIFY_KEY_EXTENDED_MLDSA87` — otherwise both
+/// early-return before their maximal ML-DSA-87 keygen+sign flow. The remaining
+/// commands (`MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`, `POPULATE_PQ_CERT`) do
+/// not depend on PQC-mode provisioning but are grouped here so every
+/// `mldsa_attestation`-gated command is measured in one place. Because none of
+/// these have side effects that break the standard suite (unlike `SHUTDOWN`), a
+/// caller should measure this suite *before* `run_command_suite`.
+///
+/// Two `mldsa_attestation` commands are intentionally excluded: `INVOKE_DPE_MLDSA87`
+/// is a stub that unconditionally returns `RUNTIME_UNIMPLEMENTED_COMMAND`, and
+/// `SIGN_WITH_EXPORTED_MLDSA` cannot reach its ML-DSA sign path because nothing
+/// yet populates the exported ML-DSA CDI slot — both would only measure an early
+/// return, not a representative ML-DSA flow.
+#[cfg(feature = "mldsa_attestation")]
+pub fn run_pqc_command_suite(
+    model: &mut DefaultHwModel,
+    sampler: &mut dyn CommandSampler,
+) -> Vec<(&'static str, u64)> {
+    use caliptra_common::mailbox_api::{
+        CertifyKeyExtendedMldsa87Req, GetPqCertReq, Mldsa87VerifyReq, PopulatePqCertReq,
+        SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
+    };
+    use caliptra_mldsa::{
+        Mldsa87, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
+    };
+    use dpe::commands::CertifyKeyMldsa87Cmd;
+    use openssl::sha::sha384;
+
+    let mut results = Vec::new();
+
+    // SET_PQ_SEED — provisions the PQ.DevID CDI / enables PQC mode.
+    results.push((
+        "SET_PQ_SEED",
+        measure_req(
+            sampler,
+            model,
+            CommandId::SET_PQ_SEED,
+            MailboxReq::SetPqSeed(SetPqSeedReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
+            }),
+        ),
+    ));
+
+    // GET_PQ_CSR — header-only request; runs the full ML-DSA-87 keygen+sign+CSR path.
+    results.push((
+        "GET_PQ_CSR",
+        measure_hdr(sampler, model, CommandId::GET_PQ_CSR),
+    ));
+
+    // CERTIFY_KEY_EXTENDED_MLDSA87 — certify the default DPE context under the
+    // ML-DSA-87 (PQ.DevID) identity (leaf keygen + alias signing).
+    let certify_key_cmd = CertifyKeyMldsa87Cmd {
+        handle: ContextHandle::default(),
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+        label: TEST_LABEL,
+    };
+    results.push((
+        "CERTIFY_KEY_EXTENDED_MLDSA87",
+        measure_req(
+            sampler,
+            model,
+            CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
+            MailboxReq::CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req {
+                hdr: MailboxReqHeader { chksum: 0 },
+                flags: CertifyKeyExtendedFlags::empty(),
+                certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
+            }),
+        ),
+    ));
+
+    // MLDSA87_SIGNATURE_VERIFY — digest pulled from the SHA accelerator (same
+    // pattern as ECDSA384_VERIFY / LMS_VERIFY). A real keypair+signature is used
+    // so the full ML-DSA-87 verify runs rather than early-rejecting a malformed
+    // signature. Boxed to keep the ~7 KB of crypto material off this frame.
+    {
+        const VERIFY_SEED: [u8; MLDSA87_PRIVATE_SEED_BYTES] = [0x42; MLDSA87_PRIVATE_SEED_BYTES];
+        const VERIFY_MSG: &[u8] = b"caliptra mldsa-87 timing/stack measurement message";
+        let mut pub_key = Box::new([0u8; MLDSA87_PUBLIC_KEY_BYTES]);
+        let mut signature = Box::new([0u8; MLDSA87_SIGNATURE_BYTES]);
+        Mldsa87::pub_from_seed(&VERIFY_SEED, &mut pub_key);
+        Mldsa87::sign_deterministic(&VERIFY_SEED, &sha384(VERIFY_MSG), &mut signature);
+        model
+            .compute_sha512_acc_digest(VERIFY_MSG, ShaAccMode::Sha384Stream)
+            .unwrap();
+        let mut req = Box::new(Mldsa87VerifyReq::default());
+        req.pub_key = *pub_key;
+        req.signature = *signature;
+        results.push((
+            "MLDSA87_SIGNATURE_VERIFY",
+            measure_req(
+                sampler,
+                model,
+                CommandId::MLDSA87_SIGNATURE_VERIFY,
+                MailboxReq::Mldsa87Verify(*req),
+            ),
+        ));
+    }
+
+    // GET_PQ_CERT — assemble an ML-DSA-87 DER certificate from the caller's
+    // TBS + signature. The handler embeds the signature bytes without verifying
+    // them, so a zero signature exercises the same DER-assembly path.
+    {
+        const TBS: &[u8] = b"caliptra pq cert measurement tbs";
+        let mut req = Box::new(GetPqCertReq::default());
+        req.tbs[..TBS.len()].copy_from_slice(TBS);
+        req.tbs_size = TBS.len() as u32;
+        results.push((
+            "GET_PQ_CERT",
+            measure_req(
+                sampler,
+                model,
+                CommandId::GET_PQ_CERT,
+                MailboxReq::GetPqCert(*req),
+            ),
+        ));
+    }
+
+    // POPULATE_PQ_CERT — store a PQ certificate (data movement; PL0-only).
+    // Mirrors POPULATE_IDEV_CERT in the standard suite.
+    {
+        let cert_bytes = [0xa5u8; 64];
+        let mut req = Box::new(PopulatePqCertReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            cert_size: cert_bytes.len() as u32,
+            cert: [0u8; PopulatePqCertReq::MAX_CERT_SIZE],
+        });
+        req.cert[..cert_bytes.len()].copy_from_slice(&cert_bytes);
+        results.push((
+            "POPULATE_PQ_CERT",
+            measure_req(
+                sampler,
+                model,
+                CommandId::POPULATE_PQ_CERT,
+                MailboxReq::PopulatePqCert(*req),
+            ),
+        ));
+    }
+
+    results
+}
