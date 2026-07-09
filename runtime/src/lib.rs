@@ -460,6 +460,7 @@ impl DpeEnv for CaliptraDpeEnv<'_> {
     }
 }
 
+#[inline(never)]
 fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -503,8 +504,8 @@ fn ec_dpe_env(
     })
 }
 
-#[allow(dead_code)]
 #[cfg(feature = "mldsa_attestation")]
+#[inline(never)]
 fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
