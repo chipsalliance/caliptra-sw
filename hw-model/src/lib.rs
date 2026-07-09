@@ -938,7 +938,7 @@ pub trait HwModel: SocManager {
     /// Wait for the response to a previous call to `start_mailbox_execute()`.
     fn finish_mailbox_execute(&mut self) -> std::result::Result<Option<Vec<u8>>, ModelError> {
         // Wait for the microcontroller to finish executing
-        let mut timeout_cycles = 40000000; // 100ms @400MHz
+        let mut timeout_cycles = 400000000; // 1s @400MHz
         while self.soc_mbox().status().read().status().cmd_busy() {
             self.step();
             timeout_cycles -= 1;
