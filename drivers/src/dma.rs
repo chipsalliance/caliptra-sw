@@ -1180,8 +1180,10 @@ impl<'a> DmaRecovery<'a> {
 
     /// Feed `length` bytes from `source` into the SHA accelerator's `datain`
     /// (`write_addr`) in <= [`DMA_MAX_XFER_SIZE`] chunks; the digest matches a
-    /// single transfer. AES is rejected: its cipher context is per-DMA-command,
-    /// so it cannot be split into multiple transfers like the caller expects.
+    /// single transfer. AES cannot be chunked (its cipher context is
+    /// per-DMA-command), so an AES payload is sent as a single transfer and is
+    /// therefore limited to [`DMA_MAX_XFER_SIZE`]; a larger AES payload is
+    /// rejected.
     fn chunked_sha_datain(
         &self,
         source: AxiAddr,
@@ -1190,7 +1192,10 @@ impl<'a> DmaRecovery<'a> {
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<()> {
         if aes_mode.aes() {
-            return Err(CaliptraError::DRIVER_DMA_AES_CHUNKING_UNSUPPORTED);
+            if length > Self::DMA_MAX_XFER_SIZE {
+                return Err(CaliptraError::DRIVER_DMA_AES_CHUNKING_UNSUPPORTED);
+            }
+            return self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode);
         }
 
         for offset in (0..length).step_by(Self::DMA_MAX_XFER_SIZE as usize) {
