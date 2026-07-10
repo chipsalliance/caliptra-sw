@@ -50,7 +50,8 @@ pub const PQ_DEVID_CDI_SIZE: u32 = 48;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
 #[cfg(feature = "mldsa_attestation")]
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
-pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2 - PQ_DEVID_CDI_SIZE - PQC_STATUS_FLAGS_SIZE;
+pub const RESERVED_MEMORY_SIZE: u32 =
+    (3 * 1024) - 2 - PQ_DEVID_CDI_SIZE - PQC_STATUS_FLAGS_SIZE - MLDSA_EXPORTED_CDI_HANDLES_SIZE;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
@@ -91,6 +92,35 @@ impl Zeroize for ExportedCdiHandles {
         self.zeroize_scrub();
     }
 }
+
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
+pub struct MldsaExportedCdiEntry {
+    pub cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
+    pub handle: ExportedCdiHandle,
+    pub active: U8Bool,
+}
+
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+impl ZeroizeWithByteScrub for MldsaExportedCdiEntry {}
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+impl Zeroize for MldsaExportedCdiEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
+}
+
+// When the struct is compiled, derive the size from it; otherwise use the hardcoded value.
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = size_of::<MldsaExportedCdiEntry>() as u32;
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW: u32 = PQ_DEVID_CDI_SIZE + 32 + 1; // cdi + handle + active
+#[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW; // cdi + handle + active
+
+// Verify the hardcoded formula used above matches the actual struct layout.
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+const _: () =
+    assert!(size_of::<MldsaExportedCdiEntry>() == MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW as usize);
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<State>()
@@ -330,6 +360,11 @@ pub struct PersistentData {
     #[cfg(not(feature = "mldsa_attestation"))]
     pqc_status_flags: u8,
 
+    #[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+    pub mldsa_exported_cdi_slots: MldsaExportedCdiEntry,
+    #[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+    mldsa_exported_cdi_slots: [u8; MLDSA_EXPORTED_CDI_HANDLES_SIZE as usize],
+
     // Reserved memory for future objects.
     // New objects should always source memory from this range.
     // Taking memory from this reserve does NOT break hitless updates.
@@ -460,6 +495,11 @@ impl PersistentData {
             );
 
             persistent_data_offset += PQC_STATUS_FLAGS_SIZE;
+            assert_eq!(
+                addr_of!((*P).mldsa_exported_cdi_slots) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += MLDSA_EXPORTED_CDI_HANDLES_SIZE;
             assert_eq!(
                 addr_of!((*P).reserved_memory) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
