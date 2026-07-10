@@ -180,6 +180,7 @@ fn enter_idle(drivers: &mut Drivers) {
 /// # Returns
 ///
 /// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
+#[inline(never)]
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Drop all commands for invalid PAUSER
     if drivers.mbox.user() == RESERVED_PAUSER {
